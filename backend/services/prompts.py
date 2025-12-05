@@ -122,9 +122,9 @@ def get_page_description_prompt(idea_prompt: str, outline: list,
         格式化后的 prompt 字符串
     """
     return dedent(f"""\
-    we are generating the text desciption for each ppt page.
+    we are generating the text descriptionfor each ppt page.
     the original user request is: \n{idea_prompt}\n
-    We already have the entire ouline: \n{outline}\n{part_info}
+    We already have the entire outline: \n{outline}\n{part_info}
     Now please generate the description for page {page_index}:
     {page_outline}
     The description includes page title, text to render(keep it concise), don't include any other text.
@@ -173,8 +173,8 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         extra_req_text = f"\n\n额外要求（请务必遵循）：\n{extra_requirements}\n"
     
     return dedent(f"""\
-    利用专业平面设计知识，根据参考图片的色彩与风格生成一页设计风格相同的ppt页面，作为整个ppt的其中一页，内容是:
-    {page_desc}（文字内容一致即可，表点符号、文字布局可以美化）
+    利用专业平面设计知识，根据参考图片的配色与风格生成一页设计风格相同的ppt页面，作为整个ppt的其中一页，页面描述如下:
+    {page_desc}（PPT页面实际渲染文字的标点符号、文字布局可以进一步设计美化，但其他文字内容需和“页面描述”完全一致）
     
     ---
     整个ppt的大纲为：
@@ -182,7 +182,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
     
     当前位于章节：{current_section}
     
-    要求文字清晰锐利，画面为4k分辨率 16:9比例.画面风格与配色保持严格一致。ppt使用全中文。{material_images_note}{extra_req_text}
+    要求文字清晰锐利，画面为4K分辨率 16:9比例。画面配色与风格保持严格一致。ppt使用全中文。{material_images_note}{extra_req_text}
     """)
 
 
