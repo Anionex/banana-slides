@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, Send, Sparkles } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -18,9 +18,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast } from '@/components/shared';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
+import { refineOutline } from '@/api/endpoints';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器
@@ -66,7 +67,10 @@ export const OutlineEditor: React.FC = () => {
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [aiRequirement, setAiRequirement] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
   const { confirm, ConfirmDialog } = useConfirm();
+  const { show, ToastContainer } = useToast();
 
   // 加载项目数据
   useEffect(() => {
@@ -120,6 +124,90 @@ export const OutlineEditor: React.FC = () => {
       // generateOutline 内部已经调用了 syncProject，这里不需要再次调用
     } catch (error) {
       console.error('生成大纲失败:', error);
+    }
+  };
+
+  const handleAiRefine = async () => {
+    if (!currentProject || !projectId) return;
+    
+    if (!aiRequirement.trim()) {
+      show({ message: '请输入您的要求', type: 'warning' });
+      return;
+    }
+
+    if (currentProject.pages.length === 0) {
+      show({ message: '请先生成大纲', type: 'warning' });
+      return;
+    }
+
+    setIsRefining(true);
+    try {
+      const response = await refineOutline(projectId, aiRequirement.trim());
+      
+      // 同步项目数据以获取最新的页面
+      await syncProject(projectId);
+      
+      show({ 
+        message: response.data?.message || '大纲优化成功', 
+        type: 'success' 
+      });
+      
+      // 清空输入框
+      setAiRequirement('');
+    } catch (error: any) {
+      console.error('优化大纲失败:', error);
+      const errorMessage = error?.response?.data?.error?.message 
+        || error?.message 
+        || '优化失败，请稍后重试';
+      show({ message: errorMessage, type: 'error' });
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  // 处理 Ctrl+Enter 快捷键
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleAiRefine();
+    }
+  };
+
+  const handleRefineOutline = async () => {
+    if (!currentProject || !projectId) return;
+    
+    if (!aiRequirement.trim()) {
+      show({ message: '请输入您的要求', type: 'warning' });
+      return;
+    }
+    
+    if (currentProject.pages.length === 0) {
+      show({ message: '请先生成大纲', type: 'warning' });
+      return;
+    }
+    
+    setIsRefining(true);
+    try {
+      await refineOutline(projectId, aiRequirement.trim());
+      await syncProject(projectId);
+      show({ message: '大纲优化成功', type: 'success' });
+      setAiRequirement(''); // 清空输入框
+    } catch (error: any) {
+      console.error('大纲优化失败:', error);
+      show({ 
+        message: `优化失败: ${error.message || '未知错误'}`, 
+        type: 'error' 
+      });
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl+Enter 或 Cmd+Enter 提交
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleRefineOutline();
     }
   };
 

@@ -20,7 +20,9 @@ from .prompts import (
     get_image_generation_prompt,
     get_image_edit_prompt,
     get_description_to_outline_prompt,
-    get_description_split_prompt
+    get_description_split_prompt,
+    get_outline_refinement_prompt,
+    get_descriptions_refinement_prompt
 )
 
 logger = logging.getLogger(__name__)
@@ -450,6 +452,88 @@ class AIService:
         response = self.client.models.generate_content(
             model=self.text_model,
             contents=split_prompt,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=1000),
+            ),
+        )
+        
+        descriptions_json = response.text.strip().strip("```json").strip("```").strip()
+        descriptions = json.loads(descriptions_json)
+        
+        # 确保返回的是字符串列表
+        if isinstance(descriptions, list):
+            return [str(desc) for desc in descriptions]
+        else:
+            raise ValueError("Expected a list of page descriptions, but got: " + str(type(descriptions)))
+    
+    def refine_outline(self, current_outline: List[Dict], user_requirement: str,
+                      idea_prompt: str = None,
+                      reference_files_content: Optional[List[Dict[str, str]]] = None,
+                      previous_requirements: Optional[List[str]] = None) -> List[Dict]:
+        """
+        根据用户要求优化已有大纲
+        
+        Args:
+            current_outline: 当前的大纲结构
+            user_requirement: 用户的新要求
+            idea_prompt: 原始的想法提示（可选）
+            reference_files_content: 可选的参考文件内容列表
+            previous_requirements: 之前的修改要求列表（可选）
+        
+        Returns:
+            优化后的大纲结构
+        """
+        refinement_prompt = get_outline_refinement_prompt(
+            current_outline=current_outline,
+            user_requirement=user_requirement,
+            idea_prompt=idea_prompt,
+            reference_files_content=reference_files_content,
+            previous_requirements=previous_requirements
+        )
+        
+        response = self.client.models.generate_content(
+            model=self.text_model,
+            contents=refinement_prompt,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=1000),
+            ),
+        )
+        
+        outline_json = response.text.strip().strip("```json").strip("```").strip()
+        outline = json.loads(outline_json)
+        return outline
+    
+    def refine_descriptions(self, current_descriptions: List[Dict], user_requirement: str,
+                           idea_prompt: str = None,
+                           outline: List[Dict] = None,
+                           reference_files_content: Optional[List[Dict[str, str]]] = None,
+                           previous_requirements: Optional[List[str]] = None) -> List[str]:
+        """
+        根据用户要求优化已有页面描述
+        
+        Args:
+            current_descriptions: 当前的页面描述列表，每个元素包含 {index, title, description_content}
+            user_requirement: 用户的新要求
+            idea_prompt: 原始的想法提示（可选）
+            outline: 完整的大纲结构（可选）
+            reference_files_content: 可选的参考文件内容列表
+            previous_requirements: 之前的修改要求列表（可选）
+        
+        Returns:
+            优化后的页面描述列表（字符串列表）
+        """
+        refinement_prompt = get_descriptions_refinement_prompt(
+            current_descriptions=current_descriptions,
+            user_requirement=user_requirement,
+            idea_prompt=idea_prompt,
+            outline=outline,
+            reference_files_content=reference_files_content,
+            previous_requirements=previous_requirements
+        )
+        
+        response = self.client.models.generate_content(
+            model=self.text_model,
+            contents=refinement_prompt,
             config=types.GenerateContentConfig(
                 thinking_config=types.ThinkingConfig(thinking_budget=1000),
             ),

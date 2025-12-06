@@ -709,3 +709,302 @@ def get_task_status(project_id, task_id):
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 
+
+@project_bp.route('/<project_id>/refine/outline', methods=['POST'])
+def refine_outline(project_id):
+    """
+    POST /api/projects/{project_id}/refine/outline - Refine outline based on user requirements
+    
+    Request body:
+    {
+        "user_requirement": "用户要求，例如：增加一页关于XXX的内容"
+    }
+    """
+    try:
+        project = Project.query.get(project_id)
+        
+        if not project:
+            return not_found('Project')
+        
+        data = request.get_json()
+        
+        if not data or not data.get('user_requirement'):
+            return bad_request("user_requirement is required")
+        
+        user_requirement = data['user_requirement']
+        
+        # Get current outline from pages
+        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        
+        if not pages:
+            return bad_request("No pages found for project. Please generate outline first.")
+        
+        # Reconstruct current outline from pages
+        current_outline = []
+        current_part = None
+        current_part_pages = []
+        
+        for page in pages:
+            outline_content = page.get_outline_content()
+            if not outline_content:
+                continue
+                
+            page_data = outline_content.copy()
+            
+            # 如果当前页面属于一个 part
+            if page.part:
+                # 如果这是新的 part，先保存之前的 part（如果有）
+                if current_part and current_part != page.part:
+                    current_outline.append({
+                        "part": current_part,
+                        "pages": current_part_pages
+                    })
+                    current_part_pages = []
+                
+                current_part = page.part
+                # 移除 part 字段，因为它在顶层
+                if 'part' in page_data:
+                    del page_data['part']
+                current_part_pages.append(page_data)
+            else:
+                # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
+                if current_part:
+                    current_outline.append({
+                        "part": current_part,
+                        "pages": current_part_pages
+                    })
+                    current_part = None
+                    current_part_pages = []
+                
+                # 直接添加页面
+                current_outline.append(page_data)
+        
+        # 保存最后一个 part（如果有）
+        if current_part:
+            current_outline.append({
+                "part": current_part,
+                "pages": current_part_pages
+            })
+        
+        # Initialize AI service
+        from flask import current_app
+        ai_service = AIService(
+            current_app.config['GOOGLE_API_KEY'],
+            current_app.config['GOOGLE_API_BASE']
+        )
+        
+        # Get reference files content
+        reference_files_content = _get_project_reference_files_content(project_id)
+        
+        # Get previous requirements from project metadata
+        # Note: We need to add a field to store refinement history
+        # For now, we'll just pass None
+        previous_requirements = None
+        
+        # Refine outline
+        logger.info(f"开始优化大纲: 项目 {project_id}, 用户要求: {user_requirement}")
+        refined_outline = ai_service.refine_outline(
+            current_outline=current_outline,
+            user_requirement=user_requirement,
+            idea_prompt=project.idea_prompt,
+            reference_files_content=reference_files_content,
+            previous_requirements=previous_requirements
+        )
+        
+        # Flatten outline to pages
+        pages_data = ai_service.flatten_outline(refined_outline)
+        
+        # Delete existing pages
+        Page.query.filter_by(project_id=project_id).delete()
+        
+        # Create pages from refined outline
+        pages_list = []
+        for i, page_data in enumerate(pages_data):
+            page = Page(
+                project_id=project_id,
+                order_index=i,
+                part=page_data.get('part'),
+                status='DRAFT'
+            )
+            page.set_outline_content({
+                'title': page_data.get('title'),
+                'points': page_data.get('points', [])
+            })
+            
+            db.session.add(page)
+            pages_list.append(page)
+        
+        # Update project status
+        project.status = 'OUTLINE_GENERATED'
+        project.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        logger.info(f"大纲优化完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面")
+        
+        # Return pages
+        return success_response({
+            'pages': [page.to_dict() for page in pages_list],
+            'message': '大纲优化成功'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"refine_outline failed: {str(e)}", exc_info=True)
+        return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@project_bp.route('/<project_id>/refine/descriptions', methods=['POST'])
+def refine_descriptions(project_id):
+    """
+    POST /api/projects/{project_id}/refine/descriptions - Refine page descriptions based on user requirements
+    
+    Request body:
+    {
+        "user_requirement": "用户要求，例如：让描述更详细一些"
+    }
+    """
+    try:
+        project = Project.query.get(project_id)
+        
+        if not project:
+            return not_found('Project')
+        
+        data = request.get_json()
+        
+        if not data or not data.get('user_requirement'):
+            return bad_request("user_requirement is required")
+        
+        user_requirement = data['user_requirement']
+        
+        # Get current pages
+        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        
+        if not pages:
+            return bad_request("No pages found for project. Please generate outline first.")
+        
+        # Check if pages have descriptions
+        has_descriptions = any(page.description_content for page in pages)
+        if not has_descriptions:
+            return bad_request("No descriptions found. Please generate descriptions first.")
+        
+        # Reconstruct outline from pages
+        outline = []
+        current_part = None
+        current_part_pages = []
+        
+        for page in pages:
+            outline_content = page.get_outline_content()
+            if not outline_content:
+                continue
+                
+            page_data = outline_content.copy()
+            
+            # 如果当前页面属于一个 part
+            if page.part:
+                # 如果这是新的 part，先保存之前的 part（如果有）
+                if current_part and current_part != page.part:
+                    outline.append({
+                        "part": current_part,
+                        "pages": current_part_pages
+                    })
+                    current_part_pages = []
+                
+                current_part = page.part
+                # 移除 part 字段，因为它在顶层
+                if 'part' in page_data:
+                    del page_data['part']
+                current_part_pages.append(page_data)
+            else:
+                # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
+                if current_part:
+                    outline.append({
+                        "part": current_part,
+                        "pages": current_part_pages
+                    })
+                    current_part = None
+                    current_part_pages = []
+                
+                # 直接添加页面
+                outline.append(page_data)
+        
+        # 保存最后一个 part（如果有）
+        if current_part:
+            outline.append({
+                "part": current_part,
+                "pages": current_part_pages
+            })
+        
+        # Prepare current descriptions
+        current_descriptions = []
+        for i, page in enumerate(pages):
+            outline_content = page.get_outline_content()
+            desc_content = page.get_description_content()
+            
+            current_descriptions.append({
+                'index': i,
+                'title': outline_content.get('title', '未命名') if outline_content else '未命名',
+                'description_content': desc_content if desc_content else ''
+            })
+        
+        # Initialize AI service
+        from flask import current_app
+        ai_service = AIService(
+            current_app.config['GOOGLE_API_KEY'],
+            current_app.config['GOOGLE_API_BASE']
+        )
+        
+        # Get reference files content
+        reference_files_content = _get_project_reference_files_content(project_id)
+        
+        # Get previous requirements from project metadata
+        # Note: We need to add a field to store refinement history
+        # For now, we'll just pass None
+        previous_requirements = None
+        
+        # Refine descriptions
+        logger.info(f"开始优化页面描述: 项目 {project_id}, 用户要求: {user_requirement}")
+        refined_descriptions = ai_service.refine_descriptions(
+            current_descriptions=current_descriptions,
+            user_requirement=user_requirement,
+            idea_prompt=project.idea_prompt,
+            outline=outline,
+            reference_files_content=reference_files_content,
+            previous_requirements=previous_requirements
+        )
+        
+        if len(refined_descriptions) != len(pages):
+            logger.warning(f"描述数量不匹配: 页面 {len(pages)} 个, 描述 {len(refined_descriptions)} 个")
+            # 取较小的数量
+            min_count = min(len(pages), len(refined_descriptions))
+            pages = pages[:min_count]
+            refined_descriptions = refined_descriptions[:min_count]
+        
+        # Update pages with refined descriptions
+        for page, refined_desc in zip(pages, refined_descriptions):
+            desc_content = {
+                "text": refined_desc,
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            page.set_description_content(desc_content)
+            page.status = 'DESCRIPTION_GENERATED'
+        
+        # Update project status
+        project.status = 'DESCRIPTIONS_GENERATED'
+        project.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        logger.info(f"页面描述优化完成: 项目 {project_id}, 更新了 {len(pages)} 个页面")
+        
+        # Return pages
+        return success_response({
+            'pages': [page.to_dict() for page in pages],
+            'message': '页面描述优化成功'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"refine_descriptions failed: {str(e)}", exc_info=True)
+        return error_response('AI_SERVICE_ERROR', str(e), 503)
+
