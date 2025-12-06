@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileCard, ReferenceFileSelector } from '@/components/shared';
@@ -150,7 +150,7 @@ export const Home: React.FC = () => {
   };
 
   // 获取当前已选择的文件ID列表，传递给选择器（使用 useMemo 避免每次渲染都重新计算）
-  const selectedFileIds = React.useMemo(() => {
+  const selectedFileIds = useMemo(() => {
     return referenceFiles.map(f => f.id);
   }, [referenceFiles]);
 
