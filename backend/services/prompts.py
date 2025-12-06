@@ -69,8 +69,8 @@ def get_outline_generation_prompt(idea_prompt: str, reference_files_content: Opt
       {{
         "part": "Part 2: Main Content",
         "pages": [
-          {{"title": "Topic 1", "points": ["point1", "complete_url_of_relevant_picture1", "point2"]}},
-          {{"title": "Topic 2", "points": ["point1", "point2", "complete_url_of_relevant_picture2"]}}
+          {{"title": "Topic 1", "points": ["point1", "point2"]}},
+          {{"title": "Topic 2", "points": ["point1", "point2"]}}
         ]
       }}
     ]

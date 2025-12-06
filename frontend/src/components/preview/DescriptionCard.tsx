@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Edit2, RefreshCw } from 'lucide-react';
-import { Card, StatusBadge, Button, Modal, Textarea, Skeleton } from '@/components/shared';
+import { Card, StatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import type { Page } from '@/types';
 
 interface DescriptionCardProps {
@@ -74,8 +74,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
               </div>
             </div>
           ) : text ? (
-            <div className="text-sm text-gray-700 whitespace-pre-wrap">
-              {text}
+            <div className="text-sm text-gray-700">
+              <Markdown>{text}</Markdown>
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">

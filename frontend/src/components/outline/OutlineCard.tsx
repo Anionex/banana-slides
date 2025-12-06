@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
-import { Card, useConfirm } from '@/components/shared';
+import { Card, useConfirm, Markdown } from '@/components/shared';
 import type { Page } from '@/types';
 
 interface OutlineCardProps {
@@ -113,14 +113,9 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
               <h4 className="font-semibold text-gray-900 mb-2">
                 {page.outline_content.title}
               </h4>
-              <ul className="space-y-1">
-                {page.outline_content.points.map((point, idx) => (
-                  <li key={idx} className="text-sm text-gray-600 flex items-start">
-                    <span className="mr-2">•</span>
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="text-gray-600">
+                <Markdown>{page.outline_content.points.map(point => `- ${point}`).join('\n')}</Markdown>
+              </div>
             </div>
           )}
         </div>

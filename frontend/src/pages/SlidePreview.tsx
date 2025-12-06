@@ -1032,15 +1032,13 @@ export const SlidePreview: React.FC = () => {
               </button>
               {isOutlineExpanded && (
                 <div className="px-4 pb-4 space-y-2">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-medium text-gray-900 mb-2">
                     {selectedPage.outline_content.title}
                   </div>
                   {selectedPage.outline_content.points && selectedPage.outline_content.points.length > 0 && (
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {selectedPage.outline_content.points.map((point, idx) => (
-                        <li key={idx}>{point}</li>
-                      ))}
-                    </ul>
+                    <div className="text-sm text-gray-600">
+                      <Markdown>{selectedPage.outline_content.points.map(point => `- ${point}`).join('\n')}</Markdown>
+                    </div>
                   )}
                 </div>
               )}
@@ -1063,10 +1061,12 @@ export const SlidePreview: React.FC = () => {
               </button>
               {isDescriptionExpanded && (
                 <div className="px-4 pb-4">
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                    {(selectedPage.description_content as any)?.text || 
-                     (selectedPage.description_content as any)?.text_content?.join('\n') || 
-                     '暂无描述'}
+                  <div className="text-sm text-gray-700 max-h-48 overflow-y-auto">
+                    <Markdown>
+                      {(selectedPage.description_content as any)?.text || 
+                       (selectedPage.description_content as any)?.text_content?.join('\n') || 
+                       '暂无描述'}
+                    </Markdown>
                   </div>
                 </div>
               )}
