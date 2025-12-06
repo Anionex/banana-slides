@@ -26,7 +26,7 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate } from '@/api/endpoints';
-import type { ImageVersion } from '@/types';
+import type { ImageVersion, DescriptionContent } from '@/types';
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
@@ -247,21 +247,26 @@ export const SlidePreview: React.FC = () => {
   };
 
   // 从描述内容中提取图片URL
-  const extractImageUrlsFromDescription = (descriptionContent: any): string[] => {
+  const extractImageUrlsFromDescription = (descriptionContent: DescriptionContent | undefined): string[] => {
     if (!descriptionContent) return [];
     
-    const text = descriptionContent.text || 
-                 (descriptionContent.text_content?.join('\n') || '');
+    // 处理两种格式
+    let text: string = '';
+    if ('text' in descriptionContent) {
+      text = descriptionContent.text as string;
+    } else if ('text_content' in descriptionContent && Array.isArray(descriptionContent.text_content)) {
+      text = descriptionContent.text_content.join('\n');
+    }
     
     if (!text) return [];
     
     // 匹配 markdown 图片语法: ![](url) 或 ![alt](url)
     const pattern = /!\[.*?\]\((.*?)\)/g;
-    const matches = [];
-    let match;
+    const matches: string[] = [];
+    let match: RegExpExecArray | null;
     
     while ((match = pattern.exec(text)) !== null) {
-      const url = match[1].trim();
+      const url = match[1]?.trim();
       // 只保留有效的HTTP/HTTPS URL
       if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
         matches.push(url);
@@ -1108,9 +1113,17 @@ export const SlidePreview: React.FC = () => {
                 <div className="px-4 pb-4">
                   <div className="text-sm text-gray-700 max-h-48 overflow-y-auto">
                     <Markdown>
-                      {(selectedPage.description_content as any)?.text || 
-                       (selectedPage.description_content as any)?.text_content?.join('\n') || 
-                       '暂无描述'}
+                      {(() => {
+                        const desc = selectedPage.description_content;
+                        if (!desc) return '暂无描述';
+                        // 处理两种格式
+                        if ('text' in desc) {
+                          return desc.text;
+                        } else if ('text_content' in desc && Array.isArray(desc.text_content)) {
+                          return desc.text_content.join('\n');
+                        }
+                        return '暂无描述';
+                      })() as string}
                     </Markdown>
                   </div>
                 </div>
@@ -1220,7 +1233,7 @@ export const SlidePreview: React.FC = () => {
                     />
                     <button
                       onClick={() => removeUploadedFile(idx)}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="no-min-touch-target absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={12} />
                     </button>

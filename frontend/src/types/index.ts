@@ -10,12 +10,18 @@ export interface OutlineContent {
   points: string[];
 }
 
-// 描述内容
-export interface DescriptionContent {
-  title: string;
-  text_content: string[];
-  layout_suggestion: string;
-}
+// 描述内容 - 支持两种格式：后端可能返回纯文本或结构化内容
+export type DescriptionContent = 
+  | {
+      // 格式1: 后端返回的纯文本格式
+      text: string;
+    }
+  | {
+      // 格式2: 类型定义中的结构化格式
+      title: string;
+      text_content: string[];
+      layout_suggestion?: string;
+    };
 
 // 图片版本
 export interface ImageVersion {

@@ -72,74 +72,18 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 移动端按钮优化 */
+/* 移动端按钮优化 - 仅针对主要交互按钮 */
 @media (max-width: 640px) {
-  button, a {
+  .btn-touch-target,
+  button:not(.no-min-touch-target):not([class*="w-"]):not([class*="h-"]),
+  a:not(.no-min-touch-target):not([class*="w-"]):not([class*="h-"]) {
     min-height: 44px; /* iOS推荐的最小触摸目标 */
     min-width: 44px;
   }
 }
 
-/* Markdown 内容样式 */
+/* Markdown 内容样式 - 仅保留基础容器样式，具体样式由 Markdown.tsx 组件内的 Tailwind 类处理 */
 .markdown-content {
   line-height: 1.6;
-}
-
-.markdown-content p {
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content p:last-child {
-  margin-bottom: 0;
-}
-
-.markdown-content ul,
-.markdown-content ol {
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
-  padding-left: 1.5rem;
-}
-
-.markdown-content li {
-  margin-bottom: 0.25rem;
-}
-
-.markdown-content img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 0.75rem auto;
-  border-radius: 0.5rem;
-}
-
-.markdown-content a {
-  color: #1890FF;
-  text-decoration: none;
-  transition: color 150ms ease-in-out;
-}
-
-.markdown-content a:hover {
-  color: #1677FF;
-  text-decoration: underline;
-}
-
-.markdown-content code {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 0.875em;
-}
-
-.markdown-content strong {
-  font-weight: 600;
-}
-
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3,
-.markdown-content h4,
-.markdown-content h5,
-.markdown-content h6 {
-  margin-top: 0.75rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
 }
 

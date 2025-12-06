@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Edit2, RefreshCw } from 'lucide-react';
 import { Card, StatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
-import type { Page } from '@/types';
+import type { Page, DescriptionContent } from '@/types';
 
 interface DescriptionCardProps {
   page: Page;
@@ -18,9 +18,18 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   onRegenerate,
   isGenerating = false,
 }) => {
-  // 后端只返回纯文本，从 description_content.text 获取
-  const descContent = page.description_content;
-  const text = (descContent as any)?.text || '';
+  // 从 description_content 提取文本内容
+  const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
+    if (!descContent) return '';
+    if ('text' in descContent) {
+      return descContent.text;
+    } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
+      return descContent.text_content.join('\n');
+    }
+    return '';
+  };
+
+  const text = getDescriptionText(page.description_content);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -29,17 +38,17 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
 
   const handleEdit = () => {
     // 在打开编辑对话框时，从当前的 page 获取最新值
-    const currentDescContent = page.description_content;
-    const currentText = (currentDescContent as any)?.text || '';
+    const currentText = getDescriptionText(page.description_content);
     setEditContent(currentText);
     setIsEditing(true);
   };
 
   const handleSave = () => {
+    // 保存时使用 text 格式（后端期望的格式）
     onUpdate({
       description_content: {
         text: editContent,
-      } as any,
+      } as DescriptionContent,
     });
     setIsEditing(false);
   };
