@@ -16,7 +16,7 @@ import {
   Image as ImageIcon,
   ImagePlus,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector } from '@/components/shared';
+import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
@@ -627,20 +627,21 @@ export const SlidePreview: React.FC = () => {
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* 顶栏 */}
-      <header className="h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-3 md:px-6 flex-shrink-0">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="sm"
-            icon={<Home size={18} />}
+            icon={<Home size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => navigate('/')}
+            className="hidden sm:inline-flex flex-shrink-0"
           >
-            主页
+            <span className="hidden md:inline">主页</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            icon={<ArrowLeft size={18} />}
+            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => {
               if (fromHistory) {
                 navigate('/history');
@@ -648,71 +649,78 @@ export const SlidePreview: React.FC = () => {
                 navigate(`/project/${projectId}/detail`);
               }
             }}
+            className="flex-shrink-0"
           >
-            返回
+            <span className="hidden sm:inline">返回</span>
           </Button>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🍌</span>
-            <span className="text-xl font-bold">蕉幻</span>
+          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+            <span className="text-xl md:text-2xl">🍌</span>
+            <span className="text-base md:text-xl font-bold truncate">蕉幻</span>
           </div>
-          <span className="text-gray-400">|</span>
-          <span className="text-lg font-semibold">预览</span>
+          <span className="text-gray-400 hidden md:inline">|</span>
+          <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">预览</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
           <Button
             variant="ghost"
             size="sm"
-            icon={<Upload size={18} />}
+            icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => setIsTemplateModalOpen(true)}
+            className="hidden lg:inline-flex"
           >
-            更换模板
+            <span className="hidden xl:inline">更换模板</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            icon={<ImagePlus size={18} />}
+            icon={<ImagePlus size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => setIsMaterialModalOpen(true)}
+            className="hidden lg:inline-flex"
           >
-            素材生成
+            <span className="hidden xl:inline">素材生成</span>
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            icon={<ArrowLeft size={18} />}
+            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => navigate(`/project/${projectId}/detail`)}
+            className="hidden sm:inline-flex"
           >
-            上一步
+            <span className="hidden md:inline">上一步</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            icon={<RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />}
+            icon={<RefreshCw size={16} className={`md:w-[18px] md:h-[18px] ${isRefreshing ? 'animate-spin' : ''}`} />}
             onClick={handleRefresh}
             disabled={isRefreshing}
+            className="hidden md:inline-flex"
           >
-            刷新
+            <span className="hidden lg:inline">刷新</span>
           </Button>
           <div className="relative">
             <Button
               variant="primary"
               size="sm"
-              icon={<Download size={18} />}
+              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => setShowExportMenu(!showExportMenu)}
               disabled={!hasAllImages}
+              className="text-xs md:text-sm"
             >
-              导出
+              <span className="hidden sm:inline">导出</span>
+              <span className="sm:hidden">导出</span>
             </Button>
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
                 <button
                   onClick={() => handleExport('pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
                 >
                   导出为 PPTX
                 </button>
                 <button
                   onClick={() => handleExport('pdf')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
                 >
                   导出为 PDF
                 </button>
@@ -723,48 +731,48 @@ export const SlidePreview: React.FC = () => {
       </header>
 
       {/* 主内容区 */}
-      <div className="flex-1 flex overflow-hidden min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-w-0 min-h-0">
         {/* 左侧：缩略图列表 */}
-        <aside className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-          <div className="p-4 border-b border-gray-200 flex-shrink-0 space-y-3">
+        <aside className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col flex-shrink-0">
+          <div className="p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 md:space-y-3">
             <Button
               variant="primary"
-              icon={<Sparkles size={18} />}
+              icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
-              className="w-full"
+              className="w-full text-sm md:text-base"
             >
               批量生成图片 ({currentProject.pages.length})
             </Button>
             
             {/* 额外要求 */}
-            <div className="border-t border-gray-200 pt-3">
+            <div className="border-t border-gray-200 pt-2 md:pt-3">
               <button
                 onClick={() => setIsExtraRequirementsExpanded(!isExtraRequirementsExpanded)}
-                className="w-full flex items-center justify-between text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                className="w-full flex items-center justify-between text-xs md:text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
               >
                 <span>额外要求</span>
                 {isExtraRequirementsExpanded ? (
-                  <ChevronUp size={16} />
+                  <ChevronUp size={14} className="md:w-4 md:h-4" />
                 ) : (
-                  <ChevronDown size={16} />
+                  <ChevronDown size={14} className="md:w-4 md:h-4" />
                 )}
               </button>
               
               {isExtraRequirementsExpanded && (
-                <div className="mt-3 space-y-2">
+                <div className="mt-2 md:mt-3 space-y-2">
                   <Textarea
                     value={extraRequirements}
                     onChange={(e) => setExtraRequirements(e.target.value)}
                     placeholder="例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图..."
-                    rows={3}
-                    className="text-sm"
+                    rows={2}
+                    className="text-xs md:text-sm"
                   />
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={handleSaveExtraRequirements}
                     disabled={isSavingRequirements}
-                    className="w-full"
+                    className="w-full text-xs md:text-sm"
                   >
                     {isSavingRequirements ? '保存中...' : '保存'}
                   </Button>
@@ -773,22 +781,50 @@ export const SlidePreview: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-            {currentProject.pages.map((page, index) => (
-              <SlideCard
-                key={page.id}
-                page={page}
-                index={index}
-                isSelected={selectedIndex === index}
-                onClick={() => setSelectedIndex(index)}
-                onEdit={() => {
-                  setSelectedIndex(index);
-                  handleEditPage();
-                }}
-                onDelete={() => page.id && deletePageById(page.id)}
-                isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
-              />
-            ))}
+          {/* 缩略图列表：桌面端垂直，移动端横向滚动 */}
+          <div className="flex-1 overflow-y-auto md:overflow-y-auto overflow-x-auto md:overflow-x-visible p-3 md:p-4 min-h-0">
+            <div className="flex md:flex-col gap-2 md:gap-4 min-w-max md:min-w-0">
+              {currentProject.pages.map((page, index) => (
+                <div key={page.id} className="md:w-full flex-shrink-0">
+                  {/* 移动端：简化缩略图 */}
+                  <button
+                    onClick={() => setSelectedIndex(index)}
+                    className={`md:hidden w-20 h-14 rounded border-2 transition-all ${
+                      selectedIndex === index
+                        ? 'border-banana-500 shadow-md'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    {page.generated_image_path ? (
+                      <img
+                        src={getImageUrl(page.generated_image_path, page.updated_at)}
+                        alt={`Slide ${index + 1}`}
+                        className="w-full h-full object-cover rounded"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">
+                        {index + 1}
+                      </div>
+                    )}
+                  </button>
+                  {/* 桌面端：完整卡片 */}
+                  <div className="hidden md:block">
+                    <SlideCard
+                      page={page}
+                      index={index}
+                      isSelected={selectedIndex === index}
+                      onClick={() => setSelectedIndex(index)}
+                      onEdit={() => {
+                        setSelectedIndex(index);
+                        handleEditPage();
+                      }}
+                      onDelete={() => page.id && deletePageById(page.id)}
+                      isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </aside>
 
@@ -797,16 +833,17 @@ export const SlidePreview: React.FC = () => {
           {currentProject.pages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center overflow-y-auto">
               <div className="text-center">
-                <div className="text-6xl mb-4">📊</div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                <div className="text-4xl md:text-6xl mb-4">📊</div>
+                <h3 className="text-lg md:text-xl font-semibold text-gray-700 mb-2">
                   还没有页面
                 </h3>
-                <p className="text-gray-500 mb-6">
+                <p className="text-sm md:text-base text-gray-500 mb-6">
                   请先返回编辑页面添加内容
                 </p>
                 <Button
                   variant="primary"
                   onClick={() => navigate(`/project/${projectId}/outline`)}
+                  className="text-sm md:text-base"
                 >
                   返回编辑
                 </Button>
@@ -815,9 +852,9 @@ export const SlidePreview: React.FC = () => {
           ) : (
             <>
               {/* 预览区 */}
-              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-8">
+              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
-                  <div className="relative aspect-video bg-white rounded-lg shadow-xl overflow-hidden">
+                  <div className="relative aspect-video bg-white rounded-lg shadow-xl overflow-hidden touch-manipulation">
                     {selectedPage?.generated_image_path ? (
                       <img
                         src={imageUrl}
@@ -853,60 +890,66 @@ export const SlidePreview: React.FC = () => {
               </div>
 
               {/* 控制栏 */}
-              <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
-                <div className="flex items-center justify-between max-w-5xl mx-auto">
+              <div className="bg-white border-t border-gray-200 px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-5xl mx-auto">
                   {/* 导航 */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
                     <Button
                       variant="ghost"
                       size="sm"
-                      icon={<ChevronLeft size={18} />}
+                      icon={<ChevronLeft size={16} className="md:w-[18px] md:h-[18px]" />}
                       onClick={() => setSelectedIndex(Math.max(0, selectedIndex - 1))}
                       disabled={selectedIndex === 0}
+                      className="text-xs md:text-sm"
                     >
-                      上一页
+                      <span className="hidden sm:inline">上一页</span>
+                      <span className="sm:hidden">上一页</span>
                     </Button>
-                    <span className="px-4 text-sm text-gray-600">
+                    <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 whitespace-nowrap">
                       {selectedIndex + 1} / {currentProject.pages.length}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      icon={<ChevronRight size={18} />}
+                      icon={<ChevronRight size={16} className="md:w-[18px] md:h-[18px]" />}
                       onClick={() =>
                         setSelectedIndex(
                           Math.min(currentProject.pages.length - 1, selectedIndex + 1)
                         )
                       }
                       disabled={selectedIndex === currentProject.pages.length - 1}
+                      className="text-xs md:text-sm"
                     >
-                      下一页
+                      <span className="hidden sm:inline">下一页</span>
+                      <span className="sm:hidden">下一页</span>
                     </Button>
                   </div>
 
                   {/* 操作 */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
                     {imageVersions.length > 1 && (
                       <div className="relative">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setShowVersionMenu(!showVersionMenu)}
+                          className="text-xs md:text-sm"
                         >
-                          历史版本 ({imageVersions.length})
+                          <span className="hidden md:inline">历史版本 ({imageVersions.length})</span>
+                          <span className="md:hidden">版本</span>
                         </Button>
                         {showVersionMenu && (
-                          <div className="absolute right-0 bottom-full mb-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20 max-h-96 overflow-y-auto">
+                          <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20 max-h-96 overflow-y-auto">
                             {imageVersions.map((version) => (
                               <button
                                 key={version.version_id}
                                 onClick={() => handleSwitchVersion(version.version_id)}
-                                className={`w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                                className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 transition-colors flex items-center justify-between text-xs md:text-sm ${
                                   version.is_current ? 'bg-banana-50' : ''
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm">
+                                  <span>
                                     版本 {version.version_number}
                                   </span>
                                   {version.is_current && (
@@ -915,7 +958,7 @@ export const SlidePreview: React.FC = () => {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-xs text-gray-400">
+                                <span className="text-xs text-gray-400 hidden md:inline">
                                   {version.created_at
                                     ? new Date(version.created_at).toLocaleString('zh-CN', {
                                         month: 'short',
@@ -936,6 +979,7 @@ export const SlidePreview: React.FC = () => {
                       size="sm"
                       onClick={handleEditPage}
                       disabled={!selectedPage?.generated_image_path}
+                      className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       编辑
                     </Button>
@@ -944,6 +988,7 @@ export const SlidePreview: React.FC = () => {
                       size="sm"
                       onClick={handleRegeneratePage}
                       disabled={selectedPage?.id && pageGeneratingTasks[selectedPage.id] ? true : false}
+                      className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
                         ? '生成中...'

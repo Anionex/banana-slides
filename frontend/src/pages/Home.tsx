@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileCard, ReferenceFileSelector } from '@/components/shared';
@@ -289,70 +289,77 @@ export const Home: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-banana-50 via-white to-gray-50">
       {/* 导航栏 */}
-      <nav className="h-16 bg-white shadow-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+      <nav className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-3 md:px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img
               src="/logo.jpg"
               alt="蕉幻 Banana Slides Logo"
-              className="w-12 h-12 rounded-lg object-cover object-center"
+              className="w-8 h-8 md:w-12 md:h-12 rounded-lg object-cover object-center"
             />
-            <span className="text-xl font-bold text-gray-900">蕉幻</span>
+            <span className="text-lg md:text-xl font-bold text-gray-900">蕉幻</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 md:gap-4">
             <Button
               variant="ghost"
               size="sm"
-              icon={<ImagePlus size={18} />}
+              icon={<ImagePlus size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleOpenMaterialModal}
+              className="hidden sm:inline-flex"
             >
-              素材生成
+              <span className="hidden md:inline">素材生成</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/history')}>
-              历史项目
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/history')}
+              className="text-xs md:text-sm"
+            >
+              <span className="hidden sm:inline">历史项目</span>
+              <span className="sm:hidden">历史</span>
             </Button>
-            <Button variant="ghost" size="sm">帮助</Button>
+            <Button variant="ghost" size="sm" className="hidden md:inline-flex">帮助</Button>
           </div>
         </div>
       </nav>
 
       {/* 主内容 */}
-      <main className="max-w-4xl mx-auto px-4 py-16">
+      <main className="max-w-4xl mx-auto px-3 md:px-4 py-8 md:py-16">
         {/* 标题区 */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-8 md:mb-12">
+          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-4">
             🍌 蕉幻 Banana Slides
           </h1>
-          <p className="text-xl text-gray-600">
+          <p className="text-base md:text-xl text-gray-600">
             Vibe your PPT like vibing code
           </p>
         </div>
 
         {/* 创建卡片 */}
-        <Card className="p-10">
+        <Card className="p-4 md:p-10">
           {/* 选项卡 */}
-          <div className="flex gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-6 md:mb-8">
             {(Object.keys(tabConfig) as CreationType[]).map((type) => {
               const config = tabConfig[type];
               return (
                 <button
                   key={type}
                   onClick={() => setActiveTab(type)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all text-sm md:text-base touch-manipulation ${
                     activeTab === type
                       ? 'bg-gradient-to-r from-banana-500 to-banana-600 text-black shadow-yellow'
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-banana-50'
+                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-banana-50 active:bg-banana-100'
                   }`}
                 >
-                  {config.icon}
-                  {config.label}
+                  <span className="scale-90 md:scale-100">{config.icon}</span>
+                  <span className="truncate">{config.label}</span>
                 </button>
               );
             })}
           </div>
 
           {/* 描述 */}
-          <p className="text-gray-600 mb-6">
+          <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">
             {tabConfig[activeTab].description}
           </p>
 
@@ -363,22 +370,22 @@ export const Home: React.FC = () => {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
-              rows={activeTab === 'idea' ? 4 : 10}
-              className="pr-28 pb-14" // 为右下角按钮留空间
+              rows={activeTab === 'idea' ? 4 : 8}
+              className="pr-20 md:pr-28 pb-12 md:pb-14 text-sm md:text-base" // 为右下角按钮留空间
             />
 
             {/* 左下角：上传文件按钮（回形针图标） */}
             <button
               type="button"
               onClick={handlePaperclipClick}
-              className="absolute left-3 bottom-3 z-10 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors active:scale-95"
+              className="absolute left-2 md:left-3 bottom-2 md:bottom-3 z-10 p-1.5 md:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors active:scale-95 touch-manipulation"
               title="选择参考文件"
             >
-              <Paperclip size={20} />
+              <Paperclip size={18} className="md:w-5 md:h-5" />
             </button>
 
             {/* 右下角：开始生成按钮 */}
-            <div className="absolute right-3 bottom-3 z-10">
+            <div className="absolute right-2 md:right-3 bottom-2 md:bottom-3 z-10">
               <Button
                 size="sm"
                 onClick={handleSubmit}
@@ -387,10 +394,10 @@ export const Home: React.FC = () => {
                   !content.trim() || 
                   referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                 }
-                className="shadow-sm"
+                className="shadow-sm text-xs md:text-sm px-3 md:px-4"
               >
                 {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  ? '文件解析中...'
+                  ? '解析中...'
                   : '下一步'}
               </Button>
             </div>
@@ -423,8 +430,8 @@ export const Home: React.FC = () => {
           )}
 
           {/* 模板选择 */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="mb-6 md:mb-8">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">
               🎨 选择风格模板
             </h3>
             <TemplateSelector

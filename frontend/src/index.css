@@ -38,6 +38,9 @@ body {
   font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 移动端优化 */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 #root {
@@ -61,6 +64,20 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--banana-yellow-dark);
+}
+
+/* 移动端触摸优化 */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 移动端按钮优化 */
+@media (max-width: 640px) {
+  button, a {
+    min-height: 44px; /* iOS推荐的最小触摸目标 */
+    min-width: 44px;
+  }
 }
 
 /* Markdown 内容样式 */

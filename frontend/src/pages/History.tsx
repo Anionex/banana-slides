@@ -254,33 +254,35 @@ export const History: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-banana-50 via-white to-gray-50">
       {/* 导航栏 */}
-      <nav className="h-16 bg-white shadow-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+      <nav className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-3 md:px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-banana-500 to-banana-600 rounded-lg flex items-center justify-center text-2xl">
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-banana-500 to-banana-600 rounded-lg flex items-center justify-center text-xl md:text-2xl">
               🍌
             </div>
-            <span className="text-xl font-bold text-gray-900">蕉幻</span>
+            <span className="text-lg md:text-xl font-bold text-gray-900">蕉幻</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <Button
               variant="ghost"
               size="sm"
-              icon={<Home size={18} />}
+              icon={<Home size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate('/')}
+              className="text-xs md:text-sm"
             >
-              主页
+              <span className="hidden sm:inline">主页</span>
+              <span className="sm:hidden">主页</span>
             </Button>
           </div>
         </div>
       </nav>
 
       {/* 主内容 */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
+      <main className="max-w-6xl mx-auto px-3 md:px-4 py-6 md:py-8">
+        <div className="mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">历史项目</h1>
-            <p className="text-gray-600">查看和管理你的所有项目</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1 md:mb-2">历史项目</h1>
+            <p className="text-sm md:text-base text-gray-600">查看和管理你的所有项目</p>
           </div>
           {projects.length > 0 && selectedProjects.size > 0 && (
             <div className="flex items-center gap-3">

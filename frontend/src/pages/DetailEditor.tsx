@@ -106,12 +106,12 @@ export const DetailEditor: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 顶栏 */}
-      <header className="h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
+      <header className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-3 md:px-6 flex-shrink-0">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="sm"
-            icon={<ArrowLeft size={18} />}
+            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => {
               if (fromHistory) {
                 navigate('/history');
@@ -119,49 +119,54 @@ export const DetailEditor: React.FC = () => {
                 navigate(`/project/${projectId}/outline`);
               }
             }}
+            className="flex-shrink-0"
           >
-            返回
+            <span className="hidden sm:inline">返回</span>
           </Button>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🍌</span>
-            <span className="text-xl font-bold">蕉幻</span>
+          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+            <span className="text-xl md:text-2xl">🍌</span>
+            <span className="text-base md:text-xl font-bold truncate">蕉幻</span>
           </div>
-          <span className="text-gray-400">|</span>
-          <span className="text-lg font-semibold">编辑页面描述</span>
+          <span className="text-gray-400 hidden md:inline">|</span>
+          <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">编辑页面描述</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
           <Button
             variant="secondary"
             size="sm"
-            icon={<ArrowLeft size={18} />}
+            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => navigate(`/project/${projectId}/outline`)}
+            className="hidden sm:inline-flex"
           >
-            上一步
+            <span className="hidden md:inline">上一步</span>
           </Button>
           <Button
             variant="primary"
             size="sm"
-            icon={<ArrowRight size={18} />}
+            icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => navigate(`/project/${projectId}/preview`)}
             disabled={!hasAllDescriptions}
+            className="text-xs md:text-sm"
           >
-            生成图片
+            <span className="hidden sm:inline">生成图片</span>
+            <span className="sm:hidden">生成</span>
           </Button>
         </div>
       </header>
 
       {/* 操作栏 */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1">
             <Button
               variant="primary"
-              icon={<Sparkles size={18} />}
+              icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
+              className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               批量生成描述
             </Button>
-            <span className="text-sm text-gray-500">
+            <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}
               {currentProject.pages.length} 页已完成
             </span>
@@ -170,26 +175,27 @@ export const DetailEditor: React.FC = () => {
       </div>
 
       {/* 主内容区 */}
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-7xl mx-auto">
           {currentProject.pages.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-6xl mb-4">📝</div>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            <div className="text-center py-12 md:py-20">
+              <div className="text-4xl md:text-6xl mb-4">📝</div>
+              <h3 className="text-lg md:text-xl font-semibold text-gray-700 mb-2">
                 还没有页面
               </h3>
-              <p className="text-gray-500 mb-6">
+              <p className="text-sm md:text-base text-gray-500 mb-6">
                 请先返回大纲编辑页添加页面
               </p>
               <Button
                 variant="primary"
                 onClick={() => navigate(`/project/${projectId}/outline`)}
+                className="text-sm md:text-base"
               >
                 返回大纲编辑
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
               {currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
                 return (

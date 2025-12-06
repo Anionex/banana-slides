@@ -136,12 +136,12 @@ export const OutlineEditor: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 顶栏 */}
-      <header className="h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
+      <header className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-3 md:px-6 flex-shrink-0">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="sm"
-            icon={<ArrowLeft size={18} />}
+            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => {
               if (fromHistory) {
                 navigate('/history');
@@ -149,42 +149,46 @@ export const OutlineEditor: React.FC = () => {
                 navigate('/');
               }
             }}
+            className="flex-shrink-0"
           >
-            返回
+            <span className="hidden sm:inline">返回</span>
           </Button>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🍌</span>
-            <span className="text-xl font-bold">蕉幻</span>
+          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+            <span className="text-xl md:text-2xl">🍌</span>
+            <span className="text-base md:text-xl font-bold truncate">蕉幻</span>
           </div>
-          <span className="text-gray-400">|</span>
-          <span className="text-lg font-semibold">编辑大纲</span>
+          <span className="text-gray-400 hidden md:inline">|</span>
+          <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">编辑大纲</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
           <Button 
             variant="secondary" 
             size="sm" 
-            icon={<Save size={18} />}
+            icon={<Save size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={async () => {
               await saveAllPages();
               // 可以添加成功提示，但为了简洁暂时不添加
             }}
+            className="hidden sm:inline-flex"
           >
-            保存
+            <span className="hidden md:inline">保存</span>
           </Button>
           <Button
             variant="primary"
             size="sm"
-            icon={<ArrowRight size={18} />}
+            icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => navigate(`/project/${projectId}/detail`)}
+            className="text-xs md:text-sm"
           >
-            下一步
+            <span className="hidden sm:inline">下一步</span>
+            <span className="sm:hidden">下一步</span>
           </Button>
         </div>
       </header>
 
       {/* 上下文栏 */}
-      <div className="bg-banana-50 border-b border-banana-100 px-6 py-3 max-h-32 overflow-y-auto">
-        <div className="flex items-start gap-2 text-sm">
+      <div className="bg-banana-50 border-b border-banana-100 px-3 md:px-6 py-2 md:py-3 max-h-32 overflow-y-auto flex-shrink-0">
+        <div className="flex items-start gap-1.5 md:gap-2 text-xs md:text-sm">
           {currentProject.creation_type === 'idea' && (
             <>
               <span className="font-medium text-gray-700 flex-shrink-0">📊 PPT构想:</span>
@@ -207,16 +211,17 @@ export const OutlineEditor: React.FC = () => {
       </div>
 
       {/* 主内容区 */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* 左侧：大纲列表 */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0">
           <div className="max-w-4xl mx-auto">
             {/* 操作按钮 */}
-            <div className="flex gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4 md:mb-6">
               <Button
                 variant="primary"
-                icon={<Plus size={18} />}
+                icon={<Plus size={16} className="md:w-[18px] md:h-[18px]" />}
                 onClick={addNewPage}
+                className="w-full sm:w-auto text-sm md:text-base"
               >
                 添加页面
               </Button>
@@ -224,6 +229,7 @@ export const OutlineEditor: React.FC = () => {
                 <Button
                   variant="secondary"
                   onClick={handleGenerateOutline}
+                  className="w-full sm:w-auto text-sm md:text-base"
                 >
                   {currentProject.creation_type === 'outline' ? '解析大纲' : '自动生成大纲'}
                 </Button>
@@ -231,6 +237,7 @@ export const OutlineEditor: React.FC = () => {
                 <Button
                   variant="secondary"
                   onClick={handleGenerateOutline}
+                  className="w-full sm:w-auto text-sm md:text-base"
                 >
                   {currentProject.creation_type === 'outline' ? '重新解析大纲' : '重新生成大纲'}
                 </Button>
@@ -278,23 +285,23 @@ export const OutlineEditor: React.FC = () => {
         </div>
 
         {/* 右侧：预览 */}
-        <div className="w-96 bg-white border-l border-gray-200 p-6 overflow-y-auto">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">预览</h3>
+        <div className="hidden md:block w-96 bg-white border-l border-gray-200 p-4 md:p-6 overflow-y-auto flex-shrink-0">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">预览</h3>
           
           {selectedPage ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               <div>
-                <div className="text-sm text-gray-500 mb-1">标题</div>
-                <div className="text-lg font-semibold text-gray-900">
+                <div className="text-xs md:text-sm text-gray-500 mb-1">标题</div>
+                <div className="text-base md:text-lg font-semibold text-gray-900">
                   {selectedPage.outline_content.title}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-gray-500 mb-2">要点</div>
-                <ul className="space-y-2">
+                <div className="text-xs md:text-sm text-gray-500 mb-2">要点</div>
+                <ul className="space-y-1.5 md:space-y-2">
                   {selectedPage.outline_content.points.map((point, idx) => (
-                    <li key={idx} className="flex items-start text-gray-700">
-                      <span className="mr-2 text-banana-500">•</span>
+                    <li key={idx} className="flex items-start text-sm md:text-base text-gray-700">
+                      <span className="mr-2 text-banana-500 flex-shrink-0">•</span>
                       <span>{point}</span>
                     </li>
                   ))}
@@ -302,12 +309,38 @@ export const OutlineEditor: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-10 text-gray-400">
-              <div className="text-4xl mb-2">👆</div>
-              <p>点击左侧卡片查看详情</p>
+            <div className="text-center py-8 md:py-10 text-gray-400">
+              <div className="text-3xl md:text-4xl mb-2">👆</div>
+              <p className="text-sm md:text-base">点击左侧卡片查看详情</p>
             </div>
           )}
         </div>
+        
+        {/* 移动端预览：底部抽屉 */}
+        {selectedPage && (
+          <div className="md:hidden fixed inset-x-0 bottom-0 bg-white border-t border-gray-200 p-4 max-h-[50vh] overflow-y-auto shadow-lg z-50">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">预览</h3>
+            <div className="space-y-2">
+              <div>
+                <div className="text-xs text-gray-500 mb-1">标题</div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {selectedPage.outline_content.title}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 mb-1">要点</div>
+                <ul className="space-y-1">
+                  {selectedPage.outline_content.points.map((point, idx) => (
+                    <li key={idx} className="flex items-start text-xs text-gray-700">
+                      <span className="mr-1.5 text-banana-500 flex-shrink-0">•</span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {ConfirmDialog}
     </div>
