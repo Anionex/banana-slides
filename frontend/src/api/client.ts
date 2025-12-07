@@ -55,7 +55,7 @@ apiClient.interceptors.response.use(
 );
 
 // 图片URL处理工具
-// 使用相对路径，通过代理转发到后端
+// 处理外部URL、本地文件路径等多种情况
 export const getImageUrl = (path?: string, timestamp?: string | number): string => {
   if (!path) return '';
 
@@ -67,7 +67,24 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
     return `/api/proxy/image?url=${encodedUrl}`;
   }
 
-  // 使用相对路径（确保以 / 开头）
+  // 如果是本地文件路径格式，直接返回（由后端文件服务处理）
+  // 本地文件路径通常是 /files/{projectId}/pages/{filename} 格式
+  if (path.startsWith('/files/')) {
+    // 本地文件路径，直接返回，由后端文件服务处理
+    let url = path;
+
+    // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
+    if (timestamp) {
+      const ts = typeof timestamp === 'string'
+        ? new Date(timestamp).getTime()
+        : timestamp;
+      url += (url.includes('?') ? '&' : '?') + `v=${ts}`;
+    }
+
+    return url;
+  }
+
+  // 其他相对路径，确保以 / 开头
   let url = path.startsWith('/') ? path : '/' + path;
 
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
@@ -75,7 +92,7 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
     const ts = typeof timestamp === 'string'
       ? new Date(timestamp).getTime()
       : timestamp;
-    url += `?v=${ts}`;
+    url += (url.includes('?') ? '&' : '?') + `v=${ts}`;
   }
 
   return url;
