@@ -6,6 +6,15 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: banana-slides-backend
+    # 添加安全选项，允许创建线程
+    security_opt:
+      - seccomp:unconfined
+    # 增加进程和文件限制
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
     ports:
       # 宿主机端口:容器内部端口（由 PORT 控制，默认 5000）
       # 外部访问始终是 http://localhost:5000，内部监听端口可通过 PORT 调整
