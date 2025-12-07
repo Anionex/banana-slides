@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -240,22 +240,22 @@ export const OutlineEditor: React.FC = () => {
       <div className="bg-banana-50 border-b border-banana-100 px-3 md:px-6 py-2 md:py-3 max-h-32 overflow-y-auto flex-shrink-0">
         <div className="flex items-start gap-1.5 md:gap-2 text-xs md:text-sm">
           {currentProject.creation_type === 'idea' && (
-            <>
-              <span className="font-medium text-gray-700 flex-shrink-0">📊 PPT构想:</span>
-              <span className="text-gray-900 break-words whitespace-pre-wrap">{currentProject.idea_prompt}</span>
-            </>
+            <span className="font-medium text-gray-700 flex-shrink-0 flex items-center">
+              <Sparkle size={12} className="mr-1" /> PPT构想:
+              <span className="text-gray-900 font-normal ml-2 break-words whitespace-pre-wrap">{currentProject.idea_prompt}</span>
+            </span>
           )}
           {currentProject.creation_type === 'outline' && (
-            <>
-              <span className="font-medium text-gray-700 flex-shrink-0">📝 大纲:</span>
-              <span className="text-gray-900 break-words whitespace-pre-wrap">{currentProject.outline_text || currentProject.idea_prompt}</span>
-            </>
+            <span className="font-medium text-gray-700 flex-shrink-0 flex items-center">
+              <FileText size={12} className="mr-1" /> 大纲:
+              <span className="text-gray-900 font-normal ml-2 break-words whitespace-pre-wrap">{currentProject.outline_text || currentProject.idea_prompt}</span>
+            </span>
           )}
           {currentProject.creation_type === 'descriptions' && (
-            <>
-              <span className="font-medium text-gray-700 flex-shrink-0">📄 描述:</span>
-              <span className="text-gray-900 break-words whitespace-pre-wrap">{currentProject.description_text || currentProject.idea_prompt}</span>
-            </>
+            <span className="font-medium text-gray-700 flex-shrink-0 flex items-center">
+              <FileText size={12} className="mr-1" /> 描述:
+              <span className="text-gray-900 font-normal ml-2 break-words whitespace-pre-wrap">{currentProject.description_text || currentProject.idea_prompt}</span>
+            </span>
           )}
         </div>
       </div>
@@ -297,8 +297,10 @@ export const OutlineEditor: React.FC = () => {
             {/* 大纲卡片列表 */}
             {currentProject.pages.length === 0 ? (
               <div className="text-center py-20">
-                <div className="text-6xl mb-4">📝</div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                <div className="flex justify-center mb-4">
+                  <FileText size={64} className="text-gray-300" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">
                   还没有页面
                 </h3>
                 <p className="text-gray-500 mb-6">

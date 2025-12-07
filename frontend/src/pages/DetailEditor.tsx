@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles } from 'lucide-react';
 import { Button, Loading, useToast, useConfirm, AiRefineInput } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -229,7 +229,7 @@ export const DetailEditor: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           {currentProject.pages.length === 0 ? (
             <div className="text-center py-12 md:py-20">
-              <div className="text-4xl md:text-6xl mb-4">📝</div>
+              <div className="flex justify-center mb-4"><FileText size={48} className="text-gray-300" /></div>
               <h3 className="text-lg md:text-xl font-semibold text-gray-700 mb-2">
                 还没有页面
               </h3>

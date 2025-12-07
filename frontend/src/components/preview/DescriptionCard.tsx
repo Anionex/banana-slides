@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, RefreshCw } from 'lucide-react';
+import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
 import type { Page, DescriptionContent } from '@/types';
@@ -92,7 +92,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">
-              <div className="text-3xl mb-2">📝</div>
+              <div className="flex text-3xl mb-2 justify-center"><FileText className="text-gray-400" size={48} /></div>
               <p className="text-sm">尚未生成描述</p>
             </div>
           )}
