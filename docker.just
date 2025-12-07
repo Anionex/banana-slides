@@ -3,6 +3,8 @@ default: up
 build: down
     docker compose build --no-cache
 
+relaunch: build up
+
 up:
     docker compose up -d
 
