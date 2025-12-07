@@ -65,6 +65,14 @@ class AIService:
             image_api_key: API key for image generation (optional, defaults to api_key)
             image_api_base: API base URL for image generation (optional, defaults to api_base)
         """
+        # Validate API key is present
+        if not api_key or api_key.strip() == '':
+            raise ValueError(
+                "API密钥未配置！请在前端页面右上角点击 ⚙️ 设置 按钮，"
+                "选择 '🚀 中转API（推荐）' 预设并输入你的API Key。"
+                "推荐使用中转API: https://apipro.maynor1024.live/"
+            )
+
         # Text client - for gemini-2.5-flash (text generation)
         self.text_client = genai.Client(
             http_options=types.HttpOptions(

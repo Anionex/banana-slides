@@ -422,12 +422,24 @@ const debouncedUpdatePage = debounce(
 
     set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.generateOutline(currentProject.id!);
+      let response;
+
+      // 根据项目类型调用不同的API endpoint
+      if (currentProject.creation_type === 'descriptions') {
+        // 如果是"从页面描述创建"类型，调用 generateFromDescription
+        console.log('[生成大纲] 项目类型为descriptions，调用generateFromDescription');
+        response = await api.generateFromDescription(currentProject.id!);
+      } else {
+        // 其他类型（idea、outline）调用 generateOutline
+        console.log('[生成大纲] 项目类型为', currentProject.creation_type, '，调用generateOutline');
+        response = await api.generateOutline(currentProject.id!);
+      }
+
       console.log('[生成大纲] API响应:', response);
-      
+
       // 刷新项目数据，确保获取最新的大纲页面
       await get().syncProject();
-      
+
       // 再次确认数据已更新
       const { currentProject: updatedProject } = get();
       console.log('[生成大纲] 刷新后的项目:', updatedProject?.pages.length, '个页面');
