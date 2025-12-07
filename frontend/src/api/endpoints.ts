@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
+import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Settings } from '@/types';
 
 // ===== 项目相关 API =====
 
@@ -648,4 +648,33 @@ export const associateFileToProject = async (
   );
   return response.data;
 };
+
+// ===== 设置相关 API =====
+
+/**
+ * 获取系统设置
+ */
+export const getSettings = async (): Promise<ApiResponse<Settings>> => {
+  const response = await apiClient.get<ApiResponse<Settings>>('/api/settings');
+  return response.data;
+};
+
+/**
+ * 更新系统设置
+ */
+export const updateSettings = async (
+  data: Partial<Pick<Settings, 'api_base_url' | 'image_resolution' | 'image_aspect_ratio'>> & { api_key?: string }
+): Promise<ApiResponse<Settings>> => {
+  const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
+  return response.data;
+};
+
+/**
+ * 重置系统设置
+ */
+export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
+  const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
 

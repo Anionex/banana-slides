@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject } from '@/api/endpoints';
@@ -329,6 +329,15 @@ export const Home: React.FC = () => {
             >
               <span className="hidden sm:inline">历史项目</span>
               <span className="sm:hidden">历史</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate('/settings')}
+              className="hover:bg-banana-50/50"
+            >
+              <span className="hidden md:inline">设置</span>
             </Button>
             <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:bg-banana-50/50">帮助</Button>
           </div>
