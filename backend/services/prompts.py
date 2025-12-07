@@ -3,7 +3,10 @@ AI Service Prompts - 集中管理所有 AI 服务的 prompt 模板
 """
 import logging
 from textwrap import dedent
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.ai_service import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +182,7 @@ def get_page_description_prompt(idea_prompt: str, outline: list,
     The description includes page title, text to render(keep it concise), don't include any other text.
     For example:
     页面标题：原始社会：与自然共生
+    
     页面文字：
     - 狩猎采集文明： 人类活动规模小，对环境影响有限。
     - 依赖性强： 生活完全依赖于自然资源的直接供给，对自然规律敬畏。
@@ -369,6 +373,7 @@ def get_description_split_prompt(description_text: str, outline: List[Dict]) -> 
     Each element should be a string containing the page description in the following format:
     
     页面标题：[页面标题]
+    
     页面文字：
     - [要点1]
     - [要点2]
@@ -396,26 +401,29 @@ def get_description_split_prompt(description_text: str, outline: List[Dict]) -> 
     return prompt
 
 
-def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement: str, 
-                                   idea_prompt: str = None,
-                                   reference_files_content: Optional[List[Dict[str, str]]] = None,
+def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement: str,
+                                   project_context: 'ProjectContext',
                                    previous_requirements: Optional[List[str]] = None) -> str:
     """
-    根据用户要求优化已有大纲的 prompt
+    根据用户要求修改已有大纲的 prompt
     
     Args:
         current_outline: 当前的大纲结构
         user_requirement: 用户的新要求
-        idea_prompt: 原始的想法提示（可选）
-        reference_files_content: 可选的参考文件内容列表
+        project_context: 项目上下文对象，包含所有原始信息
         previous_requirements: 之前的修改要求列表（可选）
         
     Returns:
         格式化后的 prompt 字符串
     """
     import json
-    files_xml = _format_reference_files_xml(reference_files_content)
-    outline_json = json.dumps(current_outline, ensure_ascii=False, indent=2)
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    
+    # 处理空大纲的情况
+    if not current_outline or len(current_outline) == 0:
+        outline_text = "(当前没有内容)"
+    else:
+        outline_text = json.dumps(current_outline, ensure_ascii=False, indent=2)
     
     # 构建之前的修改历史记录
     previous_req_text = ""
@@ -423,26 +431,34 @@ def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement:
         prev_list = "\n".join([f"- {req}" for req in previous_requirements])
         previous_req_text = f"\n\n之前用户提出的修改要求：\n{prev_list}\n"
     
-    # 构建原始想法提示文本
-    idea_text = ""
-    if idea_prompt:
-        idea_text = f"\n\n原始用户想法/需求：{idea_prompt}\n"
+    # 构建原始输入信息（根据项目类型显示不同的原始内容）
+    original_input_text = "\n原始输入信息：\n"
+    if project_context.creation_type == 'idea' and project_context.idea_prompt:
+        original_input_text += f"- PPT构想：{project_context.idea_prompt}\n"
+    elif project_context.creation_type == 'outline' and project_context.outline_text:
+        original_input_text += f"- 用户提供的大纲文本：\n{project_context.outline_text}\n"
+    elif project_context.creation_type == 'descriptions' and project_context.description_text:
+        original_input_text += f"- 用户提供的页面描述文本：\n{project_context.description_text}\n"
+    elif project_context.idea_prompt:
+        original_input_text += f"- 用户输入：{project_context.idea_prompt}\n"
     
     prompt = dedent(f"""\
-    You are a helpful assistant that refines PPT outlines based on user requirements.
-    {idea_text}
+    You are a helpful assistant that modifies PPT outlines based on user requirements.
+    {original_input_text}
     当前的 PPT 大纲结构如下：
     
-    {outline_json}
+    {outline_text}
     {previous_req_text}
-    用户现在提出新的要求：{user_requirement}
+    **用户现在提出新的要求：{user_requirement}**
     
-    请根据用户的要求优化和调整大纲。你可以：
+    请根据用户的要求修改和调整大纲。你可以：
     - 添加、删除或重新排列页面
     - 修改页面标题和要点
     - 调整页面的组织结构
     - 添加或删除章节（part）
+    - 合并或拆分页面
     - 根据用户要求进行任何合理的调整
+    - 如果当前没有内容，请根据用户要求和原始输入信息创建新的大纲
     
     输出格式可以选择：
     
@@ -469,7 +485,7 @@ def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement:
     
     选择最适合内容的格式。当 PPT 有清晰的主要章节时使用章节格式。
     
-    现在请根据用户要求优化大纲，只输出 JSON 格式的大纲，不要包含其他文字。
+    现在请根据用户要求修改大纲，只输出 JSON 格式的大纲，不要包含其他文字。
     使用全中文输出。
     """)
     
@@ -479,26 +495,24 @@ def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement:
 
 
 def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_requirement: str,
-                                       idea_prompt: str = None,
+                                       project_context: 'ProjectContext',
                                        outline: List[Dict] = None,
-                                       reference_files_content: Optional[List[Dict[str, str]]] = None,
-                                       previous_requirements: Optional[List[str]] = None) -> List[str]:
+                                       previous_requirements: Optional[List[str]] = None) -> str:
     """
-    根据用户要求优化已有页面描述的 prompt
+    根据用户要求修改已有页面描述的 prompt
     
     Args:
         current_descriptions: 当前的页面描述列表，每个元素包含 {index, title, description_content}
         user_requirement: 用户的新要求
-        idea_prompt: 原始的想法提示（可选）
+        project_context: 项目上下文对象，包含所有原始信息
         outline: 完整的大纲结构（可选）
-        reference_files_content: 可选的参考文件内容列表
         previous_requirements: 之前的修改要求列表（可选）
         
     Returns:
-        格式化后的 prompt 字符串列表，每个元素对应一个页面描述
+        格式化后的 prompt 字符串
     """
     import json
-    files_xml = _format_reference_files_xml(reference_files_content)
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     
     # 构建之前的修改历史记录
     previous_req_text = ""
@@ -506,10 +520,16 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
         prev_list = "\n".join([f"- {req}" for req in previous_requirements])
         previous_req_text = f"\n\n之前用户提出的修改要求：\n{prev_list}\n"
     
-    # 构建原始想法提示文本
-    idea_text = ""
-    if idea_prompt:
-        idea_text = f"\n\n原始用户想法/需求：{idea_prompt}\n"
+    # 构建原始输入信息
+    original_input_text = "\n原始输入信息：\n"
+    if project_context.creation_type == 'idea' and project_context.idea_prompt:
+        original_input_text += f"- PPT构想：{project_context.idea_prompt}\n"
+    elif project_context.creation_type == 'outline' and project_context.outline_text:
+        original_input_text += f"- 用户提供的大纲文本：\n{project_context.outline_text}\n"
+    elif project_context.creation_type == 'descriptions' and project_context.description_text:
+        original_input_text += f"- 用户提供的页面描述文本：\n{project_context.description_text}\n"
+    elif project_context.idea_prompt:
+        original_input_text += f"- 用户输入：{project_context.idea_prompt}\n"
     
     # 构建大纲文本
     outline_text = ""
@@ -519,31 +539,42 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
     
     # 构建所有页面描述的汇总
     all_descriptions_text = "当前所有页面的描述：\n\n"
+    has_any_description = False
     for desc in current_descriptions:
         page_num = desc.get('index', 0) + 1
         title = desc.get('title', '未命名')
         content = desc.get('description_content', '')
         if isinstance(content, dict):
             content = content.get('text', '')
-        all_descriptions_text += f"--- 第 {page_num} 页：{title} ---\n{content}\n\n"
+        
+        if content:
+            has_any_description = True
+            all_descriptions_text += f"--- 第 {page_num} 页：{title} ---\n{content}\n\n"
+        else:
+            all_descriptions_text += f"--- 第 {page_num} 页：{title} ---\n(当前没有内容)\n\n"
+    
+    if not has_any_description:
+        all_descriptions_text = "当前所有页面的描述：\n\n(当前没有内容，需要基于大纲生成新的描述)\n\n"
     
     prompt = dedent(f"""\
-    You are a helpful assistant that refines PPT page descriptions based on user requirements.
-    {idea_text}{outline_text}
+    You are a helpful assistant that modifies PPT page descriptions based on user requirements.
+    {original_input_text}{outline_text}
     {all_descriptions_text}
     {previous_req_text}
-    用户现在提出新的要求：{user_requirement}
+    **用户现在提出新的要求：{user_requirement}**
     
-    请根据用户的要求优化和调整所有页面的描述。你可以：
+    请根据用户的要求修改和调整所有页面的描述。你可以：
     - 修改页面标题和内容
     - 调整页面文字的详细程度
     - 添加或删除要点
-    - 优化描述的结构和表达
+    - 调整描述的结构和表达
     - 确保所有页面描述都符合用户的要求
+    - 如果当前没有内容，请根据大纲和用户要求创建新的描述
     
-    请为每个页面生成优化后的描述，格式如下：
+    请为每个页面生成修改后的描述，格式如下：
     
     页面标题：[页面标题]
+    
     页面文字：
     - [要点1]
     - [要点2]
@@ -552,7 +583,7 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
     
     提示：如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)，而不是作为普通文本。
     
-    请返回一个 JSON 数组，每个元素是一个字符串，对应每个页面的优化后描述（按页面顺序）。
+    请返回一个 JSON 数组，每个元素是一个字符串，对应每个页面的修改后描述（按页面顺序）。
     
     示例输出格式：
     [
@@ -561,7 +592,7 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
       ...
     ]
     
-    现在请根据用户要求优化所有页面描述，只输出 JSON 数组，不要包含其他文字。
+    现在请根据用户要求修改所有页面描述，只输出 JSON 数组，不要包含其他文字。
     使用全中文输出。
     """)
     

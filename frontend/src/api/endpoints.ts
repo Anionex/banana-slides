@@ -149,29 +149,37 @@ export const generatePageDescription = async (
 };
 
 /**
- * 根据用户要求优化大纲
+ * 根据用户要求修改大纲
  */
 export const refineOutline = async (
   projectId: string,
-  userRequirement: string
+  userRequirement: string,
+  previousRequirements?: string[]
 ): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
   const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
     `/api/projects/${projectId}/refine/outline`,
-    { user_requirement: userRequirement }
+    { 
+      user_requirement: userRequirement,
+      previous_requirements: previousRequirements || []
+    }
   );
   return response.data;
 };
 
 /**
- * 根据用户要求优化页面描述
+ * 根据用户要求修改页面描述
  */
 export const refineDescriptions = async (
   projectId: string,
-  userRequirement: string
+  userRequirement: string,
+  previousRequirements?: string[]
 ): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
   const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
     `/api/projects/${projectId}/refine/descriptions`,
-    { user_requirement: userRequirement }
+    { 
+      user_requirement: userRequirement,
+      previous_requirements: previousRequirements || []
+    }
   );
   return response.data;
 };

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
-import { Button, Loading, useToast, useConfirm } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
+import { refineDescriptions } from '@/api/endpoints';
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -94,6 +95,25 @@ export const DetailEditor: React.FC = () => {
     }
   };
 
+  const handleAiRefineDescriptions = async (requirement: string, previousRequirements: string[]) => {
+    if (!currentProject || !projectId) return;
+    
+    try {
+      const response = await refineDescriptions(projectId, requirement, previousRequirements);
+      await syncProject(projectId);
+      show({ 
+        message: response.data?.message || '页面描述修改成功', 
+        type: 'success' 
+      });
+    } catch (error: any) {
+      console.error('修改页面描述失败:', error);
+      const errorMessage = error?.response?.data?.error?.message 
+        || error?.message 
+        || '修改失败，请稍后重试';
+      show({ message: errorMessage, type: 'error' });
+      throw error; // 抛出错误让组件知道失败了
+    }
+  };
 
   if (!currentProject) {
     return <Loading fullscreen message="加载项目中..." />;
@@ -106,51 +126,78 @@ export const DetailEditor: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 顶栏 */}
-      <header className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-3 md:px-6 flex-shrink-0">
-        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => {
-              if (fromHistory) {
-                navigate('/history');
-              } else {
-                navigate(`/project/${projectId}/outline`);
-              }
-            }}
-            className="flex-shrink-0"
-          >
-            <span className="hidden sm:inline">返回</span>
-          </Button>
-          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-            <span className="text-xl md:text-2xl">🍌</span>
-            <span className="text-base md:text-xl font-bold truncate">蕉幻</span>
+      <header className="bg-white shadow-sm border-b border-gray-200 px-3 md:px-6 py-2 md:py-3 flex-shrink-0">
+        <div className="flex items-center justify-between gap-2 md:gap-4">
+          {/* 左侧：Logo 和标题 */}
+          <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => {
+                if (fromHistory) {
+                  navigate('/history');
+                } else {
+                  navigate(`/project/${projectId}/outline`);
+                }
+              }}
+              className="flex-shrink-0"
+            >
+              <span className="hidden sm:inline">返回</span>
+            </Button>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <span className="text-xl md:text-2xl">🍌</span>
+              <span className="text-base md:text-xl font-bold">蕉幻</span>
+            </div>
+            <span className="text-gray-400 hidden lg:inline">|</span>
+            <span className="text-sm md:text-lg font-semibold hidden lg:inline">编辑页面描述</span>
           </div>
-          <span className="text-gray-400 hidden md:inline">|</span>
-          <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">编辑页面描述</span>
+          
+          {/* 中间：AI 修改输入框 */}
+          <div className="flex-1 max-w-xl mx-auto hidden md:block md:-translate-x-3 pr-10">
+            <AiRefineInput
+              title=""
+              placeholder="例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交"
+              onSubmit={handleAiRefineDescriptions}
+              disabled={false}
+              className="!p-0 !bg-transparent !border-0"
+            />
+          </div>
+          
+          {/* 右侧：操作按钮 */}
+          <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate(`/project/${projectId}/outline`)}
+              className="hidden md:inline-flex"
+            >
+              <span className="hidden lg:inline">上一步</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate(`/project/${projectId}/preview`)}
+              disabled={!hasAllDescriptions}
+              className="text-xs md:text-sm"
+            >
+              <span className="hidden sm:inline">生成图片</span>
+              <span className="sm:hidden">→</span>
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => navigate(`/project/${projectId}/outline`)}
-            className="hidden sm:inline-flex"
-          >
-            <span className="hidden md:inline">上一步</span>
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => navigate(`/project/${projectId}/preview`)}
-            disabled={!hasAllDescriptions}
-            className="text-xs md:text-sm"
-          >
-            <span className="hidden sm:inline">生成图片</span>
-            <span className="sm:hidden">生成</span>
-          </Button>
+        
+        {/* 移动端：AI 输入框 */}
+        <div className="mt-2 md:hidden">
+          <AiRefineInput
+            title=""
+            placeholder="例如：让描述更详细... · Ctrl+Enter"
+            onSubmit={handleAiRefineDescriptions}
+            disabled={false}
+            className="!p-0 !bg-transparent !border-0"
+          />
         </div>
       </header>
 

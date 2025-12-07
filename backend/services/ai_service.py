@@ -28,6 +28,32 @@ from .prompts import (
 logger = logging.getLogger(__name__)
 
 
+class ProjectContext:
+    """项目上下文数据类，统一管理 AI 需要的所有项目信息"""
+    
+    def __init__(self, project_dict: Dict, reference_files_content: Optional[List[Dict[str, str]]] = None):
+        """
+        Args:
+            project_dict: 项目对象的字典表示（通常是 project.to_dict()）
+            reference_files_content: 参考文件内容列表
+        """
+        self.idea_prompt = project_dict.get('idea_prompt')
+        self.outline_text = project_dict.get('outline_text')
+        self.description_text = project_dict.get('description_text')
+        self.creation_type = project_dict.get('creation_type', 'idea')
+        self.reference_files_content = reference_files_content or []
+    
+    def to_dict(self) -> Dict:
+        """转换为字典，方便传递"""
+        return {
+            'idea_prompt': self.idea_prompt,
+            'outline_text': self.outline_text,
+            'description_text': self.description_text,
+            'creation_type': self.creation_type,
+            'reference_files_content': self.reference_files_content
+        }
+
+
 class AIService:
     """Service for AI model interactions using Gemini"""
     
@@ -467,27 +493,24 @@ class AIService:
             raise ValueError("Expected a list of page descriptions, but got: " + str(type(descriptions)))
     
     def refine_outline(self, current_outline: List[Dict], user_requirement: str,
-                      idea_prompt: str = None,
-                      reference_files_content: Optional[List[Dict[str, str]]] = None,
+                      project_context: ProjectContext,
                       previous_requirements: Optional[List[str]] = None) -> List[Dict]:
         """
-        根据用户要求优化已有大纲
+        根据用户要求修改已有大纲
         
         Args:
             current_outline: 当前的大纲结构
             user_requirement: 用户的新要求
-            idea_prompt: 原始的想法提示（可选）
-            reference_files_content: 可选的参考文件内容列表
+            project_context: 项目上下文对象，包含所有原始信息
             previous_requirements: 之前的修改要求列表（可选）
         
         Returns:
-            优化后的大纲结构
+            修改后的大纲结构
         """
         refinement_prompt = get_outline_refinement_prompt(
             current_outline=current_outline,
             user_requirement=user_requirement,
-            idea_prompt=idea_prompt,
-            reference_files_content=reference_files_content,
+            project_context=project_context,
             previous_requirements=previous_requirements
         )
         
@@ -504,30 +527,27 @@ class AIService:
         return outline
     
     def refine_descriptions(self, current_descriptions: List[Dict], user_requirement: str,
-                           idea_prompt: str = None,
+                           project_context: ProjectContext,
                            outline: List[Dict] = None,
-                           reference_files_content: Optional[List[Dict[str, str]]] = None,
                            previous_requirements: Optional[List[str]] = None) -> List[str]:
         """
-        根据用户要求优化已有页面描述
+        根据用户要求修改已有页面描述
         
         Args:
             current_descriptions: 当前的页面描述列表，每个元素包含 {index, title, description_content}
             user_requirement: 用户的新要求
-            idea_prompt: 原始的想法提示（可选）
+            project_context: 项目上下文对象，包含所有原始信息
             outline: 完整的大纲结构（可选）
-            reference_files_content: 可选的参考文件内容列表
             previous_requirements: 之前的修改要求列表（可选）
         
         Returns:
-            优化后的页面描述列表（字符串列表）
+            修改后的页面描述列表（字符串列表）
         """
         refinement_prompt = get_descriptions_refinement_prompt(
             current_descriptions=current_descriptions,
             user_requirement=user_requirement,
-            idea_prompt=idea_prompt,
+            project_context=project_context,
             outline=outline,
-            reference_files_content=reference_files_content,
             previous_requirements=previous_requirements
         )
         

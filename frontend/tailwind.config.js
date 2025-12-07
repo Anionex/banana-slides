@@ -31,6 +31,7 @@ export default {
         'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'shimmer': 'shimmer 1.5s infinite',
         'gradient': 'gradient 3s ease infinite',
+        'gradient-x': 'gradient-x 2s ease infinite',
       },
       keyframes: {
         pulse: {
@@ -44,6 +45,10 @@ export default {
         gradient: {
           '0%, 100%': { backgroundPosition: '0% 50%' },
           '50%': { backgroundPosition: '100% 50%' },
+        },
+        'gradient-x': {
+          '0%, 100%': { backgroundPosition: '0% 0%' },
+          '50%': { backgroundPosition: '100% 0%' },
         },
       },
     },
