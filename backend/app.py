@@ -25,8 +25,7 @@ from default_config import (
     DEFAULT_MINERU_API_BASE
 )
 from controllers.material_controller import material_bp, material_global_bp
-# 暂时禁用 reference_file_controller，避免 markitdown/numpy 在 Docker 容器中的线程问题
-# from controllers.reference_file_controller import reference_file_bp
+from controllers.reference_file_controller import reference_file_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp, settings_bp
 
 
@@ -131,8 +130,7 @@ def create_app():
     app.register_blueprint(file_bp)
     app.register_blueprint(material_bp)
     app.register_blueprint(material_global_bp)
-    # 暂时禁用 reference_file_bp（markitdown/numpy 线程问题）
-    # app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
+    app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
     app.register_blueprint(settings_bp)
     
     with app.app_context():

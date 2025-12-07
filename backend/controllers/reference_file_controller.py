@@ -11,7 +11,6 @@ from pathlib import Path
 from config import Config
 from datetime import datetime
 from urllib.parse import unquote
-import threading
 
 from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
@@ -35,68 +34,69 @@ def _get_file_type(filename: str) -> str:
     return 'unknown'
 
 
-def _parse_file_async(file_id: str, file_path: str, filename: str, app):
+def _parse_file_sync(file_id: str, file_path: str, filename: str):
     """
-    Parse file asynchronously in background
-    
+    Parse file synchronously (removed threading to fix Docker issues)
+
     Args:
         file_id: Reference file ID
         file_path: Path to the uploaded file
         filename: Original filename
-        app: Flask app instance (for app context)
     """
-    with app.app_context():
+    try:
+        reference_file = ReferenceFile.query.get(file_id)
+        if not reference_file:
+            logger.error(f"Reference file {file_id} not found")
+            return None, f"File {file_id} not found"
+
+        # Update status to parsing
+        reference_file.parse_status = 'parsing'
+        db.session.commit()
+
+        # Initialize parser service
+        parser = FileParserService(
+            mineru_token=current_app.config['MINERU_TOKEN'],
+            mineru_api_base=current_app.config['MINERU_API_BASE'],
+            google_api_key=current_app.config['GOOGLE_API_KEY'],
+            google_api_base=current_app.config['GOOGLE_API_BASE'],
+            image_caption_model=current_app.config['IMAGE_CAPTION_MODEL']
+        )
+
+        # Parse file
+        logger.info(f"Starting to parse file: {filename}")
+        batch_id, markdown_content, error_message, failed_image_count = parser.parse_file(file_path, filename)
+
+        # Update database
+        reference_file.mineru_batch_id = batch_id
+        if error_message:
+            reference_file.parse_status = 'failed'
+            reference_file.error_message = error_message
+            logger.error(f"File parsing failed: {error_message}")
+        else:
+            reference_file.parse_status = 'completed'
+            reference_file.markdown_content = markdown_content
+            if failed_image_count > 0:
+                logger.warning(f"File parsing completed: {filename}, but {failed_image_count} images failed to generate captions")
+            else:
+                logger.info(f"File parsing completed: {filename}")
+
+        reference_file.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return reference_file, None
+
+    except Exception as e:
+        logger.error(f"Error in file parsing: {str(e)}", exc_info=True)
         try:
             reference_file = ReferenceFile.query.get(file_id)
-            if not reference_file:
-                logger.error(f"Reference file {file_id} not found")
-                return
-            
-            # Update status to parsing
-            reference_file.parse_status = 'parsing'
-            db.session.commit()
-            
-            # Initialize parser service
-            parser = FileParserService(
-                mineru_token=current_app.config['MINERU_TOKEN'],
-                mineru_api_base=current_app.config['MINERU_API_BASE'],
-                google_api_key=current_app.config['GOOGLE_API_KEY'],
-                google_api_base=current_app.config['GOOGLE_API_BASE'],
-                image_caption_model=current_app.config['IMAGE_CAPTION_MODEL']
-            )
-            
-            # Parse file
-            logger.info(f"Starting to parse file: {filename}")
-            batch_id, markdown_content, error_message, failed_image_count = parser.parse_file(file_path, filename)
-            
-            # Update database
-            reference_file.mineru_batch_id = batch_id
-            if error_message:
+            if reference_file:
                 reference_file.parse_status = 'failed'
-                reference_file.error_message = error_message
-                logger.error(f"File parsing failed: {error_message}")
-            else:
-                reference_file.parse_status = 'completed'
-                reference_file.markdown_content = markdown_content
-                if failed_image_count > 0:
-                    logger.warning(f"File parsing completed: {filename}, but {failed_image_count} images failed to generate captions")
-                else:
-                    logger.info(f"File parsing completed: {filename}")
-            
-            reference_file.updated_at = datetime.utcnow()
-            db.session.commit()
-            
-        except Exception as e:
-            logger.error(f"Error in async file parsing: {str(e)}", exc_info=True)
-            try:
-                reference_file = ReferenceFile.query.get(file_id)
-                if reference_file:
-                    reference_file.parse_status = 'failed'
-                    reference_file.error_message = f"Parsing error: {str(e)}"
-                    reference_file.updated_at = datetime.utcnow()
-                    db.session.commit()
-            except Exception as db_error:
-                logger.error(f"Failed to update error status: {str(db_error)}")
+                reference_file.error_message = f"Parsing error: {str(e)}"
+                reference_file.updated_at = datetime.utcnow()
+                db.session.commit()
+        except Exception as db_error:
+            logger.error(f"Failed to update error status: {str(db_error)}")
+        return None, str(e)
 
 
 @reference_file_bp.route('/upload', methods=['POST'])
@@ -334,23 +334,20 @@ def trigger_file_parse(file_id):
         # 获取文件路径
         upload_folder = current_app.config['UPLOAD_FOLDER']
         file_path = Path(upload_folder) / reference_file.file_path
-        
+
         if not file_path.exists():
             return error_response('FILE_NOT_FOUND', f'File not found: {file_path}', 404)
-        
-        # 启动异步解析
-        thread = threading.Thread(
-            target=_parse_file_async,
-            args=(reference_file.id, str(file_path), reference_file.filename, current_app._get_current_object())
-        )
-        thread.daemon = True
-        thread.start()
-        
-        logger.info(f"Triggered parsing for file: {reference_file.filename} (ID: {file_id})")
-        
+
+        # 同步解析文件（修复：不再使用threading以避免Docker中的线程问题）
+        logger.info(f"Starting synchronous parsing for file: {reference_file.filename} (ID: {file_id})")
+        parsed_file, error = _parse_file_sync(reference_file.id, str(file_path), reference_file.filename)
+
+        if error:
+            return error_response('PARSING_ERROR', error, 500)
+
         return success_response({
-            'file': reference_file.to_dict(),
-            'message': 'Parsing started'
+            'file': parsed_file.to_dict() if parsed_file else reference_file.to_dict(),
+            'message': 'File parsed successfully'
         })
         
     except Exception as e:

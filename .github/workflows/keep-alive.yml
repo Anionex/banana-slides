@@ -1,0 +1,29 @@
+name: Keep Render Service Alive
+
+on:
+  schedule:
+    # 每10分钟ping一次（避免15分钟休眠）
+    - cron: '*/10 * * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Endpoint
+        run: |
+          echo "Pinging backend to keep it alive..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://banana-slides-backend.onrender.com/health)
+          echo "Health check response: $response"
+
+          if [ "$response" = "200" ]; then
+            echo "✅ Backend is alive and responding"
+          else
+            echo "⚠️ Backend returned status code: $response"
+          fi
+
+      - name: Ping API Endpoint
+        run: |
+          echo "Pinging API endpoint..."
+          curl -s https://banana-slides-backend.onrender.com/api || true
+          echo "Ping completed"
