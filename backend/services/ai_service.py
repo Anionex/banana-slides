@@ -492,6 +492,32 @@ class AIService:
                         base64_data = content.split(',', 1)[1]
                     else:
                         raise ValueError("Invalid data URL format")
+                # Check if it's a Markdown image link: ![image](data:image/png;base64,...)
+                elif isinstance(content, str) and '![image]' in content and 'data:image' in content:
+                    import re
+                    # Use regex to extract the data URL from markdown
+                    match = re.search(r'!\[image\]\((data:image/[^)]+)\)', content)
+                    if match:
+                        data_url = match.group(1)
+                        if ',' in data_url:
+                            base64_data = data_url.split(',', 1)[1]
+                        else:
+                            raise ValueError("Invalid data URL in markdown")
+                    else:
+                        raise ValueError("Could not extract data URL from markdown format")
+                elif isinstance(content, str) and content.startswith('!['):
+                    # Generic markdown image detection
+                    import re
+                    # Try to find any data URL in markdown
+                    match = re.search(r'\!\[.*?\]\((data:image/[^)]+)\)', content)
+                    if match:
+                        data_url = match.group(1)
+                        if ',' in data_url:
+                            base64_data = data_url.split(',', 1)[1]
+                        else:
+                            raise ValueError("Invalid data URL in markdown")
+                    else:
+                        raise ValueError("Could not extract data URL from markdown format")
                 elif isinstance(content, str) and (content.startswith('http://') or content.startswith('https://')):
                     # It's a URL, download the image
                     logger.debug(f"Downloading image from URL: {content}")
