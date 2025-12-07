@@ -92,18 +92,6 @@ def get_api_presets():
                 'key_format': '文本：AIza... / 图片：sk-xxx'
             }
         },
-        {
-            'id': 'relay_nextai',
-            'name': '🔄 NextAI 中转',
-            'description': '使用 api.nextaicore.com 中转API（注意：可能不支持图片生成）',
-            'config': {
-                'text_api_base': 'https://api.nextaicore.com',
-                'image_api_base': 'https://api.nextaicore.com',
-                'requires_key': True,
-                'key_format': 'sk-xxx',
-                'warning': '⚠️ 此API可能不支持图片生成功能'
-            }
-        },
     ]
 
     return jsonify(presets), 200
