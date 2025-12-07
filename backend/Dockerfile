@@ -9,16 +9,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv
 
 # 复制项目配置文件
-COPY pyproject.toml ./
-COPY uv.lock* ./
+COPY pyproject.toml uv.lock ./
 
 # 安装 Python 依赖
-# 如果有 uv.lock 文件则使用 --frozen，否则生成新的锁定文件
-RUN if [ -f uv.lock ]; then \
-        uv sync --frozen; \
-    else \
-        uv sync; \
-    fi
+RUN uv sync --frozen
 
 # 复制后端代码
 COPY backend/ ./backend/
