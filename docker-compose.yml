@@ -13,6 +13,12 @@ services:
     # 从 .env 文件自动加载所有环境变量
     env_file:
       - .env
+    environment:
+      # 限制 OpenBLAS 线程数，避免 Docker 容器中的 pthread 创建失败
+      - OPENBLAS_NUM_THREADS=1
+      # 同时设置 NumPy 使用单线程
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     volumes:
       # 持久化数据库
       - ./backend/instance:/app/backend/instance
