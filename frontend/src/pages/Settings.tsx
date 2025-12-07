@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Key, Link, Save, RotateCcw } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw } from 'lucide-react';
 import { Button, Input, Card, Loading, useToast } from '@/components/shared';
 import * as api from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
@@ -15,6 +15,10 @@ export const Settings: React.FC = () => {
   const [formData, setFormData] = useState({
     api_base_url: '',
     api_key: '',
+    image_resolution: '2K',
+    image_aspect_ratio: '16:9',
+    max_description_workers: 5,
+    max_image_workers: 8,
   });
 
   useEffect(() => {
@@ -30,6 +34,10 @@ export const Settings: React.FC = () => {
         setFormData({
           api_base_url: response.data.api_base_url || '',
           api_key: '', // 不显示实际的 API key, 留空则在更新的时候不设置新的 apikey.
+          image_resolution: response.data.image_resolution || '2K',
+          image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
+          max_description_workers: response.data.max_description_workers || 5,
+          max_image_workers: response.data.max_image_workers || 8,
         });
       }
     } catch (error: any) {
@@ -51,6 +59,21 @@ export const Settings: React.FC = () => {
       if (formData.api_base_url) {
         updateData.api_base_url = formData.api_base_url;
       }
+      if (formData.api_key) {
+        updateData.api_key = formData.api_key;
+      }
+      if (formData.image_resolution) {
+        updateData.image_resolution = formData.image_resolution;
+      }
+      if (formData.image_aspect_ratio) {
+        updateData.image_aspect_ratio = formData.image_aspect_ratio;
+      }
+      if (formData.max_description_workers) {
+        updateData.max_description_workers = formData.max_description_workers;
+      }
+      if (formData.max_image_workers) {
+        updateData.max_image_workers = formData.max_image_workers;
+      } updateData.api_base_url = formData.api_base_url;
       if (formData.api_key) {
         updateData.api_key = formData.api_key;
       }
@@ -86,6 +109,10 @@ export const Settings: React.FC = () => {
         setFormData({
           api_base_url: response.data.api_base_url || '',
           api_key: '',
+          image_resolution: response.data.image_resolution || '2K',
+          image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
+          max_description_workers: response.data.max_description_workers || 5,
+          max_image_workers: response.data.max_image_workers || 8,
         });
         show({ message: '设置已重置', type: 'success' });
       }
@@ -169,16 +196,90 @@ export const Settings: React.FC = () => {
               </div>
             </div>
 
-            {/* 图像生成配置（TODO） */}
+            {/* 图像生成配置 */}
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                <Link size={20} className="mr-2" />
+                <Image size={20} className="mr-2" />
                 图像生成配置
               </h2>
-              <div className="bg-banana-50 border border-banana-200 rounded-lg p-4">
-                <p className="text-sm text-gray-600">
-                  🚧 图像清晰度和比例设置即将推出...
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    图像清晰度
+                  </label>
+                  <select
+                    value={formData.image_resolution}
+                    onChange={(e) => setFormData(prev => ({ ...prev, image_resolution: e.target.value }))}
+                    className="w-full h-10 px-4 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                  >
+                    <option value="1K">1K (1024px)</option>
+                    <option value="2K">2K (2048px)</option>
+                    <option value="4K">4K (4096px)</option>
+                  </select>
+                  <p className="mt-1 text-sm text-gray-500">
+                    更高的清晰度会生成更详细的图像，但需要更长时间
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    图像比例
+                  </label>
+                  <select
+                    value={formData.image_aspect_ratio}
+                    onChange={(e) => setFormData(prev => ({ ...prev, image_aspect_ratio: e.target.value }))}
+                    className="w-full h-10 px-4 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                  >
+                    <option value="1:1">1:1 (正方形)</option>
+                    <option value="2:3">2:3 (竖向)</option>
+                    <option value="3:2">3:2 (横向)</option>
+                    <option value="3:4">3:4 (竖向)</option>
+                    <option value="4:3">4:3 (标准)</option>
+                    <option value="4:5">4:5 (竖向)</option>
+                    <option value="5:4">5:4 (横向)</option>
+                    <option value="9:16">9:16 (竖向)</option>
+                    <option value="16:9">16:9 (宽屏)</option>
+                    <option value="21:9">21:9 (超宽屏)</option>
+                  </select>
+                  <p className="mt-1 text-sm text-gray-500">
+                    选择适合你 PPT 的图像比例
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 性能配置 */}
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                <Zap size={20} className="mr-2" />
+                性能配置
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <Input
+                    label="描述生成最大并发数"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={formData.max_description_workers}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_description_workers: parseInt(e.target.value) || 5 }))}
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    同时生成描述的最大工作线程数 (1-20)，越大速度越快
+                  </p>
+                </div>
+                <div>
+                  <Input
+                    label="图像生成最大并发数"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={formData.max_image_workers}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_image_workers: parseInt(e.target.value) || 8 }))}
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    同时生成图像的最大工作线程数 (1-20)，越大速度越快
+                  </p>
+                </div>
               </div>
             </div>
 
