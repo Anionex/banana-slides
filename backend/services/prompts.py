@@ -1,6 +1,7 @@
 """
 AI Service Prompts - 集中管理所有 AI 服务的 prompt 模板
 """
+import json
 import logging
 from textwrap import dedent
 from typing import List, Dict, Optional, TYPE_CHECKING
@@ -352,7 +353,6 @@ def get_description_split_prompt(description_text: str, outline: List[Dict]) -> 
     Returns:
         格式化后的 prompt 字符串
     """
-    import json
     outline_json = json.dumps(outline, ensure_ascii=False, indent=2)
     
     prompt = dedent(f"""\
@@ -416,7 +416,6 @@ def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement:
     Returns:
         格式化后的 prompt 字符串
     """
-    import json
     files_xml = _format_reference_files_xml(project_context.reference_files_content)
     
     # 处理空大纲的情况
@@ -511,7 +510,6 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
     Returns:
         格式化后的 prompt 字符串
     """
-    import json
     files_xml = _format_reference_files_xml(project_context.reference_files_content)
     
     # 构建之前的修改历史记录

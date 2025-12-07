@@ -42,6 +42,65 @@ def _get_project_reference_files_content(project_id: str) -> list:
     return files_content
 
 
+def _reconstruct_outline_from_pages(pages: list) -> list:
+    """
+    Reconstruct outline structure from Page objects
+    
+    Args:
+        pages: List of Page objects ordered by order_index
+        
+    Returns:
+        Outline structure (list) with optional part grouping
+    """
+    outline = []
+    current_part = None
+    current_part_pages = []
+    
+    for page in pages:
+        outline_content = page.get_outline_content()
+        if not outline_content:
+            continue
+            
+        page_data = outline_content.copy()
+        
+        # 如果当前页面属于一个 part
+        if page.part:
+            # 如果这是新的 part，先保存之前的 part（如果有）
+            if current_part and current_part != page.part:
+                outline.append({
+                    "part": current_part,
+                    "pages": current_part_pages
+                })
+                current_part_pages = []
+            
+            current_part = page.part
+            # 移除 part 字段，因为它在顶层
+            if 'part' in page_data:
+                del page_data['part']
+            current_part_pages.append(page_data)
+        else:
+            # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
+            if current_part:
+                outline.append({
+                    "part": current_part,
+                    "pages": current_part_pages
+                })
+                current_part = None
+                current_part_pages = []
+            
+            # 直接添加页面
+            outline.append(page_data)
+    
+    # 保存最后一个 part（如果有）
+    if current_part:
+        outline.append({
+            "part": current_part,
+            "pages": current_part_pages
+        })
+    
+    return outline
+
+
 @project_bp.route('', methods=['GET'])
 def list_projects():
     """
@@ -270,8 +329,10 @@ def generate_outline(project_id):
         # Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
         
-        # Delete existing pages
-        Page.query.filter_by(project_id=project_id).delete()
+        # Delete existing pages (using ORM session to trigger cascades)
+        old_pages = Page.query.filter_by(project_id=project_id).all()
+        for old_page in old_pages:
+            db.session.delete(old_page)
         
         # Create pages from outline
         pages_list = []
@@ -375,8 +436,10 @@ def generate_from_description(project_id):
             pages_data = pages_data[:min_count]
             page_descriptions = page_descriptions[:min_count]
         
-        # Step 4: Delete existing pages
-        Page.query.filter_by(project_id=project_id).delete()
+        # Step 4: Delete existing pages (using ORM session to trigger cascades)
+        old_pages = Page.query.filter_by(project_id=project_id).all()
+        for old_page in old_pages:
+            db.session.delete(old_page)
         
         # Step 5: Create pages with both outline and description
         pages_list = []
@@ -450,51 +513,7 @@ def generate_descriptions(project_id):
             return bad_request("No pages found for project")
         
         # Reconstruct outline from pages with part structure
-        outline = []
-        current_part = None
-        current_part_pages = []
-        
-        for page in pages:
-            outline_content = page.get_outline_content()
-            if not outline_content:
-                continue
-                
-            page_data = outline_content.copy()
-            
-            # 如果当前页面属于一个 part
-            if page.part:
-                # 如果这是新的 part，先保存之前的 part（如果有）
-                if current_part and current_part != page.part:
-                    outline.append({
-                        "part": current_part,
-                        "pages": current_part_pages
-                    })
-                    current_part_pages = []
-                
-                current_part = page.part
-                # 移除 part 字段，因为它在顶层
-                if 'part' in page_data:
-                    del page_data['part']
-                current_part_pages.append(page_data)
-            else:
-                # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
-                if current_part:
-                    outline.append({
-                        "part": current_part,
-                        "pages": current_part_pages
-                    })
-                    current_part = None
-                    current_part_pages = []
-                
-                # 直接添加页面
-                outline.append(page_data)
-        
-        # 保存最后一个 part（如果有）
-        if current_part:
-            outline.append({
-                "part": current_part,
-                "pages": current_part_pages
-            })
+        outline = _reconstruct_outline_from_pages(pages)
         
         data = request.get_json() or {}
         from flask import current_app
@@ -583,51 +602,7 @@ def generate_images(project_id):
             return bad_request("No pages found for project")
         
         # Reconstruct outline from pages with part structure
-        outline = []
-        current_part = None
-        current_part_pages = []
-        
-        for page in pages:
-            outline_content = page.get_outline_content()
-            if not outline_content:
-                continue
-                
-            page_data = outline_content.copy()
-            
-            # 如果当前页面属于一个 part
-            if page.part:
-                # 如果这是新的 part，先保存之前的 part（如果有）
-                if current_part and current_part != page.part:
-                    outline.append({
-                        "part": current_part,
-                        "pages": current_part_pages
-                    })
-                    current_part_pages = []
-                
-                current_part = page.part
-                # 移除 part 字段，因为它在顶层
-                if 'part' in page_data:
-                    del page_data['part']
-                current_part_pages.append(page_data)
-            else:
-                # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
-                if current_part:
-                    outline.append({
-                        "part": current_part,
-                        "pages": current_part_pages
-                    })
-                    current_part = None
-                    current_part_pages = []
-                
-                # 直接添加页面
-                outline.append(page_data)
-        
-        # 保存最后一个 part（如果有）
-        if current_part:
-            outline.append({
-                "part": current_part,
-                "pages": current_part_pages
-            })
+        outline = _reconstruct_outline_from_pages(pages)
         
         data = request.get_json() or {}
         from flask import current_app
@@ -737,55 +712,11 @@ def refine_outline(project_id):
         pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         
         # Reconstruct current outline from pages (如果没有页面，使用空列表)
-        current_outline = []
-        current_part = None
-        current_part_pages = []
-        
         if not pages:
             logger.info(f"项目 {project_id} 当前没有页面，将从空开始生成")
             current_outline = []  # 空大纲
         else:
-            for page in pages:
-                outline_content = page.get_outline_content()
-                if not outline_content:
-                    continue
-                    
-                page_data = outline_content.copy()
-                
-                # 如果当前页面属于一个 part
-                if page.part:
-                    # 如果这是新的 part，先保存之前的 part（如果有）
-                    if current_part and current_part != page.part:
-                        current_outline.append({
-                            "part": current_part,
-                            "pages": current_part_pages
-                        })
-                        current_part_pages = []
-                    
-                    current_part = page.part
-                    # 移除 part 字段，因为它在顶层
-                    if 'part' in page_data:
-                        del page_data['part']
-                    current_part_pages.append(page_data)
-                else:
-                    # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
-                    if current_part:
-                        current_outline.append({
-                            "part": current_part,
-                            "pages": current_part_pages
-                        })
-                        current_part = None
-                        current_part_pages = []
-                    
-                    # 直接添加页面
-                    current_outline.append(page_data)
-            
-            # 保存最后一个 part（如果有）
-            if current_part:
-                current_outline.append({
-                    "part": current_part,
-                    "pages": current_part_pages
-                })
+            current_outline = _reconstruct_outline_from_pages(pages)
         
         # Initialize AI service
         from flask import current_app
@@ -835,8 +766,9 @@ def refine_outline(project_id):
                 if old_page.status in ['DESCRIPTION_GENERATED', 'IMAGE_GENERATED']:
                     old_status_map[title] = old_page.status
         
-        # Delete existing pages
-        Page.query.filter_by(project_id=project_id).delete()
+        # Delete existing pages (using ORM session to trigger cascades)
+        for old_page in old_pages:
+            db.session.delete(old_page)
         
         # Create pages from refined outline
         pages_list = []
@@ -940,51 +872,7 @@ def refine_descriptions(project_id):
             logger.info(f"项目 {project_id} 当前没有描述，将基于大纲生成新描述")
         
         # Reconstruct outline from pages
-        outline = []
-        current_part = None
-        current_part_pages = []
-        
-        for page in pages:
-            outline_content = page.get_outline_content()
-            if not outline_content:
-                continue
-                
-            page_data = outline_content.copy()
-            
-            # 如果当前页面属于一个 part
-            if page.part:
-                # 如果这是新的 part，先保存之前的 part（如果有）
-                if current_part and current_part != page.part:
-                    outline.append({
-                        "part": current_part,
-                        "pages": current_part_pages
-                    })
-                    current_part_pages = []
-                
-                current_part = page.part
-                # 移除 part 字段，因为它在顶层
-                if 'part' in page_data:
-                    del page_data['part']
-                current_part_pages.append(page_data)
-            else:
-                # 如果当前页面不属于任何 part，先保存之前的 part（如果有）
-                if current_part:
-                    outline.append({
-                        "part": current_part,
-                        "pages": current_part_pages
-                    })
-                    current_part = None
-                    current_part_pages = []
-                
-                # 直接添加页面
-                outline.append(page_data)
-        
-        # 保存最后一个 part（如果有）
-        if current_part:
-            outline.append({
-                "part": current_part,
-                "pages": current_part_pages
-            })
+        outline = _reconstruct_outline_from_pages(pages)
         
         # Prepare current descriptions
         current_descriptions = []
