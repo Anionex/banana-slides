@@ -19,6 +19,7 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
     image_api_key: '',
     image_api_base: '',
     image_model: '',
+    resolution: '2K',
   });
   const [presets, setPresets] = useState<APIPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
@@ -74,6 +75,8 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
         // 如果预设包含密钥，自动填充
         text_api_key: preset.config.text_api_key || prev.text_api_key,
         image_api_key: preset.config.image_api_key || prev.image_api_key,
+        // 保留当前分辨率设置
+        resolution: prev.resolution,
       }));
     }
   };
@@ -276,6 +279,35 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
               • 官方 Google API (googleapis.com)：使用原生 Gemini SDK 格式
               <br />
               • 第三方代理：自动使用 OpenAI 兼容格式 (/v1/chat/completions)
+            </p>
+          </div>
+        </div>
+
+        <hr className="border-gray-200" />
+
+        {/* 图片分辨率配置 */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            图片分辨率
+          </h3>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              生成图片分辨率
+            </label>
+            <select
+              value={config.resolution || '2K'}
+              onChange={(e) => setConfig({ ...config, resolution: e.target.value })}
+              className="w-full h-10 px-4 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              disabled={loading}
+            >
+              <option value="1K">1K (1024x576)</option>
+              <option value="2K">2K (2048x1152) - 推荐</option>
+              <option value="4K">4K (4096x2304)</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              选择图片生成分辨率。分辨率越高，生成时间越长，消耗的 Token 也越多
             </p>
           </div>
         </div>

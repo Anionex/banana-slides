@@ -18,7 +18,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast } from '@/components/shared';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import type { Page } from '@/types';
@@ -66,7 +66,9 @@ export const OutlineEditor: React.FC = () => {
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { confirm, ConfirmDialog } = useConfirm();
+  const { show, ToastContainer } = useToast();
 
   // 加载项目数据
   useEffect(() => {
@@ -161,14 +163,22 @@ export const OutlineEditor: React.FC = () => {
           <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">编辑大纲</span>
         </div>
         <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
-          <Button 
-            variant="secondary" 
-            size="sm" 
+          <Button
+            variant="secondary"
+            size="sm"
             icon={<Save size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={async () => {
-              await saveAllPages();
-              // 可以添加成功提示，但为了简洁暂时不添加
+              try {
+                setIsSaving(true);
+                await saveAllPages();
+                show({ message: '保存成功', type: 'success' });
+              } catch (error: any) {
+                show({ message: `保存失败: ${error.message || '未知错误'}`, type: 'error' });
+              } finally {
+                setIsSaving(false);
+              }
             }}
+            loading={isSaving}
             className="hidden sm:inline-flex"
           >
             <span className="hidden md:inline">保存</span>
@@ -343,6 +353,7 @@ export const OutlineEditor: React.FC = () => {
         )}
       </div>
       {ConfirmDialog}
+      <ToastContainer />
     </div>
   );
 };

@@ -108,8 +108,11 @@ export interface ApiResponse<T = any> {
 export interface APIConfig {
   text_api_key: string;
   text_api_base: string;
+  text_model?: string;
   image_api_key: string;
   image_api_base: string;
+  image_model?: string;
+  resolution?: string;
   text_api_key_masked?: string;
   image_api_key_masked?: string;
 }

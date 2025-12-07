@@ -21,6 +21,7 @@ def get_api_config():
             'image_api_key': Settings.get_value('GOOGLE_IMAGE_API_KEY', os.getenv('GOOGLE_IMAGE_API_KEY', '')),
             'image_api_base': Settings.get_value('GOOGLE_IMAGE_API_BASE', os.getenv('GOOGLE_IMAGE_API_BASE', '')),
             'image_model': Settings.get_value('GOOGLE_IMAGE_MODEL', os.getenv('GOOGLE_IMAGE_MODEL', '')),
+            'resolution': Settings.get_value('IMAGE_RESOLUTION', '2K'),
         }
 
         # Mask API keys for security (show only last 8 characters)
@@ -53,6 +54,8 @@ def update_api_config():
             Settings.set_value('GOOGLE_IMAGE_API_BASE', data['image_api_base'])
         if 'image_model' in data:
             Settings.set_value('GOOGLE_IMAGE_MODEL', data['image_model'])
+        if 'resolution' in data:
+            Settings.set_value('IMAGE_RESOLUTION', data['resolution'])
 
         return jsonify({'message': 'API configuration updated successfully'}), 200
     except Exception as e:

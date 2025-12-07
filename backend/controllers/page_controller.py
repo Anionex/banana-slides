@@ -417,10 +417,14 @@ def generate_page_image(project_id, page_id):
         })
         db.session.add(task)
         db.session.commit()
-        
+
+        # Get resolution from database config or use default
+        from models.settings import Settings
+        resolution = Settings.get_value('IMAGE_RESOLUTION', current_app.config['DEFAULT_RESOLUTION'])
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -432,7 +436,7 @@ def generate_page_image(project_id, page_id):
             outline,
             use_template,
             current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            resolution,
             app,
             project.extra_requirements
         )
@@ -597,10 +601,14 @@ def edit_page_image(project_id, page_id):
         })
         db.session.add(task)
         db.session.commit()
-        
+
+        # Get resolution from database config or use default
+        from models.settings import Settings
+        resolution = Settings.get_value('IMAGE_RESOLUTION', current_app.config['DEFAULT_RESOLUTION'])
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -611,7 +619,7 @@ def edit_page_image(project_id, page_id):
             ai_service,
             file_service,
             current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            resolution,
             original_description,
             additional_ref_images if additional_ref_images else None,
             str(temp_dir) if temp_dir else None,

@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, APISettingsModal, ReferenceFileCard, ReferenceFileSelector } from '@/components/shared';
 import { OnboardingGuide } from '@/components/shared/OnboardingGuide';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
 
 export const Home: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
@@ -97,7 +100,7 @@ export const Home: React.FC = () => {
             await handleFileUpload(file);
           } else {
             console.log('File type not allowed');
-            show({ message: `不支持的文件类型: ${fileExt}`, type: 'warning' });
+            show({ message: `${t('errors.invalid_file_type')}: ${fileExt}`, type: 'info' });
           }
         }
       }
@@ -115,13 +118,13 @@ export const Home: React.FC = () => {
       const response = await uploadReferenceFile(file, null);
       if (response.data?.file) {
         setReferenceFiles(prev => [...prev, response.data.file]);
-        show({ message: '文件上传成功', type: 'success' });
+        show({ message: t('common.status.success'), type: 'success' });
       }
     } catch (error: any) {
       console.error('文件上传失败:', error);
-      show({ 
-        message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-        type: 'error' 
+      show({
+        message: `${t('errors.file_upload_error')}: ${error?.response?.data?.error?.message || error.message || t('errors.unknown_error')}`,
+        type: 'error'
       });
     } finally {
       setIsUploadingFile(false);
@@ -158,7 +161,7 @@ export const Home: React.FC = () => {
       });
       return [...updated, ...newFiles];
     });
-    show({ message: `已添加 ${selectedFiles.length} 个参考文件`, type: 'success' });
+    show({ message: `${t('common.status.success')} (${selectedFiles.length} ${t('common.form.file')})`, type: 'success' });
   };
 
   // 获取当前已选择的文件ID列表，传递给选择器（使用 useMemo 避免每次渲染都重新计算）
@@ -182,21 +185,21 @@ export const Home: React.FC = () => {
   const tabConfig = {
     idea: {
       icon: <Sparkles size={20} />,
-      label: '一句话生成',
-      placeholder: '例如：生成一份关于 AI 发展史的演讲 PPT',
-      description: '输入你的想法，AI 将为你生成完整的 PPT',
+      label: t('project.creation.idea_tab'),
+      placeholder: t('project.creation.idea_placeholder'),
+      description: t('project.creation.idea_help'),
     },
     outline: {
       icon: <FileText size={20} />,
-      label: '从大纲生成',
-      placeholder: '粘贴你的 PPT 大纲...\n\n例如：\n第一部分：AI 的起源\n- 1950 年代的开端\n- 达特茅斯会议\n\n第二部分：发展历程\n...',
-      description: '已有大纲？直接粘贴即可快速生成，AI 将自动切分为结构化大纲',
+      label: t('project.creation.outline_tab'),
+      placeholder: t('project.creation.outline_placeholder'),
+      description: t('project.creation.outline_help'),
     },
     description: {
       icon: <FileEdit size={20} />,
-      label: '从描述生成',
-      placeholder: '粘贴你的完整页面描述...\n\n例如：\n第 1 页\n标题：人工智能的诞生\n内容：1950 年，图灵提出"图灵测试"...\n\n第 2 页\n标题：AI 的发展历程\n内容：1950年代：符号主义...\n...',
-      description: '已有完整描述？AI 将自动解析出大纲并切分为每页描述，直接生成图片',
+      label: t('project.creation.description_tab'),
+      placeholder: t('project.creation.description_placeholder'),
+      description: t('project.creation.description_help'),
     },
   };
 
@@ -230,7 +233,7 @@ export const Home: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!content.trim()) {
-      show({ message: '请输入内容', type: 'error' });
+      show({ message: t('errors.validation_error'), type: 'error' });
       return;
     }
 
@@ -239,9 +242,9 @@ export const Home: React.FC = () => {
       f.parse_status === 'pending' || f.parse_status === 'parsing'
     );
     if (parsingFiles.length > 0) {
-      show({ 
-        message: `还有 ${parsingFiles.length} 个参考文件正在解析中，请等待解析完成`, 
-        type: 'warning' 
+      show({
+        message: `${t('common.loading.processing')} ${parsingFiles.length} ${t('common.form.file')}...`,
+        type: 'info'
       });
       return;
     }
@@ -261,7 +264,7 @@ export const Home: React.FC = () => {
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
       if (!projectId) {
-        show({ message: '项目创建失败', type: 'error' });
+        show({ message: t('errors.server_error'), type: 'error' });
         return;
       }
       
@@ -328,7 +331,7 @@ export const Home: React.FC = () => {
               onClick={handleOpenMaterialModal}
               className="hidden sm:inline-flex hover:bg-banana-50/50"
             >
-              <span className="hidden md:inline">素材生成</span>
+              <span className="hidden md:inline">{t('project.dashboard.new_project')}</span>
             </Button>
             <Button
               variant="ghost"
@@ -336,9 +339,10 @@ export const Home: React.FC = () => {
               onClick={() => navigate('/history')}
               className="text-xs md:text-sm hover:bg-banana-50/50"
             >
-              <span className="hidden sm:inline">历史项目</span>
-              <span className="sm:hidden">历史</span>
+              <span className="hidden sm:inline">{t('common.navigation.projects')}</span>
+              <span className="sm:hidden">{t('common.navigation.projects')}</span>
             </Button>
+            <LanguageSwitcher variant="toggle" className="hidden sm:flex" />
             <Button
               variant="ghost"
               size="sm"
@@ -346,9 +350,17 @@ export const Home: React.FC = () => {
               onClick={() => setIsSettingsModalOpen(true)}
               className="hover:bg-banana-50/50"
             >
-              <span className="hidden md:inline">设置</span>
+              <span className="hidden md:inline">{t('common.navigation.settings')}</span>
             </Button>
-            <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:bg-banana-50/50">帮助</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hover:bg-banana-50/50"
+              onClick={() => setIsOnboardingOpen(true)}
+            >
+              <span className="hidden md:inline">{t('common.navigation.help')}</span>
+              <span className="md:hidden">帮助</span>
+            </Button>
           </div>
         </div>
       </nav>
@@ -468,8 +480,8 @@ export const Home: React.FC = () => {
                 className="shadow-sm text-xs md:text-sm px-3 md:px-4"
               >
                 {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  ? '解析中...'
-                  : '下一步'}
+                  ? t('common.loading.processing')
+                  : t('common.buttons.next')}
               </Button>
             </div>
           </div>

@@ -268,8 +268,15 @@ def generate_outline(project_id):
             if not idea_prompt:
                 return bad_request("idea_prompt is required")
             
+            # Determine language from request or default
+            language = request.args.get('lang', 'zh')
+            if request.cookies.get('language'):
+                language = request.cookies.get('language')
+            # Map frontend language codes to backend codes
+            language = 'en' if language.startswith('en') else 'zh'
+
             # Generate outline from idea
-            outline = ai_service.generate_outline(idea_prompt, reference_files_content)
+            outline = ai_service.generate_outline(idea_prompt, reference_files_content, language)
             project.idea_prompt = idea_prompt
         
         # Flatten outline to pages
@@ -672,13 +679,17 @@ def generate_images(project_id):
             api_config['image_api_key'],
             api_config['image_api_base']
         )
-        
+
         from services import FileService
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        
+
+        # Get resolution from database config or use default
+        from models.settings import Settings
+        resolution = Settings.get_value('IMAGE_RESOLUTION', current_app.config['DEFAULT_RESOLUTION'])
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -690,7 +701,7 @@ def generate_images(project_id):
             use_template,
             max_workers,
             current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            resolution,
             app,
             project.extra_requirements
         )

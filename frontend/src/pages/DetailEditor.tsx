@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles, Plus } from 'lucide-react';
 import { Button, Loading, useToast, useConfirm } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -17,6 +17,8 @@ export const DetailEditor: React.FC = () => {
     generateDescriptions,
     generatePageDescription,
     pageDescriptionGeneratingTasks,
+    deletePageById,
+    addNewPage,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -59,10 +61,10 @@ export const DetailEditor: React.FC = () => {
 
   const handleRegeneratePage = async (pageId: string) => {
     if (!currentProject) return;
-    
+
     const page = currentProject.pages.find((p) => p.id === pageId);
     if (!page) return;
-    
+
     // 如果已有描述，询问是否覆盖
     if (page.description_content) {
       confirm(
@@ -72,9 +74,9 @@ export const DetailEditor: React.FC = () => {
             await generatePageDescription(pageId);
             show({ message: '生成成功', type: 'success' });
           } catch (error: any) {
-            show({ 
-              message: `生成失败: ${error.message || '未知错误'}`, 
-              type: 'error' 
+            show({
+              message: `生成失败: ${error.message || '未知错误'}`,
+              type: 'error'
             });
           }
         },
@@ -82,14 +84,44 @@ export const DetailEditor: React.FC = () => {
       );
       return;
     }
-    
+
     try {
       await generatePageDescription(pageId);
       show({ message: '生成成功', type: 'success' });
     } catch (error: any) {
-      show({ 
-        message: `生成失败: ${error.message || '未知错误'}`, 
-        type: 'error' 
+      show({
+        message: `生成失败: ${error.message || '未知错误'}`,
+        type: 'error'
+      });
+    }
+  };
+
+  const handleDeletePage = (pageId: string, index: number) => {
+    confirm(
+      `确定要删除第 ${index + 1} 页吗？此操作无法撤销。`,
+      async () => {
+        try {
+          await deletePageById(pageId);
+          show({ message: '页面已删除', type: 'success' });
+        } catch (error: any) {
+          show({
+            message: `删除失败: ${error.message || '未知错误'}`,
+            type: 'error'
+          });
+        }
+      },
+      { title: '确认删除', variant: 'danger' }
+    );
+  };
+
+  const handleAddPage = async () => {
+    try {
+      await addNewPage();
+      show({ message: '页面已添加', type: 'success' });
+    } catch (error: any) {
+      show({
+        message: `添加失败: ${error.message || '未知错误'}`,
+        type: 'error'
       });
     }
   };
@@ -166,6 +198,14 @@ export const DetailEditor: React.FC = () => {
             >
               批量生成描述
             </Button>
+            <Button
+              variant="secondary"
+              icon={<Plus size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={handleAddPage}
+              className="flex-1 sm:flex-initial text-sm md:text-base"
+            >
+              新增页面
+            </Button>
             <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}
               {currentProject.pages.length} 页已完成
@@ -205,6 +245,7 @@ export const DetailEditor: React.FC = () => {
                     index={index}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => handleRegeneratePage(pageId)}
+                    onDelete={() => handleDeletePage(pageId, index)}
                     isGenerating={pageId ? !!pageDescriptionGeneratingTasks[pageId] : false}
                   />
                 );

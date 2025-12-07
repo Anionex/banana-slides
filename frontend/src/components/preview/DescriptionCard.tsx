@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, RefreshCw } from 'lucide-react';
+import { Edit2, RefreshCw, Trash2 } from 'lucide-react';
 import { Card, StatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import type { Page, DescriptionContent } from '@/types';
 
@@ -8,6 +8,7 @@ interface DescriptionCardProps {
   index: number;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
+  onDelete?: () => void;
   isGenerating?: boolean;
 }
 
@@ -16,6 +17,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   index,
   onUpdate,
   onRegenerate,
+  onDelete,
   isGenerating = false,
 }) => {
   // 从 description_content 提取文本内容
@@ -95,25 +97,39 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
         </div>
 
         {/* 操作栏 */}
-        <div className="border-t border-gray-100 px-4 py-3 flex justify-end gap-2 mt-auto">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<Edit2 size={16} />}
-            onClick={handleEdit}
-            disabled={generating}
-          >
-            编辑
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RefreshCw size={16} className={generating ? 'animate-spin' : ''} />}
-            onClick={onRegenerate}
-            disabled={generating}
-          >
-            {generating ? '生成中...' : '重新生成'}
-          </Button>
+        <div className="border-t border-gray-100 px-4 py-3 flex justify-between items-center mt-auto">
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Trash2 size={16} />}
+              onClick={onDelete}
+              disabled={generating}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              删除
+            </Button>
+          )}
+          <div className="flex gap-2 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Edit2 size={16} />}
+              onClick={handleEdit}
+              disabled={generating}
+            >
+              编辑
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<RefreshCw size={16} className={generating ? 'animate-spin' : ''} />}
+              onClick={onRegenerate}
+              disabled={generating}
+            >
+              {generating ? '生成中...' : '重新生成'}
+            </Button>
+          </div>
         </div>
       </Card>
 
