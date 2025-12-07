@@ -1,0 +1,226 @@
+{
+  "common": {
+    "buttons": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "delete": "Delete",
+      "edit": "Edit",
+      "create": "Create",
+      "upload": "Upload",
+      "download": "Download",
+      "copy": "Copy",
+      "generate": "Generate",
+      "regenerate": "Regenerate",
+      "continue": "Continue",
+      "back": "Back",
+      "next": "Next",
+      "previous": "Previous",
+      "finish": "Finish",
+      "retry": "Retry",
+      "close": "Close",
+      "apply": "Apply",
+      "reset": "Reset",
+      "search": "Search",
+      "clear": "Clear",
+      "select": "Select"
+    },
+    "loading": {
+      "loading": "Loading...",
+      "generating": "Generating...",
+      "saving": "Saving...",
+      "processing": "Processing...",
+      "uploading": "Uploading...",
+      "downloading": "Downloading..."
+    },
+    "status": {
+      "success": "Success",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info",
+      "completed": "Completed",
+      "pending": "Pending",
+      "failed": "Failed",
+      "draft": "Draft",
+      "published": "Published"
+    },
+    "navigation": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "projects": "Projects",
+      "settings": "Settings",
+      "help": "Help",
+      "about": "About"
+    },
+    "form": {
+      "required": "This field is required",
+      "invalid_email": "Please enter a valid email address",
+      "password_too_short": "Password must be at least 8 characters",
+      "passwords_not_match": "Passwords do not match",
+      "file_too_large": "File is too large",
+      "invalid_file_type": "Unsupported file type"
+    },
+    "time": {
+      "just_now": "Just now",
+      "minutes_ago": "{{count}} minutes ago",
+      "hours_ago": "{{count}} hours ago",
+      "days_ago": "{{count}} days ago",
+      "weeks_ago": "{{count}} weeks ago",
+      "months_ago": "{{count}} months ago",
+      "years_ago": "{{count}} years ago"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Sign In",
+      "subtitle": "Welcome back! Please sign in to your account",
+      "email": "Email Address",
+      "email_placeholder": "Enter your email",
+      "password": "Password",
+      "password_placeholder": "Enter your password",
+      "remember_me": "Remember me",
+      "forgot_password": "Forgot password?",
+      "login_button": "Sign In",
+      "no_account": "Don't have an account?",
+      "sign_up": "Sign up now",
+      "oauth_login": "Or continue with"
+    },
+    "register": {
+      "title": "Sign Up",
+      "subtitle": "Create your new account",
+      "username": "Username",
+      "username_placeholder": "Enter your username",
+      "email": "Email Address",
+      "email_placeholder": "Enter your email",
+      "password": "Password",
+      "password_placeholder": "Enter your password (min 8 characters)",
+      "confirm_password": "Confirm Password",
+      "confirm_password_placeholder": "Enter your password again",
+      "agree_terms": "I agree to the",
+      "terms_of_service": "Terms of Service",
+      "and": "and",
+      "privacy_policy": "Privacy Policy",
+      "register_button": "Sign Up",
+      "has_account": "Already have an account?",
+      "sign_in": "Sign in now"
+    },
+    "forgot_password": {
+      "title": "Reset Password",
+      "subtitle": "Enter your email address and we'll send you a reset link",
+      "email": "Email Address",
+      "email_placeholder": "Enter your email",
+      "send_button": "Send Reset Link",
+      "back_to_login": "Back to Sign In"
+    },
+    "reset_password": {
+      "title": "Set New Password",
+      "subtitle": "Please enter your new password",
+      "new_password": "New Password",
+      "new_password_placeholder": "Enter your new password",
+      "confirm_password": "Confirm New Password",
+      "confirm_password_placeholder": "Enter your new password again",
+      "reset_button": "Reset Password"
+    },
+    "verify_email": {
+      "title": "Verify Email",
+      "subtitle": "We've sent a verification link to your email",
+      "resend_link": "Resend verification link",
+      "verification_sent": "Verification link sent",
+      "check_email": "Please check your email"
+    }
+  },
+  "project": {
+    "creation": {
+      "title": "Create New Project",
+      "subtitle": "Choose a method to create your presentation",
+      "idea_tab": "Idea Generation",
+      "outline_tab": "Outline Generation",
+      "description_tab": "Detailed Description",
+      "idea_placeholder": "e.g., Create a presentation about the history of artificial intelligence",
+      "idea_help": "AI will automatically generate a complete outline and content based on your idea",
+      "outline_placeholder": "Enter your outline content, supporting title and bullet point format",
+      "outline_help": "AI will parse your outline and create corresponding slides",
+      "description_placeholder": "Describe in detail the PPT content you want, including specific information for each page",
+      "description_help": "AI will directly generate slide content based on your detailed description",
+      "template_label": "Template Image (Optional)",
+      "template_help": "Upload a reference image to unify the design style",
+      "create_button": "Create Project",
+      "upload_template": "Upload Template"
+    },
+    "dashboard": {
+      "title": "My Projects",
+      "subtitle": "Manage and create your presentations",
+      "new_project": "New Project",
+      "search_placeholder": "Search projects...",
+      "filter_all": "All",
+      "filter_draft": "Draft",
+      "filter_completed": "Completed",
+      "sort_by": "Sort by",
+      "sort_by_date": "Create Date",
+      "sort_by_name": "Name",
+      "sort_by_modified": "Modified Date",
+      "empty_state": {
+        "title": "No projects yet",
+        "subtitle": "Create your first AI-generated presentation",
+        "create_button": "Create Now"
+      }
+    },
+    "editor": {
+      "outline_section": "Outline",
+      "content_section": "Content",
+      "preview_section": "Preview",
+      "generate_outline": "Generate Outline",
+      "generate_descriptions": "Generate Descriptions",
+      "generate_images": "Generate Images",
+      "add_page": "Add Page",
+      "delete_page": "Delete Page",
+      "page_title": "Page Title",
+      "page_content": "Page Content",
+      "edit_page": "Edit Page",
+      "save_changes": "Save Changes",
+      "discard_changes": "Discard Changes",
+      "reorder_pages": "Reorder Pages",
+      "export_options": "Export Options",
+      "settings": "Project Settings"
+    },
+    "generation": {
+      "generating_outline": "Generating outline...",
+      "generating_descriptions": "Generating page descriptions...",
+      "generating_images": "Generating images...",
+      "progress": "Progress: {{current}}/{{total}}",
+      "completed": "Generation completed!",
+      "failed": "Generation failed, please try again",
+      "edit_prompt": "Edit Prompt: Adjust a specific part of the image",
+      "regenerate_page": "Regenerate this page",
+      "use_template": "Use template style"
+    }
+  },
+  "export": {
+    "title": "Export Presentation",
+    "format": "Export Format",
+    "pptx_format": "PowerPoint (.pptx)",
+    "pdf_format": "PDF Document",
+    "include_images": "Include Images",
+    "quality": "Image Quality",
+    "quality_high": "High Quality",
+    "quality_medium": "Medium Quality",
+    "quality_low": "Low Quality",
+    "export_button": "Start Export",
+    "exporting": "Exporting...",
+    "download_ready": "Export complete, click to download",
+    "download_button": "Download File"
+  },
+  "errors": {
+    "network_error": "Network connection error, please check your network settings",
+    "server_error": "Server error, please try again later",
+    "not_found": "Page not found",
+    "unauthorized": "Unauthorized access, please sign in first",
+    "forbidden": "Insufficient permissions",
+    "validation_error": "Input validation failed",
+    "file_upload_error": "File upload failed",
+    "generation_error": "AI generation failed, please try again",
+    "quota_exceeded": "Usage quota exceeded",
+    "maintenance": "System under maintenance, please visit later",
+    "unknown_error": "Unknown error, please contact support"
+  }
+}

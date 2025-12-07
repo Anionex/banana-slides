@@ -1,0 +1,226 @@
+{
+  "common": {
+    "buttons": {
+      "save": "保存",
+      "cancel": "取消",
+      "confirm": "确认",
+      "delete": "删除",
+      "edit": "编辑",
+      "create": "创建",
+      "upload": "上传",
+      "download": "下载",
+      "copy": "复制",
+      "generate": "生成",
+      "regenerate": "重新生成",
+      "continue": "继续",
+      "back": "返回",
+      "next": "下一步",
+      "previous": "上一步",
+      "finish": "完成",
+      "retry": "重试",
+      "close": "关闭",
+      "apply": "应用",
+      "reset": "重置",
+      "search": "搜索",
+      "clear": "清空",
+      "select": "选择"
+    },
+    "loading": {
+      "loading": "加载中...",
+      "generating": "生成中...",
+      "saving": "保存中...",
+      "processing": "处理中...",
+      "uploading": "上传中...",
+      "downloading": "下载中..."
+    },
+    "status": {
+      "success": "操作成功",
+      "error": "操作失败",
+      "warning": "警告",
+      "info": "提示",
+      "completed": "已完成",
+      "pending": "待处理",
+      "failed": "失败",
+      "draft": "草稿",
+      "published": "已发布"
+    },
+    "navigation": {
+      "home": "首页",
+      "dashboard": "控制台",
+      "projects": "项目",
+      "settings": "设置",
+      "help": "帮助",
+      "about": "关于"
+    },
+    "form": {
+      "required": "此字段为必填项",
+      "invalid_email": "请输入有效的邮箱地址",
+      "password_too_short": "密码至少需要8个字符",
+      "passwords_not_match": "两次输入的密码不一致",
+      "file_too_large": "文件过大",
+      "invalid_file_type": "不支持的文件类型"
+    },
+    "time": {
+      "just_now": "刚刚",
+      "minutes_ago": "{{count}} 分钟前",
+      "hours_ago": "{{count}} 小时前",
+      "days_ago": "{{count}} 天前",
+      "weeks_ago": "{{count}} 周前",
+      "months_ago": "{{count}} 月前",
+      "years_ago": "{{count}} 年前"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "登录",
+      "subtitle": "欢迎回来！请登录您的账户",
+      "email": "邮箱地址",
+      "email_placeholder": "请输入您的邮箱",
+      "password": "密码",
+      "password_placeholder": "请输入您的密码",
+      "remember_me": "记住我",
+      "forgot_password": "忘记密码？",
+      "login_button": "登录",
+      "no_account": "还没有账户？",
+      "sign_up": "立即注册",
+      "oauth_login": "使用以下方式登录"
+    },
+    "register": {
+      "title": "注册",
+      "subtitle": "创建您的新账户",
+      "username": "用户名",
+      "username_placeholder": "请输入用户名",
+      "email": "邮箱地址",
+      "email_placeholder": "请输入您的邮箱",
+      "password": "密码",
+      "password_placeholder": "请输入密码（至少8个字符）",
+      "confirm_password": "确认密码",
+      "confirm_password_placeholder": "请再次输入密码",
+      "agree_terms": "我同意",
+      "terms_of_service": "服务条款",
+      "and": "和",
+      "privacy_policy": "隐私政策",
+      "register_button": "注册",
+      "has_account": "已有账户？",
+      "sign_in": "立即登录"
+    },
+    "forgot_password": {
+      "title": "重置密码",
+      "subtitle": "输入您的邮箱地址，我们将发送重置链接",
+      "email": "邮箱地址",
+      "email_placeholder": "请输入您的邮箱",
+      "send_button": "发送重置链接",
+      "back_to_login": "返回登录"
+    },
+    "reset_password": {
+      "title": "设置新密码",
+      "subtitle": "请输入您的新密码",
+      "new_password": "新密码",
+      "new_password_placeholder": "请输入新密码",
+      "confirm_password": "确认新密码",
+      "confirm_password_placeholder": "请再次输入新密码",
+      "reset_button": "重置密码"
+    },
+    "verify_email": {
+      "title": "验证邮箱",
+      "subtitle": "我们已向您的邮箱发送了验证链接",
+      "resend_link": "重新发送验证链接",
+      "verification_sent": "验证链接已发送",
+      "check_email": "请检查您的邮箱"
+    }
+  },
+  "project": {
+    "creation": {
+      "title": "创建新项目",
+      "subtitle": "选择一种方式来创建您的演示文稿",
+      "idea_tab": "一句话生成",
+      "outline_tab": "大纲生成",
+      "description_tab": "详细描述",
+      "idea_placeholder": "例如：创建一个关于人工智能发展历史的PPT",
+      "idea_help": "AI将根据您的想法自动生成完整的大纲和内容",
+      "outline_placeholder": "请输入您的大纲内容，支持标题和要点格式",
+      "outline_help": "AI将解析您的大纲并创建对应的幻灯片",
+      "description_placeholder": "请详细描述您想要的PPT内容，包括每页的具体信息",
+      "description_help": "AI将根据您的详细描述直接生成幻灯片内容",
+      "template_label": "模板图片（可选）",
+      "template_help": "上传参考图片以统一设计风格",
+      "create_button": "创建项目",
+      "upload_template": "上传模板"
+    },
+    "dashboard": {
+      "title": "我的项目",
+      "subtitle": "管理和创建您的演示文稿",
+      "new_project": "新建项目",
+      "search_placeholder": "搜索项目...",
+      "filter_all": "全部",
+      "filter_draft": "草稿",
+      "filter_completed": "已完成",
+      "sort_by": "排序方式",
+      "sort_by_date": "按创建时间",
+      "sort_by_name": "按名称",
+      "sort_by_modified": "按修改时间",
+      "empty_state": {
+        "title": "还没有项目",
+        "subtitle": "创建您的第一个AI生成的演示文稿",
+        "create_button": "立即创建"
+      }
+    },
+    "editor": {
+      "outline_section": "大纲",
+      "content_section": "内容",
+      "preview_section": "预览",
+      "generate_outline": "生成大纲",
+      "generate_descriptions": "生成描述",
+      "generate_images": "生成图片",
+      "add_page": "添加页面",
+      "delete_page": "删除页面",
+      "page_title": "页面标题",
+      "page_content": "页面内容",
+      "edit_page": "编辑页面",
+      "save_changes": "保存更改",
+      "discard_changes": "放弃更改",
+      "reorder_pages": "重新排序",
+      "export_options": "导出选项",
+      "settings": "项目设置"
+    },
+    "generation": {
+      "generating_outline": "正在生成大纲...",
+      "generating_descriptions": "正在生成页面描述...",
+      "generating_images": "正在生成图片...",
+      "progress": "进度：{{current}}/{{total}}",
+      "completed": "生成完成！",
+      "failed": "生成失败，请重试",
+      "edit_prompt": "编辑提示：调整图片的某个部分",
+      "regenerate_page": "重新生成此页",
+      "use_template": "使用模板风格"
+    }
+  },
+  "export": {
+    "title": "导出演示文稿",
+    "format": "导出格式",
+    "pptx_format": "PowerPoint (.pptx)",
+    "pdf_format": "PDF文档",
+    "include_images": "包含图片",
+    "quality": "图片质量",
+    "quality_high": "高质量",
+    "quality_medium": "中等质量",
+    "quality_low": "低质量",
+    "export_button": "开始导出",
+    "exporting": "正在导出...",
+    "download_ready": "导出完成，点击下载",
+    "download_button": "下载文件"
+  },
+  "errors": {
+    "network_error": "网络连接错误，请检查您的网络设置",
+    "server_error": "服务器错误，请稍后重试",
+    "not_found": "页面不存在",
+    "unauthorized": "未授权访问，请先登录",
+    "forbidden": "权限不足",
+    "validation_error": "输入验证失败",
+    "file_upload_error": "文件上传失败",
+    "generation_error": "AI生成失败，请重试",
+    "quota_exceeded": "已达到使用限额",
+    "maintenance": "系统维护中，请稍后访问",
+    "unknown_error": "未知错误，请联系支持"
+  }
+}
