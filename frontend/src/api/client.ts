@@ -67,11 +67,12 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
     return `/api/proxy/image?url=${encodedUrl}`;
   }
 
-  // 如果是本地文件路径格式，直接返回（由后端文件服务处理）
+  // 如果是本地文件路径格式，使用完整的后端 URL
   // 本地文件路径通常是 /files/{projectId}/pages/{filename} 格式
   if (path.startsWith('/files/')) {
-    // 本地文件路径，直接返回，由后端文件服务处理
-    let url = path;
+    // 在生产环境中，需要使用完整的后端 URL
+    // 在开发环境中，API_BASE_URL 为空，会通过 Vite proxy 转发
+    let url = API_BASE_URL + path;
 
     // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
     if (timestamp) {

@@ -22,20 +22,37 @@ npm install
 
 ### 2. 配置环境变量
 
-**注意**：现在不再需要配置 `VITE_API_BASE_URL`！
+#### 开发环境
 
-前端使用相对路径，通过代理自动转发到后端：
-- **开发环境**：通过 Vite proxy 自动转发到后端
-- **生产环境**：通过 nginx proxy 自动转发到后端服务
+**不需要配置 `VITE_API_BASE_URL`**！
 
-**一键修改后端端口**：
-只需在项目根目录的 `.env` 文件中修改 `PORT` 环境变量（默认 5000），前端和后端都会自动使用新端口：
+前端通过 Vite proxy 自动转发到后端。一键修改后端端口：
+只需在项目根目录的 `.env` 文件中修改 `PORT` 环境变量（默认 5000）：
 
 ```env
 PORT=8080  # 修改为 8080 或其他端口
 ```
 
-这样无论后端运行在什么地址（localhost、IP 或域名），前端都能自动适配，无需手动配置。
+#### 生产环境
+
+**方式一：同域部署（使用 nginx proxy）**
+- 前端和后端部署在同一服务器
+- 通过 nginx 反向代理转发 `/api` 和 `/files` 到后端
+- 不需要配置 `VITE_API_BASE_URL`
+
+**方式二：分离部署（前后端不同域名）**
+- 前端部署到 Vercel/Netlify 等静态托管服务
+- 后端部署到 Render/Railway 等服务
+- **必须设置 `VITE_API_BASE_URL` 为后端完整URL**
+
+示例配置（Vercel 环境变量或 `.env.production` 文件）：
+
+```env
+# 后端部署在 Render 上的示例
+VITE_API_BASE_URL=https://banana-slides-backend.onrender.com
+```
+
+参考 `.env.production.example` 文件查看完整示例。
 
 ### 3. 启动开发服务器
 
