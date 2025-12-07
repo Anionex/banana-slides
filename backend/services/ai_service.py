@@ -530,18 +530,37 @@ class AIService:
                 if not content:
                     raise ValueError("Empty content in API response")
 
+                # Enhanced content detection and validation
+                if not content or not str(content).strip():
+                    raise ValueError("Empty content in API response")
+
+                content_str = str(content).strip()
+
+                # Log the full content for debugging
+                logger.debug(f"Full API response content: {content_str}")
+                logger.debug(f"Content length: {len(content_str)} characters")
+
+                # Check for error indicators in the content
+                error_keywords = ['error', 'failed', 'invalid', 'not found', 'exception', 'cannot', 'unable', 'forbidden']
+                content_lower = content_str.lower()
+                if any(keyword in content_lower for keyword in error_keywords):
+                    logger.warning(f"Content contains error indicators: {content_str}")
+                    # Don't immediately raise error, it might be a false positive
+
                 # Check if it's a data URL
-                if isinstance(content, str) and content.startswith('data:image'):
+                if content_str.startswith('data:image'):
+                    logger.debug("Detected data URL format")
                     # Extract base64 part from data URL
-                    if ',' in content:
-                        base64_data = content.split(',', 1)[1]
+                    if ',' in content_str:
+                        base64_data = content_str.split(',', 1)[1]
                     else:
                         raise ValueError("Invalid data URL format")
                 # Check if it's a Markdown image link: ![image](data:image/png;base64,...)
-                elif isinstance(content, str) and '![image]' in content and 'data:image' in content:
+                elif '![image]' in content_str and 'data:image' in content_str:
+                    logger.debug("Detected markdown image format with '![image]'")
                     import re
                     # Use regex to extract the data URL from markdown
-                    match = re.search(r'!\[image\]\((data:image/[^)]+)\)', content)
+                    match = re.search(r'!\[image\]\((data:image/[^)]+)\)', content_str)
                     if match:
                         data_url = match.group(1)
                         if ',' in data_url:
@@ -550,11 +569,12 @@ class AIService:
                             raise ValueError("Invalid data URL in markdown")
                     else:
                         raise ValueError("Could not extract data URL from markdown format")
-                elif isinstance(content, str) and content.startswith('!['):
+                elif content_str.startswith('!['):
+                    logger.debug("Detected generic markdown image format")
                     # Generic markdown image detection
                     import re
                     # Try to find any data URL in markdown
-                    match = re.search(r'\!\[.*?\]\((data:image/[^)]+)\)', content)
+                    match = re.search(r'\!\[.*?\]\((data:image/[^)]+)\)', content_str)
                     if match:
                         data_url = match.group(1)
                         if ',' in data_url:
@@ -563,23 +583,49 @@ class AIService:
                             raise ValueError("Invalid data URL in markdown")
                     else:
                         raise ValueError("Could not extract data URL from markdown format")
-                elif isinstance(content, str) and (content.startswith('http://') or content.startswith('https://')):
+                elif content_str.startswith('http://') or content_str.startswith('https://'):
                     # It's a URL, download the image
-                    logger.debug(f"Downloading image from URL: {content}")
-                    img_response = requests.get(content, timeout=30)
-                    img_response.raise_for_status()
-                    image = Image.open(BytesIO(img_response.content))
-                    logger.debug("Successfully downloaded and loaded image")
-                    return image
+                    logger.debug(f"Detected URL format, downloading image from: {content_str}")
+                    try:
+                        img_response = requests.get(content_str, timeout=30)
+                        img_response.raise_for_status()
+                        image = Image.open(BytesIO(img_response.content))
+                        logger.info("Successfully downloaded and loaded image from URL")
+                        return image
+                    except Exception as url_error:
+                        logger.error(f"Failed to download image from URL {content_str}: {str(url_error)}")
+                        raise ValueError(f"Failed to download image from URL: {str(url_error)}")
                 else:
+                    logger.debug("Assuming pure base64 format")
                     # Assume it's pure base64
                     # First check if it looks like base64
-                    if isinstance(content, str):
+                    if isinstance(content_str, str):
                         # Remove whitespace
-                        base64_data = content.strip()
+                        base64_data = content_str.strip()
+
                         # Check if it's valid base64-like string
-                        if not base64_data or len(base64_data) < 100:
-                            raise ValueError(f"Content doesn't look like base64 image data. Content preview: {content[:500]}")
+                        if not base64_data:
+                            raise ValueError(f"Empty base64 data received. Full content: {content_str}")
+                        elif len(base64_data) < 100:
+                            logger.warning(f"Base64 data seems too short: {len(base64_data)} characters")
+                            logger.warning(f"Short content: {base64_data}")
+                            # It might be an error message, try to decode it
+                            try:
+                                decoded_text = base64.b64decode(base64_data + '==').decode('utf-8')
+                                if any(keyword in decoded_text.lower() for keyword in error_keywords):
+                                    raise ValueError(f"API returned error message: {decoded_text}")
+                            except:
+                                pass
+                            raise ValueError(f"Content too short to be valid image data ({len(base64_data)} chars). Full content: {base64_data[:500]}")
+
+                        # Check if it contains only base64 characters
+                        import re
+                        if not re.match(r'^[A-Za-z0-9+/=]+$', base64_data):
+                            non_base64_chars = set(re.findall(r'[^A-Za-z0-9+/=]', base64_data))
+                            logger.warning(f"Content contains non-base64 characters: {non_base64_chars}")
+                            # It might be an error message in text format
+                            if any(keyword in base64_data.lower() for keyword in error_keywords):
+                                raise ValueError(f"API returned text error message: {base64_data}")
                     else:
                         raise ValueError(f"Unexpected content type: {type(content)}")
 
@@ -634,25 +680,69 @@ class AIService:
                     # JPEG: starts with \xff\xd8\xff
                     # GIF: starts with GIF87a or GIF89a
                     # WebP: starts with RIFF....WEBP
-                    header = image_data[:16]
+                    header = image_data[:32]  # Check more bytes for better detection
                     logger.debug(f"Image data header (hex): {header.hex()}")
                     logger.debug(f"Image data header (repr): {repr(header)}")
 
-                    # Try to check if it's actually JSON error response
-                    try:
-                        error_json = json.loads(image_data.decode('utf-8'))
-                        logger.error(f"API returned JSON error instead of image: {error_json}")
-                        if 'error' in error_json:
-                            raise ValueError(f"API returned error: {error_json['error']}")
-                        else:
-                            raise ValueError(f"API returned JSON instead of image: {error_json}")
-                    except (json.JSONDecodeError, UnicodeDecodeError):
-                        # Not JSON, continue with image processing
-                        pass
+                    # Detailed image format validation
+                    is_valid_image = False
+                    image_format = None
 
-                    image = Image.open(BytesIO(image_data))
-                    logger.debug(f"Successfully created image: {image.size}, {image.mode}")
-                    return image
+                    if header.startswith(b'\x89PNG\r\n\x1a\n'):
+                        is_valid_image = True
+                        image_format = 'PNG'
+                    elif header.startswith(b'\xff\xd8\xff'):
+                        is_valid_image = True
+                        image_format = 'JPEG'
+                    elif header.startswith(b'GIF87a') or header.startswith(b'GIF89a'):
+                        is_valid_image = True
+                        image_format = 'GIF'
+                    elif header.startswith(b'RIFF') and len(header) >= 12 and header[8:12] == b'WEBP':
+                        is_valid_image = True
+                        image_format = 'WebP'
+                    elif header.startswith(b'BM'):
+                        is_valid_image = True
+                        image_format = 'BMP'
+
+                    # Also check for common patterns that indicate non-image data
+                    if not is_valid_image:
+                        # Try to decode as text to see if it's an error message
+                        try:
+                            text_content = image_data.decode('utf-8', errors='ignore')
+                            if len(text_content.strip()) > 0:
+                                logger.warning(f"Data appears to be text, not image: {text_content[:200]}...")
+                                if any(keyword in text_content.lower() for keyword in ['error', 'failed', 'invalid', 'not found', 'exception']):
+                                    raise ValueError(f"API returned error message instead of image: {text_content}")
+                        except:
+                            pass
+
+                        # Check if it's trying to be JSON
+                        try:
+                            error_json = json.loads(image_data.decode('utf-8', errors='ignore'))
+                            logger.error(f"API returned JSON instead of image: {error_json}")
+                            if 'error' in error_json:
+                                raise ValueError(f"API returned error: {error_json['error']}")
+                            else:
+                                raise ValueError(f"API returned JSON instead of image: {error_json}")
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            pass
+
+                        # If we get here, it's not a recognized image format
+                        raise ValueError(f"Invalid image format. Expected PNG/JPEG/GIF/WebP/BMP, got header: {header[:16].hex()}")
+
+                    logger.info(f"Detected image format: {image_format}, size: {len(image_data)} bytes")
+
+                    # Now try to open the image
+                    try:
+                        image = Image.open(BytesIO(image_data))
+                        # Verify the image by trying to get its size (this forces PIL to actually parse the image)
+                        _ = image.size
+                        logger.info(f"Successfully created {image_format} image: {image.size}, mode: {image.mode}")
+                        return image
+                    except Exception as img_error:
+                        logger.error(f"PIL failed to open image data: {str(img_error)}")
+                        logger.error(f"Image data sample (first 100 bytes): {image_data[:100]}")
+                        raise ValueError(f"Invalid image data that PIL cannot process: {str(img_error)}")
                 except base64.binascii.Error as e:
                     logger.error(f"Base64 decode error. Original content preview: {str(content)[:500]}")
                     raise ValueError(f"Invalid base64 data: {str(e)}")
