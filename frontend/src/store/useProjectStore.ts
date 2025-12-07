@@ -202,6 +202,10 @@ const debouncedUpdatePage = debounce(
         if (error.response.status === 404) {
           // 404错误：项目不存在
           errorMessage = errorData?.error?.message || '项目不存在，可能已被删除';
+          // 清理本地缓存的项目ID
+          localStorage.removeItem('currentProjectId');
+          // 清空当前项目状态
+          set({ currentProject: null });
         } else if (errorData?.error?.message) {
           // 从后端错误格式中提取消息
           errorMessage = errorData.error.message;
