@@ -505,6 +505,16 @@ export const listUserTemplates = async (): Promise<ApiResponse<{ templates: User
 };
 
 /**
+ * 获取系统预设模板
+ */
+export const getSystemTemplates = async (): Promise<ApiResponse<{ templates: UserTemplate[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ templates: UserTemplate[] }>>(
+    '/api/templates'
+  );
+  return response.data;
+};
+
+/**
  * 删除用户模板
  */
 export const deleteUserTemplate = async (templateId: string): Promise<ApiResponse> => {

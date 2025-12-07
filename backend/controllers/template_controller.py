@@ -97,15 +97,43 @@ def delete_template(project_id):
 def get_system_templates():
     """
     GET /api/templates - Get system preset templates
-    
-    Note: This is a placeholder for future implementation
+    Returns the predefined templates we added to the database
     """
-    # TODO: Implement system templates
-    templates = []
-    
-    return success_response({
-        'templates': templates
-    })
+    try:
+        from models.settings import Settings
+        from flask import current_app
+
+        # Get predefined template IDs
+        template_mappings = {
+            'simple-business': '简约商务风格',
+            'modern-tech': '现代科技风格',
+            'creative-design': '创意设计风格'
+        }
+
+        templates = []
+
+        # Query all user templates and filter by name
+        all_templates = UserTemplate.query.all()
+
+        for template in all_templates:
+            # Check if this template name matches one of our predefined templates
+            for template_id, template_name in template_mappings.items():
+                if template.name == template_name:
+                    templates.append({
+                        'template_id': template.id,
+                        'id': template_id,
+                        'name': template.name,
+                        'template_image_url': f'/files/user-templates/{template.id}/{template.file_path.split("/")[-1]}',
+                        'created_at': template.created_at.isoformat() if template.created_at else None,
+                    })
+                    break
+
+        return success_response({
+            'templates': templates
+        })
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 # ========== User Template Endpoints ==========
