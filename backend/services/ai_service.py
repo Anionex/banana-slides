@@ -454,14 +454,27 @@ class AIService:
 
             # Parse response
             result = response.json()
-            logger.debug(f"Chat API response keys: {result.keys()}")
+            logger.info(f"Chat API response keys: {result.keys()}")
+            logger.info(f"Full API response: {json.dumps(result, indent=2, ensure_ascii=False)}")
 
             if 'choices' in result and len(result['choices']) > 0:
                 message = result['choices'][0].get('message', {})
                 content = message.get('content', '')
 
-                logger.debug(f"Response content type: {type(content)}, length: {len(str(content)) if content else 0}")
-                logger.debug(f"Response content preview: {str(content)[:200]}")
+                logger.info(f"Response content type: {type(content)}, length: {len(str(content)) if content else 0}")
+                logger.info(f"Response content: {content}")
+
+                # Check for error in other fields
+                if 'error' in result:
+                    logger.error(f"API returned error: {result['error']}")
+
+                # Check if choice has finish_reason indicating an issue
+                choice = result['choices'][0]
+                if 'finish_reason' in choice:
+                    finish_reason = choice['finish_reason']
+                    logger.info(f"Finish reason: {finish_reason}")
+                    if finish_reason not in ['stop', 'length']:
+                        logger.warning(f"Unexpected finish_reason: {finish_reason}")
 
                 # Content could be:
                 # 1. A data URL: "data:image/png;base64,..."
