@@ -269,7 +269,11 @@ export const getTemplateFile = async (
       const imageUrl = getImageUrl(systemTemplate.template_image_url);
       const response = await fetch(imageUrl);
       const blob = await response.blob();
-      return new File([blob], 'template.png', { type: blob.type });
+      // 根据模板ID设置文件名
+      const fileName = systemTemplate.source === 'static'
+        ? `${templateId}.png`
+        : 'template.png';
+      return new File([blob], fileName, { type: blob.type });
     } catch (error) {
       console.error('加载系统模板失败:', error);
       return null;

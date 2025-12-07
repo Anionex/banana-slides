@@ -97,13 +97,13 @@ def delete_template(project_id):
 def get_system_templates():
     """
     GET /api/templates - Get system preset templates
-    Returns the predefined templates we added to the database
+    Returns both the predefined templates from database and static templates
     """
     try:
         from models.settings import Settings
         from flask import current_app
 
-        # Get predefined template IDs
+        # Get predefined template mappings
         template_mappings = {
             'simple-business': '简约商务风格',
             'modern-tech': '现代科技风格',
@@ -112,9 +112,8 @@ def get_system_templates():
 
         templates = []
 
-        # Query all user templates and filter by name
+        # 1. Add database templates (the ones we added from img/ directory)
         all_templates = UserTemplate.query.all()
-
         for template in all_templates:
             # Check if this template name matches one of our predefined templates
             for template_id, template_name in template_mappings.items():
@@ -125,8 +124,48 @@ def get_system_templates():
                         'name': template.name,
                         'template_image_url': f'/files/user-templates/{template.id}/{template.file_path.split("/")[-1]}',
                         'created_at': template.created_at.isoformat() if template.created_at else None,
+                        'source': 'database'
                     })
                     break
+
+        # 2. Add static templates from public/templates/ directory
+        static_templates = [
+            {
+                'template_id': 'template_s',  # Keep old IDs for backward compatibility
+                'id': 'template_s',
+                'name': '简约商务（静态）',
+                'template_image_url': '/templates/template_s.png',
+                'created_at': None,
+                'source': 'static'
+            },
+            {
+                'template_id': 'template_g',
+                'id': 'template_g',
+                'name': '活力色彩（静态）',
+                'template_image_url': '/templates/template_g.png',
+                'created_at': None,
+                'source': 'static'
+            },
+            {
+                'template_id': 'template_b',
+                'id': 'template_b',
+                'name': '科技蓝（静态）',
+                'template_image_url': '/templates/template_b.png',
+                'created_at': None,
+                'source': 'static'
+            },
+            {
+                'template_id': 'template_y',
+                'id': 'template_y',
+                'name': '复古卷轴（静态）',
+                'template_image_url': '/templates/template_y.png',
+                'created_at': None,
+                'source': 'static'
+            }
+        ]
+
+        # Add static templates to the list
+        templates.extend(static_templates)
 
         return success_response({
             'templates': templates
