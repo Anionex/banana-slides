@@ -58,21 +58,26 @@ apiClient.interceptors.response.use(
 // 使用相对路径，通过代理转发到后端
 export const getImageUrl = (path?: string, timestamp?: string | number): string => {
   if (!path) return '';
-  // 如果已经是完整URL，直接返回
+
+  // 如果已经是完整URL，检查是否需要代理
   if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
+    // 对于外部图片URL，通过后端代理来避免CORS问题
+    // 编码URL以避免查询参数问题
+    const encodedUrl = encodeURIComponent(path);
+    return `/api/proxy/image?url=${encodedUrl}`;
   }
+
   // 使用相对路径（确保以 / 开头）
   let url = path.startsWith('/') ? path : '/' + path;
-  
+
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
-    const ts = typeof timestamp === 'string' 
-      ? new Date(timestamp).getTime() 
+    const ts = typeof timestamp === 'string'
+      ? new Date(timestamp).getTime()
       : timestamp;
     url += `?v=${ts}`;
   }
-  
+
   return url;
 };
 

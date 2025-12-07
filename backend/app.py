@@ -26,6 +26,7 @@ from default_config import (
 )
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
+from controllers.proxy_controller import proxy_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp, settings_bp
 
 
@@ -132,6 +133,7 @@ def create_app():
     app.register_blueprint(material_global_bp)
     app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
     app.register_blueprint(settings_bp)
+    app.register_blueprint(proxy_bp)
     
     with app.app_context():
         db.create_all()
