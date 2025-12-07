@@ -6,6 +6,7 @@ export { Modal } from './Modal';
 export { Loading, Skeleton } from './Loading';
 export { Toast, useToast } from './Toast';
 export { StatusBadge } from './StatusBadge';
+export { ContextualStatusBadge } from './ContextualStatusBadge';
 export { ConfirmDialog, useConfirm } from './ConfirmDialog';
 export { MaterialGeneratorModal } from './MaterialGeneratorModal';
 export { ReferenceFileCard } from './ReferenceFileCard';
@@ -14,4 +15,6 @@ export { MaterialSelector } from './MaterialSelector';
 export { GithubLink } from './GithubLink';
 export { Markdown } from './Markdown';
 export { AiRefineInput } from './AiRefineInput';
+export { ShimmerOverlay } from './ShimmerOverlay';
+
 

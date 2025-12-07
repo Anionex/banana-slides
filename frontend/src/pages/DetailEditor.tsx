@@ -21,6 +21,7 @@ export const DetailEditor: React.FC = () => {
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const [isAiRefining, setIsAiRefining] = React.useState(false);
 
   // 加载项目数据
   useEffect(() => {
@@ -161,6 +162,7 @@ export const DetailEditor: React.FC = () => {
               onSubmit={handleAiRefineDescriptions}
               disabled={false}
               className="!p-0 !bg-transparent !border-0"
+              onStatusChange={setIsAiRefining}
             />
           </div>
           
@@ -197,6 +199,7 @@ export const DetailEditor: React.FC = () => {
             onSubmit={handleAiRefineDescriptions}
             disabled={false}
             className="!p-0 !bg-transparent !border-0"
+            onStatusChange={setIsAiRefining}
           />
         </div>
       </header>
@@ -253,6 +256,7 @@ export const DetailEditor: React.FC = () => {
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => handleRegeneratePage(pageId)}
                     isGenerating={pageId ? !!pageDescriptionGeneratingTasks[pageId] : false}
+                    isAiRefining={isAiRefining}
                   />
                 );
               })}

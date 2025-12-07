@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
-import { Card, useConfirm, Markdown } from '@/components/shared';
+import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
 import type { Page } from '@/types';
 
 interface OutlineCardProps {
@@ -11,6 +11,7 @@ interface OutlineCardProps {
   onClick: () => void;
   isSelected: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+  isAiRefining?: boolean;
 }
 
 export const OutlineCard: React.FC<OutlineCardProps> = ({
@@ -21,6 +22,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   onClick,
   isSelected,
   dragHandleProps,
+  isAiRefining = false,
 }) => {
   const { confirm, ConfirmDialog } = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
@@ -45,12 +47,14 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
 
   return (
     <Card
-      className={`p-4 ${
+      className={`p-4 relative ${
         isSelected ? 'border-2 border-banana-500 shadow-yellow' : ''
       }`}
       onClick={!isEditing ? onClick : undefined}
     >
-      <div className="flex items-start gap-3">
+      <ShimmerOverlay show={isAiRefining} />
+      
+      <div className="flex items-start gap-3 relative z-10">
         {/* 拖拽手柄 */}
         <div 
           {...dragHandleProps}

@@ -32,6 +32,7 @@ const SortableCard: React.FC<{
   onDelete: () => void;
   onClick: () => void;
   isSelected: boolean;
+  isAiRefining?: boolean;
 }> = (props) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: props.page.id || `page-${props.index}`,
@@ -67,6 +68,7 @@ export const OutlineEditor: React.FC = () => {
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [isAiRefining, setIsAiRefining] = useState(false);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
 
@@ -193,6 +195,7 @@ export const OutlineEditor: React.FC = () => {
               onSubmit={handleAiRefineOutline}
               disabled={false}
               className="!p-0 !bg-transparent !border-0"
+              onStatusChange={setIsAiRefining}
             />
           </div>
           
@@ -228,6 +231,7 @@ export const OutlineEditor: React.FC = () => {
             onSubmit={handleAiRefineOutline}
             disabled={false}
             className="!p-0 !bg-transparent !border-0"
+            onStatusChange={setIsAiRefining}
           />
         </div>
       </header>
@@ -321,6 +325,7 @@ export const OutlineEditor: React.FC = () => {
                         onDelete={() => page.id && deletePageById(page.id)}
                         onClick={() => setSelectedPageId(page.id || null)}
                         isSelected={selectedPageId === page.id}
+                        isAiRefining={isAiRefining}
                       />
                     ))}
                   </div>

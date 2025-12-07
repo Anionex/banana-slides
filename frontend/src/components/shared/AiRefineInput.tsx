@@ -12,6 +12,8 @@ export interface AiRefineInputProps {
   disabled?: boolean;
   /** 自定义类名 */
   className?: string;
+  /** 状态变化回调，通知父组件当前是否正在提交 */
+  onStatusChange?: (isSubmitting: boolean) => void;
 }
 
 export const AiRefineInput: React.FC<AiRefineInputProps> = ({
@@ -20,6 +22,7 @@ export const AiRefineInput: React.FC<AiRefineInputProps> = ({
   onSubmit,
   disabled = false,
   className = '',
+  onStatusChange,
 }) => {
   const [requirement, setRequirement] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,6 +34,7 @@ export const AiRefineInput: React.FC<AiRefineInputProps> = ({
 
     const currentRequirement = requirement.trim();
     setIsSubmitting(true);
+    onStatusChange?.(true); // 通知父组件开始提交
     try {
       await onSubmit(currentRequirement, history);
       // 成功后将当前要求添加到历史
@@ -39,6 +43,7 @@ export const AiRefineInput: React.FC<AiRefineInputProps> = ({
       setRequirement('');
     } finally {
       setIsSubmitting(false);
+      onStatusChange?.(false); // 通知父组件提交结束
     }
   };
 
