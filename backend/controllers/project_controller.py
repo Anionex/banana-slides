@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 from models import db, Project, Page, Task, ReferenceFile
 from utils import success_response, error_response, not_found, bad_request
 from services import AIService
+from services.ai_service import get_api_config_from_db
 from services.task_manager import task_manager, generate_descriptions_task, generate_images_task
 import json
 import traceback
