@@ -31,8 +31,8 @@
 
 </div>
 
-
 ## ✨ 项目缘起
+
 你是否也曾陷入这样的困境：明天就要汇报，但PPT还是一片空白；脑中有无数精彩的想法，却被繁琐的排版和设计消磨掉所有热情？
 
 我(们)渴望能快速创作出既专业又具设计感的演示文稿，传统的AI PPT生成app，虽然大体满足“快”这一需求，却还存在以下问题：
@@ -55,9 +55,7 @@
 4. **学生**：快速完成作业Pre，把精力专注于内容而非排版美化
 5. **职场人士**：商业提案、产品介绍快速可视化，多场景快速适配
 
-
 ## 🎨 结果案例
-
 
 <div align="center">
 
@@ -92,7 +90,6 @@
 | 🧭 规划中 | 多语种支持 |
 | 🧭 规划中 | 用户系统 |
 
-
 ## 🎯 功能介绍
 
 ### Banana-slides🍌 (aka. 蕉幻) 的亮点
@@ -108,17 +105,20 @@
 - 📊 **一键导出**：自动组合为 PPTX / PDF，16:9 比例，开箱即用
 
 ### 1. 多种创建方式
+
 - **从构想生成**：输入一句话 / 一段想法，自动生成完整大纲和页面内容
 - **从大纲生成**：粘贴已有大纲，AI 帮你扩展为逐页详细描述
 - **从描述生成**：直接提供每页描述，快速生成成品页面图片
 
 ### 2. 智能大纲与页面描述生成
+
 - 根据用户输入主题自动生成 PPT 大纲与整套页面结构
 - 以卡片形式呈现，支持删除、拖拽、调整顺序
 - 既可以一次性批量生成，也可以单个编辑逐步补充和细化
 - 内置并行处理能力，提升多页生成速度
 
 ### 3. 多格式文件自动智能解析
+
 - 支持上传pdf/doc/docx/md/txt等格式文件
 - 使用mineru+多模态llm并行解析文件文字+图片并进行分离，为后续生成提供文本、图表素材。
 
@@ -129,10 +129,10 @@
 - 支持上传参考图片、截图、旧 PPT 作为风格与内容线索
 
 ### 5. 多格式导出
+
 - **PPTX 导出**：标准 PowerPoint 格式
 - **PDF 导出**：适合快速分享和展示
 - 默认 16:9 比例，保证在主流显示设备上的观感
-
 
 ## 📦 使用方法
 
@@ -161,6 +161,7 @@ PORT=5000 # 如果使用非 docker 部署, 需要修改此端口以防止后端�
 ```
 
 ### 使用 Docker Compose🐳（推荐）
+
 这是最简单的部署方式，可以一键启动前后端服务。
 
 <details>
@@ -180,7 +181,7 @@ PORT=5000 # 如果使用非 docker 部署, 需要修改此端口以防止后端�
 docker compose up -d
 ```
 
-3. **访问应用**: http://localhost:3000
+3. **访问应用**: <http://localhost:3000>
 <!-- - 后端 API：http://localhost:5000 -->
 
 4. **查看日志**
@@ -216,12 +217,35 @@ docker compose up -d
 ### 从源码部署
 
 #### 环境要求
+
 - Python 3.10 或更高版本
 - [uv](https://github.com/astral-sh/uv) - Python 包管理器
 - Node.js 16+ 和 npm
 - 有效的 Google Gemini API 密钥
 
 #### just 工具 (可选)
+
+just 安装方法: [just - 安装包](https://just.systems/man/zh/%E5%AE%89%E8%A3%85%E5%8C%85.html)
+
+以下是几种很方便的直接安装 just 的方法:
+
+```shell
+brew install just # macos
+npm install -g rust-just
+cargo [b]install just # 需要 rust 环境
+choco install just # windows
+scoop install just # windows
+# 或者直接下载二进制可执行文件 (参考官网按照教程):
+# 创建 ~/bin
+mkdir -p ~/bin
+# 下载并解压 just 到 ~/bin/just
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/bin
+# 在 Shell 搜索可执行文件的路径中添加`~/bin`
+# 这一行应该被添加到你的 Shell 初始化文件中，e.g. `~/.bashrc` 或者 `~/.zshrc`：
+export PATH="$PATH:$HOME/bin"
+# 现在 just 应该就可以执行了
+just --help
+```
 
 可以使用 just 工具快速启动, 无需手动安装前后端.
 
@@ -240,6 +264,7 @@ just
 1. **配置环境变量**: 见[上](#配置环境变量)
 
 2. **安装 uv（如果尚未安装）**
+
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
@@ -247,6 +272,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 3. **安装依赖**
 
 在项目根目录下运行：
+
 ```bash
 uv sync
 ```
@@ -256,11 +282,13 @@ uv sync
 #### 前端安装
 
 1. **进入前端目录**
+
 ```bash
 cd frontend
 ```
 
 2. **安装依赖**
+
 ```bash
 npm install
 ```
@@ -268,7 +296,6 @@ npm install
 3. **配置API地址**
 
 前端会自动连接到 `http://localhost:5000` 的后端服务。如需修改，请编辑 `src/api/client.ts`。
-
 
 #### 启动后端服务
 
@@ -292,10 +319,10 @@ PORT=5000 npm run dev
 
 打开浏览器访问即可使用应用。
 
-
 ## 🛠️ 技术架构
 
 ### 前端技术栈
+
 - **框架**：React 18 + TypeScript
 - **构建工具**：Vite 5
 - **状态管理**：Zustand
@@ -306,6 +333,7 @@ PORT=5000 npm run dev
 - **HTTP客户端**：Axios
 
 ### 后端技术栈
+
 - **语言**：Python 3.10+
 - **框架**：Flask 3.0
 - **包管理**：uv
@@ -413,7 +441,6 @@ banana-slides/
 └── README.md                   # 本文件
 ```
 
-
 ## 🤝 贡献指南
 
 欢迎通过
@@ -443,5 +470,3 @@ MIT
 </a>
 
 <br>
-
-
