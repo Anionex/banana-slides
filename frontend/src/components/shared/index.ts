@@ -9,6 +9,7 @@ export { StatusBadge } from './StatusBadge';
 export { ConfirmDialog, useConfirm } from './ConfirmDialog';
 export { MaterialGeneratorModal } from './MaterialGeneratorModal';
 export { APISettingsModal } from './APISettingsModal';
+export { OnboardingGuide } from './OnboardingGuide';
 export { ReferenceFileCard } from './ReferenceFileCard';
 export { ReferenceFileSelector } from './ReferenceFileSelector';
 export { MaterialSelector } from './MaterialSelector';

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, APISettingsModal, ReferenceFileCard, ReferenceFileSelector } from '@/components/shared';
+import { OnboardingGuide } from '@/components/shared/OnboardingGuide';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -20,6 +21,7 @@ export const Home: React.FC = () => {
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
@@ -27,11 +29,20 @@ export const Home: React.FC = () => {
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 检查是否有当前项目 & 加载用户模板
+  // 检查是否有当前项目 & 加载用户模板 & 检查首次访问
   useEffect(() => {
     const projectId = localStorage.getItem('currentProjectId');
     setCurrentProjectId(projectId);
-    
+
+    // 检查是否是首次访问
+    const hasSeenOnboarding = localStorage.getItem('banana_onboarding_completed');
+    if (!hasSeenOnboarding) {
+      // 延迟500ms显示引导，让页面先加载
+      setTimeout(() => {
+        setIsOnboardingOpen(true);
+      }, 500);
+    }
+
     // 加载用户模板列表（用于按需获取File）
     const loadTemplates = async () => {
       try {
@@ -521,6 +532,12 @@ export const Home: React.FC = () => {
       <APISettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+      />
+      {/* 新用户引导 */}
+      <OnboardingGuide
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
       {/* 参考文件选择器 */}
       {/* 在 Home 页面，始终查询全局文件，因为此时还没有项目 */}
