@@ -73,9 +73,6 @@ export const Settings: React.FC = () => {
       }
       if (formData.max_image_workers) {
         updateData.max_image_workers = formData.max_image_workers;
-      } updateData.api_base_url = formData.api_base_url;
-      if (formData.api_key) {
-        updateData.api_key = formData.api_key;
       }
 
       const response = await api.updateSettings(updateData);
