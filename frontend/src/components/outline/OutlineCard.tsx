@@ -118,7 +118,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 {page.outline_content.title}
               </h4>
               <div className="text-gray-600">
-                <Markdown>{page.outline_content.points.map(point => `- ${point}`).join('\n')}</Markdown>
+                <Markdown>{page.outline_content.points.join('\n')}</Markdown>
               </div>
             </div>
           )}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -103,8 +103,31 @@ export const Home: React.FC = () => {
       // 在 Home 页面，始终上传为全局文件
       const response = await uploadReferenceFile(file, null);
       if (response?.data?.file) {
-        setReferenceFiles(prev => [...prev, response.data!.file]);
+        const uploadedFile = response.data.file;
+        setReferenceFiles(prev => [...prev, uploadedFile]);
         show({ message: '文件上传成功', type: 'success' });
+        
+        // 如果文件状态为 pending，自动触发解析
+        if (uploadedFile.parse_status === 'pending') {
+          try {
+            const parseResponse = await triggerFileParse(uploadedFile.id);
+            // 使用解析接口返回的文件对象更新状态
+            if (parseResponse?.data?.file) {
+              const parsedFile = parseResponse.data.file;
+              setReferenceFiles(prev => 
+                prev.map(f => f.id === uploadedFile.id ? parsedFile : f)
+              );
+            } else {
+              // 如果没有返回文件对象，手动更新状态为 parsing（异步线程会稍后更新）
+              setReferenceFiles(prev => 
+                prev.map(f => f.id === uploadedFile.id ? { ...f, parse_status: 'parsing' as const } : f)
+              );
+            }
+          } catch (parseError: any) {
+            console.error('触发文件解析失败:', parseError);
+            // 解析触发失败不影响上传成功提示
+          }
+        }
       } else {
         show({ message: '文件上传失败：未返回文件信息', type: 'error' });
       }
@@ -362,12 +385,8 @@ export const Home: React.FC = () => {
             </span>
           </h1>
           
-          <p className="text-lg md:text-2xl text-gray-600 max-w-3xl mx-auto font-light">
-            <span className="font-medium">Vibe your PPT  like vibing code</span>
-            <br className="hidden md:block" />
-            <span className="text-base md:text-lg text-gray-500 mt-2 block">
-              降低 PPT 制作门槛，让每个人都能快速创作出美观专业的演示文稿
-            </span>
+          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto font-light">
+            Vibe your PPT like vibing code
           </p>
 
           {/* 特性标签 */}

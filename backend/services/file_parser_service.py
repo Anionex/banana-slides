@@ -486,7 +486,7 @@ class FileParserService:
         
         return enhanced_content, failed_count
     
-    def _generate_captions_parallel(self, image_urls: List[str], max_workers: int = 5, max_retries: int = 3) -> tuple[List[str], int]:
+    def _generate_captions_parallel(self, image_urls: List[str], max_workers: int = 12, max_retries: int = 3) -> tuple[List[str], int]:
         """
         Generate captions for multiple images in parallel with retry mechanism
         

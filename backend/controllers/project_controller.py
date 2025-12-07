@@ -294,7 +294,7 @@ def generate_outline(project_id):
             current_app.config['GOOGLE_API_BASE']
         )
         
-        # Get reference files content
+        # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
         if reference_files_content:
             logger.info(f"Found {len(reference_files_content)} reference files for project {project_id}")
@@ -309,8 +309,9 @@ def generate_outline(project_id):
             if not project.outline_text:
                 return bad_request("outline_text is required for outline type project")
             
-            # Parse outline text into structured format
-            outline = ai_service.parse_outline_text(project.outline_text, reference_files_content)
+            # Create project context and parse outline text into structured format
+            project_context = ProjectContext(project, reference_files_content)
+            outline = ai_service.parse_outline_text(project_context)
         elif project.creation_type == 'descriptions':
             # 从描述生成：这个类型应该使用专门的端点
             return bad_request("Use /generate/from-description endpoint for descriptions type")
@@ -322,9 +323,11 @@ def generate_outline(project_id):
             if not idea_prompt:
                 return bad_request("idea_prompt is required")
             
-            # Generate outline from idea
-            outline = ai_service.generate_outline(idea_prompt, reference_files_content)
             project.idea_prompt = idea_prompt
+            
+            # Create project context and generate outline from idea
+            project_context = ProjectContext(project, reference_files_content)
+            outline = ai_service.generate_outline(project_context)
         
         # Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
@@ -411,19 +414,20 @@ def generate_from_description(project_id):
             current_app.config['GOOGLE_API_BASE']
         )
         
-        # Get reference files content
+        # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
+        project_context = ProjectContext(project, reference_files_content)
         
         logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}")
         
         # Step 1: Parse description to outline
         logger.info("Step 1: 解析描述文本到大纲结构...")
-        outline = ai_service.parse_description_to_outline(description_text, reference_files_content)
+        outline = ai_service.parse_description_to_outline(project_context)
         logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
         
         # Step 2: Split description into page descriptions
         logger.info("Step 2: 切分描述文本到每页描述...")
-        page_descriptions = ai_service.parse_description_to_page_descriptions(description_text, outline)
+        page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline)
         logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
         
         # Step 3: Flatten outline to pages
@@ -544,8 +548,9 @@ def generate_descriptions(project_id):
             current_app.config['GOOGLE_API_BASE']
         )
         
-        # Get reference files content
+        # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
+        project_context = ProjectContext(project, reference_files_content)
         
         # Get app instance for background task
         app = current_app._get_current_object()
@@ -556,11 +561,10 @@ def generate_descriptions(project_id):
             generate_descriptions_task,
             project_id,
             ai_service,
-            project.idea_prompt,
+            project_context,
             outline,
             max_workers,
-            app,
-            reference_files_content
+            app
         )
         
         # Update project status

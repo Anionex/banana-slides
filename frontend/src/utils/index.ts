@@ -98,3 +98,22 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+/**
+ * 将错误消息转换为友好的中文提示
+ */
+export function normalizeErrorMessage(errorMessage: string | null | undefined): string {
+  if (!errorMessage) return '操作失败';
+  
+  const message = errorMessage.toLowerCase();
+  
+  if (message.includes('no template image found')) {
+    return '当前项目还没有模板，请先点击页面顶部的"更换模板"按钮，选择或上传一张模板图片后再生成。';
+  } else if (message.includes('page must have description content')) {
+    return '该页面还没有描述内容，请先在"编辑页面描述"步骤为此页生成或填写描述。';
+  } else if (message.includes('image already exists')) {
+    return '该页面已经有图片，如需重新生成，请在生成时选择"重新生成"或稍后重试。';
+  }
+  
+  return errorMessage;
+}
+

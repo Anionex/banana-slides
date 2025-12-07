@@ -27,6 +27,7 @@ import { useProjectStore } from '@/store/useProjectStore';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent } from '@/types';
+import { normalizeErrorMessage } from '@/utils';
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
@@ -211,17 +212,8 @@ export const SlidePreview: React.FC = () => {
         errorMessage = error.message;
       }
 
-      // 针对常见错误做更友好的提示
-      if (errorMessage.includes('No template image found')) {
-        errorMessage =
-          '当前项目还没有模板，请先点击页面顶部的“更换模板”按钮，选择或上传一张模板图片后再生成。';
-      } else if (errorMessage.includes('Page must have description content')) {
-        errorMessage =
-          '该页面还没有描述内容，请先在“编辑页面描述”步骤为此页生成或填写描述。';
-      } else if (errorMessage.includes('Image already exists')) {
-        errorMessage =
-          '该页面已经有图片，如需重新生成，请在生成时选择“重新生成”或稍后重试。';
-      }
+      // 使用统一的错误消息规范化函数
+      errorMessage = normalizeErrorMessage(errorMessage);
 
       show({
         message: errorMessage,
@@ -1087,7 +1079,7 @@ export const SlidePreview: React.FC = () => {
                   </div>
                   {selectedPage.outline_content.points && selectedPage.outline_content.points.length > 0 && (
                     <div className="text-sm text-gray-600">
-                      <Markdown>{selectedPage.outline_content.points.map(point => `- ${point}`).join('\n')}</Markdown>
+                      <Markdown>{selectedPage.outline_content.points.join('\n')}</Markdown>
                     </div>
                   )}
                 </div>

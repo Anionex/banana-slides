@@ -40,18 +40,18 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
     return '\n'.join(xml_parts)
 
 
-def get_outline_generation_prompt(idea_prompt: str, reference_files_content: Optional[List[Dict[str, str]]] = None) -> str:
+def get_outline_generation_prompt(project_context: 'ProjectContext') -> str:
     """
     生成 PPT 大纲的 prompt
     
     Args:
-        idea_prompt: 用户的想法/需求
-        reference_files_content: 可选的参考文件内容列表
+        project_context: 项目上下文对象，包含所有原始信息
         
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(reference_files_content)
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    idea_prompt = project_context.idea_prompt or ""
     
     prompt = dedent(f"""\
     You are a helpful assistant that generates an outline for a ppt.
@@ -90,18 +90,18 @@ def get_outline_generation_prompt(idea_prompt: str, reference_files_content: Opt
     return final_prompt
 
 
-def get_outline_parsing_prompt(outline_text: str, reference_files_content: Optional[List[Dict[str, str]]] = None) -> str:
+def get_outline_parsing_prompt(project_context: 'ProjectContext') -> str:
     """
     解析用户提供的大纲文本的 prompt
     
     Args:
-        outline_text: 用户提供的大纲文本
-        reference_files_content: 可选的参考文件内容列表
+        project_context: 项目上下文对象，包含所有原始信息
         
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(reference_files_content)
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    outline_text = project_context.outline_text or ""
     
     prompt = dedent(f"""\
     You are a helpful assistant that parses a user-provided PPT outline text into a structured format.
@@ -154,29 +154,36 @@ def get_outline_parsing_prompt(outline_text: str, reference_files_content: Optio
     return final_prompt
 
 
-def get_page_description_prompt(idea_prompt: str, outline: list, 
+def get_page_description_prompt(project_context: 'ProjectContext', outline: list, 
                                 page_outline: dict, page_index: int, 
-                                part_info: str = "", 
-                                reference_files_content: Optional[List[Dict[str, str]]] = None) -> str:
+                                part_info: str = "") -> str:
     """
     生成单个页面描述的 prompt
     
     Args:
-        idea_prompt: 原始用户想法
+        project_context: 项目上下文对象，包含所有原始信息
         outline: 完整大纲
         page_outline: 当前页面的大纲
         page_index: 页面编号（从1开始）
         part_info: 可选的章节信息
-        reference_files_content: 可选的参考文件内容列表
         
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(reference_files_content)
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    # 根据项目类型选择最相关的原始输入
+    if project_context.creation_type == 'idea' and project_context.idea_prompt:
+        original_input = project_context.idea_prompt
+    elif project_context.creation_type == 'outline' and project_context.outline_text:
+        original_input = f"用户提供的大纲：\n{project_context.outline_text}"
+    elif project_context.creation_type == 'descriptions' and project_context.description_text:
+        original_input = f"用户提供的描述：\n{project_context.description_text}"
+    else:
+        original_input = project_context.idea_prompt or ""
     
     prompt = dedent(f"""\
     we are generating the text descriptionfor each ppt page.
-    the original user request is: \n{idea_prompt}\n
+    the original user request is: \n{original_input}\n
     We already have the entire outline: \n{outline}\n{part_info}
     Now please generate the description for page {page_index}:
     {page_outline}
@@ -277,18 +284,18 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
     return prompt
 
 
-def get_description_to_outline_prompt(description_text: str, reference_files_content: Optional[List[Dict[str, str]]] = None) -> str:
+def get_description_to_outline_prompt(project_context: 'ProjectContext') -> str:
     """
     从描述文本解析出大纲的 prompt
     
     Args:
-        description_text: 用户提供的完整页面描述文本
-        reference_files_content: 可选的参考文件内容列表
+        project_context: 项目上下文对象，包含所有原始信息
         
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(reference_files_content)
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    description_text = project_context.description_text or ""
     
     prompt = dedent(f"""\
     You are a helpful assistant that analyzes a user-provided PPT description text and extracts the outline structure from it.
@@ -342,18 +349,19 @@ def get_description_to_outline_prompt(description_text: str, reference_files_con
     return final_prompt
 
 
-def get_description_split_prompt(description_text: str, outline: List[Dict]) -> str:
+def get_description_split_prompt(project_context: 'ProjectContext', outline: List[Dict]) -> str:
     """
     从描述文本切分出每页描述的 prompt
     
     Args:
-        description_text: 用户提供的完整页面描述文本
+        project_context: 项目上下文对象，包含所有原始信息
         outline: 已解析出的大纲结构
         
     Returns:
         格式化后的 prompt 字符串
     """
     outline_json = json.dumps(outline, ensure_ascii=False, indent=2)
+    description_text = project_context.description_text or ""
     
     prompt = dedent(f"""\
     You are a helpful assistant that splits a complete PPT description text into individual page descriptions.

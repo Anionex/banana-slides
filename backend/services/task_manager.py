@@ -53,14 +53,22 @@ task_manager = TaskManager(max_workers=4)
 
 
 def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
-                               idea_prompt: str, outline: List[Dict], 
-                               max_workers: int = 5, app=None,
-                               reference_files_content: List[Dict[str, str]] = None):
+                               project_context, outline: List[Dict], 
+                               max_workers: int = 5, app=None):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
     
     Note: app instance MUST be passed from the request context
+    
+    Args:
+        task_id: Task ID
+        project_id: Project ID
+        ai_service: AI service instance
+        project_context: ProjectContext object containing all project information
+        outline: Complete outline structure
+        max_workers: Maximum number of parallel workers
+        app: Flask app instance
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -108,7 +116,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 with app.app_context():
                     try:
                         desc_text = ai_service.generate_page_description(
-                            idea_prompt, outline, page_outline, page_index, reference_files_content
+                            project_context, outline, page_outline, page_index
                         )
                         
                         # Parse description into structured format

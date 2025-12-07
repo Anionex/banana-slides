@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, request, current_app
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
-from services import AIService, FileService
+from services import AIService, FileService, ProjectContext
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
 from datetime import datetime
 from pathlib import Path
@@ -238,13 +238,18 @@ def generate_page_description(project_id, page_id):
             current_app.config['GOOGLE_API_BASE']
         )
         
+        # Get reference files content and create project context
+        from controllers.project_controller import _get_project_reference_files_content
+        reference_files_content = _get_project_reference_files_content(project_id)
+        project_context = ProjectContext(project, reference_files_content)
+        
         # Generate description
         page_data = outline_content.copy()
         if page.part:
             page_data['part'] = page.part
         
         desc_text = ai_service.generate_page_description(
-            project.idea_prompt,
+            project_context,
             outline,
             page_data,
             page.order_index + 1

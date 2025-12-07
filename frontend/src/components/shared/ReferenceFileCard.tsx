@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
-import { getReferenceFile, deleteReferenceFile, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
+import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
 
 export interface ReferenceFileCardProps {
   file: ReferenceFile;
@@ -57,19 +57,18 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   const handleDelete = async () => {
     if (isDeleting) return;
     
-    if (deleteMode === 'remove') {
-      // 只从项目中移除，不调用删除 API
-      onDelete(file.id);
-      return;
-    }
-    
-    // 彻底删除文件
     setIsDeleting(true);
     try {
-      await deleteReferenceFile(file.id);
+      if (deleteMode === 'remove') {
+        // 从项目中移除，不删除文件本身
+        await dissociateFileFromProject(file.id);
+      } else {
+        // 彻底删除文件
+        await deleteReferenceFile(file.id);
+      }
       onDelete(file.id);
     } catch (error) {
-      console.error('Failed to delete file:', error);
+      console.error('Failed to delete/remove file:', error);
       setIsDeleting(false);
     }
   };

@@ -31,16 +31,26 @@ logger = logging.getLogger(__name__)
 class ProjectContext:
     """项目上下文数据类，统一管理 AI 需要的所有项目信息"""
     
-    def __init__(self, project_dict: Dict, reference_files_content: Optional[List[Dict[str, str]]] = None):
+    def __init__(self, project_or_dict, reference_files_content: Optional[List[Dict[str, str]]] = None):
         """
         Args:
-            project_dict: 项目对象的字典表示（通常是 project.to_dict()）
+            project_or_dict: 项目对象（Project model）或项目字典（project.to_dict()）
             reference_files_content: 参考文件内容列表
         """
-        self.idea_prompt = project_dict.get('idea_prompt')
-        self.outline_text = project_dict.get('outline_text')
-        self.description_text = project_dict.get('description_text')
-        self.creation_type = project_dict.get('creation_type', 'idea')
+        # 支持直接传入 Project 对象，避免 to_dict() 调用，提升性能
+        if hasattr(project_or_dict, 'idea_prompt'):
+            # 是 Project 对象
+            self.idea_prompt = project_or_dict.idea_prompt
+            self.outline_text = project_or_dict.outline_text
+            self.description_text = project_or_dict.description_text
+            self.creation_type = project_or_dict.creation_type or 'idea'
+        else:
+            # 是字典
+            self.idea_prompt = project_or_dict.get('idea_prompt')
+            self.outline_text = project_or_dict.get('outline_text')
+            self.description_text = project_or_dict.get('description_text')
+            self.creation_type = project_or_dict.get('creation_type', 'idea')
+        
         self.reference_files_content = reference_files_content or []
     
     def to_dict(self) -> Dict:
@@ -97,6 +107,35 @@ class AIService:
         return urls
     
     @staticmethod
+    def remove_markdown_images(text: str) -> str:
+        """
+        从文本中移除 Markdown 图片链接，只保留 alt text（描述文字）
+        
+        Args:
+            text: 包含 Markdown 图片语法的文本
+            
+        Returns:
+            移除图片链接后的文本，保留描述文字
+        """
+        if not text:
+            return text
+        
+        # 将 ![描述文字](url) 替换为 描述文字
+        # 如果没有描述文字（空的 alt text），则完全删除该图片链接
+        def replace_image(match):
+            alt_text = match.group(1).strip()
+            # 如果有描述文字，保留它；否则删除整个链接
+            return alt_text if alt_text else ''
+        
+        pattern = r'!\[(.*?)\]\([^\)]+\)'
+        cleaned_text = re.sub(pattern, replace_image, text)
+        
+        # 清理可能产生的多余空行
+        cleaned_text = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned_text)
+        
+        return cleaned_text
+    
+    @staticmethod
     def _convert_mineru_path_to_local(mineru_path: str) -> Optional[str]:
         """
         将 /files/mineru/{extract_id}/{rel_path} 格式的路径转换为本地文件系统路径（支持前缀匹配）
@@ -138,19 +177,18 @@ class AIService:
             logger.error(f"Failed to download image from {url}: {str(e)}")
             return None
     
-    def generate_outline(self, idea_prompt: str, reference_files_content: Optional[List[Dict[str, str]]] = None) -> List[Dict]:
+    def generate_outline(self, project_context: ProjectContext) -> List[Dict]:
         """
         Generate PPT outline from idea prompt
         Based on demo.py gen_outline()
         
         Args:
-            idea_prompt: User's idea/request
-            reference_files_content: Optional list of reference file contents
+            project_context: 项目上下文对象，包含所有原始信息
             
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        outline_prompt = get_outline_generation_prompt(idea_prompt, reference_files_content)
+        outline_prompt = get_outline_generation_prompt(project_context)
         
         response = self.client.models.generate_content(
             model=self.text_model,
@@ -164,19 +202,18 @@ class AIService:
         outline = json.loads(outline_text)
         return outline
     
-    def parse_outline_text(self, outline_text: str, reference_files_content: Optional[List[Dict[str, str]]] = None) -> List[Dict]:
+    def parse_outline_text(self, project_context: ProjectContext) -> List[Dict]:
         """
         Parse user-provided outline text into structured outline format
         This method analyzes the text and splits it into pages without modifying the original text
         
         Args:
-            outline_text: User-provided outline text (may contain sections, titles, bullet points, etc.)
-            reference_files_content: Optional list of reference file contents
+            project_context: 项目上下文对象，包含所有原始信息
         
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        parse_prompt = get_outline_parsing_prompt(outline_text, reference_files_content)
+        parse_prompt = get_outline_parsing_prompt(project_context)
         
         response = self.client.models.generate_content(
             model=self.text_model,
@@ -208,19 +245,17 @@ class AIService:
                 pages.append(item)
         return pages
     
-    def generate_page_description(self, idea_prompt: str, outline: List[Dict], 
-                                 page_outline: Dict, page_index: int,
-                                 reference_files_content: Optional[List[Dict[str, str]]] = None) -> str:
+    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict], 
+                                 page_outline: Dict, page_index: int) -> str:
         """
         Generate description for a single page
         Based on demo.py gen_desc() logic
         
         Args:
-            idea_prompt: Original user idea
+            project_context: 项目上下文对象，包含所有原始信息
             outline: Complete outline
             page_outline: Outline for this specific page
             page_index: Page number (1-indexed)
-            reference_files_content: Optional reference files content
         
         Returns:
             Text description for the page
@@ -228,12 +263,11 @@ class AIService:
         part_info = f"\nThis page belongs to: {page_outline['part']}" if 'part' in page_outline else ""
         
         desc_prompt = get_page_description_prompt(
-            idea_prompt=idea_prompt,
+            project_context=project_context,
             outline=outline,
             page_outline=page_outline,
             page_index=page_index,
-            part_info=part_info,
-            reference_files_content=reference_files_content
+            part_info=part_info
         )
         
         response = self.client.models.generate_content(
@@ -288,8 +322,12 @@ class AIService:
         else:
             current_section = f"{page.get('title', 'Untitled')}"
         
+        # 在传给文生图模型之前，移除 Markdown 图片链接
+        # 图片本身已经通过 additional_ref_images 传递，只保留文字描述
+        cleaned_page_desc = self.remove_markdown_images(page_desc)
+        
         prompt = get_image_generation_prompt(
-            page_desc=page_desc,
+            page_desc=cleaned_page_desc,
             outline_text=outline_text,
             current_section=current_section,
             has_material_images=has_material_images,
@@ -437,18 +475,17 @@ class AIService:
         )
         return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution, additional_ref_images)
     
-    def parse_description_to_outline(self, description_text: str, reference_files_content: Optional[List[Dict[str, str]]] = None) -> List[Dict]:
+    def parse_description_to_outline(self, project_context: ProjectContext) -> List[Dict]:
         """
         从描述文本解析出大纲结构
         
         Args:
-            description_text: 用户提供的完整页面描述文本
-            reference_files_content: 可选的参考文件内容列表
+            project_context: 项目上下文对象，包含所有原始信息
         
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        parse_prompt = get_description_to_outline_prompt(description_text, reference_files_content)
+        parse_prompt = get_description_to_outline_prompt(project_context)
         
         response = self.client.models.generate_content(
             model=self.text_model,
@@ -462,18 +499,18 @@ class AIService:
         outline = json.loads(outline_json)
         return outline
     
-    def parse_description_to_page_descriptions(self, description_text: str, outline: List[Dict]) -> List[str]:
+    def parse_description_to_page_descriptions(self, project_context: ProjectContext, outline: List[Dict]) -> List[str]:
         """
         从描述文本切分出每页描述
         
         Args:
-            description_text: 用户提供的完整页面描述文本
+            project_context: 项目上下文对象，包含所有原始信息
             outline: 已解析出的大纲结构
         
         Returns:
             List of page descriptions (strings), one for each page in the outline
         """
-        split_prompt = get_description_split_prompt(description_text, outline)
+        split_prompt = get_description_split_prompt(project_context, outline)
         
         response = self.client.models.generate_content(
             model=self.text_model,
