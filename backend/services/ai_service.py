@@ -8,6 +8,7 @@ import json
 import re
 import logging
 import requests
+import time
 from typing import List, Dict, Optional, Union
 from textwrap import dedent
 from google import genai
@@ -450,7 +451,54 @@ class AIService:
             }
 
             logger.debug(f"Calling chat-compatible API: {url}")
-            response = requests.post(url, json=payload, headers=headers, timeout=120)
+
+            # Add retry mechanism for transient errors
+            max_retries = 3
+            retry_delay = 2  # seconds
+
+            for attempt in range(max_retries):
+                try:
+                    logger.debug(f"API request attempt {attempt + 1}/{max_retries}")
+                    response = requests.post(url, json=payload, headers=headers, timeout=120)
+
+                    # Check if we got a successful response
+                    if response.status_code == 200:
+                        logger.debug("API request successful")
+                        break
+                    elif response.status_code in [502, 503, 504]:
+                        # Server errors that might be transient
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Server error {response.status_code} on attempt {attempt + 1}, retrying in {retry_delay}s...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                        else:
+                            logger.error(f"Server error {response.status_code} after {max_retries} attempts")
+                            response.raise_for_status()
+                    else:
+                        # Other errors (client errors, etc.) - don't retry
+                        logger.error(f"Non-retryable error {response.status_code}: {response.text}")
+                        response.raise_for_status()
+
+                except requests.exceptions.Timeout:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Timeout on attempt {attempt + 1}, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    else:
+                        logger.error(f"Timeout after {max_retries} attempts")
+                        raise
+                except requests.exceptions.ConnectionError:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Connection error on attempt {attempt + 1}, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    else:
+                        logger.error(f"Connection failed after {max_retries} attempts")
+                        raise
+
             response.raise_for_status()
 
             # Parse response
@@ -757,6 +805,41 @@ class AIService:
                 logger.error(f"Invalid API response structure: {result}")
                 raise ValueError(f"No valid response from chat API. Response: {result}")
 
+        except requests.exceptions.HTTPError as e:
+            error_detail = f"HTTP Error generating image (chat format): {type(e).__name__}: {str(e)}"
+
+            # Add user-friendly messages for common server errors
+            if hasattr(e, 'response') and e.response is not None:
+                status_code = e.response.status_code
+                if status_code == 502:
+                    error_detail = "图片生成服务暂时不可用 (502 Bad Gateway)。服务器可能正在维护或过载，请稍后重试。"
+                elif status_code == 503:
+                    error_detail = "图片生成服务暂时过载 (503 Service Unavailable)。请稍后重试。"
+                elif status_code == 504:
+                    error_detail = "图片生成请求超时 (504 Gateway Timeout)。请求处理时间过长，请稍后重试。"
+                elif status_code == 429:
+                    error_detail = "请求频率过高 (429 Rate Limited)。请稍后重试。"
+                elif status_code == 401:
+                    error_detail = "API 密钥无效或已过期 (401 Unauthorized)。请检查 API 配置。"
+                elif status_code == 403:
+                    error_detail = "访问被拒绝 (403 Forbidden)。API 密钥可能没有图片生成权限。"
+                elif status_code >= 500:
+                    error_detail = f"图片生成服务器内部错误 ({status_code})。这是服务器端问题，请稍后重试。"
+
+                logger.error(f"{error_detail} - URL: {e.response.url if hasattr(e.response, 'url') else 'Unknown'}")
+                logger.error(f"Response content: {e.response.text[:500] if hasattr(e.response, 'text') else 'No content'}")
+            else:
+                logger.error(error_detail)
+
+            raise Exception(error_detail) from e
+        except requests.exceptions.Timeout as e:
+            error_detail = "图片生成请求超时。网络连接可能不稳定，或者服务器响应时间过长。请稍后重试。"
+            logger.error(f"Timeout error generating image: {str(e)}")
+            raise Exception(error_detail) from e
+        except requests.exceptions.ConnectionError as e:
+            error_detail = "无法连接到图片生成服务。请检查网络连接或联系管理员。"
+            logger.error(f"Connection error generating image: {str(e)}")
+            raise Exception(error_detail) from e
         except Exception as e:
             error_detail = f"Error generating image (chat format): {type(e).__name__}: {str(e)}"
             logger.error(error_detail, exc_info=True)
