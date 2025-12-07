@@ -59,14 +59,16 @@ def get_api_presets():
     presets = [
         {
             'id': 'relay_apipro',
-            'name': '🚀 中转API（推荐）',
-            'description': '使用中转API https://apipro.maynor1024.live/ 访问Gemini，稳定可靠，支持文本和图片生成。需要自己的 API Key（格式：sk-xxx）',
+            'name': '🚀 Maynor 中转API（推荐）',
+            'description': '统一使用 https://apipro.maynor1024.live/ 作为中转服务，稳定可靠，支持文本和图片生成。推荐模型：gemini-2.0-flash-exp',
             'config': {
                 'text_api_base': 'https://apipro.maynor1024.live',
                 'image_api_base': 'https://apipro.maynor1024.live',
                 'requires_key': True,
                 'key_format': 'sk-xxx（文本和图片使用相同的Key）',
                 'get_key_url': 'https://apipro.maynor1024.live/',
+                'recommended_model': 'gemini-2.0-flash-exp',
+                'warning': '请确保API Key支持图片生成功能'
             }
         },
         {

@@ -95,7 +95,19 @@ class AIService:
         self.client = self.text_client
 
         self.text_model = "gemini-2.5-flash"
-        self.image_model = "gemini-3-pro-image-preview"
+
+        # Configure image model based on API type
+        if self._should_use_chat_format(image_api_base or api_base):
+            # Third-party relay/proxy API
+            if "maynor1024.live" in (image_api_base or api_base):
+                self.image_model = "gemini-2.0-flash-exp"  # Best for this API
+            else:
+                self.image_model = "gemini-2.0-flash-exp"  # Default for chat APIs
+            logger.info("Using third-party API with chat-compatible format")
+        else:
+            # Official Google API
+            self.image_model = "gemini-3-pro-image-preview"
+            logger.info("Using official Google API with native SDK")
 
         # Store image API credentials for chat-compatible format
         self.image_api_key = image_api_key or api_key
@@ -104,7 +116,7 @@ class AIService:
         # Detect if image API uses chat-compatible format (OpenAI-style)
         # Third-party proxies typically use /v1/chat/completions endpoint
         self.use_chat_format = self._should_use_chat_format(self.image_api_base)
-        logger.info(f"Image API format: {'Chat-compatible' if self.use_chat_format else 'Native Gemini SDK'}")
+        logger.info(f"Image service configured: model={self.image_model}, format={'Chat' if self.use_chat_format else 'Native SDK'}, api_base={self.image_api_base}")
 
     def _should_use_chat_format(self, api_base: str) -> bool:
         """
@@ -124,8 +136,8 @@ class AIService:
             return False
 
         # Third-party proxies typically use chat-compatible format
-        # Common patterns: api.*, apipro.*, etc.
-        if any(pattern in api_base for pattern in ['api.', 'apipro.', '/v1/', 'openai']):
+        # Common patterns: api.*, apipro.*, maynor1024.live, etc.
+        if any(pattern in api_base for pattern in ['api.', 'apipro.', 'maynor1024.live', '/v1/', 'openai']):
             return True
 
         return False
