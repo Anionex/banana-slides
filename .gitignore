@@ -25,8 +25,18 @@
 !frontend/public/**/*.heic
 !frontend/public/**/*.heif
 !frontend/public/**/*.avif
+
+# 保留测试fixtures
+!e2e/fixtures/*.png
+
+# 保留项目模板图片
+!template*.png
+
+# 忽略临时文档，但保留项目文档
 *.md
-!README.md
+!README*.md
+!docs/**/*.md
+!.github/**/*.md
 *.pyc
 .env
 *.ppt
