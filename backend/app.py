@@ -163,9 +163,15 @@ def _load_settings_to_config(app):
             app.config['GOOGLE_API_KEY'] = settings.api_key
             logging.info("Loaded GOOGLE_API_KEY from settings")
 
-        # TODO: Load image_resolution and image_aspect_ratio when implemented
-        # app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
-        # app.config['DEFAULT_ASPECT_RATIO'] = settings.image_aspect_ratio
+        # Load image generation settings
+        app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
+        app.config['DEFAULT_ASPECT_RATIO'] = settings.image_aspect_ratio
+        logging.info(f"Loaded image settings: {settings.image_resolution}, {settings.image_aspect_ratio}")
+
+        # Load worker settings
+        app.config['MAX_DESCRIPTION_WORKERS'] = settings.max_description_workers
+        app.config['MAX_IMAGE_WORKERS'] = settings.max_image_workers
+        logging.info(f"Loaded worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
 
     except Exception as e:
         logging.warning(f"Could not load settings from database: {e}")

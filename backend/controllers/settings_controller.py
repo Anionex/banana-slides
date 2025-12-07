@@ -67,11 +67,24 @@ def update_settings():
 
         if "image_aspect_ratio" in data:
             aspect_ratio = data["image_aspect_ratio"]
-            if aspect_ratio not in ["16:9", "4:3", "1:1"]:
-                return bad_request(
-                    "Aspect ratio must be 16:9, 4:3, or 1:1"
-                )
             settings.image_aspect_ratio = aspect_ratio
+
+        # Update worker configuration
+        if "max_description_workers" in data:
+            workers = int(data["max_description_workers"])
+            if workers < 1 or workers > 20:
+                return bad_request(
+                    "Max description workers must be between 1 and 20"
+                )
+            settings.max_description_workers = workers
+
+        if "max_image_workers" in data:
+            workers = int(data["max_image_workers"])
+            if workers < 1 or workers > 20:
+                return bad_request(
+                    "Max image workers must be between 1 and 20"
+                )
+            settings.max_image_workers = workers
 
         settings.updated_at = datetime.utcnow()
         db.session.commit()
@@ -107,6 +120,8 @@ def reset_settings():
         settings.api_key = None
         settings.image_resolution = "2K"
         settings.image_aspect_ratio = "16:9"
+        settings.max_description_workers = 5
+        settings.max_image_workers = 8
         settings.updated_at = datetime.now(timezone.utc)
 
         db.session.commit()
@@ -141,6 +156,12 @@ def _sync_settings_to_config(settings: Settings):
         current_app.config["GOOGLE_API_KEY"] = settings.api_key
         logger.info("Updated GOOGLE_API_KEY")
 
-    # TODO: Add image_resolution and image_aspect_ratio sync when implemented
-    # current_app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
-    # current_app.config['DEFAULT_ASPECT_RATIO'] = settings.image_aspect_ratio
+    # Sync image generation settings
+    current_app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
+    current_app.config['DEFAULT_ASPECT_RATIO'] = settings.image_aspect_ratio
+    logger.info(f"Updated image settings: {settings.image_resolution}, {settings.image_aspect_ratio}")
+
+    # Sync worker settings
+    current_app.config['MAX_DESCRIPTION_WORKERS'] = settings.max_description_workers
+    current_app.config['MAX_IMAGE_WORKERS'] = settings.max_image_workers
+    logger.info(f"Updated worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")

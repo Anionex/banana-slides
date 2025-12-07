@@ -113,6 +113,8 @@ export interface Settings {
   api_key_length: number;
   image_resolution: string;
   image_aspect_ratio: string;
+  max_description_workers: number;
+  max_image_workers: number;
   created_at?: string;
   updated_at?: string;
 }

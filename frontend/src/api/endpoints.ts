@@ -676,7 +676,7 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Pick<Settings, 'api_base_url' | 'image_resolution' | 'image_aspect_ratio'>> & { api_key?: string }
+  data: Partial<Pick<Settings, 'api_base_url' | 'image_resolution' | 'image_aspect_ratio' | 'max_description_workers' | 'max_image_workers'>> & { api_key?: string }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
   return response.data;
