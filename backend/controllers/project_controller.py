@@ -506,6 +506,9 @@ def generate_descriptions(project_id):
         if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED']:
             return bad_request("Project must have outline generated first")
         
+        # IMPORTANT: Expire cached objects to ensure fresh data
+        db.session.expire_all()
+        
         # Get pages
         pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         
@@ -594,6 +597,9 @@ def generate_images(project_id):
         
         # if project.status not in ['DESCRIPTIONS_GENERATED', 'OUTLINE_GENERATED']:
         #     return bad_request("Project must have descriptions generated first")
+        
+        # IMPORTANT: Expire cached objects to ensure fresh data
+        db.session.expire_all()
         
         # Get pages
         pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
@@ -707,6 +713,10 @@ def refine_outline(project_id):
             return bad_request("user_requirement is required")
         
         user_requirement = data['user_requirement']
+        
+        # IMPORTANT: Expire all cached objects to ensure we get fresh data from database
+        # This prevents issues when multiple refine operations are called in sequence
+        db.session.expire_all()
         
         # Get current outline from pages
         pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
@@ -858,6 +868,8 @@ def refine_descriptions(project_id):
             return bad_request("user_requirement is required")
         
         user_requirement = data['user_requirement']
+        
+        db.session.expire_all()
         
         # Get current pages
         pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
