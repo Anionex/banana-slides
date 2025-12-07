@@ -11,23 +11,23 @@ export const PRESET_TEMPLATES: UserTemplate[] = [
   {
     id: 'simple-business',
     name: '简约商务风格',
-    template_image_url: '/files/user-templates/f4108fa3-e69d-42e7-aef1-9418b2cd77c6/13f7b8f1f5858efaf6d91c09cf0f98dd.jpg',
-    source: 'database',
-    template_id: 'f4108fa3-e69d-42e7-aef1-9418b2cd77c6',
+    template_image_url: '/templates/13f7b8f1f5858efaf6d91c09cf0f98dd.jpg',
+    source: 'static',
+    template_id: 'simple-business',
   },
   {
     id: 'modern-tech',
     name: '现代科技风格',
-    template_image_url: '/files/user-templates/09d3d911-cb9f-4fc7-912d-1de3d554ac6a/22aabcfcfa8a0dcb152376cc749baa4f.jpg',
-    source: 'database',
-    template_id: '09d3d911-cb9f-4fc7-912d-1de3d554ac6a',
+    template_image_url: '/templates/22aabcfcfa8a0dcb152376cc749baa4f.jpg',
+    source: 'static',
+    template_id: 'modern-tech',
   },
   {
     id: 'creative-design',
     name: '创意设计风格',
-    template_image_url: '/files/user-templates/1aca3e4c-277e-4aa0-96fb-c7d93e7df418/d2138e0b6e15d2f0261be6772c13f7d5.jpg',
-    source: 'database',
-    template_id: '1aca3e4c-277e-4aa0-96fb-c7d93e7df418',
+    template_image_url: '/templates/d2138e0b6e15d2f0261be6772c13f7d5.jpg',
+    source: 'static',
+    template_id: 'creative-design',
   },
 ];
 
