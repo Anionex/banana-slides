@@ -17,8 +17,10 @@ def get_api_config():
         config = {
             'text_api_key': Settings.get_value('GOOGLE_API_KEY', os.getenv('GOOGLE_API_KEY', '')),
             'text_api_base': Settings.get_value('GOOGLE_API_BASE', os.getenv('GOOGLE_API_BASE', '')),
+            'text_model': Settings.get_value('GOOGLE_TEXT_MODEL', os.getenv('GOOGLE_TEXT_MODEL', '')),
             'image_api_key': Settings.get_value('GOOGLE_IMAGE_API_KEY', os.getenv('GOOGLE_IMAGE_API_KEY', '')),
             'image_api_base': Settings.get_value('GOOGLE_IMAGE_API_BASE', os.getenv('GOOGLE_IMAGE_API_BASE', '')),
+            'image_model': Settings.get_value('GOOGLE_IMAGE_MODEL', os.getenv('GOOGLE_IMAGE_MODEL', '')),
         }
 
         # Mask API keys for security (show only last 8 characters)
@@ -43,10 +45,14 @@ def update_api_config():
             Settings.set_value('GOOGLE_API_KEY', data['text_api_key'])
         if 'text_api_base' in data:
             Settings.set_value('GOOGLE_API_BASE', data['text_api_base'])
+        if 'text_model' in data:
+            Settings.set_value('GOOGLE_TEXT_MODEL', data['text_model'])
         if 'image_api_key' in data:
             Settings.set_value('GOOGLE_IMAGE_API_KEY', data['image_api_key'])
         if 'image_api_base' in data:
             Settings.set_value('GOOGLE_IMAGE_API_BASE', data['image_api_base'])
+        if 'image_model' in data:
+            Settings.set_value('GOOGLE_IMAGE_MODEL', data['image_model'])
 
         return jsonify({'message': 'API configuration updated successfully'}), 200
     except Exception as e:
@@ -60,14 +66,13 @@ def get_api_presets():
         {
             'id': 'relay_apipro',
             'name': '🚀 Maynor 中转API（推荐）',
-            'description': '统一使用 https://apipro.maynor1024.live/ 作为中转服务，稳定可靠，支持文本和图片生成。推荐模型：gemini-2.0-flash-exp',
+            'description': '统一使用 https://apipro.maynor1024.live/ 作为中转服务，稳定可靠，支持文本和图片生成',
             'config': {
                 'text_api_base': 'https://apipro.maynor1024.live',
                 'image_api_base': 'https://apipro.maynor1024.live',
                 'requires_key': True,
                 'key_format': 'sk-xxx（文本和图片使用相同的Key）',
                 'get_key_url': 'https://apipro.maynor1024.live/',
-                'recommended_model': 'gemini-2.0-flash-exp',
                 'warning': '请确保API Key支持图片生成功能'
             }
         },

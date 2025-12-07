@@ -15,8 +15,10 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
   const [config, setConfig] = useState<APIConfig>({
     text_api_key: '',
     text_api_base: '',
+    text_model: '',
     image_api_key: '',
     image_api_base: '',
+    image_model: '',
   });
   const [presets, setPresets] = useState<APIPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
@@ -67,6 +69,8 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
         ...prev,
         text_api_base: preset.config.text_api_base,
         image_api_base: preset.config.image_api_base,
+        text_model: preset.config.text_model || prev.text_model,
+        image_model: preset.config.image_model || prev.image_model,
         // 如果预设包含密钥，自动填充
         text_api_key: preset.config.text_api_key || prev.text_api_key,
         image_api_key: preset.config.image_api_key || prev.image_api_key,
@@ -187,6 +191,27 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
             placeholder="https://generativelanguage.googleapis.com"
             disabled={loading}
           />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              文本生成模型
+            </label>
+            <select
+              value={config.text_model}
+              onChange={(e) => setConfig({ ...config, text_model: e.target.value })}
+              className="w-full h-10 px-4 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              disabled={loading}
+            >
+              <option value="">默认模型</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
+              <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              选择文本生成模型，留空使用系统默认模型
+            </p>
+          </div>
         </div>
 
         <hr className="border-gray-200" />
@@ -222,6 +247,27 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
             placeholder="https://apipro.maynor1024.live"
             disabled={loading}
           />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              图片生成模型
+            </label>
+            <select
+              value={config.image_model}
+              onChange={(e) => setConfig({ ...config, image_model: e.target.value })}
+              className="w-full h-10 px-4 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              disabled={loading}
+            >
+              <option value="">默认模型</option>
+              <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+              <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
+              <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              选择图片生成模型，留空使用系统默认模型
+            </p>
+          </div>
 
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-700">

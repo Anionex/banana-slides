@@ -94,20 +94,16 @@ class AIService:
         # Keep legacy client for backward compatibility (文本生成)
         self.client = self.text_client
 
-        self.text_model = "gemini-2.5-flash"
-
-        # Configure image model based on API type
-        if self._should_use_chat_format(image_api_base or api_base):
-            # Third-party relay/proxy API
-            if "maynor1024.live" in (image_api_base or api_base):
-                self.image_model = "gemini-2.0-flash-exp"  # Best for this API
-            else:
-                self.image_model = "gemini-2.0-flash-exp"  # Default for chat APIs
-            logger.info("Using third-party API with chat-compatible format")
-        else:
-            # Official Google API
+        # Load model configurations from settings
+        try:
+            from controllers.settings import Settings
+            self.text_model = Settings.get_value('GOOGLE_TEXT_MODEL', 'gemini-2.5-flash') or 'gemini-2.5-flash'
+            self.image_model = Settings.get_value('GOOGLE_IMAGE_MODEL', 'gemini-3-pro-image-preview') or 'gemini-3-pro-image-preview'
+            logger.info(f"Loaded model configurations from settings: text={self.text_model}, image={self.image_model}")
+        except Exception as e:
+            logger.warning(f"Failed to load model configurations, using defaults: {e}")
+            self.text_model = "gemini-2.5-flash"
             self.image_model = "gemini-3-pro-image-preview"
-            logger.info("Using official Google API with native SDK")
 
         # Store image API credentials for chat-compatible format
         self.image_api_key = image_api_key or api_key
