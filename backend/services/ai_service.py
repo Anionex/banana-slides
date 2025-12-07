@@ -508,12 +508,38 @@ class AIService:
                     if len(image_data) < 100:
                         raise ValueError(f"Decoded data too small to be an image: {len(image_data)} bytes")
 
+                    # Check the first few bytes to see if it's a valid image format
+                    # PNG: starts with \x89PNG
+                    # JPEG: starts with \xff\xd8\xff
+                    # GIF: starts with GIF87a or GIF89a
+                    # WebP: starts with RIFF....WEBP
+                    header = image_data[:16]
+                    logger.debug(f"Image data header (hex): {header.hex()}")
+                    logger.debug(f"Image data header (repr): {repr(header)}")
+
+                    # Try to check if it's actually JSON error response
+                    try:
+                        error_json = json.loads(image_data.decode('utf-8'))
+                        logger.error(f"API returned JSON error instead of image: {error_json}")
+                        if 'error' in error_json:
+                            raise ValueError(f"API returned error: {error_json['error']}")
+                        else:
+                            raise ValueError(f"API returned JSON instead of image: {error_json}")
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        # Not JSON, continue with image processing
+                        pass
+
                     image = Image.open(BytesIO(image_data))
                     logger.debug(f"Successfully created image: {image.size}, {image.mode}")
                     return image
                 except base64.binascii.Error as e:
+                    logger.error(f"Base64 decode error. Original content preview: {str(content)[:500]}")
                     raise ValueError(f"Invalid base64 data: {str(e)}")
                 except Exception as e:
+                    logger.error(f"Failed to decode image. Content preview: {str(content)[:500]}")
+                    logger.error(f"Decoded data size: {len(image_data) if 'image_data' in locals() else 'N/A'}")
+                    if 'image_data' in locals() and len(image_data) < 1000:
+                        logger.error(f"Decoded data (first 500 bytes): {image_data[:500]}")
                     raise ValueError(f"Failed to decode image data: {str(e)}")
             else:
                 # Log the full response for debugging
