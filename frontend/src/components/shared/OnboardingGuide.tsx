@@ -46,6 +46,11 @@ export const OnboardingGuide: React.FC<OnboardingGuideProps> = ({
       }
     },
     {
+      title: '本站使用流程',
+      description: '获取 API 密钥的完整流��：\n\n1️⃣ 注册账号：创建 MaynorAI 账号\n2️⃣ 登录平台：访问控制台\n3️⃣ 充值额度：新用户可免费试用\n4️⃣ 获取令牌：在控制台获取 API Token',
+      icon: <ChevronRight className="w-16 h-16 text-amber-500" />
+    },
+    {
       title: '创建方式灵活多样',
       description: '支持三种创建方式：\n• 从想法创建：输入一个简单的想法，AI帮你生成完整PPT\n• 从大纲创建：提供大纲，快速生成页面\n• 从页面描述创建：直接输入页面描述，精准控制',
       icon: <Lightbulb className="w-16 h-16 text-yellow-500" />,
