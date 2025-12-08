@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { Project, Task } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject } from '@/utils';
+import { associateProjectToUser } from '@/utils/userProjects';
+import { useAuthStore } from './useAuthStore';
 
 interface ProjectState {
   // 状态
@@ -151,6 +153,12 @@ const debouncedUpdatePage = debounce(
         set({ currentProject: project });
         // 保存到 localStorage
         localStorage.setItem('currentProjectId', project.id!);
+
+        // 关联项目到用户（如果用户已登录）
+        const { user, isUsingSupabase } = useAuthStore.getState();
+        if (user?.id && isUsingSupabase()) {
+          associateProjectToUser(user.id, project.id!);
+        }
       }
     } catch (error: any) {
       set({ error: error.message || '创建项目失败' });

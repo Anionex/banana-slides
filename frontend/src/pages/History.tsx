@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Trash2, LogIn, Info } from 'lucide-react';
+import { Home, Trash2, LogIn, Info, Shield } from 'lucide-react';
 import { Button, Loading, Card, useToast, useConfirm } from '@/components/shared';
 import { ProjectCard } from '@/components/history/ProjectCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -8,16 +8,18 @@ import { useAuthStore } from '@/store/useAuthStore';
 import * as api from '@/api/endpoints';
 import { normalizeProject } from '@/utils';
 import { getProjectTitle, getProjectRoute } from '@/utils/projectUtils';
+import { getUserProjectIds, getAllAssociatedProjectIds } from '@/utils/userProjects';
 import type { Project } from '@/types';
 
 export const History: React.FC = () => {
   const navigate = useNavigate();
   const { syncProject, setCurrentProject } = useProjectStore();
-  const { isAuthenticated } = useAuthStore();
-  
+  const { isAuthenticated, user, isUsingSupabase } = useAuthStore();
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allProjects, setAllProjects] = useState<Project[]>([]); // 保存所有原始数据
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -38,7 +40,26 @@ export const History: React.FC = () => {
       const response = await api.listProjects(50, 0);
       if (response.data?.projects) {
         const normalizedProjects = response.data.projects.map(normalizeProject);
-        setProjects(normalizedProjects);
+        setAllProjects(normalizedProjects);
+
+        // 根据用户登录状态过滤项目
+        if (isAuthenticated && user?.id && isUsingSupabase()) {
+          // 获取用户的项目 IDs
+          const userProjectIds = getUserProjectIds(user.id);
+          const filteredProjects = normalizedProjects.filter(p => {
+            const projectId = p.id || p.project_id;
+            return projectId && userProjectIds.includes(projectId);
+          });
+          setProjects(filteredProjects);
+        } else {
+          // 未登录时，显示未被任何用户关联的项目
+          const associatedIds = getAllAssociatedProjectIds();
+          const unassociatedProjects = normalizedProjects.filter(p => {
+            const projectId = p.id || p.project_id;
+            return projectId && !associatedIds.has(projectId);
+          });
+          setProjects(unassociatedProjects);
+        }
       }
     } catch (err: any) {
       console.error('加载历史项目失败:', err);
@@ -46,7 +67,7 @@ export const History: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, user, isUsingSupabase]);
 
   // ===== 项目选择与导航 =====
 
@@ -284,7 +305,14 @@ export const History: React.FC = () => {
         <div className="mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1 md:mb-2">历史项目</h1>
-            <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">查看和管理你的所有项目</p>
+            <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
+              {isAuthenticated && isUsingSupabase() ? '查看和管理你的所有项目' : '查看和管理未关联的项目'}
+            </p>
+            {isAuthenticated && isUsingSupabase() && allProjects.length > projects.length && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                共发现 {allProjects.length} 个项目，显示 {projects.length} 个你的项目
+              </p>
+            )}
           </div>
           {projects.length > 0 && selectedProjects.size > 0 && (
             <div className="flex items-center gap-3">
@@ -319,7 +347,7 @@ export const History: React.FC = () => {
             <Info size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-blue-800 dark:text-blue-300 mb-2">
-                💡 <strong>提示：</strong>您当前未登录，项目历史记录将仅保存在本地浏览器中。
+                💡 <strong>提示：</strong>您当前未登录，只能查看未被其他用户关联的项目。
               </p>
               <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">
                 登录后，您的项目历史将保存到云端，可在任何设备访问。
@@ -333,6 +361,18 @@ export const History: React.FC = () => {
               >
                 立即登录
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 用户隔离提示 */}
+        {isAuthenticated && isUsingSupabase() && (
+          <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-start gap-3">
+            <Shield size={20} className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-green-800 dark:text-green-300">
+                ✅ <strong>数据隔离保护：</strong>您只能查看和访问自己创建的项目。
+              </p>
             </div>
           </div>
         )}
