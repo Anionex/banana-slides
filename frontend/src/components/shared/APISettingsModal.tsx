@@ -4,7 +4,7 @@ import { Input } from './Input';
 import { Button } from './Button';
 import { getApiConfig, updateApiConfig, getApiPresets } from '@/api/endpoints';
 import type { APIConfig, APIPreset } from '@/types';
-import { AlertCircle, Check, Settings } from 'lucide-react';
+import { AlertCircle, Check, Settings, Eye, EyeOff } from 'lucide-react';
 
 interface APISettingsModalProps {
   isOpen: boolean;
@@ -109,11 +109,6 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
     }
   };
 
-  const maskApiKey = (key: string): string => {
-    if (!key || key.length < 8) return key;
-    return key.substring(0, 8) + '•'.repeat(Math.min(key.length - 8, 32));
-  };
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="API 配置" size="lg">
       <div className="space-y-6">
@@ -177,14 +172,17 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
             onChange={(e) => setConfig({ ...config, text_api_key: e.target.value })}
             placeholder="输入文本API密钥"
             disabled={loading}
+            rightElement={
+              <button
+                type="button"
+                onClick={() => setShowKeys({ ...showKeys, text: !showKeys.text })}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title={showKeys.text ? '隐藏密钥' : '显示密钥'}
+              >
+                {showKeys.text ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            }
           />
-          <button
-            type="button"
-            onClick={() => setShowKeys({ ...showKeys, text: !showKeys.text })}
-            className="text-sm text-banana-600 hover:text-banana-700"
-          >
-            {showKeys.text ? '隐藏' : '显示'} API Key
-          </button>
 
           <Input
             label="API Base URL"
@@ -235,14 +233,17 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
             onChange={(e) => setConfig({ ...config, image_api_key: e.target.value })}
             placeholder="输入图片API密钥"
             disabled={loading}
+            rightElement={
+              <button
+                type="button"
+                onClick={() => setShowKeys({ ...showKeys, image: !showKeys.image })}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title={showKeys.image ? '隐藏密钥' : '显示密钥'}
+              >
+                {showKeys.image ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            }
           />
-          <button
-            type="button"
-            onClick={() => setShowKeys({ ...showKeys, image: !showKeys.image })}
-            className="text-sm text-banana-600 hover:text-banana-700"
-          >
-            {showKeys.image ? '隐藏' : '显示'} API Key
-          </button>
 
           <Input
             label="API Base URL"
