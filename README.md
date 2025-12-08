@@ -8,7 +8,7 @@
 
 [![Version](https://img.shields.io/badge/version-v0.1.0-4CAF50.svg)](#)
 ![Docker](https://img.shields.io/badge/Docker-Build-2496ED?logo=docker&logoColor=white)
-[![License](https://img.shields.io/badge/license-MIT-FFD54F.svg)](#)
+[![License](https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-42b883.svg)
 
 </p> 
@@ -535,9 +535,42 @@ banana-slides/
 
 详细的多语种开发指南请参考 `I18N_TEST_SUMMARY.md`。
 
-## 📄 许可证
+## 📄 开源协议
 
-MIT
+### 个人使用 - CC BY-NC-SA 4.0
+
+本项目采用 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) 协议进行开源
+
+**你可以自由地：**
+
+- ✅ **个人使用** - 用于学习、研究、个人项目
+- ✅ **分享** - 在任何媒介以任何形式复制、发行本作品
+- ✅ **修改** - 修改、转换或以本作品为基础进行创作
+
+**但需要遵守以下条款：**
+
+- 📝 **署名** - 必须给出适当的署名，提供指向本协议的链接，同时标明是否对原始作品作了修改
+- 🚫 **非商业性使用** - 不得将本作品用于商业目的
+- 🔄 **相同方式共享** - 如果你修改、转换或以本作品为基础进行创作，你必须以相同的协议分发你的作品
+
+### 商业授权
+
+如果你希望将本项目用于**商业目的**（包括但不限于）：
+
+- 提供付费服务
+- 集成到商业产品
+- 作为 SaaS 服务运营
+- 其他盈利性用途
+
+**请联系作者获取商业授权：**
+
+💬 微信: coder-maynor（请注明"商业授权咨询"）
+
+客服会根据你的具体使用场景提供灵活的商业授权方案。
+
+### 免责声明
+
+本软件按"原样"提供，不提供任何形式的明示或暗示担保，包括但不限于适销性、特定用途的适用性和非侵权性的担保。在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责。
 
 ## 🙏 致谢
 
