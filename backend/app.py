@@ -174,7 +174,27 @@ def create_app():
     # Health check endpoint
     @app.route('/health')
     def health_check():
-        return {'status': 'ok', 'message': 'Banana Pro Slides API is running'}
+        try:
+            from utils.memory_monitor import MemoryMonitor
+            memory = MemoryMonitor.get_memory_usage()
+            from services.task_manager import task_manager
+
+            return {
+                'status': 'healthy',
+                'timestamp': datetime.utcnow().isoformat(),
+                'memory': {
+                    'rss_mb': round(memory['rss'], 1),
+                    'percent': round(memory['percent'], 1)
+                },
+                'active_tasks': task_manager.get_active_task_count()
+            }
+        except Exception as e:
+            logger.error(f"Health check error: {e}")
+            return {
+                'status': 'degraded',
+                'timestamp': datetime.utcnow().isoformat(),
+                'error': str(e)
+            }
     
     # Root endpoint
     @app.route('/')

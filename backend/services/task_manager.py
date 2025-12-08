@@ -4,51 +4,83 @@ No need for Celery or Redis, uses in-memory task tracking
 """
 import logging
 import threading
+import gc
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any
 from datetime import datetime
 from models import db, Task, Page
+from utils.memory_monitor import MemoryMonitor
 
 logger = logging.getLogger(__name__)
 
 
 class TaskManager:
     """Simple task manager using ThreadPoolExecutor"""
-    
+
     def __init__(self, max_workers: int = 4):
         """Initialize task manager"""
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.active_tasks = {}  # task_id -> Future
         self.lock = threading.Lock()
-    
+        self.max_active_tasks = 50  # 限制最大活动任务数
+
     def submit_task(self, task_id: str, func: Callable, *args, **kwargs):
         """Submit a background task"""
+        # 检查内存使用情况
+        MemoryMonitor.log_memory_usage(f"Before submitting task {task_id}")
+
+        # 检查活动任务数量
+        with self.lock:
+            if len(self.active_tasks) >= self.max_active_tasks:
+                logger.warning(f"Too many active tasks ({len(self.active_tasks)}), rejecting new task")
+                raise RuntimeError("Too many active tasks")
+
         future = self.executor.submit(func, task_id, *args, **kwargs)
-        
+
         with self.lock:
             self.active_tasks[task_id] = future
-        
+
         # Add callback to clean up when done
         future.add_done_callback(lambda f: self._cleanup_task(task_id))
-    
+
+        logger.info(f"Submitted task {task_id}, active tasks: {len(self.active_tasks)}")
+
     def _cleanup_task(self, task_id: str):
         """Clean up completed task"""
         with self.lock:
             if task_id in self.active_tasks:
                 del self.active_tasks[task_id]
-    
+
+        # 强制垃圾回收
+        gc.collect()
+
+        # 记录清理后的内存使用
+        MemoryMonitor.log_memory_usage(f"After cleaning task {task_id}")
+
+        # 检查内存使用是否过高
+        if MemoryMonitor.check_memory_limit(threshold_mb=400):
+            logger.warning("High memory usage detected, forcing garbage collection")
+            gc.collect()
+
     def is_task_active(self, task_id: str) -> bool:
         """Check if task is still running"""
         with self.lock:
             return task_id in self.active_tasks
-    
+
+    def get_active_task_count(self) -> int:
+        """Get number of active tasks"""
+        with self.lock:
+            return len(self.active_tasks)
+
     def shutdown(self):
         """Shutdown the executor"""
+        logger.info("Shutting down task manager...")
         self.executor.shutdown(wait=True)
+        gc.collect()
 
 
-# Global task manager instance
-task_manager = TaskManager(max_workers=4)
+# Global task manager instance with reduced workers
+task_manager = TaskManager(max_workers=2)  # 降低并发数
 
 
 def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
@@ -126,7 +158,9 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 限制最大并发数为 min(max_workers, 3) 以减少内存压力
+            actual_workers = min(max_workers, 3)
+            with ThreadPoolExecutor(max_workers=actual_workers) as executor:
                 futures = [
                     executor.submit(generate_single_desc, page.id, page_data, i)
                     for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
@@ -312,7 +346,9 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 限制最大并发数为 min(max_workers, 4) 以减少内存压力
+            actual_workers = min(max_workers, 4)
+            with ThreadPoolExecutor(max_workers=actual_workers) as executor:
                 futures = [
                     executor.submit(generate_single_image, page.id, page_data, i)
                     for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
