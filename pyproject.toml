@@ -8,6 +8,7 @@ dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "flask-sqlalchemy>=3.1.1",
+    "flask-babel>=4.0.0",
     "google-genai>=1.52.0",
     "pydantic>=2.9.0",
     "pillow>=12.0.0",
@@ -15,7 +16,9 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "reportlab>=4.1.0",
     "werkzeug>=3.0.1",
-    "markitdown[all]"
+    "markitdown[all]",
+    "requests>=2.31.0",
+    "psutil==5.9.8"
 ]
 
 [tool.uv]
