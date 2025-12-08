@@ -595,6 +595,34 @@ export const Home: React.FC = () => {
 
         </Card>
       </main>
+
+      {/* 页脚 */}
+      <footer className="relative py-6 mt-8 border-t border-gray-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+        <div className="max-w-5xl mx-auto px-3 md:px-4 text-center">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <span>© 2024 MaynorAI Banana Pro Slides</span>
+            <span className="hidden sm:inline">·</span>
+            <a
+              href="https://link3.cc/maynorai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-banana-600 dark:text-banana-400 hover:text-banana-700 dark:hover:text-banana-300 hover:underline transition-colors"
+            >
+              🔗 友情链接
+            </a>
+            <span className="hidden sm:inline">·</span>
+            <a
+              href="https://github.com/xianyu110/banana-slides"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:underline transition-colors"
+            >
+              GitHub
+            </a>
+          </div>
+        </div>
+      </footer>
+
       <ToastContainer />
       {/* 素材生成模态 - 在主页始终生成全局素材 */}
       <MaterialGeneratorModal
