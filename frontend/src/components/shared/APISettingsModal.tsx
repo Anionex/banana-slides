@@ -206,7 +206,9 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
               disabled={loading}
             >
               <option value="">默认模型</option>
+              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
               <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
               <option value="gemini-1.5-flash">gemini-1.5-flash</option>
               <option value="gemini-1.5-pro">gemini-1.5-pro</option>
