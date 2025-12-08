@@ -9,6 +9,11 @@ ENV OPENBLAS_NUM_THREADS=1
 ENV OMP_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
 
+# 安装系统依赖（包括 ffmpeg）
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # 安装 uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv
