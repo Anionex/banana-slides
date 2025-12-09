@@ -9,23 +9,11 @@
       }
     },
     {
-      "src": "api/**/*.ts",
-      "use": "@vercel/node"
-    },
-    {
       "src": "backend/app.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
-    {
-      "src": "/api/mineru-proxy",
-      "dest": "/api/mineru-proxy.ts"
-    },
-    {
-      "src": "/api/mineru-upload",
-      "dest": "/api/mineru-upload.ts"
-    },
     {
       "src": "/api/(.*)",
       "dest": "backend/app.py"

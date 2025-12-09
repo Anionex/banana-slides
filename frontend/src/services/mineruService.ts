@@ -6,8 +6,6 @@
 export interface MinerUConfig {
   token: string;
   apiBase?: string;
-  useProxy?: boolean; // 是否使用代理（用于绕过 CORS）
-  proxyUrl?: string; // 代理 URL
 }
 
 export interface ParseTaskResult {
@@ -35,45 +33,10 @@ export interface ParseFileOptions {
 export class MinerUService {
   private token: string;
   private apiBase: string;
-  private useProxy: boolean;
-  private proxyUrl: string;
 
   constructor(config: MinerUConfig) {
     this.token = config.token;
     this.apiBase = config.apiBase || 'https://mineru.net/api/v4';
-    this.useProxy = config.useProxy || false;
-    this.proxyUrl = config.proxyUrl || '/api/mineru-proxy';
-  }
-
-  /**
-   * 发送 API 请求（支持代理模式）
-   */
-  private async apiRequest(path: string, options: RequestInit = {}): Promise<Response> {
-    if (this.useProxy) {
-      // 使用代理模式
-      return fetch(this.proxyUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path,
-          method: options.method || 'GET',
-          body: options.body ? JSON.parse(options.body as string) : undefined,
-          token: this.token,
-        }),
-      });
-    } else {
-      // 直接调用 MinerU API
-      const url = `${this.apiBase}${path}`;
-      return fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${this.token}`,
-        },
-      });
-    }
   }
 
   /**
@@ -130,10 +93,11 @@ export class MinerUService {
     
     // 1. 申请上传链接
     console.log('[MinerU] 步骤 1/3: 申请上传链接...');
-    const urlResponse = await this.apiRequest('/file-urls/batch', {
+    const urlResponse = await fetch(`${this.apiBase}/file-urls/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`
       },
       body: JSON.stringify({
         files: [{ name: file.name }],
@@ -161,21 +125,10 @@ export class MinerUService {
 
     // 2. 上传文件
     console.log('[MinerU] 步骤 2/3: 上传文件...');
-    let uploadResponse: Response;
-    
-    if (this.useProxy) {
-      // 使用代理上传
-      uploadResponse = await fetch('/api/mineru-upload?uploadUrl=' + encodeURIComponent(uploadUrl), {
-        method: 'POST',
-        body: file
-      });
-    } else {
-      // 直接上传
-      uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file
-      });
-    }
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file
+    });
 
     if (!uploadResponse.ok) {
       throw new Error('文件上传失败');
@@ -191,8 +144,10 @@ export class MinerUService {
    * 查询任务状态
    */
   async getTaskStatus(taskId: string): Promise<ParseTaskResult> {
-    const response = await this.apiRequest(`/extract/task/${taskId}`, {
-      method: 'GET'
+    const response = await fetch(`${this.apiBase}/extract/task/${taskId}`, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`
+      }
     });
 
     if (!response.ok) {
@@ -253,8 +208,10 @@ export class MinerUService {
    * 查询批量任务状态
    */
   private async getBatchStatus(batchId: string): Promise<ParseTaskResult[]> {
-    const response = await this.apiRequest(`/extract-results/batch/${batchId}`, {
-      method: 'GET'
+    const response = await fetch(`${this.apiBase}/extract-results/batch/${batchId}`, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`
+      }
     });
 
     if (!response.ok) {

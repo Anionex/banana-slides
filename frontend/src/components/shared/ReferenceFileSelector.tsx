@@ -345,9 +345,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             if (mineruToken && needsParsing && parseStatus === 'pending') {
               const mineruService = new MinerUService({
                 token: mineruToken,
-                apiBase: mineruApiBase || 'https://mineru.net/api/v4',
-                useProxy: true, // 启用代理模式以绕过 CORS
-                proxyUrl: '/api/mineru-proxy'
+                apiBase: mineruApiBase || 'https://mineru.net/api/v4'
               });
               
               // 更新状态为 parsing
