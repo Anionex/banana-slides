@@ -20,7 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Button, Loading, useConfirm, useToast } from '@/components/shared';
 import { OutlineCard } from '@/components/outline/OutlineCard';
-import { useProjectStore } from '@/store/useProjectStore';
+import { useProjectStore } from '@/store';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器

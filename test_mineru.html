@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MinerU API 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #log {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>MinerU API 测试工具</h1>
+    
+    <div class="section">
+        <h2>配置信息</h2>
+        <p><strong>Token:</strong> <span id="token-status">检查中...</span></p>
+        <p><strong>API Base:</strong> <span id="api-base">https://mineru.net/api/v4</span></p>
+    </div>
+    
+    <div class="section">
+        <h2>测试 API 连接</h2>
+        <button onclick="testConnection()">测试连接</button>
+        <p id="connection-result"></p>
+    </div>
+    
+    <div class="section">
+        <h2>上传文件测试</h2>
+        <input type="file" id="fileInput" accept=".pdf,.pptx,.docx">
+        <button onclick="testUpload()">上传并解析</button>
+    </div>
+    
+    <div class="section">
+        <h2>日志输出</h2>
+        <button onclick="clearLog()">清除日志</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const TOKEN = 'eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiI3MzQwMDc1NyIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc2NTA3ODU5NiwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiMTMzNDY0MDgzMDYiLCJvcGVuSWQiOm51bGwsInV1aWQiOiIxZjEyZjZhYy0xMmU1LTQ4OWUtODlmMC0xNjhiMGMzOTJlNDQiLCJlbWFpbCI6IiIsImV4cCI6MTc2NjI4ODE5Nn0.pQP77iUZOo9JrDKqvnCeULMFP6bPsu-imbdf2CB5kU6ECVBIZ3_8cbaXBBehRyc8sJjAFetS4vQgIDRvvecyTA';
+        const API_BASE = 'https://mineru.net/api/v4';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type}] ${message}`);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // 检查 Token
+        if (TOKEN && TOKEN.length > 50) {
+            document.getElementById('token-status').innerHTML = '<span class="success">✓ 已配置</span>';
+            log('Token 已配置', 'success');
+        } else {
+            document.getElementById('token-status').innerHTML = '<span class="error">✗ 未配置</span>';
+            log('Token 未配置', 'error');
+        }
+        
+        // 测试连接
+        async function testConnection() {
+            log('开始测试 API 连接...', 'info');
+            const resultDiv = document.getElementById('connection-result');
+            resultDiv.innerHTML = '测试中...';
+            
+            try {
+                // 创建一个测试任务（使用示例 PDF）
+                const response = await fetch(`${API_BASE}/extract/task`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${TOKEN}`
+                    },
+                    body: JSON.stringify({
+                        url: 'https://cdn-mineru.openxlab.org.cn/demo/example.pdf',
+                        model_version: 'vlm'
+                    })
+                });
+                
+                const result = await response.json();
+                log(`API 响应: ${JSON.stringify(result)}`, 'info');
+                
+                if (result.code === 0) {
+                    resultDiv.innerHTML = '<span class="success">✓ 连接成功！Task ID: ' + result.data.task_id + '</span>';
+                    log('API 连接测试成功', 'success');
+                    
+                    // 查询任务状态
+                    const taskId = result.data.task_id;
+                    log(`开始查询任务状态: ${taskId}`, 'info');
+                    
+                    const statusResponse = await fetch(`${API_BASE}/extract/task/${taskId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${TOKEN}`
+                        }
+                    });
+                    
+                    const statusResult = await statusResponse.json();
+                    log(`任务状态: ${JSON.stringify(statusResult)}`, 'info');
+                    
+                    if (statusResult.code === 0) {
+                        log(`任务状态: ${statusResult.data.state}`, 'success');
+                    }
+                } else {
+                    resultDiv.innerHTML = '<span class="error">✗ 连接失败: ' + result.msg + '</span>';
+                    log(`API 连接失败: ${result.msg}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<span class="error">✗ 连接失败: ' + error.message + '</span>';
+                log(`连接错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 测试文件上传
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('请先选择文件', 'error');
+                return;
+            }
+            
+            log(`开始上传文件: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+            
+            try {
+                // 1. 申请上传链接
+                log('步骤 1/3: 申请上传链接...', 'info');
+                const urlResponse = await fetch(`${API_BASE}/file-urls/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${TOKEN}`
+                    },
+                    body: JSON.stringify({
+                        files: [{ name: file.name }],
+                        model_version: 'vlm'
+                    })
+                });
+                
+                const urlResult = await urlResponse.json();
+                log(`申请结果: ${JSON.stringify(urlResult)}`, 'info');
+                
+                if (urlResult.code !== 0) {
+                    log(`申请上传链接失败: ${urlResult.msg}`, 'error');
+                    return;
+                }
+                
+                const batchId = urlResult.data.batch_id;
+                const uploadUrl = urlResult.data.file_urls[0];
+                log(`获得上传链接，batch_id: ${batchId}`, 'success');
+                
+                // 2. 上传文件
+                log('步骤 2/3: 上传文件...', 'info');
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: file
+                });
+                
+                if (!uploadResponse.ok) {
+                    log('文件上传失败', 'error');
+                    return;
+                }
+                log('文件上传成功', 'success');
+                
+                // 3. 轮询任务状态
+                log('步骤 3/3: 等待解析完成...', 'info');
+                let attempts = 0;
+                const maxAttempts = 60; // 最多轮询 60 次（2 分钟）
+                
+                const pollStatus = async () => {
+                    attempts++;
+                    log(`轮询 ${attempts}/${maxAttempts}...`, 'info');
+                    
+                    const statusResponse = await fetch(`${API_BASE}/extract-results/batch/${batchId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${TOKEN}`
+                        }
+                    });
+                    
+                    const statusResult = await statusResponse.json();
+                    
+                    if (statusResult.code === 0) {
+                        const status = statusResult.data.extract_result[0];
+                        log(`状态: ${status.state}`, 'info');
+                        
+                        if (status.state === 'done') {
+                            log('解析完成！', 'success');
+                            log(`下载链接: ${status.full_zip_url}`, 'success');
+                            return;
+                        } else if (status.state === 'failed') {
+                            log(`解析失败: ${status.err_msg}`, 'error');
+                            return;
+                        } else if (status.state === 'running' && status.extract_progress) {
+                            log(`解析中: ${status.extract_progress.extracted_pages}/${status.extract_progress.total_pages} 页`, 'info');
+                        }
+                        
+                        if (attempts < maxAttempts) {
+                            setTimeout(pollStatus, 2000);
+                        } else {
+                            log('解析超时', 'error');
+                        }
+                    } else {
+                        log(`查询状态失败: ${statusResult.msg}`, 'error');
+                    }
+                };
+                
+                pollStatus();
+                
+            } catch (error) {
+                log(`上传错误: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

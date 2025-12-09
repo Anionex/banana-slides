@@ -5,6 +5,7 @@ import { listUserTemplates, uploadUserTemplate, deleteUserTemplate, type UserTem
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
+import { isLocalMode } from '@/utils/mode';
 
 // 硬编码的预设模板（导出供其他组件使用）
 export const PRESET_TEMPLATES: UserTemplate[] = [
@@ -88,6 +89,13 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   }, []);
 
   const loadSystemTemplates = async () => {
+    // 本地模式：直接使用硬编码的预设模板
+    if (isLocalMode()) {
+      setSystemTemplates(PRESET_TEMPLATES);
+      return;
+    }
+
+    // 后端模式：尝试从后端加载
     try {
       const response = await getSystemTemplates();
       if (response.data?.templates && response.data.templates.length > 0) {
@@ -104,6 +112,13 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   };
 
   const loadUserTemplates = async () => {
+    // 本地模式：用户模板功能暂不支持（需要后端存储）
+    if (isLocalMode()) {
+      setUserTemplates([]);
+      return;
+    }
+
+    // 后端模式：从后端加载
     setIsLoadingTemplates(true);
     try {
       const response = await listUserTemplates();
@@ -120,6 +135,14 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // 本地模式：不支持上传用户模板（需要后端存储）
+      if (isLocalMode()) {
+        show({ message: '本地模式暂不支持上传自定义模板，请使用预设模板', type: 'info' });
+        e.target.value = '';
+        return;
+      }
+
+      // 后端模式：上传到后端
       try {
         const response = await uploadUserTemplate(file);
         if (response.data) {
@@ -147,6 +170,13 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const handleSelectMaterials = async (materials: Material[]) => {
     if (materials.length === 0) return;
 
+    // 本地模式：不支持保存到模板库（需要后端存储）
+    if (isLocalMode()) {
+      show({ message: '本地模式暂不支持保存到模板库，请使用预设模板', type: 'info' });
+      return;
+    }
+
+    // 后端模式：保存到模板库
     try {
       const file = await materialUrlToFile(materials[0]);
       const response = await uploadUserTemplate(file);
@@ -164,6 +194,13 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
 
   const handleDeleteUserTemplate = async (template: UserTemplate, e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // 本地模式：不支持删除（因为没有用户模板）
+    if (isLocalMode()) {
+      show({ message: '本地模式不支持此操作', type: 'info' });
+      return;
+    }
+
     if (selectedTemplateId === template.template_id) {
       show({ message: '当前使用中的模板不能删除，请先取消选择或切换', type: 'info' });
       return;

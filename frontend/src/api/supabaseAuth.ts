@@ -36,7 +36,7 @@ export const supabaseRegister = async (
   password: string,
   username: string
 ): Promise<SupabaseAuthResponse> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -78,7 +78,7 @@ export const supabaseLogin = async (
   email: string,
   password: string
 ): Promise<SupabaseAuthResponse> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -110,7 +110,7 @@ export const supabaseLogin = async (
 
 // 登出
 export const supabaseLogout = async (): Promise<{ success: boolean; error?: string }> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -127,7 +127,7 @@ export const supabaseLogout = async (): Promise<{ success: boolean; error?: stri
 export const supabaseOAuthLogin = async (
   provider: 'google' | 'github'
 ): Promise<{ success: boolean; error?: string }> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -147,7 +147,7 @@ export const supabaseOAuthLogin = async (
 
 // 获取当前会话
 export const supabaseGetSession = async (): Promise<SupabaseAuthResponse> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -182,7 +182,7 @@ export const supabaseGetSession = async (): Promise<SupabaseAuthResponse> => {
 
 // 刷新令牌
 export const supabaseRefreshToken = async (): Promise<SupabaseAuthResponse> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -213,7 +213,7 @@ export const supabaseRefreshToken = async (): Promise<SupabaseAuthResponse> => {
 export const supabaseUpdateProfile = async (
   updates: { username?: string; avatar_url?: string; preferred_language?: string }
 ): Promise<SupabaseAuthResponse> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -248,7 +248,7 @@ export const supabaseUpdateProfile = async (
 export const onAuthStateChange = (
   callback: (event: string, session: any) => void
 ) => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { data: { subscription: { unsubscribe: () => {} } } };
   }
 
@@ -259,7 +259,7 @@ export const onAuthStateChange = (
 export const supabaseResetPassword = async (
   email: string
 ): Promise<{ success: boolean; error?: string }> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 
@@ -278,7 +278,7 @@ export const supabaseResetPassword = async (
 export const supabaseUpdatePassword = async (
   newPassword: string
 ): Promise<{ success: boolean; error?: string }> => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !supabase) {
     return { success: false, error: 'Supabase 未配置' };
   }
 

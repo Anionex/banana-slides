@@ -23,7 +23,7 @@ import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
-import { useProjectStore } from '@/store/useProjectStore';
+import { useProjectStore } from '@/store';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent } from '@/types';

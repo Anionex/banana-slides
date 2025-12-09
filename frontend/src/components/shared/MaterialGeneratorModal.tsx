@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, ImagePlus, Upload, X, FolderOpen } from 'lucide-react';
 import { Modal, Textarea, Button, useToast, MaterialSelector, Skeleton } from '@/components/shared';
 import { generateMaterialImage } from '@/api/endpoints';
 import { getImageUrl } from '@/api/client';
 import { materialUrlToFile } from './MaterialSelector';
 import type { Material } from '@/api/endpoints';
+import { isLocalMode } from '@/utils/mode';
 
 interface MaterialGeneratorModalProps {
   projectId?: string | null; // 可选，如果不提供则生成全局素材
@@ -31,6 +32,16 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+
+  // 本地模式提示
+  useEffect(() => {
+    if (isOpen && isLocalMode()) {
+      show({
+        message: '本地模式暂不支持素材生成功能',
+        type: 'info',
+      });
+    }
+  }, [isOpen]);
 
   const handleRefImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = (e.target.files && e.target.files[0]) || null;

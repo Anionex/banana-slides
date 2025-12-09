@@ -8,8 +8,7 @@ import { TemplateSelector, getTemplateFile, PRESET_TEMPLATES } from '@/component
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject } from '@/api/endpoints';
-import { useProjectStore } from '@/store/useProjectStore';
-import { useAuthStore } from '@/store/useAuthStore';
+import { useProjectStore, useAuthStore } from '@/store';
 import { logout as logoutApi } from '@/api/auth';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -51,17 +50,21 @@ export const Home: React.FC = () => {
     }
 
     // 加载用户模板列表（用于按需获取File）
-    const loadTemplates = async () => {
-      try {
-        const response = await listUserTemplates();
-        if (response.data?.templates) {
-          setUserTemplates(response.data.templates);
+    // 仅在后端模式下加载
+    const mode = import.meta.env.VITE_MODE || 'local';
+    if (mode === 'backend') {
+      const loadTemplates = async () => {
+        try {
+          const response = await listUserTemplates();
+          if (response.data?.templates) {
+            setUserTemplates(response.data.templates);
+          }
+        } catch (error) {
+          console.error('加载用户模板失败:', error);
         }
-      } catch (error) {
-        console.error('加载用户模板失败:', error);
-      }
-    };
-    loadTemplates();
+      };
+      loadTemplates();
+    }
   }, []);
 
   const handleOpenMaterialModal = () => {
@@ -118,11 +121,70 @@ export const Home: React.FC = () => {
 
     setIsUploadingFile(true);
     try {
-      // 在 Home 页面，始终上传为全局文件
-      const response = await uploadReferenceFile(file, null);
-      if (response.data?.file) {
-        setReferenceFiles(prev => [...prev, response.data.file]);
-        show({ message: t('status.success'), type: 'success' });
+      const mode = import.meta.env.VITE_MODE || 'local';
+      
+      if (mode === 'local') {
+        // 本地模式：保存到 localStorage
+        const { LocalStorageService } = await import('@/services/localStorageService');
+        const { v4: uuidv4 } = await import('uuid');
+        
+        // 判断文件类型
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        const textFormats = ['txt', 'md', 'csv'];
+        const needsParsing = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(fileExt || '');
+        
+        let fileContent = '';
+        let parseStatus: 'completed' | 'pending' = 'completed';
+        
+        // 文本文件直接读取内容
+        if (textFormats.includes(fileExt || '')) {
+          fileContent = await file.text();
+          parseStatus = 'completed';
+        } else if (needsParsing) {
+          // 需要解析的文件（PDF、Office 文档等）
+          parseStatus = 'pending';
+          fileContent = '';
+        } else {
+          // 其他文件类型，尝试读取为文本
+          try {
+            fileContent = await file.text();
+            parseStatus = 'completed';
+          } catch {
+            parseStatus = 'pending';
+          }
+        }
+        
+        const newFile: ReferenceFile = {
+          id: uuidv4(),
+          filename: file.name,
+          file_size: file.size,
+          file_type: file.type || 'application/octet-stream',
+          file_path: '', // 本地模式不需要路径
+          project_id: null, // 全局文件
+          parse_status: parseStatus,
+          parsed_content: fileContent,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        LocalStorageService.saveReferenceFile(newFile);
+        setReferenceFiles(prev => [...prev, newFile]);
+        
+        if (parseStatus === 'pending') {
+          show({ 
+            message: `${file.name} 已上传，需要配置 MinerU Token 进行解析`, 
+            type: 'info' 
+          });
+        } else {
+          show({ message: t('status.success'), type: 'success' });
+        }
+      } else {
+        // 后端模式：调用 API
+        const response = await uploadReferenceFile(file, null);
+        if (response.data?.file) {
+          setReferenceFiles(prev => [...prev, response.data.file]);
+          show({ message: t('status.success'), type: 'success' });
+        }
       }
     } catch (error: any) {
       console.error('文件上传失败:', error);

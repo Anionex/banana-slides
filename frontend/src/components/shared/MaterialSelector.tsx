@@ -5,6 +5,7 @@ import { listMaterials, uploadMaterial, listProjects, deleteMaterial, type Mater
 import type { Project } from '@/types';
 import { getImageUrl } from '@/api/client';
 import { MaterialGeneratorModal } from './MaterialGeneratorModal';
+import { isLocalMode } from '@/utils/mode';
 
 interface MaterialSelectorProps {
   projectId?: string; // 可选，如果不提供则使用全局接口
@@ -51,6 +52,16 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      // 本地模式：素材功能暂不支持
+      if (isLocalMode()) {
+        show({
+          message: '本地模式暂不支持素材库功能',
+          type: 'info',
+        });
+        return;
+      }
+
+      // 后端模式：正常加载
       if (!projectsLoaded) {
         loadProjects();
       }

@@ -528,10 +528,12 @@ export interface ReferenceFile {
   id: string;
   project_id: string | null;
   filename: string;
+  file_path?: string;  // 文件路径（后端模式）
   file_size: number;
   file_type: string;
   parse_status: 'pending' | 'parsing' | 'completed' | 'failed';
   markdown_content: string | null;
+  parsed_content?: string;  // 解析后的文本内容（本地模式）
   error_message: string | null;
   image_caption_failed_count?: number;  // Optional, calculated dynamically
   created_at: string;

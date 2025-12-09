@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Sparkles, Plus, Trash2, CheckSquare, Square } from 'lucide-react';
 import { Button, Loading, useToast, useConfirm } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
-import { useProjectStore } from '@/store/useProjectStore';
+import { useProjectStore } from '@/store';
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();

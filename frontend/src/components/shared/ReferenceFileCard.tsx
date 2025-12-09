@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
 import { getReferenceFile, deleteReferenceFile, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
+import { isLocalMode } from '@/utils/mode';
+import { LocalStorageService } from '@/services/localStorageService';
 
 interface ReferenceFileCardProps {
   file: ReferenceFile;
@@ -22,33 +24,56 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   // Poll for status updates if parsing
   useEffect(() => {
     if (file.parse_status === 'pending' || file.parse_status === 'parsing') {
-      const intervalId = setInterval(async () => {
-        try {
-          const response = await getReferenceFile(file.id);
-          if (response.data?.file) {
-            const updatedFile = response.data.file;
-            setFile(updatedFile);
-            
-            // Notify parent of status change
-            if (onStatusChange) {
-              onStatusChange(updatedFile);
+      // 本地模式：从 localStorage 轮询
+      if (isLocalMode()) {
+        const intervalId = setInterval(() => {
+          try {
+            const updatedFile = LocalStorageService.getReferenceFile(file.id);
+            if (updatedFile) {
+              setFile(updatedFile);
+              
+              // Notify parent of status change
+              if (onStatusChange) {
+                onStatusChange(updatedFile);
+              }
+              
+              // Stop polling if completed or failed
+              if (updatedFile.parse_status === 'completed' || updatedFile.parse_status === 'failed') {
+                clearInterval(intervalId);
+              }
             }
-            
-            // Stop polling if completed or failed
-            if (updatedFile.parse_status === 'completed' || updatedFile.parse_status === 'failed') {
-              clearInterval(intervalId);
-            }
+          } catch (error) {
+            console.error('Failed to poll file status:', error);
           }
-        } catch (error) {
-          console.error('Failed to poll file status:', error);
-          // 轮询出错时不要崩溃，继续轮询
-        }
-      }, 2000); // Poll every 2 seconds
+        }, 2000);
 
-      return () => {
-        // 清理定时器，防止内存泄漏
-        clearInterval(intervalId);
-      };
+        return () => clearInterval(intervalId);
+      } else {
+        // 后端模式：从 API 轮询
+        const intervalId = setInterval(async () => {
+          try {
+            const response = await getReferenceFile(file.id);
+            if (response.data?.file) {
+              const updatedFile = response.data.file;
+              setFile(updatedFile);
+              
+              // Notify parent of status change
+              if (onStatusChange) {
+                onStatusChange(updatedFile);
+              }
+              
+              // Stop polling if completed or failed
+              if (updatedFile.parse_status === 'completed' || updatedFile.parse_status === 'failed') {
+                clearInterval(intervalId);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to poll file status:', error);
+          }
+        }, 2000);
+
+        return () => clearInterval(intervalId);
+      }
     }
   }, [file.id, file.parse_status, onStatusChange]);
 
@@ -64,8 +89,15 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
     // 彻底删除文件
     setIsDeleting(true);
     try {
-      await deleteReferenceFile(file.id);
-      onDelete(file.id);
+      if (isLocalMode()) {
+        // 本地模式：从 localStorage 删除
+        LocalStorageService.deleteReferenceFile(file.id);
+        onDelete(file.id);
+      } else {
+        // 后端模式：调用 API 删除
+        await deleteReferenceFile(file.id);
+        onDelete(file.id);
+      }
     } catch (error) {
       console.error('Failed to delete file:', error);
       setIsDeleting(false);
@@ -75,6 +107,13 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   const handleReparse = async () => {
     if (isReparsing || file.parse_status === 'parsing' || file.parse_status === 'pending') return;
     
+    // 本地模式：不支持重新解析（需要重新上传文件）
+    if (isLocalMode()) {
+      console.log('本地模式暂不支持重新解析，请重新上传文件');
+      return;
+    }
+    
+    // 后端模式：触发重新解析
     setIsReparsing(true);
     try {
       const response = await triggerFileParse(file.id);

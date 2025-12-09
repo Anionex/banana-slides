@@ -9,6 +9,10 @@ import {
   triggerFileParse,
   type ReferenceFile,
 } from '@/api/endpoints';
+import { isLocalMode } from '@/utils/mode';
+import { LocalStorageService } from '@/services/localStorageService';
+import { MinerUService } from '@/services/mineruService';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 interface ReferenceFileSelectorProps {
   projectId?: string | null; // 可选，如果不提供则使用全局文件
@@ -38,6 +42,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   initialSelectedIds = [],
 }) => {
   const { show } = useToast();
+  const { mineruToken, mineruApiBase } = useSettingsStore();
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -58,33 +63,43 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   const loadFiles = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 根据 filterProjectId 决定查询哪些文件
-      // 'all' - 所有文件（全局 + 项目）
-      // 'none' - 只查询未归类文件（全局文件，project_id=None）
-      // 项目ID - 只查询该项目的文件
-      const targetProjectId = filterProjectId === 'all' ? 'all' : filterProjectId === 'none' ? 'none' : filterProjectId;
-      const response = await listProjectReferenceFiles(targetProjectId);
-      
-      if (response.data?.files) {
-        // 合并新旧文件列表，避免丢失正在解析的文件
-        setFiles(prev => {
-          const fileMap = new Map<string, ReferenceFile>();
-          const serverFiles = response.data!.files; // 已经检查过 response.data?.files
-          
-          // 先添加服务器返回的文件（这些是权威数据）
-          serverFiles.forEach((f: ReferenceFile) => {
-            fileMap.set(f.id, f);
-          });
-          
-          // 然后添加正在解析的文件（可能服务器还没更新状态）
-          prev.forEach(f => {
-            if (parsingIds.has(f.id) && !fileMap.has(f.id)) {
+      if (isLocalMode()) {
+        // 本地模式：从 localStorage 加载
+        const localFiles = LocalStorageService.getReferenceFiles();
+        
+        // 根据 filterProjectId 过滤
+        let filteredFiles = localFiles;
+        if (filterProjectId === 'none') {
+          filteredFiles = localFiles.filter(f => !f.project_id);
+        } else if (filterProjectId !== 'all') {
+          filteredFiles = localFiles.filter(f => f.project_id === filterProjectId);
+        }
+        
+        setFiles(filteredFiles);
+      } else {
+        // 后端模式：调用 API
+        const targetProjectId = filterProjectId === 'all' ? 'all' : filterProjectId === 'none' ? 'none' : filterProjectId;
+        const response = await listProjectReferenceFiles(targetProjectId);
+        
+        if (response.data?.files) {
+          // 合并新旧文件列表，避免丢失正在解析的文件
+          setFiles(prev => {
+            const fileMap = new Map<string, ReferenceFile>();
+            const serverFiles = response.data!.files;
+            
+            serverFiles.forEach((f: ReferenceFile) => {
               fileMap.set(f.id, f);
-            }
+            });
+            
+            prev.forEach(f => {
+              if (parsingIds.has(f.id) && !fileMap.has(f.id)) {
+                fileMap.set(f.id, f);
+              }
+            });
+            
+            return Array.from(fileMap.values());
           });
-          
-          return Array.from(fileMap.values());
-        });
+        }
       }
     } catch (error: any) {
       console.error('加载参考文件列表失败:', error);
@@ -108,7 +123,11 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   // 轮询解析状态
   useEffect(() => {
     if (!isOpen || parsingIds.size === 0) return;
+    
+    // 本地模式：不轮询（文件状态由上传时的异步解析更新）
+    if (isLocalMode()) return;
 
+    // 后端模式：轮询文件状态
     const intervalId = setInterval(async () => {
       const idsToCheck = Array.from(parsingIds);
       const updatedFiles: ReferenceFile[] = [];
@@ -190,29 +209,47 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     const unparsedFiles = selected.filter(f => f.parse_status === 'pending');
     
     if (unparsedFiles.length > 0) {
-      // 触发解析未解析的文件，但立即返回（不等待）
-      try {
-        show({
-          message: `已触发 ${unparsedFiles.length} 个文件的解析，将在后台进行`,
-          type: 'success',
-        });
-
-        // 触发所有未解析文件的解析（不等待完成）
-        unparsedFiles.forEach(file => {
-          triggerFileParse(file.id).catch(error => {
-            console.error(`触发文件 ${file.filename} 解析失败:`, error);
+      if (isLocalMode()) {
+        // 本地模式：提示用户需要配置 MinerU
+        if (!mineruToken) {
+          show({
+            message: `选中的 ${unparsedFiles.length} 个文件需要配置 MinerU Token 才能解析`,
+            type: 'info',
           });
-        });
-        
-        // 立即返回所有选中的文件（包括 pending 状态的）
+        } else {
+          show({
+            message: `已选择 ${unparsedFiles.length} 个待解析文件，将在后台解析`,
+            type: 'success',
+          });
+        }
+        // 直接返回所有选中的文件（包括 pending 状态的）
         onSelect(selected);
         onClose();
-      } catch (error: any) {
-        console.error('触发文件解析失败:', error);
-        show({
-          message: error?.response?.data?.error?.message || error.message || '触发文件解析失败',
-          type: 'error',
-        });
+      } else {
+        // 后端模式：触发解析未解析的文件，但立即返回（不等待）
+        try {
+          show({
+            message: `已触发 ${unparsedFiles.length} 个文件的解析，将在后台进行`,
+            type: 'success',
+          });
+
+          // 触发所有未解析文件的解析（不等待完成）
+          unparsedFiles.forEach(file => {
+            triggerFileParse(file.id).catch(error => {
+              console.error(`触发文件 ${file.filename} 解析失败:`, error);
+            });
+          });
+          
+          // 立即返回所有选中的文件（包括 pending 状态的）
+          onSelect(selected);
+          onClose();
+        } catch (error: any) {
+          console.error('触发文件解析失败:', error);
+          show({
+            message: error?.response?.data?.error?.message || error.message || '触发文件解析失败',
+            type: 'error',
+          });
+        }
       }
     } else {
       // 所有文件都已解析或正在解析，直接确认
@@ -241,49 +278,196 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
     setIsUploading(true);
     try {
-      // 根据当前筛选条件决定上传文件的归属
-      // 如果筛选为 'all' 或 'none'，上传为全局文件（不关联项目）
-      // 如果筛选为项目ID，上传到该项目
       const targetProjectId = (filterProjectId === 'all' || filterProjectId === 'none')
         ? null
         : filterProjectId;
       
-      // 上传所有选中的文件
-      const uploadPromises = Array.from(files).map(file =>
-        uploadReferenceFile(file, targetProjectId)
-      );
-
-      const results = await Promise.all(uploadPromises);
-      const uploadedFiles = results
-        .map(r => r.data?.file)
-        .filter((f): f is ReferenceFile => f !== undefined);
-
-      if (uploadedFiles.length > 0) {
-        show({ message: `成功上传 ${uploadedFiles.length} 个文件`, type: 'success' });
+      if (isLocalMode()) {
+        // 本地模式：暂时不支持 MinerU 解析，只保存文件信息
+        // 用户可以稍后在设置中配置 MinerU
+        const uploadedFiles: ReferenceFile[] = [];
         
-        // 只有正在解析的文件才添加到轮询列表（pending 状态的文件不轮询）
-        const needsParsing = uploadedFiles.filter(f => 
-          f.parse_status === 'parsing'
-        );
-        if (needsParsing.length > 0) {
-          setParsingIds(prev => {
-            const newSet = new Set(prev);
-            needsParsing.forEach(f => newSet.add(f.id));
-            return newSet;
-          });
+        for (const file of Array.from(files)) {
+          try {
+            // 判断文件类型
+            const fileExt = file.name.split('.').pop()?.toLowerCase();
+            const textFormats = ['txt', 'md', 'csv'];
+            const needsParsing = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(fileExt || '');
+            
+            let fileContent = '';
+            let parseStatus: 'completed' | 'pending' = 'completed';
+            let errorMessage: string | null = null;
+            
+            // 文本文件直接读取内容
+            if (textFormats.includes(fileExt || '')) {
+              fileContent = await file.text();
+              parseStatus = 'completed';
+            } else if (needsParsing) {
+              // 需要解析的文件（PDF、Office 文档等）
+              if (mineruToken) {
+                parseStatus = 'pending';
+              } else {
+                parseStatus = 'pending';
+                errorMessage = '需要配置 MinerU Token 才能解析文件';
+              }
+            } else {
+              // 其他文件类型，尝试读取为文本
+              try {
+                fileContent = await file.text();
+                parseStatus = 'completed';
+              } catch {
+                parseStatus = 'pending';
+                errorMessage = '无法读取文件内容';
+              }
+            }
+            
+            // 创建文件记录
+            const fileId = `ref_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const newFile: ReferenceFile = {
+              id: fileId,
+              project_id: targetProjectId,
+              filename: file.name,
+              file_size: file.size,
+              file_type: file.type || 'application/octet-stream',
+              parse_status: parseStatus,
+              markdown_content: fileContent || null,
+              parsed_content: fileContent || undefined,
+              error_message: errorMessage,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            
+            // 保存到 localStorage
+            LocalStorageService.saveReferenceFile(newFile);
+            uploadedFiles.push(newFile);
+            
+            // 如果配置了 MinerU 且文件需要解析，异步解析文件
+            if (mineruToken && needsParsing && parseStatus === 'pending') {
+              const mineruService = new MinerUService({
+                token: mineruToken,
+                apiBase: mineruApiBase || 'https://mineru.net/api/v4',
+                useProxy: true, // 启用代理模式以绕过 CORS
+                proxyUrl: '/api/mineru-proxy'
+              });
+              
+              // 更新状态为 parsing
+              const parsingFile: ReferenceFile = {
+                ...newFile,
+                parse_status: 'parsing'
+              };
+              LocalStorageService.saveReferenceFile(parsingFile);
+              loadFiles();
+              
+              // 异步解析（不阻塞上传流程）
+              const onProgress = (progress: { extractedPages: number; totalPages: number; startTime: string }) => {
+                console.log(`[${file.name}] 解析进度: ${progress.extractedPages}/${progress.totalPages} 页`);
+              };
+              
+              mineruService.parseLocalFile(file, {}, onProgress).then(result => {
+                if (result.state === 'done' && result.fullZipUrl) {
+                  // 下载并提取 markdown
+                  mineruService.downloadResult(result.fullZipUrl).then(async blob => {
+                    // TODO: 解压 zip 并提取 markdown 内容
+                    // 暂时标记为完成
+                    const updatedFile: ReferenceFile = {
+                      ...newFile,
+                      parse_status: 'completed',
+                      markdown_content: '解析完成（内容提取功能开发中）',
+                      updated_at: new Date().toISOString()
+                    };
+                    LocalStorageService.saveReferenceFile(updatedFile);
+                    loadFiles();
+                  }).catch(error => {
+                    console.error('下载解析结果失败:', error);
+                    const failedFile: ReferenceFile = {
+                      ...newFile,
+                      parse_status: 'failed',
+                      error_message: error.message,
+                      updated_at: new Date().toISOString()
+                    };
+                    LocalStorageService.saveReferenceFile(failedFile);
+                    loadFiles();
+                  });
+                } else if (result.state === 'failed') {
+                  const failedFile: ReferenceFile = {
+                    ...newFile,
+                    parse_status: 'failed',
+                    error_message: result.errorMessage || '解析失败',
+                    updated_at: new Date().toISOString()
+                  };
+                  LocalStorageService.saveReferenceFile(failedFile);
+                  loadFiles();
+                }
+              }).catch(error => {
+                console.error('解析文件失败:', error);
+                const failedFile: ReferenceFile = {
+                  ...newFile,
+                  parse_status: 'failed',
+                  error_message: error.message,
+                  updated_at: new Date().toISOString()
+                };
+                LocalStorageService.saveReferenceFile(failedFile);
+                loadFiles();
+              });
+            }
+          } catch (error: any) {
+            console.error(`上传文件 ${file.name} 失败:`, error);
+          }
         }
         
-        // 合并新上传的文件到现有列表，而不是完全替换
-        setFiles(prev => {
-          const fileMap = new Map(prev.map(f => [f.id, f]));
-          uploadedFiles.forEach(uf => fileMap.set(uf.id, uf));
-          return Array.from(fileMap.values());
-        });
-        
-        // 延迟重新加载文件列表，确保服务器端数据已更新
-        setTimeout(() => {
-          loadFiles();
-        }, 500);
+        if (uploadedFiles.length > 0) {
+          const completedCount = uploadedFiles.filter(f => f.parse_status === 'completed').length;
+          const pendingCount = uploadedFiles.filter(f => f.parse_status === 'pending').length;
+          
+          let message = `成功上传 ${uploadedFiles.length} 个文件`;
+          if (completedCount > 0 && pendingCount > 0) {
+            message += `（${completedCount} 个已完成，${pendingCount} 个需要解析）`;
+          } else if (pendingCount > 0) {
+            message += mineruToken ? '，正在解析...' : '（需配置 MinerU Token 才能解析）';
+          }
+          
+          show({ message, type: 'success' });
+          setFiles(prev => {
+            const fileMap = new Map(prev.map(f => [f.id, f]));
+            uploadedFiles.forEach(uf => fileMap.set(uf.id, uf));
+            return Array.from(fileMap.values());
+          });
+        }
+      } else {
+        // 后端模式：调用 API
+        const uploadPromises = Array.from(files).map(file =>
+          uploadReferenceFile(file, targetProjectId)
+        );
+
+        const results = await Promise.all(uploadPromises);
+        const uploadedFiles = results
+          .map(r => r.data?.file)
+          .filter((f): f is ReferenceFile => f !== undefined);
+
+        if (uploadedFiles.length > 0) {
+          show({ message: `成功上传 ${uploadedFiles.length} 个文件`, type: 'success' });
+          
+          const needsParsing = uploadedFiles.filter(f => 
+            f.parse_status === 'parsing'
+          );
+          if (needsParsing.length > 0) {
+            setParsingIds(prev => {
+              const newSet = new Set(prev);
+              needsParsing.forEach(f => newSet.add(f.id));
+              return newSet;
+            });
+          }
+          
+          setFiles(prev => {
+            const fileMap = new Map(prev.map(f => [f.id, f]));
+            uploadedFiles.forEach(uf => fileMap.set(uf.id, uf));
+            return Array.from(fileMap.values());
+          });
+          
+          setTimeout(() => {
+            loadFiles();
+          }, 500);
+        }
       }
     } catch (error: any) {
       console.error('上传文件失败:', error);
@@ -293,7 +477,6 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       });
     } finally {
       setIsUploading(false);
-      // 清空 input 值，以便可以重复选择同一文件
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -319,8 +502,15 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     });
 
     try {
-      await deleteReferenceFile(fileId);
-      show({ message: '文件删除成功', type: 'success' });
+      if (isLocalMode()) {
+        // 本地模式：从 localStorage 删除
+        LocalStorageService.deleteReferenceFile(fileId);
+        show({ message: '文件删除成功', type: 'success' });
+      } else {
+        // 后端模式：调用 API
+        await deleteReferenceFile(fileId);
+        show({ message: '文件删除成功', type: 'success' });
+      }
       
       // 从选择中移除
       setSelectedFiles((prev) => {
@@ -336,7 +526,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
         return newSet;
       });
       
-      loadFiles(); // 重新加载文件列表
+      loadFiles();
     } catch (error: any) {
       console.error('删除文件失败:', error);
       show({

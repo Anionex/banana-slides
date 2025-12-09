@@ -5,6 +5,8 @@ import { Button } from './Button';
 import { getApiConfig, updateApiConfig, getApiPresets } from '@/api/endpoints';
 import type { APIConfig, APIPreset } from '@/types';
 import { AlertCircle, Check, Settings, Eye, EyeOff } from 'lucide-react';
+import { isLocalMode } from '@/utils/mode';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 interface APISettingsModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface APISettingsModalProps {
 }
 
 export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onClose }) => {
+  const localSettings = useSettingsStore();
   const [config, setConfig] = useState<APIConfig>({
     text_api_key: '',
     text_api_base: '',
@@ -43,8 +46,24 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const data = await getApiConfig();
-      setConfig(data);
+      
+      if (isLocalMode()) {
+        // 本地模式：从 useSettingsStore 加载
+        setConfig({
+          text_api_key: localSettings.geminiApiKey,
+          text_api_base: localSettings.geminiApiBase,
+          text_model: localSettings.geminiTextModel,
+          image_api_key: localSettings.geminiApiKey, // 图片和文本使用同一个 key
+          image_api_base: localSettings.geminiApiBase,
+          image_model: localSettings.geminiImageModel,
+          resolution: '2K',
+        });
+      } else {
+        // 后端模式：从 API 加载
+        const data = await getApiConfig();
+        setConfig(data);
+      }
+      
       setError('');
     } catch (err: any) {
       setError('加载配置失败: ' + (err.message || '未知错误'));
@@ -54,6 +73,34 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
   };
 
   const loadPresets = async () => {
+    if (isLocalMode()) {
+      // 本地模式：使用硬编码的预设
+      setPresets([
+        {
+          id: 'official',
+          name: '官方 API',
+          config: {
+            text_api_base: 'https://generativelanguage.googleapis.com/v1beta',
+            image_api_base: 'https://generativelanguage.googleapis.com/v1beta',
+            text_model: 'gemini-2.0-flash-exp',
+            image_model: 'gemini-2.0-flash-exp',
+          },
+        },
+        {
+          id: 'proxy',
+          name: '中转 API',
+          config: {
+            text_api_base: 'https://apipro.maynor1024.live',
+            image_api_base: 'https://apipro.maynor1024.live',
+            text_model: 'gemini-2.0-flash-exp',
+            image_model: 'gemini-2.0-flash-exp',
+          },
+        },
+      ]);
+      return;
+    }
+
+    // 后端模式：从 API 加载
     try {
       const data = await getApiPresets();
       setPresets(data);
@@ -97,7 +144,17 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
         return;
       }
 
-      await updateApiConfig(config);
+      if (isLocalMode()) {
+        // 本地模式：保存到 useSettingsStore
+        localSettings.setGeminiApiKey(config.text_api_key);
+        localSettings.setGeminiApiBase(config.text_api_base);
+        localSettings.setGeminiTextModel(config.text_model);
+        localSettings.setGeminiImageModel(config.image_model);
+      } else {
+        // 后端模式：保存到后端
+        await updateApiConfig(config);
+      }
+      
       setSuccess(true);
       setTimeout(() => {
         onClose();
