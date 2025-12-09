@@ -146,10 +146,12 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
 
       if (isLocalMode()) {
         // 本地模式：保存到 useSettingsStore
-        localSettings.setGeminiApiKey(config.text_api_key);
-        localSettings.setGeminiApiBase(config.text_api_base);
-        localSettings.setGeminiTextModel(config.text_model);
-        localSettings.setGeminiImageModel(config.image_model);
+        localSettings.updateSettings({
+          geminiApiKey: config.text_api_key,
+          geminiApiBase: config.text_api_base,
+          geminiTextModel: config.text_model,
+          geminiImageModel: config.image_model
+        });
       } else {
         // 后端模式：保存到后端
         await updateApiConfig(config);
@@ -344,6 +346,60 @@ export const APISettingsModal: React.FC<APISettingsModalProps> = ({ isOpen, onCl
         </div>
 
         <hr className="border-gray-200" />
+
+        {/* MinerU API Configuration (本地模式) */}
+        {isLocalMode() && (
+          <>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                MinerU 文件解析 API（可选）
+              </h3>
+
+              <Input
+                label="MinerU Token"
+                type={showKeys.text ? 'text' : 'password'}
+                value={localSettings.mineruToken}
+                onChange={(e) => localSettings.updateSettings({ mineruToken: e.target.value })}
+                placeholder="输入 MinerU API Token"
+                disabled={loading}
+                rightElement={
+                  <button
+                    type="button"
+                    onClick={() => setShowKeys({ ...showKeys, text: !showKeys.text })}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    title={showKeys.text ? '隐藏密钥' : '显示密钥'}
+                  >
+                    {showKeys.text ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                }
+              />
+
+              <Input
+                label="API Base URL"
+                type="text"
+                value={localSettings.mineruApiBase}
+                onChange={(e) => localSettings.updateSettings({ mineruApiBase: e.target.value })}
+                placeholder="https://mineru.net/api/v4"
+                disabled={loading}
+              />
+
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>MinerU 文件解析：</strong>用于解析 PDF、Word、PPT 等文件
+                  <br />
+                  • 获取 Token：访问 <a href="https://mineru.net" target="_blank" rel="noopener noreferrer" className="underline">mineru.net</a> 注册并获取
+                  <br />
+                  • 免费额度：每天 2000 页
+                  <br />
+                  • 文本文件（.txt, .md, .csv）无需配置即可使用
+                </p>
+              </div>
+            </div>
+
+            <hr className="border-gray-200" />
+          </>
+        )}
 
         {/* 图片分辨率配置 */}
         <div className="space-y-4">
