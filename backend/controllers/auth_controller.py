@@ -13,8 +13,10 @@ from flask_jwt_extended import (
 from authlib.integrations.flask_client import OAuth
 
 from services.auth_service import auth_service
+from services.email_service import email_service
 from utils.decorators import login_required
 from models.user import User
+from models.verification_code import VerificationCode
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +68,14 @@ def init_oauth(app):
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """
-    Register a new user
+    Register a new user with email verification code
     
     Request body:
     {
         "username": "string",
         "email": "string",
-        "password": "string"
+        "password": "string",
+        "verification_code": "string"  # 6-digit code from email
     }
     """
     data = request.get_json()
@@ -83,6 +86,20 @@ def register():
     username = data.get('username', '').strip()
     email = data.get('email', '').strip()
     password = data.get('password', '')
+    verification_code = data.get('verification_code', '').strip()
+    
+    # Verify the email verification code
+    if not verification_code:
+        return jsonify({'error': '请输入邮箱验证码'}), 400
+    
+    is_valid, error_msg = VerificationCode.verify_code(
+        email=email,
+        code=verification_code,
+        code_type=VerificationCode.TYPE_REGISTER
+    )
+    
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
     
     user, error = auth_service.register_user(username, email, password)
     
@@ -189,6 +206,180 @@ def get_current_user():
     return jsonify({
         'user': g.current_user.to_dict(include_email=True),
     }), 200
+
+
+# ============== Verification Code Routes ==============
+
+@auth_bp.route('/send-code', methods=['POST'])
+def send_verification_code():
+    """
+    Send a verification code to the specified email
+    
+    Request body:
+    {
+        "email": "string",
+        "code_type": "register" | "reset_password"
+    }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'Request body is required'}), 400
+    
+    email = data.get('email', '').strip().lower()
+    code_type = data.get('code_type', '').strip()
+    
+    # Validate email
+    if not email or '@' not in email:
+        return jsonify({'error': '请输入有效的邮箱地址'}), 400
+    
+    # Validate code type
+    valid_types = [VerificationCode.TYPE_REGISTER, VerificationCode.TYPE_RESET_PASSWORD]
+    if code_type not in valid_types:
+        return jsonify({'error': '无效的验证码类型'}), 400
+    
+    # Check if email service is configured
+    if not email_service.is_configured():
+        return jsonify({'error': '邮件服务未配置，请联系管理员'}), 503
+    
+    # For register: check if email is already registered
+    if code_type == VerificationCode.TYPE_REGISTER:
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return jsonify({'error': '该邮箱已被注册'}), 400
+    
+    # For reset password: check if email exists
+    if code_type == VerificationCode.TYPE_RESET_PASSWORD:
+        existing_user = User.query.filter_by(email=email).first()
+        if not existing_user:
+            # Don't reveal that email doesn't exist (security)
+            # Still return success but don't send email
+            return jsonify({'message': '验证码已发送，请检查您的邮箱'}), 200
+    
+    # Rate limiting check
+    can_send, wait_seconds = VerificationCode.can_send_code(email, code_type)
+    if not can_send:
+        return jsonify({
+            'error': f'发送过于频繁，请 {wait_seconds} 秒后重试',
+            'wait_seconds': wait_seconds,
+        }), 429
+    
+    # Generate and save verification code
+    verification = VerificationCode.create_code(email, code_type)
+    
+    # Send email
+    success, error_msg = email_service.send_verification_code(
+        to_email=email,
+        code=verification.code,
+        code_type=code_type,
+        expires_minutes=VerificationCode.EXPIRY_MINUTES,
+    )
+    
+    if not success:
+        logger.error(f"Failed to send verification code to {email}: {error_msg}")
+        return jsonify({'error': f'邮件发送失败: {error_msg}'}), 500
+    
+    return jsonify({
+        'message': '验证码已发送，请检查您的邮箱',
+        'expires_in': VerificationCode.EXPIRY_MINUTES * 60,  # seconds
+    }), 200
+
+
+@auth_bp.route('/verify-code', methods=['POST'])
+def verify_code():
+    """
+    Verify a verification code (for checking before form submission)
+    
+    Request body:
+    {
+        "email": "string",
+        "code": "string",
+        "code_type": "register" | "reset_password"
+    }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'Request body is required'}), 400
+    
+    email = data.get('email', '').strip().lower()
+    code = data.get('code', '').strip()
+    code_type = data.get('code_type', '').strip()
+    
+    if not email or not code or not code_type:
+        return jsonify({'error': '请提供完整的验证信息'}), 400
+    
+    # Note: This endpoint does NOT consume the code
+    # It only checks if it's valid for pre-validation
+    verification = VerificationCode.query.filter_by(
+        email=email,
+        code_type=code_type,
+        used=False,
+    ).order_by(VerificationCode.created_at.desc()).first()
+    
+    if not verification:
+        return jsonify({'valid': False, 'error': '验证码不存在或已过期'}), 200
+    
+    from datetime import datetime
+    if datetime.utcnow() > verification.expires_at:
+        return jsonify({'valid': False, 'error': '验证码已过期'}), 200
+    
+    if verification.code != code:
+        return jsonify({'valid': False, 'error': '验证码错误'}), 200
+    
+    return jsonify({'valid': True}), 200
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Reset password using verification code
+    
+    Request body:
+    {
+        "email": "string",
+        "verification_code": "string",
+        "new_password": "string"
+    }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'Request body is required'}), 400
+    
+    email = data.get('email', '').strip().lower()
+    verification_code = data.get('verification_code', '').strip()
+    new_password = data.get('new_password', '')
+    
+    if not email or not verification_code or not new_password:
+        return jsonify({'error': '请提供完整信息'}), 400
+    
+    # Validate new password
+    if len(new_password) < 6:
+        return jsonify({'error': '密码长度不能少于6位'}), 400
+    
+    # Verify the code
+    is_valid, error_msg = VerificationCode.verify_code(
+        email=email,
+        code=verification_code,
+        code_type=VerificationCode.TYPE_RESET_PASSWORD
+    )
+    
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
+    
+    # Find user and update password
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': '用户不存在'}), 404
+    
+    user.set_password(new_password)
+    from models import db
+    db.session.commit()
+    
+    logger.info(f"Password reset successful for user {user.id}")
+    
+    return jsonify({'message': '密码重置成功，请使用新密码登录'}), 200
 
 
 # ============== OAuth Routes ==============

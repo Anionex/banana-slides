@@ -56,6 +56,18 @@ export interface RegisterRequest {
     username: string;
     email: string;
     password: string;
+    verification_code: string;
+}
+
+export interface SendCodeRequest {
+    email: string;
+    code_type: 'register' | 'reset_password';
+}
+
+export interface ResetPasswordRequest {
+    email: string;
+    verification_code: string;
+    new_password: string;
 }
 
 export interface UpdateSettingsRequest {
@@ -124,6 +136,34 @@ export const authApi = {
      */
     getGitHubAuthUrl: (): string => {
         return '/api/auth/github';
+    },
+
+    /**
+     * Send verification code to email
+     */
+    sendVerificationCode: async (data: SendCodeRequest): Promise<{ message: string; expires_in: number }> => {
+        const response = await apiClient.post('/api/auth/send-code', data);
+        return response.data;
+    },
+
+    /**
+     * Verify a verification code (pre-check)
+     */
+    verifyCode: async (email: string, code: string, codeType: string): Promise<{ valid: boolean; error?: string }> => {
+        const response = await apiClient.post('/api/auth/verify-code', {
+            email,
+            code,
+            code_type: codeType,
+        });
+        return response.data;
+    },
+
+    /**
+     * Reset password using verification code
+     */
+    resetPassword: async (data: ResetPasswordRequest): Promise<{ message: string }> => {
+        const response = await apiClient.post('/api/auth/reset-password', data);
+        return response.data;
     },
 };
 

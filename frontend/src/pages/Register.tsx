@@ -1,7 +1,7 @@
 /**
- * Register Page Component
+ * Register Page Component with Email Verification
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { authApi } from '../api/auth';
@@ -12,23 +12,75 @@ export const Register: React.FC = () => {
 
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
+    const [verificationCode, setVerificationCode] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [localError, setLocalError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+
+    // Verification code sending state
+    const [isSendingCode, setIsSendingCode] = useState(false);
+    const [codeSent, setCodeSent] = useState(false);
+    const [countdown, setCountdown] = useState(0);
+
+    // Countdown timer for resend
+    useEffect(() => {
+        if (countdown > 0) {
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [countdown]);
+
+    const handleSendCode = async () => {
+        setLocalError('');
+        setSuccessMessage('');
+
+        // Validate email
+        if (!email || !email.includes('@')) {
+            setLocalError('请输入有效的邮箱地址');
+            return;
+        }
+
+        setIsSendingCode(true);
+        try {
+            const response = await authApi.sendVerificationCode({
+                email,
+                code_type: 'register',
+            });
+            setCodeSent(true);
+            setCountdown(60); // 60 seconds cooldown
+            setSuccessMessage(response.message);
+        } catch (err: any) {
+            const message = err.response?.data?.error || '发送验证码失败';
+            setLocalError(message);
+            // Handle rate limit
+            if (err.response?.data?.wait_seconds) {
+                setCountdown(err.response.data.wait_seconds);
+            }
+        } finally {
+            setIsSendingCode(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLocalError('');
+        setSuccessMessage('');
         clearError();
 
         // Validation
-        if (!username || !email || !password) {
+        if (!username || !email || !password || !verificationCode) {
             setLocalError('请填写所有必填项');
             return;
         }
 
         if (username.length < 3) {
             setLocalError('用户名至少需要3个字符');
+            return;
+        }
+
+        if (verificationCode.length !== 6) {
+            setLocalError('请输入6位验证码');
             return;
         }
 
@@ -43,7 +95,7 @@ export const Register: React.FC = () => {
         }
 
         try {
-            await register(username, email, password);
+            await register(username, email, password, verificationCode);
             navigate('/');
         } catch (err: any) {
             setLocalError(err.message || '注册失败');
@@ -59,7 +111,7 @@ export const Register: React.FC = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 via-white to-amber-50 py-12">
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-md px-4">
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-400 rounded-2xl mb-4 shadow-lg">
@@ -79,6 +131,67 @@ export const Register: React.FC = () => {
                             </div>
                         )}
 
+                        {/* Success Message */}
+                        {successMessage && (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+                                {successMessage}
+                            </div>
+                        )}
+
+                        {/* Email with Send Code Button */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                邮箱
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
+                                    placeholder="your@email.com"
+                                    autoComplete="email"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleSendCode}
+                                    disabled={isSendingCode || countdown > 0 || !email}
+                                    className="px-4 py-3 bg-yellow-100 text-yellow-700 font-medium rounded-xl hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                                >
+                                    {isSendingCode ? (
+                                        <span className="flex items-center gap-1">
+                                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            发送中
+                                        </span>
+                                    ) : countdown > 0 ? (
+                                        `${countdown}s`
+                                    ) : codeSent ? (
+                                        '重新发送'
+                                    ) : (
+                                        '获取验证码'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Verification Code */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                验证码
+                            </label>
+                            <input
+                                type="text"
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all text-center text-lg tracking-widest font-mono"
+                                placeholder="请输入6位验证码"
+                                maxLength={6}
+                            />
+                        </div>
+
                         {/* Username */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -91,21 +204,6 @@ export const Register: React.FC = () => {
                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
                                 placeholder="选择一个用户名"
                                 autoComplete="username"
-                            />
-                        </div>
-
-                        {/* Email */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                邮箱
-                            </label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
-                                placeholder="your@email.com"
-                                autoComplete="email"
                             />
                         </div>
 
@@ -142,7 +240,7 @@ export const Register: React.FC = () => {
                         {/* Submit Button */}
                         <button
                             type="submit"
-                            disabled={isLoading}
+                            disabled={isLoading || !verificationCode}
                             className="w-full py-3 px-4 bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-semibold rounded-xl hover:from-yellow-500 hover:to-amber-600 focus:ring-4 focus:ring-yellow-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-yellow-200"
                         >
                             {isLoading ? (

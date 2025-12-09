@@ -103,9 +103,9 @@ export const Login: React.FC = () => {
                                 />
                                 <span className="ml-2 text-sm text-gray-600">记住我</span>
                             </label>
-                            {/* <Link to="/forgot-password" className="text-sm text-yellow-600 hover:text-yellow-700">
-                忘记密码？
-              </Link> */}
+                            <Link to="/forgot-password" className="text-sm text-yellow-600 hover:text-yellow-700">
+                                忘记密码？
+                            </Link>
                         </div>
 
                         {/* Submit Button */}
