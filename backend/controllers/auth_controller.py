@@ -201,7 +201,9 @@ def google_login():
     if 'google' not in oauth._clients:
         return jsonify({'error': 'Google OAuth is not configured'}), 501
     
-    redirect_uri = os.getenv('OAUTH_REDIRECT_BASE', 'http://localhost:3000') + '/auth/google/callback'
+    # Callback goes to backend first, then backend redirects to frontend with tokens
+    backend_base = os.getenv('BACKEND_URL', 'http://localhost:5000')
+    redirect_uri = f"{backend_base}/api/auth/google/callback"
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -258,7 +260,9 @@ def github_login():
     if 'github' not in oauth._clients:
         return jsonify({'error': 'GitHub OAuth is not configured'}), 501
     
-    redirect_uri = os.getenv('OAUTH_REDIRECT_BASE', 'http://localhost:3000') + '/auth/github/callback'
+    # Callback goes to backend first, then backend redirects to frontend with tokens
+    backend_base = os.getenv('BACKEND_URL', 'http://localhost:5000')
+    redirect_uri = f"{backend_base}/api/auth/github/callback"
     return oauth.github.authorize_redirect(redirect_uri)
 
 
