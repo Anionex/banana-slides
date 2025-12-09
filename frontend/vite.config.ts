@@ -45,6 +45,13 @@ export default defineConfig(({ mode }) => {
           target: backendUrl,
           changeOrigin: true,
         },
+        // MinerU API 代理（开发环境）
+        '/mineru-api': {
+          target: 'https://mineru.net',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/mineru-api/, '/api/v4'),
+          secure: true,
+        },
       },
     },
   }

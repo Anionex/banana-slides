@@ -15,6 +15,7 @@ interface LocalProjectState {
   // 状态
   currentProject: Project | null;
   isLoading: boolean;
+  isGlobalLoading: boolean; // 添加全局加载状态，与后端 store 保持一致
   error: string | null;
   progress: { current: number; total: number } | null;
 
@@ -25,6 +26,7 @@ interface LocalProjectState {
 
   // 项目操作
   createProject: (type: 'idea' | 'outline' | 'description', content: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File) => Promise<void>; // 添加别名方法
   loadProject: (projectId: string) => void;
   saveProject: () => void;
   deleteProject: (projectId: string) => void;
@@ -51,25 +53,27 @@ export const useLocalProjectStore = create<LocalProjectState>((set, get) => ({
   // 初始状态
   currentProject: null,
   isLoading: false,
+  isGlobalLoading: false,
   error: null,
   progress: null,
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
-  setLoading: (loading) => set({ isLoading: loading }),
+  setLoading: (loading) => set({ isLoading: loading, isGlobalLoading: loading }), // 同步两个加载状态
   setError: (error) => set({ error }),
 
   // 创建项目
   createProject: async (type, content) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, isGlobalLoading: true, error: null });
 
     try {
       const project: Project = {
         id: uuidv4(),
+        project_id: uuidv4(), // 添加 project_id 字段
         creation_type: type,
-        idea_prompt: type === 'idea' ? content : undefined,
-        outline_text: type === 'outline' ? content : undefined,
-        description_text: type === 'description' ? content : undefined,
+        idea_prompt: type === 'idea' ? content : '',
+        outline_text: type === 'outline' ? content : '',
+        description_text: type === 'description' ? content : '',
         status: 'DRAFT',
         pages: [],
         created_at: new Date().toISOString(),
@@ -93,8 +97,14 @@ export const useLocalProjectStore = create<LocalProjectState>((set, get) => ({
       set({ error: error.message || '创建项目失败' });
       throw error;
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, isGlobalLoading: false });
     }
+  },
+
+  // initializeProject 是 createProject 的别名，用于与后端 store 保持接口一致
+  initializeProject: async (type, content, templateImage) => {
+    // 本地模式暂不支持模板图片，忽略 templateImage 参数
+    await get().createProject(type, content);
   },
 
   // 加载项目

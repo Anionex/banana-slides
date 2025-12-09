@@ -36,7 +36,15 @@ export class MinerUService {
 
   constructor(config: MinerUConfig) {
     this.token = config.token;
-    this.apiBase = config.apiBase || 'https://mineru.net/api/v4';
+    // 在开发环境使用 Vite 代理，避免 CORS 问题
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      this.apiBase = '/mineru-api';
+      console.log('[MinerU] 开发环境：使用 Vite 代理');
+    } else {
+      this.apiBase = config.apiBase || 'https://mineru.net/api/v4';
+      console.log('[MinerU] 生产环境：直接调用 API');
+    }
   }
 
   /**
