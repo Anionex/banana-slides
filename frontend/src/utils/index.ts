@@ -116,6 +116,11 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return '🔑 Google API Key 未配置。请登录后在"设置"页面配置您的 API Key，或联系管理员。';
   } else if (message.includes('api key not valid') || message.includes('invalid api key')) {
     return '🔑 API Key 无效。请检查您在"设置"页面配置的 API Key 是否正确。';
+  } else if (message.includes('图片生成失败') && message.includes('ai 返回')) {
+    // 保留 AI 返回的原因，因为它可能包含有用信息
+    return errorMessage;
+  } else if (message.includes('no image found') || message.includes('图片生成失败')) {
+    return '🖼️ 图片生成失败。可能的原因：内容被 AI 安全策略拒绝，请尝试修改描述后重试。';
   }
 
   return errorMessage;

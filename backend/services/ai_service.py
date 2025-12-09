@@ -420,9 +420,12 @@ class AIService:
             logger.debug("Gemini API call completed")
             
             logger.debug("API response received, checking parts...")
+            text_responses = []  # 收集文本响应（通常是拒绝原因）
+            
             for i, part in enumerate(response.parts):
                 if part.text is not None:   
                     logger.debug(f"Part {i}: TEXT - {part.text[:100]}")
+                    text_responses.append(part.text)
                 else:
                     # Try to get image from part
                     try:
@@ -436,11 +439,15 @@ class AIService:
                         logger.debug(f"Part {i}: Failed to extract image - {str(e)}")
             
             # If we get here, no image was found in the response
-            error_msg = "No image found in API response. "
-            if response.parts:
-                error_msg += f"Response had {len(response.parts)} parts but none contained valid images."
+            if text_responses:
+                # API 返回了文本而不是图片，通常是拒绝原因
+                combined_text = " ".join(text_responses)
+                error_msg = f"图片生成失败。AI 返回: {combined_text[:500]}"
+                logger.warning(f"Image generation rejected: {combined_text}")
+            elif response.parts:
+                error_msg = f"图片生成失败：API 返回了 {len(response.parts)} 个部分，但没有有效的图片。"
             else:
-                error_msg += "Response had no parts."
+                error_msg = "图片生成失败：API 返回为空。"
             
             raise ValueError(error_msg)
             
