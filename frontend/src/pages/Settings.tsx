@@ -136,7 +136,7 @@ export const Settings: React.FC = () => {
                                 <span>🍌</span>
                             )}
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <p className="text-lg font-medium text-gray-900">{user.username}</p>
                             <p className="text-sm text-gray-500">{user.email}</p>
                             {user.oauth_provider && (
@@ -148,11 +148,37 @@ export const Settings: React.FC = () => {
                     </div>
                 </section>
 
+                {/* Credits Section */}
+                <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">积分余额</h2>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-yellow-200">
+                                💰
+                            </div>
+                            <div>
+                                <p className="text-3xl font-bold text-gray-900">{user.credits ?? 0}</p>
+                                <p className="text-sm text-gray-500">当前积分</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-sm text-gray-500">
+                                生成图片消耗 <span className="font-semibold text-amber-600">10 积分/张</span>
+                            </p>
+                            {user.role === 'admin' && (
+                                <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                    👑 管理员免费使用
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </section>
+
                 {/* Message */}
                 {message && (
                     <div className={`mb-6 p-4 rounded-lg ${message.type === 'success'
-                            ? 'bg-green-50 border border-green-200 text-green-700'
-                            : 'bg-red-50 border border-red-200 text-red-700'
+                        ? 'bg-green-50 border border-green-200 text-green-700'
+                        : 'bg-red-50 border border-red-200 text-red-700'
                         }`}>
                         {message.text}
                     </div>

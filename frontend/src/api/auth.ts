@@ -10,6 +10,7 @@ export interface User {
     email?: string;
     avatar_url: string | null;
     role: string;
+    credits?: number;
     oauth_provider: string | null;
     is_active?: boolean;
     created_at: string;
