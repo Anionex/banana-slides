@@ -60,8 +60,10 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             parser = FileParserService(
                 mineru_token=current_app.config['MINERU_TOKEN'],
                 mineru_api_base=current_app.config['MINERU_API_BASE'],
-                google_api_key=current_app.config['GOOGLE_API_KEY'],
-                google_api_base=current_app.config['GOOGLE_API_BASE'],
+                google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+                google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
+                openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+                openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
                 image_caption_model=current_app.config['IMAGE_CAPTION_MODEL']
             )
             

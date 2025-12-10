@@ -187,10 +187,7 @@ def generate_material_image(project_id):
                 return not_found('Project')
 
         # Initialize services
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
         # 创建临时目录保存参考图片（后台任务会清理）

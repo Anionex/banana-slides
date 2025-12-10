@@ -233,10 +233,7 @@ def generate_page_description(project_id, page_id):
         
         # Initialize AI service
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         # Get reference files content and create project context
         from controllers.project_controller import _get_project_reference_files_content
@@ -358,10 +355,7 @@ def generate_page_image(project_id, page_id):
         
         # Initialize services
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
@@ -481,10 +475,7 @@ def edit_page_image(project_id, page_id):
         
         # Initialize services
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         

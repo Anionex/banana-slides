@@ -12,7 +12,7 @@ Environment Variables:
         GOOGLE_API_BASE: API base URL (e.g., https://aihubmix.com/gemini)
     
     For OpenAI format:
-        OPENAI_API_KEY: API key (falls back to GOOGLE_API_KEY if not set)
+        OPENAI_API_KEY: API key (required, GOOGLE_API_KEY cannot be used)
         OPENAI_API_BASE: API base URL (e.g., https://aihubmix.com/v1)
 """
 import os
@@ -61,11 +61,14 @@ def get_text_provider(
     
     if provider_format == 'openai':
         # OpenAI format
-        key = api_key or os.getenv('OPENAI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+        key = api_key or os.getenv('OPENAI_API_KEY')
         base = api_base or os.getenv('OPENAI_API_BASE')
         
         if not key:
-            raise ValueError("OPENAI_API_KEY or GOOGLE_API_KEY environment variable is required")
+            raise ValueError(
+                "OPENAI_API_KEY environment variable is required when AI_PROVIDER_FORMAT=openai. "
+                "Note: GOOGLE_API_KEY cannot be used for OpenAI format."
+            )
         
         logger.info(f"Using OpenAI format for text generation, model: {model}")
         return OpenAITextProvider(api_key=key, api_base=base, model=model)
@@ -105,11 +108,14 @@ def get_image_provider(
     
     if provider_format == 'openai':
         # OpenAI format
-        key = api_key or os.getenv('OPENAI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+        key = api_key or os.getenv('OPENAI_API_KEY')
         base = api_base or os.getenv('OPENAI_API_BASE')
         
         if not key:
-            raise ValueError("OPENAI_API_KEY or GOOGLE_API_KEY environment variable is required")
+            raise ValueError(
+                "OPENAI_API_KEY environment variable is required when AI_PROVIDER_FORMAT=openai. "
+                "Note: GOOGLE_API_KEY cannot be used for OpenAI format."
+            )
         
         logger.info(f"Using OpenAI format for image generation, model: {model}")
         logger.warning("OpenAI format only supports 1K resolution, 4K is not available")

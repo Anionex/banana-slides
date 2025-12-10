@@ -289,10 +289,7 @@ def generate_outline(project_id):
         
         # Initialize AI service
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -409,10 +406,7 @@ def generate_from_description(project_id):
         
         # Initialize AI service
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -543,10 +537,7 @@ def generate_descriptions(project_id):
         db.session.commit()
         
         # Initialize AI service
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -636,10 +627,7 @@ def generate_images(project_id):
         db.session.commit()
         
         # Initialize services
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         from services import FileService
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
@@ -734,10 +722,7 @@ def refine_outline(project_id):
         
         # Initialize AI service
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -904,10 +889,7 @@ def refine_descriptions(project_id):
         
         # Initialize AI service
         from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)

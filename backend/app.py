@@ -4,13 +4,16 @@ Simplified Flask Application Entry Point
 import os
 import sys
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 import sqlite3
 
-# Load environment variables BEFORE importing anything else
-load_dotenv()
+# Load environment variables from project root .env file
+_project_root = Path(__file__).parent.parent
+_env_file = _project_root / '.env'
+load_dotenv(dotenv_path=_env_file, override=True)
 
 from flask import Flask
 from flask_cors import CORS

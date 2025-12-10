@@ -49,7 +49,7 @@ class Config:
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
     
     # OpenAI 格式专用配置（当 AI_PROVIDER_FORMAT=openai 时使用）
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')  # 如果为空，会 fallback 到 GOOGLE_API_KEY
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')  # 当 AI_PROVIDER_FORMAT=openai 时必须设置
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
     
     # MinerU 文件解析服务配置

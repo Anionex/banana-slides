@@ -7,15 +7,19 @@ import time
 import logging
 import zipfile
 import io
+import base64
 import requests
 from typing import Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from google import genai
-from google.genai import types
 from PIL import Image
 from markitdown import MarkItDown
 
 logger = logging.getLogger(__name__)
+
+
+def _get_ai_provider_format() -> str:
+    """Get the configured AI provider format"""
+    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
 
 
 class FileParserService:
@@ -23,6 +27,7 @@ class FileParserService:
     
     def __init__(self, mineru_token: str, mineru_api_base: str = "https://mineru.net",
                  google_api_key: str = "", google_api_base: str = "",
+                 openai_api_key: str = "", openai_api_base: str = "",
                  image_caption_model: str = "gemini-2.5-flash"):
         """
         Initialize the file parser service
@@ -30,8 +35,10 @@ class FileParserService:
         Args:
             mineru_token: MinerU API token
             mineru_api_base: MinerU API base URL
-            google_api_key: Google Gemini API key for image captioning
+            google_api_key: Google Gemini API key for image captioning (used when AI_PROVIDER_FORMAT=gemini)
             google_api_base: Google Gemini API base URL
+            openai_api_key: OpenAI API key for image captioning (used when AI_PROVIDER_FORMAT=openai)
+            openai_api_base: OpenAI API base URL
             image_caption_model: Model to use for image captioning
         """
         self.mineru_token = mineru_token
@@ -39,14 +46,45 @@ class FileParserService:
         self.get_upload_url_api = f"{mineru_api_base}/api/v4/file-urls/batch"
         self.get_result_api_template = f"{mineru_api_base}/api/v4/extract-results/batch/{{}}"
         
-        # Initialize Gemini client for image captioning
-        self.gemini_client = None
-        if google_api_key:
-            self.gemini_client = genai.Client(
-                http_options=types.HttpOptions(base_url=google_api_base) if google_api_base else None,
-                api_key=google_api_key
-            )
+        # Store config for lazy initialization
+        self._google_api_key = google_api_key
+        self._google_api_base = google_api_base
+        self._openai_api_key = openai_api_key
+        self._openai_api_base = openai_api_base
         self.image_caption_model = image_caption_model
+        
+        # Clients will be initialized lazily based on AI_PROVIDER_FORMAT
+        self._gemini_client = None
+        self._openai_client = None
+        self._provider_format = _get_ai_provider_format()
+    
+    def _get_gemini_client(self):
+        """Lazily initialize Gemini client"""
+        if self._gemini_client is None and self._google_api_key:
+            from google import genai
+            from google.genai import types
+            self._gemini_client = genai.Client(
+                http_options=types.HttpOptions(base_url=self._google_api_base) if self._google_api_base else None,
+                api_key=self._google_api_key
+            )
+        return self._gemini_client
+    
+    def _get_openai_client(self):
+        """Lazily initialize OpenAI client"""
+        if self._openai_client is None and self._openai_api_key:
+            from openai import OpenAI
+            self._openai_client = OpenAI(
+                api_key=self._openai_api_key,
+                base_url=self._openai_api_base
+            )
+        return self._openai_client
+    
+    def _can_generate_captions(self) -> bool:
+        """Check if image caption generation is available"""
+        if self._provider_format == 'openai':
+            return bool(self._openai_api_key)
+        else:
+            return bool(self._google_api_key)
     
     def parse_file(self, file_path: str, filename: str) -> tuple[Optional[str], Optional[str], Optional[str], int]:
         """
@@ -104,7 +142,7 @@ class FileParserService:
             logger.info("File parsed successfully.")
             
             # Step 4: Enhance markdown with image captions
-            if markdown_content and self.gemini_client:
+            if markdown_content and self._can_generate_captions():
                 logger.info("Step 4/4: Enhancing markdown with image captions...")
                 enhanced_content, failed_count = self._enhance_markdown_with_captions(markdown_content)
                 if failed_count > 0:
@@ -140,7 +178,7 @@ class FileParserService:
             logger.info(f"Text file read successfully: {len(content)} characters")
             
             # Enhance markdown with image captions if it contains images
-            if content and self.gemini_client:
+            if content and self._can_generate_captions():
                 # Check if content has markdown images
                 if '![' in content and '](' in content:
                     logger.info("Text file contains images, enhancing with captions...")
@@ -160,7 +198,7 @@ class FileParserService:
                     content = f.read()
                 logger.info(f"Text file read successfully with GBK encoding: {len(content)} characters")
                 
-                if content and self.gemini_client and '![' in content and '](' in content:
+                if content and self._can_generate_captions() and '![' in content and '](' in content:
                     logger.info("Text file contains images, enhancing with captions...")
                     enhanced_content, failed_count = self._enhance_markdown_with_captions(content)
                     if failed_count > 0:
@@ -437,7 +475,7 @@ class FileParserService:
         Returns:
             Tuple of (enhanced_markdown, failed_image_count)
         """
-        if not self.gemini_client:
+        if not self._can_generate_captions():
             return markdown_content, 0
         
         # Extract all image URLs from markdown (both with and without alt text)
@@ -574,18 +612,54 @@ class FileParserService:
                 logger.warning(f"Unsupported image path type: {image_url}")
                 return ""
             
-            # Generate caption using Gemini
+            # Generate caption based on provider format
             prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
             
-            result = self.gemini_client.models.generate_content(
-                model=self.image_caption_model,
-                contents=[image, prompt],
-                config=types.GenerateContentConfig(
-                    temperature=0.3,  # Lower temperature for more consistent captions
+            if self._provider_format == 'openai':
+                # Use OpenAI SDK format
+                client = self._get_openai_client()
+                if not client:
+                    logger.warning("OpenAI client not initialized, skipping caption generation")
+                    return ""
+                
+                # Encode image to base64
+                buffered = io.BytesIO()
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    image = image.convert('RGB')
+                image.save(buffered, format="JPEG", quality=85)
+                base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                
+                response = client.chat.completions.create(
+                    model=self.image_caption_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                                {"type": "text", "text": prompt}
+                            ]
+                        }
+                    ],
+                    temperature=0.3
                 )
-            )
+                caption = response.choices[0].message.content.strip()
+            else:
+                # Use Gemini SDK format (default)
+                from google.genai import types
+                client = self._get_gemini_client()
+                if not client:
+                    logger.warning("Gemini client not initialized, skipping caption generation")
+                    return ""
+                
+                result = client.models.generate_content(
+                    model=self.image_caption_model,
+                    contents=[image, prompt],
+                    config=types.GenerateContentConfig(
+                        temperature=0.3,  # Lower temperature for more consistent captions
+                    )
+                )
+                caption = result.text.strip()
             
-            caption = result.text.strip()
             return caption
             
         except Exception as e:
