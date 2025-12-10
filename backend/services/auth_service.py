@@ -10,6 +10,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token
 from models import db
 from models.user import User
 from models.user_settings import UserSettings
+from services.credit_service import CreditService
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,10 @@ class AuthService:
             user.settings = settings
             
             db.session.add(user)
+            db.session.commit()
+            
+            # Log signup bonus credit transaction
+            CreditService.initialize_new_user_credits(user)
             db.session.commit()
             
             logger.info(f"New user registered: {username} ({email})")
@@ -213,6 +218,10 @@ class AuthService:
             user.settings = settings
             
             db.session.add(user)
+            db.session.commit()
+            
+            # Log signup bonus credit transaction for new OAuth users
+            CreditService.initialize_new_user_credits(user)
             db.session.commit()
             
             logger.info(f"New OAuth user created: {unique_username} via {provider}")

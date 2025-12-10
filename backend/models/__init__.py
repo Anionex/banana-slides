@@ -23,6 +23,7 @@ from .user_template import UserTemplate
 from .page_image_version import PageImageVersion
 from .material import Material
 from .reference_file import ReferenceFile
+from .credit_transaction import CreditTransaction
 
-__all__ = ['db', 'User', 'UserSettings', 'VerificationCode', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile']
+__all__ = ['db', 'User', 'UserSettings', 'VerificationCode', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'CreditTransaction']
 

@@ -6,7 +6,8 @@ import uuid
 from flask import Blueprint, request, jsonify, g, make_response
 from models import db, Project, Page, Task, ReferenceFile
 from utils import success_response, error_response, not_found, bad_request
-from utils.decorators import optional_auth
+from utils.decorators import optional_auth, login_required
+from services.credit_service import CreditService
 from services import AIService, ProjectContext, get_ai_service
 from services.task_manager import task_manager, generate_descriptions_task, generate_images_task
 import json
@@ -675,10 +676,13 @@ def generate_descriptions(project_id):
 
 
 @project_bp.route('/<project_id>/generate/images', methods=['POST'])
-@optional_auth
+@login_required
 def generate_images(project_id):
     """
     POST /api/projects/{project_id}/generate/images - Generate images
+    
+    Requires authentication and sufficient credits (10 credits per image).
+    Admin users bypass credit check.
     
     Request body:
     {
@@ -692,17 +696,21 @@ def generate_images(project_id):
         if not project:
             return not_found('Project')
         
-        # if project.status not in ['DESCRIPTIONS_GENERATED', 'OUTLINE_GENERATED']:
-        #     return bad_request("Project must have descriptions generated first")
-        
         # IMPORTANT: Expire cached objects to ensure fresh data
         db.session.expire_all()
         
-        # Get pages
+        # Get pages first to calculate required credits
         pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         
         if not pages:
             return bad_request("No pages found for project")
+        
+        # Check credits for all pages
+        required_credits = len(pages) * CreditService.COST_PER_IMAGE
+        if not CreditService.check_credits(g.current_user, required_credits):
+            return error_response('INSUFFICIENT_CREDITS', 
+                f'Insufficient credits. Required: {required_credits} (for {len(pages)} images), Available: {g.current_user.credits}', 
+                402)
         
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
@@ -737,7 +745,7 @@ def generate_images(project_id):
         # Get app instance for background task
         app = current_app._get_current_object()
         
-        # Submit background task
+        # Submit background task (pass user_id for credit deduction)
         task_manager.submit_task(
             task.id,
             generate_images_task,
@@ -750,7 +758,8 @@ def generate_images(project_id):
             current_app.config['DEFAULT_ASPECT_RATIO'],
             current_app.config['DEFAULT_RESOLUTION'],
             app,
-            project.extra_requirements
+            project.extra_requirements,
+            g.current_user.id  # Pass user_id for credit deduction
         )
         
         # Update project status

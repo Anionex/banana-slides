@@ -25,6 +25,9 @@ class User(db.Model):
     oauth_provider = db.Column(db.String(20), nullable=True)  # google/github
     oauth_id = db.Column(db.String(100), nullable=True)
     
+    # Credits system
+    credits = db.Column(db.Integer, default=50, nullable=False)  # Initial 50 credits for new users
+    
     # Timestamps
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -32,6 +35,7 @@ class User(db.Model):
     # Relationships
     projects = db.relationship('Project', back_populates='user', lazy='dynamic')
     settings = db.relationship('UserSettings', back_populates='user', uselist=False, cascade='all, delete-orphan')
+    credit_transactions = db.relationship('CreditTransaction', back_populates='user', lazy='dynamic', cascade='all, delete-orphan')
     
     def set_password(self, password):
         """Hash and set the user's password"""
@@ -50,6 +54,7 @@ class User(db.Model):
             'username': self.username,
             'avatar_url': self.avatar_url,
             'role': self.role,
+            'credits': self.credits,
             'oauth_provider': self.oauth_provider,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }

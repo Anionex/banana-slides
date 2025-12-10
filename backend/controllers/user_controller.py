@@ -240,3 +240,48 @@ def reset_setting(key):
         db.session.rollback()
         logger.error(f"Failed to reset setting: {e}")
         return jsonify({'error': 'Failed to reset setting'}), 500
+
+
+# ============== Credits Routes ==============
+
+@user_bp.route('/credits', methods=['GET'])
+@login_required
+def get_credits():
+    """
+    Get current user's credit balance
+    """
+    from services.credit_service import CreditService
+    
+    return jsonify({
+        'credits': CreditService.get_balance(g.current_user),
+        'cost_per_image': CreditService.COST_PER_IMAGE,
+    }), 200
+
+
+@user_bp.route('/credits/history', methods=['GET'])
+@login_required
+def get_credit_history():
+    """
+    Get current user's credit transaction history
+    
+    Query params:
+        limit: Number of transactions to return (default: 50, max: 100)
+        offset: Offset for pagination (default: 0)
+    """
+    from services.credit_service import CreditService
+    
+    limit = min(int(request.args.get('limit', 50)), 100)
+    offset = int(request.args.get('offset', 0))
+    
+    transactions = CreditService.get_transaction_history(
+        g.current_user, 
+        limit=limit, 
+        offset=offset
+    )
+    
+    return jsonify({
+        'transactions': [tx.to_dict() for tx in transactions],
+        'limit': limit,
+        'offset': offset,
+        'current_balance': CreditService.get_balance(g.current_user),
+    }), 200

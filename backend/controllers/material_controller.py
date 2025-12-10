@@ -1,10 +1,11 @@
 """
 Material Controller - handles standalone material image generation
 """
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
-from utils.decorators import optional_auth
+from utils.decorators import optional_auth, login_required
+from services.credit_service import CreditService
 from services import AIService, FileService, get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
 from pathlib import Path
@@ -141,10 +142,13 @@ def _save_material_file(file, target_project_id: Optional[str]):
 
 
 @material_bp.route('/<project_id>/materials/generate', methods=['POST'])
-@optional_auth
+@login_required
 def generate_material_image(project_id):
     """
     POST /api/projects/{project_id}/materials/generate - Generate a standalone material image
+    
+    Requires authentication and sufficient credits (10 credits per image).
+    Admin users bypass credit check.
 
     Supports multipart/form-data:
     - prompt: Text-to-image prompt (passed directly to the model without modification)
@@ -154,6 +158,12 @@ def generate_material_image(project_id):
     Note: project_id can be 'none' to generate global materials (not associated with any project)
     """
     try:
+        # Check credits first
+        if not CreditService.check_credits(g.current_user):
+            return error_response('INSUFFICIENT_CREDITS', 
+                f'Insufficient credits. Required: {CreditService.COST_PER_IMAGE}, Available: {g.current_user.credits}', 
+                402)
+        
         # 支持 'none' 作为特殊值，表示生成全局素材
         if project_id != 'none':
             project = Project.query.get(project_id)
@@ -234,7 +244,7 @@ def generate_material_image(project_id):
             # Get app instance for background task
             app = current_app._get_current_object()
 
-            # Submit background task
+            # Submit background task (pass user_id for credit deduction)
             task_manager.submit_task(
                 task.id,
                 generate_material_image_task,
@@ -247,7 +257,8 @@ def generate_material_image(project_id):
                 current_app.config['DEFAULT_ASPECT_RATIO'],
                 current_app.config['DEFAULT_RESOLUTION'],
                 temp_dir_str,
-                app
+                app,
+                g.current_user.id  # Pass user_id for credit deduction
             )
 
             # Return task_id immediately (不再清理temp_dir，由后台任务清理)

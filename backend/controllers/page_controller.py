@@ -2,10 +2,11 @@
 Page Controller - handles page-related endpoints
 """
 import logging
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
-from utils.decorators import optional_auth
+from utils.decorators import optional_auth, login_required
+from services.credit_service import CreditService
 from services import AIService, FileService, ProjectContext, get_ai_service
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
 from datetime import datetime
@@ -273,10 +274,13 @@ def generate_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
-@optional_auth
+@login_required
 def generate_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/image - Generate single page image
+    
+    Requires authentication and sufficient credits (10 credits per image).
+    Admin users bypass credit check.
     
     Request body:
     {
@@ -285,6 +289,12 @@ def generate_page_image(project_id, page_id):
     }
     """
     try:
+        # Check credits first
+        if not CreditService.check_credits(g.current_user):
+            return error_response('INSUFFICIENT_CREDITS', 
+                f'Insufficient credits. Required: {CreditService.COST_PER_IMAGE}, Available: {g.current_user.credits}', 
+                402)
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
@@ -412,7 +422,7 @@ def generate_page_image(project_id, page_id):
         # Get app instance for background task
         app = current_app._get_current_object()
         
-        # Submit background task
+        # Submit background task (pass user_id for credit deduction)
         task_manager.submit_task(
             task.id,
             generate_single_page_image_task,
@@ -425,7 +435,8 @@ def generate_page_image(project_id, page_id):
             current_app.config['DEFAULT_ASPECT_RATIO'],
             current_app.config['DEFAULT_RESOLUTION'],
             app,
-            project.extra_requirements
+            project.extra_requirements,
+            g.current_user.id  # Pass user_id for credit deduction
         )
         
         # Return task_id immediately
@@ -441,10 +452,13 @@ def generate_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/edit/image', methods=['POST'])
-@optional_auth
+@login_required
 def edit_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/edit/image - Edit page image
+    
+    Requires authentication and sufficient credits (10 credits per image).
+    Admin users bypass credit check.
     
     Request body (JSON or multipart/form-data):
     {
@@ -463,6 +477,12 @@ def edit_page_image(project_id, page_id):
     - context_images: file uploads (multiple files with key "context_images")
     """
     try:
+        # Check credits first
+        if not CreditService.check_credits(g.current_user):
+            return error_response('INSUFFICIENT_CREDITS', 
+                f'Insufficient credits. Required: {CreditService.COST_PER_IMAGE}, Available: {g.current_user.credits}', 
+                402)
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
@@ -585,7 +605,7 @@ def edit_page_image(project_id, page_id):
         # Get app instance for background task
         app = current_app._get_current_object()
         
-        # Submit background task
+        # Submit background task (pass user_id for credit deduction)
         task_manager.submit_task(
             task.id,
             edit_page_image_task,
@@ -599,7 +619,8 @@ def edit_page_image(project_id, page_id):
             original_description,
             additional_ref_images if additional_ref_images else None,
             str(temp_dir) if temp_dir else None,
-            app
+            app,
+            g.current_user.id  # Pass user_id for credit deduction
         )
         
         # Return task_id immediately

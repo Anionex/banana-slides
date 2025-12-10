@@ -7,7 +7,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any
 from datetime import datetime
-from models import db, Task, Page, Material
+from models import db, Task, Page, Material, User
+from models.credit_transaction import CreditTransaction
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -195,12 +196,14 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         outline: List[Dict], use_template: bool = True, 
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
-                        extra_requirements: str = None):
+                        extra_requirements: str = None,
+                        user_id: str = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
     
     Note: app instance MUST be passed from the request context
+    Credits are deducted per successful image generation.
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -341,6 +344,19 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             page.generated_image_path = image_path
                             page.status = 'COMPLETED'
                             completed += 1
+                            
+                            # Deduct credits for successful generation
+                            if user_id:
+                                user = User.query.get(user_id)
+                                if user and user.role != 'admin':
+                                    from services.credit_service import CreditService
+                                    CreditService.deduct_credits(
+                                        user, 
+                                        CreditService.COST_PER_IMAGE,
+                                        'IMAGE_GENERATION',
+                                        f'Batch image generation - page {page_id}',
+                                        page_id
+                                    )
                         
                         db.session.commit()
                     
@@ -381,11 +397,13 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                                     ai_service, file_service, outline: List[Dict],
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
-                                    extra_requirements: str = None):
+                                    extra_requirements: str = None,
+                                    user_id: str = None):
     """
     Background task for generating a single page image
     
     Note: app instance MUST be passed from the request context
+    Credits are deducted after successful image generation.
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -502,6 +520,20 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             })
             db.session.commit()
             
+            # Deduct credits for successful generation
+            if user_id:
+                user = User.query.get(user_id)
+                if user and user.role != 'admin':
+                    from services.credit_service import CreditService
+                    CreditService.deduct_credits(
+                        user,
+                        CreditService.COST_PER_IMAGE,
+                        'IMAGE_GENERATION',
+                        f'Single page image generation - page {page_id}',
+                        page_id
+                    )
+                    db.session.commit()
+            
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
         
         except Exception as e:
@@ -529,11 +561,13 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
                          aspect_ratio: str = "16:9", resolution: str = "2K",
                          original_description: str = None,
                          additional_ref_images: List[str] = None,
-                         temp_dir: str = None, app=None):
+                         temp_dir: str = None, app=None,
+                         user_id: str = None):
     """
     Background task for editing a page image
     
     Note: app instance MUST be passed from the request context
+    Credits are deducted after successful image editing.
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -625,6 +659,20 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             })
             db.session.commit()
             
+            # Deduct credits for successful edit
+            if user_id:
+                user = User.query.get(user_id)
+                if user and user.role != 'admin':
+                    from services.credit_service import CreditService
+                    CreditService.deduct_credits(
+                        user,
+                        CreditService.COST_PER_IMAGE,
+                        'IMAGE_GENERATION',
+                        f'Page image edit - page {page_id}',
+                        page_id
+                    )
+                    db.session.commit()
+            
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
         
         except Exception as e:
@@ -661,7 +709,8 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                                  additional_ref_images: List[str] = None,
                                  aspect_ratio: str = "16:9",
                                  resolution: str = "2K",
-                                 temp_dir: str = None, app=None):
+                                 temp_dir: str = None, app=None,
+                                 user_id: str = None):
     """
     Background task for generating a material image
     复用核心的generate_image逻辑，但保存到Material表而不是Page表
@@ -669,6 +718,7 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
     Note: app instance MUST be passed from the request context
     project_id can be None for global materials (but Task model requires a project_id,
     so we use a special value 'global' for task tracking)
+    Credits are deducted after successful image generation.
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -727,6 +777,20 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 "image_url": image_url
             })
             db.session.commit()
+            
+            # Deduct credits for successful generation
+            if user_id:
+                user = User.query.get(user_id)
+                if user and user.role != 'admin':
+                    from services.credit_service import CreditService
+                    CreditService.deduct_credits(
+                        user,
+                        CreditService.COST_PER_IMAGE,
+                        'IMAGE_GENERATION',
+                        f'Material image generation',
+                        material.id
+                    )
+                    db.session.commit()
             
             logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} generated")
         
