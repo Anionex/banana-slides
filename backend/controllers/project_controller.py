@@ -250,8 +250,18 @@ def _check_project_access(project):
     Returns True if access is allowed, False otherwise.
     """
     if g.current_user:
+        # Admin can access all projects
+        if g.current_user.role == 'admin':
+            return True
         # Logged-in user: must own the project
-        return project.user_id == g.current_user.id
+        if project.user_id == g.current_user.id:
+            return True
+        # Legacy: project has no user_id but user has matching session
+        # (for projects created before login, then user logged in)
+        session_id = request.cookies.get('guest_session_id')
+        if project.user_id is None and session_id and project.session_id == session_id:
+            return True
+        return False
     else:
         # Guest: project must match their session_id
         session_id = request.cookies.get('guest_session_id')
