@@ -156,7 +156,7 @@ class FileService:
         Returns:
             True if deleted successfully
         """
-        filepath = self.upload_folder / Path(image_path).as_posix()
+        filepath = self.upload_folder / image_path.replace('\\', '/')
         if filepath.exists() and filepath.is_file():
             filepath.unlink()
             return True
@@ -189,7 +189,7 @@ class FileService:
         Returns:
             Absolute file path
         """
-        return str(self.upload_folder / Path(relative_path).as_posix())
+        return str(self.upload_folder / relative_path.replace('\\', '/'))
     
     def delete_template(self, project_id: str) -> bool:
         """
@@ -250,7 +250,7 @@ class FileService:
     
     def file_exists(self, relative_path: str) -> bool:
         """Check if file exists"""
-        filepath = self.upload_folder / Path(relative_path).as_posix()
+        filepath = self.upload_folder / relative_path.replace('\\', '/')
         return filepath.exists() and filepath.is_file()
     
     def get_template_path(self, project_id: str) -> Optional[str]:
