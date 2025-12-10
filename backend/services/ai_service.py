@@ -10,8 +10,6 @@ import logging
 import requests
 from typing import List, Dict, Optional, Union
 from textwrap import dedent
-from google import genai
-from google.genai import types
 from PIL import Image
 from .prompts import (
     get_outline_generation_prompt,
@@ -24,6 +22,7 @@ from .prompts import (
     get_outline_refinement_prompt,
     get_descriptions_refinement_prompt
 )
+from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -65,19 +64,29 @@ class ProjectContext:
 
 
 class AIService:
-    """Service for AI model interactions using Gemini"""
+    """Service for AI model interactions using pluggable providers"""
     
-    def __init__(self, api_key: str, api_base: str = None):
-        """Initialize AI service with API credentials"""
-        # Always create HttpOptions, matching gemini_genai.py behavior
-        self.client = genai.Client(
-            http_options=types.HttpOptions(
-                base_url=api_base
-            ),
-            api_key=api_key
-        )
+    def __init__(self, api_key: str = None, api_base: str = None,
+                 text_provider: TextProvider = None, image_provider: ImageProvider = None):
+        """
+        Initialize AI service with providers
+        
+        Args:
+            api_key: API key (used if providers not specified)
+            api_base: API base URL (used if providers not specified)
+            text_provider: Optional pre-configured TextProvider
+            image_provider: Optional pre-configured ImageProvider
+        """
         self.text_model = "gemini-2.5-flash"
         self.image_model = "gemini-3-pro-image-preview"
+        
+        # Use provided providers or create from factory
+        self.text_provider = text_provider or get_text_provider(
+            api_key=api_key, api_base=api_base, model=self.text_model
+        )
+        self.image_provider = image_provider or get_image_provider(
+            api_key=api_key, api_base=api_base, model=self.image_model
+        )
     
     @staticmethod
     def extract_image_urls_from_markdown(text: str) -> List[str]:
@@ -190,15 +199,9 @@ class AIService:
         """
         outline_prompt = get_outline_generation_prompt(project_context)
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=outline_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(outline_prompt, thinking_budget=1000)
         
-        outline_text = response.text.strip().strip("```json").strip("```").strip()
+        outline_text = response_text.strip().strip("```json").strip("```").strip()
         outline = json.loads(outline_text)
         return outline
     
@@ -215,15 +218,9 @@ class AIService:
         """
         parse_prompt = get_outline_parsing_prompt(project_context)
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=parse_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(parse_prompt, thinking_budget=1000)
         
-        outline_json = response.text.strip().strip("```json").strip("```").strip()
+        outline_json = response_text.strip().strip("```json").strip("```").strip()
         outline = json.loads(outline_json)
         return outline
     
@@ -270,16 +267,9 @@ class AIService:
             part_info=part_info
         )
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=desc_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=1000)
         
-        page_desc = response.text
-        return dedent(page_desc)
+        return dedent(response_text)
     
     def generate_outline_text(self, outline: List[Dict]) -> str:
         """
@@ -340,14 +330,14 @@ class AIService:
                       aspect_ratio: str = "16:9", resolution: str = "2K",
                       additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
         """
-        Generate image using Gemini image model
+        Generate image using configured image provider
         Based on gemini_genai.py gen_image()
         
         Args:
             prompt: Image generation prompt
             ref_image_path: Path to reference image (optional). If None, will generate based on prompt only.
-            aspect_ratio: Image aspect ratio (currently not used, kept for compatibility)
-            resolution: Image resolution (currently not used, kept for compatibility)
+            aspect_ratio: Image aspect ratio
+            resolution: Image resolution (note: OpenAI format only supports 1K)
             additional_ref_images: 额外的参考图片列表，可以是本地路径、URL 或 PIL Image 对象
         
         Returns:
@@ -362,87 +352,54 @@ class AIService:
                 logger.debug(f"Additional reference images: {len(additional_ref_images)}")
             logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
 
-            # 构建 contents 列表，包含 prompt 和所有参考图片
-            # 约定：如果有主参考图，则放在第一个索引，其后是文本 prompt，再后是其他参考图
-            contents = []
+            # 构建参考图片列表
+            ref_images = []
             
-            # 添加主参考图片（如果提供了路径，放在第一个位置）
+            # 添加主参考图片（如果提供了路径）
             if ref_image_path:
                 if not os.path.exists(ref_image_path):
                     raise FileNotFoundError(f"Reference image not found: {ref_image_path}")
                 main_ref_image = Image.open(ref_image_path)
-                contents.append(main_ref_image)
-            
-            # 文本 prompt 紧跟在主参考图之后（或成为第一个元素）
-            contents.append(prompt)
+                ref_images.append(main_ref_image)
             
             # 添加额外的参考图片
             if additional_ref_images:
                 for ref_img in additional_ref_images:
                     if isinstance(ref_img, Image.Image):
                         # 已经是 PIL Image 对象
-                        contents.append(ref_img)
+                        ref_images.append(ref_img)
                     elif isinstance(ref_img, str):
                         # 可能是本地路径或 URL
                         if os.path.exists(ref_img):
                             # 本地路径
-                            contents.append(Image.open(ref_img))
+                            ref_images.append(Image.open(ref_img))
                         elif ref_img.startswith('http://') or ref_img.startswith('https://'):
                             # URL，需要下载
                             downloaded_img = self.download_image_from_url(ref_img)
                             if downloaded_img:
-                                contents.append(downloaded_img)
+                                ref_images.append(downloaded_img)
                             else:
                                 logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
                         elif ref_img.startswith('/files/mineru/'):
                             # MinerU 本地文件路径，需要转换为文件系统路径（支持前缀匹配）
                             local_path = self._convert_mineru_path_to_local(ref_img)
                             if local_path and os.path.exists(local_path):
-                                contents.append(Image.open(local_path))
+                                ref_images.append(Image.open(local_path))
                                 logger.debug(f"Loaded MinerU image from local path: {local_path}")
                             else:
                                 logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
                         else:
                             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
             
-            logger.debug(f"Calling Gemini API for image generation with {len(contents) - 1} reference images...")
-            response = self.client.models.generate_content(
-                model=self.image_model,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_modalities=['TEXT', 'IMAGE'],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=aspect_ratio,
-                        image_size=resolution
-                    ),
-                )
+            logger.debug(f"Calling image provider for generation with {len(ref_images)} reference images...")
+            
+            # 使用 image_provider 生成图片
+            return self.image_provider.generate_image(
+                prompt=prompt,
+                ref_images=ref_images if ref_images else None,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution
             )
-            logger.debug("Gemini API call completed")
-            
-            logger.debug("API response received, checking parts...")
-            for i, part in enumerate(response.parts):
-                if part.text is not None:   
-                    logger.debug(f"Part {i}: TEXT - {part.text[:100]}")
-                else:
-                    # Try to get image from part
-                    try:
-                        logger.debug(f"Part {i}: Attempting to extract image...")
-                        image = part.as_image()
-                        if image:
-                            # Don't check image.size - it might not be a standard PIL Image yet
-                            logger.debug(f"Successfully extracted image from part {i}")
-                            return image
-                    except Exception as e:
-                        logger.debug(f"Part {i}: Failed to extract image - {str(e)}")
-            
-            # If we get here, no image was found in the response
-            error_msg = "No image found in API response. "
-            if response.parts:
-                error_msg += f"Response had {len(response.parts)} parts but none contained valid images."
-            else:
-                error_msg += "Response had no parts."
-            
-            raise ValueError(error_msg)
             
         except Exception as e:
             error_detail = f"Error generating image: {type(e).__name__}: {str(e)}"
@@ -487,15 +444,9 @@ class AIService:
         """
         parse_prompt = get_description_to_outline_prompt(project_context)
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=parse_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(parse_prompt, thinking_budget=1000)
         
-        outline_json = response.text.strip().strip("```json").strip("```").strip()
+        outline_json = response_text.strip().strip("```json").strip("```").strip()
         outline = json.loads(outline_json)
         return outline
     
@@ -512,15 +463,9 @@ class AIService:
         """
         split_prompt = get_description_split_prompt(project_context, outline)
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=split_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(split_prompt, thinking_budget=1000)
         
-        descriptions_json = response.text.strip().strip("```json").strip("```").strip()
+        descriptions_json = response_text.strip().strip("```json").strip("```").strip()
         descriptions = json.loads(descriptions_json)
         
         # 确保返回的是字符串列表
@@ -551,15 +496,9 @@ class AIService:
             previous_requirements=previous_requirements
         )
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=refinement_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(refinement_prompt, thinking_budget=1000)
         
-        outline_json = response.text.strip().strip("```json").strip("```").strip()
+        outline_json = response_text.strip().strip("```json").strip("```").strip()
         outline = json.loads(outline_json)
         return outline
     
@@ -588,15 +527,9 @@ class AIService:
             previous_requirements=previous_requirements
         )
         
-        response = self.client.models.generate_content(
-            model=self.text_model,
-            contents=refinement_prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=1000),
-            ),
-        )
+        response_text = self.text_provider.generate_text(refinement_prompt, thinking_budget=1000)
         
-        descriptions_json = response.text.strip().strip("```json").strip("```").strip()
+        descriptions_json = response_text.strip().strip("```json").strip("```").strip()
         descriptions = json.loads(descriptions_json)
         
         # 确保返回的是字符串列表
