@@ -66,27 +66,20 @@ class ProjectContext:
 class AIService:
     """Service for AI model interactions using pluggable providers"""
     
-    def __init__(self, api_key: str = None, api_base: str = None,
-                 text_provider: TextProvider = None, image_provider: ImageProvider = None):
+    def __init__(self, text_provider: TextProvider = None, image_provider: ImageProvider = None):
         """
         Initialize AI service with providers
         
         Args:
-            api_key: API key (used if providers not specified)
-            api_base: API base URL (used if providers not specified)
-            text_provider: Optional pre-configured TextProvider
-            image_provider: Optional pre-configured ImageProvider
+            text_provider: Optional pre-configured TextProvider. If None, created from factory.
+            image_provider: Optional pre-configured ImageProvider. If None, created from factory.
         """
         self.text_model = "gemini-2.5-flash"
         self.image_model = "gemini-3-pro-image-preview"
         
-        # Use provided providers or create from factory
-        self.text_provider = text_provider or get_text_provider(
-            api_key=api_key, api_base=api_base, model=self.text_model
-        )
-        self.image_provider = image_provider or get_image_provider(
-            api_key=api_key, api_base=api_base, model=self.image_model
-        )
+        # Use provided providers or create from factory based on AI_PROVIDER_FORMAT env var
+        self.text_provider = text_provider or get_text_provider(model=self.text_model)
+        self.image_provider = image_provider or get_image_provider(model=self.image_model)
     
     @staticmethod
     def extract_image_urls_from_markdown(text: str) -> List[str]:

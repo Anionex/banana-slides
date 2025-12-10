@@ -20,4 +20,3 @@ class TextProvider(ABC):
             Generated text content
         """
         pass
-

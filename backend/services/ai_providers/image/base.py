@@ -30,4 +30,3 @@ class ImageProvider(ABC):
             Generated PIL Image object, or None if failed
         """
         pass
-

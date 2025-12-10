@@ -12,12 +12,12 @@ Environment Variables:
         GOOGLE_API_BASE: API base URL (e.g., https://aihubmix.com/gemini)
     
     For OpenAI format:
-        OPENAI_API_KEY: API key (required, GOOGLE_API_KEY cannot be used)
+        OPENAI_API_KEY: API key
         OPENAI_API_BASE: API base URL (e.g., https://aihubmix.com/v1)
 """
 import os
 import logging
-from typing import Optional
+from typing import Tuple, Type
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider
 from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider
@@ -41,60 +41,64 @@ def get_provider_format() -> str:
     return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
 
 
-def get_text_provider(
-    api_key: Optional[str] = None,
-    api_base: Optional[str] = None,
-    model: str = "gemini-2.5-flash"
-) -> TextProvider:
+def _get_provider_config() -> Tuple[str, str, str]:
+    """
+    Get provider configuration based on AI_PROVIDER_FORMAT
+    
+    Returns:
+        Tuple of (provider_format, api_key, api_base)
+        
+    Raises:
+        ValueError: If required API key is not configured
+    """
+    provider_format = get_provider_format()
+    
+    if provider_format == 'openai':
+        api_key = os.getenv('OPENAI_API_KEY')
+        api_base = os.getenv('OPENAI_API_BASE')
+        
+        if not api_key:
+            raise ValueError(
+                "OPENAI_API_KEY environment variable is required when AI_PROVIDER_FORMAT=openai. "
+                "Note: GOOGLE_API_KEY cannot be used for OpenAI format."
+            )
+    else:
+        # Gemini format (default)
+        provider_format = 'gemini'
+        api_key = os.getenv('GOOGLE_API_KEY')
+        api_base = os.getenv('GOOGLE_API_BASE')
+        
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable is required")
+    
+    return provider_format, api_key, api_base
+
+
+def get_text_provider(model: str = "gemini-2.5-flash") -> TextProvider:
     """
     Factory function to get text generation provider based on configuration
     
     Args:
-        api_key: Override API key (uses env var if not provided)
-        api_base: Override API base URL (uses env var if not provided)
         model: Model name to use
         
     Returns:
         TextProvider instance (GenAITextProvider or OpenAITextProvider)
     """
-    provider_format = get_provider_format()
+    provider_format, api_key, api_base = _get_provider_config()
     
     if provider_format == 'openai':
-        # OpenAI format
-        key = api_key or os.getenv('OPENAI_API_KEY')
-        base = api_base or os.getenv('OPENAI_API_BASE')
-        
-        if not key:
-            raise ValueError(
-                "OPENAI_API_KEY environment variable is required when AI_PROVIDER_FORMAT=openai. "
-                "Note: GOOGLE_API_KEY cannot be used for OpenAI format."
-            )
-        
         logger.info(f"Using OpenAI format for text generation, model: {model}")
-        return OpenAITextProvider(api_key=key, api_base=base, model=model)
+        return OpenAITextProvider(api_key=api_key, api_base=api_base, model=model)
     else:
-        # Gemini format (default)
-        key = api_key or os.getenv('GOOGLE_API_KEY')
-        base = api_base or os.getenv('GOOGLE_API_BASE')
-        
-        if not key:
-            raise ValueError("GOOGLE_API_KEY environment variable is required")
-        
         logger.info(f"Using Gemini format for text generation, model: {model}")
-        return GenAITextProvider(api_key=key, api_base=base, model=model)
+        return GenAITextProvider(api_key=api_key, api_base=api_base, model=model)
 
 
-def get_image_provider(
-    api_key: Optional[str] = None,
-    api_base: Optional[str] = None,
-    model: str = "gemini-3-pro-image-preview"
-) -> ImageProvider:
+def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
     """
     Factory function to get image generation provider based on configuration
     
     Args:
-        api_key: Override API key (uses env var if not provided)
-        api_base: Override API base URL (uses env var if not provided)
         model: Model name to use
         
     Returns:
@@ -102,32 +106,14 @@ def get_image_provider(
         
     Note:
         OpenAI format does NOT support 4K resolution, only 1K is available.
-        If you need higher resolution images, use GenAI format.
+        If you need higher resolution images, use Gemini format.
     """
-    provider_format = get_provider_format()
+    provider_format, api_key, api_base = _get_provider_config()
     
     if provider_format == 'openai':
-        # OpenAI format
-        key = api_key or os.getenv('OPENAI_API_KEY')
-        base = api_base or os.getenv('OPENAI_API_BASE')
-        
-        if not key:
-            raise ValueError(
-                "OPENAI_API_KEY environment variable is required when AI_PROVIDER_FORMAT=openai. "
-                "Note: GOOGLE_API_KEY cannot be used for OpenAI format."
-            )
-        
         logger.info(f"Using OpenAI format for image generation, model: {model}")
         logger.warning("OpenAI format only supports 1K resolution, 4K is not available")
-        return OpenAIImageProvider(api_key=key, api_base=base, model=model)
+        return OpenAIImageProvider(api_key=api_key, api_base=api_base, model=model)
     else:
-        # Gemini format (default)
-        key = api_key or os.getenv('GOOGLE_API_KEY')
-        base = api_base or os.getenv('GOOGLE_API_BASE')
-        
-        if not key:
-            raise ValueError("GOOGLE_API_KEY environment variable is required")
-        
         logger.info(f"Using Gemini format for image generation, model: {model}")
-        return GenAIImageProvider(api_key=key, api_base=base, model=model)
-
+        return GenAIImageProvider(api_key=api_key, api_base=api_base, model=model)

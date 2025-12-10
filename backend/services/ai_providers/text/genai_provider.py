@@ -22,7 +22,7 @@ class GenAITextProvider(TextProvider):
             model: Model name to use
         """
         self.client = genai.Client(
-            http_options=types.HttpOptions(base_url=api_base),
+            http_options=types.HttpOptions(base_url=api_base) if api_base else None,
             api_key=api_key
         )
         self.model = model
@@ -46,4 +46,3 @@ class GenAITextProvider(TextProvider):
             ),
         )
         return response.text
-

@@ -44,4 +44,3 @@ class OpenAITextProvider(TextProvider):
             ]
         )
         return response.choices[0].message.content
-
