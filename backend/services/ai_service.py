@@ -28,6 +28,35 @@ from .prompts import (
 logger = logging.getLogger(__name__)
 
 
+def fix_json_escape_sequences(json_str: str) -> str:
+    """
+    修复 JSON 字符串中的无效转义序列
+    AI 生成的 JSON 可能包含无效的转义字符如 \\x, \\c 等
+    
+    Args:
+        json_str: 原始 JSON 字符串
+        
+    Returns:
+        修复后的 JSON 字符串
+    """
+    # 替换无效的转义序列
+    # 有效的 JSON 转义: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+    # 匹配反斜杠后面跟着非法字符的情况
+    def replace_invalid_escape(match):
+        char = match.group(1)
+        # 合法的转义字符
+        valid_escapes = {'"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'}
+        if char in valid_escapes:
+            return match.group(0)  # 保持原样
+        else:
+            # 将无效的 \x 替换为 \\x（转义反斜杠）或直接移除反斜杠
+            return char  # 移除反斜杠，只保留后面的字符
+    
+    # 匹配 \ 后面的任意字符
+    fixed = re.sub(r'\\(.)', replace_invalid_escape, json_str)
+    return fixed
+
+
 class ProjectContext:
     """项目上下文数据类，统一管理 AI 需要的所有项目信息"""
     
@@ -199,7 +228,7 @@ class AIService:
         )
         
         outline_text = response.text.strip().strip("```json").strip("```").strip()
-        outline = json.loads(outline_text)
+        outline = json.loads(fix_json_escape_sequences(outline_text))
         return outline
     
     def parse_outline_text(self, project_context: ProjectContext) -> List[Dict]:
@@ -224,7 +253,7 @@ class AIService:
         )
         
         outline_json = response.text.strip().strip("```json").strip("```").strip()
-        outline = json.loads(outline_json)
+        outline = json.loads(fix_json_escape_sequences(outline_json))
         return outline
     
     def flatten_outline(self, outline: List[Dict]) -> List[Dict]:
@@ -503,7 +532,7 @@ class AIService:
         )
         
         outline_json = response.text.strip().strip("```json").strip("```").strip()
-        outline = json.loads(outline_json)
+        outline = json.loads(fix_json_escape_sequences(outline_json))
         return outline
     
     def parse_description_to_page_descriptions(self, project_context: ProjectContext, outline: List[Dict]) -> List[str]:
@@ -528,7 +557,7 @@ class AIService:
         )
         
         descriptions_json = response.text.strip().strip("```json").strip("```").strip()
-        descriptions = json.loads(descriptions_json)
+        descriptions = json.loads(fix_json_escape_sequences(descriptions_json))
         
         # 确保返回的是字符串列表
         if isinstance(descriptions, list):
@@ -567,7 +596,7 @@ class AIService:
         )
         
         outline_json = response.text.strip().strip("```json").strip("```").strip()
-        outline = json.loads(outline_json)
+        outline = json.loads(fix_json_escape_sequences(outline_json))
         return outline
     
     def refine_descriptions(self, current_descriptions: List[Dict], user_requirement: str,
@@ -604,7 +633,7 @@ class AIService:
         )
         
         descriptions_json = response.text.strip().strip("```json").strip("```").strip()
-        descriptions = json.loads(descriptions_json)
+        descriptions = json.loads(fix_json_escape_sequences(descriptions_json))
         
         # 确保返回的是字符串列表
         if isinstance(descriptions, list):
