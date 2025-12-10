@@ -626,7 +626,7 @@ class FileParserService:
                 buffered = io.BytesIO()
                 if image.mode in ('RGBA', 'LA', 'P'):
                     image = image.convert('RGB')
-                image.save(buffered, format="JPEG", quality=85)
+                image.save(buffered, format="JPEG", quality=95)
                 base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
                 
                 response = client.chat.completions.create(
