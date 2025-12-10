@@ -15,8 +15,11 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "reportlab>=4.1.0",
     "werkzeug>=3.0.1",
-    "markitdown[all]"
+    "markitdown[all]",
+    "flask-jwt-extended>=4.7.1",
+    "authlib>=1.6.5",
+    "cryptography>=46.0.3",
 ]
 
 [tool.uv]
-index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+index-url = "https://pypi.org/simple/"

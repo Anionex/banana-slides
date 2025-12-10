@@ -14,10 +14,13 @@ load_dotenv()
 
 from flask import Flask
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from models import db
 from config import Config
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
+from controllers.auth_controller import auth_bp, init_oauth
+from controllers.user_controller import user_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp
 
 
@@ -90,7 +93,15 @@ def create_app():
     db.init_app(app)
     CORS(app, origins=cors_origins)
     
+    # Initialize JWT
+    jwt = JWTManager(app)
+    
+    # Initialize OAuth
+    init_oauth(app)
+    
     # Register blueprints
+    app.register_blueprint(auth_bp)  # /api/auth
+    app.register_blueprint(user_bp)  # /api/user
     app.register_blueprint(project_bp)
     app.register_blueprint(page_bp)
     app.register_blueprint(template_bp)

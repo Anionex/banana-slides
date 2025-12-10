@@ -13,6 +13,20 @@ export const apiClient = axios.create({
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    // 自动注入 JWT token
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      try {
+        const { state } = JSON.parse(authStorage);
+        if (state?.accessToken) {
+          config.headers = config.headers || {};
+          config.headers['Authorization'] = `Bearer ${state.accessToken}`;
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置
     // 浏览器会自动添加正确的 Content-Type 和 boundary
     if (config.data instanceof FormData) {
@@ -24,7 +38,7 @@ apiClient.interceptors.request.use(
       // 对于非 FormData 请求，默认设置为 JSON
       config.headers['Content-Type'] = 'application/json';
     }
-    
+
     return config;
   },
   (error) => {
@@ -63,15 +77,15 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
   }
   // 使用相对路径（确保以 / 开头）
   let url = path.startsWith('/') ? path : '/' + path;
-  
+
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
-    const ts = typeof timestamp === 'string' 
-      ? new Date(timestamp).getTime() 
+    const ts = typeof timestamp === 'string'
+      ? new Date(timestamp).getTime()
       : timestamp;
     url += `?v=${ts}`;
   }
-  
+
   return url;
 };
 

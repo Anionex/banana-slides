@@ -1,6 +1,6 @@
 import React from 'react';
 
-const GITHUB_REPO_URL = 'https://github.com/Anionex/banana-slides';
+const GITHUB_REPO_URL = 'https://github.com/changjiong/banana-slides';
 
 export const GithubLink: React.FC = () => {
   return (

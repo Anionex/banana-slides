@@ -65,6 +65,24 @@ class Config:
     
     # CORS配置
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    
+    # JWT配置
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', os.getenv('SECRET_KEY', 'jwt-secret-change-this'))
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(seconds=int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', '3600')))  # 1 hour
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(seconds=int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', '2592000')))  # 30 days
+    JWT_TOKEN_LOCATION = ['headers']
+    JWT_HEADER_NAME = 'Authorization'
+    JWT_HEADER_TYPE = 'Bearer'
+    
+    # 加密配置 (用于加密用户存储的 API Key)
+    ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY', '')
+    
+    # OAuth配置
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+    GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
+    GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
+    OAUTH_REDIRECT_BASE = os.getenv('OAUTH_REDIRECT_BASE', 'http://localhost:3000')
 
 
 class DevelopmentConfig(Config):

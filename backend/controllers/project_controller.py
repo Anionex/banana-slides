@@ -5,7 +5,8 @@ import logging
 from flask import Blueprint, request, jsonify
 from models import db, Project, Page, Task, ReferenceFile
 from utils import success_response, error_response, not_found, bad_request
-from services import AIService, ProjectContext
+from utils.decorators import optional_auth
+from services import AIService, ProjectContext, get_ai_service
 from services.task_manager import task_manager, generate_descriptions_task, generate_images_task
 import json
 import traceback
@@ -269,6 +270,7 @@ def delete_project(project_id):
 
 
 @project_bp.route('/<project_id>/generate/outline', methods=['POST'])
+@optional_auth
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
@@ -287,12 +289,8 @@ def generate_outline(project_id):
         if not project:
             return not_found('Project')
         
-        # Initialize AI service
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -374,6 +372,7 @@ def generate_outline(project_id):
 
 
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
+@optional_auth
 def generate_from_description(project_id):
     """
     POST /api/projects/{project_id}/generate/from-description - Generate outline and page descriptions from description text
@@ -407,12 +406,8 @@ def generate_from_description(project_id):
         
         project.description_text = description_text
         
-        # Initialize AI service
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -492,6 +487,7 @@ def generate_from_description(project_id):
 
 
 @project_bp.route('/<project_id>/generate/descriptions', methods=['POST'])
+@optional_auth
 def generate_descriptions(project_id):
     """
     POST /api/projects/{project_id}/generate/descriptions - Generate descriptions
@@ -542,11 +538,8 @@ def generate_descriptions(project_id):
         db.session.add(task)
         db.session.commit()
         
-        # Initialize AI service
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -583,6 +576,7 @@ def generate_descriptions(project_id):
 
 
 @project_bp.route('/<project_id>/generate/images', methods=['POST'])
+@optional_auth
 def generate_images(project_id):
     """
     POST /api/projects/{project_id}/generate/images - Generate images
@@ -635,11 +629,8 @@ def generate_images(project_id):
         db.session.add(task)
         db.session.commit()
         
-        # Initialize services
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         from services import FileService
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
@@ -696,6 +687,7 @@ def get_task_status(project_id, task_id):
 
 
 @project_bp.route('/<project_id>/refine/outline', methods=['POST'])
+@optional_auth
 def refine_outline(project_id):
     """
     POST /api/projects/{project_id}/refine/outline - Refine outline based on user requirements
@@ -732,12 +724,8 @@ def refine_outline(project_id):
         else:
             current_outline = _reconstruct_outline_from_pages(pages)
         
-        # Initialize AI service
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -851,6 +839,7 @@ def refine_outline(project_id):
 
 
 @project_bp.route('/<project_id>/refine/descriptions', methods=['POST'])
+@optional_auth
 def refine_descriptions(project_id):
     """
     POST /api/projects/{project_id}/refine/descriptions - Refine page descriptions based on user requirements
@@ -902,12 +891,8 @@ def refine_descriptions(project_id):
                 'description_content': desc_content if desc_content else ''
             })
         
-        # Initialize AI service
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)

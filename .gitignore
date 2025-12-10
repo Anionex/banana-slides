@@ -28,6 +28,7 @@
 *.md
 !README.md
 !README_EN.md
+!DEPLOYMENT.md
 *.pyc
 .env
 *.ppt

@@ -5,7 +5,8 @@ import logging
 from flask import Blueprint, request, current_app
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
-from services import AIService, FileService, ProjectContext
+from utils.decorators import optional_auth
+from services import AIService, FileService, ProjectContext, get_ai_service
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
 from datetime import datetime
 from pathlib import Path
@@ -189,6 +190,7 @@ def update_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/description', methods=['POST'])
+@optional_auth
 def generate_page_description(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/description - Generate single page description
@@ -231,12 +233,8 @@ def generate_page_description(project_id, page_id):
                     page_data['part'] = p.part
                 outline.append(page_data)
         
-        # Initialize AI service
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         from controllers.project_controller import _get_project_reference_files_content
@@ -275,6 +273,7 @@ def generate_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
+@optional_auth
 def generate_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/image - Generate single page image
@@ -356,12 +355,8 @@ def generate_page_image(project_id, page_id):
                 "pages": current_part_pages
             })
         
-        # Initialize services
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
@@ -446,6 +441,7 @@ def generate_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/edit/image', methods=['POST'])
+@optional_auth
 def edit_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/edit/image - Edit page image
@@ -479,12 +475,8 @@ def edit_page_image(project_id, page_id):
         if not project:
             return not_found('Project')
         
-        # Initialize services
-        from flask import current_app
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        # Initialize AI service with user/system config
+        ai_service = get_ai_service()
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
