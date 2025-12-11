@@ -301,10 +301,10 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
 
 现在，根据以下指令修改这张PPT页面：{edit_instruction}
 
-要求维持原有的文字内容和设计风格，只按照指令进行修改。
+要求维持原有的文字内容和设计风格，只按照指令进行修改。提供的参考图中既有新素材，也有用户手动框选出的区域，请你根据原图和参考图的关系智能判断用户意图。
 """)
     else:
-        prompt = f"根据以下指令修改这张PPT页面：{edit_instruction}\n保持原有的内容结构和设计风格，只按照指令进行修改。"
+        prompt = f"根据以下指令修改这张PPT页面：{edit_instruction}\n保持原有的内容结构和设计风格，只按照指令进行修改。提供的参考图中既有新素材，也有用户手动框选出的区域，请你根据原图和参考图的关系智能判断用户意图。"
     
     logger.debug(f"[get_image_edit_prompt] Final prompt:\n{prompt}")
     return prompt
