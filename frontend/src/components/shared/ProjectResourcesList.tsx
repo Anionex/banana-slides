@@ -46,6 +46,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
       }
     } catch (error: any) {
       console.error('加载素材列表失败:', error);
+      show({ message: `加载素材列表失败: ${error.message || '未知错误'}`, type: 'error' });
     } finally {
       setIsLoadingMaterials(false);
     }
