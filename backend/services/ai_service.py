@@ -23,6 +23,7 @@ from .prompts import (
     get_descriptions_refinement_prompt
 )
 from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
+from config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +75,9 @@ class AIService:
             text_provider: Optional pre-configured TextProvider. If None, created from factory.
             image_provider: Optional pre-configured ImageProvider. If None, created from factory.
         """
-        self.text_model = "gemini-2.5-flash"
-        self.image_model = "gemini-3-pro-image-preview"
+        config = get_config()
+        self.text_model = config.TEXT_MODEL
+        self.image_model = config.IMAGE_MODEL # gemini-3-pro"
         
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT env var
         self.text_provider = text_provider or get_text_provider(model=self.text_model)

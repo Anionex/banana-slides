@@ -52,6 +52,10 @@ class Config:
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')  # 当 AI_PROVIDER_FORMAT=openai 时必须设置
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
     
+    # AI 模型配置
+    TEXT_MODEL = os.getenv('TEXT_MODEL', 'gemini-2.5-flash')
+    IMAGE_MODEL = os.getenv('IMAGE_MODEL', 'gemini-3-pro')
+
     # MinerU 文件解析服务配置
     MINERU_TOKEN = os.getenv('MINERU_TOKEN', '')
     MINERU_API_BASE = os.getenv('MINERU_API_BASE', 'https://mineru.net')
