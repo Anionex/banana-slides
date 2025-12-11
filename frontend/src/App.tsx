@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { History } from './pages/History';
@@ -6,7 +6,7 @@ import { OutlineEditor } from './pages/OutlineEditor';
 import { DetailEditor } from './pages/DetailEditor';
 import { SlidePreview } from './pages/SlidePreview';
 import { useProjectStore } from './store/useProjectStore';
-import { Loading, useToast, GithubLink } from './components/shared';
+import { useToast, GithubLink } from './components/shared';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
@@ -18,7 +18,7 @@ function App() {
     if (savedProjectId && !currentProject) {
       syncProject();
     }
-  }, []);
+  }, [currentProject, syncProject]);
 
   // 显示全局错误
   useEffect(() => {

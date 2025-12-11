@@ -501,6 +501,22 @@ export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ 
   return response.data;
 };
 
+/**
+ * 关联素材到项目（通过URL）
+ * @param projectId 项目ID
+ * @param materialUrls 素材URL列表
+ */
+export const associateMaterialsToProject = async (
+  projectId: string,
+  materialUrls: string[]
+): Promise<ApiResponse<{ updated_ids: string[]; count: number }>> => {
+  const response = await apiClient.post<ApiResponse<{ updated_ids: string[]; count: number }>>(
+    '/api/materials/associate',
+    { project_id: projectId, material_urls: materialUrls }
+  );
+  return response.data;
+};
+
 // ===== 用户模板 =====
 
 export interface UserTemplate {

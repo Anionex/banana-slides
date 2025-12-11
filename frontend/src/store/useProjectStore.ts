@@ -195,13 +195,15 @@ const debouncedUpdatePage = debounce(
     } catch (error: any) {
       // 提取更详细的错误信息
       let errorMessage = '同步项目失败';
+      let shouldClearStorage = false;
       
       if (error.response) {
         // 服务器返回了错误响应
         const errorData = error.response.data;
         if (error.response.status === 404) {
-          // 404错误：项目不存在
+          // 404错误：项目不存在，清除localStorage
           errorMessage = errorData?.error?.message || '项目不存在，可能已被删除';
+          shouldClearStorage = true;
         } else if (errorData?.error?.message) {
           // 从后端错误格式中提取消息
           errorMessage = errorData.error.message;
@@ -214,13 +216,20 @@ const debouncedUpdatePage = debounce(
         }
       } else if (error.request) {
         // 请求已发送但没有收到响应
-        errorMessage = '网络错误，请检查连接';
+        errorMessage = '网络错误，请检查后端服务是否启动';
       } else if (error.message) {
         // 其他错误
         errorMessage = error.message;
       }
       
-      set({ error: normalizeErrorMessage(errorMessage) });
+      // 如果项目不存在，清除localStorage并重置当前项目
+      if (shouldClearStorage) {
+        console.warn('[syncProject] 项目不存在，清除localStorage');
+        localStorage.removeItem('currentProjectId');
+        set({ currentProject: null, error: normalizeErrorMessage(errorMessage) });
+      } else {
+        set({ error: normalizeErrorMessage(errorMessage) });
+      }
     }
   },
 
