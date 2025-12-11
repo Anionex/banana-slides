@@ -409,11 +409,13 @@ def associate_materials_to_project():
         
         # Find materials by URLs and update their project_id
         updated_ids = []
-        for url in material_urls:
-            material = Material.query.filter_by(url=url).first()
-            if material and material.project_id is None:  # Only update if currently global
-                material.project_id = project_id
-                updated_ids.append(material.id)
+        materials_to_update = Material.query.filter(
+            Material.url.in_(material_urls),
+            Material.project_id.is_(None)
+        ).all()
+        for material in materials_to_update:
+            material.project_id = project_id
+            updated_ids.append(material.id)
         
         db.session.commit()
         

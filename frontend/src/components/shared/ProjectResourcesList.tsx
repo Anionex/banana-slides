@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Image as ImageIcon, RefreshCw, X, FileText } from 'lucide-react';
 import { listMaterials, deleteMaterial, listProjectReferenceFiles, type Material, type ReferenceFile } from '@/api/endpoints';
 import { getImageUrl } from '@/api/client';
@@ -32,9 +32,10 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [deletingMaterialIds, setDeletingMaterialIds] = useState<Set<string>>(new Set());
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
 
   // 加载素材列表
-  const loadMaterials = async () => {
+  const loadMaterials = useCallback(async () => {
     if (!projectId || !showImages) return;
     
     setIsLoadingMaterials(true);
@@ -48,10 +49,10 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
     } finally {
       setIsLoadingMaterials(false);
     }
-  };
+  }, [projectId, showImages]);
 
   // 加载文件列表
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     if (!projectId || !showFiles) return;
     
     setIsLoadingFiles(true);
@@ -65,12 +66,12 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
     } finally {
       setIsLoadingFiles(false);
     }
-  };
+  }, [projectId, showFiles]);
 
   useEffect(() => {
     loadMaterials();
     loadFiles();
-  }, [projectId, showFiles, showImages]);
+  }, [loadMaterials, loadFiles]);
 
   // 删除素材
   const handleDeleteMaterial = async (
@@ -194,22 +195,18 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
                 >
                   {/* 图片容器 */}
                   <div className="relative w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-banana-400 transition-colors">
-                    <img
-                      src={getImageUrl(material.url)}
-                      alt={getMaterialDisplayName(material)}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const parent = target.parentElement;
-                        if (parent && !parent.querySelector('.error-placeholder')) {
-                          const placeholder = document.createElement('div');
-                          placeholder.className = 'error-placeholder w-full h-full flex items-center justify-center text-gray-400 text-xs text-center p-2';
-                          placeholder.textContent = '图片加载失败';
-                          parent.appendChild(placeholder);
-                        }
-                      }}
-                    />
+                    {failedImageUrls.has(material.url) ? (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs text-center p-2">
+                        图片加载失败
+                      </div>
+                    ) : (
+                      <img
+                        src={getImageUrl(material.url)}
+                        alt={getMaterialDisplayName(material)}
+                        className="w-full h-full object-cover"
+                        onError={() => setFailedImageUrls(prev => new Set(prev).add(material.url))}
+                      />
+                    )}
 
                     {/* 删除按钮 */}
                     <button
