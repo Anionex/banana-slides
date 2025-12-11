@@ -77,7 +77,7 @@ class AIService:
         """
         config = get_config()
         self.text_model = config.TEXT_MODEL
-        self.image_model = config.IMAGE_MODEL # gemini-3-pro"
+        self.image_model = config.IMAGE_MODEL
         
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT env var
         self.text_provider = text_provider or get_text_provider(model=self.text_model)
