@@ -294,19 +294,17 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
         # 删除"其他页面素材："之后的内容，避免被前面的图影响
         if "其他页面素材" in original_description:
             original_description = original_description.split("其他页面素材")[0].strip()
-        common_control_prompt = f"""\
-维持原有的文字内容和设计风格，只按照指令进行修改。提供的参考图中既有新素材，也有用户手动框选出的区域，请你根据原图和参考图的关系智能判断用户意图。若上传了原画面的框选区域，优先对框选区域进行修改，其他部分保持清晰一致。           
-"""
+        
         prompt = (f"""\
 该PPT页面的原始页面描述为：
 {original_description}
 
 现在，根据以下指令修改这张PPT页面：{edit_instruction}
 
-要求{common_control_prompt}
+要求维持原有的文字内容和设计风格，只按照指令进行修改。
 """)
     else:
-        prompt = f"根据以下指令修改这张PPT页面：{edit_instruction}\n要求{common_control_prompt}"
+        prompt = f"根据以下指令修改这张PPT页面：{edit_instruction}\n保持原有的内容结构和设计风格，只按照指令进行修改。"
     
     logger.debug(f"[get_image_edit_prompt] Final prompt:\n{prompt}")
     return prompt
