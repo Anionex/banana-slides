@@ -16,7 +16,7 @@ import {
   Image as ImageIcon,
   ImagePlus,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown } from '@/components/shared';
+import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown, SponsorModal } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
@@ -53,6 +53,7 @@ export const SlidePreview: React.FC = () => {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isSponsorModalOpen, setIsSponsorModalOpen] = useState(false);
   const [isOutlineExpanded, setIsOutlineExpanded] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -725,7 +726,7 @@ export const SlidePreview: React.FC = () => {
               <span className="sm:hidden">导出</span>
             </Button>
             {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+              <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
                 <button
                   onClick={() => handleExport('pptx')}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
@@ -737,6 +738,18 @@ export const SlidePreview: React.FC = () => {
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
                 >
                   导出为 PDF
+                </button>
+                <div className="my-1 border-t border-gray-100"></div>
+                <button
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    setIsSponsorModalOpen(true);
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-banana-50 transition-colors text-sm bg-banana-50/50 text-banana-700 font-medium flex items-center gap-2"
+                >
+                  <span>打赏作者</span>
+                  <span>☕</span>
+                  
                 </button>
               </div>
             )}
@@ -1372,6 +1385,11 @@ export const SlidePreview: React.FC = () => {
           />
         </>
       )}
+      {/* 赞赏模态框 */}
+      <SponsorModal
+        isOpen={isSponsorModalOpen}
+        onClose={() => setIsSponsorModalOpen(false)}
+      />
     </div>
   );
 };
