@@ -112,6 +112,16 @@ def create_app():
     def health_check():
         return {'status': 'ok', 'message': 'Banana Slides API is running'}
     
+    # Site status endpoint
+    @app.route('/api/site-status')
+    def site_status():
+        """
+        获取站点状态
+        可选值: sufficient (余额充足), insufficient (欠费), maintenance (维护)
+        """
+        status = os.getenv('SITE_STATUS', 'sufficient')
+        return {'status': status}
+    
     # Root endpoint
     @app.route('/')
     def index():
@@ -121,6 +131,7 @@ def create_app():
             'description': 'AI-powered PPT generation service',
             'endpoints': {
                 'health': '/health',
+                'site_status': '/api/site-status',
                 'api_docs': '/api',
                 'projects': '/api/projects'
             }

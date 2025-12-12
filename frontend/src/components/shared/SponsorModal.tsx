@@ -25,7 +25,7 @@ export const SponsorModal: React.FC<SponsorModalProps> = ({ isOpen, onClose }) =
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/70 backdrop-blur-sm rounded-full border border-banana-300/50 shadow-sm">
             <span className="text-xl">🎉</span>
-            <span className="text-sm font-medium text-gray-700">将要完成！</span>
+            <span className="text-sm font-medium text-gray-700">感谢使用！</span>
           </div>
 
           <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 to-orange-500 bg-clip-text text-transparent">
