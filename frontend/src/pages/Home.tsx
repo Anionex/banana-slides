@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Globe } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, SiteStatusBanner } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, getOutputLanguage, setOutputLanguage, OUTPUT_LANGUAGE_OPTIONS, type OutputLanguage } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -25,10 +25,19 @@ export const Home: React.FC = () => {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  // 从 sessionStorage 读取用户之前选择的语言，如果没有则为 null
+  const [outputLanguage, setOutputLanguageState] = useState<OutputLanguage | null>(() => {
+    const saved = sessionStorage.getItem('outputLanguage');
+    if (saved && ['zh', 'ja', 'en', 'auto'].includes(saved)) {
+      return saved as OutputLanguage;
+    }
+    return null;
+  });
+  const [isLanguageLoading, setIsLanguageLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 检查是否有当前项目 & 加载用户模板
+  // 检查是否有当前项目 & 加载用户模板 & 加载输出语言设置
   useEffect(() => {
     const projectId = localStorage.getItem('currentProjectId');
     setCurrentProjectId(projectId);
@@ -45,7 +54,57 @@ export const Home: React.FC = () => {
       }
     };
     loadTemplates();
+
+    // 加载输出语言设置
+    const loadOutputLanguage = async () => {
+      try {
+        // 先检查 sessionStorage 是否有用户之前的选择
+        const savedLanguage = sessionStorage.getItem('outputLanguage');
+        if (savedLanguage && ['zh', 'ja', 'en', 'auto'].includes(savedLanguage)) {
+          // 如果有保存的选择，使用它并同步到后端
+          setOutputLanguageState(savedLanguage as OutputLanguage);
+          // 同步到后端（静默操作，不显示提示）
+          try {
+            await setOutputLanguage(savedLanguage as OutputLanguage);
+          } catch (syncError) {
+            console.error('同步语言设置到后端失败:', syncError);
+          }
+        } else {
+          // 如果没有保存的选择，从后端获取默认值
+          const response = await getOutputLanguage();
+          if (response.data?.language) {
+            setOutputLanguageState(response.data.language);
+            // 保存到 sessionStorage
+            sessionStorage.setItem('outputLanguage', response.data.language);
+          }
+        }
+      } catch (error) {
+        console.error('加载输出语言设置失败:', error);
+        // 如果加载失败，尝试使用 sessionStorage 中的值
+        const savedLanguage = sessionStorage.getItem('outputLanguage');
+        if (savedLanguage && ['zh', 'ja', 'en', 'auto'].includes(savedLanguage)) {
+          setOutputLanguageState(savedLanguage as OutputLanguage);
+        }
+      } finally {
+        setIsLanguageLoading(false);
+      }
+    };
+    loadOutputLanguage();
   }, []);
+
+  // 处理语言选择变化
+  const handleLanguageChange = async (language: OutputLanguage) => {
+    try {
+      await setOutputLanguage(language);
+      setOutputLanguageState(language);
+      // 保存到 sessionStorage 以便刷新后保留
+      sessionStorage.setItem('outputLanguage', language);
+      show({ message: `输出语言已设置为: ${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === language)?.label}`, type: 'success' });
+    } catch (error) {
+      console.error('设置输出语言失败:', error);
+      show({ message: '设置输出语言失败', type: 'error' });
+    }
+  };
 
   const handleOpenMaterialModal = () => {
     // 在主页始终生成全局素材，不关联任何项目
@@ -674,6 +733,40 @@ export const Home: React.FC = () => {
             />
           </div>
 
+          {/* 输出语言选择 */}
+          <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-2 mb-3 md:mb-4">
+              <div className="flex items-center gap-2">
+                <Globe size={18} className="text-blue-600 flex-shrink-0" />
+                <h3 className="text-base md:text-lg font-semibold text-gray-900">
+                  指定输出语言
+                </h3>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 md:gap-3">
+              {OUTPUT_LANGUAGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleLanguageChange(option.value)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all text-sm md:text-base ${
+                    outputLanguage === option.value
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {isLanguageLoading
+              ? '正在加载语言设置...'
+              : outputLanguage === 'auto' 
+                ? '自动模式：AI 将根据输入内容自动选择输出语言' 
+                : `所有 AI 生成的内容将使用${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === outputLanguage)?.label || '默认语言' }输出`}
+            </p>
+          </div>
+
         </Card>
       </main>
       <ToastContainer />
@@ -698,4 +791,3 @@ export const Home: React.FC = () => {
     </div>
   );
 };
-
