@@ -279,6 +279,7 @@ def generate_outline(project_id):
     Request body (optional):
     {
         "idea_prompt": "...",  # for idea type
+        "language": "zh"  # output language: zh, en, ja, auto
     }
     """
     try:
@@ -290,6 +291,10 @@ def generate_outline(project_id):
         # Initialize AI service
         from flask import current_app
         ai_service = AIService()
+        
+        # Get request data and language parameter
+        data = request.get_json() or {}
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -308,13 +313,12 @@ def generate_outline(project_id):
             
             # Create project context and parse outline text into structured format
             project_context = ProjectContext(project, reference_files_content)
-            outline = ai_service.parse_outline_text(project_context)
+            outline = ai_service.parse_outline_text(project_context, language=language)
         elif project.creation_type == 'descriptions':
             # 从描述生成：这个类型应该使用专门的端点
             return bad_request("Use /generate/from-description endpoint for descriptions type")
         else:
             # 一句话生成：从idea生成大纲
-            data = request.get_json() or {}
             idea_prompt = data.get('idea_prompt') or project.idea_prompt
             
             if not idea_prompt:
@@ -324,7 +328,7 @@ def generate_outline(project_id):
             
             # Create project context and generate outline from idea
             project_context = ProjectContext(project, reference_files_content)
-            outline = ai_service.generate_outline(project_context)
+            outline = ai_service.generate_outline(project_context, language=language)
         
         # Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
@@ -384,8 +388,11 @@ def generate_from_description(project_id):
     Request body (optional):
     {
         "description_text": "...",  # if not provided, uses project.description_text
+        "language": "zh"  # output language: zh, en, ja, auto
     }
     """
+    from flask import current_app
+    
     try:
         project = Project.query.get(project_id)
         
@@ -395,9 +402,10 @@ def generate_from_description(project_id):
         if project.creation_type != 'descriptions':
             return bad_request("This endpoint is only for descriptions type projects")
         
-        # Get description text
+        # Get description text and language
         data = request.get_json() or {}
         description_text = data.get('description_text') or project.description_text
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         if not description_text:
             return bad_request("description_text is required")
@@ -405,7 +413,6 @@ def generate_from_description(project_id):
         project.description_text = description_text
         
         # Initialize AI service
-        from flask import current_app
         ai_service = AIService()
         
         # Get reference files content and create project context
@@ -416,12 +423,12 @@ def generate_from_description(project_id):
         
         # Step 1: Parse description to outline
         logger.info("Step 1: 解析描述文本到大纲结构...")
-        outline = ai_service.parse_description_to_outline(project_context)
+        outline = ai_service.parse_description_to_outline(project_context, language=language)
         logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
         
         # Step 2: Split description into page descriptions
         logger.info("Step 2: 切分描述文本到每页描述...")
-        page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline)
+        page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
         logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
         
         # Step 3: Flatten outline to pages
@@ -492,7 +499,8 @@ def generate_descriptions(project_id):
     
     Request body:
     {
-        "max_workers": 5
+        "max_workers": 5,
+        "language": "zh"  # output language: zh, en, ja, auto
     }
     """
     try:
@@ -520,6 +528,7 @@ def generate_descriptions(project_id):
         from flask import current_app
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Create task
         task = Task(
@@ -555,7 +564,8 @@ def generate_descriptions(project_id):
             project_context,
             outline,
             max_workers,
-            app
+            app,
+            language
         )
         
         # Update project status
@@ -581,7 +591,8 @@ def generate_images(project_id):
     Request body:
     {
         "max_workers": 8,
-        "use_template": true
+        "use_template": true,
+        "language": "zh"  # output language: zh, en, ja, auto
     }
     """
     try:
@@ -610,6 +621,7 @@ def generate_images(project_id):
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Create task
         task = Task(
@@ -648,7 +660,8 @@ def generate_images(project_id):
             current_app.config['DEFAULT_ASPECT_RATIO'],
             current_app.config['DEFAULT_RESOLUTION'],
             app,
-            project.extra_requirements
+            project.extra_requirements,
+            language
         )
         
         # Update project status
@@ -690,7 +703,8 @@ def refine_outline(project_id):
     
     Request body:
     {
-        "user_requirement": "用户要求，例如：增加一页关于XXX的内容"
+        "user_requirement": "用户要求，例如：增加一页关于XXX的内容",
+        "language": "zh"  # output language: zh, en, ja, auto
     }
     """
     try:
@@ -735,8 +749,9 @@ def refine_outline(project_id):
         
         project_context = ProjectContext(project.to_dict(), reference_files_content)
         
-        # Get previous requirements from request
+        # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Refine outline
         logger.info(f"开始修改大纲: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
@@ -744,7 +759,8 @@ def refine_outline(project_id):
             current_outline=current_outline,
             user_requirement=user_requirement,
             project_context=project_context,
-            previous_requirements=previous_requirements
+            previous_requirements=previous_requirements,
+            language=language
         )
         
         # Flatten outline to pages
@@ -842,7 +858,8 @@ def refine_descriptions(project_id):
     
     Request body:
     {
-        "user_requirement": "用户要求，例如：让描述更详细一些"
+        "user_requirement": "用户要求，例如：让描述更详细一些",
+        "language": "zh"  # output language: zh, en, ja, auto
     }
     """
     try:
@@ -902,8 +919,9 @@ def refine_descriptions(project_id):
         
         project_context = ProjectContext(project.to_dict(), reference_files_content)
         
-        # Get previous requirements from request
+        # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Refine descriptions
         logger.info(f"开始修改页面描述: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
@@ -912,7 +930,8 @@ def refine_descriptions(project_id):
             user_requirement=user_requirement,
             project_context=project_context,
             outline=outline,
-            previous_requirements=previous_requirements
+            previous_requirements=previous_requirements,
+            language=language
         )
         
         # 验证返回的描述数量
@@ -955,4 +974,3 @@ def refine_descriptions(project_id):
         db.session.rollback()
         logger.error(f"refine_descriptions failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
-

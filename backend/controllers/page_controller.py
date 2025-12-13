@@ -210,6 +210,7 @@ def generate_page_description(project_id, page_id):
         
         data = request.get_json() or {}
         force_regenerate = data.get('force_regenerate', False)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Check if already generated
         if page.get_description_content() and not force_regenerate:
@@ -249,7 +250,8 @@ def generate_page_description(project_id, page_id):
             project_context,
             outline,
             page_data,
-            page.order_index + 1
+            page.order_index + 1,
+            language=language
         )
         
         # Save description
@@ -282,6 +284,8 @@ def generate_page_image(project_id, page_id):
         "force_regenerate": false
     }
     """
+    from flask import current_app as flask_current_app
+    
     try:
         page = Page.query.get(page_id)
         
@@ -295,6 +299,7 @@ def generate_page_image(project_id, page_id):
         data = request.get_json() or {}
         use_template = data.get('use_template', True)
         force_regenerate = data.get('force_regenerate', False)
+        language = data.get('language', flask_current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Check if already generated
         if page.generated_image_path and not force_regenerate:
@@ -424,7 +429,8 @@ def generate_page_image(project_id, page_id):
             current_app.config['DEFAULT_ASPECT_RATIO'],
             current_app.config['DEFAULT_RESOLUTION'],
             app,
-            project.extra_requirements
+            project.extra_requirements,
+            language
         )
         
         # Return task_id immediately

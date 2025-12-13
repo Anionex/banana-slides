@@ -12,6 +12,72 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# 语言配置映射
+LANGUAGE_CONFIG = {
+    'zh': {
+        'name': '中文',
+        'instruction': '请使用全中文输出。',
+        'ppt_text': 'PPT文字请使用全中文。'
+    },
+    'ja': {
+        'name': '日本語',
+        'instruction': 'すべて日本語で出力してください。',
+        'ppt_text': 'PPTのテキストは全て日本語で出力してください。'
+    },
+    'en': {
+        'name': 'English',
+        'instruction': 'Please output all in English.',
+        'ppt_text': 'Use English for PPT text.'
+    },
+    'auto': {
+        'name': '自动',
+        'instruction': '',  # 自动模式不添加语言限制
+        'ppt_text': ''
+    }
+}
+
+
+def get_default_output_language() -> str:
+    """
+    获取环境变量中配置的默认输出语言
+    
+    Returns:
+        语言代码: 'zh', 'ja', 'en', 'auto'
+    """
+    from config import Config
+    return getattr(Config, 'OUTPUT_LANGUAGE', 'zh')
+
+
+def get_language_instruction(language: str = None) -> str:
+    """
+    获取语言限制指令文本
+    
+    Args:
+        language: 语言代码，如果为 None 则使用默认语言
+    
+    Returns:
+        语言限制指令，如果是自动模式则返回空字符串
+    """
+    lang = language if language else get_default_output_language()
+    config = LANGUAGE_CONFIG.get(lang, LANGUAGE_CONFIG['zh'])
+    return config['instruction']
+
+
+def get_ppt_language_instruction(language: str = None) -> str:
+    """
+    获取PPT文字语言限制指令
+    
+    Args:
+        language: 语言代码，如果为 None 则使用默认语言
+    
+    Returns:
+        PPT语言限制指令，如果是自动模式则返回空字符串
+    """
+    lang = language if language else get_default_output_language()
+    config = LANGUAGE_CONFIG.get(lang, LANGUAGE_CONFIG['zh'])
+    return config['ppt_text']
+
+
 def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str, str]]]) -> str:
     """
     Format reference files content as XML structure
@@ -40,12 +106,13 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
     return '\n'.join(xml_parts)
 
 
-def get_outline_generation_prompt(project_context: 'ProjectContext') -> str:
+def get_outline_generation_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """
     生成 PPT 大纲的 prompt
     
     Args:
         project_context: 项目上下文对象，包含所有原始信息
+        language: 输出语言代码（'zh', 'ja', 'en', 'auto'），如果为 None 则使用默认语言
         
     Returns:
         格式化后的 prompt 字符串
@@ -82,7 +149,7 @@ You can organize the content in two ways:
 Choose the format that best fits the content. Use parts when the PPT has clear major sections.
 
 The user's request: {idea_prompt}. Now generate the outline, don't include any other text.
-使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     final_prompt = files_xml + prompt
@@ -90,7 +157,7 @@ The user's request: {idea_prompt}. Now generate the outline, don't include any o
     return final_prompt
 
 
-def get_outline_parsing_prompt(project_context: 'ProjectContext') -> str:
+def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str = None ) -> str:
     """
     解析用户提供的大纲文本的 prompt
     
@@ -146,7 +213,7 @@ Important rules:
 - Extract titles and points from the original text, keeping them exactly as written
 
 Now parse the outline text above into the structured format. Return only the JSON, don't include any other text.
-使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     final_prompt = files_xml + prompt
@@ -156,7 +223,8 @@ Now parse the outline text above into the structured format. Return only the JSO
 
 def get_page_description_prompt(project_context: 'ProjectContext', outline: list, 
                                 page_outline: dict, page_index: int, 
-                                part_info: str = "") -> str:
+                                part_info: str = "",
+                                language: str = None) -> str:
     """
     生成单个页面描述的 prompt
     
@@ -208,7 +276,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 【关于图片】如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
 
-请使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     final_prompt = files_xml + prompt
@@ -219,7 +287,8 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 def get_image_generation_prompt(page_desc: str, outline_text: str, 
                                 current_section: str,
                                 has_material_images: bool = False,
-                                extra_requirements: str = None) -> str:
+                                extra_requirements: str = None,
+                                language: str = None) -> str:
     """
     生成图片生成 prompt
     
@@ -271,7 +340,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 - 只参考风格设计，禁止出现模板中的文字。
 - 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
 </design_guidelines>
-PPT文字使用中文。
+{get_ppt_language_instruction(language)}
 {material_images_note}{extra_req_text}
 """)
     
@@ -310,7 +379,7 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
     return prompt
 
 
-def get_description_to_outline_prompt(project_context: 'ProjectContext') -> str:
+def get_description_to_outline_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """
     从描述文本解析出大纲的 prompt
     
@@ -367,7 +436,7 @@ Important rules:
 - The points should be concise summaries of the main content for each page
 
 Now extract the outline structure from the description text above. Return only the JSON, don't include any other text.
-使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     final_prompt = files_xml + prompt
@@ -375,7 +444,9 @@ Now extract the outline structure from the description text above. Return only t
     return final_prompt
 
 
-def get_description_split_prompt(project_context: 'ProjectContext', outline: List[Dict]) -> str:
+def get_description_split_prompt(project_context: 'ProjectContext', 
+                                 outline: List[Dict], 
+                                 language: str = None) -> str:
     """
     从描述文本切分出每页描述的 prompt
     
@@ -428,7 +499,7 @@ Important rules:
 - If a page in the outline doesn't have a clear description in the text, create a reasonable description based on the outline
 
 Now split the description text into individual page descriptions. Return only the JSON array, don't include any other text.
-使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     logger.debug(f"[get_description_split_prompt] Final prompt:\n{prompt}")
@@ -437,7 +508,8 @@ Now split the description text into individual page descriptions. Return only th
 
 def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement: str,
                                    project_context: 'ProjectContext',
-                                   previous_requirements: Optional[List[str]] = None) -> str:
+                                   previous_requirements: Optional[List[str]] = None,
+                                   language: str = None) -> str:
     """
     根据用户要求修改已有大纲的 prompt
     
@@ -519,7 +591,7 @@ You are a helpful assistant that modifies PPT outlines based on user requirement
 选择最适合内容的格式。当 PPT 有清晰的主要章节时使用章节格式。
 
 现在请根据用户要求修改大纲，只输出 JSON 格式的大纲，不要包含其他文字。
-使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     final_prompt = files_xml + prompt
@@ -530,7 +602,8 @@ You are a helpful assistant that modifies PPT outlines based on user requirement
 def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_requirement: str,
                                        project_context: 'ProjectContext',
                                        outline: List[Dict] = None,
-                                       previous_requirements: Optional[List[str]] = None) -> str:
+                                       previous_requirements: Optional[List[str]] = None,
+                                       language: str = None) -> str:
     """
     根据用户要求修改已有页面描述的 prompt
     
@@ -625,10 +698,9 @@ You are a helpful assistant that modifies PPT page descriptions based on user re
 ]
 
 现在请根据用户要求修改所有页面描述，只输出 JSON 数组，不要包含其他文字。
-使用全中文输出。
+{get_language_instruction(language)}
 """)
     
     final_prompt = files_xml + prompt
     logger.debug(f"[get_descriptions_refinement_prompt] Final prompt:\n{final_prompt}")
     return final_prompt
-

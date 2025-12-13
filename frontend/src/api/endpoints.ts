@@ -100,11 +100,14 @@ export const updatePagesOrder = async (
 
 /**
  * 生成大纲
+ * @param projectId 项目ID
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateOutline = async (projectId: string): Promise<ApiResponse> => {
+export const generateOutline = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/outline`,
-    {} // 必须发送空对象，后端使用 request.get_json()
+    lang ? { language: lang } : {}
   );
   return response.data;
 };
@@ -113,22 +116,32 @@ export const generateOutline = async (projectId: string): Promise<ApiResponse> =
 
 /**
  * 从描述文本生成大纲和页面描述（一次性完成）
+ * @param projectId 项目ID
+ * @param descriptionText 描述文本（可选）
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateFromDescription = async (projectId: string, descriptionText?: string): Promise<ApiResponse> => {
+export const generateFromDescription = async (projectId: string, descriptionText?: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/from-description`,
-    descriptionText ? { description_text: descriptionText } : {}
+    { 
+      ...(descriptionText ? { description_text: descriptionText } : {}),
+      language: lang 
+    }
   );
   return response.data;
 };
 
 /**
  * 批量生成描述
+ * @param projectId 项目ID
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateDescriptions = async (projectId: string): Promise<ApiResponse> => {
+export const generateDescriptions = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/descriptions`,
-    {} // 发送空对象而不是 undefined
+    { language: lang }
   );
   return response.data;
 };
@@ -139,28 +152,37 @@ export const generateDescriptions = async (projectId: string): Promise<ApiRespon
 export const generatePageDescription = async (
   projectId: string,
   pageId: string,
-  forceRegenerate: boolean = false
+  forceRegenerate: boolean = false,
+  language?: OutputLanguage
 ): Promise<ApiResponse> => {
+  const lang = language || getStoredOutputLanguage() || 'zh'; 
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/description`,
-    { force_regenerate: forceRegenerate }
+    { force_regenerate: forceRegenerate , language: lang}
   );
   return response.data;
 };
 
 /**
  * 根据用户要求修改大纲
+ * @param projectId 项目ID
+ * @param userRequirement 用户要求
+ * @param previousRequirements 历史要求（可选）
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
 export const refineOutline = async (
   projectId: string,
   userRequirement: string,
-  previousRequirements?: string[]
+  previousRequirements?: string[],
+  language?: OutputLanguage
 ): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
     `/api/projects/${projectId}/refine/outline`,
     { 
       user_requirement: userRequirement,
-      previous_requirements: previousRequirements || []
+      previous_requirements: previousRequirements || [],
+      language: lang
     }
   );
   return response.data;
@@ -168,17 +190,24 @@ export const refineOutline = async (
 
 /**
  * 根据用户要求修改页面描述
+ * @param projectId 项目ID
+ * @param userRequirement 用户要求
+ * @param previousRequirements 历史要求（可选）
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
 export const refineDescriptions = async (
   projectId: string,
   userRequirement: string,
-  previousRequirements?: string[]
+  previousRequirements?: string[],
+  language?: OutputLanguage
 ): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
     `/api/projects/${projectId}/refine/descriptions`,
     { 
       user_requirement: userRequirement,
-      previous_requirements: previousRequirements || []
+      previous_requirements: previousRequirements || [],
+      language: lang
     }
   );
   return response.data;
@@ -188,11 +217,14 @@ export const refineDescriptions = async (
 
 /**
  * 批量生成图片
+ * @param projectId 项目ID
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateImages = async (projectId: string): Promise<ApiResponse> => {
+export const generateImages = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/images`,
-    {} // 发送空对象而不是 undefined
+    { language: lang }
   );
   return response.data;
 };
@@ -203,11 +235,13 @@ export const generateImages = async (projectId: string): Promise<ApiResponse> =>
 export const generatePageImage = async (
   projectId: string,
   pageId: string,
-  forceRegenerate: boolean = false
+  forceRegenerate: boolean = false,
+  language?: OutputLanguage
 ): Promise<ApiResponse> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/image`,
-    { force_regenerate: forceRegenerate }
+    { force_regenerate: forceRegenerate, language: lang }
   );
   return response.data;
 };
@@ -309,11 +343,13 @@ export const updatePage = async (
 export const updatePageDescription = async (
   projectId: string,
   pageId: string,
-  descriptionContent: any
+  descriptionContent: any,
+  language?: OutputLanguage
 ): Promise<ApiResponse<Page>> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/description`,
-    { description_content: descriptionContent }
+    { description_content: descriptionContent, language: lang }
   );
   return response.data;
 };
@@ -324,11 +360,13 @@ export const updatePageDescription = async (
 export const updatePageOutline = async (
   projectId: string,
   pageId: string,
-  outlineContent: any
+  outlineContent: any,
+  language?: OutputLanguage
 ): Promise<ApiResponse<Page>> => {
+  const lang = language || getStoredOutputLanguage() || 'zh';
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/outline`,
-    { outline_content: outlineContent }
+    { outline_content: outlineContent, language: lang }
   );
   return response.data;
 };
@@ -678,3 +716,52 @@ export const dissociateFileFromProject = async (
   return response.data;
 };
 
+// ===== 输出语言设置 =====
+
+export type OutputLanguage = 'zh' | 'ja' | 'en' | 'auto';
+
+export interface OutputLanguageOption {
+  value: OutputLanguage;
+  label: string;
+}
+
+export const OUTPUT_LANGUAGE_OPTIONS: OutputLanguageOption[] = [
+  { value: 'zh', label: '中文' },
+  { value: 'ja', label: '日本語' },
+  { value: 'en', label: 'English' },
+  { value: 'auto', label: '自动' },
+];
+
+/**
+ * 获取默认输出语言设置（从服务器环境变量读取）
+ * 
+ * 注意：这只返回服务器配置的默认语言。
+ * 实际的语言选择应由前端在 sessionStorage 中管理，
+ * 并在每次生成请求时通过 language 参数传递。
+ */
+export const getDefaultOutputLanguage = async (): Promise<ApiResponse<{ language: OutputLanguage }>> => {
+  const response = await apiClient.get<ApiResponse<{ language: OutputLanguage }>>(
+    '/api/output-language'
+  );
+  return response.data;
+};
+
+/**
+ * 从 sessionStorage 获取当前用户选择的输出语言
+ * 如果没有保存的选择，返回 null
+ */
+export const getStoredOutputLanguage = (): OutputLanguage | null => {
+  const saved = sessionStorage.getItem('outputLanguage');
+  if (saved && ['zh', 'ja', 'en', 'auto'].includes(saved)) {
+    return saved as OutputLanguage;
+  }
+  return null;
+};
+
+/**
+ * 保存用户选择的输出语言到 sessionStorage
+ * @param language 语言代码
+ */
+export const storeOutputLanguage = (language: OutputLanguage): void => {
+  sessionStorage.setItem('outputLanguage', language);
+};

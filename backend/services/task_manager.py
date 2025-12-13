@@ -54,7 +54,8 @@ task_manager = TaskManager(max_workers=4)
 
 def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
                                project_context, outline: List[Dict], 
-                               max_workers: int = 5, app=None):
+                               max_workers: int = 5, app=None,
+                               language: str = None):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
@@ -69,6 +70,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         outline: Complete outline structure
         max_workers: Maximum number of parallel workers
         app: Flask app instance
+        language: Output language (zh, en, ja, auto)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -116,7 +118,8 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 with app.app_context():
                     try:
                         desc_text = ai_service.generate_page_description(
-                            project_context, outline, page_outline, page_index
+                            project_context, outline, page_outline, page_index,
+                            language=language
                         )
                         
                         # Parse description into structured format
@@ -197,12 +200,16 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         outline: List[Dict], use_template: bool = True, 
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
-                        extra_requirements: str = None):
+                        extra_requirements: str = None,
+                        language: str = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
     
     Note: app instance MUST be passed from the request context
+    
+    Args:
+        language: Output language (zh, en, ja, auto)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -293,7 +300,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         prompt = ai_service.generate_image_prompt(
                             outline, page_data, desc_text, page_index,
                             has_material_images=has_material_images,
-                            extra_requirements=extra_requirements
+                            extra_requirements=extra_requirements,
+                            language=language
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
@@ -386,7 +394,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                                     ai_service, file_service, outline: List[Dict],
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
-                                    extra_requirements: str = None):
+                                    extra_requirements: str = None,
+                                    language: str = None):
     """
     Background task for generating a single page image
     
@@ -455,7 +464,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             prompt = ai_service.generate_image_prompt(
                 outline, page_data, desc_text, page.order_index + 1,
                 has_material_images=has_material_images,
-                extra_requirements=extra_requirements
+                extra_requirements=extra_requirements,
+                language=language
             )
             
             # Generate image
@@ -755,4 +765,3 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-

@@ -181,7 +181,7 @@ class AIService:
             logger.error(f"Failed to download image from {url}: {str(e)}")
             return None
     
-    def generate_outline(self, project_context: ProjectContext) -> List[Dict]:
+    def generate_outline(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
         Generate PPT outline from idea prompt
         Based on demo.py gen_outline()
@@ -192,7 +192,7 @@ class AIService:
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        outline_prompt = get_outline_generation_prompt(project_context)
+        outline_prompt = get_outline_generation_prompt(project_context, language)
         
         response_text = self.text_provider.generate_text(outline_prompt, thinking_budget=1000)
         
@@ -200,7 +200,7 @@ class AIService:
         outline = json.loads(outline_text)
         return outline
     
-    def parse_outline_text(self, project_context: ProjectContext) -> List[Dict]:
+    def parse_outline_text(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
         Parse user-provided outline text into structured outline format
         This method analyzes the text and splits it into pages without modifying the original text
@@ -211,7 +211,7 @@ class AIService:
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        parse_prompt = get_outline_parsing_prompt(project_context)
+        parse_prompt = get_outline_parsing_prompt(project_context, language)
         
         response_text = self.text_provider.generate_text(parse_prompt, thinking_budget=1000)
         
@@ -238,7 +238,7 @@ class AIService:
         return pages
     
     def generate_page_description(self, project_context: ProjectContext, outline: List[Dict], 
-                                 page_outline: Dict, page_index: int) -> str:
+                                 page_outline: Dict, page_index: int, language='zh') -> str:
         """
         Generate description for a single page
         Based on demo.py gen_desc() logic
@@ -259,7 +259,8 @@ class AIService:
             outline=outline,
             page_outline=page_outline,
             page_index=page_index,
-            part_info=part_info
+            part_info=part_info,
+            language=language
         )
         
         response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=1000)
@@ -283,7 +284,8 @@ class AIService:
     def generate_image_prompt(self, outline: List[Dict], page: Dict, 
                             page_desc: str, page_index: int, 
                             has_material_images: bool = False,
-                            extra_requirements: Optional[str] = None) -> str:
+                            extra_requirements: Optional[str] = None,
+                            language='zh') -> str:
         """
         Generate image generation prompt for a page
         Based on demo.py gen_prompts()
@@ -316,7 +318,8 @@ class AIService:
             outline_text=outline_text,
             current_section=current_section,
             has_material_images=has_material_images,
-            extra_requirements=extra_requirements
+            extra_requirements=extra_requirements,
+            language=language
         )
         
         return prompt
@@ -427,7 +430,7 @@ class AIService:
         )
         return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution, additional_ref_images)
     
-    def parse_description_to_outline(self, project_context: ProjectContext) -> List[Dict]:
+    def parse_description_to_outline(self, project_context: ProjectContext, language='zh') -> List[Dict]:
         """
         从描述文本解析出大纲结构
         
@@ -437,7 +440,7 @@ class AIService:
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        parse_prompt = get_description_to_outline_prompt(project_context)
+        parse_prompt = get_description_to_outline_prompt(project_context, language)
         
         response_text = self.text_provider.generate_text(parse_prompt, thinking_budget=1000)
         
@@ -445,7 +448,9 @@ class AIService:
         outline = json.loads(outline_json)
         return outline
     
-    def parse_description_to_page_descriptions(self, project_context: ProjectContext, outline: List[Dict]) -> List[str]:
+    def parse_description_to_page_descriptions(self, project_context: ProjectContext, 
+                                               outline: List[Dict],
+                                               language='zh') -> List[str]:
         """
         从描述文本切分出每页描述
         
@@ -456,7 +461,7 @@ class AIService:
         Returns:
             List of page descriptions (strings), one for each page in the outline
         """
-        split_prompt = get_description_split_prompt(project_context, outline)
+        split_prompt = get_description_split_prompt(project_context, outline, language)
         
         response_text = self.text_provider.generate_text(split_prompt, thinking_budget=1000)
         
@@ -471,7 +476,8 @@ class AIService:
     
     def refine_outline(self, current_outline: List[Dict], user_requirement: str,
                       project_context: ProjectContext,
-                      previous_requirements: Optional[List[str]] = None) -> List[Dict]:
+                      previous_requirements: Optional[List[str]] = None,
+                      language='zh') -> List[Dict]:
         """
         根据用户要求修改已有大纲
         
@@ -488,7 +494,8 @@ class AIService:
             current_outline=current_outline,
             user_requirement=user_requirement,
             project_context=project_context,
-            previous_requirements=previous_requirements
+            previous_requirements=previous_requirements,
+            language=language
         )
         
         response_text = self.text_provider.generate_text(refinement_prompt, thinking_budget=1000)
@@ -500,7 +507,8 @@ class AIService:
     def refine_descriptions(self, current_descriptions: List[Dict], user_requirement: str,
                            project_context: ProjectContext,
                            outline: List[Dict] = None,
-                           previous_requirements: Optional[List[str]] = None) -> List[str]:
+                           previous_requirements: Optional[List[str]] = None,
+                           language='zh') -> List[str]:
         """
         根据用户要求修改已有页面描述
         
@@ -519,7 +527,8 @@ class AIService:
             user_requirement=user_requirement,
             project_context=project_context,
             outline=outline,
-            previous_requirements=previous_requirements
+            previous_requirements=previous_requirements,
+            language=language
         )
         
         response_text = self.text_provider.generate_text(refinement_prompt, thinking_budget=1000)

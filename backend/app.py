@@ -112,6 +112,29 @@ def create_app():
     def health_check():
         return {'status': 'ok', 'message': 'Banana Slides API is running'}
     
+    # Site status endpoint
+    @app.route('/api/site-status')
+    def site_status():
+        """
+        获取站点状态
+        可选值: sufficient (余额充足), insufficient (欠费), maintenance (维护)
+        """
+        status = os.getenv('SITE_STATUS', 'sufficient')
+        return {'status': status}
+    
+    # Output language endpoint
+    @app.route('/api/output-language', methods=['GET'])
+    def get_output_language():
+        """
+        获取默认输出语言设置（从环境变量读取）
+        返回: zh, ja, en, auto
+        
+        注意：这只返回服务器配置的默认语言。
+        实际的语言选择应由前端在 sessionStorage 中管理，
+        并在每次生成请求时通过 language 参数传递。
+        """
+        return {'data': {'language': Config.OUTPUT_LANGUAGE}}
+
     # Root endpoint
     @app.route('/')
     def index():
@@ -144,6 +167,7 @@ if __name__ == '__main__':
         "║   🍌 Banana Slides API Server 🍌   ║\n"
         "╚══════════════════════════════════════╝\n"
         f"Server starting on: http://localhost:{port}\n"
+        f"Output Language: {Config.OUTPUT_LANGUAGE}\n"
         f"Environment: {os.getenv('FLASK_ENV', 'development')}\n"
         f"Debug mode: {debug}\n"
         f"API Base URL: http://localhost:{port}/api\n"
@@ -154,4 +178,3 @@ if __name__ == '__main__':
     # Enable reloader for hot reload in development
     # Using absolute paths for database, so WSL path issues should not occur
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=True)
-
