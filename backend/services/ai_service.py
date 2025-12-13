@@ -181,7 +181,7 @@ class AIService:
             logger.error(f"Failed to download image from {url}: {str(e)}")
             return None
     
-    def generate_outline(self, project_context: ProjectContext, language='zh') -> List[Dict]:
+    def generate_outline(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
         Generate PPT outline from idea prompt
         Based on demo.py gen_outline()

@@ -22,7 +22,7 @@ LANGUAGE_CONFIG = {
     'ja': {
         'name': '日本語',
         'instruction': 'すべて日本語で出力してください。',
-        'ppt_text': 'PPTのテキストすべて日本語りようしてください。'
+        'ppt_text': 'PPTのテキストは全て日本語で出力してください。'
     },
     'en': {
         'name': 'English',
@@ -157,7 +157,7 @@ The user's request: {idea_prompt}. Now generate the outline, don't include any o
     return final_prompt
 
 
-def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str = 'zh') -> str:
+def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str = None ) -> str:
     """
     解析用户提供的大纲文本的 prompt
     
@@ -224,7 +224,7 @@ Now parse the outline text above into the structured format. Return only the JSO
 def get_page_description_prompt(project_context: 'ProjectContext', outline: list, 
                                 page_outline: dict, page_index: int, 
                                 part_info: str = "",
-                                language: str = 'zh') -> str:
+                                language: str = None) -> str:
     """
     生成单个页面描述的 prompt
     
@@ -288,7 +288,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 current_section: str,
                                 has_material_images: bool = False,
                                 extra_requirements: str = None,
-                                language: str = 'zh') -> str:
+                                language: str = None) -> str:
     """
     生成图片生成 prompt
     
@@ -379,7 +379,7 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
     return prompt
 
 
-def get_description_to_outline_prompt(project_context: 'ProjectContext', language: str = 'zh') -> str:
+def get_description_to_outline_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """
     从描述文本解析出大纲的 prompt
     
@@ -446,7 +446,7 @@ Now extract the outline structure from the description text above. Return only t
 
 def get_description_split_prompt(project_context: 'ProjectContext', 
                                  outline: List[Dict], 
-                                 language: str = 'zh') -> str:
+                                 language: str = None) -> str:
     """
     从描述文本切分出每页描述的 prompt
     
@@ -509,7 +509,7 @@ Now split the description text into individual page descriptions. Return only th
 def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement: str,
                                    project_context: 'ProjectContext',
                                    previous_requirements: Optional[List[str]] = None,
-                                   language: str = 'zh') -> str:
+                                   language: str = None) -> str:
     """
     根据用户要求修改已有大纲的 prompt
     
@@ -603,7 +603,7 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
                                        project_context: 'ProjectContext',
                                        outline: List[Dict] = None,
                                        previous_requirements: Optional[List[str]] = None,
-                                       language: str = 'zh') -> str:
+                                       language: str = None) -> str:
     """
     根据用户要求修改已有页面描述的 prompt
     

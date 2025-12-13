@@ -57,33 +57,25 @@ export const Home: React.FC = () => {
 
     // 加载输出语言设置
     const loadOutputLanguage = async () => {
+      setIsLanguageLoading(true);
       try {
         // 先检查 sessionStorage 是否有用户之前的选择
-        const savedLanguage = sessionStorage.getItem('outputLanguage');
-        if (savedLanguage && ['zh', 'ja', 'en', 'auto'].includes(savedLanguage)) {
-          // 如果有保存的选择，使用它并同步到后端
-          setOutputLanguageState(savedLanguage as OutputLanguage);
-          // 同步到后端（静默操作，不显示提示）
-          try {
-            storeOutputLanguage(savedLanguage as OutputLanguage);
-          } catch (syncError) {
-            console.error('同步语言设置到后端失败:', syncError);
-          }
-        } else {
-          // 如果没有保存的选择，从后端获取默认值
+        const storedLanguage = getStoredOutputLanguage();
+        if (!storedLanguage) {
           const response = await getDefaultOutputLanguage();
           if (response.data?.language) {
-            setOutputLanguageState(response.data.language);
-            // 保存到 sessionStorage
-            sessionStorage.setItem('outputLanguage', response.data.language);
+            const lang = response.data.language;
+            setOutputLanguageState(lang);
+            storeOutputLanguage(lang);
           }
         }
       } catch (error) {
         console.error('加载输出语言设置失败:', error);
-        // 如果加载失败，尝试使用 sessionStorage 中的值
-        const savedLanguage = sessionStorage.getItem('outputLanguage');
-        if (savedLanguage && ['zh', 'ja', 'en', 'auto'].includes(savedLanguage)) {
-          setOutputLanguageState(savedLanguage as OutputLanguage);
+        // 如果加载失败，尝试使用硬编码
+        if (!getStoredOutputLanguage()) {
+          const fallbackLang = 'zh';
+          setOutputLanguageState(fallbackLang);
+          storeOutputLanguage(fallbackLang);
         }
       } finally {
         setIsLanguageLoading(false);

@@ -294,7 +294,7 @@ def generate_outline(project_id):
         
         # Get request data and language parameter
         data = request.get_json() or {}
-        language = data.get('language', 'zh')
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -391,6 +391,8 @@ def generate_from_description(project_id):
         "language": "zh"  # output language: zh, en, ja, auto
     }
     """
+    from flask import current_app
+    
     try:
         project = Project.query.get(project_id)
         
@@ -403,7 +405,7 @@ def generate_from_description(project_id):
         # Get description text and language
         data = request.get_json() or {}
         description_text = data.get('description_text') or project.description_text
-        language = data.get('language', 'zh')
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         if not description_text:
             return bad_request("description_text is required")
@@ -411,7 +413,6 @@ def generate_from_description(project_id):
         project.description_text = description_text
         
         # Initialize AI service
-        from flask import current_app
         ai_service = AIService()
         
         # Get reference files content and create project context
@@ -527,7 +528,7 @@ def generate_descriptions(project_id):
         from flask import current_app
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
-        language = data.get('language', 'zh')
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Create task
         task = Task(
@@ -620,7 +621,7 @@ def generate_images(project_id):
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
-        language = data.get('language', 'zh')
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Create task
         task = Task(
@@ -750,7 +751,7 @@ def refine_outline(project_id):
         
         # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
-        language = data.get('language', 'zh')
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Refine outline
         logger.info(f"开始修改大纲: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
@@ -920,7 +921,7 @@ def refine_descriptions(project_id):
         
         # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
-        language = data.get('language', 'zh')
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Refine descriptions
         logger.info(f"开始修改页面描述: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
