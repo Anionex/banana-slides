@@ -92,6 +92,36 @@ body {
   }
 }
 
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 滑入动画 */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
 /* Markdown 内容样式 - 仅保留基础容器样式，具体样式由 Markdown.tsx 组件内的 Tailwind 类处理 */
 .markdown-content {
   line-height: 1.6;
