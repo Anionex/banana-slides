@@ -25,7 +25,15 @@ export const Home: React.FC = () => {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
-  const [outputLanguage, setOutputLanguageState] = useState<OutputLanguage>('zh');
+  // 从 sessionStorage 读取用户之前选择的语言，如果没有则为 null
+  const [outputLanguage, setOutputLanguageState] = useState<OutputLanguage | null>(() => {
+    const saved = sessionStorage.getItem('outputLanguage');
+    if (saved && ['zh', 'ja', 'en', 'auto'].includes(saved)) {
+      return saved as OutputLanguage;
+    }
+    return null;
+  });
+  const [isLanguageLoading, setIsLanguageLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -46,16 +54,39 @@ export const Home: React.FC = () => {
       }
     };
     loadTemplates();
-    
+
     // 加载输出语言设置
     const loadOutputLanguage = async () => {
       try {
-        const response = await getOutputLanguage();
-        if (response.data?.language) {
-          setOutputLanguageState(response.data.language);
+        // 先检查 sessionStorage 是否有用户之前的选择
+        const savedLanguage = sessionStorage.getItem('outputLanguage');
+        if (savedLanguage && ['zh', 'ja', 'en', 'auto'].includes(savedLanguage)) {
+          // 如果有保存的选择，使用它并同步到后端
+          setOutputLanguageState(savedLanguage as OutputLanguage);
+          // 同步到后端（静默操作，不显示提示）
+          try {
+            await setOutputLanguage(savedLanguage as OutputLanguage);
+          } catch (syncError) {
+            console.error('同步语言设置到后端失败:', syncError);
+          }
+        } else {
+          // 如果没有保存的选择，从后端获取默认值
+          const response = await getOutputLanguage();
+          if (response.data?.language) {
+            setOutputLanguageState(response.data.language);
+            // 保存到 sessionStorage
+            sessionStorage.setItem('outputLanguage', response.data.language);
+          }
         }
       } catch (error) {
         console.error('加载输出语言设置失败:', error);
+        // 如果加载失败，尝试使用 sessionStorage 中的值
+        const savedLanguage = sessionStorage.getItem('outputLanguage');
+        if (savedLanguage && ['zh', 'ja', 'en', 'auto'].includes(savedLanguage)) {
+          setOutputLanguageState(savedLanguage as OutputLanguage);
+        }
+      } finally {
+        setIsLanguageLoading(false);
       }
     };
     loadOutputLanguage();
@@ -66,6 +97,8 @@ export const Home: React.FC = () => {
     try {
       await setOutputLanguage(language);
       setOutputLanguageState(language);
+      // 保存到 sessionStorage 以便刷新后保留
+      sessionStorage.setItem('outputLanguage', language);
       show({ message: `输出语言已设置为: ${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === language)?.label}`, type: 'success' });
     } catch (error) {
       console.error('设置输出语言失败:', error);
@@ -726,9 +759,11 @@ export const Home: React.FC = () => {
               ))}
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              {outputLanguage === 'auto' 
+              {isLanguageLoading
+              ? '正在加载语言设置...'
+              : outputLanguage === 'auto' 
                 ? '自动模式：AI 将根据输入内容自动选择输出语言' 
-                : `所有 AI 生成的内容将使用${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === outputLanguage)?.label}输出`}
+                : `所有 AI 生成的内容将使用${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === outputLanguage)?.label || '默认语言' }输出`}
             </p>
           </div>
 
