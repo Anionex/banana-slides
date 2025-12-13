@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, FileText, Sparkles } from 'lucide-react';
-import { Button, Loading, useToast, useConfirm, AiRefineInput, ReferenceFileList, FilePreviewModal } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions } from '@/api/endpoints';
@@ -227,11 +227,12 @@ export const DetailEditor: React.FC = () => {
       {/* 主内容区 */}
       <main className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-7xl mx-auto">
-          {/* 已上传的文件列表 */}
-          <ReferenceFileList
+          {/* 项目资源列表（文件和图片） */}
+          <ProjectResourcesList
             projectId={projectId || null}
             onFileClick={setPreviewFileId}
-            deleteMode="remove"
+            showFiles={true}
+            showImages={true}
           />
           
           {currentProject.pages.length === 0 ? (

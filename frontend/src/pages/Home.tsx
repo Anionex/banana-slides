@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -407,6 +407,27 @@ export const Home: React.FC = () => {
         }
       } else {
         console.log('No reference files to associate');
+      }
+      
+      // 关联图片素材到项目（解析content中的markdown图片链接）
+      const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+      const materialUrls: string[] = [];
+      let match;
+      while ((match = imageRegex.exec(content)) !== null) {
+        materialUrls.push(match[2]); // match[2] 是 URL
+      }
+      
+      if (materialUrls.length > 0) {
+        console.log(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
+        try {
+          const response = await associateMaterialsToProject(projectId, materialUrls);
+          console.log('Materials associated successfully:', response);
+        } catch (error) {
+          console.error('Failed to associate materials:', error);
+          // 不影响主流程，继续执行
+        }
+      } else {
+        console.log('No materials to associate');
       }
       
       if (activeTab === 'idea' || activeTab === 'outline') {
