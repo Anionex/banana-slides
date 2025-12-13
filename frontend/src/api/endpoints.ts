@@ -678,3 +678,42 @@ export const dissociateFileFromProject = async (
   return response.data;
 };
 
+// ===== 输出语言设置 =====
+
+export type OutputLanguage = 'zh' | 'ja' | 'en' | 'auto';
+
+export interface OutputLanguageOption {
+  value: OutputLanguage;
+  label: string;
+}
+
+export const OUTPUT_LANGUAGE_OPTIONS: OutputLanguageOption[] = [
+  { value: 'zh', label: '中文' },
+  { value: 'ja', label: '日本語' },
+  { value: 'en', label: 'English' },
+  { value: 'auto', label: '自动' },
+];
+
+/**
+ * 获取当前输出语言设置
+ */
+export const getOutputLanguage = async (): Promise<ApiResponse<{ language: OutputLanguage }>> => {
+  const response = await apiClient.get<ApiResponse<{ language: OutputLanguage }>>(
+    '/api/output-language'
+  );
+  return response.data;
+};
+
+/**
+ * 设置输出语言
+ * @param language 语言代码: 'zh' (中文), 'ja' (日本語), 'en' (English), 'auto' (自动)
+ */
+export const setOutputLanguage = async (
+  language: OutputLanguage
+): Promise<ApiResponse<{ language: OutputLanguage; message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ language: OutputLanguage; message: string }>>(
+    '/api/output-language',
+    { language }
+  );
+  return response.data;
+};

@@ -76,6 +76,10 @@ class Config:
     
     # CORS配置
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    
+    # 输出语言配置
+    # 可选值: 'zh' (中文), 'ja' (日本語), 'en' (English), 'auto' (自动)
+    OUTPUT_LANGUAGE = os.getenv('OUTPUT_LANGUAGE', 'zh')
 
 
 class DevelopmentConfig(Config):
@@ -99,4 +103,3 @@ def get_config():
     """Get configuration based on environment"""
     env = os.getenv('FLASK_ENV', 'development')
     return config_map.get(env, DevelopmentConfig)
-

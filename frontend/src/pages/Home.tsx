@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Globe } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, SiteStatusBanner } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, getOutputLanguage, setOutputLanguage, OUTPUT_LANGUAGE_OPTIONS, type OutputLanguage } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -25,10 +25,11 @@ export const Home: React.FC = () => {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [outputLanguage, setOutputLanguageState] = useState<OutputLanguage>('zh');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 检查是否有当前项目 & 加载用户模板
+  // 检查是否有当前项目 & 加载用户模板 & 加载输出语言设置
   useEffect(() => {
     const projectId = localStorage.getItem('currentProjectId');
     setCurrentProjectId(projectId);
@@ -45,7 +46,32 @@ export const Home: React.FC = () => {
       }
     };
     loadTemplates();
+    
+    // 加载输出语言设置
+    const loadOutputLanguage = async () => {
+      try {
+        const response = await getOutputLanguage();
+        if (response.data?.language) {
+          setOutputLanguageState(response.data.language);
+        }
+      } catch (error) {
+        console.error('加载输出语言设置失败:', error);
+      }
+    };
+    loadOutputLanguage();
   }, []);
+
+  // 处理语言选择变化
+  const handleLanguageChange = async (language: OutputLanguage) => {
+    try {
+      await setOutputLanguage(language);
+      setOutputLanguageState(language);
+      show({ message: `输出语言已设置为: ${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === language)?.label}`, type: 'success' });
+    } catch (error) {
+      console.error('设置输出语言失败:', error);
+      show({ message: '设置输出语言失败', type: 'error' });
+    }
+  };
 
   const handleOpenMaterialModal = () => {
     // 在主页始终生成全局素材，不关联任何项目
@@ -674,6 +700,38 @@ export const Home: React.FC = () => {
             />
           </div>
 
+          {/* 输出语言选择 */}
+          <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-2 mb-3 md:mb-4">
+              <div className="flex items-center gap-2">
+                <Globe size={18} className="text-blue-600 flex-shrink-0" />
+                <h3 className="text-base md:text-lg font-semibold text-gray-900">
+                  指定输出语言
+                </h3>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 md:gap-3">
+              {OUTPUT_LANGUAGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleLanguageChange(option.value)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all text-sm md:text-base ${
+                    outputLanguage === option.value
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {outputLanguage === 'auto' 
+                ? '自动模式：AI 将根据输入内容自动选择输出语言' 
+                : `所有 AI 生成的内容将使用${OUTPUT_LANGUAGE_OPTIONS.find(o => o.value === outputLanguage)?.label}输出`}
+            </p>
+          </div>
+
         </Card>
       </main>
       <ToastContainer />
@@ -698,4 +756,3 @@ export const Home: React.FC = () => {
     </div>
   );
 };
-
