@@ -445,8 +445,6 @@ banana-slides/
 
 ## 📄 许可证
 
-个人使用- CC BY-NC-SA 4.0
-
 本项目采用 CC BY-NC-SA 4.0 协议进行开源
 
 **商业使用定义**
