@@ -105,7 +105,7 @@ class AIService:
             ),
             api_key=api_key
         )
-        self.text_model = "gemini-2.5-flash"
+        self.text_model = "gemini-3-pro-preview"
         self.image_model = "gemini-3-pro-image-preview"
     
     @staticmethod
