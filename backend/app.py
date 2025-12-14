@@ -107,21 +107,6 @@ def create_app():
     with app.app_context():
         db.create_all()
     
-    # Health check endpoint
-    @app.route('/health')
-    def health_check():
-        return {'status': 'ok', 'message': 'Banana Slides API is running'}
-    
-    # Site status endpoint
-    @app.route('/api/site-status')
-    def site_status():
-        """
-        获取站点状态
-        可选值: sufficient (余额充足), insufficient (欠费), maintenance (维护)
-        """
-        status = os.getenv('SITE_STATUS', 'sufficient')
-        return {'status': status}
-    
     # Output language endpoint
     @app.route('/api/output-language', methods=['GET'])
     def get_output_language():
