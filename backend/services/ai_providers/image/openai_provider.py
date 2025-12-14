@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class OpenAIImageProvider(ImageProvider):
     """Image generation using OpenAI SDK (compatible with Gemini via proxy)"""
     
-    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro"):
+    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview"):
         """
         Initialize OpenAI image provider
         
