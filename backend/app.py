@@ -19,6 +19,7 @@ load_dotenv(dotenv_path=_env_file, override=True)
 
 from flask import Flask
 from flask_cors import CORS
+from flask_migrate import Migrate, upgrade
 from models import db
 from config import Config
 from controllers.material_controller import material_bp, material_global_bp
@@ -91,6 +92,9 @@ def create_app():
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('werkzeug').setLevel(logging.INFO)  # Flask开发服务器日志保持INFO
+    # OpenAI SDK 日志（防止打印完整请求/响应体，尤其是 base64 图片）
+    logging.getLogger('openai').setLevel(logging.INFO)
+    logging.getLogger('openai._base_client').setLevel(logging.INFO)
 
     # Initialize extensions
     db.init_app(app)

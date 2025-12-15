@@ -38,3 +38,7 @@ generate-example.py
 .cursor/worktrees.json
 uploads/
 !assets/*
+backend/instance/
+backend/uploads/
+backend/server.log
+backend/server_running.log
