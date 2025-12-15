@@ -39,7 +39,6 @@ def export_pptx(project_id):
             return bad_request("No pages found for project")
         
         # Get image paths
-        from flask import current_app
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
         image_paths = []
@@ -110,7 +109,6 @@ def export_pdf(project_id):
             return bad_request("No pages found for project")
         
         # Get image paths
-        from flask import current_app
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
         image_paths = []

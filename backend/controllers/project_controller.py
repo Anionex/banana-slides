@@ -2,7 +2,7 @@
 Project Controller - handles project-related endpoints
 """
 import logging
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from models import db, Project, Page, Task, ReferenceFile
 from utils import success_response, error_response, not_found, bad_request
 from services import AIService, ProjectContext
@@ -253,7 +253,6 @@ def delete_project(project_id):
         
         # Delete project files
         from services import FileService
-        from flask import current_app
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_project_files(project_id)
         
@@ -289,7 +288,6 @@ def generate_outline(project_id):
             return not_found('Project')
         
         # Initialize AI service
-        from flask import current_app
         ai_service = AIService()
         
         # Get request data and language parameter
@@ -391,7 +389,6 @@ def generate_from_description(project_id):
         "language": "zh"  # output language: zh, en, ja, auto
     }
     """
-    from flask import current_app
     
     try:
         project = Project.query.get(project_id)
@@ -525,7 +522,6 @@ def generate_descriptions(project_id):
         outline = _reconstruct_outline_from_pages(pages)
         
         data = request.get_json() or {}
-        from flask import current_app
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
@@ -617,7 +613,6 @@ def generate_images(project_id):
         outline = _reconstruct_outline_from_pages(pages)
         
         data = request.get_json() or {}
-        from flask import current_app
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
@@ -735,7 +730,6 @@ def refine_outline(project_id):
             current_outline = _reconstruct_outline_from_pages(pages)
         
         # Initialize AI service
-        from flask import current_app
         ai_service = AIService()
         
         # Get reference files content and create project context
@@ -905,7 +899,6 @@ def refine_descriptions(project_id):
             })
         
         # Initialize AI service
-        from flask import current_app
         ai_service = AIService()
         
         # Get reference files content and create project context

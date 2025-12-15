@@ -38,7 +38,6 @@ def upload_template(project_id):
             return bad_request("No file selected")
         
         # Validate file extension
-        from flask import current_app
         if not allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
             return bad_request("Invalid file type. Allowed types: png, jpg, jpeg, gif, webp")
         
@@ -76,7 +75,6 @@ def delete_template(project_id):
             return bad_request("No template to delete")
         
         # Delete template file
-        from flask import current_app
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_template(project_id)
         
@@ -120,8 +118,6 @@ def upload_user_template():
     Optional: name=Template Name
     """
     try:
-        from flask import current_app
-        
         # Check if file is in request
         if 'template_image' not in request.files:
             return bad_request("No file uploaded")
@@ -170,7 +166,7 @@ def upload_user_template():
         logger.error(f"Error uploading user template: {error_msg}", exc_info=True)
         # 在开发环境中返回详细错误，生产环境返回通用错误
         if current_app.config.get('DEBUG', False):
-            return error_response('SERVER_ERROR', f"{error_msg}\n{traceback_str}", 500)
+            return error_response('SERVER_ERROR', f"{error_msg}\n{traceback.format_exc()}", 500)
         else:
             return error_response('SERVER_ERROR', error_msg, 500)
 

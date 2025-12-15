@@ -28,7 +28,9 @@ class OpenAIImageProvider(ImageProvider):
         """
         self.client = OpenAI(
             api_key=api_key,
-            base_url=api_base
+            base_url=api_base,
+            timeout=60.0,  # set timeout to 60s
+            max_retries=3  # add retry times
         )
         self.model = model
     
