@@ -17,7 +17,9 @@ dependencies = [
     "reportlab>=4.1.0",
     "werkzeug>=3.0.1",
     "markitdown[all]",
-    "tenacity>=9.0.0"
+    "tenacity>=9.0.0",
+    "alembic>=1.13.0",
+    "flask-migrate>=4.0.0",
 ]
 
 [tool.uv]

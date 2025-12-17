@@ -136,7 +136,3 @@ python app.py
 - Safari
 - Edge
 
-## License
-
-MIT
-

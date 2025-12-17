@@ -77,8 +77,20 @@ class AIService:
             image_provider: Optional pre-configured ImageProvider. If None, created from factory.
         """
         config = get_config()
-        self.text_model = config.TEXT_MODEL
-        self.image_model = config.IMAGE_MODEL
+
+        # 优先使用 Flask app.config（可由 Settings 覆盖），否则回退到 Config 默认值
+        try:
+            from flask import current_app, has_app_context
+        except ImportError:
+            current_app = None  # type: ignore
+            has_app_context = lambda: False  # type: ignore
+
+        if has_app_context() and current_app and hasattr(current_app, "config"):
+            self.text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
+            self.image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
+        else:
+            self.text_model = config.TEXT_MODEL
+            self.image_model = config.IMAGE_MODEL
         
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT env var
         self.text_provider = text_provider or get_text_provider(model=self.text_model)

@@ -73,7 +73,20 @@ GOOGLE_API_KEY=your-google-api-key
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 ```
 
-### 3. 运行服务
+### 3. 初始化 / 升级数据库结构（Alembic 迁移）
+
+从当前版本开始，后端使用 Alembic 管理数据库结构变更。
+
+```bash
+cd backend
+uv run alembic upgrade head
+```
+
+> 注意：  
+> - 首次运行时会自动创建 `alembic_version` 表并将数据库迁移到最新结构；  
+> - 后续新增模型字段时，只需要更新 `models/`，然后使用 `alembic revision --autogenerate` 生成迁移，再执行 `alembic upgrade head`。
+
+### 4. 运行服务
 
 使用 uv 运行：
 ```bash
@@ -271,17 +284,19 @@ A: 在 `backend/instance/database.db`，会自动创建。
 A: 在 `uploads/{project_id}/` 目录下，按项目隔离。
 
 ### Q: 如何修改并发数？
-A: 在 `.env` 文件中修改 `MAX_DESCRIPTION_WORKERS` 和 `MAX_IMAGE_WORKERS`。
+A: 推荐通过前端设置页修改（会同步到数据库并覆盖 `.env` 值）；也可以在 `.env` 文件中修改 `MAX_DESCRIPTION_WORKERS` 和 `MAX_IMAGE_WORKERS` 作为默认值，然后在设置页点击“重置为默认值”同步到 DB。
 
-### Q: 如何切换到其他AI模型？
-A: 修改 `services/ai_service.py` 中的 `AIService` 类实现。
+### Q: 如何切换到其他AI模型 / 修改 MinerU 地址？
+A: 从当前版本开始，推荐通过前端“系统设置”页面修改：  
+- 大模型提供商格式 / API Base / API Key  
+- 文本模型 (`TEXT_MODEL`) / 图片模型 (`IMAGE_MODEL`)  
+- MinerU 地址 (`MINERU_API_BASE`) / 图片识别模型 (`IMAGE_CAPTION_MODEL`)  
+
+这些值会保存到 `settings` 表并覆盖 `.env` 中对应配置，点击“重置为默认值”会回到 `.env` 的默认值。
 
 ### Q: 支持哪些图片格式？
 A: PNG, JPG, JPEG, GIF, WEBP。在 `config.py` 中的 `ALLOWED_EXTENSIONS` 配置。
 
-## 许可证
-
-MIT
 
 ## 联系方式
 

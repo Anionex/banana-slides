@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 import sqlite3
+from flask_migrate import Migrate
 
 # Load environment variables from project root .env file
 _project_root = Path(__file__).parent.parent
@@ -93,6 +94,8 @@ def create_app():
     # Initialize extensions
     db.init_app(app)
     CORS(app, origins=cors_origins)
+    # Database migrations (Alembic via Flask-Migrate)
+    Migrate(app, db)
     
     # Register blueprints
     app.register_blueprint(project_bp)
@@ -107,8 +110,6 @@ def create_app():
     app.register_blueprint(settings_bp)
 
     with app.app_context():
-        db.create_all()
-
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
@@ -121,14 +122,16 @@ def create_app():
     @app.route('/api/output-language', methods=['GET'])
     def get_output_language():
         """
-        获取默认输出语言设置（从环境变量读取）
+        获取用户的输出语言偏好（从数据库 Settings 读取）
         返回: zh, ja, en, auto
-        
-        注意：这只返回服务器配置的默认语言。
-        实际的语言选择应由前端在 sessionStorage 中管理，
-        并在每次生成请求时通过 language 参数传递。
         """
-        return {'data': {'language': Config.OUTPUT_LANGUAGE}}
+        from models import Settings
+        try:
+            settings = Settings.get_settings()
+            return {'data': {'language': settings.output_language}}
+        except Exception as e:
+            logging.warning(f"Failed to load output language from settings: {e}")
+            return {'data': {'language': 'zh'}}  # 默认中文
 
     # Root endpoint
     @app.route('/')

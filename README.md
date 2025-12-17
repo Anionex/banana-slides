@@ -293,10 +293,12 @@ npm install
 
 
 #### 启动后端服务
+> （可选）如果本地已有重要数据，升级前建议先备份数据库：  
+> `cp backend/instance/database.db backend/instance/database.db.bak`
 
 ```bash
 cd backend
-uv run python app.py
+uv run alembic upgrade head && uv run python app.py
 ```
 
 后端服务将在 `http://localhost:5000` 启动。

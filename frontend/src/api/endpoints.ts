@@ -105,10 +105,10 @@ export const updatePagesOrder = async (
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
 export const generateOutline = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
-  const lang = language || getStoredOutputLanguage();
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/outline`,
-    lang ? { language: lang } : {}
+    { language: lang }
   );
   return response.data;
 };
@@ -122,7 +122,7 @@ export const generateOutline = async (projectId: string, language?: OutputLangua
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
 export const generateFromDescription = async (projectId: string, descriptionText?: string, language?: OutputLanguage): Promise<ApiResponse> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/from-description`,
     { 
@@ -139,7 +139,7 @@ export const generateFromDescription = async (projectId: string, descriptionText
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
 export const generateDescriptions = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/descriptions`,
     { language: lang }
@@ -156,7 +156,7 @@ export const generatePageDescription = async (
   forceRegenerate: boolean = false,
   language?: OutputLanguage
 ): Promise<ApiResponse> => {
-  const lang = language || getStoredOutputLanguage() || 'zh'; 
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/description`,
     { force_regenerate: forceRegenerate , language: lang}
@@ -177,7 +177,7 @@ export const refineOutline = async (
   previousRequirements?: string[],
   language?: OutputLanguage
 ): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
     `/api/projects/${projectId}/refine/outline`,
     {
@@ -202,7 +202,7 @@ export const refineDescriptions = async (
   previousRequirements?: string[],
   language?: OutputLanguage
 ): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
     `/api/projects/${projectId}/refine/descriptions`,
     {
@@ -222,7 +222,7 @@ export const refineDescriptions = async (
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
 export const generateImages = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/images`,
     { language: lang }
@@ -239,7 +239,7 @@ export const generatePageImage = async (
   forceRegenerate: boolean = false,
   language?: OutputLanguage
 ): Promise<ApiResponse> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/image`,
     { force_regenerate: forceRegenerate, language: lang }
@@ -347,7 +347,7 @@ export const updatePageDescription = async (
   descriptionContent: any,
   language?: OutputLanguage
 ): Promise<ApiResponse<Page>> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/description`,
     { description_content: descriptionContent, language: lang }
@@ -364,7 +364,7 @@ export const updatePageOutline = async (
   outlineContent: any,
   language?: OutputLanguage
 ): Promise<ApiResponse<Page>> => {
-  const lang = language || getStoredOutputLanguage() || 'zh';
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/outline`,
     { outline_content: outlineContent, language: lang }
@@ -748,23 +748,17 @@ export const getDefaultOutputLanguage = async (): Promise<ApiResponse<{ language
 };
 
 /**
- * 从 sessionStorage 获取当前用户选择的输出语言
- * 如果没有保存的选择，返回 null
+ * 从后端 Settings 获取用户的输出语言偏好
+ * 如果获取失败，返回默认值 'zh'
  */
-export const getStoredOutputLanguage = (): OutputLanguage | null => {
-  const saved = sessionStorage.getItem('outputLanguage');
-  if (saved && ['zh', 'ja', 'en', 'auto'].includes(saved)) {
-    return saved as OutputLanguage;
+export const getStoredOutputLanguage = async (): Promise<OutputLanguage> => {
+  try {
+    const response = await apiClient.get<ApiResponse<{ language: OutputLanguage }>>('/api/output-language');
+    return response.data.data.language;
+  } catch (error) {
+    console.warn('Failed to load output language from settings, using default', error);
+    return 'zh';
   }
-  return null;
-};
-
-/**
- * 保存用户选择的输出语言到 sessionStorage
- * @param language 语言代码
- */
-export const storeOutputLanguage = (language: OutputLanguage): void => {
-  sessionStorage.setItem('outputLanguage', language);
 };
 
 /**
@@ -779,7 +773,10 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Pick<Settings, 'ai_provider_format' | 'api_base_url' | 'image_resolution' | 'image_aspect_ratio' | 'max_description_workers' | 'max_image_workers'>> & { api_key?: string }
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & { 
+    api_key?: string;
+    mineru_token?: string;
+  }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
   return response.data;

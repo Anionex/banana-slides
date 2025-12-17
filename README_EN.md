@@ -426,7 +426,7 @@ banana-slides/
 ├── uv.lock                     # uv dependency lock file
 ├── docker-compose.yml          # Docker Compose configuration
 ├── .env.example                 # Environment variable example
-├── LICENSE                     # MIT License
+├── LICENSE                     
 └── README.md                   # This file
 ```
 
