@@ -125,6 +125,7 @@ def list_projects():
         })
     
     except Exception as e:
+        logger.error(f"list_projects failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -192,6 +193,7 @@ def get_project(project_id):
         return success_response(project.to_dict(include_pages=True))
     
     except Exception as e:
+        logger.error(f"get_project failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -237,6 +239,7 @@ def update_project(project_id):
     
     except Exception as e:
         db.session.rollback()
+        logger.error(f"update_project failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -264,6 +267,7 @@ def delete_project(project_id):
     
     except Exception as e:
         db.session.rollback()
+        logger.error(f"delete_project failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -576,6 +580,7 @@ def generate_descriptions(project_id):
     
     except Exception as e:
         db.session.rollback()
+        logger.error(f"generate_descriptions failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -671,6 +676,7 @@ def generate_images(project_id):
     
     except Exception as e:
         db.session.rollback()
+        logger.error(f"generate_images failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -688,6 +694,7 @@ def get_task_status(project_id, task_id):
         return success_response(task.to_dict())
     
     except Exception as e:
+        logger.error(f"get_task_status failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
