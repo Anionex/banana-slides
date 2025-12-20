@@ -183,7 +183,7 @@ export const OutlineEditor: React.FC = () => {
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
               <span className="text-xl md:text-2xl">🍌</span>
-              <span className="text-base md:text-xl font-bold">蕉幻</span>
+              <span className="text-base md:text-xl font-bold">Vibe提案</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
             <span className="text-sm md:text-lg font-semibold hidden lg:inline">编辑大纲</span>
@@ -421,4 +421,3 @@ export const OutlineEditor: React.FC = () => {
     </div>
   );
 };
-

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Lightbulb, Search, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
-import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
+import { uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -15,12 +14,8 @@ export const Home: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
   const [content, setContent] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
@@ -28,23 +23,10 @@ export const Home: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 检查是否有当前项目 & 加载用户模板
+  // 检查是否有当前项目
   useEffect(() => {
     const projectId = localStorage.getItem('currentProjectId');
     setCurrentProjectId(projectId);
-    
-    // 加载用户模板列表（用于按需获取File）
-    const loadTemplates = async () => {
-      try {
-        const response = await listUserTemplates();
-        if (response.data?.templates) {
-          setUserTemplates(response.data.templates);
-        }
-      } catch (error) {
-        console.error('加载用户模板失败:', error);
-      }
-    };
-    loadTemplates();
   }, []);
 
   const handleOpenMaterialModal = () => {
@@ -323,34 +305,6 @@ export const Home: React.FC = () => {
     },
   };
 
-  const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
-    // 总是设置文件（如果提供）
-    if (templateFile) {
-      setSelectedTemplate(templateFile);
-    }
-    
-    // 处理模板 ID
-    if (templateId) {
-      // 判断是用户模板还是预设模板
-      // 预设模板 ID 通常是 '1', '2', '3' 等短字符串
-      // 用户模板 ID 通常较长（UUID 格式）
-      if (templateId.length <= 3 && /^\d+$/.test(templateId)) {
-        // 预设模板
-        setSelectedPresetTemplateId(templateId);
-        setSelectedTemplateId(null);
-      } else {
-        // 用户模板
-        setSelectedTemplateId(templateId);
-        setSelectedPresetTemplateId(null);
-      }
-    } else {
-      // 如果没有 templateId，可能是直接上传的文件
-      // 清空所有选择状态
-      setSelectedTemplateId(null);
-      setSelectedPresetTemplateId(null);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!content.trim()) {
       show({ message: '请输入内容', type: 'error' });
@@ -370,16 +324,7 @@ export const Home: React.FC = () => {
     }
 
     try {
-      // 如果有模板ID但没有File，按需加载
-      let templateFile = selectedTemplate;
-      if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
-        const templateId = selectedTemplateId || selectedPresetTemplateId;
-        if (templateId) {
-          templateFile = await getTemplateFile(templateId, userTemplates);
-        }
-      }
-      
-      await initializeProject(activeTab, content, templateFile || undefined);
+      await initializeProject(activeTab, content, undefined);
       
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
@@ -452,20 +397,24 @@ export const Home: React.FC = () => {
       </div>
 
       {/* 导航栏 */}
-      <nav className="relative h-16 md:h-18 bg-white/40 backdrop-blur-2xl">
-
+      <nav className="relative h-16 md:h-18 bg-white/70 backdrop-blur-2xl">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center">
               <img
                 src="/logo.png"
-                alt="蕉幻 Banana Slides Logo"
-                className="h-10 md:h-12 w-auto rounded-lg object-contain"
+                alt="Vibe提案 Logo"
+                className="h-10 md:h-11 w-auto rounded-lg object-contain"
               />
             </div>
-            <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
-              蕉幻
-            </span>
+            <div className="flex flex-col items-start leading-tight">
+              <span className="text-lg md:text-xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
+                Vibe提案
+              </span>
+              <span className="text-[11px] md:text-xs text-gray-500">
+                vibe 方案 · 打工人之今天你是老板
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             {/* 桌面端：带文字的素材生成按钮 */}
@@ -512,25 +461,16 @@ export const Home: React.FC = () => {
       </nav>
 
       {/* 主内容 */}
-      <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
+      <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-6 md:py-8">
         {/* Hero 标题区 */}
-        <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
+        <div className="text-center mb-6 md:mb-10 space-y-4 md:space-y-5">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm rounded-full border border-banana-200/50 shadow-sm mb-4">
             <span className="text-2xl animate-pulse"><Sparkles size={20} color="orange" /></span>
             <span className="text-sm font-medium text-gray-700">基于 nano banana pro🍌 的原生 AI PPT 生成器</span>
           </div>
-          
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight">
-            <span className="bg-gradient-to-r from-yellow-600 via-orange-500 to-pink-500 bg-clip-text text-transparent" style={{
-              backgroundSize: '200% auto',
-              animation: 'gradient 3s ease infinite',
-            }}>
-              蕉幻 · Banana Slides
-            </span>
-          </h1>
-          
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto font-light">
-            Vibe your PPT like vibing code
+
+          <p className="text-xl md:text-2xl text-gray-800 max-w-3xl mx-auto font-semibold">
+            把做方案变成打字 VIBE，让每一页 PPT 都有情绪、有故事。
           </p>
 
           {/* 特性标签 */}
@@ -655,25 +595,6 @@ export const Home: React.FC = () => {
             deleteMode="remove"
             className="mb-4"
           />
-
-          {/* 模板选择 */}
-          <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-2 mb-3 md:mb-4">
-              <div className="flex items-center gap-2">
-                <Palette size={18} className="text-orange-600 flex-shrink-0" />
-                <h3 className="text-base md:text-lg font-semibold text-gray-900">
-                  选择风格模板
-                </h3>
-              </div>
-            </div>
-            <TemplateSelector
-              onSelect={handleTemplateSelect}
-              selectedTemplateId={selectedTemplateId}
-              selectedPresetTemplateId={selectedPresetTemplateId}
-              showUpload={true} // 在主页上传的模板保存到用户模板库
-              projectId={currentProjectId}
-            />
-          </div>
 
         </Card>
       </main>

@@ -30,6 +30,7 @@
 !README_EN.md
 *.pyc
 .env
+*.md
 *.ppt
 *.pptx
 generate-example.py
