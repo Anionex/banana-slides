@@ -65,7 +65,9 @@ export const Button: React.FC<ButtonProps> = ({
           />
         </svg>
       )}
-      {!loading && icon && <span className="mr-2">{icon}</span>}
+      {!loading && icon && (
+        <span className={children ? 'mr-2' : ''}>{icon}</span>
+      )}
       {children}
     </button>
   );

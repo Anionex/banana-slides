@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Edit2, RefreshCw } from 'lucide-react';
-import { Card, StatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
+import { Edit2, FileText, RefreshCw } from 'lucide-react';
+import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
+import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
 import type { Page, DescriptionContent } from '@/types';
 
-interface DescriptionCardProps {
+export interface DescriptionCardProps {
   page: Page;
   index: number;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
   isGenerating?: boolean;
+  isAiRefining?: boolean;
 }
 
 export const DescriptionCard: React.FC<DescriptionCardProps> = ({
@@ -17,6 +19,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   onUpdate,
   onRegenerate,
   isGenerating = false,
+  isAiRefining = false,
 }) => {
   // 从 description_content 提取文本内容
   const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
@@ -34,7 +37,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   
-  const generating = isGenerating || page.status === 'GENERATING';
+  // 使用专门的描述生成状态 hook，不受图片生成状态影响
+  const generating = useDescriptionGeneratingState(isGenerating, isAiRefining);
 
   const handleEdit = () => {
     // 在打开编辑对话框时，从当前的 page 获取最新值
@@ -67,7 +71,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
                 </span>
               )}
             </div>
-            <StatusBadge status={page.status} />
+            <ContextualStatusBadge page={page} context="description" />
           </div>
         </div>
 
@@ -88,7 +92,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">
-              <div className="text-3xl mb-2">📝</div>
+              <div className="flex text-3xl mb-2 justify-center"><FileText className="text-gray-400" size={48} /></div>
               <p className="text-sm">尚未生成描述</p>
             </div>
           )}

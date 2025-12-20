@@ -37,7 +37,7 @@ class Config:
     
     # 文件存储配置
     UPLOAD_FOLDER = os.path.join(PROJECT_ROOT, 'uploads')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200MB max file size
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     ALLOWED_REFERENCE_FILE_EXTENSIONS = {'pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'}
     
@@ -45,12 +45,25 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
+    # AI Provider 格式配置: "gemini" (Google GenAI SDK) 或 "openai" (OpenAI SDK)
+    AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
+    
+    # OpenAI 格式专用配置（当 AI_PROVIDER_FORMAT=openai 时使用）
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')  # 当 AI_PROVIDER_FORMAT=openai 时必须设置
+    OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
+    OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '60.0'))
+    OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '3'))
+    
+    # AI 模型配置
+    TEXT_MODEL = os.getenv('TEXT_MODEL', 'gemini-3-flash-preview')
+    IMAGE_MODEL = os.getenv('IMAGE_MODEL', 'gemini-3-pro-image-preview')
+
     # MinerU 文件解析服务配置
     MINERU_TOKEN = os.getenv('MINERU_TOKEN', '')
     MINERU_API_BASE = os.getenv('MINERU_API_BASE', 'https://mineru.net')
     
     # 图片识别模型配置
-    IMAGE_CAPTION_MODEL = os.getenv('IMAGE_CAPTION_MODEL', 'gemini-2.5-flash')
+    IMAGE_CAPTION_MODEL = os.getenv('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
     
     # 并发配置
     MAX_DESCRIPTION_WORKERS = int(os.getenv('MAX_DESCRIPTION_WORKERS', '5'))
@@ -60,8 +73,15 @@ class Config:
     DEFAULT_ASPECT_RATIO = "16:9"
     DEFAULT_RESOLUTION = "2K"
     
+    # 日志配置
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
+    
     # CORS配置
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    
+    # 输出语言配置
+    # 可选值: 'zh' (中文), 'ja' (日本語), 'en' (English), 'auto' (自动)
+    OUTPUT_LANGUAGE = os.getenv('OUTPUT_LANGUAGE', 'zh')
 
 
 class DevelopmentConfig(Config):
@@ -85,4 +105,3 @@ def get_config():
     """Get configuration based on environment"""
     env = os.getenv('FLASK_ENV', 'development')
     return config_map.get(env, DevelopmentConfig)
-

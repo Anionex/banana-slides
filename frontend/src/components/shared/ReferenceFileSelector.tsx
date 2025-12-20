@@ -239,6 +239,15 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // 检查是否有PPT文件，提示建议使用PDF
+    const hasPptFiles = Array.from(files).some(file => {
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      return fileExt === 'ppt' || fileExt === 'pptx';
+    });
+    
+    if (hasPptFiles) show({  message: '💡 提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果', type: 'info' });
+    
+
     setIsUploading(true);
     try {
       // 根据当前筛选条件决定上传文件的归属

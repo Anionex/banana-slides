@@ -44,7 +44,7 @@ def gen_image(prompt: str, ref_image_path: str, aspect_ratio: str = DEFAULT_ASPE
     return None
 
 
-def gen_json_text(prompt: str, model: str = "gemini-2.5-flash") -> str:
+def gen_json_text(prompt: str, model: str = "gemini-3-flash-preview") -> str:
     response = client.models.generate_content(
         model=model, contents=prompt,
           config=types.GenerateContentConfig(
@@ -58,7 +58,7 @@ def gen_json_text(prompt: str, model: str = "gemini-2.5-flash") -> str:
         raise
 
 
-def gen_text(prompt: str, model: str = "gemini-2.5-flash") -> str:
+def gen_text(prompt: str, model: str = "gemini-3-flash-preview") -> str:
     response = client.models.generate_content(
         model=model, contents=prompt,
           config=types.GenerateContentConfig(

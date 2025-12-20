@@ -1,5 +1,5 @@
 // TODO: split components
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -27,6 +27,7 @@ import { useProjectStore } from '@/store/useProjectStore';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent } from '@/types';
+import { normalizeErrorMessage } from '@/utils';
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
@@ -72,6 +73,8 @@ export const SlidePreview: React.FC = () => {
   const [extraRequirements, setExtraRequirements] = useState<string>('');
   const [isSavingRequirements, setIsSavingRequirements] = useState(false);
   const [isExtraRequirementsExpanded, setIsExtraRequirementsExpanded] = useState(false);
+  const isEditingRequirements = useRef(false); // 跟踪用户是否正在编辑额外要求
+  const lastProjectId = useRef<string | null>(null); // 跟踪上一次的项目ID
   // 素材生成模态开关（模块本身可复用，这里只是示例入口）
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   // 素材选择器模态开关
@@ -118,11 +121,24 @@ export const SlidePreview: React.FC = () => {
   }, [projectId, currentProject, syncProject]);
 
   // 当项目加载后，初始化额外要求
+  // 只在项目首次加载或项目ID变化时初始化，避免覆盖用户正在输入的内容
   useEffect(() => {
     if (currentProject) {
-      setExtraRequirements(currentProject.extra_requirements || '');
+      // 检查是否是新项目
+      const isNewProject = lastProjectId.current !== currentProject.id;
+      
+      if (isNewProject) {
+        // 新项目，初始化额外要求
+        setExtraRequirements(currentProject.extra_requirements || '');
+        lastProjectId.current = currentProject.id || null;
+        isEditingRequirements.current = false;
+      } else if (!isEditingRequirements.current) {
+        // 同一项目且用户未在编辑，可以更新（比如从服务器保存后同步回来）
+        setExtraRequirements(currentProject.extra_requirements || '');
+      }
+      // 如果用户正在编辑（isEditingRequirements.current === true），则不更新本地状态
     }
-  }, [currentProject]);
+  }, [currentProject?.id, currentProject?.extra_requirements]);
 
   // 加载当前页面的历史版本
   useEffect(() => {
@@ -174,7 +190,7 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  const handleRegeneratePage = async () => {
+  const handleRegeneratePage = useCallback(async () => {
     if (!currentProject) return;
     const page = currentProject.pages[selectedIndex];
     if (!page.id) return;
@@ -211,24 +227,15 @@ export const SlidePreview: React.FC = () => {
         errorMessage = error.message;
       }
 
-      // 针对常见错误做更友好的提示
-      if (errorMessage.includes('No template image found')) {
-        errorMessage =
-          '当前项目还没有模板，请先点击页面顶部的“更换模板”按钮，选择或上传一张模板图片后再生成。';
-      } else if (errorMessage.includes('Page must have description content')) {
-        errorMessage =
-          '该页面还没有描述内容，请先在“编辑页面描述”步骤为此页生成或填写描述。';
-      } else if (errorMessage.includes('Image already exists')) {
-        errorMessage =
-          '该页面已经有图片，如需重新生成，请在生成时选择“重新生成”或稍后重试。';
-      }
+      // 使用统一的错误消息规范化函数
+      errorMessage = normalizeErrorMessage(errorMessage);
 
       show({
         message: errorMessage,
         type: 'error',
       });
     }
-  };
+  }, [currentProject, selectedIndex, pageGeneratingTasks, generatePageImage, show]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -312,7 +319,7 @@ export const SlidePreview: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleSubmitEdit = async () => {
+  const handleSubmitEdit = useCallback(async () => {
     if (!currentProject || !editPrompt.trim()) return;
     
     const page = currentProject.pages[selectedIndex];
@@ -345,7 +352,7 @@ export const SlidePreview: React.FC = () => {
     }));
 
     setIsEditModalOpen(false);
-  };
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -520,7 +527,7 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     const targetProjectId = projectId || currentProject?.id;
     if (!targetProjectId) {
       show({ message: '无法刷新：缺少项目ID', type: 'error' });
@@ -539,14 +546,16 @@ export const SlidePreview: React.FC = () => {
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [projectId, currentProject?.id, syncProject, show]);
 
-  const handleSaveExtraRequirements = async () => {
+  const handleSaveExtraRequirements = useCallback(async () => {
     if (!currentProject || !projectId) return;
     
     setIsSavingRequirements(true);
     try {
       await updateProject(projectId, { extra_requirements: extraRequirements || '' });
+      // 保存成功后，标记为不在编辑状态，允许同步更新
+      isEditingRequirements.current = false;
       // 更新本地项目状态
       await syncProject(projectId);
       show({ message: '额外要求已保存', type: 'success' });
@@ -558,7 +567,7 @@ export const SlidePreview: React.FC = () => {
     } finally {
       setIsSavingRequirements(false);
     }
-  };
+  }, [currentProject, projectId, extraRequirements, syncProject, show]);
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
@@ -767,7 +776,11 @@ export const SlidePreview: React.FC = () => {
                 <div className="mt-2 md:mt-3 space-y-2">
                   <Textarea
                     value={extraRequirements}
-                    onChange={(e) => setExtraRequirements(e.target.value)}
+                    onChange={(e) => {
+                      // 标记用户正在编辑，防止同步时覆盖
+                      isEditingRequirements.current = true;
+                      setExtraRequirements(e.target.value);
+                    }}
                     placeholder="例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图..."
                     rows={2}
                     className="text-xs md:text-sm"
@@ -932,6 +945,34 @@ export const SlidePreview: React.FC = () => {
 
                   {/* 操作 */}
                   <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
+                    {/* 手机端：模板更换按钮 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Upload size={16} />}
+                      onClick={() => setIsTemplateModalOpen(true)}
+                      className="lg:hidden text-xs"
+                      title="更换模板"
+                    />
+                    {/* 手机端：素材生成按钮 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<ImagePlus size={16} />}
+                      onClick={() => setIsMaterialModalOpen(true)}
+                      className="lg:hidden text-xs"
+                      title="素材生成"
+                    />
+                    {/* 手机端：刷新按钮 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />}
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="md:hidden text-xs"
+                      title="刷新"
+                    />
                     {imageVersions.length > 1 && (
                       <div className="relative">
                         <Button
@@ -1087,7 +1128,7 @@ export const SlidePreview: React.FC = () => {
                   </div>
                   {selectedPage.outline_content.points && selectedPage.outline_content.points.length > 0 && (
                     <div className="text-sm text-gray-600">
-                      <Markdown>{selectedPage.outline_content.points.map(point => `- ${point}`).join('\n')}</Markdown>
+                      <Markdown>{selectedPage.outline_content.points.join('\n')}</Markdown>
                     </div>
                   )}
                 </div>
@@ -1257,7 +1298,7 @@ export const SlidePreview: React.FC = () => {
           {/* 编辑框 */}
           <Textarea
             label="输入修改指令(将自动添加页面描述)"
-            placeholder="例如：把背景改成蓝色、增大标题字号、更改文本框样式为虚线..."
+            placeholder="例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线..."
             value={editPrompt}
             onChange={(e) => setEditPrompt(e.target.value)}
             rows={4}

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
-import { getReferenceFile, deleteReferenceFile, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
+import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
 
-interface ReferenceFileCardProps {
+export interface ReferenceFileCardProps {
   file: ReferenceFile;
   onDelete: (fileId: string) => void;
   onStatusChange?: (file: ReferenceFile) => void;
   deleteMode?: 'delete' | 'remove'; // 'delete': 彻底删除文件, 'remove': 只从项目中移除
+  onClick?: () => void; // 点击卡片的事件
 }
 
 export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
@@ -14,6 +15,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   onDelete,
   onStatusChange,
   deleteMode = 'delete', // 默认是彻底删除（文件选择器中使用）
+  onClick,
 }) => {
   const [file, setFile] = useState<ReferenceFile>(initialFile);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -55,19 +57,18 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   const handleDelete = async () => {
     if (isDeleting) return;
     
-    if (deleteMode === 'remove') {
-      // 只从项目中移除，不调用删除 API
-      onDelete(file.id);
-      return;
-    }
-    
-    // 彻底删除文件
     setIsDeleting(true);
     try {
-      await deleteReferenceFile(file.id);
+      if (deleteMode === 'remove') {
+        // 从项目中移除，不删除文件本身
+        await dissociateFileFromProject(file.id);
+      } else {
+        // 彻底删除文件
+        await deleteReferenceFile(file.id);
+      }
       onDelete(file.id);
     } catch (error) {
-      console.error('Failed to delete file:', error);
+      console.error('Failed to delete/remove file:', error);
       setIsDeleting(false);
     }
   };
@@ -144,7 +145,12 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+    <div 
+      className={`flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow ${
+        onClick ? 'cursor-pointer' : ''
+      }`}
+      onClick={onClick}
+    >
       {/* File Icon */}
       <div className="flex-shrink-0">
         <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
@@ -193,7 +199,10 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
         {/* Reparse Button - 只在解析完成时显示 */}
         {file.parse_status === 'completed' && (
           <button
-            onClick={handleReparse}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleReparse();
+            }}
             disabled={isReparsing}
             className="flex-shrink-0 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
             title="重新解析"
@@ -208,7 +217,10 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
         
         {/* Delete Button */}
         <button
-          onClick={handleDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDelete();
+          }}
           disabled={isDeleting}
           className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
           title={deleteMode === 'remove' ? '从项目中移除' : '删除文件'}

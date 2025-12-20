@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -18,9 +18,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
+import { refineOutline } from '@/api/endpoints';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器
@@ -31,9 +32,10 @@ const SortableCard: React.FC<{
   onDelete: () => void;
   onClick: () => void;
   isSelected: boolean;
+  isAiRefining?: boolean;
 }> = (props) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
-    id: props.page.id,
+    id: props.page.id || `page-${props.index}`,
   });
 
   const style = {
@@ -66,7 +68,10 @@ export const OutlineEditor: React.FC = () => {
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [isAiRefining, setIsAiRefining] = useState(false);
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const { confirm, ConfirmDialog } = useConfirm();
+  const { show, ToastContainer } = useToast();
 
   // 加载项目数据
   useEffect(() => {
@@ -75,6 +80,7 @@ export const OutlineEditor: React.FC = () => {
       syncProject(projectId);
     }
   }, [projectId, currentProject, syncProject]);
+
 
   // 拖拽传感器配置
   const sensors = useSensors(
@@ -92,7 +98,7 @@ export const OutlineEditor: React.FC = () => {
       const newIndex = currentProject.pages.findIndex((p) => p.id === over.id);
 
       const reorderedPages = arrayMove(currentProject.pages, oldIndex, newIndex);
-      reorderPages(reorderedPages.map((p) => p.id));
+      reorderPages(reorderedPages.map((p) => p.id).filter((id): id is string => id !== undefined));
     }
   };
 
@@ -123,6 +129,26 @@ export const OutlineEditor: React.FC = () => {
     }
   };
 
+  const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
+    if (!currentProject || !projectId) return;
+    
+    try {
+      const response = await refineOutline(projectId, requirement, previousRequirements);
+      await syncProject(projectId);
+      show({ 
+        message: response.data?.message || '大纲修改成功', 
+        type: 'success' 
+      });
+    } catch (error: any) {
+      console.error('修改大纲失败:', error);
+      const errorMessage = error?.response?.data?.error?.message 
+        || error?.message 
+        || '修改失败，请稍后重试';
+      show({ message: errorMessage, type: 'error' });
+      throw error; // 抛出错误让组件知道失败了
+    }
+  }, [currentProject, projectId, syncProject, show]);
+
   const selectedPage = currentProject?.pages.find((p) => p.id === selectedPageId);
 
   if (!currentProject) {
@@ -136,53 +162,78 @@ export const OutlineEditor: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 顶栏 */}
-      <header className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-3 md:px-6 flex-shrink-0">
-        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => {
-              if (fromHistory) {
-                navigate('/history');
-              } else {
-                navigate('/');
-              }
-            }}
-            className="flex-shrink-0"
-          >
-            <span className="hidden sm:inline">返回</span>
-          </Button>
-          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-            <span className="text-xl md:text-2xl">🍌</span>
-            <span className="text-base md:text-xl font-bold truncate">蕉幻</span>
+      <header className="bg-white shadow-sm border-b border-gray-200 px-3 md:px-6 py-2 md:py-3 flex-shrink-0">
+        <div className="flex items-center justify-between gap-2 md:gap-4">
+          {/* 左侧：Logo 和标题 */}
+          <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => {
+                if (fromHistory) {
+                  navigate('/history');
+                } else {
+                  navigate('/');
+                }
+              }}
+              className="flex-shrink-0"
+            >
+              <span className="hidden sm:inline">返回</span>
+            </Button>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <span className="text-xl md:text-2xl">🍌</span>
+              <span className="text-base md:text-xl font-bold">蕉幻</span>
+            </div>
+            <span className="text-gray-400 hidden lg:inline">|</span>
+            <span className="text-sm md:text-lg font-semibold hidden lg:inline">编辑大纲</span>
           </div>
-          <span className="text-gray-400 hidden md:inline">|</span>
-          <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">编辑大纲</span>
+          
+          {/* 中间：AI 修改输入框 */}
+          <div className="flex-1 max-w-xl mx-auto hidden md:block md:-translate-x-2 pr-10">
+            <AiRefineInput
+              title=""
+              placeholder="例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交"
+              onSubmit={handleAiRefineOutline}
+              disabled={false}
+              className="!p-0 !bg-transparent !border-0"
+              onStatusChange={setIsAiRefining}
+            />
+          </div>
+          
+          {/* 右侧：操作按钮 */}
+          <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              icon={<Save size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={async () => await saveAllPages()}
+              className="hidden md:inline-flex"
+            >
+              <span className="hidden lg:inline">保存</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate(`/project/${projectId}/detail`)}
+              className="text-xs md:text-sm"
+            >
+              <span className="hidden sm:inline">下一步</span>
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
-          <Button 
-            variant="secondary" 
-            size="sm" 
-            icon={<Save size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={async () => {
-              await saveAllPages();
-              // 可以添加成功提示，但为了简洁暂时不添加
-            }}
-            className="hidden sm:inline-flex"
-          >
-            <span className="hidden md:inline">保存</span>
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => navigate(`/project/${projectId}/detail`)}
-            className="text-xs md:text-sm"
-          >
-            <span className="hidden sm:inline">下一步</span>
-            <span className="sm:hidden">下一步</span>
-          </Button>
+        
+        {/* 移动端：AI 输入框 */}
+        <div className="mt-2 md:hidden">
+          <AiRefineInput
+            title=""
+            placeholder="例如：增加/删除页面... · Ctrl+Enter"
+            onSubmit={handleAiRefineOutline}
+            disabled={false}
+            className="!p-0 !bg-transparent !border-0"
+            onStatusChange={setIsAiRefining}
+          />
         </div>
       </header>
 
@@ -190,22 +241,22 @@ export const OutlineEditor: React.FC = () => {
       <div className="bg-banana-50 border-b border-banana-100 px-3 md:px-6 py-2 md:py-3 max-h-32 overflow-y-auto flex-shrink-0">
         <div className="flex items-start gap-1.5 md:gap-2 text-xs md:text-sm">
           {currentProject.creation_type === 'idea' && (
-            <>
-              <span className="font-medium text-gray-700 flex-shrink-0">📊 PPT构想:</span>
-              <span className="text-gray-900 break-words whitespace-pre-wrap">{currentProject.idea_prompt}</span>
-            </>
+            <span className="font-medium text-gray-700 flex-shrink-0 flex items-center">
+              <Sparkle size={12} className="mr-1" /> PPT构想:
+              <span className="text-gray-900 font-normal ml-2 break-words whitespace-pre-wrap">{currentProject.idea_prompt}</span>
+            </span>
           )}
           {currentProject.creation_type === 'outline' && (
-            <>
-              <span className="font-medium text-gray-700 flex-shrink-0">📝 大纲:</span>
-              <span className="text-gray-900 break-words whitespace-pre-wrap">{currentProject.outline_text || currentProject.idea_prompt}</span>
-            </>
+            <span className="font-medium text-gray-700 flex-shrink-0 flex items-center">
+              <FileText size={12} className="mr-1" /> 大纲:
+              <span className="text-gray-900 font-normal ml-2 break-words whitespace-pre-wrap">{currentProject.outline_text || currentProject.idea_prompt}</span>
+            </span>
           )}
           {currentProject.creation_type === 'descriptions' && (
-            <>
-              <span className="font-medium text-gray-700 flex-shrink-0">📄 描述:</span>
-              <span className="text-gray-900 break-words whitespace-pre-wrap">{currentProject.description_text || currentProject.idea_prompt}</span>
-            </>
+            <span className="font-medium text-gray-700 flex-shrink-0 flex items-center">
+              <FileText size={12} className="mr-1" /> 描述:
+              <span className="text-gray-900 font-normal ml-2 break-words whitespace-pre-wrap">{currentProject.description_text || currentProject.idea_prompt}</span>
+            </span>
           )}
         </div>
       </div>
@@ -242,13 +293,33 @@ export const OutlineEditor: React.FC = () => {
                   {currentProject.creation_type === 'outline' ? '重新解析大纲' : '重新生成大纲'}
                 </Button>
               )}
+              {/* 手机端：保存按钮 */}
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                icon={<Save size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={async () => await saveAllPages()}
+                className="md:hidden w-full sm:w-auto text-sm md:text-base"
+              >
+                保存
+              </Button>
             </div>
+
+            {/* 项目资源列表（文件和图片） */}
+            <ProjectResourcesList
+              projectId={projectId || null}
+              onFileClick={setPreviewFileId}
+              showFiles={true}
+              showImages={true}
+            />
 
             {/* 大纲卡片列表 */}
             {currentProject.pages.length === 0 ? (
               <div className="text-center py-20">
-                <div className="text-6xl mb-4">📝</div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                <div className="flex justify-center mb-4">
+                  <FileText size={64} className="text-gray-300" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">
                   还没有页面
                 </h3>
                 <p className="text-gray-500 mb-6">
@@ -262,19 +333,20 @@ export const OutlineEditor: React.FC = () => {
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={currentProject.pages.map((p) => p.id)}
+                  items={currentProject.pages.map((p, idx) => p.id || `page-${idx}`)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="space-y-4">
                     {currentProject.pages.map((page, index) => (
                       <SortableCard
-                        key={page.id}
+                        key={page.id || `page-${index}`}
                         page={page}
                         index={index}
-                        onUpdate={(data) => updatePageLocal(page.id, data)}
-                        onDelete={() => deletePageById(page.id)}
-                        onClick={() => setSelectedPageId(page.id)}
+                        onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
+                        onDelete={() => page.id && deletePageById(page.id)}
+                        onClick={() => setSelectedPageId(page.id || null)}
                         isSelected={selectedPageId === page.id}
+                        isAiRefining={isAiRefining}
                       />
                     ))}
                   </div>
@@ -343,6 +415,9 @@ export const OutlineEditor: React.FC = () => {
         )}
       </div>
       {ConfirmDialog}
+      <ToastContainer />
+      
+      <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
     </div>
   );
 };

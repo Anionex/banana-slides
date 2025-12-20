@@ -187,10 +187,7 @@ def generate_material_image(project_id):
                 return not_found('Project')
 
         # Initialize services
-        ai_service = AIService(
-            current_app.config['GOOGLE_API_KEY'],
-            current_app.config['GOOGLE_API_BASE']
-        )
+        ai_service = AIService()
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
         # 创建临时目录保存参考图片（后台任务会清理）
@@ -375,6 +372,58 @@ def delete_material(material_id):
             current_app.logger.warning(f"Failed to delete file for material {material_id} at {material_path}: {e}")
 
         return success_response({"id": material_id})
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@material_global_bp.route('/associate', methods=['POST'])
+def associate_materials_to_project():
+    """
+    POST /api/materials/associate - Associate materials to a project by URLs
+    
+    Request body (JSON):
+    {
+        "project_id": "project_id",
+        "material_urls": ["url1", "url2", ...]
+    }
+    
+    Returns:
+        List of associated material IDs and count
+    """
+    try:
+        data = request.get_json() or {}
+        project_id = data.get('project_id')
+        material_urls = data.get('material_urls', [])
+        
+        if not project_id:
+            return bad_request("project_id is required")
+        
+        if not material_urls or not isinstance(material_urls, list):
+            return bad_request("material_urls must be a non-empty array")
+        
+        # Validate project exists
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+        
+        # Find materials by URLs and update their project_id
+        updated_ids = []
+        materials_to_update = Material.query.filter(
+            Material.url.in_(material_urls),
+            Material.project_id.is_(None)
+        ).all()
+        for material in materials_to_update:
+            material.project_id = project_id
+            updated_ids.append(material.id)
+        
+        db.session.commit()
+        
+        return success_response({
+            "updated_ids": updated_ids,
+            "count": len(updated_ids)
+        })
+    
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)

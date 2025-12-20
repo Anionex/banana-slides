@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
+import type { Settings } from '../types/index';
 
 // ===== 项目相关 API =====
 
@@ -33,7 +34,7 @@ export const uploadTemplate = async (
 ): Promise<ApiResponse<{ template_image_url: string }>> => {
   const formData = new FormData();
   formData.append('template_image', templateImage);
-  
+
   const response = await apiClient.post<ApiResponse<{ template_image_url: string }>>(
     `/api/projects/${projectId}/template`,
     formData
@@ -48,7 +49,7 @@ export const listProjects = async (limit?: number, offset?: number): Promise<Api
   const params = new URLSearchParams();
   if (limit !== undefined) params.append('limit', limit.toString());
   if (offset !== undefined) params.append('offset', offset.toString());
-  
+
   const queryString = params.toString();
   const url = `/api/projects${queryString ? `?${queryString}` : ''}`;
   const response = await apiClient.get<ApiResponse<{ projects: Project[]; total: number }>>(url);
@@ -100,11 +101,14 @@ export const updatePagesOrder = async (
 
 /**
  * 生成大纲
+ * @param projectId 项目ID
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateOutline = async (projectId: string): Promise<ApiResponse> => {
+export const generateOutline = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/outline`,
-    {} // 必须发送空对象，后端使用 request.get_json()
+    { language: lang }
   );
   return response.data;
 };
@@ -113,22 +117,32 @@ export const generateOutline = async (projectId: string): Promise<ApiResponse> =
 
 /**
  * 从描述文本生成大纲和页面描述（一次性完成）
+ * @param projectId 项目ID
+ * @param descriptionText 描述文本（可选）
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateFromDescription = async (projectId: string, descriptionText?: string): Promise<ApiResponse> => {
+export const generateFromDescription = async (projectId: string, descriptionText?: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/from-description`,
-    descriptionText ? { description_text: descriptionText } : {}
+    { 
+      ...(descriptionText ? { description_text: descriptionText } : {}),
+      language: lang 
+    }
   );
   return response.data;
 };
 
 /**
  * 批量生成描述
+ * @param projectId 项目ID
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateDescriptions = async (projectId: string): Promise<ApiResponse> => {
+export const generateDescriptions = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/descriptions`,
-    {} // 发送空对象而不是 undefined
+    { language: lang }
   );
   return response.data;
 };
@@ -139,11 +153,63 @@ export const generateDescriptions = async (projectId: string): Promise<ApiRespon
 export const generatePageDescription = async (
   projectId: string,
   pageId: string,
-  forceRegenerate: boolean = false
+  forceRegenerate: boolean = false,
+  language?: OutputLanguage
 ): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/description`,
-    { force_regenerate: forceRegenerate }
+    { force_regenerate: forceRegenerate , language: lang}
+  );
+  return response.data;
+};
+
+/**
+ * 根据用户要求修改大纲
+ * @param projectId 项目ID
+ * @param userRequirement 用户要求
+ * @param previousRequirements 历史要求（可选）
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
+ */
+export const refineOutline = async (
+  projectId: string,
+  userRequirement: string,
+  previousRequirements?: string[],
+  language?: OutputLanguage
+): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
+    `/api/projects/${projectId}/refine/outline`,
+    {
+      user_requirement: userRequirement,
+      previous_requirements: previousRequirements || [],
+      language: lang
+    }
+  );
+  return response.data;
+};
+
+/**
+ * 根据用户要求修改页面描述
+ * @param projectId 项目ID
+ * @param userRequirement 用户要求
+ * @param previousRequirements 历史要求（可选）
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
+ */
+export const refineDescriptions = async (
+  projectId: string,
+  userRequirement: string,
+  previousRequirements?: string[],
+  language?: OutputLanguage
+): Promise<ApiResponse<{ pages: Page[]; message: string }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ pages: Page[]; message: string }>>(
+    `/api/projects/${projectId}/refine/descriptions`,
+    {
+      user_requirement: userRequirement,
+      previous_requirements: previousRequirements || [],
+      language: lang
+    }
   );
   return response.data;
 };
@@ -152,11 +218,14 @@ export const generatePageDescription = async (
 
 /**
  * 批量生成图片
+ * @param projectId 项目ID
+ * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateImages = async (projectId: string): Promise<ApiResponse> => {
+export const generateImages = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/images`,
-    {} // 发送空对象而不是 undefined
+    { language: lang }
   );
   return response.data;
 };
@@ -167,11 +236,13 @@ export const generateImages = async (projectId: string): Promise<ApiResponse> =>
 export const generatePageImage = async (
   projectId: string,
   pageId: string,
-  forceRegenerate: boolean = false
+  forceRegenerate: boolean = false,
+  language?: OutputLanguage
 ): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/image`,
-    { force_regenerate: forceRegenerate }
+    { force_regenerate: forceRegenerate, language: lang }
   );
   return response.data;
 };
@@ -201,7 +272,7 @@ export const editPageImage = async (
     contextImages.uploadedFiles.forEach((file) => {
       formData.append('context_images', file);
     });
-    
+
     const response = await apiClient.post<ApiResponse>(
       `/api/projects/${projectId}/pages/${pageId}/edit/image`,
       formData
@@ -273,11 +344,13 @@ export const updatePage = async (
 export const updatePageDescription = async (
   projectId: string,
   pageId: string,
-  descriptionContent: any
+  descriptionContent: any,
+  language?: OutputLanguage
 ): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/description`,
-    { description_content: descriptionContent }
+    { description_content: descriptionContent, language: lang }
   );
   return response.data;
 };
@@ -288,11 +361,13 @@ export const updatePageDescription = async (
 export const updatePageOutline = async (
   projectId: string,
   pageId: string,
-  outlineContent: any
+  outlineContent: any,
+  language?: OutputLanguage
 ): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/outline`,
-    { outline_content: outlineContent }
+    { outline_content: outlineContent, language: lang }
   );
   return response.data;
 };
@@ -414,7 +489,7 @@ export const listMaterials = async (
   projectId?: string
 ): Promise<ApiResponse<{ materials: Material[]; count: number }>> => {
   let url: string;
-  
+
   if (!projectId || projectId === 'all') {
     // Get all materials using global endpoint
     url = '/api/materials?project_id=all';
@@ -425,7 +500,7 @@ export const listMaterials = async (
     // Get materials for specific project
     url = `/api/projects/${projectId}/materials`;
   }
-  
+
   const response = await apiClient.get<ApiResponse<{ materials: Material[]; count: number }>>(url);
   return response.data;
 };
@@ -443,7 +518,7 @@ export const uploadMaterial = async (
 ): Promise<ApiResponse<Material>> => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   let url: string;
   if (!projectId || projectId === 'none') {
     // Use global upload endpoint for materials not bound to any project
@@ -452,7 +527,7 @@ export const uploadMaterial = async (
     // Use project-specific upload endpoint
     url = `/api/projects/${projectId}/materials/upload`;
   }
-  
+
   const response = await apiClient.post<ApiResponse<Material>>(url, formData);
   return response.data;
 };
@@ -462,6 +537,22 @@ export const uploadMaterial = async (
  */
 export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ id: string }>> => {
   const response = await apiClient.delete<ApiResponse<{ id: string }>>(`/api/materials/${materialId}`);
+  return response.data;
+};
+
+/**
+ * 关联素材到项目（通过URL）
+ * @param projectId 项目ID
+ * @param materialUrls 素材URL列表
+ */
+export const associateMaterialsToProject = async (
+  projectId: string,
+  materialUrls: string[]
+): Promise<ApiResponse<{ updated_ids: string[]; count: number }>> => {
+  const response = await apiClient.post<ApiResponse<{ updated_ids: string[]; count: number }>>(
+    '/api/materials/associate',
+    { project_id: projectId, material_urls: materialUrls }
+  );
   return response.data;
 };
 
@@ -487,7 +578,7 @@ export const uploadUserTemplate = async (
   if (name) {
     formData.append('name', name);
   }
-  
+
   const response = await apiClient.post<ApiResponse<UserTemplate>>(
     '/api/user-templates',
     formData
@@ -543,7 +634,7 @@ export const uploadReferenceFile = async (
   if (projectId && projectId !== 'none') {
     formData.append('project_id', projectId);
   }
-  
+
   const response = await apiClient.post<ApiResponse<{ file: ReferenceFile }>>(
     '/api/reference-files/upload',
     formData
@@ -613,3 +704,88 @@ export const associateFileToProject = async (
   return response.data;
 };
 
+/**
+ * 从项目中移除参考文件（不删除文件本身）
+ * @param fileId 文件ID
+ */
+export const dissociateFileFromProject = async (
+  fileId: string
+): Promise<ApiResponse<{ file: ReferenceFile; message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ file: ReferenceFile; message: string }>>(
+    `/api/reference-files/${fileId}/dissociate`
+  );
+  return response.data;
+};
+
+// ===== 输出语言设置 =====
+
+export type OutputLanguage = 'zh' | 'ja' | 'en' | 'auto';
+
+export interface OutputLanguageOption {
+  value: OutputLanguage;
+  label: string;
+}
+
+export const OUTPUT_LANGUAGE_OPTIONS: OutputLanguageOption[] = [
+  { value: 'zh', label: '中文' },
+  { value: 'ja', label: '日本語' },
+  { value: 'en', label: 'English' },
+  { value: 'auto', label: '自动' },
+];
+
+/**
+ * 获取默认输出语言设置（从服务器环境变量读取）
+ *
+ * 注意：这只返回服务器配置的默认语言。
+ * 实际的语言选择应由前端在 sessionStorage 中管理，
+ * 并在每次生成请求时通过 language 参数传递。
+ */
+export const getDefaultOutputLanguage = async (): Promise<ApiResponse<{ language: OutputLanguage }>> => {
+  const response = await apiClient.get<ApiResponse<{ language: OutputLanguage }>>(
+    '/api/output-language'
+  );
+  return response.data;
+};
+
+/**
+ * 从后端 Settings 获取用户的输出语言偏好
+ * 如果获取失败，返回默认值 'zh'
+ */
+export const getStoredOutputLanguage = async (): Promise<OutputLanguage> => {
+  try {
+    const response = await apiClient.get<ApiResponse<{ language: OutputLanguage }>>('/api/output-language');
+    return response.data.data.language;
+  } catch (error) {
+    console.warn('Failed to load output language from settings, using default', error);
+    return 'zh';
+  }
+};
+
+/**
+ * 获取系统设置
+ */
+export const getSettings = async (): Promise<ApiResponse<Settings>> => {
+  const response = await apiClient.get<ApiResponse<Settings>>('/api/settings');
+  return response.data;
+};
+
+/**
+ * 更新系统设置
+ */
+export const updateSettings = async (
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & { 
+    api_key?: string;
+    mineru_token?: string;
+  }
+): Promise<ApiResponse<Settings>> => {
+  const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
+  return response.data;
+};
+
+/**
+ * 重置系统设置
+ */
+export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
+  const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};

@@ -69,7 +69,7 @@ class FileService:
         file.save(str(filepath))
         
         # Return relative path
-        return str(filepath.relative_to(self.upload_folder))
+        return filepath.relative_to(self.upload_folder).as_posix()
     
     def save_generated_image(self, image: Image.Image, project_id: str, 
                            page_id: str, image_format: str = 'PNG', 
@@ -108,7 +108,7 @@ class FileService:
         image.save(str(filepath))
         
         # Return relative path
-        return str(filepath.relative_to(self.upload_folder))
+        return filepath.relative_to(self.upload_folder).as_posix()
 
     def save_material_image(self, image: Image.Image, project_id: Optional[str],
                             image_format: str = 'PNG') -> str:
@@ -144,7 +144,7 @@ class FileService:
         image.save(str(filepath))
 
         # Return relative path
-        return str(filepath.relative_to(self.upload_folder))
+        return filepath.relative_to(self.upload_folder).as_posix()
     
     def delete_page_image_version(self, image_path: str) -> bool:
         """
@@ -156,7 +156,7 @@ class FileService:
         Returns:
             True if deleted successfully
         """
-        filepath = self.upload_folder / image_path
+        filepath = self.upload_folder / image_path.replace('\\', '/')
         if filepath.exists() and filepath.is_file():
             filepath.unlink()
             return True
@@ -189,7 +189,7 @@ class FileService:
         Returns:
             Absolute file path
         """
-        return str(self.upload_folder / relative_path)
+        return str(self.upload_folder / relative_path.replace('\\', '/'))
     
     def delete_template(self, project_id: str) -> bool:
         """
@@ -250,7 +250,7 @@ class FileService:
     
     def file_exists(self, relative_path: str) -> bool:
         """Check if file exists"""
-        filepath = self.upload_folder / relative_path
+        filepath = self.upload_folder / relative_path.replace('\\', '/')
         return filepath.exists() and filepath.is_file()
     
     def get_template_path(self, project_id: str) -> Optional[str]:
@@ -302,7 +302,7 @@ class FileService:
         file.save(str(filepath))
         
         # Return relative path
-        return str(filepath.relative_to(self.upload_folder))
+        return filepath.relative_to(self.upload_folder).as_posix()
     
     def delete_user_template(self, template_id: str) -> bool:
         """

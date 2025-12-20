@@ -1,21 +1,52 @@
-MIT License
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License
 
-Copyright (c) 2025 Anion
+Copyright (c) 2025 Anionex
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+本作品采用知识共享署名-非商业性使用-相同方式共享 4.0 国际许可协议进行许可。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+要查看该许可协议，可访问:
+To view a copy of this license, visit:
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+或者写信到:
+Or send a letter to:
+Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+---
+
+个人使用许可 (Personal Use License)
+
+您可以自由地:
+You are free to:
+- 分享 — 在任何媒介以任何形式复制、发行本作品
+  Share — copy and redistribute the material in any medium or format
+- 演绎 — 修改、转换或以本作品为基础进行创作
+  Adapt — remix, transform, and build upon the material
+
+惟须遵守下列条件:
+Under the following terms:
+- 署名 — 您必须给出适当的署名，提供指向本许可协议的链接
+  Attribution — You must give appropriate credit and provide a link to the license
+- 非商业性使用 — 您不得将本作品用于商业目的
+  NonCommercial — You may not use the material for commercial purposes
+- 相同方式共享 — 如果您再混合、转换或者基于本作品进行创作，您必须基于与原先许可协议相同的许可协议分发您贡献的作品
+  ShareAlike — If you remix, transform, or build upon the material, you must distribute your contributions under the same license
+
+---
+
+商业授权 (Commercial License)
+
+如需将本项目用于商业目的，请联系作者获取商业授权:
+For commercial use, please contact the author for a commercial license:
+
+GitHub: https://github.com/Anionex/banana-slides
+Project Issues: https://github.com/Anionex/banana-slides/issues
+
+---
+
+免责声明 (Disclaimer)
+
+本软件按"原样"提供，不提供任何形式的明示或暗示担保。
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

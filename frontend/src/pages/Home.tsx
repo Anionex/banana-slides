@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileCard, ReferenceFileSelector } from '@/components/shared';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
+import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 
 type CreationType = 'idea' | 'outline' | 'description';
@@ -24,7 +24,9 @@ export const Home: React.FC = () => {
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
@@ -50,7 +52,7 @@ export const Home: React.FC = () => {
     setIsMaterialModalOpen(true);
   };
 
-  // 检测粘贴事件，自动上传文件
+  // 检测粘贴事件，自动上传文件和图片
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     console.log('Paste event triggered');
     const items = e.clipboardData?.items;
@@ -61,7 +63,7 @@ export const Home: React.FC = () => {
 
     console.log('Clipboard items:', items.length);
     
-    // 检查是否有文件
+    // 检查是否有文件或图片
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       console.log(`Item ${i}:`, { kind: item.kind, type: item.type });
@@ -73,7 +75,15 @@ export const Home: React.FC = () => {
         if (file) {
           console.log('File details:', { name: file.name, type: file.type, size: file.size });
           
-          // 检查文件类型
+          // 检查是否是图片
+          if (file.type.startsWith('image/')) {
+            console.log('Image detected, uploading...');
+            e.preventDefault(); // 阻止默认粘贴行为
+            await handleImageUpload(file);
+            return;
+          }
+          
+          // 检查文件类型（参考文件）
           const allowedExtensions = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
           const fileExt = file.name.split('.').pop()?.toLowerCase();
           
@@ -85,10 +95,70 @@ export const Home: React.FC = () => {
             await handleFileUpload(file);
           } else {
             console.log('File type not allowed');
-            show({ message: `不支持的文件类型: ${fileExt}`, type: 'warning' });
+            show({ message: `不支持的文件类型: ${fileExt}`, type: 'info' });
           }
         }
       }
+    }
+  };
+
+  // 上传图片
+  // 在 Home 页面，图片始终上传为全局素材（不关联项目），因为此时还没有项目
+  const handleImageUpload = async (file: File) => {
+    if (isUploadingFile) return;
+
+    setIsUploadingFile(true);
+    try {
+      // 显示上传中提示
+      show({ message: '正在上传图片...', type: 'info' });
+      
+      // 保存当前光标位置
+      const cursorPosition = textareaRef.current?.selectionStart || content.length;
+      
+      // 上传图片到素材库（全局素材）
+      const response = await uploadMaterial(file, null);
+      
+      if (response?.data?.url) {
+        const imageUrl = response.data.url;
+        
+        // 生成markdown图片链接
+        const markdownImage = `![image](${imageUrl})`;
+        
+        // 在光标位置插入图片链接
+        setContent(prev => {
+          const before = prev.slice(0, cursorPosition);
+          const after = prev.slice(cursorPosition);
+          
+          // 如果光标前有内容且不以换行结尾，添加换行
+          const prefix = before && !before.endsWith('\n') ? '\n' : '';
+          // 如果光标后有内容且不以换行开头，添加换行
+          const suffix = after && !after.startsWith('\n') ? '\n' : '';
+          
+          return before + prefix + markdownImage + suffix + after;
+        });
+        
+        // 恢复光标位置（移动到插入内容之后）
+        setTimeout(() => {
+          if (textareaRef.current) {
+            const newPosition = cursorPosition + (content.slice(0, cursorPosition) && !content.slice(0, cursorPosition).endsWith('\n') ? 1 : 0) + markdownImage.length;
+            textareaRef.current.selectionStart = newPosition;
+            textareaRef.current.selectionEnd = newPosition;
+            textareaRef.current.focus();
+          }
+        }, 0);
+        
+        show({ message: '图片上传成功！已插入到光标位置', type: 'success' });
+      } else {
+        show({ message: '图片上传失败：未返回图片信息', type: 'error' });
+      }
+    } catch (error: any) {
+      console.error('图片上传失败:', error);
+      show({ 
+        message: `图片上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
+        type: 'error' 
+      });
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
@@ -97,20 +167,69 @@ export const Home: React.FC = () => {
   const handleFileUpload = async (file: File) => {
     if (isUploadingFile) return;
 
+    // 检查文件大小（前端预检查）
+    const maxSize = 200 * 1024 * 1024; // 200MB
+    if (file.size > maxSize) {
+      show({ 
+        message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
+        type: 'error' 
+      });
+      return;
+    }
+
+    // 检查是否是PPT文件，提示建议使用PDF
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    if (fileExt === 'ppt' || fileExt === 'pptx') 
+      show({  message: '💡 提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果',    type: 'info' });
+    
     setIsUploadingFile(true);
     try {
       // 在 Home 页面，始终上传为全局文件
       const response = await uploadReferenceFile(file, null);
-      if (response.data?.file) {
-        setReferenceFiles(prev => [...prev, response.data.file]);
+      if (response?.data?.file) {
+        const uploadedFile = response.data.file;
+        setReferenceFiles(prev => [...prev, uploadedFile]);
         show({ message: '文件上传成功', type: 'success' });
+        
+        // 如果文件状态为 pending，自动触发解析
+        if (uploadedFile.parse_status === 'pending') {
+          try {
+            const parseResponse = await triggerFileParse(uploadedFile.id);
+            // 使用解析接口返回的文件对象更新状态
+            if (parseResponse?.data?.file) {
+              const parsedFile = parseResponse.data.file;
+              setReferenceFiles(prev => 
+                prev.map(f => f.id === uploadedFile.id ? parsedFile : f)
+              );
+            } else {
+              // 如果没有返回文件对象，手动更新状态为 parsing（异步线程会稍后更新）
+              setReferenceFiles(prev => 
+                prev.map(f => f.id === uploadedFile.id ? { ...f, parse_status: 'parsing' as const } : f)
+              );
+            }
+          } catch (parseError: any) {
+            console.error('触发文件解析失败:', parseError);
+            // 解析触发失败不影响上传成功提示
+          }
+        }
+      } else {
+        show({ message: '文件上传失败：未返回文件信息', type: 'error' });
       }
     } catch (error: any) {
       console.error('文件上传失败:', error);
-      show({ 
-        message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-        type: 'error' 
-      });
+      
+      // 特殊处理413错误
+      if (error?.response?.status === 413) {
+        show({ 
+          message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
+          type: 'error' 
+        });
+      } else {
+        show({ 
+          message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
+          type: 'error' 
+        });
+      }
     } finally {
       setIsUploadingFile(false);
     }
@@ -153,6 +272,22 @@ export const Home: React.FC = () => {
   const selectedFileIds = useMemo(() => {
     return referenceFiles.map(f => f.id);
   }, [referenceFiles]);
+
+  // 从编辑框内容中移除指定的图片markdown链接
+  const handleRemoveImage = (imageUrl: string) => {
+    setContent(prev => {
+      // 移除所有匹配该URL的markdown图片链接
+      const imageRegex = new RegExp(`!\\[[^\\]]*\\]\\(${imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g');
+      let newContent = prev.replace(imageRegex, '');
+      
+      // 清理多余的空行（最多保留一个空行）
+      newContent = newContent.replace(/\n{3,}/g, '\n\n');
+      
+      return newContent.trim();
+    });
+    
+    show({ message: '已移除图片', type: 'success' });
+  };
 
   // 文件选择变化
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,7 +364,7 @@ export const Home: React.FC = () => {
     if (parsingFiles.length > 0) {
       show({ 
         message: `还有 ${parsingFiles.length} 个参考文件正在解析中，请等待解析完成`, 
-        type: 'warning' 
+        type: 'info' 
       });
       return;
     }
@@ -274,6 +409,27 @@ export const Home: React.FC = () => {
         console.log('No reference files to associate');
       }
       
+      // 关联图片素材到项目（解析content中的markdown图片链接）
+      const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+      const materialUrls: string[] = [];
+      let match;
+      while ((match = imageRegex.exec(content)) !== null) {
+        materialUrls.push(match[2]); // match[2] 是 URL
+      }
+      
+      if (materialUrls.length > 0) {
+        console.log(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
+        try {
+          const response = await associateMaterialsToProject(projectId, materialUrls);
+          console.log('Materials associated successfully:', response);
+        } catch (error) {
+          console.error('Failed to associate materials:', error);
+          // 不影响主流程，继续执行
+        }
+      } else {
+        console.log('No materials to associate');
+      }
+      
       if (activeTab === 'idea' || activeTab === 'outline') {
         navigate(`/project/${projectId}/outline`);
       } else if (activeTab === 'description') {
@@ -296,36 +452,59 @@ export const Home: React.FC = () => {
       </div>
 
       {/* 导航栏 */}
-      <nav className="relative h-14 md:h-16 bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-100/50">
-        <div className="max-w-7xl mx-auto px-3 md:px-4 h-full flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img
-              src="/logo.jpg"
-              alt="蕉幻 Banana Slides Logo"
-              className="w-8 h-8 md:w-12 md:h-12 rounded-lg object-cover object-center"
-            />
-            <span className="text-lg md:text-xl font-bold text-gray-900">
+      <nav className="relative h-16 md:h-18 bg-white/40 backdrop-blur-2xl">
+
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center">
+              <img
+                src="/logo.png"
+                alt="蕉幻 Banana Slides Logo"
+                className="h-10 md:h-12 w-auto rounded-lg object-contain"
+              />
+            </div>
+            <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
               蕉幻
             </span>
           </div>
-          <div className="flex items-center gap-1 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-3">
+            {/* 桌面端：带文字的素材生成按钮 */}
             <Button
               variant="ghost"
               size="sm"
               icon={<ImagePlus size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleOpenMaterialModal}
-              className="hidden sm:inline-flex hover:bg-banana-50/50"
+              className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
               <span className="hidden md:inline">素材生成</span>
             </Button>
+            {/* 手机端：仅图标的素材生成按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ImagePlus size={16} />}
+              onClick={handleOpenMaterialModal}
+              className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
+              title="素材生成"
+            />
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={() => navigate('/history')}
-              className="text-xs md:text-sm hover:bg-banana-50/50"
+              className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
               <span className="hidden sm:inline">历史项目</span>
               <span className="sm:hidden">历史</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate('/settings')}
+              className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+            >
+              <span className="hidden md:inline">设置</span>
+              <span className="sm:hidden">设</span>
             </Button>
             <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:bg-banana-50/50">帮助</Button>
           </div>
@@ -346,24 +525,21 @@ export const Home: React.FC = () => {
               backgroundSize: '200% auto',
               animation: 'gradient 3s ease infinite',
             }}>
-              蕉幻 Banana Slides
+              蕉幻 · Banana Slides
             </span>
           </h1>
           
-          <p className="text-lg md:text-2xl text-gray-600 max-w-3xl mx-auto font-light">
-            <span className="font-medium">Vibe your PPT  like vibing code</span>
-            <br className="hidden md:block" />
-            <span className="text-base md:text-lg text-gray-500 mt-2 block">
-              降低 PPT 制作门槛，让每个人都能快速创作出美观专业的演示文稿
-            </span>
+          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto font-light">
+            Vibe your PPT like vibing code
           </p>
 
           {/* 特性标签 */}
           <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 pt-4">
             {[
               { icon: <Sparkles size={14} className="text-yellow-600" />, label: '一句话生成 PPT' },
-              { icon: <FileText size={14} className="text-orange-500" />, label: '三种生成路径' },
               { icon: <FileEdit size={14} className="text-blue-500" />, label: '自然语言修改' },
+              { icon: <Search size={14} className="text-orange-500" />, label: '指定区域编辑' },
+              
               { icon: <Paperclip size={14} className="text-green-600" />, label: '一键导出 PPTX/PDF' },
             ].map((feature, idx) => (
               <span
@@ -416,6 +592,7 @@ export const Home: React.FC = () => {
           <div className="relative mb-2 group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-banana-400 to-orange-400 rounded-lg opacity-0 group-hover:opacity-20 blur transition-opacity duration-300"></div>
             <Textarea
+              ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -463,21 +640,21 @@ export const Home: React.FC = () => {
             className="hidden"
           />
 
-          {referenceFiles.length > 0 && (
-            <div className="mb-4">
-              <div className="space-y-2">
-                {referenceFiles.map(file => (
-                  <ReferenceFileCard
-                    key={file.id}
-                    file={file}
-                    onDelete={handleFileRemove}
-                    onStatusChange={handleFileStatusChange}
-                    deleteMode="remove"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          {/* 图片预览列表 */}
+          <ImagePreviewList
+            content={content}
+            onRemoveImage={handleRemoveImage}
+            className="mb-4"
+          />
+
+          <ReferenceFileList
+            files={referenceFiles}
+            onFileClick={setPreviewFileId}
+            onFileDelete={handleFileRemove}
+            onFileStatusChange={handleFileStatusChange}
+            deleteMode="remove"
+            className="mb-4"
+          />
 
           {/* 模板选择 */}
           <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100">
@@ -517,7 +694,8 @@ export const Home: React.FC = () => {
         multiple={true}
         initialSelectedIds={selectedFileIds}
       />
+      
+      <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
     </div>
   );
 };
-

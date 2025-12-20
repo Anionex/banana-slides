@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import rehypeRaw from 'rehype-raw';
 
 interface MarkdownProps {
   children: string;
@@ -11,7 +13,8 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[rehypeRaw]}
         components={{
         // 自定义渲染规则
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -46,6 +49,27 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
         },
         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
+        br: () => <br />,
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-4">
+            <table className="min-w-full border-collapse border border-gray-300">
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
+        tbody: ({ children }) => <tbody>{children}</tbody>,
+        tr: ({ children }) => <tr className="border-b border-gray-300">{children}</tr>,
+        th: ({ children }) => (
+          <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="border border-gray-300 px-4 py-2">
+            {children}
+          </td>
+        ),
       }}
       >
         {children}

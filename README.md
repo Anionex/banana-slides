@@ -4,6 +4,8 @@
 
 *Vibe your PPT like vibing code.*
 
+**中文 | [English](README_EN.md)**
+
 <p>
 
 [![GitHub Stars](https://img.shields.io/github/stars/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/stargazers)
@@ -12,12 +14,14 @@
 
 [![Version](https://img.shields.io/badge/version-v0.1.0-4CAF50.svg)](https://github.com/Anionex/banana-slides)
 ![Docker](https://img.shields.io/badge/Docker-Build-2496ED?logo=docker&logoColor=white)
-[![License](https://img.shields.io/github/license/Anionex/banana-slides?color=FFD54F)](https://github.com/Anionex/banana-slides/blob/main/LICENSE)
-![PRs Welcome](https://img.shields.io/badge/PRs-welcome-42b883.svg)
+[![GitHub issues](https://img.shields.io/github/issues-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/pulls)
+
 
 </p> 
 
-<b>一个基于nano banana pro🍌的原生AI PPT生成应用，支持想法/大纲/页面描述生成完整PPT演示文稿、文本图片链接自动提取、上传任意素材、口头提出修改，迈向真正的"Vibe PPT"</b>
+<b>一个基于nano banana pro🍌的原生AI PPT生成应用，支持想法/大纲/页面描述生成完整PPT演示文稿，<br></b>
+<b> 自动提取附件图表、上传任意素材、口头提出修改，迈向真正的"Vibe PPT" </b>
 
 <b>🎯 降低PPT制作门槛，让每个人都能快速创作出美观专业的演示文稿</b>
 
@@ -30,6 +34,7 @@
 </p>
 
 </div>
+
 
 
 ## ✨ 项目缘起
@@ -63,14 +68,49 @@
 
 | | |
 |:---:|:---:|
-| <img src="https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1" width="500" alt="案例1"> | <img src="https://github.com/user-attachments/assets/c64cd952-2cdf-4a92-8c34-0322cbf3de4e" width="500" alt="案例2"> |
-| **钱的演变：从贝壳到纸币的旅程** | **DeepSeek-V3.2技术展示** |
-| <img src="https://github.com/user-attachments/assets/d1e15604-767c-42f8-bb41-a2568f18bc2b" width="500" alt="案例3"> | <img src="https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7" width="500" alt="案例4"> |
-| **人类对生态环境的影响** | **预制菜智能产线装备研发和产业化** |
+| <img src="https://github.com/user-attachments/assets/d58ce3f7-bcec-451d-a3b9-ca3c16223644" width="500" alt="案例3"> | <img src="https://github.com/user-attachments/assets/c64cd952-2cdf-4a92-8c34-0322cbf3de4e" width="500" alt="案例2"> |
+| **软件开发最佳实践** | **DeepSeek-V3.2技术展示** |
+| <img src="https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7" width="500" alt="案例4"> | <img src="https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1" width="500" alt="案例1"> |
+| **预制菜智能产线装备研发和产业化** | **钱的演变：从贝壳到纸币的旅程** |
 
 </div>
 
 更多可见<a href="https://github.com/Anionex/banana-slides/issues/2" > 使用案例 </a>
+
+
+## 🎯 功能介绍
+
+### 1. 灵活多样的创作路径
+支持**想法**、**大纲**、**页面描述**三种起步方式，满足不同创作习惯。
+- **一句话生成**：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述。
+- **自然语言编辑**：支持以 Vibe 形式口头修改大纲或描述（如"把第三页改成案例分析"），AI 实时响应调整。
+- **大纲/描述模式**：既可一键批量生成，也可手动调整细节。
+
+<img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
+
+
+### 2. 强大的素材解析能力
+- **多格式支持**：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容。
+- **智能提取**：自动识别文本中的关键点、图片链接和图表信息，为生成提供丰富素材。
+- **风格参考**：支持上传参考图片或模板，定制 PPT 风格。
+
+<img width="1920" height="1080" alt="文件解析与素材处理" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
+
+### 3. "Vibe" 式自然语言修改
+不再受限于复杂的菜单按钮，直接通过**自然语言**下达修改指令。
+- **局部重绘**：对不满意的区域进行口头式修改（如"把这个图换成饼图"）。
+- **整页优化**：基于 nano banana pro🍌 生成高清、风格统一的页面。
+
+<img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3" />
+
+
+### 4. 开箱即用的格式导出
+- **多格式支持**：一键导出标准 **PPTX** 或 **PDF** 文件。
+- **完美适配**：默认 16:9 比例，排版无需二次调整，直接演示。
+
+<img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
+<img width="1748" height="538" alt="PPT与PDF导出" src="https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984" />
+
 
 ## 🗺️ 开发计划
 
@@ -79,10 +119,10 @@
 | ✅ 已完成 | 从想法、大纲、页面描述三种路径创建 PPT |
 | ✅ 已完成 | 解析文本中的 Markdown 格式图片 |
 | ✅ 已完成 | PPT 单页添加更多素材 |
-| ✅ 已完成 | PPT 单页框选区域进行编辑 |
+| ✅ 已完成 | PPT 单页框选区域Vibe口头编辑 |
 | ✅ 已完成 | 素材模块: 素材生成、上传等 |
 | ✅ 已完成 | 支持多种文件的上传+解析 |
-| 🔄 进行中 | 支持Vibe调整大纲和描述 |
+| ✅ 已完成 | 支持Vibe口头调整大纲和描述 |
 | 🔄 进行中 | 支持已生成图片的元素分割和进一步编辑（segment + inpaint） |
 | 🔄 进行中 | 网络搜索 |
 | 🔄 进行中 | Agent 模式 |
@@ -91,48 +131,6 @@
 | 🧭 规划中 | 简单的动画和页面切换效果 |
 | 🧭 规划中 | 多语种支持 |
 | 🧭 规划中 | 用户系统 |
-
-
-## 🎯 功能介绍
-
-### Banana-slides🍌 (aka. 蕉幻) 的亮点
-
-- 🚀 **一句话生成 PPT**：从一个简单的想法快速得到大纲、页面描述和最终的 PPT 文稿
-- 🔄 **三种生成路径**：支持从「想法 / 大纲 / 页面描述」三种方式起步，适配不同创作习惯
-- 🔍 **文本与链接自动提取**：支持从一段文本中自动抽取要点、图片链接等信息
-- 🔗 **文件上传自动解析**: 支持导入docx/pdf/md/txt等格式的文件，后台自动解析，为图片内容生成描述，为后续生成提供素材。
-- 🧾 **上传任意素材**：可上传参考图片、示例 PPT图（后续支持ppt文件） 等作为风格和内容参考
-- 🧙‍♀️ **AI 辅助编排**：由 LLM 生成结构清晰的大纲和逐页内容描述
-- 🖼️ **高质量页面生成**：基于 nano banana pro🍌 生成高清、风格统一的页面设计
-- 🗣️ **自然语言修改**：支持对单页、单页局部（已支持）或整套（未来支持）PPT 进行「口头」式自然语言修改与重生成
-- 📊 **一键导出**：自动组合为 PPTX / PDF，16:9 比例，开箱即用
-
-### 1. 多种创建方式
-- **从构想生成**：输入一句话 / 一段想法，自动生成完整大纲和页面内容
-- **从大纲生成**：粘贴已有大纲，AI 帮你扩展为逐页详细描述
-- **从描述生成**：直接提供每页描述，快速生成成品页面图片
-
-### 2. 智能大纲与页面描述生成
-- 根据用户输入主题自动生成 PPT 大纲与整套页面结构
-- 以卡片形式呈现，支持删除、拖拽、调整顺序
-- 既可以一次性批量生成，也可以单个编辑逐步补充和细化
-- 内置并行处理能力，提升多页生成速度
-
-### 3. 多格式文件自动智能解析
-- 支持上传pdf/doc/docx/md/txt等格式文件
-- 使用mineru+多模态llm并行解析文件文字+图片并进行分离，为后续生成提供文本、图表素材。
-
-### 4. 文本与素材理解
-
-- 支持对输入文本进行关键点抽取、结构化整理
-- 自动识别并提取其中的图片、（markdown图片）链接等资源
-- 支持上传参考图片、截图、旧 PPT 作为风格与内容线索
-
-### 5. 多格式导出
-- **PPTX 导出**：标准 PowerPoint 格式
-- **PDF 导出**：适合快速分享和展示
-- 默认 16:9 比例，保证在主流显示设备上的观感
-
 
 ## 📦 使用方法
 
@@ -162,9 +160,20 @@ cp .env.example .env
 ```
 
 编辑 `.env` 文件，配置必要的环境变量：
+> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**  
 ```env
-GOOGLE_API_KEY=your-google-api-key-here
+# AI Provider格式配置 (gemini / openai)
+AI_PROVIDER_FORMAT=gemini
+
+# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini时使用）
+GOOGLE_API_KEY=your-api-key-here
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+# 代理示例: https://aihubmix.com/gemini
+
+# OpenAI 格式配置（当 AI_PROVIDER_FORMAT=openai 时使用）
+OPENAI_API_KEY=your-api-key-here
+OPENAI_API_BASE=https://api.openai.com/v1
+# 代理示例: https://aihubmix.com/v1
 ...
 ```
 
@@ -248,10 +257,22 @@ cp .env.example .env
 ```
 
 编辑 `.env` 文件，配置你的 API 密钥：
+> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本** 
 ```env
+# AI Provider格式配置 (gemini / openai)
+AI_PROVIDER_FORMAT=gemini
+
+# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini时使用）
 GOOGLE_API_KEY=your-api-key-here
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+# 代理示例: https://aihubmix.com/gemini
+
+# OpenAI 格式配置（当 AI_PROVIDER_FORMAT=openai 时使用）
+OPENAI_API_KEY=your-api-key-here
+OPENAI_API_BASE=https://api.openai.com/v1
+# 代理示例: https://aihubmix.com/v1
 PORT=5000
+...
 ```
 
 #### 前端安装
@@ -272,10 +293,12 @@ npm install
 
 
 #### 启动后端服务
+> （可选）如果本地已有重要数据，升级前建议先备份数据库：  
+> `cp backend/instance/database.db backend/instance/database.db.bak`
 
 ```bash
 cd backend
-uv run python app.py
+uv run alembic upgrade head && uv run python app.py
 ```
 
 后端服务将在 `http://localhost:5000` 启动。
@@ -377,14 +400,14 @@ banana-slides/
 │   │   ├── material.py         # Material模型（参考素材）
 │   │   ├── user_template.py    # UserTemplate模型（用户模板）
 │   │   ├── reference_file.py   # ReferenceFile模型（参考文件）
-│   │   └── page_image_version.py # PageImageVersion模型（页面版本）
+│   │   ├── page_image_version.py # PageImageVersion模型（页面版本）
 │   ├── services/               # 服务层
 │   │   ├── ai_service.py       # AI生成服务（Gemini集成）
 │   │   ├── file_service.py     # 文件管理服务
 │   │   ├── file_parser_service.py # 文件解析服务
 │   │   ├── export_service.py   # PPTX/PDF导出服务
 │   │   ├── task_manager.py     # 异步任务管理
-│   │   └── prompts.py          # AI提示词模板
+│   │   ├── prompts.py          # AI提示词模板
 │   ├── controllers/            # API控制器
 │   │   ├── project_controller.py      # 项目管理
 │   │   ├── page_controller.py         # 页面管理
@@ -410,7 +433,7 @@ banana-slides/
 ├── uv.lock                     # uv依赖锁定文件
 ├── docker-compose.yml          # Docker Compose配置
 ├── .env.example                 # 环境变量示例
-├── LICENSE                     # MIT许可证
+├── LICENSE                     # 许可证
 └── README.md                   # 本文件
 ```
 
@@ -425,24 +448,58 @@ banana-slides/
 
 ## 📄 许可证
 
-MIT
+本项目采用 CC BY-NC-SA 4.0 协议进行开源，
+
+可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
+
+<details> 
+
+<summary> 详情 </summary>
+本项目开源协议为非商业许可（CC BY-NC-SA），  
+任何商业使用均需取得商业授权。
+
+**商业使用**包括但不限于以下场景：
+
+1. 企业或机构内部使用：
+
+2. 对外服务：
+
+3. 其他营利目的使用：
+
+**非商业使用示例**（无需商业授权）：
+
+- 个人学习、研究、试验、教育或非营利科研活动；
+- 开源社区贡献、个人作品展示等不产生经济收益的用途。
+
+> 注：若对使用场景有疑问，请联系作者获取授权许可。
+
+</details>
+
+
+
+<h2>🚀 Sponsor / 赞助 </h2>
+
+<div align="center">
+<a href="https://aihubmix.com/?aff=17EC">
+  <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
+</a>
+<p>感谢AIHubMix对本项目的赞助</p>
+</div>
 
 ## 📈 项目统计
 
-<a href="https://www.star-history.com/#Anionex/banana-slides&type=date&legend=top-left">
+<a href="https://www.star-history.com/#Anionex/banana-slides&type=Timeline&legend=top-left">
 
  <picture>
 
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&theme=dark&legend=top-left" />
 
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&legend=top-left" />
 
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&legend=top-left" />
 
  </picture>
 
 </a>
 
 <br>
-
-

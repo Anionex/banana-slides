@@ -6,12 +6,12 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
   error?: string;
 }
 
-export const Textarea: React.FC<TextareaProps> = ({
+const TextareaComponent = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({
   label,
   error,
   className,
   ...props
-}) => {
+}, ref) => {
   return (
     <div className="w-full">
       {label && (
@@ -20,6 +20,7 @@ export const Textarea: React.FC<TextareaProps> = ({
         </label>
       )}
       <textarea
+        ref={ref}
         className={cn(
           'w-full min-h-[120px] px-4 py-3 rounded-lg border border-gray-200 bg-white',
           'focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent',
@@ -34,5 +35,10 @@ export const Textarea: React.FC<TextareaProps> = ({
       )}
     </div>
   );
-};
+});
+
+TextareaComponent.displayName = 'Textarea';
+
+// 使用 memo 包装，避免父组件频繁重渲染时影响输入框
+export const Textarea = React.memo(TextareaComponent);
 

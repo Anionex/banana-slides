@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Project, Task } from '@/types';
 import * as api from '@/api/endpoints';
-import { debounce, normalizeProject } from '@/utils';
+import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 
 interface ProjectState {
   // 状态
@@ -153,7 +153,7 @@ const debouncedUpdatePage = debounce(
         localStorage.setItem('currentProjectId', project.id!);
       }
     } catch (error: any) {
-      set({ error: error.message || '创建项目失败' });
+      set({ error: normalizeErrorMessage(error.message || '创建项目失败') });
       throw error;
     } finally {
       set({ isGlobalLoading: false });
@@ -195,13 +195,15 @@ const debouncedUpdatePage = debounce(
     } catch (error: any) {
       // 提取更详细的错误信息
       let errorMessage = '同步项目失败';
+      let shouldClearStorage = false;
       
       if (error.response) {
         // 服务器返回了错误响应
         const errorData = error.response.data;
         if (error.response.status === 404) {
-          // 404错误：项目不存在
+          // 404错误：项目不存在，清除localStorage
           errorMessage = errorData?.error?.message || '项目不存在，可能已被删除';
+          shouldClearStorage = true;
         } else if (errorData?.error?.message) {
           // 从后端错误格式中提取消息
           errorMessage = errorData.error.message;
@@ -214,13 +216,20 @@ const debouncedUpdatePage = debounce(
         }
       } else if (error.request) {
         // 请求已发送但没有收到响应
-        errorMessage = '网络错误，请检查连接';
+        errorMessage = '网络错误，请检查后端服务是否启动';
       } else if (error.message) {
         // 其他错误
         errorMessage = error.message;
       }
       
-      set({ error: errorMessage });
+      // 如果项目不存在，清除localStorage并重置当前项目
+      if (shouldClearStorage) {
+        console.warn('[syncProject] 项目不存在，清除localStorage');
+        localStorage.removeItem('currentProjectId');
+        set({ currentProject: null, error: normalizeErrorMessage(errorMessage) });
+      } else {
+        set({ error: normalizeErrorMessage(errorMessage) });
+      }
     }
   },
 
@@ -383,7 +392,7 @@ const debouncedUpdatePage = debounce(
         } else if (task.status === 'FAILED') {
           console.error(`[轮询] Task ${taskId} 失败:`, task.error_message || task.error);
           set({ 
-            error: task.error_message || task.error || '任务失败',
+            error: normalizeErrorMessage(task.error_message || task.error || '任务失败'),
             activeTaskId: null,
             taskProgress: null,
             isGlobalLoading: false
@@ -405,7 +414,7 @@ const debouncedUpdatePage = debounce(
       } catch (error: any) {
         console.error('任务轮询错误:', error);
         set({ 
-          error: error.message || '任务查询失败',
+          error: normalizeErrorMessage(error.message || '任务查询失败'),
           activeTaskId: null,
           isGlobalLoading: false
         });
@@ -549,7 +558,7 @@ const debouncedUpdatePage = debounce(
                 pageDescriptionGeneratingTasks: {},
                 taskProgress: null,
                 activeTaskId: null,
-                error: task.error_message || task.error || '生成描述失败'
+                error: normalizeErrorMessage(task.error_message || task.error || '生成描述失败')
               });
             } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
               // 继续轮询
@@ -571,7 +580,7 @@ const debouncedUpdatePage = debounce(
       console.error('[生成描述] 启动任务失败:', error);
       set({ 
         pageDescriptionGeneratingTasks: {},
-        error: error.message || '启动生成任务失败'
+        error: normalizeErrorMessage(error.message || '启动生成任务失败')
       });
       throw error;
     }
@@ -608,7 +617,7 @@ const debouncedUpdatePage = debounce(
       // 刷新项目数据
       await get().syncProject();
     } catch (error: any) {
-      set({ error: error.message || '生成描述失败' });
+      set({ error: normalizeErrorMessage(error.message || '生成描述失败') });
       throw error;
     } finally {
       // 清除生成状态
@@ -663,7 +672,7 @@ const debouncedUpdatePage = debounce(
       const { pageGeneratingTasks } = get();
       const newTasks = { ...pageGeneratingTasks };
       delete newTasks[pageId];
-      set({ pageGeneratingTasks: newTasks, error: error.message || '生成图片失败' });
+      set({ pageGeneratingTasks: newTasks, error: normalizeErrorMessage(error.message || '生成图片失败') });
       throw error;
     }
   },
@@ -706,7 +715,7 @@ const debouncedUpdatePage = debounce(
           delete newTasks[pageId];
           set({ 
             pageGeneratingTasks: newTasks,
-            error: task.error_message || task.error || '生成失败'
+            error: normalizeErrorMessage(task.error_message || task.error || '生成失败')
           });
           // 刷新项目数据以更新页面状态
           await get().syncProject();
@@ -773,7 +782,7 @@ const debouncedUpdatePage = debounce(
       const { pageGeneratingTasks } = get();
       const newTasks = { ...pageGeneratingTasks };
       delete newTasks[pageId];
-      set({ pageGeneratingTasks: newTasks, error: error.message || '编辑图片失败' });
+      set({ pageGeneratingTasks: newTasks, error: normalizeErrorMessage(error.message || '编辑图片失败') });
       throw error;
     }
   },
@@ -786,8 +795,9 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const response = await api.exportPPTX(currentProject.id);
+      // 优先使用相对路径，避免 Docker 环境下的端口问题
       const downloadUrl =
-        response.data?.download_url_absolute || response.data?.download_url;
+        response.data?.download_url || response.data?.download_url_absolute;
 
       if (!downloadUrl) {
         throw new Error('导出链接获取失败');
@@ -810,8 +820,9 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const response = await api.exportPDF(currentProject.id);
+      // 优先使用相对路径，避免 Docker 环境下的端口问题
       const downloadUrl =
-        response.data?.download_url_absolute || response.data?.download_url;
+        response.data?.download_url || response.data?.download_url_absolute;
 
       if (!downloadUrl) {
         throw new Error('导出链接获取失败');

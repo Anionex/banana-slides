@@ -34,7 +34,7 @@ frontend/.vite/
 *~
 .DS_Store
 
-# 项目特定
+# Project specific
 instance/*.db
 instance/*.db-journal
 uploads/
@@ -42,12 +42,12 @@ uploads/
 server.log
 server_running.log
 
-# 测试文件
+# Test files
 test_*.py
 *_test.py
 tests/
 
-# 文档和示例
+# Docs and examples
 *.md
 !README.md
 docs/
@@ -73,26 +73,24 @@ Dockerfile*
 docker-compose*.yml
 .dockerignore
 
-# 环境变量
+# Environment variables
 .env
 .env.local
 .env.*.local
 
-# 其他
+# Others
 *.lock
 uv.lock
 LICENSE
 PRD.md
-API设计文档.md
-快速启动指南.md
 *.md
 
-# Windows 特定
+# Windows
 Thumbs.db
 Desktop.ini
 *.lnk
 
-# 构建产物
+# Build output
 dist/
 build/
 *.pptx

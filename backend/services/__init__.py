@@ -1,7 +1,7 @@
 """Services package"""
-from .ai_service import AIService
+from .ai_service import AIService, ProjectContext
 from .file_service import FileService
 from .export_service import ExportService
 
-__all__ = ['AIService', 'FileService', 'ExportService']
+__all__ = ['AIService', 'ProjectContext', 'FileService', 'ExportService']
 

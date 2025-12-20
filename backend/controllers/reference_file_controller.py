@@ -60,9 +60,12 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             parser = FileParserService(
                 mineru_token=current_app.config['MINERU_TOKEN'],
                 mineru_api_base=current_app.config['MINERU_API_BASE'],
-                google_api_key=current_app.config['GOOGLE_API_KEY'],
-                google_api_base=current_app.config['GOOGLE_API_BASE'],
-                image_caption_model=current_app.config['IMAGE_CAPTION_MODEL']
+                google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+                google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
+                openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+                openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
+                image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
+                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
             )
             
             # Parse file
@@ -398,5 +401,35 @@ def associate_file_to_project(file_id):
         
     except Exception as e:
         logger.error(f"Error associating reference file: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@reference_file_bp.route('/<file_id>/dissociate', methods=['POST'])
+def dissociate_file_from_project(file_id):
+    """
+    POST /api/reference-files/<file_id>/dissociate - Remove a reference file from its project
+    
+    This sets the file's project_id to None, effectively making it a global file.
+    The file itself is not deleted.
+    
+    Returns:
+        Updated reference file information
+    """
+    try:
+        reference_file = ReferenceFile.query.get(file_id)
+        if not reference_file:
+            return not_found('Reference file')
+        
+        # Remove project association
+        reference_file.project_id = None
+        reference_file.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        logger.info(f"Dissociated reference file {file_id} from project")
+        
+        return success_response({'file': reference_file.to_dict(), 'message': 'File removed from project'})
+        
+    except Exception as e:
+        logger.error(f"Error dissociating reference file: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
