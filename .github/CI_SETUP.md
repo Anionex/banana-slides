@@ -27,12 +27,13 @@
 
 包含：
 - ✅ 后端单元测试（pytest + coverage）
-- ✅ 后端集成测试
+- ✅ 后端集成测试（验证两种AI Provider格式兼容性）
 - ✅ 前端测试（Vitest + coverage）
 - ✅ Docker环境测试
 - ✅ **完整E2E测试（从创建到导出PPT）**
-  - 🔄 矩阵测试：同时测试Gemini和OpenAI两种AI格式
-  - 自动跳过未配置API key的格式
+  - 使用Gemini格式测试完整流程
+  - OpenAI格式在集成测试中验证（等价替换原理）
+  - 自动跳过未配置API key的测试
 - ✅ 安全扫描（依赖漏洞检查）
 
 ---
@@ -51,22 +52,22 @@
 
 | Secret名称 | 必需 | 说明 | 获取方式 |
 |-----------|------|------|---------|
-| `GOOGLE_API_KEY` | ✅ 推荐 | Google Gemini API密钥（用于Gemini格式E2E测试） | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
-| `OPENAI_API_KEY` | ✅ 推荐 | OpenAI API密钥（用于OpenAI格式E2E测试） | [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `GOOGLE_API_KEY` | ✅ 必需 | Google Gemini API密钥（用于完整E2E测试） | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| `OPENAI_API_KEY` | ⚪ 可选 | OpenAI API密钥（用于集成测试验证兼容性） | [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | `SECRET_KEY` | ⚪ 可选 | Flask应用密钥（生产环境建议配置） | 随机生成，建议使用：`python -c "import secrets; print(secrets.token_hex(32))"` |
 | `MINERU_TOKEN` | ⚪ 可选 | MinerU服务Token（如果使用MinerU解析） | 从MinerU服务获取 |
 
-**关于AI格式测试**：
-- 💡 E2E测试会使用**矩阵策略**同时测试Gemini和OpenAI两种格式
-- ✅ 如果只配置`GOOGLE_API_KEY`，则只测试Gemini格式（OpenAI测试会跳过）
-- ✅ 如果只配置`OPENAI_API_KEY`，则只测试OpenAI格式（Gemini测试会跳过）
-- 🎯 **推荐同时配置两个API key**，以确保两种格式都能正常工作
+**关于AI格式测试策略（基于等价替换原理）**：
+- 💡 **完整E2E测试**：只使用Gemini格式（测试完整流程：创建→大纲→描述→图片→导出）
+- 🔧 **OpenAI兼容性验证**：在集成测试中验证OpenAI provider能正常工作
+- 💰 **成本优化**：避免运行两次完整E2E，节省50%测试成本
+- ✅ **等价替换原理**：两种格式使用相同业务逻辑，只要provider能工作，完整流程就能工作
 
 **注意**：
 - ⚠️ **没有配置`GOOGLE_API_KEY`时，完整E2E测试会被跳过**
 - ✅ 基础E2E测试（UI测试、API测试）仍会运行
 - 💰 真实API调用会消耗配额，建议使用测试专用账号
-- 🔧 CI会自动将Secrets替换到`.env`文件中对应的占位符（`your-api-key-here`）
+- 🔧 CI会自动将Secrets替换到`.env`文件中对应的占位符
 
 **CI如何处理Secrets**：
 
