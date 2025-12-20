@@ -1,12 +1,14 @@
 name: 完整测试套件
 
-# 完整测试只在主要分支上运行
+# 完整测试在以下情况运行：
+# 1. Push到main/develop分支
+# 2. PR合并后
+# 3. PR添加ready-for-test标签
 on:
   push:
     branches: [ main, develop ]
-  # PR合并后自动触发
   pull_request:
-    types: [closed]
+    types: [closed, labeled]
     branches: [ main, develop ]
 
 # 取消同一分支的旧构建
@@ -21,6 +23,11 @@ jobs:
   backend-unit-test:
     name: 后端单元测试
     runs-on: ubuntu-latest
+    # 只在以下情况运行：push、PR合并后、或添加ready-for-test标签
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'ready-for-test')
     
     steps:
       - name: 📥 拉取代码
@@ -224,21 +231,49 @@ jobs:
           npm install -D @playwright/test
           npx playwright install --with-deps chromium
       
-      - name: 🔧 设置环境
+      - name: 🔧 设置环境（使用真实API key）
         run: |
           cp .env.example .env
+          # 如果有GOOGLE_API_KEY secret，使用真实key，否则用mock（会导致真实E2E测试跳过）
           echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}" >> .env
+        env:
+          # 提示：需要在GitHub仓库Settings -> Secrets添加GOOGLE_API_KEY
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       
       - name: 🐳 启动Docker环境
         run: |
           docker-compose up -d
           sleep 25
       
-      - name: 🎬 运行E2E测试
+      - name: 🏥 健康检查
         run: |
-          npx playwright test
+          # 等待服务完全就绪
+          for i in {1..30}; do
+            if curl -f http://localhost:5000/health && curl -f http://localhost:3000; then
+              echo "✓ 服务就绪"
+              break
+            fi
+            echo "等待服务启动... ($i/30)"
+            sleep 2
+          done
+      
+      - name: 🎬 运行基础E2E测试
+        run: |
+          # 运行基础UI测试（不依赖真实API）
+          npx playwright test home.spec.ts create-ppt.spec.ts
         env:
           CI: true
+        continue-on-error: false
+      
+      - name: 🚀 运行完整流程E2E测试（需要真实API）
+        if: secrets.GOOGLE_API_KEY != ''
+        run: |
+          # 运行完整流程测试（从创建到导出PPT）
+          npx playwright test full-flow.spec.ts --workers=1
+        env:
+          CI: true
+        timeout-minutes: 15
+        continue-on-error: false
       
       - name: 📊 上传测试报告
         if: always()
