@@ -154,8 +154,14 @@ jobs:
         run: |
           # 复制.env.example到.env（和README中的流程一致）
           cp .env.example .env
-          # 替换占位符为实际的API密钥
-          sed -i "s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/g" .env
+          
+          # 精确替换GOOGLE_API_KEY（只替换该行）
+          sed -i '/^GOOGLE_API_KEY=/s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/' .env
+          
+          # 如果配置了OPENAI_API_KEY secret，也替换
+          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+            sed -i '/^OPENAI_API_KEY=/s/your-api-key-here/${{ secrets.OPENAI_API_KEY }}/' .env
+          fi
       
       - name: 🐳 构建Docker镜像
         run: |
@@ -237,13 +243,17 @@ jobs:
           # 1. 复制.env.example到.env（和README中的流程一致）
           cp .env.example .env
           
-          # 2. 替换占位符为实际的API key
-          # 如果有GOOGLE_API_KEY secret，使用真实key，否则用mock（会导致真实E2E测试跳过）
-          sed -i "s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/g" .env
+          # 2. 精确替换GOOGLE_API_KEY（只替换该行，避免影响其他配置）
+          sed -i '/^GOOGLE_API_KEY=/s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/' .env
+          
+          # 3. 如果配置了OPENAI_API_KEY secret，也替换
+          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+            sed -i '/^OPENAI_API_KEY=/s/your-api-key-here/${{ secrets.OPENAI_API_KEY }}/' .env
+          fi
           
           # 验证配置
           echo "✓ .env文件已配置"
-          grep "GOOGLE_API_KEY" .env | head -1 || true
+          echo "GOOGLE_API_KEY: $(grep '^GOOGLE_API_KEY=' .env | cut -d'=' -f2 | cut -c1-20)..."
       
       - name: 🐳 启动Docker环境
         run: |
