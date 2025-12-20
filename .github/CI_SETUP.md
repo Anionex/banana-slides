@@ -253,25 +253,71 @@ gh run view <run-id> --log
 
 ## 📝 本地测试
 
-在提交PR前，建议本地运行测试：
+### 🚀 快速开始
 
 ```bash
-# 后端测试
+# Light检查（2-3分钟）- 提交前快速检查
+./scripts/run-local-ci.sh light
+
+# Full测试（10-20分钟）- PR合并前完整测试
+./scripts/run-local-ci.sh full
+```
+
+### 🔧 前置依赖
+
+```bash
+# Python环境 (>= 3.10)
+python3 --version
+
+# Node.js环境 (>= 18)
+node --version
+
+# UV包管理器
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Docker
+docker --version
+docker-compose --version
+
+# 安装依赖
+uv sync --extra test
+cd frontend && npm ci
+npx playwright install --with-deps chromium
+```
+
+### 🧪 运行特定测试
+
+```bash
+# 后端单元测试
 cd backend
-uv run pytest tests/ -v
+uv run pytest tests/unit -v --cov=. --cov-report=html
 
 # 前端测试
 cd frontend
-npm run lint
-npm test
-npm run build
+npm test -- --coverage
+
+# E2E测试（需要真实API key）
+cp .env.example .env  # 编辑.env填入真实API密钥
+docker-compose up -d
+npx playwright test full-flow.spec.ts
 
 # Docker环境测试
 ./scripts/test_docker_environment.sh
+```
 
-# E2E测试（需要Docker环境运行）
-docker-compose up -d
-npx playwright test
+### 🐛 调试失败的测试
+
+```bash
+# E2E UI模式调试
+npx playwright test --ui
+
+# 后端调试模式
+cd backend
+uv run pytest tests/unit/test_xxx.py --pdb
+
+# 查看Docker日志
+docker-compose logs backend
+docker-compose logs frontend
 ```
 
 ---
