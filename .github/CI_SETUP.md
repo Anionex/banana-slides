@@ -129,7 +129,23 @@ fi
 
 **测试通过后，直接合并即可！合并后不会重复运行测试。**
 
-### 方法2：直接Push到main
+### 方法2：手动触发（✅ 新增）
+
+在GitHub Actions页面手动运行Full Test：
+
+1. 进入仓库页面
+2. 点击 **Actions** 标签
+3. 在左侧选择 **Full Test Suite**
+4. 点击右侧的 **Run workflow** 按钮
+5. 选择分支（通常是`main`或`develop`）
+6. 点击 **Run workflow**
+
+**适用场景**：
+- ✅ 想在任何时候验证代码
+- ✅ 调试CI问题
+- ✅ 验证main分支的当前状态
+
+### 方法3：直接Push到main
 
 如果你直接push到`main`或`develop`分支（不通过PR），会自动运行完整测试。
 
