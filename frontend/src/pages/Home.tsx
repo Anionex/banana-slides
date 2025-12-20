@@ -403,13 +403,13 @@ export const Home: React.FC = () => {
             <div className="flex items-center">
               <img
                 src="/logo.png"
-                alt="Vibe提案 Logo"
+                alt="Vibe方案 Logo"
                 className="h-10 md:h-11 w-auto rounded-lg object-contain"
               />
             </div>
             <div className="flex flex-col items-start leading-tight">
               <span className="text-lg md:text-xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
-                Vibe提案
+                Vibe方案
               </span>
               <span className="text-[11px] md:text-xs text-gray-500">
                 vibe 方案 · 打工人之今天你是老板
