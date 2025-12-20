@@ -8,7 +8,19 @@
 - ❌ 如果直接merge，CI配置代码本身没有被测试过
 - ⚠️ 这确实有风险！
 
+**你的担心是对的！** 但好消息是：GitHub Actions会在**PR分支**上运行workflow，即使main分支还没有这些配置！
+
 ## ✅ 解决方案：分阶段验证
+
+### 🔑 关键理解：GitHub Actions的工作方式
+
+**重要**：GitHub Actions会在**PR分支**上读取并运行workflow文件！
+
+这意味着：
+- ✅ 即使main分支没有`.github/workflows/*.yml`文件
+- ✅ 当你创建PR时，GitHub会读取**PR分支**的workflow文件
+- ✅ 并在PR分支上运行这些workflow
+- ✅ **所以CI配置本身会被验证！**
 
 ### 阶段1：在PR分支上验证CI配置
 
@@ -46,6 +58,20 @@ on:
 ```
 
 ## 📋 推荐的合并流程
+
+### 步骤0：本地验证CI配置（可选但推荐）
+
+在push之前，先验证CI配置本身：
+
+```bash
+./scripts/validate-ci-config.sh
+```
+
+这会检查：
+- ✅ YAML语法正确
+- ✅ 必需文件存在
+- ✅ 触发条件正确
+- ✅ 工作流结构完整
 
 ### 步骤1：Push并创建PR
 
