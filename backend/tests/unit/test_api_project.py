@@ -93,8 +93,10 @@ class TestProjectUpdate:
             'status': 'GENERATING'
         })
         
-        # 检查是否成功（具体取决于API实现）
-        assert response.status_code in [200, 400]
+        # 状态更新应该成功
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
 
 
 class TestProjectDelete:

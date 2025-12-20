@@ -320,7 +320,7 @@ jobs:
           # Run full flow tests (from creation to PPT export)
           # Using Gemini format for full flow testing
           echo "Full E2E test - Gemini format"
-          npx playwright test full-flow.spec.ts --workers=1
+          npx playwright test api-full-flow.spec.ts --workers=1
         env:
           CI: true
         timeout-minutes: 15

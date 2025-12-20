@@ -101,25 +101,6 @@ def sample_project(client):
 
 
 @pytest.fixture
-def sample_project_with_pages(client, sample_project):
-    """创建带有页面的示例项目"""
-    if not sample_project:
-        return None
-    
-    project_id = sample_project['project_id']
-    
-    # 添加测试页面
-    for i in range(3):
-        # 这里通过API添加页面（如果API支持）
-        pass
-    
-    # 获取更新后的项目
-    response = client.get(f'/api/projects/{project_id}')
-    data = response.get_json()
-    return data['data'] if data.get('success') else None
-
-
-@pytest.fixture
 def mock_ai_service():
     """Mock AI服务，避免真实API调用（使用标准库unittest.mock）"""
     with patch('services.ai_service.AIService') as mock:

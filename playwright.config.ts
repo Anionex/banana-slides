@@ -10,7 +10,11 @@ export default defineConfig({
   testDir: './e2e',
   
   // 测试文件匹配模式
+  // 注意：ui-full-flow.spec.ts 被排除，因为它是UI驱动的完整E2E测试（10-20分钟）
+  // 只在发布前或Nightly Build中运行，不在PR阶段运行
+  // 要运行UI E2E测试，请明确指定文件名：npx playwright test ui-full-flow.spec.ts
   testMatch: '**/*.spec.ts',
+  testIgnore: ['**/ui-full-flow.spec.ts'],  // 排除UI驱动的完整E2E测试
   
   // 并行运行测试
   fullyParallel: true,

@@ -162,7 +162,7 @@ if [ "$TEST_MODE" = "full" ]; then
         # Run full flow E2E tests (if API key is available)
         if [ -n "$GOOGLE_API_KEY" ] && [ "$GOOGLE_API_KEY" != "mock-api-key" ]; then
             log_info "  Running full flow E2E tests (using real API)..."
-            npx playwright test full-flow.spec.ts --workers=1 || {
+            npx playwright test api-full-flow.spec.ts --workers=1 || {
                 log_error "Full flow E2E tests failed"
                 exit 1
             }

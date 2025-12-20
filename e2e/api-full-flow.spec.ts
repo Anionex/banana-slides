@@ -1,7 +1,7 @@
 /**
- * 完整流程E2E测试：从创建到导出PPT
+ * API集成测试：从创建到导出PPT
  * 
- * 这个测试验证完整的用户流程：
+ * 这个测试通过直接调用后端API验证完整流程：
  * 1. 创建项目（从想法或文件）
  * 2. 生成大纲
  * 3. 生成描述
@@ -102,7 +102,7 @@ async function hasRealApiKey(request: APIRequestContext): Promise<boolean> {
   }
 }
 
-test.describe('完整流程：从想法到导出PPT', () => {
+test.describe('API集成测试：从想法到导出PPT', () => {
   let projectId: string
   
   test.afterEach(async ({ request }) => {
@@ -117,7 +117,7 @@ test.describe('完整流程：从想法到导出PPT', () => {
     }
   })
   
-  test('完整流程：创建项目 → 大纲 → 描述 → 图片 → 导出PPT', async ({ request }) => {
+  test('API完整流程：创建项目 → 大纲 → 描述 → 图片 → 导出PPT', async ({ request }) => {
     // 设置超时时间为10分钟（真实AI调用需要时间）
     test.setTimeout(600000)
     
@@ -248,7 +248,7 @@ test.describe('完整流程：从想法到导出PPT', () => {
     console.log(`✓ PPT文件下载成功，大小: ${(pptBuffer.length / 1024).toFixed(2)} KB\n`)
     
     console.log('========================================')
-    console.log('✅ 完整流程测试通过！')
+    console.log('✅ API集成测试通过！')
     console.log('========================================\n')
   })
   
@@ -318,9 +318,9 @@ test.describe('模板上传和使用', () => {
     
     // 上传模板
     const templatePath = './e2e/fixtures/test-template.png'
-    const fs = require('fs')
+    const { readFileSync, existsSync } = await import('fs')
     
-    if (fs.existsSync(templatePath)) {
+    if (existsSync(templatePath)) {
       const uploadResponse = await request.post(
         `http://localhost:5000/api/projects/${projectId}/template`,
         {
@@ -328,7 +328,7 @@ test.describe('模板上传和使用', () => {
             template_image: {
               name: 'test-template.png',
               mimeType: 'image/png',
-              buffer: fs.readFileSync(templatePath)
+              buffer: readFileSync(templatePath)
             }
           }
         }
