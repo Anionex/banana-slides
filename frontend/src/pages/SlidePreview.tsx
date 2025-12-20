@@ -1024,12 +1024,20 @@ export const SlidePreview: React.FC = () => {
                                 ? '正在生成中...'
                                 : '尚未生成图片'}
                             </p>
-                            {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
-                              selectedPage?.status !== 'GENERATING' && (
-                                <Button variant="primary" onClick={handleRegeneratePage}>
-                                  生成此页
-                                </Button>
-                              )}
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                              {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
+                                selectedPage?.status !== 'GENERATING' && (
+                                  <Button variant="primary" onClick={handleRegeneratePage}>
+                                    生成此页
+                                  </Button>
+                                )}
+                              <Button
+                                variant="secondary"
+                                onClick={() => quickReplaceInputRef.current?.click()}
+                              >
+                                上传本地图片作为此页
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}
