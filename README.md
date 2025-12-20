@@ -14,6 +14,8 @@
 
 [![Version](https://img.shields.io/badge/version-v0.1.0-4CAF50.svg)](https://github.com/Anionex/banana-slides)
 ![Docker](https://img.shields.io/badge/Docker-Build-2496ED?logo=docker&logoColor=white)
+[![CI Status](https://github.com/Anionex/banana-slides/actions/workflows/ci-test.yml/badge.svg)](https://github.com/Anionex/banana-slides/actions/workflows/ci-test.yml)
+[![PR Check](https://github.com/Anionex/banana-slides/actions/workflows/pr-quick-check.yml/badge.svg)](https://github.com/Anionex/banana-slides/actions/workflows/pr-quick-check.yml)
 [![GitHub issues](https://img.shields.io/github/issues-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/pulls)
 
