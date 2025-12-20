@@ -359,13 +359,17 @@ def generate_page_image(project_id, page_id):
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
-        # Get template path
+        # Get template path (optional)
         ref_image_path = None
         if use_template:
             ref_image_path = file_service.get_template_path(project_id)
-        
-        if not ref_image_path:
-            return bad_request("No template image found for project")
+            # 如果选择用模板但项目里没有模板，自动降级为“无模板”
+            if not ref_image_path:
+                logger.warning(
+                    f"No template image found for project {project_id}, "
+                    "falling back to generation without template image."
+                )
+                use_template = False
         
         # Generate prompt
         page_data = page.get_outline_content() or {}
