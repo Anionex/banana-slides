@@ -152,9 +152,10 @@ jobs:
       
       - name: 🔧 设置环境变量
         run: |
+          # 复制.env.example到.env（和README中的流程一致）
           cp .env.example .env
-          # 注入测试用的API密钥
-          echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}" >> .env
+          # 替换占位符为实际的API密钥
+          sed -i "s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/g" .env
       
       - name: 🐳 构建Docker镜像
         run: |
@@ -233,12 +234,16 @@ jobs:
       
       - name: 🔧 设置环境（使用真实API key）
         run: |
+          # 1. 复制.env.example到.env（和README中的流程一致）
           cp .env.example .env
+          
+          # 2. 替换占位符为实际的API key
           # 如果有GOOGLE_API_KEY secret，使用真实key，否则用mock（会导致真实E2E测试跳过）
-          echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}" >> .env
-        env:
-          # 提示：需要在GitHub仓库Settings -> Secrets添加GOOGLE_API_KEY
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          sed -i "s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/g" .env
+          
+          # 验证配置
+          echo "✓ .env文件已配置"
+          grep "GOOGLE_API_KEY" .env | head -1 || true
       
       - name: 🐳 启动Docker环境
         run: |

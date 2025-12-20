@@ -175,13 +175,17 @@ npx playwright test --debug
 完整流程测试会测试从创建到导出PPT的整个流程，需要真实的AI API。
 
 ```bash
-# 1. 设置API密钥
-export GOOGLE_API_KEY=your-gemini-api-key
+# 1. 确保.env文件存在并配置了真实的API密钥
+# 如果没有.env，从示例复制
+cp .env.example .env
 
-# 2. 启动Docker环境
+# 2. 编辑.env文件，填入真实的Gemini API密钥
+# GOOGLE_API_KEY=your-actual-gemini-api-key
+
+# 3. 启动Docker环境
 docker-compose up -d
 
-# 3. 运行完整流程测试
+# 4. 运行完整流程测试
 npx playwright test full-flow.spec.ts --workers=1
 
 # 测试内容：
@@ -195,8 +199,10 @@ npx playwright test full-flow.spec.ts --workers=1
 
 **注意**：
 - ⏱️ 完整流程测试需要5-10分钟
-- 💰 会消耗真实API配额
+- 💰 会消耗真实API配额（建议使用测试专用账号）
 - 🌐 需要网络连接
+- 🔑 项目使用`.env`文件管理密钥，无需手动export
+- 📝 `.env`文件已在`.gitignore`中，不会被提交
 
 ## 📊 查看测试报告
 
