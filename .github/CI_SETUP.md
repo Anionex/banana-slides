@@ -47,14 +47,35 @@
 3. 点击 `New repository secret`
 4. 添加以下Secret：
 
-| Secret名称 | 说明 | 获取方式 |
-|-----------|------|---------|
-| `GOOGLE_API_KEY` | Google Gemini API密钥 | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| Secret名称 | 必需 | 说明 | 获取方式 |
+|-----------|------|------|---------|
+| `GOOGLE_API_KEY` | ✅ 必需 | Google Gemini API密钥（用于完整E2E测试） | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| `OPENAI_API_KEY` | ⚪ 可选 | OpenAI API密钥（如果使用OpenAI格式） | [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 
 **注意**：
-- ⚠️ **没有配置API Key时，完整E2E测试会被跳过**
+- ⚠️ **没有配置`GOOGLE_API_KEY`时，完整E2E测试会被跳过**
 - ✅ 基础E2E测试（UI测试、API测试）仍会运行
 - 💰 真实API调用会消耗配额，建议使用测试专用账号
+- 🔧 CI会自动将Secrets替换到`.env`文件中对应的占位符（`your-api-key-here`）
+
+**CI如何处理Secrets**：
+
+CI配置会自动处理以下逻辑：
+
+1. **复制`.env.example`到`.env`**（保持所有默认配置）
+2. **替换`GOOGLE_API_KEY`**：
+   - 如果配置了`GOOGLE_API_KEY` secret → 使用真实密钥
+   - 否则 → 使用`mock-api-key`（E2E测试会跳过真实AI调用）
+3. **替换`OPENAI_API_KEY`**（如果配置了）：
+   - 如果配置了`OPENAI_API_KEY` secret → 替换为真实密钥
+   - 否则 → 保持`.env.example`中的占位符
+
+**其他配置项**：
+
+`.env.example`中的其他配置项（如`MINERU_TOKEN`、`TEXT_MODEL`等）会使用默认值，不需要在GitHub Secrets中配置。如果需要修改这些值，可以：
+
+1. 在`.env.example`中修改默认值（会影响所有环境）
+2. 或者在CI配置中添加对应的Secret替换逻辑（需要修改`.github/workflows/ci-test.yml`）
 
 ### 2. （可选）配置CodeCov
 
