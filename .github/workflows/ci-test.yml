@@ -1,14 +1,16 @@
 name: Full Test Suite
 
 # Full tests run in these cases:
-# 1. Push to main/develop branch
-# 2. After PR merge
-# 3. PR labeled with ready-for-test
+# 1. Push to main/develop branch (direct push, not from PR merge)
+# 2. PR labeled with ready-for-test
+#
+# Note: PR merge does NOT trigger tests again to avoid duplication
+# (PR should be tested via ready-for-test label before merging)
 on:
   push:
     branches: [ main, develop ]
   pull_request:
-    types: [closed, labeled]
+    types: [labeled]
     branches: [ main, develop ]
 
 # Cancel old builds on the same branch
@@ -23,10 +25,9 @@ jobs:
   backend-unit-test:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
-    # Run only in these cases: push, after PR merge, or ready-for-test label
+    # Run only in these cases: direct push to main/develop, or ready-for-test label
     if: |
       github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
       (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'ready-for-test')
     
     steps:

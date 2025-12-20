@@ -18,9 +18,10 @@
 
 ### 🎯 Full测试 - 完整验证
 **触发时机**:
-1. Push到`main`或`develop`分支
-2. PR合并后自动运行
-3. **PR添加`ready-for-test`标签时** 👈 手动触发
+1. **PR添加`ready-for-test`标签时** 👈 推荐方式
+2. 直接Push到`main`或`develop`分支（不通过PR）
+
+**注意**：PR合并后**不会**再次运行完整测试，避免重复浪费资源
 
 **耗时**: 15-30分钟  
 **工作流**: `.github/workflows/ci-test.yml`
@@ -112,7 +113,7 @@ fi
 
 ## 🏷️ 如何触发Full测试
 
-### 方法1：合并前手动触发（推荐）
+### 方法1：PR添加标签触发（✅ 推荐）
 
 当你认为PR已经准备好进行完整测试时：
 
@@ -126,12 +127,42 @@ fi
 - ✅ Docker环境测试
 - ✅ **完整E2E测试（如果配置了真实API key）**
 
-测试通过后，你就可以安心合并PR了！
+**测试通过后，直接合并即可！合并后不会重复运行测试。**
 
-### 方法2：自动触发
+### 方法2：直接Push到main
 
-- Push到`main`或`develop`分支时自动运行
-- PR合并后自动运行
+如果你直接push到`main`或`develop`分支（不通过PR），会自动运行完整测试。
+
+**注意**：
+- ⚠️ **PR合并不会触发Full测试**（避免重复）
+- ✅ 请确保PR在合并前已通过`ready-for-test`测试
+- 🔒 建议在仓库设置中启用分支保护，要求`ready-for-test`状态通过才能合并
+
+---
+
+## 🔒 建议：启用分支保护规则
+
+为了确保所有PR在合并前都经过完整测试，建议配置GitHub分支保护：
+
+### 配置步骤
+
+1. 进入仓库 → `Settings` → `Branches`
+2. 在 `Branch protection rules` 下点击 `Add rule`
+3. 配置如下：
+   - **Branch name pattern**: `main`
+   - ✅ **Require status checks to pass before merging**
+     - 搜索并勾选 `Backend Unit Tests`（或其他关键测试）
+   - ✅ **Require branches to be up to date before merging**
+   - 可选：**Require pull request reviews before merging**
+
+### 效果
+
+配置后，PR只有在以下条件满足时才能合并：
+- ✅ Light检查通过（自动运行）
+- ✅ Full测试通过（通过`ready-for-test`标签触发）
+- ✅ 代码review通过（如果启用）
+
+这样可以完全避免未测试代码进入`main`分支！
 
 ---
 
@@ -260,9 +291,15 @@ npx playwright test
    - 提交PR
 
 3. **准备合并前**：
-   - 添加`ready-for-test`标签
+   - 添加`ready-for-test`标签 👈 **关键步骤**
    - 等待Full测试通过
    - Code review通过后合并
+   - 合并后**不会重复运行测试**，节省资源 ✅
+
+4. **合并后**：
+   - 代码直接进入`main`分支
+   - 无需等待额外的CI运行
+   - 节省时间和成本
 
 ### CI优化建议
 
