@@ -7,13 +7,12 @@ import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
 const presetTemplates = [
-  { id: '1', name: '复古卷轴', preview: '/templates/template_y.png' },
-  { id: '2', name: '矢量插画', preview: '/templates/template_vector_illustration.png' },
-  { id: '3', name: '拟物玻璃', preview: '/templates/template_glass.png' },
-  
-  { id: '4', name: '科技蓝', preview: '/templates/template_b.png' },
-  { id: '5', name: '简约商务', preview: '/templates/template_s.png' },
-  { id: '6', name: '学术报告', preview: '/templates/template_academic.jpg' },
+  { id: '1', name: '产业策略', preview: '/templates/产业策略.png' },
+  { id: '2', name: '客群分析', preview: '/templates/客群分析_S1.png' },
+  { id: '3', name: '客群定位', preview: '/templates/客群定位.png' },
+  { id: '4', name: '案例借鉴 S1', preview: '/templates/案例借鉴_S1.png' },
+  { id: '5', name: '案例借鉴 S2', preview: '/templates/案例借鉴_S2.png' },
+  { id: '6', name: '策略小结', preview: '/templates/策略小结.png' },
 ];
 
 interface TemplateSelectorProps {
@@ -36,6 +35,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(true); // 上传模板时是否保存到模板库（默认勾选）
+  const [presetSearch, setPresetSearch] = useState(''); // 预设模板搜索关键字
   const { show, ToastContainer } = useToast();
 
   // 加载用户模板列表
@@ -204,9 +204,24 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
 
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2">预设模板</h4>
+          <div className="mb-3">
+            <input
+              type="text"
+              value={presetSearch}
+              onChange={(e) => setPresetSearch(e.target.value)}
+              placeholder="搜索模板名称，如“客群”"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-banana-500"
+            />
+          </div>
           <div className="grid grid-cols-4 gap-4">
             {/* 预设模板 */}
-            {presetTemplates.map((template) => (
+            {presetTemplates
+              .filter((template) => {
+                const keyword = presetSearch.trim().toLowerCase();
+                if (!keyword) return true;
+                return template.name.toLowerCase().includes(keyword);
+              })
+              .map((template) => (
               <div
                 key={template.id}
                 onClick={() => template.preview && handleSelectPresetTemplate(template.id, template.preview)}
@@ -223,6 +238,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                       alt={template.name}
                       className="absolute inset-0 w-full h-full object-cover"
                     />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 truncate">
+                      {template.name}
+                    </div>
                     {selectedPresetTemplateId === template.id && (
                       <div className="absolute inset-0 bg-banana-500 bg-opacity-20 flex items-center justify-center pointer-events-none">
                         <span className="text-white font-semibold text-sm">已选择</span>
@@ -338,4 +356,3 @@ export const getTemplateFile = async (
 
   return null;
 };
-
