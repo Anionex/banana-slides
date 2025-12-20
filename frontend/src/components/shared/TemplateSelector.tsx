@@ -13,6 +13,8 @@ const presetTemplates = [
   { id: '4', name: '案例借鉴 S1', preview: '/templates/案例借鉴_S1.png' },
   { id: '5', name: '案例借鉴 S2', preview: '/templates/案例借鉴_S2.png' },
   { id: '6', name: '策略小结', preview: '/templates/策略小结.png' },
+  { id: '7', name: '设计定位', preview: '/templates/设计定位.png' },
+  { id: '8', name: '设计策略', preview: '/templates/设计策略.png' },
 ];
 
 interface TemplateSelectorProps {

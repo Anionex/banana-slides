@@ -19,7 +19,7 @@ import {
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, replacePageImage } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
@@ -46,15 +46,13 @@ export const SlidePreview: React.FC = () => {
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
+    updatePageLocal,
   } = useProjectStore();
 
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isOutlineExpanded, setIsOutlineExpanded] = useState(false);
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
@@ -73,6 +71,9 @@ export const SlidePreview: React.FC = () => {
   const [extraRequirements, setExtraRequirements] = useState<string>('');
   const [isSavingRequirements, setIsSavingRequirements] = useState(false);
   const [isExtraRequirementsExpanded, setIsExtraRequirementsExpanded] = useState(false);
+  const [pageDescriptionDraft, setPageDescriptionDraft] = useState<string>('');
+  const [outlineTitleDraft, setOutlineTitleDraft] = useState<string>('');
+  const [outlinePointsDraft, setOutlinePointsDraft] = useState<string>('');
   const isEditingRequirements = useRef(false); // 跟踪用户是否正在编辑额外要求
   const lastProjectId = useRef<string | null>(null); // 跟踪上一次的项目ID
   // 素材生成模态开关（模块本身可复用，这里只是示例入口）
@@ -92,6 +93,8 @@ export const SlidePreview: React.FC = () => {
 
   // 预览图矩形选择状态（编辑弹窗内）
   const imageRef = useRef<HTMLImageElement | null>(null);
+  // 快速替换图片的文件选择器
+  const quickReplaceInputRef = useRef<HTMLInputElement | null>(null);
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
@@ -139,6 +142,26 @@ export const SlidePreview: React.FC = () => {
       // 如果用户正在编辑（isEditingRequirements.current === true），则不更新本地状态
     }
   }, [currentProject?.id, currentProject?.extra_requirements]);
+
+  // 初始化当前页的提示词草稿
+  useEffect(() => {
+    if (!currentProject || currentProject.pages.length === 0) {
+      setPageDescriptionDraft('');
+      setOutlineTitleDraft('');
+      setOutlinePointsDraft('');
+      return;
+    }
+    const page = currentProject.pages[selectedIndex];
+    if (!page) {
+      setPageDescriptionDraft('');
+      setOutlineTitleDraft('');
+      setOutlinePointsDraft('');
+      return;
+    }
+    setPageDescriptionDraft(getDescriptionText(page.description_content));
+    setOutlineTitleDraft(page.outline_content?.title || '');
+    setOutlinePointsDraft(page.outline_content?.points?.join('\n') || '');
+  }, [currentProject, selectedIndex]);
 
   // 加载当前页面的历史版本
   useEffect(() => {
@@ -283,40 +306,16 @@ export const SlidePreview: React.FC = () => {
     return matches;
   };
 
-  const handleEditPage = () => {
-    if (!currentProject) return;
-    const page = currentProject.pages[selectedIndex];
-    const pageId = page?.id;
-
-    setIsOutlineExpanded(false);
-    setIsDescriptionExpanded(false);
-
-    if (pageId && editContextByPage[pageId]) {
-      // 恢复该页上次编辑的内容和图片选择
-      const cached = editContextByPage[pageId];
-      setEditPrompt(cached.prompt);
-      setSelectedContextImages({
-        useTemplate: cached.contextImages.useTemplate,
-        descImageUrls: [...cached.contextImages.descImageUrls],
-        uploadedFiles: [...cached.contextImages.uploadedFiles],
-      });
-    } else {
-      // 首次编辑该页，使用默认值
-      setEditPrompt('');
-      setSelectedContextImages({
-        useTemplate: false,
-        descImageUrls: [],
-        uploadedFiles: [],
-      });
+  // 从 description_content 提取纯文本，供预览区展示
+  const getDescriptionText = (descriptionContent: DescriptionContent | undefined): string => {
+    if (!descriptionContent) return '';
+    if ('text' in descriptionContent) {
+      return descriptionContent.text || '';
     }
-
-    // 打开编辑弹窗时，清空上一次的选区和模式
-    setIsRegionSelectionMode(false);
-    setSelectionStart(null);
-    setSelectionRect(null);
-    setIsSelectingRegion(false);
-
-    setIsEditModalOpen(true);
+    if ('text_content' in descriptionContent && Array.isArray(descriptionContent.text_content)) {
+      return descriptionContent.text_content.join('\n');
+    }
+    return '';
   };
 
   const handleSubmitEdit = useCallback(async () => {
@@ -350,8 +349,6 @@ export const SlidePreview: React.FC = () => {
         },
       },
     }));
-
-    setIsEditModalOpen(false);
   }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -389,9 +386,39 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  // 编辑弹窗打开时，实时把输入与图片选择写入缓存（前端会话内）
+  // 快速替换当前页图片：点击大图后从本地选择一张图片，直接覆盖为最终图片（不走AI任务）
+  const handlePreviewImageClick = () => {
+    if (!selectedPage?.generated_image_path) return;
+    if (quickReplaceInputRef.current) {
+      quickReplaceInputRef.current.click();
+    }
+  };
+
+  const handleQuickReplaceInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // 允许多次选择同一文件
+    e.target.value = '';
+
+    if (!file || !currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page.id) return;
+
+    try {
+      // 直接上传并替换当前页图片，不创建任务、不进入生成中状态
+      await replacePageImage(currentProject.id, page.id, file);
+      await syncProject(currentProject.id);
+      show({ message: '图片已替换', type: 'success' });
+    } catch (error: any) {
+      show({
+        message: '替换图片失败: ' + (error.message || '未知错误'),
+        type: 'error',
+      });
+    }
+  };
+
+  // 实时把输入与图片选择写入缓存（前端会话内）
   useEffect(() => {
-    if (!isEditModalOpen || !currentProject) return;
+    if (!currentProject) return;
     const page = currentProject.pages[selectedIndex];
     const pageId = page?.id;
     if (!pageId) return;
@@ -407,7 +434,38 @@ export const SlidePreview: React.FC = () => {
         },
       },
     }));
-  }, [isEditModalOpen, currentProject, selectedIndex, editPrompt, selectedContextImages]);
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages]);
+
+  // 当切换页面时，恢复对应的编辑上下文（指令 + 上下文图片）
+  useEffect(() => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    const pageId = page?.id;
+    if (!pageId) return;
+
+    const cached = editContextByPage[pageId];
+    if (cached) {
+      setEditPrompt(cached.prompt);
+      setSelectedContextImages({
+        useTemplate: cached.contextImages.useTemplate,
+        descImageUrls: [...cached.contextImages.descImageUrls],
+        uploadedFiles: [...cached.contextImages.uploadedFiles],
+      });
+    } else {
+      setEditPrompt('');
+      setSelectedContextImages({
+        useTemplate: false,
+        descImageUrls: [],
+        uploadedFiles: [],
+      });
+    }
+
+    // 仅在切换页面时清空区域选图状态
+    setIsRegionSelectionMode(false);
+    setSelectionStart(null);
+    setSelectionRect(null);
+    setIsSelectingRegion(false);
+  }, [currentProject?.id, selectedIndex]);
 
   // ========== 预览图矩形选择相关逻辑（编辑弹窗内） ==========
   const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -568,6 +626,43 @@ export const SlidePreview: React.FC = () => {
       setIsSavingRequirements(false);
     }
   }, [currentProject, projectId, extraRequirements, syncProject, show]);
+
+  // 保存当前页描述 / 提示词
+  const handleSavePageDescription = useCallback(() => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page?.id) return;
+
+    updatePageLocal(page.id, {
+      description_content: {
+        text: pageDescriptionDraft || '',
+      } as DescriptionContent,
+    });
+
+    show({ message: '当前页描述已保存', type: 'success' });
+  }, [currentProject, selectedIndex, pageDescriptionDraft, updatePageLocal, show]);
+
+  // 保存当前页大纲
+  const handleSavePageOutline = useCallback(() => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page?.id) return;
+
+    const points =
+      outlinePointsDraft
+        .split('\n')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0) || [];
+
+    updatePageLocal(page.id, {
+      outline_content: {
+        title: outlineTitleDraft || '未命名页面',
+        points,
+      },
+    });
+
+    show({ message: '页面大纲已保存', type: 'success' });
+  }, [currentProject, selectedIndex, outlineTitleDraft, outlinePointsDraft, updatePageLocal, show]);
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
@@ -833,8 +928,8 @@ export const SlidePreview: React.FC = () => {
                       isSelected={selectedIndex === index}
                       onClick={() => setSelectedIndex(index)}
                       onEdit={() => {
+                        // 直接切换到对应页面，右侧编辑栏会自动加载上下文
                         setSelectedIndex(index);
-                        handleEditPage();
                       }}
                       onDelete={() => page.id && deletePageById(page.id)}
                       isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
@@ -869,40 +964,334 @@ export const SlidePreview: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* 预览区 */}
+              {/* 预览区 + 右侧编辑栏 */}
               <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
-                <div className="max-w-5xl w-full">
-                  <div className="relative aspect-video bg-white rounded-lg shadow-xl overflow-hidden touch-manipulation">
-                    {selectedPage?.generated_image_path ? (
-                      <img
-                        src={imageUrl}
-                        alt={`Slide ${selectedIndex + 1}`}
-                        className="w-full h-full object-contain select-none"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        <div className="text-center">
-                          <div className="text-6xl mb-4">🍌</div>
-                          <p className="text-gray-500 mb-4">
-                            {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                              ? '正在生成中...'
-                              : selectedPage?.status === 'GENERATING'
-                              ? '正在生成中...'
-                              : '尚未生成图片'}
-                          </p>
-                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) && 
-                           selectedPage?.status !== 'GENERATING' && (
-                            <Button
-                              variant="primary"
-                              onClick={handleRegeneratePage}
-                            >
-                              生成此页
-                            </Button>
+                <div className="max-w-6xl w-full flex flex-col xl:flex-row gap-4 items-start">
+                  {/* 中间：大图 + 文本上下文 */}
+                  <div className="flex-1 space-y-4">
+                    <div
+                      className="relative aspect-video bg-white rounded-lg shadow-xl overflow-hidden touch-manipulation"
+                      onMouseDown={handleSelectionMouseDown}
+                      onMouseMove={handleSelectionMouseMove}
+                      onMouseUp={handleSelectionMouseUp}
+                      onMouseLeave={handleSelectionMouseUp}
+                    >
+                      {selectedPage?.generated_image_path ? (
+                        <>
+                          <img
+                            ref={imageRef}
+                            src={imageUrl}
+                            alt={`Slide ${selectedIndex + 1}`}
+                            className="w-full h-full object-contain select-none"
+                            draggable={false}
+                            crossOrigin="anonymous"
+                            onClick={() => {
+                              // 区域选图模式下仅用于框选，不触发上传替换
+                              if (isRegionSelectionMode) return;
+                              handlePreviewImageClick();
+                            }}
+                          />
+                          {isRegionSelectionMode && (
+                            <div className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/85 text-[10px] text-gray-700 shadow-sm">
+                              区域选图模式中
+                            </div>
                           )}
+                          {selectionRect && (
+                            <div
+                              className="absolute border-2 border-banana-500 bg-banana-400/10 pointer-events-none"
+                              style={{
+                                left: selectionRect.left,
+                                top: selectionRect.top,
+                                width: selectionRect.width,
+                                height: selectionRect.height,
+                              }}
+                            />
+                          )}
+                          {!isRegionSelectionMode && (
+                            <div className="pointer-events-none absolute bottom-3 right-3 bg-black/45 text-white text-[11px] md:text-xs px-2 py-1 rounded-md hidden sm:block">
+                              点击图片，可上传本地替换
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                          <div className="text-center">
+                            <div className="text-6xl mb-4">🍌</div>
+                            <p className="text-gray-500 mb-4">
+                              {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
+                                ? '正在生成中...'
+                                : selectedPage?.status === 'GENERATING'
+                                ? '正在生成中...'
+                                : '尚未生成图片'}
+                            </p>
+                            {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
+                              selectedPage?.status !== 'GENERATING' && (
+                                <Button variant="primary" onClick={handleRegeneratePage}>
+                                  生成此页
+                                </Button>
+                              )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 当前页的文字上下文（大纲 + 描述，可编辑） */}
+                    {selectedPage && (
+                      <div className="bg-white/90 rounded-lg shadow border border-gray-200 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">
+                              第 {selectedIndex + 1} 页
+                            </span>
+                            {selectedPage.part && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700">
+                                {selectedPage.part}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            文本修改后记得点击保存
+                          </span>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {/* 左侧：大纲编辑 */}
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-medium text-gray-500">页面大纲</h4>
+                            <input
+                              type="text"
+                              value={outlineTitleDraft}
+                              onChange={(e) => setOutlineTitleDraft(e.target.value)}
+                              placeholder="页面标题"
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-banana-500"
+                            />
+                            <Textarea
+                              value={outlinePointsDraft}
+                              onChange={(e) => setOutlinePointsDraft(e.target.value)}
+                              rows={4}
+                              className="text-xs md:text-sm"
+                              placeholder="一行一个要点，将作为该页的大纲内容"
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={handleSavePageOutline}
+                              className="w-full text-xs md:text-sm"
+                            >
+                              保存页面大纲
+                            </Button>
+                          </div>
+
+                          {/* 右侧：描述提示词编辑 */}
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-medium text-gray-500">页面描述 / 提示词</h4>
+                            <Textarea
+                              value={pageDescriptionDraft}
+                              onChange={(e) => setPageDescriptionDraft(e.target.value)}
+                              rows={6}
+                              className="text-xs md:text-sm h-full"
+                              placeholder="这里是这一页的完整提示词，会作为生成或编辑图片的主要文字依据。"
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={handleSavePageDescription}
+                              className="w-full text-xs md:text-sm"
+                            >
+                              保存页面描述
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* 右侧：侧边聊天框（编辑栏） */}
+                  <div className="w-full xl:w-96 bg-white/95 rounded-lg shadow border border-gray-200 p-4 space-y-4">
+                    {/* 上下文图片选择 */}
+                    <div className="space-y-3 border-t border-gray-100 pt-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900">上下文图片（可选）</h3>
+                        <Button
+                          variant={isRegionSelectionMode ? 'secondary' : 'ghost'}
+                          size="sm"
+                          icon={<Sparkles size={14} />}
+                          onClick={() => {
+                            setIsRegionSelectionMode((prev) => !prev);
+                            setSelectionStart(null);
+                            setSelectionRect(null);
+                            setIsSelectingRegion(false);
+                          }}
+                          className="text-xs"
+                        >
+                          {isRegionSelectionMode ? '结束区域选图' : '区域选图'}
+                        </Button>
+                      </div>
+
+                      {/* Template 图片 */}
+                      {currentProject?.template_image_path && (
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="use-template"
+                            checked={selectedContextImages.useTemplate}
+                            onChange={(e) =>
+                              setSelectedContextImages((prev) => ({
+                                ...prev,
+                                useTemplate: e.target.checked,
+                              }))
+                            }
+                            className="w-4 h-4 text-banana-600 rounded focus:ring-banana-500"
+                          />
+                          <label
+                            htmlFor="use-template"
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <ImageIcon size={16} className="text-gray-500" />
+                            <span className="text-sm text-gray-700">使用模板图片</span>
+                            <img
+                              src={getImageUrl(
+                                currentProject.template_image_path,
+                                currentProject.updated_at
+                              )}
+                              alt="Template"
+                              className="w-16 h-10 object-cover rounded border border-gray-300"
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {/* 描述中的图片 */}
+                      {selectedPage?.description_content && (() => {
+                        const descImageUrls = extractImageUrlsFromDescription(
+                          selectedPage.description_content
+                        );
+                        return descImageUrls.length > 0 ? (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">
+                              描述中的图片：
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                              {descImageUrls.map((url, idx) => (
+                                <div key={idx} className="relative group">
+                                  <img
+                                    src={url}
+                                    alt={`Desc image ${idx + 1}`}
+                                    className="w-full h-20 object-cover rounded border-2 cursor-pointer transition-all"
+                                    style={{
+                                      borderColor: selectedContextImages.descImageUrls.includes(url)
+                                        ? '#f59e0b'
+                                        : '#d1d5db',
+                                    }}
+                                    onClick={() => {
+                                      setSelectedContextImages((prev) => {
+                                        const isSelected = prev.descImageUrls.includes(url);
+                                        return {
+                                          ...prev,
+                                          descImageUrls: isSelected
+                                            ? prev.descImageUrls.filter((u) => u !== url)
+                                            : [...prev.descImageUrls, url],
+                                        };
+                                      });
+                                    }}
+                                  />
+                                  {selectedContextImages.descImageUrls.includes(url) && (
+                                    <div className="absolute inset-0 bg-banana-500/20 border-2 border-banana-500 rounded flex items-center justify-center">
+                                      <div className="w-6 h-6 bg-banana-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs font-bold">✓</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* 上传图片 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium text-gray-700">上传图片：</label>
+                          {projectId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={<ImagePlus size={16} />}
+                              onClick={() => setIsMaterialSelectorOpen(true)}
+                              className="text-xs"
+                            >
+                              从素材库选择
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedContextImages.uploadedFiles.map((file, idx) => (
+                            <div key={idx} className="relative group">
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={`Uploaded ${idx + 1}`}
+                                className="w-20 h-20 object-cover rounded border border-gray-300"
+                              />
+                              <button
+                                onClick={() => removeUploadedFile(idx)}
+                                className="no-min-touch-target absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                          <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 transition-colors">
+                            <Upload size={20} className="text-gray-400 mb-1" />
+                            <span className="text-xs text-gray-500">上传</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={handleFileUpload}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 修改指令输入框 */}
+                    <div className="space-y-2 border-t border-gray-100 pt-3">
+                      <Textarea
+                        label="输入修改指令（将自动添加页面描述）"
+                        placeholder="例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线..."
+                        value={editPrompt}
+                        onChange={(e) => setEditPrompt(e.target.value)}
+                        rows={4}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRegeneratePage}
+                          disabled={
+                            selectedPage?.id && pageGeneratingTasks[selectedPage.id]
+                              ? true
+                              : false
+                          }
+                          className="text-xs md:text-sm"
+                        >
+                          {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
+                            ? '生成中...'
+                            : '重新生成'}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleSubmitEdit}
+                          disabled={!editPrompt.trim()}
+                          className="text-xs md:text-sm"
+                        >
+                          根据指令生成
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -943,7 +1332,7 @@ export const SlidePreview: React.FC = () => {
                     </Button>
                   </div>
 
-                  {/* 操作 */}
+                  {/* 操作（导航相关） */}
                   <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
                     {/* 手机端：模板更换按钮 */}
                     <Button
@@ -1020,26 +1409,6 @@ export const SlidePreview: React.FC = () => {
                         )}
                       </div>
                     )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleEditPage}
-                      disabled={!selectedPage?.generated_image_path}
-                      className="text-xs md:text-sm flex-1 sm:flex-initial"
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleRegeneratePage}
-                      disabled={selectedPage?.id && pageGeneratingTasks[selectedPage.id] ? true : false}
-                      className="text-xs md:text-sm flex-1 sm:flex-initial"
-                    >
-                      {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                        ? '生成中...'
-                        : '重新生成'}
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -1047,276 +1416,14 @@ export const SlidePreview: React.FC = () => {
           )}
         </main>
       </div>
-
-      {/* 编辑对话框 */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="编辑页面"
-        size="lg"
-      >
-        <div className="space-y-4">
-          {/* 图片（支持矩形区域选择） */}
-          <div
-            className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative"
-            onMouseDown={handleSelectionMouseDown}
-            onMouseMove={handleSelectionMouseMove}
-            onMouseUp={handleSelectionMouseUp}
-            onMouseLeave={handleSelectionMouseUp}
-          >
-            {imageUrl && (
-              <>
-                {/* 左上角：区域选图模式开关 */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // 切换矩形选择模式
-                    setIsRegionSelectionMode((prev) => !prev);
-                    // 切模式时清空当前选区
-                    setSelectionStart(null);
-                    setSelectionRect(null);
-                    setIsSelectingRegion(false);
-                  }}
-                  className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 text-[10px] text-gray-700 hover:bg-banana-50 shadow-sm flex items-center gap-1"
-                >
-                  <Sparkles size={12} />
-                  <span>{isRegionSelectionMode ? '结束区域选图' : '区域选图'}</span>
-                </button>
-
-                <img
-                  ref={imageRef}
-                  src={imageUrl}
-                  alt="Current slide"
-                  className="w-full h-full object-contain select-none"
-                  draggable={false}
-                  crossOrigin="anonymous"
-                />
-                {selectionRect && (
-                  <div
-                    className="absolute border-2 border-banana-500 bg-banana-400/10 pointer-events-none"
-                    style={{
-                      left: selectionRect.left,
-                      top: selectionRect.top,
-                      width: selectionRect.width,
-                      height: selectionRect.height,
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </div>
-
-          {/* 大纲内容 - 可折叠 */}
-          {selectedPage?.outline_content && (
-            <div className="bg-gray-50 rounded-lg border border-gray-200">
-              <button
-                onClick={() => setIsOutlineExpanded(!isOutlineExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
-              >
-                <h4 className="text-sm font-semibold text-gray-700">页面大纲</h4>
-                {isOutlineExpanded ? (
-                  <ChevronUp size={18} className="text-gray-500" />
-                ) : (
-                  <ChevronDown size={18} className="text-gray-500" />
-                )}
-              </button>
-              {isOutlineExpanded && (
-                <div className="px-4 pb-4 space-y-2">
-                  <div className="text-sm font-medium text-gray-900 mb-2">
-                    {selectedPage.outline_content.title}
-                  </div>
-                  {selectedPage.outline_content.points && selectedPage.outline_content.points.length > 0 && (
-                    <div className="text-sm text-gray-600">
-                      <Markdown>{selectedPage.outline_content.points.join('\n')}</Markdown>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 描述内容 - 可折叠 */}
-          {selectedPage?.description_content && (
-            <div className="bg-blue-50 rounded-lg border border-blue-200">
-              <button
-                onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
-              >
-                <h4 className="text-sm font-semibold text-gray-700">页面描述</h4>
-                {isDescriptionExpanded ? (
-                  <ChevronUp size={18} className="text-gray-500" />
-                ) : (
-                  <ChevronDown size={18} className="text-gray-500" />
-                )}
-              </button>
-              {isDescriptionExpanded && (
-                <div className="px-4 pb-4">
-                  <div className="text-sm text-gray-700 max-h-48 overflow-y-auto">
-                    <Markdown>
-                      {(() => {
-                        const desc = selectedPage.description_content;
-                        if (!desc) return '暂无描述';
-                        // 处理两种格式
-                        if ('text' in desc) {
-                          return desc.text;
-                        } else if ('text_content' in desc && Array.isArray(desc.text_content)) {
-                          return desc.text_content.join('\n');
-                        }
-                        return '暂无描述';
-                      })() as string}
-                    </Markdown>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 上下文图片选择 */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">选择上下文图片（可选）</h4>
-            
-            {/* Template图片选择 */}
-            {currentProject?.template_image_path && (
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="use-template"
-                  checked={selectedContextImages.useTemplate}
-                  onChange={(e) =>
-                    setSelectedContextImages((prev) => ({
-                      ...prev,
-                      useTemplate: e.target.checked,
-                    }))
-                  }
-                  className="w-4 h-4 text-banana-600 rounded focus:ring-banana-500"
-                />
-                <label htmlFor="use-template" className="flex items-center gap-2 cursor-pointer">
-                  <ImageIcon size={16} className="text-gray-500" />
-                  <span className="text-sm text-gray-700">使用模板图片</span>
-                  {currentProject.template_image_path && (
-                    <img
-                      src={getImageUrl(currentProject.template_image_path, currentProject.updated_at)}
-                      alt="Template"
-                      className="w-16 h-10 object-cover rounded border border-gray-300"
-                    />
-                  )}
-                </label>
-              </div>
-            )}
-
-            {/* Desc中的图片 */}
-            {selectedPage?.description_content && (() => {
-              const descImageUrls = extractImageUrlsFromDescription(selectedPage.description_content);
-              return descImageUrls.length > 0 ? (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">描述中的图片：</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {descImageUrls.map((url, idx) => (
-                      <div key={idx} className="relative group">
-                        <img
-                          src={url}
-                          alt={`Desc image ${idx + 1}`}
-                          className="w-full h-20 object-cover rounded border-2 border-gray-300 cursor-pointer transition-all"
-                          style={{
-                            borderColor: selectedContextImages.descImageUrls.includes(url)
-                              ? '#f59e0b'
-                              : '#d1d5db',
-                          }}
-                          onClick={() => {
-                            setSelectedContextImages((prev) => {
-                              const isSelected = prev.descImageUrls.includes(url);
-                              return {
-                                ...prev,
-                                descImageUrls: isSelected
-                                  ? prev.descImageUrls.filter((u) => u !== url)
-                                  : [...prev.descImageUrls, url],
-                              };
-                            });
-                          }}
-                        />
-                        {selectedContextImages.descImageUrls.includes(url) && (
-                          <div className="absolute inset-0 bg-banana-500/20 border-2 border-banana-500 rounded flex items-center justify-center">
-                            <div className="w-6 h-6 bg-banana-500 rounded-full flex items-center justify-center">
-                              <span className="text-white text-xs font-bold">✓</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null;
-            })()}
-
-            {/* 上传图片 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">上传图片：</label>
-                {projectId && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<ImagePlus size={16} />}
-                    onClick={() => setIsMaterialSelectorOpen(true)}
-                  >
-                    从素材库选择
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedContextImages.uploadedFiles.map((file, idx) => (
-                  <div key={idx} className="relative group">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Uploaded ${idx + 1}`}
-                      className="w-20 h-20 object-cover rounded border border-gray-300"
-                    />
-                    <button
-                      onClick={() => removeUploadedFile(idx)}
-                      className="no-min-touch-target absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-                <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 transition-colors">
-                  <Upload size={20} className="text-gray-400 mb-1" />
-                  <span className="text-xs text-gray-500">上传</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* 编辑框 */}
-          <Textarea
-            label="输入修改指令(将自动添加页面描述)"
-            placeholder="例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线..."
-            value={editPrompt}
-            onChange={(e) => setEditPrompt(e.target.value)}
-            rows={4}
-          />
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
-              取消
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSubmitEdit}
-              disabled={!editPrompt.trim()}
-            >
-              生成
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* 快速替换图片的隐藏文件选择器 */}
+      <input
+        ref={quickReplaceInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleQuickReplaceInputChange}
+      />
       <ToastContainer />
       {ConfirmDialog}
       
@@ -1375,4 +1482,3 @@ export const SlidePreview: React.FC = () => {
     </div>
   );
 };
-

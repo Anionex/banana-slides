@@ -295,6 +295,24 @@ export const editPageImage = async (
 };
 
 /**
+ * 直接上传并替换页面图片（不经过AI生成）
+ */
+export const replacePageImage = async (
+  projectId: string,
+  pageId: string,
+  imageFile: File
+): Promise<ApiResponse<Page>> => {
+  const formData = new FormData();
+  formData.append('page_image', imageFile);
+
+  const response = await apiClient.post<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/image/upload`,
+    formData
+  );
+  return response.data;
+};
+
+/**
  * 获取页面图片历史版本
  */
 export const getPageImageVersions = async (

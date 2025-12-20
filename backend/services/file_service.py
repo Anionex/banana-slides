@@ -110,6 +110,37 @@ class FileService:
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
 
+    def save_page_image_file(self, file, project_id: str,
+                             page_id: str, version_number: int = None) -> str:
+        """
+        Save uploaded page image file as a versioned image.
+
+        Args:
+            file: FileStorage object from Flask request
+            project_id: Project ID
+            page_id: Page ID
+            version_number: Optional version number. If None, uses timestamp-based naming
+
+        Returns:
+            Relative file path from upload folder
+        """
+        pages_dir = self._get_pages_dir(project_id)
+
+        original_filename = secure_filename(file.filename or 'page.png')
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'png'
+
+        if version_number is not None:
+            filename = f"{page_id}_v{version_number}.{ext}"
+        else:
+            import time
+            timestamp = int(time.time() * 1000)
+            filename = f"{page_id}_{timestamp}.{ext}"
+
+        filepath = pages_dir / filename
+        file.save(str(filepath))
+
+        return filepath.relative_to(self.upload_folder).as_posix()
+
     def save_material_image(self, image: Image.Image, project_id: Optional[str],
                             image_format: str = 'PNG') -> str:
         """

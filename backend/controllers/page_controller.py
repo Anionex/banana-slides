@@ -617,6 +617,69 @@ def edit_page_image(project_id, page_id):
         return error_response('AI_SERVICE_ERROR', str(e), 503)
 
 
+@page_bp.route('/<project_id>/pages/<page_id>/image/upload', methods=['POST'])
+def upload_page_image(project_id, page_id):
+    """
+    POST /api/projects/{project_id}/pages/{page_id}/image/upload - Upload and replace page image directly
+
+    This endpoint is for directly replacing the page image with a user-uploaded image,
+    without triggering any AI generation task. It will:
+    - Save the uploaded file as a new image version
+    - Mark previous versions as not current
+    - Update page.generated_image_path to the new image
+    """
+    try:
+        page = Page.query.get(page_id)
+
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        if 'page_image' not in request.files:
+            return bad_request("page_image file is required")
+
+        file = request.files['page_image']
+        if not file or not file.filename:
+            return bad_request("No file uploaded")
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+        # Calculate next version number
+        existing_versions = PageImageVersion.query.filter_by(page_id=page_id).all()
+        next_version = len(existing_versions) + 1
+
+        # Save uploaded file as a new versioned image
+        image_path = file_service.save_page_image_file(file, project_id, page_id, version_number=next_version)
+
+        # Mark all previous versions as not current
+        for version in existing_versions:
+            version.is_current = False
+
+        # Create new version record
+        new_version = PageImageVersion(
+            page_id=page_id,
+            image_path=image_path,
+            version_number=next_version,
+            is_current=True
+        )
+        db.session.add(new_version)
+
+        # Update page with new image path
+        page.generated_image_path = image_path
+        page.status = 'COMPLETED'
+        page.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return success_response(page.to_dict(include_versions=True))
+
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
 
 @page_bp.route('/<project_id>/pages/<page_id>/image-versions', methods=['GET'])
 def get_page_image_versions(project_id, page_id):
