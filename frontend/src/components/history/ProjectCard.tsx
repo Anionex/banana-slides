@@ -33,15 +33,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onSaveEdit,
   isBatchMode,
 }) => {
-  const projectId = project.id || project.project_id;
-  if (!projectId) return null;
-
-  const title = getProjectTitle(project);
-  const pageCount = project.pages?.length || 0;
-  const statusText = getStatusText(project);
-  const statusColor = getStatusColor(project);
-  
-  // 检测屏幕尺寸，只在非手机端加载图片
+  // 检测屏幕尺寸，只在非手机端加载图片（必须在早期返回之前声明hooks）
   const [shouldLoadImage, setShouldLoadImage] = useState(false);
   
   useEffect(() => {
@@ -55,6 +47,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
+
+  const projectId = project.id || project.project_id;
+  if (!projectId) return null;
+
+  const title = getProjectTitle(project);
+  const pageCount = project.pages?.length || 0;
+  const statusText = getStatusText(project);
+  const statusColor = getStatusColor(project);
   
   const firstPageImage = shouldLoadImage ? getFirstPageImage(project) : null;
 

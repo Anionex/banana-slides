@@ -3,7 +3,7 @@
 """
 
 import pytest
-from tests.conftest import assert_success_response, assert_error_response
+from conftest import assert_success_response, assert_error_response
 
 
 class TestProjectCreate:
