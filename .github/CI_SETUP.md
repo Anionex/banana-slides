@@ -31,6 +31,8 @@
 - ✅ 前端测试（Vitest + coverage）
 - ✅ Docker环境测试
 - ✅ **完整E2E测试（从创建到导出PPT）**
+  - 🔄 矩阵测试：同时测试Gemini和OpenAI两种AI格式
+  - 自动跳过未配置API key的格式
 - ✅ 安全扫描（依赖漏洞检查）
 
 ---
@@ -49,10 +51,16 @@
 
 | Secret名称 | 必需 | 说明 | 获取方式 |
 |-----------|------|------|---------|
-| `GOOGLE_API_KEY` | ✅ 必需 | Google Gemini API密钥（用于完整E2E测试） | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
-| `OPENAI_API_KEY` | ⚪ 可选 | OpenAI API密钥（如果使用OpenAI格式） | [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `GOOGLE_API_KEY` | ✅ 推荐 | Google Gemini API密钥（用于Gemini格式E2E测试） | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| `OPENAI_API_KEY` | ✅ 推荐 | OpenAI API密钥（用于OpenAI格式E2E测试） | [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | `SECRET_KEY` | ⚪ 可选 | Flask应用密钥（生产环境建议配置） | 随机生成，建议使用：`python -c "import secrets; print(secrets.token_hex(32))"` |
 | `MINERU_TOKEN` | ⚪ 可选 | MinerU服务Token（如果使用MinerU解析） | 从MinerU服务获取 |
+
+**关于AI格式测试**：
+- 💡 E2E测试会使用**矩阵策略**同时测试Gemini和OpenAI两种格式
+- ✅ 如果只配置`GOOGLE_API_KEY`，则只测试Gemini格式（OpenAI测试会跳过）
+- ✅ 如果只配置`OPENAI_API_KEY`，则只测试OpenAI格式（Gemini测试会跳过）
+- 🎯 **推荐同时配置两个API key**，以确保两种格式都能正常工作
 
 **注意**：
 - ⚠️ **没有配置`GOOGLE_API_KEY`时，完整E2E测试会被跳过**

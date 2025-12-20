@@ -235,9 +235,13 @@ jobs:
   # E2E测试
   # ================================
   e2e-test:
-    name: 端到端测试
+    name: 端到端测试 (${{ matrix.ai_format }})
     runs-on: ubuntu-latest
     needs: docker-test
+    strategy:
+      matrix:
+        ai_format: [gemini, openai]
+      fail-fast: false  # 一个失败不影响另一个继续运行
     
     steps:
       - name: 📥 拉取代码
@@ -258,9 +262,14 @@ jobs:
           # 使用通用脚本自动处理所有环境变量替换
           chmod +x scripts/setup-env-from-secrets.sh
           ./scripts/setup-env-from-secrets.sh
+          
+          # 显示当前测试的AI格式
+          echo "🤖 测试AI格式: ${{ matrix.ai_format }}"
+          grep "^AI_PROVIDER_FORMAT=" .env
         env:
           # 导出所有Secrets为环境变量（脚本会自动检测并替换）
-          AI_PROVIDER_FORMAT: ${{ secrets.AI_PROVIDER_FORMAT }}
+          # AI格式：使用matrix指定的格式，或从Secret读取
+          AI_PROVIDER_FORMAT: ${{ matrix.ai_format }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -307,14 +316,30 @@ jobs:
         continue-on-error: false
       
       - name: 🚀 运行完整流程E2E测试（需要真实API）
-        if: secrets.GOOGLE_API_KEY != ''
+        if: |
+          (matrix.ai_format == 'gemini' && secrets.GOOGLE_API_KEY != '') ||
+          (matrix.ai_format == 'openai' && secrets.OPENAI_API_KEY != '')
         run: |
           # 运行完整流程测试（从创建到导出PPT）
+          echo "🧪 测试AI格式: ${{ matrix.ai_format }}"
           npx playwright test full-flow.spec.ts --workers=1
         env:
           CI: true
         timeout-minutes: 15
         continue-on-error: false
+      
+      - name: ⚠️ 跳过完整流程测试
+        if: |
+          (matrix.ai_format == 'gemini' && secrets.GOOGLE_API_KEY == '') ||
+          (matrix.ai_format == 'openai' && secrets.OPENAI_API_KEY == '')
+        run: |
+          echo "⚠️ 跳过完整流程E2E测试"
+          echo "原因: ${{ matrix.ai_format }} 格式未配置API key"
+          if [ "${{ matrix.ai_format }}" == "gemini" ]; then
+            echo "需要配置: GOOGLE_API_KEY"
+          else
+            echo "需要配置: OPENAI_API_KEY"
+          fi
       
       - name: 📊 上传测试报告
         if: always()
