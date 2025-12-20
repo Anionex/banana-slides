@@ -48,6 +48,11 @@ if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/
     exit 1
 fi
 
+if ! command -v jq &> /dev/null; then
+    log_error "jq is not installed, please install jq first (apt-get install jq or brew install jq)"
+    exit 1
+fi
+
 if [ ! -f ".env" ]; then
     log_warning ".env file does not exist, copying from .env.example"
     cp .env.example .env
@@ -164,8 +169,8 @@ create_response=$(curl -s -X POST http://localhost:5000/api/projects \
     -H "Content-Type: application/json" \
     -d '{"creation_type":"idea","idea_prompt":"Docker test project"}')
 
-if echo "$create_response" | grep -q '"success":true'; then
-    project_id=$(echo "$create_response" | grep -o '"project_id":"[^"]*"' | cut -d'"' -f4)
+if echo "$create_response" | jq -e '.success == true' > /dev/null 2>&1; then
+    project_id=$(echo "$create_response" | jq -r '.data.project_id')
     log_success "  Project created successfully: $project_id"
 else
     log_error "  Project creation failed"
@@ -216,7 +221,7 @@ log_info "Step 9/10: Data persistence test..."
 create_response=$(curl -s -X POST http://localhost:5000/api/projects \
     -H "Content-Type: application/json" \
     -d '{"creation_type":"idea","idea_prompt":"Persistence test"}')
-persist_project_id=$(echo "$create_response" | grep -o '"project_id":"[^"]*"' | cut -d'"' -f4)
+persist_project_id=$(echo "$create_response" | jq -r '.data.project_id')
 
 # Restart backend container
 log_info "  Restarting backend container..."

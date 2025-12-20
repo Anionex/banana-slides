@@ -51,13 +51,15 @@ for var_name in "${REPLACEABLE_VARS[@]}"; do
   # Get the value of the environment variable (if exists)
   var_value="${!var_name}"
   
-  # If environment variable exists and is not empty, replace it
+    # If environment variable exists and is not empty, replace it
   if [ -n "$var_value" ]; then
     # Check if this configuration item exists in .env file
     if grep -q "^${var_name}=" "$ENV_FILE"; then
+      # Escape special characters for sed replacement string (RHS)
+      escaped_value=$(printf '%s\n' "$var_value" | sed -e 's/[\/&]/\\&/g')
       # Use sed to replace the entire line (handles special characters)
       # Use | as delimiter to support values with / like URLs
-      sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" "$ENV_FILE"
+      sed -i "s|^${var_name}=.*|${var_name}=${escaped_value}|" "$ENV_FILE"
       echo "Replaced ${var_name}"
       ((replaced_count++))
     else
