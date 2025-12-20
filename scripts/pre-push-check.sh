@@ -1,12 +1,12 @@
 #!/bin/bash
 # ===========================================
-# 本地快速检查脚本
-# 在push代码前运行，确保基本质量
+# Local quick check script
+# Run before pushing code to ensure basic quality
 # ===========================================
 
-set -e  # 遇到错误立即退出
+set -e  # Exit immediately on error
 
-# 颜色定义
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,77 +14,76 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo ""
-echo "🔍 =========================="
-echo "   本地快速检查"
-echo "   (Push前请确保通过)"
+echo "=========================="
+echo "   Local Quick Check"
+echo "   (Ensure pass before push)"
 echo "=========================="
 echo ""
 
-# 记录开始时间
+# Record start time
 START_TIME=$(date +%s)
 
-# 1. 后端Lint检查
-echo -e "${BLUE}[1/4]${NC} 后端代码检查..."
+# 1. Backend lint check
+echo -e "${BLUE}[1/4]${NC} Backend code check..."
 cd backend
 if command -v uv &> /dev/null; then
     uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics 2>/dev/null || {
-        echo -e "${YELLOW}[!] flake8未安装，跳过后端lint${NC}"
+        echo -e "${YELLOW}[!] flake8 not installed, skipping backend lint${NC}"
     }
 else
-    echo -e "${YELLOW}[!] uv未安装，跳过后端检查${NC}"
+    echo -e "${YELLOW}[!] uv not installed, skipping backend check${NC}"
 fi
-echo -e "${GREEN}[✓]${NC} 后端检查完成"
+echo -e "${GREEN}[PASS]${NC} Backend check complete"
 cd ..
 
-# 2. 前端Lint检查
-echo -e "${BLUE}[2/4]${NC} 前端代码检查..."
+# 2. Frontend lint check
+echo -e "${BLUE}[2/4]${NC} Frontend code check..."
 cd frontend
 npm run lint 2>/dev/null || {
-    echo -e "${RED}[✗] 前端Lint检查失败${NC}"
+    echo -e "${RED}[FAIL] Frontend lint check failed${NC}"
     exit 1
 }
-echo -e "${GREEN}[✓]${NC} 前端Lint检查通过"
+echo -e "${GREEN}[PASS]${NC} Frontend lint check passed"
 cd ..
 
-# 3. 前端构建检查
-echo -e "${BLUE}[3/4]${NC} 前端构建检查..."
+# 3. Frontend build check
+echo -e "${BLUE}[3/4]${NC} Frontend build check..."
 cd frontend
 npm run build 2>/dev/null || {
-    echo -e "${RED}[✗] 前端构建失败${NC}"
+    echo -e "${RED}[FAIL] Frontend build failed${NC}"
     exit 1
 }
-echo -e "${GREEN}[✓]${NC} 前端构建成功"
+echo -e "${GREEN}[PASS]${NC} Frontend build successful"
 cd ..
 
-# 4. 后端单元测试
-echo -e "${BLUE}[4/4]${NC} 后端单元测试..."
+# 4. Backend unit tests
+echo -e "${BLUE}[4/4]${NC} Backend unit tests..."
 cd backend
 if command -v uv &> /dev/null; then
     if [ -d "tests/unit" ] && [ "$(ls -A tests/unit 2>/dev/null)" ]; then
         uv run pytest tests/unit -v --tb=short 2>/dev/null || {
-            echo -e "${YELLOW}[!] 后端测试失败或未配置${NC}"
+            echo -e "${YELLOW}[!] Backend tests failed or not configured${NC}"
         }
     else
-        echo -e "${YELLOW}[!] 未找到单元测试，跳过${NC}"
+        echo -e "${YELLOW}[!] Unit tests not found, skipping${NC}"
     fi
 fi
-echo -e "${GREEN}[✓]${NC} 后端测试完成"
+echo -e "${GREEN}[PASS]${NC} Backend tests complete"
 cd ..
 
-# 计算耗时
+# Calculate duration
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo ""
 echo "=========================="
-echo -e "${GREEN}✅ 快速检查通过！${NC}"
-echo "耗时: ${DURATION}秒"
+echo -e "${GREEN}Quick check passed!${NC}"
+echo "Duration: ${DURATION}s"
 echo "=========================="
 echo ""
-echo "下一步："
+echo "Next steps:"
 echo "  git push origin <branch>"
 echo ""
-echo "完整测试请运行："
+echo "Run full tests with:"
 echo "  npm run test:all"
 echo ""
-

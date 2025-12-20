@@ -1,87 +1,87 @@
 #!/bin/bash
-# Docker环境完整测试脚本
-# 测试项目在Docker环境下的完整功能
+# Docker environment full test script
+# Tests complete functionality in Docker environment
 
-set -e  # 遇到错误立即退出
+set -e  # Exit immediately on error
 
-# 颜色定义
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 日志函数
+# Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 log_success() {
-    echo -e "${GREEN}[✓]${NC} $1"
+    echo -e "${GREEN}[PASS]${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}[✗]${NC} $1"
+    echo -e "${RED}[FAIL]${NC} $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[!]${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
-# 测试开始
+# Test start
 echo ""
 echo "================================="
-echo "🐳 Docker环境完整测试"
+echo "Docker Environment Full Test"
 echo "================================="
 echo ""
 
-# 检查前置条件
-log_info "检查前置条件..."
+# Check prerequisites
+log_info "Checking prerequisites..."
 
 if ! command -v docker &> /dev/null; then
-    log_error "Docker未安装，请先安装Docker"
+    log_error "Docker is not installed, please install Docker first"
     exit 1
 fi
 
 if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-    log_error "Docker Compose未安装"
+    log_error "Docker Compose is not installed"
     exit 1
 fi
 
 if [ ! -f ".env" ]; then
-    log_warning ".env文件不存在，从.env.example复制"
+    log_warning ".env file does not exist, copying from .env.example"
     cp .env.example .env
 fi
 
-log_success "前置条件检查通过"
+log_success "Prerequisites check passed"
 
-# 1. 清理旧环境
-log_info "步骤1/10: 清理旧环境..."
+# 1. Clean up old environment
+log_info "Step 1/10: Cleaning up old environment..."
 docker-compose down -v 2>/dev/null || true
 docker system prune -f >/dev/null 2>&1 || true
-log_success "环境清理完成"
+log_success "Environment cleanup complete"
 
-# 2. 构建镜像
-log_info "步骤2/10: 构建Docker镜像..."
+# 2. Build images
+log_info "Step 2/10: Building Docker images..."
 if docker-compose build --no-cache; then
-    log_success "镜像构建成功"
+    log_success "Image build successful"
 else
-    log_error "镜像构建失败"
+    log_error "Image build failed"
     exit 1
 fi
 
-# 3. 启动服务
-log_info "步骤3/10: 启动Docker服务..."
+# 3. Start services
+log_info "Step 3/10: Starting Docker services..."
 if docker-compose up -d; then
-    log_success "服务启动成功"
+    log_success "Services started successfully"
 else
-    log_error "服务启动失败"
+    log_error "Services failed to start"
     docker-compose logs
     exit 1
 fi
 
-# 4. 等待服务就绪
-log_info "步骤4/10: 等待服务就绪（最多60秒）..."
+# 4. Wait for services to be ready
+log_info "Step 4/10: Waiting for services to be ready (max 60s)..."
 max_wait=60
 waited=0
 backend_ready=false
@@ -109,121 +109,121 @@ done
 echo ""
 
 if [ "$backend_ready" = false ] || [ "$frontend_ready" = false ]; then
-    log_error "服务启动超时"
-    log_info "查看容器状态："
+    log_error "Services startup timeout"
+    log_info "Viewing container status:"
     docker-compose ps
-    log_info "查看后端日志："
+    log_info "Viewing backend logs:"
     docker-compose logs backend
-    log_info "查看前端日志："
+    log_info "Viewing frontend logs:"
     docker-compose logs frontend
     exit 1
 fi
 
-log_success "服务就绪（耗时 ${waited}秒）"
+log_success "Services ready (took ${waited}s)"
 
-# 5. 检查容器健康状态
-log_info "步骤5/10: 检查容器健康状态..."
+# 5. Check container health status
+log_info "Step 5/10: Checking container health status..."
 backend_status=$(docker-compose ps backend | grep -c "Up" || echo "0")
 frontend_status=$(docker-compose ps frontend | grep -c "Up" || echo "0")
 
 if [ "$backend_status" -eq "0" ] || [ "$frontend_status" -eq "0" ]; then
-    log_error "容器状态异常"
+    log_error "Container status abnormal"
     docker-compose ps
     exit 1
 fi
-log_success "容器状态正常"
+log_success "Container status normal"
 
-# 6. 后端健康检查
-log_info "步骤6/10: 后端健康检查..."
+# 6. Backend health check
+log_info "Step 6/10: Backend health check..."
 backend_health=$(curl -s http://localhost:5000/health)
 if echo "$backend_health" | grep -q '"status":"ok"'; then
-    log_success "后端健康检查通过"
-    echo "    响应: $backend_health"
+    log_success "Backend health check passed"
+    echo "    Response: $backend_health"
 else
-    log_error "后端健康检查失败"
-    echo "    响应: $backend_health"
+    log_error "Backend health check failed"
+    echo "    Response: $backend_health"
     exit 1
 fi
 
-# 7. 前端访问测试
-log_info "步骤7/10: 前端访问测试..."
+# 7. Frontend access test
+log_info "Step 7/10: Frontend access test..."
 frontend_status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
 if [ "$frontend_status_code" = "200" ]; then
-    log_success "前端访问正常 (HTTP $frontend_status_code)"
+    log_success "Frontend access normal (HTTP $frontend_status_code)"
 else
-    log_error "前端访问失败 (HTTP $frontend_status_code)"
+    log_error "Frontend access failed (HTTP $frontend_status_code)"
     exit 1
 fi
 
-# 8. API功能测试
-log_info "步骤8/10: API功能测试..."
+# 8. API functionality tests
+log_info "Step 8/10: API functionality tests..."
 
-# 8.1 创建项目
-log_info "  8.1 创建项目..."
+# 8.1 Create project
+log_info "  8.1 Creating project..."
 create_response=$(curl -s -X POST http://localhost:5000/api/projects \
     -H "Content-Type: application/json" \
-    -d '{"creation_type":"idea","idea_prompt":"Docker测试项目"}')
+    -d '{"creation_type":"idea","idea_prompt":"Docker test project"}')
 
 if echo "$create_response" | grep -q '"success":true'; then
     project_id=$(echo "$create_response" | grep -o '"project_id":"[^"]*"' | cut -d'"' -f4)
-    log_success "  项目创建成功: $project_id"
+    log_success "  Project created successfully: $project_id"
 else
-    log_error "  项目创建失败"
-    echo "    响应: $create_response"
+    log_error "  Project creation failed"
+    echo "    Response: $create_response"
     exit 1
 fi
 
-# 8.2 获取项目
-log_info "  8.2 获取项目详情..."
+# 8.2 Get project
+log_info "  8.2 Getting project details..."
 get_response=$(curl -s http://localhost:5000/api/projects/$project_id)
 if echo "$get_response" | grep -q '"success":true'; then
-    log_success "  项目获取成功"
+    log_success "  Project retrieved successfully"
 else
-    log_error "  项目获取失败"
+    log_error "  Project retrieval failed"
     exit 1
 fi
 
-# 8.3 上传模板（如果存在）
+# 8.3 Upload template (if exists)
 if [ -f "template_g.png" ]; then
-    log_info "  8.3 上传模板文件..."
+    log_info "  8.3 Uploading template file..."
     upload_response=$(curl -s -X POST http://localhost:5000/api/projects/$project_id/template \
         -F "template_image=@template_g.png")
     
     if echo "$upload_response" | grep -q '"success":true'; then
-        log_success "  模板上传成功"
+        log_success "  Template uploaded successfully"
     else
-        log_warning "  模板上传失败（非关键）"
+        log_warning "  Template upload failed (non-critical)"
     fi
 else
-    log_warning "  8.3 跳过模板上传（文件不存在）"
+    log_warning "  8.3 Skipping template upload (file does not exist)"
 fi
 
-# 8.4 删除项目（清理）
-log_info "  8.4 删除测试项目..."
+# 8.4 Delete project (cleanup)
+log_info "  8.4 Deleting test project..."
 delete_response=$(curl -s -X DELETE http://localhost:5000/api/projects/$project_id)
 if echo "$delete_response" | grep -q '"success":true'; then
-    log_success "  项目删除成功"
+    log_success "  Project deleted successfully"
 else
-    log_warning "  项目删除失败（非关键）"
+    log_warning "  Project deletion failed (non-critical)"
 fi
 
-log_success "API功能测试通过"
+log_success "API functionality tests passed"
 
-# 9. 数据持久化测试
-log_info "步骤9/10: 数据持久化测试..."
+# 9. Data persistence test
+log_info "Step 9/10: Data persistence test..."
 
-# 创建一个项目
+# Create a project
 create_response=$(curl -s -X POST http://localhost:5000/api/projects \
     -H "Content-Type: application/json" \
-    -d '{"creation_type":"idea","idea_prompt":"持久化测试"}')
+    -d '{"creation_type":"idea","idea_prompt":"Persistence test"}')
 persist_project_id=$(echo "$create_response" | grep -o '"project_id":"[^"]*"' | cut -d'"' -f4)
 
-# 重启后端容器
-log_info "  重启后端容器..."
+# Restart backend container
+log_info "  Restarting backend container..."
 docker-compose restart backend
 sleep 5
 
-# 等待后端恢复
+# Wait for backend to recover
 for i in {1..30}; do
     if curl -s http://localhost:5000/health >/dev/null 2>&1; then
         break
@@ -231,66 +231,66 @@ for i in {1..30}; do
     sleep 1
 done
 
-# 检查项目是否还存在
+# Check if project still exists
 persist_check=$(curl -s http://localhost:5000/api/projects/$persist_project_id)
 if echo "$persist_check" | grep -q '"success":true'; then
-    log_success "数据持久化测试通过"
+    log_success "Data persistence test passed"
 else
-    log_error "数据持久化测试失败"
+    log_error "Data persistence test failed"
     exit 1
 fi
 
-# 清理测试数据
+# Cleanup test data
 curl -s -X DELETE http://localhost:5000/api/projects/$persist_project_id >/dev/null
 
-# 10. 日志检查
-log_info "步骤10/10: 检查容器日志是否有错误..."
+# 10. Log check
+log_info "Step 10/10: Checking container logs for errors..."
 backend_errors=$(docker-compose logs backend 2>&1 | grep -i "error\|exception\|traceback" | grep -v "DEBUG" | wc -l)
 frontend_errors=$(docker-compose logs frontend 2>&1 | grep -i "error" | grep -v "warn" | wc -l)
 
 if [ "$backend_errors" -gt 5 ]; then
-    log_warning "后端日志中发现 $backend_errors 个错误"
+    log_warning "Found $backend_errors errors in backend logs"
     docker-compose logs backend | grep -i "error\|exception" | tail -10
 else
-    log_success "后端日志检查通过（$backend_errors 个错误）"
+    log_success "Backend log check passed ($backend_errors errors)"
 fi
 
 if [ "$frontend_errors" -gt 5 ]; then
-    log_warning "前端日志中发现 $frontend_errors 个错误"
+    log_warning "Found $frontend_errors errors in frontend logs"
 else
-    log_success "前端日志检查通过（$frontend_errors 个错误）"
+    log_success "Frontend log check passed ($frontend_errors errors)"
 fi
 
-# 测试总结
+# Test summary
 echo ""
 echo "================================="
-echo "✅ Docker环境测试完成"
+echo "Docker Environment Test Complete"
 echo "================================="
 echo ""
-echo "📊 测试摘要："
-echo "  ✓ 镜像构建"
-echo "  ✓ 服务启动"
-echo "  ✓ 健康检查"
-echo "  ✓ API功能"
-echo "  ✓ 数据持久化"
-echo "  ✓ 日志检查"
+echo "Test Summary:"
+echo "  - Image build: PASSED"
+echo "  - Service startup: PASSED"
+echo "  - Health check: PASSED"
+echo "  - API functionality: PASSED"
+echo "  - Data persistence: PASSED"
+echo "  - Log check: PASSED"
 echo ""
-echo "🎯 下一步："
-echo "  1. 运行完整API测试: cd backend && python ../tests/test_e2e.py"
-echo "  2. 运行E2E测试: npx playwright test"
-echo "  3. 停止环境: docker-compose down"
+echo "Next Steps:"
+echo "  1. Run full API tests: cd backend && python ../tests/test_e2e.py"
+echo "  2. Run E2E tests: npx playwright test"
+echo "  3. Stop environment: docker-compose down"
 echo ""
 
-# 询问是否清理环境
+# Ask whether to cleanup environment
 if [ "${AUTO_CLEANUP}" != "false" ]; then
-    read -p "是否停止Docker环境？(y/N) " -n 1 -r
+    read -p "Stop Docker environment? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        log_info "停止Docker环境..."
+        log_info "Stopping Docker environment..."
         docker-compose down
-        log_success "环境已清理"
+        log_success "Environment cleaned up"
     else
-        log_info "保持环境运行，可手动执行: docker-compose down"
+        log_info "Keeping environment running, manually stop with: docker-compose down"
     fi
 fi
 
