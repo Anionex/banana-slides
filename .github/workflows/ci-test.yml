@@ -152,16 +152,31 @@ jobs:
       
       - name: 🔧 设置环境变量
         run: |
-          # 复制.env.example到.env（和README中的流程一致）
-          cp .env.example .env
-          
-          # 精确替换GOOGLE_API_KEY（只替换该行）
-          sed -i '/^GOOGLE_API_KEY=/s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/' .env
-          
-          # 如果配置了OPENAI_API_KEY secret，也替换
-          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
-            sed -i '/^OPENAI_API_KEY=/s/your-api-key-here/${{ secrets.OPENAI_API_KEY }}/' .env
-          fi
+          # 使用通用脚本自动处理所有环境变量替换
+          chmod +x scripts/setup-env-from-secrets.sh
+          ./scripts/setup-env-from-secrets.sh
+        env:
+          # 导出所有Secrets为环境变量（脚本会自动检测并替换）
+          AI_PROVIDER_FORMAT: ${{ secrets.AI_PROVIDER_FORMAT }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
+          OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
+          TEXT_MODEL: ${{ secrets.TEXT_MODEL }}
+          IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          FLASK_ENV: ${{ secrets.FLASK_ENV }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          PORT: ${{ secrets.PORT }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
+          MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}
+          MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
+          MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
+          IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
+          OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
       
       - name: 🐳 构建Docker镜像
         run: |
@@ -240,20 +255,31 @@ jobs:
       
       - name: 🔧 设置环境（使用真实API key）
         run: |
-          # 1. 复制.env.example到.env（和README中的流程一致）
-          cp .env.example .env
-          
-          # 2. 精确替换GOOGLE_API_KEY（只替换该行，避免影响其他配置）
-          sed -i '/^GOOGLE_API_KEY=/s/your-api-key-here/${{ secrets.GOOGLE_API_KEY || 'mock-api-key' }}/' .env
-          
-          # 3. 如果配置了OPENAI_API_KEY secret，也替换
-          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
-            sed -i '/^OPENAI_API_KEY=/s/your-api-key-here/${{ secrets.OPENAI_API_KEY }}/' .env
-          fi
-          
-          # 验证配置
-          echo "✓ .env文件已配置"
-          echo "GOOGLE_API_KEY: $(grep '^GOOGLE_API_KEY=' .env | cut -d'=' -f2 | cut -c1-20)..."
+          # 使用通用脚本自动处理所有环境变量替换
+          chmod +x scripts/setup-env-from-secrets.sh
+          ./scripts/setup-env-from-secrets.sh
+        env:
+          # 导出所有Secrets为环境变量（脚本会自动检测并替换）
+          AI_PROVIDER_FORMAT: ${{ secrets.AI_PROVIDER_FORMAT }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
+          OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
+          TEXT_MODEL: ${{ secrets.TEXT_MODEL }}
+          IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          FLASK_ENV: ${{ secrets.FLASK_ENV }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          PORT: ${{ secrets.PORT }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
+          MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}
+          MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
+          MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
+          IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
+          OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
       
       - name: 🐳 启动Docker环境
         run: |

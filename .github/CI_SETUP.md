@@ -51,6 +51,8 @@
 |-----------|------|------|---------|
 | `GOOGLE_API_KEY` | ✅ 必需 | Google Gemini API密钥（用于完整E2E测试） | [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
 | `OPENAI_API_KEY` | ⚪ 可选 | OpenAI API密钥（如果使用OpenAI格式） | [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `SECRET_KEY` | ⚪ 可选 | Flask应用密钥（生产环境建议配置） | 随机生成，建议使用：`python -c "import secrets; print(secrets.token_hex(32))"` |
+| `MINERU_TOKEN` | ⚪ 可选 | MinerU服务Token（如果使用MinerU解析） | 从MinerU服务获取 |
 
 **注意**：
 - ⚠️ **没有配置`GOOGLE_API_KEY`时，完整E2E测试会被跳过**
@@ -63,19 +65,30 @@
 CI配置会自动处理以下逻辑：
 
 1. **复制`.env.example`到`.env`**（保持所有默认配置）
-2. **替换`GOOGLE_API_KEY`**：
-   - 如果配置了`GOOGLE_API_KEY` secret → 使用真实密钥
-   - 否则 → 使用`mock-api-key`（E2E测试会跳过真实AI调用）
-3. **替换`OPENAI_API_KEY`**（如果配置了）：
-   - 如果配置了`OPENAI_API_KEY` secret → 替换为真实密钥
-   - 否则 → 保持`.env.example`中的占位符
+2. **自动检测并替换Secrets**：
+   - 如果GitHub Secrets中配置了某个Secret → 自动替换`.env`中对应的占位符
+   - 如果没有配置 → 保持`.env.example`中的默认值
 
-**其他配置项**：
+**支持的Secrets列表**：
 
-`.env.example`中的其他配置项（如`MINERU_TOKEN`、`TEXT_MODEL`等）会使用默认值，不需要在GitHub Secrets中配置。如果需要修改这些值，可以：
+CI配置会自动检测并替换以下Secrets（如果配置了的话）：
 
-1. 在`.env.example`中修改默认值（会影响所有环境）
-2. 或者在CI配置中添加对应的Secret替换逻辑（需要修改`.github/workflows/ci-test.yml`）
+- ✅ `GOOGLE_API_KEY` - 必需，如果没有配置则使用`mock-api-key`
+- ⚪ `OPENAI_API_KEY` - 可选，如果配置了则替换
+- ⚪ `SECRET_KEY` - 可选，生产环境建议配置
+- ⚪ `MINERU_TOKEN` - 可选，如果使用MinerU服务则配置
+
+**添加新的Secret支持**：
+
+如果需要支持其他配置项的Secret替换，只需在`.github/workflows/ci-test.yml`中添加对应的检查逻辑：
+
+```yaml
+# 在"设置环境变量"步骤中添加
+if [ -n "${{ secrets.YOUR_NEW_SECRET }}" ]; then
+  sed -i '/^YOUR_ENV_VAR=/s/placeholder/${{ secrets.YOUR_NEW_SECRET }}/' .env
+  echo "✓ 已替换 YOUR_ENV_VAR"
+fi
+```
 
 ### 2. （可选）配置CodeCov
 
