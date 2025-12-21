@@ -25,6 +25,7 @@
 !frontend/public/**/*.heic
 !frontend/public/**/*.heif
 !frontend/public/**/*.avif
+!example
 *.md
 !README.md
 *.pyc
