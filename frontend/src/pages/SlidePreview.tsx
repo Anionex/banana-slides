@@ -16,6 +16,21 @@ import {
   Image as ImageIcon,
   ImagePlus,
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
@@ -26,8 +41,80 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate } from '@/api/endpoints';
-import type { ImageVersion, DescriptionContent } from '@/types';
+import type { ImageVersion, DescriptionContent, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
+
+// 左侧缩略图的可拖拽封装
+interface SortableSlideThumbProps {
+  page: Page;
+  index: number;
+  isSelected: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  isGenerating: boolean;
+}
+
+const SortableSlideThumb: React.FC<SortableSlideThumbProps> = ({
+  page,
+  index,
+  isSelected,
+  onSelect,
+  onEdit,
+  onDelete,
+  isGenerating,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: page.id || `page-${index}`,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="md:w-full flex-shrink-0"
+      {...attributes}
+      {...listeners}
+    >
+      {/* 移动端：简化缩略图 */}
+      <button
+        onClick={onSelect}
+        className={`md:hidden w-20 h-14 rounded border-2 transition-all ${
+          isSelected ? 'border-banana-500 shadow-md' : 'border-gray-200'
+        }`}
+      >
+        {page.generated_image_path ? (
+          <img
+            src={getImageUrl(page.generated_image_path, page.updated_at)}
+            alt={`Slide ${index + 1}`}
+            className="w-full h-full object-cover rounded"
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">
+            {index + 1}
+          </div>
+        )}
+      </button>
+      {/* 桌面端：完整卡片 */}
+      <div className="hidden md:block">
+        <SlideCard
+          page={page}
+          index={index}
+          isSelected={isSelected}
+          onClick={onSelect}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          isGenerating={isGenerating}
+        />
+      </div>
+    </div>
+  );
+};
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
@@ -103,6 +190,7 @@ export const SlidePreview: React.FC = () => {
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const sensors = useSensors(useSensor(PointerSensor));
 
   // 加载项目数据 & 用户模板
   useEffect(() => {
@@ -284,6 +372,44 @@ export const SlidePreview: React.FC = () => {
       setSelectedIndex(toIndex);
     },
     [currentProject, selectedIndex, reorderPages]
+  );
+
+  // 左侧缩略图拖拽排序
+  const handleThumbDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      if (!currentProject) return;
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const pages = currentProject.pages;
+
+      const findIndexById = (id: string | number) =>
+        pages.findIndex((p, idx) => (p.id || `page-${idx}`) === id);
+
+      const oldIndex = findIndexById(active.id);
+      const newIndex = findIndexById(over.id);
+
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+
+      const reorderedPages = arrayMove(pages, oldIndex, newIndex);
+      const newOrderIds = reorderedPages
+        .map((p) => p.id)
+        .filter((id): id is string => !!id);
+
+      reorderPages(newOrderIds);
+
+      // 维持当前选中页不变
+      const currentSelectedPage = pages[selectedIndex];
+      if (currentSelectedPage?.id) {
+        const newSelectedIndex = reorderedPages.findIndex(
+          (p) => p.id === currentSelectedPage.id
+        );
+        if (newSelectedIndex >= 0) {
+          setSelectedIndex(newSelectedIndex);
+        }
+      }
+    },
+    [currentProject, reorderPages, selectedIndex]
   );
 
   const handleSwitchVersion = async (versionId: string) => {
@@ -933,50 +1059,37 @@ export const SlidePreview: React.FC = () => {
             </div>
           </div>
           
-          {/* 缩略图列表：桌面端垂直，移动端横向滚动 */}
+          {/* 缩略图列表：桌面端垂直，移动端横向滚动，可拖拽排序 */}
           <div className="flex-1 overflow-y-auto md:overflow-y-auto overflow-x-auto md:overflow-x-visible p-3 md:p-4 min-h-0">
-            <div className="flex md:flex-col gap-2 md:gap-4 min-w-max md:min-w-0">
-              {currentProject.pages.map((page, index) => (
-                <div key={page.id} className="md:w-full flex-shrink-0">
-                  {/* 移动端：简化缩略图 */}
-                  <button
-                    onClick={() => setSelectedIndex(index)}
-                    className={`md:hidden w-20 h-14 rounded border-2 transition-all ${
-                      selectedIndex === index
-                        ? 'border-banana-500 shadow-md'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    {page.generated_image_path ? (
-                      <img
-                        src={getImageUrl(page.generated_image_path, page.updated_at)}
-                        alt={`Slide ${index + 1}`}
-                        className="w-full h-full object-cover rounded"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">
-                        {index + 1}
-                      </div>
-                    )}
-                  </button>
-                  {/* 桌面端：完整卡片 */}
-                  <div className="hidden md:block">
-                    <SlideCard
-                      page={page}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleThumbDragEnd}
+            >
+              <SortableContext
+                items={currentProject.pages.map(
+                  (page, index) => page.id || `page-${index}`
+                )}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="flex md:flex-col gap-2 md:gap-4 min-w-max md:min-w-0">
+                  {currentProject.pages.map((page, index) => (
+                    <SortableSlideThumb
+                      key={page.id || `page-${index}`}
+                      page={page as Page}
                       index={index}
                       isSelected={selectedIndex === index}
-                      onClick={() => setSelectedIndex(index)}
+                      onSelect={() => setSelectedIndex(index)}
                       onEdit={() => {
-                        // 直接切换到对应页面，右侧编辑栏会自动加载上下文
                         setSelectedIndex(index);
                       }}
                       onDelete={() => page.id && deletePageById(page.id)}
                       isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
                     />
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </aside>
 
