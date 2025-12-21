@@ -515,6 +515,16 @@ export const SlidePreview: React.FC = () => {
     const page = currentProject.pages[selectedIndex];
     if (!page.id) return;
 
+     // 必须先有一张基础图片（生成或上传）才能执行“根据指令生成”
+     if (!page.generated_image_path) {
+       show({
+         message:
+           '当前页面还没有基础图片，请先点击“生成此页”或“上传本地图片作为此页”，再使用“根据指令生成”。',
+         type: 'error',
+       });
+       return;
+     }
+
     // 调用后端编辑接口
     await editPageImage(
       page.id,
