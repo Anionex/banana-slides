@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, ImagePlus, Upload, X, FolderOpen } from 'lucide-react';
-import { Modal, Textarea, Button, useToast, MaterialSelector, Skeleton } from '@/components/shared';
+import { Modal } from './Modal';
+import { Textarea } from './Textarea';
+import { Button } from './Button';
+import { useToast } from './Toast';
+import { MaterialSelector, materialUrlToFile } from './MaterialSelector';
+import { Skeleton } from './Loading';
 import { generateMaterialImage, getTaskStatus } from '@/api/endpoints';
 import { getImageUrl } from '@/api/client';
-import { materialUrlToFile } from './MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import type { Task } from '@/types';
 
@@ -31,6 +35,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const [extraImages, setExtraImages] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
 
   const handleRefImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,14 +124,15 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           
           if (imageUrl) {
             setPreviewUrl(getImageUrl(imageUrl));
-            const message = projectId 
-              ? '素材生成成功，已保存到历史素材库' 
+            const message = projectId
+              ? '素材生成成功，已保存到历史素材库'
               : '素材生成成功，已保存到全局素材库';
             show({ message, type: 'success' });
+            setIsCompleted(true);
           } else {
             show({ message: '素材生成完成，但未找到图片地址', type: 'error' });
           }
-          
+
           setIsGenerating(false);
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
@@ -236,7 +242,10 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           label="提示词（原样发送给文生图模型）"
           placeholder="例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页..."
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            if (isCompleted) setIsCompleted(false);
+          }}
           rows={3}
         />
 
@@ -337,9 +346,9 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           <Button
             variant="primary"
             onClick={handleGenerate}
-            disabled={isGenerating || !prompt.trim()}
+            disabled={isGenerating || isCompleted || !prompt.trim()}
           >
-            {isGenerating ? '生成中...' : '生成素材'}
+            {isGenerating ? '生成中...' : isCompleted ? '已完成' : '生成素材'}
           </Button>
         </div>
       </div>

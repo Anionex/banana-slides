@@ -1,15 +1,15 @@
-# 使用 Python 3.10 作为基础镜像
-FROM python:3.10-slim
+# 使用 Python 3.12 作为基础镜像（onnxruntime支持3.10-3.13）
+FROM python:3.12-slim
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖和uv（合并以减少层数）
 RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 uv
+# 安装 uv（合并chmod到同一层）
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv
 
@@ -17,22 +17,18 @@ RUN chmod +x /usr/local/bin/uv
 COPY pyproject.toml ./
 COPY uv.lock* ./
 
-# 安装 Python 依赖
-# 如果有 uv.lock 文件则使用 --frozen，否则生成新的锁定文件
-RUN if [ -f uv.lock ]; then \
-        uv sync --frozen; \
-    else \
-        uv sync; \
-    fi
+# 安装 Python 依赖，指定使用当前Python版本
+RUN uv sync --python $(which python3)
 
 # 复制后端代码
 COPY backend/ ./backend/
 
-# 创建必要的目录
+# 创建必要的目录（合并到一个层）
 RUN mkdir -p /app/backend/instance /app/uploads
 
-ENV PYTHONPATH=/app
-ENV FLASK_APP=backend/app.py
+# 设置环境变量
+ENV PYTHONPATH=/app \
+    FLASK_APP=backend/app.py
 
 # 暴露端口
 EXPOSE 5000

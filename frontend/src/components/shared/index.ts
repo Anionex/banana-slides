@@ -9,6 +9,7 @@ export { StatusBadge } from './StatusBadge';
 export { ContextualStatusBadge } from './ContextualStatusBadge';
 export { ConfirmDialog, useConfirm } from './ConfirmDialog';
 export { MaterialGeneratorModal } from './MaterialGeneratorModal';
+export { MaterialCenterModal } from './MaterialCenterModal';
 export { ReferenceFileCard } from './ReferenceFileCard';
 export { ReferenceFileSelector } from './ReferenceFileSelector';
 export { FilePreviewModal } from './FilePreviewModal';
@@ -20,5 +21,6 @@ export { AiRefineInput } from './AiRefineInput';
 export { ShimmerOverlay } from './ShimmerOverlay';
 export { ImagePreviewList } from './ImagePreviewList';
 export { ProjectResourcesList } from './ProjectResourcesList';
+export { HelpModal } from './HelpModal';
 
 
