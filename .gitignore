@@ -27,7 +27,6 @@
 !frontend/public/**/*.avif
 *.md
 !README.md
-!README_EN.md
 *.pyc
 .env
 *.md

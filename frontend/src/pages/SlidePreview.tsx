@@ -77,10 +77,18 @@ const SortableSlideThumb: React.FC<SortableSlideThumbProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="md:w-full flex-shrink-0"
-      {...attributes}
-      {...listeners}
+      className="relative md:w-full flex-shrink-0"
     >
+      {/* 拖拽手柄（桌面端显示），避免影响点击选中 */}
+      <button
+        type="button"
+        className="hidden md:flex items-center justify-center absolute -left-2 top-2 z-10 w-4 h-4 text-[10px] rounded bg-white/90 border border-gray-300 text-gray-500 cursor-grab active:cursor-grabbing shadow-sm"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+      >
+        ☰
+      </button>
       {/* 移动端：简化缩略图 */}
       <button
         onClick={onSelect}

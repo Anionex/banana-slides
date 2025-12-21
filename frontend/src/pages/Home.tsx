@@ -409,7 +409,7 @@ export const Home: React.FC = () => {
             </div>
             <div className="flex flex-col items-start leading-tight">
               <span className="text-lg md:text-xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
-                Vibe方案
+                Vibe方案(猛猛说)
               </span>
               <span className="text-[11px] md:text-xs text-gray-500">
                 vibe 方案 · 打工人之今天你是老板
