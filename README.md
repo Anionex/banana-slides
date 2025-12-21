@@ -1,224 +1,241 @@
 <div align="center">
 
-<img width="256" src="https://github.com/user-attachments/assets/6f9e4cf9-912d-4faa-9d37-54fb676f547e">
+<img width="220" src="assets/logo.png" alt="Vibe提案 Logo">
 
-*Vibe your PPT like vibing code.*
+**🍌 Vibe提案 · 打工人也能稳出好 PPT**
 
-**中文 | [English](README_EN.md)**
+基于原项目 [Anionex/banana-slides](https://github.com/Anionex/banana-slides)，在此基础上做了一版更贴合「打工人」日常改稿节奏的定制版。
 
-<p>
-
-[![GitHub Stars](https://img.shields.io/github/stars/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/network)
-[![GitHub Watchers](https://img.shields.io/github/watchers/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/watchers)
-
-[![Version](https://img.shields.io/badge/version-v0.1.0-4CAF50.svg)](https://github.com/Anionex/banana-slides)
-![Docker](https://img.shields.io/badge/Docker-Build-2496ED?logo=docker&logoColor=white)
-[![GitHub issues](https://img.shields.io/github/issues-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/pulls)
-
-
-</p> 
-
-<b>一个基于nano banana pro🍌的原生AI PPT生成应用，支持想法/大纲/页面描述生成完整PPT演示文稿，<br></b>
-<b> 自动提取附件图表、上传任意素材、口头提出修改，迈向真正的"Vibe PPT" </b>
-
-<b>🎯 降低PPT制作门槛，让每个人都能快速创作出美观专业的演示文稿</b>
-
-<br>
-
-*如果该项目对你有用, 欢迎star🌟 &  fork🍴*
-
-<br>
-
-</p>
+—— 不一定追求炫技，但要高效、可控、好交付。
 
 </div>
 
 
+## 0. 这版和原版有什么不一样？
 
-## ✨ 项目缘起
-你是否也曾陷入这样的困境：明天就要汇报，但PPT还是一片空白；脑中有无数精彩的想法，却被繁琐的排版和设计消磨掉所有热情？
+这一版是站在原作者的优秀实现之上，更多从「实际做方案的打工人」视角，把交互和流程往下沉了一步，让你在真实项目里更好落地：
 
-我(们)渴望能快速创作出既专业又具设计感的演示文稿，传统的AI PPT生成app，虽然大体满足“快”这一需求，却还存在以下问题：
+- **产品定位改名为「Vibe提案」**
+  - 保留香蕉 🍌 IP，但把整体语境改成「提案」而不是纯 PPT 玩具；
+  - 首页文案和导航统一为「Vibe提案」，更符合商务/城市更新等场景。
 
-- 1️⃣只能选择预设模版，无法灵活调整风格
-- 2️⃣自由度低，多轮改动难以进行 
-- 3️⃣成品观感相似，同质化严重
-- 4️⃣素材质量较低，缺乏针对性
-- 5️⃣图文排版割裂，设计感差
+- **首页更「干脆」：只保留一句话英雄输入**
+  - 去掉了原版首页的风格模板和预设模板展示；
+  - 默认流程：先专注把文字内容说清楚，再到后面一步选模板/调视觉；
+  - 让第一次使用的人不会在一堆模板卡片里消耗注意力。
 
-以上这些缺陷，让传统的AI ppt生成器难以同时满足我们“快”和“美”的两大PPT制作需求。即使自称Vibe PPT，但是在我的眼中还远不够“Vibe”。
+- **结果页（预览）变成真正的「工作台」**
+  - 左侧：可拖拽的页面列表，支持：
+    - 点击切换；
+    - 「上移 / 下移」按钮；
+    - 直接拖动缩略图调整顺序（同时保持与大纲页、描述页一致）。
+  - 中间：单页「大图 + 文本上下文」
+    - 上面是当前 PPT 页的大图；
+    - 下面是这页的「大纲」和「页面描述/提示词」，可以直接编辑并保存；
+    - 新增了「根据大纲重新生成描述」，支持你在预览页临时加一页，只写大纲就生成整页文案。
+  - 右侧：不再是弹窗，而是固定的「高级编辑侧栏」
+    - 上下文图片（模板图、描述中提取的图片、上传图片、从素材库选择）；
+    - 区域选图（框选大图一块区域，自动裁成参考图加入上传列表）；
+    - 修改指令输入框 + 「重新生成」/「根据指令生成」按钮。
 
-但是，nano banana🍌模型的出现让一切有了转机。我尝试使用🍌pro进行ppt页面生成，发现生成的结果无论是质量、美感还是一致性，都做的非常好，且几乎能精确渲染prompt要求的所有文字+遵循参考图的风格。那为什么不基于🍌pro，做一个原生的"Vibe PPT"应用呢？
+- **图片相关的几个关键能力**
+  - **直接替换当前页图片（不走 AI）**
+    - 点击大图，或在占位状态时点「上传本地图片作为此页」；
+    - 直接上传成最终图片版本，适合你自己拼好图来「挂」在 PPT 里。
+  - **支持「还没生成图就上传」**
+    - 即便页面是「尚未生成图片」，也可以直接用上传替换，而不是必须先跑一遍 AI；
+    - 解决了：只想用本地图，不想浪费额度生成的场景。
+  - **区域选图与本地替换不再互相冲突**
+    - 区域选图只负责截取大图的一块区域，作为参考图追加到右侧上传列表；
+    - 点击大图上传替换时，会自动退出区域选图模式，避免事件冲突。
 
-## 👨‍💻 适用场景
+- **模板体验：更偏「资产管理」**
+  - 预设模板图片增加了名称展示，并支持搜索；
+  - 你的模板与预设模板放在同一个选择器里，但首页不再强迫你提前选；
+  - 样例模板/封面图都可以在 `frontend/public/templates` 下直接扩展。
 
-1. **小白**：零门槛快速生成美观PPT，无需设计经验，减少模板选择烦恼
-2. **PPT专业人士**：参考AI生成的布局和图文元素组合，快速获取设计灵感
-3. **教育工作者**：将教学内容快速转换为配图教案PPT，提升课堂效果
-4. **学生**：快速完成作业Pre，把精力专注于内容而非排版美化
-5. **职场人士**：商业提案、产品介绍快速可视化，多场景快速适配
+- **打工人友好的文本流**
+  - 每页底部的大纲与描述区域，都明确提示「保存页面大纲」「保存页面描述」；
+  - 描述区域下加了「根据大纲重新生成描述」，方便临时加页、重构某一页；
+  - 整体是「先内容后视觉」，更贴近真实提案落地流程。
 
 
-## 🎨 结果案例
+## 1. 示例 PPT（天津滨江项目 · 调整后版本）
 
+仓库里自带了一份完整示例，方便直接跑起来看效果：
+
+- 示例路径：`example/`
+  - `example/调整后 PDF.pdf` —— 导出的整份 PPT PDF
+  - `example/调整后 PDF_01.png` ~ `example/调整后 PDF_14.png` —— 每一页的导出预览
+
+你可以在 README 所在目录下直接打开这些图片/ PDF 预览，也可以把其中的页面导入到项目中作为素材参考，感受「Vibe提案」在实际地产/城市更新类项目里的应用效果。
+
+```text
+example/
+├── 调整后 PDF.pdf
+├── 调整后 PDF_01.png
+├── 调整后 PDF_02.png
+├── ...
+└── 调整后 PDF_14.png
+```
+
+实际导出的 14 页预览如下（来自 `example/` 目录，相对路径可直接在本仓库中打开）：
 
 <div align="center">
 
 | | |
 |:---:|:---:|
-| <img src="https://github.com/user-attachments/assets/d58ce3f7-bcec-451d-a3b9-ca3c16223644" width="500" alt="案例3"> | <img src="https://github.com/user-attachments/assets/c64cd952-2cdf-4a92-8c34-0322cbf3de4e" width="500" alt="案例2"> |
-| **软件开发最佳实践** | **DeepSeek-V3.2技术展示** |
-| <img src="https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7" width="500" alt="案例4"> | <img src="https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1" width="500" alt="案例1"> |
-| **预制菜智能产线装备研发和产业化** | **钱的演变：从贝壳到纸币的旅程** |
+| <img src="example/调整后 PDF_01.png" width="480" alt="示例第1页"> | <img src="example/调整后 PDF_02.png" width="480" alt="示例第2页"> |
+| 第 1 页 | 第 2 页 |
+| <img src="example/调整后 PDF_03.png" width="480" alt="示例第3页"> | <img src="example/调整后 PDF_04.png" width="480" alt="示例第4页"> |
+| 第 3 页 | 第 4 页 |
+| <img src="example/调整后 PDF_05.png" width="480" alt="示例第5页"> | <img src="example/调整后 PDF_06.png" width="480" alt="示例第6页"> |
+| 第 5 页 | 第 6 页 |
+| <img src="example/调整后 PDF_07.png" width="480" alt="示例第7页"> | <img src="example/调整后 PDF_08.png" width="480" alt="示例第8页"> |
+| 第 7 页 | 第 8 页 |
+| <img src="example/调整后 PDF_09.png" width="480" alt="示例第9页"> | <img src="example/调整后 PDF_10.png" width="480" alt="示例第10页"> |
+| 第 9 页 | 第 10 页 |
+| <img src="example/调整后 PDF_11.png" width="480" alt="示例第11页"> | <img src="example/调整后 PDF_12.png" width="480" alt="示例第12页"> |
+| 第 11 页 | 第 12 页 |
+| <img src="example/调整后 PDF_13.png" width="480" alt="示例第13页"> | <img src="example/调整后 PDF_14.png" width="480" alt="示例第14页"> |
+| 第 13 页 | 第 14 页 |
 
 </div>
 
-更多可见<a href="https://github.com/Anionex/banana-slides/issues/2" > 使用案例 </a>
+
+## 2. 基本功能概览（保留原版核心能力）
+
+在原作者的基础上，这一版完全保留了 banana-slides 的核心能力：
+
+- **三种起步方式**
+  - 一句话 Idea：直接从主题生成完整大纲 + 每页描述；
+  - 直接贴大纲：用你自己的结构文本，解析成多页；
+  - 直接贴页面描述：从已有文案反推结构。
+
+- **多源素材理解**
+  - 支持上传 PDF / DOCX / Markdown / TXT；
+  - 自动抽取文本、图片、图表信息作为生成依据；
+  - 模板图片 / 参考图可以参与图片生成。
+
+- **自然语言修改**
+  - 编辑大纲页时，用一句话描述需要的结构改动；
+  - 编辑页面描述时，用一句话描述你想补充/删改的点；
+  - 结果页，用一句话描述图像修改：如「把右侧图片换成夜景、整体风格更 Cyber」。
+
+- **导出**
+  - 一键导出 PPTX；
+  - 一键导出 PDF（示例就来自这里）。
 
 
-## 🎯 功能介绍
+## 3. 打工人视角的使用流程
 
-### 1. 灵活多样的创作路径
-支持**想法**、**大纲**、**页面描述**三种起步方式，满足不同创作习惯。
-- **一句话生成**：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述。
-- **自然语言编辑**：支持以 Vibe 形式口头修改大纲或描述（如"把第三页改成案例分析"），AI 实时响应调整。
-- **大纲/描述模式**：既可一键批量生成，也可手动调整细节。
+从零开始到能交付的一份提案，大致是这样一条链路：
 
-<img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
+1. **首页 · 说清楚你要做的事**
+   - 在首页输入「项目背景 / 需求 / 目标」，比如：
+     - 「天津滨江商业街区更新方案，面向甲方汇报」；
+   - 选择「一句话生成 PPT」即可进入大纲页。
+
+2. **大纲页 · 把内容结构理顺**
+   - 逐页查看 AI 给的初稿大纲；
+   - 不满意的页，用自然语言直接修改：
+     - 「在第二部分前面插入一页讲历史沿革」
+     - 「把第四页拆成两页，分别讲客群和场景」
+   - 确认 OK 后点击进入「编辑页面描述」。
+
+3. **页面描述页 · 让每一页话术成型**
+   - 每个卡片里是一个页面的标题 + 文案 + 其他提示；
+   - 你可以直接改词、补充要点，再点「重新生成」让 AI 重新组织；
+   - 当所有页面都「生成描述」完成后，跳转到预览页。
+
+4. **预览页 · 真正的「做方案工作台」**
+   - 左侧：拖拽调整顺序 / 新增页面 / 删除页面；
+   - 中间：
+     - 上面看图（可直接点图上传替换）；
+     - 下面改文字（大纲 + 描述），必要时「根据大纲重新生成描述」；
+   - 右侧：
+     - 区域选图截取局部做参考；
+     - 上传现场照片 / 招商素材 / 场景图；
+     - 填写修改指令，用「根据指令生成」做细调。
+
+5. **最后导出 PPTX / PDF**
+   - 导出后你可以在 PowerPoint / Keynote 里做最终微调；
+   - 或直接把 PDF 发给甲方 / 领导看方案。
 
 
-### 2. 强大的素材解析能力
-- **多格式支持**：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容。
-- **智能提取**：自动识别文本中的关键点、图片链接和图表信息，为生成提供丰富素材。
-- **风格参考**：支持上传参考图片或模板，定制 PPT 风格。
+## 4. 快速上手部署
 
-<img width="1920" height="1080" alt="文件解析与素材处理" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
+本仓库仍沿用原项目的技术架构和部署方式，只在前端做了交互层改造，后端接口兼容原版文档。下面是最简部署路径。
 
-### 3. "Vibe" 式自然语言修改
-不再受限于复杂的菜单按钮，直接通过**自然语言**下达修改指令。
-- **局部重绘**：对不满意的区域进行口头式修改（如"把这个图换成饼图"）。
-- **整页优化**：基于 nano banana pro🍌 生成高清、风格统一的页面。
+### 4.1 Docker Compose（一键启动，推荐）
 
-<img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3" />
-
-
-### 4. 开箱即用的格式导出
-- **多格式支持**：一键导出标准 **PPTX** 或 **PDF** 文件。
-- **完美适配**：默认 16:9 比例，排版无需二次调整，直接演示。
-
-<img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
-<img width="1748" height="538" alt="PPT与PDF导出" src="https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984" />
-
-
-## 🗺️ 开发计划
-
-| 状态 | 里程碑 |
-| --- | --- |
-| ✅ 已完成 | 从想法、大纲、页面描述三种路径创建 PPT |
-| ✅ 已完成 | 解析文本中的 Markdown 格式图片 |
-| ✅ 已完成 | PPT 单页添加更多素材 |
-| ✅ 已完成 | PPT 单页框选区域Vibe口头编辑 |
-| ✅ 已完成 | 素材模块: 素材生成、上传等 |
-| ✅ 已完成 | 支持多种文件的上传+解析 |
-| ✅ 已完成 | 支持Vibe口头调整大纲和描述 |
-| 🔄 进行中 | 支持已生成图片的元素分割和进一步编辑（segment + inpaint） |
-| 🔄 进行中 | 网络搜索 |
-| 🔄 进行中 | Agent 模式 |
-| 🧭 规划中 | 优化前端加载速度 |
-| 🧭 规划中 | 在线播放功能 |
-| 🧭 规划中 | 简单的动画和页面切换效果 |
-| 🧭 规划中 | 多语种支持 |
-| 🧭 规划中 | 用户系统 |
-
-## 📦 使用方法
-
-### 使用 Docker Compose🐳（推荐）
-这是最简单的部署方式，可以一键启动前后端服务。
-
-<details>
-  <summary>📒Windows用户说明</summary>
-
-如果你使用 Windows, 请先安装 Windows Docker Desktop，检查系统托盘中的 Docker 图标，确保 Docker 正在运行，然后使用相同的步骤操作。
-
-> **提示**：如果遇到问题，确保在 Docker Desktop 设置中启用了 WSL 2 后端（推荐），并确保端口 3000 和 5000 未被占用。
-
-</details>
-
-0. **克隆代码仓库**
+0）克隆仓库：
 ```bash
 git clone https://github.com/Anionex/banana-slides
 cd banana-slides
 ```
 
-1. **配置环境变量**
-
-创建 `.env` 文件（参考 `.env.example`）：
+1）复制环境变量：
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，配置必要的环境变量：
-> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**  
-```env
-# AI Provider格式配置 (gemini / openai)
-AI_PROVIDER_FORMAT=gemini
+2）填写 `.env` 中的模型相关配置（可用 Gemini / OpenAI / 代理等，参考原项目说明）。
 
-# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini时使用）
-GOOGLE_API_KEY=your-api-key-here
-GOOGLE_API_BASE=https://generativelanguage.googleapis.com
-# 代理示例: https://aihubmix.com/gemini
-
-# OpenAI 格式配置（当 AI_PROVIDER_FORMAT=openai 时使用）
-OPENAI_API_KEY=your-api-key-here
-OPENAI_API_BASE=https://api.openai.com/v1
-# 代理示例: https://aihubmix.com/v1
-...
-```
-
-2. **启动服务**
-
+3）启动：
 ```bash
 docker compose up -d
 ```
 
-3. **访问应用**
-
+4）访问：
 - 前端：http://localhost:3000
-- 后端 API：http://localhost:5000
+- 后端：http://localhost:5000
 
-
-4. **查看日志**
-
-```bash
-# 查看后端日志（实时查看最后50行）
-sudo docker compose logs -f --tail 50 backend
-
-# 查看所有服务日志
-sudo docker compose logs -f --tail 50
-
-# 查看前端日志
-sudo docker compose logs -f --tail 50 frontend
-```
-
-5. **停止服务**
-
+5）停止：
 ```bash
 docker compose down
 ```
 
-6. **更新项目**
 
-拉取最新代码并重新构建和启动服务：
+### 4.2 从源码运行（前后端分离开发）
+
+#### 后端
 
 ```bash
-git pull
-docker compose down
-docker compose build --no-cache
-docker compose up -d
+git clone https://github.com/Anionex/banana-slides
+cd banana-slides
+
+cp .env.example .env   # 配好模型 key
+
+uv sync                # 安装后端依赖
+
+cd backend
+uv run alembic upgrade head
+uv run python app.py   # 默认 5000 端口
 ```
 
+#### 前端
+
+```bash
+cd frontend
+npm install
+npm run dev   # 默认 http://localhost:3000
+```
+
+如需修改后端地址，可在 `frontend/src/api/client.ts` 中调整。
+
+
+## 5. 技术栈概览
+
+和原项目保持一致：
+
+- 前端：React 18 + TypeScript + Vite + Tailwind CSS + Zustand + @dnd-kit
+- 后端：Flask 3 + SQLite + SQLAlchemy + uv
+- AI：通过 Gemini / OpenAI 兼容格式调用大模型
+- PPT：`python-pptx`，图片生成由 banana 模型负责
+
+
+## 6. 项目结构（保持与原版一致）
 ### 从源码部署
 
 #### 环境要求
@@ -438,68 +455,11 @@ banana-slides/
 ```
 
 
-## 🤝 贡献指南
+## 7. 许可证与原项目
 
-欢迎通过
-[Issue](https://github.com/Anionex/banana-slides/issues)
-和
-[Pull Request](https://github.com/Anionex/banana-slides/pulls)
-为本项目贡献力量！
+- 本项目基于 [Anionex/banana-slides](https://github.com/Anionex/banana-slides) 进行二次开发；
+- 原项目采用 **CC BY-NC-SA 4.0** 协议，仅限非商业使用；
+- 本仓库沿用相同协议，任何商业使用需要单独获得授权。
 
-## 📄 许可证
-
-本项目采用 CC BY-NC-SA 4.0 协议进行开源，
-
-可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
-
-<details> 
-
-<summary> 详情 </summary>
-本项目开源协议为非商业许可（CC BY-NC-SA），  
-任何商业使用均需取得商业授权。
-
-**商业使用**包括但不限于以下场景：
-
-1. 企业或机构内部使用：
-
-2. 对外服务：
-
-3. 其他营利目的使用：
-
-**非商业使用示例**（无需商业授权）：
-
-- 个人学习、研究、试验、教育或非营利科研活动；
-- 开源社区贡献、个人作品展示等不产生经济收益的用途。
-
-> 注：若对使用场景有疑问，请联系作者获取授权许可。
-
-</details>
-
-
-
-<h2>🚀 Sponsor / 赞助 </h2>
-
-<div align="center">
-<a href="https://aihubmix.com/?aff=17EC">
-  <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
-</a>
-<p>感谢AIHubMix对本项目的赞助</p>
-</div>
-
-## 📈 项目统计
-
-<a href="https://www.star-history.com/#Anionex/banana-slides&type=Timeline&legend=top-left">
-
- <picture>
-
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&theme=dark&legend=top-left" />
-
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&legend=top-left" />
-
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Anionex/banana-slides&type=Timeline&legend=top-left" />
-
- </picture>
-
-</a>
-
-<br>
+如果你也是打工人、也在做提案，欢迎基于这版继续改——
+可以按你的行业（地产、品牌、公关、咨询…）做一套更贴合自己团队的版本。

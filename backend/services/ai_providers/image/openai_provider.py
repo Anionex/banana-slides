@@ -8,6 +8,7 @@ import requests
 from io import BytesIO
 from typing import Optional, List
 from openai import OpenAI
+from openai import APITimeoutError
 from PIL import Image
 from .base import ImageProvider
 from config import get_config
@@ -21,7 +22,7 @@ class OpenAIImageProvider(ImageProvider):
     def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview"):
         """
         Initialize OpenAI image provider
-        
+
         Args:
             api_key: API key
             api_base: API base URL (e.g., https://aihubmix.com/v1)
@@ -93,7 +94,7 @@ class OpenAIImageProvider(ImageProvider):
             
             logger.debug(f"Calling OpenAI API for image generation with {len(ref_images) if ref_images else 0} reference images...")
             logger.debug(f"Config - aspect_ratio: {aspect_ratio} (resolution ignored, OpenAI format only supports 1K)")
-            
+
             # Note: resolution is not supported in OpenAI format, only aspect_ratio via system message
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -217,7 +218,26 @@ class OpenAIImageProvider(ImageProvider):
             
             raise ValueError("No valid multimodal response received from OpenAI API")
             
+        except APITimeoutError as e:
+            error_detail = f"OpenAI API timeout (model={self.model}): Request timed out after configured timeout period ({get_config().OPENAI_TIMEOUT}s). This may be due to high server load or complex image generation request."
+            logger.error(error_detail)
+            raise Exception(error_detail) from e
+
+        except requests.exceptions.Timeout as e:
+            error_detail = f"Network timeout error (model={self.model}): Network request timed out. This could be due to network connectivity issues or proxy server problems."
+            logger.error(error_detail)
+            raise Exception(error_detail) from e
+
         except Exception as e:
-            error_detail = f"Error generating image with OpenAI (model={self.model}): {type(e).__name__}: {str(e)}"
-            logger.error(error_detail, exc_info=True)
+            # Check if this is a timeout-related error
+            error_str = str(e).lower()
+            is_timeout_error = any(keyword in error_str for keyword in ['timeout', 'timed out', 'read timeout', 'connection timeout'])
+
+            if is_timeout_error:
+                error_detail = f"Timeout error (model={self.model}): {type(e).__name__}: {str(e)}"
+                logger.error(f"{error_detail} (Configured timeout: {get_config().OPENAI_TIMEOUT}s)")
+            else:
+                error_detail = f"Error generating image with OpenAI (model={self.model}): {type(e).__name__}: {str(e)}"
+                logger.error(error_detail, exc_info=True)
+
             raise Exception(error_detail) from e
