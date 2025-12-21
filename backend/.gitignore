@@ -22,7 +22,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+.vscode/settings.json
 # Flask
 instance/
 .webassets-cache
