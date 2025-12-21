@@ -134,6 +134,7 @@ export const SlidePreview: React.FC = () => {
     syncProject,
     generateImages,
     generatePageImage,
+    generatePageDescription,
     editPageImage,
     deletePageById,
     reorderPages,
@@ -143,6 +144,7 @@ export const SlidePreview: React.FC = () => {
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
+    pageDescriptionGeneratingTasks,
     updatePageLocal,
   } = useProjectStore();
 
@@ -357,6 +359,35 @@ export const SlidePreview: React.FC = () => {
       });
     }
   }, [currentProject, selectedIndex, pageGeneratingTasks, generatePageImage, show]);
+
+  // 根据当前页面大纲 / 内容，重新生成页面描述
+  const handleRegenerateDescription = useCallback(async () => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page?.id) return;
+
+    const doGenerate = async () => {
+      try {
+        await generatePageDescription(page.id!);
+        show({ message: '已根据大纲生成页面描述', type: 'success' });
+      } catch (error: any) {
+        show({
+          message: `生成失败: ${error.message || '未知错误'}`,
+          type: 'error',
+        });
+      }
+    };
+
+    if (page.description_content) {
+      confirm(
+        '该页面已有描述，重新生成将覆盖现有内容，确定继续吗？',
+        doGenerate,
+        { title: '确认重新生成', variant: 'warning' }
+      );
+    } else {
+      await doGenerate();
+    }
+  }, [currentProject, selectedIndex, generatePageDescription, show, confirm]);
 
   // 调整当前页面顺序，并保持与大纲 / 描述页一致
   const handleMovePage = useCallback(
@@ -924,7 +955,7 @@ export const SlidePreview: React.FC = () => {
           </Button>
           <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
             <span className="text-xl md:text-2xl">🍌</span>
-            <span className="text-base md:text-xl font-bold truncate">Vibe方案</span>
+            <span className="text-base md:text-xl font-bold truncate">Vibe方案(打工人版)</span>
           </div>
           <span className="text-gray-400 hidden md:inline">|</span>
           <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">预览</span>
@@ -1260,14 +1291,31 @@ export const SlidePreview: React.FC = () => {
                               className="text-xs md:text-sm h-full"
                               placeholder="这里是这一页的完整提示词，会作为生成或编辑图片的主要文字依据。"
                             />
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={handleSavePageDescription}
-                              className="w-full text-xs md:text-sm"
-                            >
-                              保存页面描述
-                            </Button>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleSavePageDescription}
+                                className="w-full text-xs md:text-sm"
+                              >
+                                保存页面描述
+                              </Button>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={handleRegenerateDescription}
+                                disabled={
+                                  selectedPage?.id
+                                    ? !!pageDescriptionGeneratingTasks[selectedPage.id]
+                                    : false
+                                }
+                                className="w-full text-xs md:text-sm"
+                              >
+                                {selectedPage?.id && pageDescriptionGeneratingTasks[selectedPage.id]
+                                  ? '根据大纲生成中...'
+                                  : '根据大纲重新生成描述'}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
