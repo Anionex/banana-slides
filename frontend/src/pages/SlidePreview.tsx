@@ -41,6 +41,8 @@ export const SlidePreview: React.FC = () => {
     generatePageImage,
     editPageImage,
     deletePageById,
+    reorderPages,
+    addNewPage,
     exportPPTX,
     exportPDF,
     isGlobalLoading,
@@ -259,6 +261,30 @@ export const SlidePreview: React.FC = () => {
       });
     }
   }, [currentProject, selectedIndex, pageGeneratingTasks, generatePageImage, show]);
+
+  // 调整当前页面顺序，并保持与大纲 / 描述页一致
+  const handleMovePage = useCallback(
+    async (direction: 'up' | 'down') => {
+      if (!currentProject) return;
+      const pages = currentProject.pages;
+      const fromIndex = selectedIndex;
+      const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+
+      if (toIndex < 0 || toIndex >= pages.length) return;
+
+      const reordered = [...pages];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+
+      const newOrderIds = reordered
+        .map((p) => p.id)
+        .filter((id): id is string => !!id);
+
+      await reorderPages(newOrderIds);
+      setSelectedIndex(toIndex);
+    },
+    [currentProject, selectedIndex, reorderPages]
+  );
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -852,6 +878,19 @@ export const SlidePreview: React.FC = () => {
             >
               批量生成图片 ({currentProject.pages.length})
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                await addNewPage();
+                // 新页会追加在末尾，自动选中最后一页
+                const total = currentProject.pages.length + 1;
+                setSelectedIndex(total - 1);
+              }}
+              className="w-full text-xs md:text-sm"
+            >
+              新增页面（与大纲一致）
+            </Button>
             
             {/* 额外要求 */}
             <div className="border-t border-gray-200 pt-2 md:pt-3">
@@ -1323,6 +1362,24 @@ export const SlidePreview: React.FC = () => {
                     <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 whitespace-nowrap">
                       {selectedIndex + 1} / {currentProject.pages.length}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMovePage('up')}
+                      disabled={selectedIndex === 0}
+                      className="text-[11px] md:text-xs"
+                    >
+                      上移
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMovePage('down')}
+                      disabled={selectedIndex === currentProject.pages.length - 1}
+                      className="text-[11px] md:text-xs"
+                    >
+                      下移
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
