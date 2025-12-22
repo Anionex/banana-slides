@@ -33,6 +33,9 @@ COPY uv.lock* ./
 # 配置 PyPI 镜像源（如果指定）
 ENV UV_INDEX_URL=${PYPI_INDEX_URL}
 
+# 配置 uv 网络超时
+ENV UV_HTTP_TIMEOUT=300
+
 # 安装 Python 依赖
 # 如果有 uv.lock 文件则使用 --frozen，否则生成新的锁定文件
 RUN if [ -f uv.lock ]; then \
