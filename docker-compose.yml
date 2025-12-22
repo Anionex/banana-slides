@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -7,7 +5,7 @@ services:
       dockerfile: backend/Dockerfile
       args:
         DOCKER_REGISTRY: ${DOCKER_REGISTRY:-}
-        GHCR_REGISTRY: ${GHCR_REGISTRY:-}
+        GHCR_REGISTRY: ${GHCR_REGISTRY:-ghcr.io/}
         APT_MIRROR: ${APT_MIRROR:-}
         PYPI_INDEX_URL: ${PYPI_INDEX_URL:-}
     container_name: banana-slides-backend
