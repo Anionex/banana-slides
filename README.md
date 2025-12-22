@@ -497,6 +497,25 @@ banana-slides/
 <p>感谢AIHubMix对本项目的赞助</p>
 </div>
 
+## 致谢
+
+- 项目贡献者们：
+
+[![Contributors](https://contrib.rocks/image?repo=Anionex/banana-slides)](https://github.com/Anionex/banana-slides/graphs/contributors)
+
+- [Linux.do](https://linux.do/): 新的理想型社区
+  
+## 赞赏
+
+开源不易🙏如果本项目对你有价值，欢迎请开发者喝杯咖啡☕️
+
+<img width="240" alt="image" src="https://github.com/user-attachments/assets/fd7a286d-711b-445e-aecf-43e3fe356473" />
+
+- 感谢以下朋友对项目的无偿赞助支持：
+> - 来自 @azazo1 的 ￥50
+> - 来自 @🍟 的 ￥20
+- 如对赞助列表有疑问（如赞赏后没看到您的名字），欢迎<a href="mailto:anionex@qq.com">联系作者</a>
+ 
 ## 📈 项目统计
 
 <a href="https://www.star-history.com/#Anionex/banana-slides&type=Timeline&legend=top-left">
