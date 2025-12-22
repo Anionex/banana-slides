@@ -180,19 +180,21 @@ generate_config() {
 }
 
 # ============================================================================
-# 修改 Dockerfile 中的 Docker Hub 镜像地址
+# 修改 Dockerfile 中的镜像地址
 # ============================================================================
 patch_dockerfiles() {
     local region=$1
-    local docker_mirror="docker.1ms.run"  # 国内 Docker Hub 镜像（2025年可用）
+    local docker_mirror="docker.1ms.run"      # 国内 Docker Hub 镜像
+    local ghcr_mirror="ghcr.nju.edu.cn"       # 国内 ghcr.io 镜像（南京大学）
 
     if [ "$region" = "CN" ]; then
-        log_info "配置 Docker Hub 镜像加速..."
+        log_info "配置镜像加速..."
 
         # 修改 backend/Dockerfile
         if [ -f "backend/Dockerfile" ]; then
+            # ghcr.io → ghcr.nju.edu.cn
+            sed -i.bak "s|ghcr\.io/|${ghcr_mirror}/|g" backend/Dockerfile
             # python:3.10-slim → docker.1ms.run/python:3.10-slim
-            # 先恢复可能存在的旧镜像配置，再应用新配置
             sed -i.bak "s|^FROM [^/]*/python:|FROM python:|g" backend/Dockerfile 2>/dev/null || true
             sed -i.bak "s|^FROM python:|FROM ${docker_mirror}/python:|g" backend/Dockerfile
             rm -f backend/Dockerfile.bak
@@ -209,10 +211,11 @@ patch_dockerfiles() {
             rm -f frontend/Dockerfile.bak
         fi
 
-        log_success "Dockerfile 已配置 Docker Hub 镜像加速"
+        log_success "Dockerfile 已配置镜像加速"
     else
-        # 恢复为官方源（匹配任意镜像前缀）
+        # 恢复为官方源
         if [ -f "backend/Dockerfile" ]; then
+            sed -i.bak "s|${ghcr_mirror}/|ghcr.io/|g" backend/Dockerfile 2>/dev/null || true
             sed -i.bak "s|^FROM [^/]*/python:|FROM python:|g" backend/Dockerfile 2>/dev/null || true
             rm -f backend/Dockerfile.bak
         fi
