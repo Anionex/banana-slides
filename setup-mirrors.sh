@@ -260,7 +260,7 @@ show_summary() {
     echo -e "${GREEN}下一步操作：${NC}"
     echo ""
     echo "  1. 启动服务："
-    echo "     docker compose up -d"
+    echo "     docker compose --env-file .env.detected up -d --build"
     echo ""
     echo "  2. 查看日志："
     echo "     docker compose logs -f"
@@ -269,6 +269,17 @@ show_summary() {
     echo "     前端: http://localhost:3000"
     echo "     后端: http://localhost:5000"
     echo ""
+}
+
+# ============================================================================
+# 导出环境变量（供 docker compose 构建时使用）
+# ============================================================================
+export_env() {
+    if [ -f "$DETECTED_FILE" ]; then
+        set -a
+        source "$DETECTED_FILE"
+        set +a
+    fi
 }
 
 # ============================================================================
@@ -315,6 +326,9 @@ main() {
 
     # 生成配置文件
     generate_config "$region"
+
+    # 导出环境变量（供后续 docker compose 使用）
+    export_env
 
     # 修改 Dockerfile 中的 Docker Hub 镜像地址
     patch_dockerfiles "$region"
