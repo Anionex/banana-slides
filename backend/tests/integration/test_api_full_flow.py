@@ -215,25 +215,24 @@ class TestAPIFullFlow:
         print('⏳ Step 3: Waiting for outline generation to complete...')
         wait_for_project_status(pid, 'OUTLINE_GENERATED', timeout=API_TIMEOUT)
         
-        # Verify outline content
+        # Verify pages were created
         response = requests.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         data = response.json()
-        outline = data['data']['outline_content']
+        pages = data['data']['pages']
         
-        assert outline is not None
-        assert 'pages' in outline or 'outline' in outline
-        pages_count = len(outline.get('pages', outline.get('outline', [])))
-        print(f"✓ Outline generated successfully, contains {pages_count} pages\n")
+        assert pages is not None
+        assert len(pages) > 0
+        print(f"✓ Outline generated successfully, contains {len(pages)} pages\n")
         
         # Step 4: Generate descriptions
         print('✍️  Step 4: Starting to generate page descriptions...')
         response = requests.post(
             f"{BASE_URL}/api/projects/{pid}/generate/descriptions",
-            json={'outline': outline},
+            json={},
             timeout=30
         )
         
-        assert response.status_code == 200
+        assert response.status_code == 202  # 202 Accepted for async operations
         data = response.json()
         assert data['success'] is True
         
@@ -257,7 +256,7 @@ class TestAPIFullFlow:
             timeout=30
         )
         
-        assert response.status_code == 200
+        assert response.status_code == 202  # 202 Accepted for async operations
         data = response.json()
         assert data['success'] is True
         

@@ -80,7 +80,7 @@ test.describe('UI-driven E2E test (Mocked Backend)', () => {
     // Mock description generation
     await page.route('**/api/projects/*/generate/descriptions', async (route) => {
       await route.fulfill({
-        status: 200,
+        status: 202,  // 202 Accepted for async operations
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
@@ -92,7 +92,7 @@ test.describe('UI-driven E2E test (Mocked Backend)', () => {
     // Mock image generation
     await page.route('**/api/projects/*/generate/images', async (route) => {
       await route.fulfill({
-        status: 200,
+        status: 202,  // 202 Accepted for async operations
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
