@@ -29,3 +29,8 @@ dist-ssr
 .env.test.local
 .env.production.local
 
+# E2E testing (Playwright)
+test-results/
+playwright-report/
+playwright/.cache/
+*.trace.zip

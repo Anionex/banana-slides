@@ -183,8 +183,8 @@ OPENAI_API_BASE=https://api.openai.com/v1
 docker compose up -d
 ```
 
-> [!WARNING]
-> 如遇网络问题，可在 `.env` 文件中取消镜像源配置的注释：
+> [!TIP]
+> 如遇网络问题，可在 `.env` 文件中取消镜像源配置的注释, 再重新运行启动命令：
 > ```env
 > # 在 .env 文件中取消以下注释即可使用国内镜像源
 > DOCKER_REGISTRY=docker.1ms.run/
@@ -193,8 +193,6 @@ docker compose up -d
 > PYPI_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple
 > NPM_REGISTRY=https://registry.npmmirror.com/
 > ```
-
-</blockquote>
 
 
 3. **访问应用**

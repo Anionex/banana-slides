@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * Playwright E2E测试配置
+ * Playwright E2E测试配置 - 前端 UI 测试
  * 
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -10,8 +10,6 @@ export default defineConfig({
   testDir: './e2e',
   
   // 测试文件匹配模式
-  // 注意：ui-full-flow.spec.ts 需要真实 AI API，运行时间较长（10-20分钟）
-  // 在 CI 中会根据 API key 可用性自动运行或跳过
   testMatch: '**/*.spec.ts',
   
   // 并行运行测试
@@ -66,20 +64,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // 可选：添加更多浏览器
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
   ],
   
   // 本地开发时启动服务
   webServer: process.env.CI ? undefined : {
-    command: 'docker compose up -d && sleep 10',
+    command: 'cd .. && docker compose up -d && sleep 10',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

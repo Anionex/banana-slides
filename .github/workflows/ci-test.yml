@@ -89,10 +89,13 @@ jobs:
       - name: Run integration tests
         run: |
           cd backend
-          uv run pytest tests/integration -v
+          # Skip tests that require running backend service (marked with @pytest.mark.requires_service)
+          # These tests will run in the docker-test stage where services are started
+          uv run pytest tests/integration -v -m "not requires_service"
         env:
           # Use mock mode, no real API dependency
           TESTING: true
+          SKIP_SERVICE_TESTS: true
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY || 'mock-api-key-for-testing' }}
 
   # ================================
@@ -236,16 +239,19 @@ jobs:
           chmod +x scripts/test_docker_environment.sh
           AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
       
-      - name: Setup Node.js for E2E tests
+      - name: Setup Node.js for frontend E2E tests
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
       
-      - name: Install Playwright
+      - name: Install frontend dependencies and Playwright
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         run: |
-          npm install -D @playwright/test
+          cd frontend
+          npm ci
           npx playwright install --with-deps chromium
       
       - name: Check if E2E tests should run
@@ -270,30 +276,50 @@ jobs:
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       
-      - name: Run API E2E tests
+      - name: Setup Python for backend API tests
+        if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install uv and backend dependencies
         if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         run: |
-          # Run API-driven E2E flow (from creation to PPT export)
-          # Tests the full AI generation workflow via API calls
-          # Requires: Real Google API key
-          # Using Gemini format for full flow testing
-          echo "Running API E2E tests with Gemini format"
-          npx playwright test api-full-flow.spec.ts --workers=1
+          # Install uv
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          
+          # Source the cargo env to use uv immediately
+          . "$HOME/.cargo/env"
+          
+          # Now uv is available in PATH
+          uv sync --extra test
+      
+      - name: Run Backend API Integration tests (requires running service)
+        if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          # Source cargo env to access uv
+          . "$HOME/.cargo/env"
+          
+          # Run API integration tests that require real running backend service
+          echo "Running Backend API integration tests with real service (Gemini format)"
+          cd backend
+          uv run pytest tests/integration/test_api_full_flow.py -v -m "integration and requires_service"
         env:
-          CI: true
           # Ensure API key is not logged
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          SKIP_SERVICE_TESTS: false
         timeout-minutes: 15
         continue-on-error: false
       
-      - name: Run UI E2E tests
+      - name: Run Frontend UI E2E tests
         if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         run: |
           # Run UI-driven E2E flow (from browser UI to PPT export)
           # Tests the complete user interaction flow in the browser
           # Requires: Real Google API key
           # Takes longer (15-20 minutes) but tests real user experience
-          echo "Running UI E2E tests with Gemini format"
+          echo "Running Frontend UI E2E tests with Gemini format"
+          cd frontend
           npx playwright test ui-full-flow.spec.ts --workers=1
         env:
           CI: true
@@ -302,20 +328,20 @@ jobs:
         timeout-minutes: 25
         continue-on-error: false
       
-      - name: Upload E2E test reports
+      - name: Upload Frontend E2E test reports
         if: always() && (env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing')
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: frontend/playwright-report/
           retention-days: 7
       
-      - name: Upload E2E failure screenshots
+      - name: Upload Frontend E2E failure screenshots
         if: failure() && (env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing')
         uses: actions/upload-artifact@v4
         with:
           name: playwright-screenshots
-          path: test-results/
+          path: frontend/test-results/
           retention-days: 7
       
       - name: View container logs (on failure)

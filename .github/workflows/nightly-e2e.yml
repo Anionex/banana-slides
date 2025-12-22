@@ -39,10 +39,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
       
-      - name: Install Playwright
+      - name: Install frontend dependencies and Playwright
         run: |
-          npm install -D @playwright/test
+          cd frontend
+          npm ci
           npx playwright install --with-deps chromium
       
       - name: Setup environment variables
@@ -93,6 +96,7 @@ jobs:
       - name: Run UI-driven E2E tests
         run: |
           echo "Running UI-driven E2E tests (10-20 minutes)..."
+          cd frontend
           npx playwright test ui-full-flow.spec.ts --workers=1
         env:
           CI: true
@@ -104,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-e2e-report
-          path: playwright-report/
+          path: frontend/playwright-report/
           retention-days: 7
       
       - name: Upload screenshots
@@ -112,7 +116,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-e2e-screenshots
-          path: test-results/
+          path: frontend/test-results/
           retention-days: 7
       
       - name: Cleanup

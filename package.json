@@ -8,8 +8,8 @@
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "uv run pytest backend/tests/ -v",
     "test:frontend": "cd frontend && npm test -- --run",
-    "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e": "cd frontend && npm run test:e2e",
+    "test:e2e:ui": "cd frontend && npm run test:e2e:ui",
     "test:docker": "chmod +x scripts/test_docker_environment.sh && ./scripts/test_docker_environment.sh",
     "test:all": "npm run test && npm run test:docker && npm run test:e2e",
     "lint": "npm run lint:backend && npm run lint:frontend",
@@ -22,9 +22,6 @@
     "start": "docker compose up -d",
     "stop": "docker compose down",
     "quick-check": "npm run lint && npm run test:frontend && npm run test:backend"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.40.1"
   },
   "engines": {
     "node": ">=18.0.0"

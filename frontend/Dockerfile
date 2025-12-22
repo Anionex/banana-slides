@@ -6,6 +6,9 @@ ARG NPM_REGISTRY=
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源
 FROM ${DOCKER_REGISTRY:-}node:18-alpine AS builder
 
+# 重新声明ARG（FROM之后ARG作用域失效，需要重新声明）
+ARG NPM_REGISTRY=
+
 WORKDIR /app
 
 ARG VITE_API_BASE_URL

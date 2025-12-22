@@ -11,6 +11,10 @@ FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源
 FROM ${DOCKER_REGISTRY:-}python:3.10-slim
 
+# 重新声明ARG（FROM之后ARG作用域失效，需要重新声明）
+ARG APT_MIRROR=
+ARG PYPI_INDEX_URL=
+
 # 设置工作目录
 WORKDIR /app
 
