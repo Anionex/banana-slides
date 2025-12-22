@@ -1,8 +1,11 @@
 # 镜像源配置参数（可通过 build args 覆盖）
 ARG DOCKER_REGISTRY=
-ARG GHCR_REGISTRY=
+ARG GHCR_REGISTRY=ghcr.io/
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
+
+# 安装 uv（使用中间阶段避免 COPY --from 的变量展开问题）
+FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
 
 # 使用 Python 3.10 作为基础镜像
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源
@@ -21,9 +24,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 uv（如果指定了 GHCR_REGISTRY，使用镜像源；否则使用官方源）
-# GHCR_REGISTRY 为空时使用 ghcr.io，否则使用指定的镜像源
-COPY --from=${GHCR_REGISTRY:-ghcr.io/}astral-sh/uv:latest /uv /usr/local/bin/uv
+# 从 uv 阶段复制二进制文件
+COPY --from=uv /uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv
 
 # 复制项目配置文件
