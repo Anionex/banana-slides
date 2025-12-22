@@ -53,7 +53,7 @@ show_help() {
     echo "  bash setup-mirrors.sh cn        # 使用中国源"
     echo "  bash setup-mirrors.sh global    # 使用国外源"
     echo ""
-    echo "配置完成后会自动启动 Docker 构建"
+    echo "配置完成后运行 docker compose up -d 启动服务"
     echo ""
 }
 
@@ -259,30 +259,10 @@ show_summary() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
-    echo -e "${GREEN}访问地址：${NC}"
+    echo -e "${GREEN}下一步：${NC}"
     echo ""
-    echo "  • 前端: http://localhost:3000"
-    echo "  • 后端: http://localhost:5000"
+    echo "  docker compose up -d"
     echo ""
-}
-
-# ============================================================================
-# 启动 Docker 构建
-# ============================================================================
-start_docker_build() {
-    echo ""
-    log_info "开始 Docker 构建..."
-    echo ""
-
-    # 使用 --env-file 传入环境变量进行构建
-    if docker compose --env-file "$DETECTED_FILE" up -d --build; then
-        echo ""
-        log_success "Docker 构建完成！"
-    else
-        echo ""
-        log_error "Docker 构建失败，请检查错误信息"
-        exit 1
-    fi
 }
 
 # ============================================================================
@@ -335,9 +315,6 @@ main() {
 
     # 显示摘要
     show_summary "$region"
-
-    # 自动启动 Docker 构建
-    start_docker_build
 }
 
 # 执行主函数
