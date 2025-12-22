@@ -19,7 +19,7 @@ COPY frontend/package-lock.json* ./
 RUN if [ -n "$NPM_REGISTRY" ]; then \
         npm config set registry "$NPM_REGISTRY"; \
     fi && \
-    npm install --frozen-lockfile 2>/dev/null || npm install
+    (npm install --frozen-lockfile || npm install)
 
 # 复制前端源代码
 COPY frontend/ ./

@@ -16,7 +16,11 @@ WORKDIR /app
 
 # 安装系统依赖（如果配置了 APT_MIRROR，先替换镜像源）
 RUN if [ -n "$APT_MIRROR" ]; then \
-        sed -i "s@deb.debian.org@$APT_MIRROR@g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+        if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+            sed -i "s@deb.debian.org@$APT_MIRROR@g" /etc/apt/sources.list.d/debian.sources; \
+        else \
+            echo "Warning: /etc/apt/sources.list.d/debian.sources not found, skipping mirror setup." >&2; \
+        fi; \
     fi && \
     apt-get update && apt-get install -y \
     curl \
