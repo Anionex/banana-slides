@@ -177,55 +177,27 @@ OPENAI_API_BASE=https://api.openai.com/v1
 ...
 ```
 
-2. **配置镜像源加速（中国用户推荐）**
+<blockquote style="border-left: 5px solid #faad14; background: #fffbe6; color: #614700; padding: 10px 16px; margin: 12px 0;">
+<b>⚠️ 如遇网络问题，可执行以下命令自动配置国内镜像源：</b><br>
 
-如果你在中国大陆，建议运行以下脚本自动配置国内镜像源，可大幅提升 Docker 构建速度：
-
-```bash
-bash setup-mirrors.sh
+```bash 
+setup-mirrors.sh
 ```
 
-脚本会自动检测你的 IP 所在地区，并生成对应的镜像源配置。你也可以手动指定：
+</blockquote>
 
-```bash
-bash setup-mirrors.sh cn       # 强制使用中国源
-bash setup-mirrors.sh global   # 强制使用国外源
-```
-
-⚡ **构建速度对比**（2C2G CentOS 服务器测试）
-
-| 场景 | 构建时间 | 说明 |
-|------|---------|------|
-| **使用官方源** | 30-50 分钟 | 网络延迟高，经常超时失败 |
-| **使用国内镜像源** | 50-100 秒 | 速度提升 20-30 倍 |
-
-<details>
-<summary>查看构建日志截图和加速原理</summary>
-
-<img src="./assets/china_build_log.png" alt="国内镜像源构建日志" width="600">
-
-**加速原理：**
-- Docker Hub：1ms 镜像（拉取基础镜像）
-- ghcr.io：南京大学镜像（获取 uv 工具）
-- apt 源：阿里云镜像（安装系统依赖）
-- PyPI 源：腾讯云镜像（安装 Python 包）
-- npm 源：淘宝 npmmirror（安装前端依赖）
-
-</details>
-
-3. **启动服务**
+2. **启动服务**
 
 ```bash
 docker compose up -d
 ```
 
-4. **访问应用**
+3. **访问应用**
 
 - 前端：http://localhost:3000
 - 后端 API：http://localhost:5000
 
-
-5. **查看日志**
+4. **查看日志**
 
 ```bash
 # 查看后端日志（实时查看最后50行）
@@ -238,13 +210,13 @@ sudo docker compose logs -f --tail 50
 sudo docker compose logs -f --tail 50 frontend
 ```
 
-6. **停止服务**
+5. **停止服务**
 
 ```bash
 docker compose down
 ```
 
-7. **更新项目**
+6. **更新项目**
 
 拉取最新代码并重新构建和启动服务：
 
