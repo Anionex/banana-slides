@@ -409,30 +409,25 @@ class ExportService:
         if scale_x != 1.0 or scale_y != 1.0:
             logger.debug(f"Text bbox scaled: {original_bbox} -> {bbox} (scale: {scale_x:.3f}x{scale_y:.3f})")
         
-        # Determine text level for font size calculation
-        # All text uses dynamic font sizing based on bbox and content
+        # Determine text level (only used for styling like bold, NOT for font size)
+        # Font size is purely calculated from bbox dimensions
         item_type = text_item.get('type', 'text')
         text_level = text_item.get('text_level')
         
-        # Map MinerU type/level to our level system
-        # text_level=1 indicates important/large text (titles, headings)
-        # text_level=None or other values indicate regular body text
+        # Map to level for styling purposes (bold titles)
         if item_type == 'title' or text_level == 1:
-            level = 'title'  # Use larger font range
-        elif item_type == 'header':
-            level = 'header'
-        elif item_type == 'footer':
-            level = 'footer'
+            level = 'title'  # Will be bold
         else:
-            level = 'default'  # Body text
+            level = 'default'
         
         # Add text element
+        # Note: text_level is only used for bold styling, not font size calculation
         try:
             builder.add_text_element(
                 slide=slide,
                 text=text,
                 bbox=bbox,
-                text_level=level
+                text_level=level  # For styling (bold) only, not font size
             )
         except Exception as e:
             logger.error(f"Failed to add text element: {str(e)}")

@@ -24,16 +24,9 @@ class PPTXBuilder:
     # Default DPI for pixel to inch conversion
     DEFAULT_DPI = 96
     
-    # Font size ranges based on text level
-    FONT_SIZE_RANGES = {
-        1: (28, 72),  # Title/Heading 1 - allow larger titles
-        2: (20, 48),  # Heading 2
-        3: (16, 36),  # Heading 3
-        'title': (28, 72),  # Title
-        'default': (10, 32),  # Body text - wider range
-        'header': (8, 16),  # Header
-        'footer': (8, 16),  # Footer
-    }
+    # Global font size limits (to prevent extreme cases)
+    MIN_FONT_SIZE = 6   # Minimum readable size
+    MAX_FONT_SIZE = 200  # Maximum reasonable size
     
     def __init__(self, slide_width_inches: float = None, slide_height_inches: float = None):
         """
@@ -96,19 +89,19 @@ class PPTXBuilder:
         dpi = dpi or self.DEFAULT_DPI
         return pixels / dpi
     
-    def calculate_font_size(self, bbox: List[int], text: str, text_level: Any = None, dpi: int = None) -> int:
+    def calculate_font_size(self, bbox: List[int], text: str, text_level: Any = None, dpi: int = None) -> float:
         """
-        Calculate appropriate font size based on bounding box and text
-        Uses iterative approach to find the largest font that fits in the bbox
+        Calculate appropriate font size based on bounding box and text content
+        Pure bbox-based calculation without text_level restrictions
         
         Args:
             bbox: Bounding box [x0, y0, x1, y1] in pixels
             text: Text content
-            text_level: Text level (1=title, 2=heading, etc.) or type string
+            text_level: Text level (kept for compatibility, not used in calculation)
             dpi: DPI for pixel to inch conversion
             
         Returns:
-            Font size in points
+            Font size in points (float for precision)
         """
         dpi = dpi or self.DEFAULT_DPI
         
@@ -116,67 +109,58 @@ class PPTXBuilder:
         width_px = bbox[2] - bbox[0]
         height_px = bbox[3] - bbox[1]
         
+        # Add small padding to prevent overflow (3% on each side = 6% total reduction)
+        padding_ratio = 0.03
+        width_px = width_px * (1 - 2 * padding_ratio)
+        height_px = height_px * (1 - 2 * padding_ratio)
+        
         # Convert to inches for PPTX calculations
         width_in = width_px / dpi
         height_in = height_px / dpi
         
-        # Determine font size range based on text level
-        if isinstance(text_level, int):
-            size_range = self.FONT_SIZE_RANGES.get(text_level, self.FONT_SIZE_RANGES['default'])
-        elif isinstance(text_level, str):
-            size_range = self.FONT_SIZE_RANGES.get(text_level, self.FONT_SIZE_RANGES['default'])
-        else:
-            size_range = self.FONT_SIZE_RANGES['default']
-        
-        min_size, max_size = size_range
-        
-        # Text metrics (approximate)
         text_length = len(text)
         
-        # For very short text (likely titles or labels), use larger font
+        # For very short text (1-3 chars), use height-based sizing
         if text_length <= 3:
-            # Single characters or very short text
-            estimated_size = int(height_in * 0.7 * 72)  # 72 points per inch, use 70% of height
-            return max(min_size, min(max_size, estimated_size))
+            # Use 70% of height for single line text
+            estimated_size = height_in * 0.7 * 72  # 72 points per inch
+            return max(self.MIN_FONT_SIZE, min(self.MAX_FONT_SIZE, estimated_size))
         
-        # Estimate number of lines based on text length and box width
-        # Assume average character width is about 0.6 * font_size in points
-        # and we need to convert to the same unit system
+        # Binary search with finer granularity (0.5pt steps)
+        # Start from maximum, work down to find best fit
+        best_size = self.MIN_FONT_SIZE
         
-        # Start with an estimate based on height
-        # Typical line height is about 1.2x font size
-        max_lines = max(1, int(height_in / 0.15))  # Assume minimum 0.15 inch per line
+        # Use 0.5pt steps for more precision
+        font_sizes = [size / 2.0 for size in range(int(self.MAX_FONT_SIZE * 2), int(self.MIN_FONT_SIZE * 2) - 1, -1)]
         
-        # Binary search for optimal font size
-        best_size = min_size
-        
-        for font_size in range(max_size, min_size - 1, -1):
-            # Estimate how many characters fit per line
-            # Average character width for proportional fonts is about 0.5-0.6 of font size
-            char_width_pts = font_size * 0.55  # points
-            char_width_in = char_width_pts / 72  # inches
+        for font_size in font_sizes:
+            # Estimate character width (proportional fonts)
+            # For CJK characters (Chinese/Japanese/Korean), use slightly wider ratio
+            has_cjk = any('\u4e00' <= char <= '\u9fff' or '\u3040' <= char <= '\u30ff' for char in text)
+            char_width_ratio = 0.7 if has_cjk else 0.55
             
-            # Account for padding (roughly 5% on each side)
-            usable_width = width_in * 0.9
-            chars_per_line = int(usable_width / char_width_in)
+            char_width_pts = font_size * char_width_ratio
+            char_width_in = char_width_pts / 72
             
-            if chars_per_line < 1:
+            # Account for text box padding (we set 0.05 inch margins)
+            usable_width = width_in - 0.1  # Left + right margins
+            usable_height = height_in - 0.1  # Top + bottom margins
+            
+            if usable_width <= 0 or usable_height <= 0:
                 continue
+            
+            # Calculate how many characters fit per line
+            chars_per_line = max(1, int(usable_width / char_width_in))
             
             # Calculate required lines
             required_lines = max(1, (text_length + chars_per_line - 1) // chars_per_line)
             
             # Line height is typically 1.2x font size
-            line_height_pts = font_size * 1.2
-            line_height_in = line_height_pts / 72
-            
+            line_height_in = (font_size * 1.2) / 72
             total_height_needed = required_lines * line_height_in
             
-            # Add some padding (10%)
-            total_height_needed *= 1.1
-            
-            # If text fits, this is our font size
-            if total_height_needed <= height_in:
+            # If text fits within usable space, this is our size
+            if total_height_needed <= usable_height:
                 best_size = font_size
                 break
         
@@ -242,8 +226,7 @@ class PPTXBuilder:
         # Calculate bbox dimensions for logging
         bbox_width = bbox[2] - bbox[0]
         bbox_height = bbox[3] - bbox[1]
-        size_range = self.FONT_SIZE_RANGES.get(text_level, self.FONT_SIZE_RANGES['default'])
-        logger.debug(f"Text: '{text[:35]}' | box: {bbox_width}x{bbox_height}px | level: {text_level} (range: {size_range[0]}-{size_range[1]}pt) | font: {font_size}pt")
+        logger.debug(f"Text: '{text[:35]}' | box: {bbox_width}x{bbox_height}px | font: {font_size:.1f}pt | chars: {len(text)}")
     
     def add_image_element(
         self,
