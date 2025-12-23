@@ -7,16 +7,76 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from textwrap import dedent
 from pptx import Presentation
 from pptx.util import Inches
 from PIL import Image
 import io
+import tempfile
 
 logger = logging.getLogger(__name__)
 
 
 class ExportService:
     """Service for exporting presentations"""
+    
+    @staticmethod
+    def generate_clean_background(original_image_path: str, ai_service, aspect_ratio: str = "16:9", resolution: str = "2K") -> Optional[str]:
+        """
+        Generate clean background image by removing text, icons, and illustrations
+        
+        Args:
+            original_image_path: Path to the original generated image
+            ai_service: AIService instance for image editing
+            aspect_ratio: Target aspect ratio
+            resolution: Target resolution
+            
+        Returns:
+            Path to the generated clean background image, or None if failed
+        """
+        try:
+            # Create edit instruction to remove foreground elements
+            edit_instruction  = """\
+去除当前ppt页面的所有前景元素，包括标题、正文、注释等文字，以及插画、图标、配图、表格等图像。
+保持原有文本框布局、配色、风格、渐变、背景装饰线条、背景图案等背景元素不变。
+最终输出一张纯背景图像，尺寸与原图一致。
+"""
+            
+            logger.info(f"Generating clean background from: {original_image_path}")
+            
+            # Use AI service to edit the image
+            clean_bg_image = ai_service.edit_image(
+                prompt=edit_instruction,
+                current_image_path=original_image_path,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                original_description=None,
+                additional_ref_images=None
+            )
+            
+            if not clean_bg_image:
+                logger.error("Failed to generate clean background image")
+                return None
+            
+            # Convert Google GenAI Image to PIL Image if needed
+            if not isinstance(clean_bg_image, Image.Image):
+                # Google GenAI returns its own Image type with _pil_image attribute
+                if hasattr(clean_bg_image, '_pil_image'):
+                    clean_bg_image = clean_bg_image._pil_image
+                else:
+                    logger.error(f"Unexpected image type: {type(clean_bg_image)}, no _pil_image attribute")
+                    return None
+            
+            # Save the clean background to a temporary file
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                clean_bg_path = tmp_file.name
+                clean_bg_image.save(clean_bg_path, format='PNG')
+                logger.info(f"Clean background saved to: {clean_bg_path}")
+                return clean_bg_path
+        
+        except Exception as e:
+            logger.error(f"Error generating clean background: {str(e)}", exc_info=True)
+            return None
     
     @staticmethod
     def create_pptx_from_images(image_paths: List[str], output_file: str = None) -> bytes:
@@ -238,10 +298,11 @@ class ExportService:
                                         'page_idx': page_idx
                                     })
                     
-                    # Handle image blocks
+                    # Handle image and table blocks (tables rendered as images)
                     elif block_type in ['image', 'table'] and block.get('blocks'):
                         # Find image path in spans
                         img_path = None
+                        
                         for sub_block in block['blocks']:
                             for line in sub_block.get('lines', []):
                                 for span in line.get('spans', []):
@@ -442,12 +503,12 @@ class ExportService:
         scale_y: float = 1.0
     ):
         """
-        Add image item from MinerU to slide
+        Add image or table item from MinerU to slide
         
         Args:
             builder: PPTXBuilder instance
             slide: Target slide
-            image_item: Image item from MinerU content_list
+            image_item: Image/table item from MinerU content_list
             mineru_dir: MinerU result directory
             scale_x: X-axis scale factor
             scale_y: Y-axis scale factor
@@ -469,12 +530,30 @@ class ExportService:
         ]
         
         if scale_x != 1.0 or scale_y != 1.0:
-            logger.debug(f"Image bbox scaled: {original_bbox} -> {bbox} (scale: {scale_x:.3f}x{scale_y:.3f})")
+            logger.debug(f"Item bbox scaled: {original_bbox} -> {bbox} (scale: {scale_x:.3f}x{scale_y:.3f})")
         
-        # Get image path
+        # Check if this is a table with HTML data
+        html_table = image_item.get('html_table')
+        item_type = image_item.get('type', 'image')
+        
+        if html_table and item_type == 'table':
+            # Add editable table from HTML
+            try:
+                builder.add_table_element(
+                    slide=slide,
+                    html_table=html_table,
+                    bbox=bbox
+                )
+                logger.info(f"Added editable table at bbox {bbox}")
+                return  # Table added successfully
+            except Exception as e:
+                logger.error(f"Failed to add table: {str(e)}, falling back to image")
+                # Fall through to add as image instead
+        
+        # Add as image (either image type or table fallback)
         img_path_str = image_item.get('img_path', '')
         if not img_path_str:
-            logger.warning(f"No img_path in image item: {image_item}")
+            logger.warning(f"No img_path in item: {image_item}")
             return
         
         # Try to find the image file

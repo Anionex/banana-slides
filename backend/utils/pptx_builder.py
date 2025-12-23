@@ -10,8 +10,56 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from PIL import Image
+from html.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
+
+
+class HTMLTableParser(HTMLParser):
+    """Parse HTML table into row/column data"""
+    
+    def __init__(self):
+        super().__init__()
+        self.table_data = []
+        self.current_row = []
+        self.current_cell = []
+        self.in_table = False
+        self.in_row = False
+        self.in_cell = False
+    
+    def handle_starttag(self, tag, attrs):
+        if tag == 'table':
+            self.in_table = True
+            self.table_data = []
+        elif tag == 'tr':
+            self.in_row = True
+            self.current_row = []
+        elif tag in ['td', 'th']:
+            self.in_cell = True
+            self.current_cell = []
+    
+    def handle_endtag(self, tag):
+        if tag == 'table':
+            self.in_table = False
+        elif tag == 'tr':
+            self.in_row = False
+            if self.current_row:
+                self.table_data.append(self.current_row)
+        elif tag in ['td', 'th']:
+            self.in_cell = False
+            cell_text = ''.join(self.current_cell).strip()
+            self.current_row.append(cell_text)
+    
+    def handle_data(self, data):
+        if self.in_cell:
+            self.current_cell.append(data)
+    
+    @staticmethod
+    def parse_html_table(html: str) -> List[List[str]]:
+        """Parse HTML table string into 2D array of cells"""
+        parser = HTMLTableParser()
+        parser.feed(html)
+        return parser.table_data
 
 
 class PPTXBuilder:
@@ -296,6 +344,85 @@ class PPTXBuilder:
         paragraph.alignment = PP_ALIGN.CENTER
         paragraph.font.size = Pt(12)
         paragraph.font.italic = True
+    
+    def add_table_element(
+        self,
+        slide,
+        html_table: str,
+        bbox: List[int],
+        dpi: int = None
+    ):
+        """
+        Add editable table to slide from HTML table string
+        
+        Args:
+            slide: Target slide
+            html_table: HTML table string
+            bbox: Bounding box [x0, y0, x1, y1] in pixels
+            dpi: DPI for conversion (default: 96)
+        """
+        dpi = dpi or self.DEFAULT_DPI
+        
+        # Parse HTML table
+        try:
+            table_data = HTMLTableParser.parse_html_table(html_table)
+        except Exception as e:
+            logger.error(f"Failed to parse HTML table: {str(e)}")
+            return
+        
+        if not table_data or not table_data[0]:
+            logger.warning("Empty table data")
+            return
+        
+        rows = len(table_data)
+        cols = len(table_data[0])
+        
+        # Convert bbox to inches
+        left = Inches(self.pixels_to_inches(bbox[0], dpi))
+        top = Inches(self.pixels_to_inches(bbox[1], dpi))
+        width = Inches(self.pixels_to_inches(bbox[2] - bbox[0], dpi))
+        height = Inches(self.pixels_to_inches(bbox[3] - bbox[1], dpi))
+        
+        try:
+            # Add table shape
+            table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
+            table = table_shape.table
+            
+            # Calculate cell dimensions
+            cell_width = width / cols
+            cell_height = height / rows
+            
+            # Fill table with data
+            for row_idx, row_data in enumerate(table_data):
+                for col_idx, cell_text in enumerate(row_data):
+                    if col_idx < cols:  # Safety check
+                        cell = table.cell(row_idx, col_idx)
+                        cell.text = cell_text
+                        
+                        # Style the cell
+                        text_frame = cell.text_frame
+                        text_frame.word_wrap = True
+                        
+                        # Calculate font size for table cell
+                        # Use a conservative size to fit in cell
+                        cell_height_px = (bbox[3] - bbox[1]) / rows
+                        cell_width_px = (bbox[2] - bbox[0]) / cols
+                        
+                        # Estimate font size (smaller for tables)
+                        font_size = min(18, max(8, cell_height_px * 0.3))
+                        
+                        for paragraph in text_frame.paragraphs:
+                            paragraph.font.size = Pt(font_size)
+                            paragraph.alignment = PP_ALIGN.CENTER
+                            
+                            # Header row (first row) should be bold
+                            if row_idx == 0:
+                                paragraph.font.bold = True
+            
+            logger.info(f"Added editable table: {rows}x{cols} at bbox {bbox}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create table: {str(e)}")
     
     def save(self, output_path: str):
         """

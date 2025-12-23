@@ -204,11 +204,71 @@ def export_editable_pptx(project_id):
         if not image_paths:
             return bad_request("No generated images found for project")
         
-        # Step 1: Create temporary PDF from images
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
-            tmp_pdf_path = tmp_pdf.name
+        # Initialize for cleanup in finally block
+        clean_background_paths = []
+        tmp_pdf_path = None
+        
+        # Step 1: Generate clean background images (remove text, icons, illustrations)
+        # Use parallel processing for better performance
+        logger.info(f"Generating clean backgrounds for {len(image_paths)} images in parallel...")
+        
+        from services.ai_service import AIService
+        from concurrent.futures import ThreadPoolExecutor, as_completed  # For parallel processing
+        
+        # Get config values and app instance in main thread (before entering thread pool)
+        aspect_ratio = current_app.config.get('DEFAULT_ASPECT_RATIO', '16:9')
+        resolution = current_app.config.get('DEFAULT_RESOLUTION', '2K')
+        app = current_app._get_current_object()  # Get actual app object for thread context
+        
+        def generate_single_background(index, original_image_path, aspect_ratio, resolution, app):
+            """Generate clean background for a single image (runs in thread pool)"""
+            # Use Flask app context in thread
+            with app.app_context():
+                logger.info(f"Processing background {index+1}/{len(image_paths)}...")
+                ai_service = AIService()  # Create instance per thread
+                
+                clean_bg_path = ExportService.generate_clean_background(
+                    original_image_path=original_image_path,
+                    ai_service=ai_service,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution
+                )
+                
+                if clean_bg_path:
+                    logger.info(f"Clean background {index+1} generated successfully")
+                    return (index, clean_bg_path)
+                else:
+                    # Fallback to original image if generation fails
+                    logger.warning(f"Failed to generate clean background {index+1}, using original image")
+                    return (index, original_image_path)
+        
+        # Process backgrounds in parallel
+        max_workers = min(len(image_paths), current_app.config.get('MAX_IMAGE_WORKERS', 8))
+        results = {}
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(generate_single_background, i, path, aspect_ratio, resolution, app): i 
+                for i, path in enumerate(image_paths)
+            }
+            
+            for future in as_completed(futures):
+                try:
+                    index, clean_bg_path = future.result()
+                    results[index] = clean_bg_path
+                except Exception as e:
+                    index = futures[future]
+                    logger.error(f"Error generating background {index+1}: {str(e)}")
+                    results[index] = image_paths[index]  # Fallback to original
+        
+        # Sort results by index to maintain page order
+        clean_background_paths = [results[i] for i in range(len(image_paths))]
+        logger.info(f"Generated {len(clean_background_paths)} clean backgrounds (parallel processing completed)")
         
         try:
+            # Step 2: Create temporary PDF from images
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
+                tmp_pdf_path = tmp_pdf.name
             logger.info(f"Creating PDF from {len(image_paths)} images...")
             ExportService.create_pdf_from_images(image_paths, output_file=tmp_pdf_path)
             logger.info(f"PDF created: {tmp_pdf_path}")
@@ -269,14 +329,14 @@ def export_editable_pptx(project_id):
             slide_width, slide_height = first_img.size
             first_img.close()
             
-            # Generate editable PPTX file with background images
-            logger.info(f"Creating editable PPTX with {len(image_paths)} background images")
+            # Generate editable PPTX file with clean background images
+            logger.info(f"Creating editable PPTX with {len(clean_background_paths)} clean background images")
             ExportService.create_editable_pptx_from_mineru(
                 mineru_result_dir=mineru_result_dir,
                 output_file=output_path,
                 slide_width_pixels=slide_width,
                 slide_height_pixels=slide_height,
-                background_images=image_paths  # Pass original images as backgrounds
+                background_images=clean_background_paths  # Use clean backgrounds without text/icons
             )
             
             logger.info(f"Editable PPTX created: {output_path}")
@@ -296,12 +356,23 @@ def export_editable_pptx(project_id):
         
         finally:
             # Clean up temporary PDF
-            if os.path.exists(tmp_pdf_path):
+            if tmp_pdf_path and os.path.exists(tmp_pdf_path):
                 try:
                     os.unlink(tmp_pdf_path)
                     logger.info(f"Cleaned up temporary PDF: {tmp_pdf_path}")
                 except Exception as e:
                     logger.warning(f"Failed to clean up temporary PDF: {str(e)}")
+            
+            # Clean up temporary clean background images
+            if clean_background_paths:
+                for bg_path in clean_background_paths:
+                    # Only delete if it's a temporary file (not the original)
+                    if bg_path not in image_paths and os.path.exists(bg_path):
+                        try:
+                            os.unlink(bg_path)
+                            logger.debug(f"Cleaned up temporary background: {bg_path}")
+                        except Exception as e:
+                            logger.warning(f"Failed to clean up temporary background: {str(e)}")
     
     except Exception as e:
         logger.exception("Error exporting editable PPTX")
