@@ -55,6 +55,7 @@ interface ProjectState {
   // 导出
   exportPPTX: () => Promise<void>;
   exportPDF: () => Promise<void>;
+  exportEditablePPTX: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
@@ -832,6 +833,31 @@ const debouncedUpdatePage = debounce(
       window.open(downloadUrl, '_blank');
     } catch (error: any) {
       set({ error: error.message || '导出失败' });
+    } finally {
+      set({ isGlobalLoading: false });
+    }
+  },
+
+  // 导出可编辑PPTX
+  exportEditablePPTX: async () => {
+    const { currentProject } = get();
+    if (!currentProject) return;
+
+    set({ isGlobalLoading: true, error: null });
+    try {
+      const response = await api.exportEditablePPTX(currentProject.id);
+      // 优先使用相对路径，避免 Docker 环境下的端口问题
+      const downloadUrl =
+        response.data?.download_url || response.data?.download_url_absolute;
+
+      if (!downloadUrl) {
+        throw new Error('导出链接获取失败');
+      }
+
+      // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
+      window.open(downloadUrl, '_blank');
+    } catch (error: any) {
+      set({ error: error.message || '导出可编辑PPTX失败' });
     } finally {
       set({ isGlobalLoading: false });
     }

@@ -10,6 +10,7 @@ from .response import (
 )
 from .validators import validate_project_status, validate_page_status, allowed_file
 from .path_utils import convert_mineru_path_to_local, find_mineru_file_with_prefix, find_file_with_prefix
+from .pptx_builder import PPTXBuilder
 
 __all__ = [
     'success_response',
@@ -24,6 +25,7 @@ __all__ = [
     'allowed_file',
     'convert_mineru_path_to_local',
     'find_mineru_file_with_prefix',
-    'find_file_with_prefix'
+    'find_file_with_prefix',
+    'PPTXBuilder'
 ]
 

@@ -429,6 +429,18 @@ export const exportPDF = async (
   return response.data;
 };
 
+/**
+ * 导出为可编辑PPTX
+ */
+export const exportEditablePPTX = async (
+  projectId: string
+): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const response = await apiClient.get<
+    ApiResponse<{ download_url: string; download_url_absolute?: string }>
+  >(`/api/projects/${projectId}/export/editable-pptx`);
+  return response.data;
+};
+
 // ===== 素材生成 =====
 
 /**

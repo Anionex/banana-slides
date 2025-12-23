@@ -70,7 +70,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             
             # Parse file
             logger.info(f"Starting to parse file: {filename}")
-            batch_id, markdown_content, error_message, failed_image_count = parser.parse_file(file_path, filename)
+            batch_id, markdown_content, extract_id, error_message, failed_image_count = parser.parse_file(file_path, filename)
             
             # Update database
             reference_file.mineru_batch_id = batch_id
