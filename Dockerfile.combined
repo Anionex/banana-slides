@@ -1,0 +1,92 @@
+# === 阶段 1: 前端构建 ===
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install --prefer-offline --no-audit --legacy-peer-deps
+COPY frontend/ ./
+ARG VITE_API_BASE_URL=/api
+RUN CI=false npm run build
+
+# === 阶段 2: 后端依赖 (主动扫描 + 补齐) ===
+FROM python:3.10-slim AS builder-backend
+WORKDIR /app
+RUN pip install --no-cache-dir pipreqs
+COPY backend/ ./backend/
+# 主动扫描并安装所有依赖，包括你手动指定的关键库
+RUN pipreqs ./backend --force && \
+    pip install --no-cache-dir -r ./backend/requirements.txt && \
+    pip install --no-cache-dir python-pptx google-genai openai flask-sqlalchemy flask-migrate flask-cors gunicorn
+
+# === 阶段 3: 运行阶段 ===
+FROM python:3.10-slim
+WORKDIR /app
+
+# 拷贝环境产物
+COPY --from=builder-backend /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder-backend /usr/local/bin /usr/local/bin
+
+# 拷贝后端源码 (这是你手动修改过 app.py 后的版本)
+COPY backend/ .
+
+# 准备静态目录
+RUN mkdir -p /app/static
+COPY --from=frontend-builder /app/frontend/dist/ /app/static/
+
+# --- 创建全新的启动脚本 hf_runner.py ---
+RUN cat <<EOF > hf_runner.py
+import os
+import sys
+from flask import Flask, send_from_directory, request
+from flask_cors import CORS
+
+# 1. 导入原始应用 (此时 app.py 已经没有 @app.route('/') 了)
+sys.path.append(os.getcwd())
+try:
+    from app import app, db
+    print("Backend app loaded successfully.")
+except Exception as e:
+    print(f"Load error: {e}")
+    sys.exit(1)
+
+CORS(app)
+
+# 2. 锁定静态资源目录
+STATIC_DIR = os.path.abspath('static')
+app.static_folder = STATIC_DIR
+
+# 3. 既然 app.py 的根路由没了，我们在这里接管它
+@app.route('/')
+def serve_index():
+    return send_from_directory(STATIC_DIR, 'index.html')
+
+# 4. 解决静态资源 (assets) 和 SPA 路由
+@app.route('/<path:path>')
+def catch_all(path):
+    # 物理文件存在则直接返回
+    full_path = os.path.join(STATIC_DIR, path)
+    if os.path.exists(full_path) and os.path.isfile(full_path):
+        return send_from_directory(STATIC_DIR, path)
+    
+    # 如果是 API 请求但没匹配到后端路由，由 Flask 原生逻辑处理 (通常报 404)
+    if path.startswith('api/'):
+        return {"error": "API Route Not Found"}, 404
+    
+    # 其他所有路径 (SPA 路由) 返回 index.html
+    return send_from_directory(STATIC_DIR, 'index.html')
+
+if __name__ == '__main__':
+    with app.app_context():
+        try:
+            db.create_all()
+            print("Database initialized.")
+        except: pass
+    
+    print("Server starting on port 7860...")
+    app.run(host='0.0.0.0', port=7860, threaded=True)
+EOF
+
+RUN chmod -R 777 /app
+ENV PORT=7860
+EXPOSE 7860
+
+CMD ["python", "hf_runner.py"]
