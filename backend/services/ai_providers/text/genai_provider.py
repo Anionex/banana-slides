@@ -23,13 +23,13 @@ class GenAITextProvider(TextProvider):
             api_base: API base URL (for proxies like aihubmix)
             model: Model name to use
         """
-        timeout = get_config().GENAI_TIMEOUT
+        timeout_ms = int(get_config().GENAI_TIMEOUT * 1000)
         
         # 构建 HttpOptions
         http_options = types.HttpOptions(
             base_url=api_base,
-            timeout=timeout
-        ) if api_base else types.HttpOptions(timeout=timeout)
+            timeout=timeout_ms
+        ) if api_base else types.HttpOptions(timeout=timeout_ms)
         
         self.client = genai.Client(
             http_options=http_options,
