@@ -358,7 +358,13 @@ const debouncedUpdatePage = debounce(
     console.log(`[轮询] 开始轮询任务: ${taskId}`);
     const { currentProject } = get();
     if (!currentProject) {
-      console.warn('[轮询] 没有当前项目，停止轮询');
+      console.warn('[轮询] 没有当前项目，停止轮询，清除加载状态');
+      // 清除加载状态，避免永久卡在加载中
+      set({
+        activeTaskId: null,
+        taskProgress: null,
+        isGlobalLoading: false
+      });
       return;
     }
 
@@ -367,9 +373,15 @@ const debouncedUpdatePage = debounce(
         console.log(`[轮询] 查询任务状态: ${taskId}`);
         const response = await api.getTaskStatus(currentProject.id!, taskId);
         const task = response.data;
-        
+
         if (!task) {
-          console.warn('[轮询] 响应中没有任务数据');
+          console.warn('[轮询] 响应中没有任务数据，清除加载状态');
+          // 清除加载状态，避免永久卡在加载中
+          set({
+            activeTaskId: null,
+            taskProgress: null,
+            isGlobalLoading: false
+          });
           return;
         }
 
@@ -682,7 +694,12 @@ const debouncedUpdatePage = debounce(
   pollPageTask: async (pageId: string, taskId: string) => {
     const { currentProject } = get();
     if (!currentProject) {
-      console.warn('[轮询] 没有当前项目，停止轮询');
+      console.warn('[轮询] 没有当前项目，停止轮询，清除生成状态');
+      // 清除该页面的任务记录，避免永久卡在生成中状态
+      const { pageGeneratingTasks } = get();
+      const newTasks = { ...pageGeneratingTasks };
+      delete newTasks[pageId];
+      set({ pageGeneratingTasks: newTasks });
       return;
     }
 
@@ -690,9 +707,14 @@ const debouncedUpdatePage = debounce(
       try {
         const response = await api.getTaskStatus(currentProject.id!, taskId);
         const task = response.data;
-        
+
         if (!task) {
-          console.warn('[轮询] 响应中没有任务数据');
+          console.warn('[轮询] 响应中没有任务数据，清除生成状态');
+          // 清除该页面的任务记录，避免永久卡在生成中状态
+          const { pageGeneratingTasks } = get();
+          const newTasks = { ...pageGeneratingTasks };
+          delete newTasks[pageId];
+          set({ pageGeneratingTasks: newTasks });
           return;
         }
 
