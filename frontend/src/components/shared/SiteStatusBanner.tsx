@@ -65,8 +65,12 @@ export const SiteStatusBanner: React.FC<SiteStatusBannerProps> = ({ className = 
       title: '⚠️ 站点余额不足，可能影响功能使用',
       message: (
         <>
-          本站点由作者完全自费支持运营，余额可能会间歇性见底，会尽快补充余额。
+          本站点由作者完全自费支持运营，余额可能会间歇性见底。
           <br />
+          
+          期间可在设置页设置自己的临时api key和base url使用该项目
+
+          <br></br>
           也欢迎
           <button
             onClick={() => setIsSponsorModalOpen(true)}
@@ -74,15 +78,8 @@ export const SiteStatusBanner: React.FC<SiteStatusBannerProps> = ({ className = 
           >
             打赏作者
           </button>
-          ，我会将其全部用于站点维护🚀
+          ，我会将其全部用于站点维护🚀十分感谢您的支持
           <br />
-          如有疑问或合作意向，欢迎联系：
-          <a 
-            href="mailto:1005128408@qq.com" 
-            className="font-semibold underline hover:text-orange-700 transition-colors ml-1"
-          >
-            1005128408@qq.com
-          </a>
         </>
       ),
     },
