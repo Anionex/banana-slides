@@ -83,6 +83,9 @@ class Config:
     # 可选值: 'zh' (中文), 'ja' (日本語), 'en' (English), 'auto' (自动)
     OUTPUT_LANGUAGE = os.getenv('OUTPUT_LANGUAGE', 'zh')
 
+    # 设置页面密钥（留空则无需验证即可进入设置页面）
+    SETTINGS_PASSWORD = os.getenv('SETTINGS_PASSWORD', '')
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

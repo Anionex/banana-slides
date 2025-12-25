@@ -430,6 +430,23 @@ banana-slides/
 └── README.md                   # This file
 ```
 
+## 🔐 Settings Page Password Protection
+
+If you want to protect the settings page from unauthorized access, you can configure an access password.
+
+Add the following to your `.env` file:
+```env
+# Settings page password (leave empty to access settings without verification)
+SETTINGS_PASSWORD=your-password-here
+```
+
+After configuration:
+- A password input dialog will appear when accessing the settings page
+- You can only enter the settings page after entering the correct password
+- If left empty or not set, the settings page can be accessed without verification
+
+> **Note**: After modifying the `.env` file, you need to restart the service for changes to take effect
+
 
 ## 🤝 Contributing
 

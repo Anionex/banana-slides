@@ -125,9 +125,9 @@ export const generateFromDescription = async (projectId: string, descriptionText
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/from-description`,
-    { 
+    {
       ...(descriptionText ? { description_text: descriptionText } : {}),
-      language: lang 
+      language: lang
     }
   );
   return response.data;
@@ -159,7 +159,7 @@ export const generatePageDescription = async (
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/description`,
-    { force_regenerate: forceRegenerate , language: lang}
+    { force_regenerate: forceRegenerate, language: lang }
   );
   return response.data;
 };
@@ -785,7 +785,7 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & {
     api_key?: string;
     mineru_token?: string;
   }
@@ -799,5 +799,23 @@ export const updateSettings = async (
  */
 export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
+// ===== 设置页面密钥验证 =====
+
+/**
+ * 检查设置页面是否需要密码验证
+ */
+export const checkSettingsAuth = async (): Promise<ApiResponse<{ requires_password: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ requires_password: boolean }>>('/api/settings/auth/check');
+  return response.data;
+};
+
+/**
+ * 验证设置页面密码
+ */
+export const verifySettingsPassword = async (password: string): Promise<ApiResponse<{ valid: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ valid: boolean }>>('/api/settings/auth/verify', { password });
   return response.data;
 };

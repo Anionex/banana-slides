@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
 import type { OutputLanguage } from '@/api/endpoints';
@@ -193,8 +193,68 @@ export const Settings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
 
+  // 密钥验证相关状态
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [requiresPassword, setRequiresPassword] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  // 检查是否需要密码验证
   useEffect(() => {
-    loadSettings();
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    setIsCheckingAuth(true);
+    try {
+      const response = await api.checkSettingsAuth();
+      if (response.data) {
+        const needsPassword = response.data.requires_password;
+        setRequiresPassword(needsPassword);
+        // 如果不需要密码，直接标记为已验证
+        if (!needsPassword) {
+          setIsAuthenticated(true);
+          loadSettings();
+        }
+      }
+    } catch (error: any) {
+      console.error('检查设置页面权限失败:', error);
+      // 如果检查失败，假设不需要密码
+      setIsAuthenticated(true);
+      loadSettings();
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    setPasswordError('');
+
+    try {
+      const response = await api.verifySettingsPassword(password);
+      if (response.data?.valid) {
+        setIsAuthenticated(true);
+        setPassword('');
+        loadSettings();
+      } else {
+        setPasswordError('密码错误，请重试');
+      }
+    } catch (error: any) {
+      console.error('验证密码失败:', error);
+      setPasswordError('验证失败，请重试');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  useEffect(() => {
+    // 只有在已认证且需要加载设置时才加载
+    // loadSettings 会在认证成功后被调用
   }, []);
 
   const loadSettings = async () => {
@@ -327,13 +387,12 @@ export const Settings: React.FC = () => {
                 key={option.value}
                 type="button"
                 onClick={() => handleFieldChange(field.key, option.value)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  value === option.value
-                    ? option.value === 'openai'
-                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
-                      : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md'
-                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${value === option.value
+                  ? option.value === 'openai'
+                    ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
+                    : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                  }`}
               >
                 {option.label}
               </button>
@@ -383,7 +442,7 @@ export const Settings: React.FC = () => {
           placeholder={placeholder}
           value={value as string | number}
           onChange={(e) => {
-            const newValue = field.type === 'number' 
+            const newValue = field.type === 'number'
               ? parseInt(e.target.value) || (field.min ?? 0)
               : e.target.value;
             handleFieldChange(field.key, newValue);
@@ -398,6 +457,78 @@ export const Settings: React.FC = () => {
     );
   };
 
+  // 正在检查认证状态
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-banana-50 to-yellow-50 flex items-center justify-center">
+        <Loading text="检查权限中..." />
+      </div>
+    );
+  }
+
+  // 需要密码验证但尚未验证
+  if (requiresPassword && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-banana-50 to-yellow-50 flex items-center justify-center">
+        <ToastContainer />
+        <Card className="p-8 w-full max-w-md">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-banana-100 mb-4">
+              <Lock size={32} className="text-banana-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">访问受限</h1>
+            <p className="text-gray-500 mt-2">请输入密码以访问设置页面</p>
+          </div>
+
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="请输入访问密码"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError('');
+                }}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+
+            {passwordError && (
+              <p className="text-sm text-red-500">{passwordError}</p>
+            )}
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => navigate('/')}
+                className="flex-1"
+              >
+                返回首页
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                loading={isVerifying}
+                className="flex-1"
+              >
+                {isVerifying ? '验证中...' : '确认'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  // 已认证，正在加载设置
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-banana-50 to-yellow-50 flex items-center justify-center">

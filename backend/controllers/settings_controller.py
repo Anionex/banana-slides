@@ -252,3 +252,74 @@ def _sync_settings_to_config(settings: Settings):
     if settings.image_caption_model:
         current_app.config["IMAGE_CAPTION_MODEL"] = settings.image_caption_model
         logger.info(f"Updated IMAGE_CAPTION_MODEL to: {settings.image_caption_model}")
+
+
+@settings_bp.route("/auth/check", methods=["GET"], strict_slashes=False)
+def check_settings_auth():
+    """
+    GET /api/settings/auth/check - Check if settings page requires password
+    
+    Returns:
+        {
+            "requires_password": true/false
+        }
+    """
+    try:
+        password = Config.SETTINGS_PASSWORD
+        requires_password = bool(password and password.strip())
+        return success_response({
+            "requires_password": requires_password
+        })
+    except Exception as e:
+        logger.error(f"Error checking settings auth: {str(e)}")
+        return error_response(
+            "CHECK_SETTINGS_AUTH_ERROR",
+            f"Failed to check settings auth: {str(e)}",
+            500,
+        )
+
+
+@settings_bp.route("/auth/verify", methods=["POST"], strict_slashes=False)
+def verify_settings_password():
+    """
+    POST /api/settings/auth/verify - Verify settings page password
+    
+    Request Body:
+        {
+            "password": "your-password"
+        }
+    
+    Returns:
+        {
+            "valid": true/false
+        }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return bad_request("Request body is required")
+        
+        provided_password = data.get("password", "")
+        correct_password = Config.SETTINGS_PASSWORD
+        
+        # If no password is set, always return valid
+        if not correct_password or not correct_password.strip():
+            return success_response({"valid": True})
+        
+        # Compare passwords
+        is_valid = provided_password == correct_password
+        
+        if is_valid:
+            logger.info("Settings password verified successfully")
+        else:
+            logger.warning("Settings password verification failed")
+        
+        return success_response({"valid": is_valid})
+        
+    except Exception as e:
+        logger.error(f"Error verifying settings password: {str(e)}")
+        return error_response(
+            "VERIFY_SETTINGS_PASSWORD_ERROR",
+            f"Failed to verify settings password: {str(e)}",
+            500,
+        )

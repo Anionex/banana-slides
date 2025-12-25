@@ -456,6 +456,23 @@ banana-slides/
 
 <img width="300"  alt="image" src="https://github.com/user-attachments/assets/0d4eb8cd-2c95-4f1c-aca2-2a656e6601a4" />
 
+## 🔐 设置页面密码保护
+
+如果您希望保护设置页面，防止未经授权的访问，可以配置访问密码。
+
+在 `.env` 文件中添加：
+```env
+# 设置页面密钥（留空则无需验证即可进入设置页面）
+SETTINGS_PASSWORD=your-password-here
+```
+
+配置后：
+- 访问设置页面时，将会显示密码输入界面
+- 输入正确密码后才能进入设置页面
+- 如果留空或不设置此变量，设置页面无需验证即可访问
+
+> **注意**：修改 `.env` 文件后需要重启服务才能生效
+
 **常见问题**
 1.  **支持免费层级的 Gemini API Key 吗？**
     *   免费层级只支持文本生成，不支持图片生成。
