@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class GeminiInpaintingProvider:
     """Gemini Inpainting 消除服务（使用 Gemini 2.5 Flash）"""
     
-    DEFAULT_MODEL = "gemini-2-5-flash-image-preview"
+    DEFAULT_MODEL = "gemini-2.5-flash-image-preview"
     DEFAULT_PROMPT = (
         "Based on the original image and the mask (white areas indicate regions to remove), "
         "please remove all text and graphic content within the masked regions to create a clean background. "
@@ -37,7 +37,7 @@ class GeminiInpaintingProvider:
         Args:
             api_key: Google API key
             api_base: API base URL (for proxies like aihubmix)
-            model: Model name to use (default: gemini-2-5-flash-image-preview)
+            model: Model name to use (default: gemini-2.5-flash-image-preview)
             timeout: API 请求超时时间（秒）
         """
         self.api_key = api_key
@@ -59,6 +59,52 @@ class GeminiInpaintingProvider:
         )
         
         logger.info(f"✅ Gemini Inpainting Provider 初始化 (model={self.model})")
+    
+    def _expand_to_16_9(self, image: Image.Image, fill_color=(255, 255, 255)) -> tuple[Image.Image, tuple[int, int, int, int]]:
+        """
+        将图像扩展到 16:9 比例（Gemini 要求标准比例）
+        
+        Args:
+            image: 原始图像
+            fill_color: 填充颜色（默认白色）
+            
+        Returns:
+            (扩展后的图像, 原图在扩展图中的位置 (x0, y0, x1, y1))
+        """
+        original_width, original_height = image.size
+        
+        # 计算16:9比例下的目标尺寸
+        target_ratio = 16 / 9
+        current_ratio = original_width / original_height
+        
+        if abs(current_ratio - target_ratio) < 0.01:
+            # 已经是16:9，不需要扩展
+            return image, (0, 0, original_width, original_height)
+        
+        if current_ratio > target_ratio:
+            # 宽度足够，需要增加高度
+            target_width = original_width
+            target_height = int(original_width / target_ratio)
+        else:
+            # 高度足够，需要增加宽度
+            target_height = original_height
+            target_width = int(original_height * target_ratio)
+        
+        # 创建16:9画布
+        expanded = Image.new('RGB', (target_width, target_height), fill_color)
+        
+        # 将原图居中粘贴
+        x_offset = (target_width - original_width) // 2
+        y_offset = (target_height - original_height) // 2
+        expanded.paste(image, (x_offset, y_offset))
+        
+        # 返回扩展后的图像和原图位置
+        crop_box = (x_offset, y_offset, x_offset + original_width, y_offset + original_height)
+        
+        logger.info(f"📐 扩展图像: {original_width}x{original_height} -> {target_width}x{target_height} (16:9)")
+        logger.info(f"   原图位置: {crop_box}")
+        
+        return expanded, crop_box
     
     @retry(
         stop=stop_after_attempt(3),  # 最多重试3次
@@ -87,6 +133,9 @@ class GeminiInpaintingProvider:
         try:
             logger.info("🚀 开始调用 Gemini inpainting")
             
+            # 保存原始尺寸
+            original_size = original_image.size
+            
             # 1. 转换图像格式
             # 原图转换为 RGB
             if original_image.mode in ('RGBA', 'LA', 'P'):
@@ -110,30 +159,34 @@ class GeminiInpaintingProvider:
                     mask_rgb = mask_image.convert('RGB')
                 mask_image = mask_rgb
             
-            logger.info(f"📷 图像尺寸: 原图={original_image.size}, mask={mask_image.size}")
+            # 2. 扩展到 16:9 比例（Gemini 要求）
+            expanded_original, crop_box = self._expand_to_16_9(original_image, fill_color=(255, 255, 255))
+            expanded_mask, _ = self._expand_to_16_9(mask_image, fill_color=(0, 0, 0))  # mask用黑色填充
             
-            # 2. 构建 prompt
+            logger.info(f"📷 图像尺寸: 原图={original_size}, 扩展后={expanded_original.size}")
+            
+            # 3. 构建 prompt
             prompt = custom_prompt or self.DEFAULT_PROMPT
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             
-            # 3. 构建请求内容
+            # 4. 构建请求内容
             # 根据 Gemini 文档，image editing 需要同时提供原图和 mask
             contents = [
-                original_image,
-                mask_image,
+                expanded_original,
+                expanded_mask,
                 prompt
             ]
             
             logger.info("🌐 发送请求到 Gemini API...")
             
-            # 4. 调用 Gemini API
+            # 5. 调用 Gemini API
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_modalities=['IMAGE'],  # 只需要图像输出
                     image_config=types.ImageConfig(
-                        aspect_ratio="free",  # 保持原始比例
+                        aspect_ratio="16:9",  # 使用16:9比例
                         image_size="ORIGINAL"  # 保持原始尺寸
                     ),
                 )
@@ -141,7 +194,7 @@ class GeminiInpaintingProvider:
             
             logger.debug("Gemini API 调用完成")
             
-            # 5. 提取生成的图像
+            # 6. 提取生成的图像并裁剪回原始尺寸
             for i, part in enumerate(response.parts):
                 if part.text is not None:
                     logger.debug(f"Part {i}: TEXT - {part.text[:100]}")
@@ -149,8 +202,14 @@ class GeminiInpaintingProvider:
                     try:
                         logger.debug(f"Part {i}: 尝试提取图像...")
                         result_image = Image.open(part.inline_data.to_bytes_io())
-                        logger.info(f"✅ Gemini Inpainting 成功！结果: {result_image.size}, {result_image.mode}")
-                        return result_image
+                        logger.info(f"✅ Gemini Inpainting 成功！扩展图尺寸: {result_image.size}, {result_image.mode}")
+                        
+                        # 裁剪回原始尺寸
+                        x0, y0, x1, y1 = crop_box
+                        cropped_result = result_image.crop(crop_box)
+                        logger.info(f"✂️  裁剪回原始尺寸: {cropped_result.size}")
+                        
+                        return cropped_result
                     except Exception as e:
                         logger.debug(f"Part {i}: 不是有效图像 - {e}")
                         continue
