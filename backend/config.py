@@ -45,8 +45,12 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
-    # AI Provider 格式配置: "gemini" (Google GenAI SDK) 或 "openai" (OpenAI SDK)
+    # AI Provider 格式配置: "gemini" (Google GenAI SDK), "openai" (OpenAI SDK), "vertex" (Vertex AI)
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
+
+    # Vertex AI 专用配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
+    VERTEX_PROJECT_ID = os.getenv('VERTEX_PROJECT_ID', '')
+    VERTEX_LOCATION = os.getenv('VERTEX_LOCATION', 'us-central1')
     
     # GenAI (Gemini) 格式专用配置
     GENAI_TIMEOUT = float(os.getenv('GENAI_TIMEOUT', '300.0'))  # Gemini 超时时间（秒）

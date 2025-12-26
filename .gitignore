@@ -39,6 +39,9 @@
 !.github/**/*.md
 *.pyc
 .env
+
+# GCP 服务账户文件（包含敏感私钥）
+gcp-service-account.json
 *.ppt
 *.pptx
 generate-example.py

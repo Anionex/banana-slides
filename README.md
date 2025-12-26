@@ -172,10 +172,10 @@ cp .env.example .env
 编辑 `.env` 文件，配置必要的环境变量：
 > **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**  
 ```env
-# AI Provider格式配置 (gemini / openai)
+# AI Provider格式配置 (gemini / openai / vertex)
 AI_PROVIDER_FORMAT=gemini
 
-# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini时使用）
+# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini 时使用）
 GOOGLE_API_KEY=your-api-key-here
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 # 代理示例: https://aihubmix.com/gemini
@@ -184,8 +184,39 @@ GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://aihubmix.com/v1
+
+# Vertex AI 格式配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
+# 需要 GCP 服务账户，可使用 GCP 免费额度
+# VERTEX_PROJECT_ID=your-gcp-project-id
+# VERTEX_LOCATION=global
+# GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
 ...
 ```
+
+<details>
+  <summary>📒 使用 Vertex AI（GCP 免费额度）</summary>
+
+如果你想使用 Google Cloud Vertex AI（可使用 GCP 新用户赠金），需要额外配置：
+
+1. 在 [GCP Console](https://console.cloud.google.com/) 创建服务账户并下载 JSON 密钥文件
+2. 将密钥文件重命名为 `gcp-service-account.json` 放在项目根目录
+3. 编辑 `.env` 文件：
+   ```env
+   AI_PROVIDER_FORMAT=vertex
+   VERTEX_PROJECT_ID=your-gcp-project-id
+   VERTEX_LOCATION=global
+   ```
+4. 编辑 `docker-compose.yml`，取消以下注释：
+   ```yaml
+   # environment:
+   #   - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
+   # ...
+   # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
+   ```
+
+> **注意**：`gemini-3-*` 系列模型需要设置 `VERTEX_LOCATION=global`
+
+</details>
 
 2. **启动服务**
 
@@ -280,10 +311,10 @@ cp .env.example .env
 编辑 `.env` 文件，配置你的 API 密钥：
 > **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本** 
 ```env
-# AI Provider格式配置 (gemini / openai)
+# AI Provider格式配置 (gemini / openai / vertex)
 AI_PROVIDER_FORMAT=gemini
 
-# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini时使用）
+# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini 时使用）
 GOOGLE_API_KEY=your-api-key-here
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 # 代理示例: https://aihubmix.com/gemini
@@ -292,6 +323,13 @@ GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://aihubmix.com/v1
+
+# Vertex AI 格式配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
+# 需要 GCP 服务账户，可使用 GCP 免费额度
+# VERTEX_PROJECT_ID=your-gcp-project-id
+# VERTEX_LOCATION=global
+# GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+
 PORT=5000
 ...
 ```
