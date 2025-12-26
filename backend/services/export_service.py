@@ -1037,12 +1037,20 @@ class ExportService:
                         except Exception as e:
                             logger.error(f"Failed to add table background: {e}")
                     
-                    # 递归添加单元格
+                    # 获取子图的 mineru_result_dir（如果有）
+                    child_mineru_dir = elem.metadata.get('child_mineru_result_dir')
+                    if child_mineru_dir:
+                        child_mineru_dir = Path(child_mineru_dir)
+                    else:
+                        # 如果没有保存，使用父图的目录（向后兼容）
+                        child_mineru_dir = mineru_dir
+                    
+                    # 递归添加单元格，使用正确的 mineru_dir
                     ExportService._add_editable_elements_to_slide(
                         builder=builder,
                         slide=slide,
                         elements=elem.children,
-                        mineru_dir=mineru_dir,
+                        mineru_dir=child_mineru_dir,
                         scale_x=scale_x,
                         scale_y=scale_y,
                         depth=depth + 1
@@ -1088,12 +1096,20 @@ class ExportService:
                         except Exception as e:
                             logger.error(f"Failed to add inpainted background: {e}")
                     
-                    # 递归添加子元素
+                    # 获取子图的 mineru_result_dir（如果有）
+                    child_mineru_dir = elem.metadata.get('child_mineru_result_dir')
+                    if child_mineru_dir:
+                        child_mineru_dir = Path(child_mineru_dir)
+                    else:
+                        # 如果没有保存，使用父图的目录（向后兼容）
+                        child_mineru_dir = mineru_dir
+                    
+                    # 递归添加子元素，使用子图的 mineru_dir
                     ExportService._add_editable_elements_to_slide(
                         builder=builder,
                         slide=slide,
                         elements=elem.children,
-                        mineru_dir=mineru_dir,
+                        mineru_dir=child_mineru_dir,
                         scale_x=scale_x,
                         scale_y=scale_y,
                         depth=depth + 1

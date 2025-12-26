@@ -764,7 +764,7 @@ class ImageEditabilityService:
             
             # 输出bbox详细信息，并检查是否覆盖过大
             if bboxes:
-                logger.info(f"将使用以下 {len(bboxes)} 个bbox生成mask（expand_pixels={expand_pixels}）:")
+                # logger.info(f"将使用以下 {len(bboxes)} 个bbox生成mask（expand_pixels={expand_pixels}）:")
                 filtered_bboxes = []
                 for i, bbox in enumerate(bboxes):
                     if isinstance(bbox, (tuple, list)) and len(bbox) == 4:
@@ -779,11 +779,11 @@ class ImageEditabilityService:
                             logger.warning(f"  bbox[{i+1}] 覆盖过大: ({x0}, {y0}, {x1}, {y1}) 尺寸: {width}x{height} 覆盖: {coverage*100:.1f}%，跳过")
                             continue
                         
-                        logger.info(f"  bbox[{i+1}] 原始: ({x0}, {y0}, {x1}, {y1}) 尺寸: {width}x{height} 覆盖: {coverage*100:.1f}%")
+                        # logger.info(f"  bbox[{i+1}] 原始: ({x0}, {y0}, {x1}, {y1}) 尺寸: {width}x{height} 覆盖: {coverage*100:.1f}%")
                         filtered_bboxes.append(bbox)
                     else:
                         filtered_bboxes.append(bbox)
-                        logger.info(f"  bbox[{i+1}]: {bbox}")
+                        # logger.info(f"  bbox[{i+1}]: {bbox}")
                 
                 if len(filtered_bboxes) < len(bboxes):
                     logger.warning(f"过滤了 {len(bboxes) - len(filtered_bboxes)} 个覆盖过大的bbox")
@@ -967,6 +967,9 @@ class ImageEditabilityService:
                 # 将子图的元素添加到当前元素的children
                 element.children = child_editable.elements
                 element.inpainted_background = child_editable.clean_background
+                
+                # 重要：保存子图的 mineru_result_dir，以便在导出时能找到子元素的图片
+                element.metadata['child_mineru_result_dir'] = child_editable.mineru_result_dir
                 
                 logger.info(f"{'  ' * depth}  ✓ 子图分析完成，提取了 {len(child_editable.elements)} 个子元素")
             
