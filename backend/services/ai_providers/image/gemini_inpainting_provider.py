@@ -171,15 +171,11 @@ class GeminiInpaintingProvider:
             
             # 4. 构建请求内容
             # 根据 Gemini 文档，image editing 需要同时提供原图和 mask
+            # 直接传递 PIL Image 对象和文本，SDK 会自动处理
             contents = [
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part.from_image(expanded_original),
-                        types.Part.from_image(expanded_mask),
-                        types.Part.from_text(text=prompt),
-                    ],
-                ),
+                expanded_original,
+                expanded_mask,
+                prompt
             ]
             
             logger.info("🌐 发送请求到 Gemini API (stream)...")
