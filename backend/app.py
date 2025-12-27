@@ -135,8 +135,8 @@ def create_app():
             return {'data': {'language': Config.OUTPUT_LANGUAGE}}  # 默认中文
 
     # Root endpoint
-    @app.route('/')
-    def index():
+    @app.route('/api/info')
+    def api_info():
         return {
             'name': 'Banana Slides API',
             'version': '1.0.0',
