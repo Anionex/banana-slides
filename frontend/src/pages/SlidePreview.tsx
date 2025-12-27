@@ -182,7 +182,7 @@ export const SlidePreview: React.FC = () => {
     
     if (hasImages) {
       confirm(
-        '部分页面已有图片，重新生成将覆盖，确定继续吗？',
+        '将重新生成所有页面（历史记录将会保存），确定继续吗？',
         executeGenerate,
         { title: '确认重新生成', variant: 'warning' }
       );

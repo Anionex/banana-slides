@@ -8,7 +8,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any
 from datetime import datetime
 from models import db, Task, Page, Material
-from pathlib import Path
+from models import PageImageVersion
+from PIL import Image
+from pathlib import Path                       
+import tempfile
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +33,20 @@ class TaskManager:
         with self.lock:
             self.active_tasks[task_id] = future
         
-        # Add callback to clean up when done
-        future.add_done_callback(lambda f: self._cleanup_task(task_id))
+        # Add callback to clean up when done and log exceptions
+        future.add_done_callback(lambda f: self._task_done_callback(task_id, f))
+    
+    def _task_done_callback(self, task_id: str, future):
+        """Handle task completion and log any exceptions"""
+        try:
+            # Check if task raised an exception
+            exception = future.exception()
+            if exception:
+                logger.error(f"Task {task_id} failed with exception: {exception}", exc_info=exception)
+        except Exception as e:
+            logger.error(f"Error in task callback for {task_id}: {e}", exc_info=True)
+        finally:
+            self._cleanup_task(task_id)
     
     def _cleanup_task(self, task_id: str):
         """Clean up completed task"""
@@ -315,12 +331,15 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not image:
                             raise ValueError("Failed to generate image")
                         
-                        # Save image
-                        image_path = file_service.save_generated_image(
-                            image, project_id, page_id
-                        )
+                        # 注意：不在子线程中计算版本号，让主线程统一处理
+                        # 这里先用临时文件名保存，主线程会重命名
                         
-                        return (page_id, image_path, None)
+                        # 先保存到临时位置
+                        temp_fd, temp_path = tempfile.mkstemp(suffix='.png', prefix=f'temp_{page_id}_')
+                        os.close(temp_fd)
+                        image.save(temp_path)
+                        
+                        return (page_id, temp_path, None)
                         
                     except Exception as e:
                         import traceback
@@ -338,7 +357,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 
                 # Process results as they complete
                 for future in as_completed(futures):
-                    page_id, image_path, error = future.result()
+                    page_id, temp_image_path, error = future.result()
                     
                     
                     db.session.expire_all()
@@ -350,6 +369,37 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             page.status = 'FAILED'
                             failed += 1
                         else:
+                            
+                            # 计算版本号
+                            existing_versions = PageImageVersion.query.filter_by(page_id=page_id).all()
+                            next_version = len(existing_versions) + 1
+                            
+                            # 从临时文件读取图片并保存到正确位置
+                            try:
+                                image = Image.open(temp_image_path)
+                                image_path = file_service.save_generated_image(
+                                    image, project_id, page_id,
+                                    version_number=next_version
+                                )
+                                image.close()
+                            finally:
+                                # 删除临时文件
+                                if os.path.exists(temp_image_path):
+                                    os.unlink(temp_image_path)
+                            
+                            # 标记所有旧版本为非当前版本
+                            for version in existing_versions:
+                                version.is_current = False
+                            
+                            # 创建新版本记录
+                            new_version = PageImageVersion(
+                                page_id=page_id,
+                                image_path=image_path,
+                                version_number=next_version,
+                                is_current=True
+                            )
+                            db.session.add(new_version)
+                            
                             page.generated_image_path = image_path
                             page.status = 'COMPLETED'
                             completed += 1
