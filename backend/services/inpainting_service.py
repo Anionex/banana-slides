@@ -91,7 +91,6 @@ class InpaintingService:
         expand_pixels: int = 5,
         merge_bboxes: bool = False,
         merge_threshold: int = 10,
-        use_retry: bool = True,
         save_mask_path: Optional[str] = None,
         full_page_image: Optional[Image.Image] = None,
         crop_box: Optional[tuple] = None
@@ -108,7 +107,6 @@ class InpaintingService:
             expand_pixels: 扩展像素数，让掩码区域略微扩大（默认5像素）
             merge_bboxes: 是否合并重叠或相邻的边界框（默认False）
             merge_threshold: 合并阈值，边界框距离小于此值时会合并（默认10像素）
-            use_retry: 是否使用重试机制（默认True）
             save_mask_path: Mask 保存路径（可选）
             full_page_image: 完整的 PPT 页面图像（仅用于 Gemini provider）
             crop_box: 裁剪框 (x0, y0, x1, y1)，从完整页面结果中裁剪的区域（仅用于 Gemini provider）
@@ -154,22 +152,13 @@ class InpaintingService:
                 except Exception as e:
                     logger.warning(f"⚠️ 保存mask图像失败: {e}")
             
-            # 调用 inpainting 服务
-            if use_retry:
-                result = self.provider.inpaint_with_retry(
-                    original_image=image,
-                    mask_image=mask,
-                    max_retries=self.config.VOLCENGINE_INPAINTING_MAX_RETRIES,
-                    full_page_image=full_page_image,
-                    crop_box=crop_box
-                )
-            else:
-                result = self.provider.inpaint_image(
-                    original_image=image,
-                    mask_image=mask,
-                    full_page_image=full_page_image,
-                    crop_box=crop_box
-                )
+            # 调用 inpainting 服务（已内置重试逻辑）
+            result = self.provider.inpaint_image(
+                original_image=image,
+                mask_image=mask,
+                full_page_image=full_page_image,
+                crop_box=crop_box
+            )
             
             if result is not None:
                 logger.info(f"图像消除成功，结果尺寸: {result.size}")
@@ -213,11 +202,10 @@ class InpaintingService:
             
             logger.info(f"反向掩码已生成，尺寸: {mask.size}")
             
-            # 调用火山引擎 inpainting 服务
-            result = self.provider.inpaint_with_retry(
+            # 调用 inpainting 服务（已内置重试逻辑）
+            result = self.provider.inpaint_image(
                 original_image=image,
-                mask_image=mask,
-                max_retries=self.config.VOLCENGINE_INPAINTING_MAX_RETRIES
+                mask_image=mask
             )
             
             if result is not None:
