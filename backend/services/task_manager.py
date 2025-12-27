@@ -7,12 +7,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any
 from datetime import datetime
-from models import db, Task, Page, Material
-from models import PageImageVersion
-from PIL import Image
-from pathlib import Path                       
-import tempfile
-import os
+from sqlalchemy import func
+from models import db, Task, Page, Material, PageImageVersion
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +63,66 @@ class TaskManager:
 
 # Global task manager instance
 task_manager = TaskManager(max_workers=4)
+
+
+def save_image_with_version(image, project_id: str, page_id: str, file_service, 
+                            page_obj=None, image_format: str = 'PNG') -> tuple[str, int]:
+    """
+    保存图片并创建历史版本记录的公共函数
+    
+    Args:
+        image: PIL Image 对象
+        project_id: 项目ID
+        page_id: 页面ID
+        file_service: FileService 实例
+        page_obj: Page 对象（可选，如果提供则更新页面状态）
+        image_format: 图片格式，默认 PNG
+    
+    Returns:
+        tuple: (image_path, version_number) - 图片路径和版本号
+    
+    这个函数会：
+    1. 计算下一个版本号（使用 MAX 查询确保安全）
+    2. 标记所有旧版本为非当前版本
+    3. 保存图片到最终位置
+    4. 创建新版本记录
+    5. 如果提供了 page_obj，更新页面状态和图片路径
+    """
+    # 使用 MAX 查询确保版本号安全（即使有版本被删除也不会重复）
+    max_version = db.session.query(func.max(PageImageVersion.version_number)).filter_by(page_id=page_id).scalar() or 0
+    next_version = max_version + 1
+    
+    # 批量更新：标记所有旧版本为非当前版本（使用单条 SQL 更高效）
+    PageImageVersion.query.filter_by(page_id=page_id).update({'is_current': False})
+    
+    # 保存图片到最终位置（使用版本号）
+    image_path = file_service.save_generated_image(
+        image, project_id, page_id,
+        version_number=next_version,
+        image_format=image_format
+    )
+    
+    # 创建新版本记录
+    new_version = PageImageVersion(
+        page_id=page_id,
+        image_path=image_path,
+        version_number=next_version,
+        is_current=True
+    )
+    db.session.add(new_version)
+    
+    # 如果提供了 page_obj，更新页面状态和图片路径
+    if page_obj:
+        page_obj.generated_image_path = image_path
+        page_obj.status = 'COMPLETED'
+        page_obj.updated_at = datetime.utcnow()
+    
+    # 提交事务
+    db.session.commit()
+    
+    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}")
+    
+    return image_path, next_version
 
 
 def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
@@ -244,12 +301,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
             pages_data = ai_service.flatten_outline(outline)
             
-            # Get template path if use_template
-            ref_image_path = None
-            if use_template:
-                ref_image_path = file_service.get_template_path(project_id)
-                if not ref_image_path:
-                    raise ValueError("No template image found for project")
+            # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
+            # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
             
             # Initialize progress
             task.set_progress({
@@ -311,6 +364,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 page_additional_ref_images = image_urls
                                 has_material_images = True
                         
+                        # 在子线程中动态获取模板路径，确保使用最新模板
+                        page_ref_image_path = None
+                        if use_template:
+                            page_ref_image_path = file_service.get_template_path(project_id)
+                            if not page_ref_image_path:
+                                raise ValueError("No template image found for project")
+                        
                         # Generate image prompt
                         prompt = ai_service.generate_image_prompt(
                             outline, page_data, desc_text, page_index,
@@ -323,7 +383,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         # Generate image
                         logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
                         image = ai_service.generate_image(
-                            prompt, ref_image_path, aspect_ratio, resolution,
+                            prompt, page_ref_image_path, aspect_ratio, resolution,
                             additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
                         )
                         logger.info(f"✅ Image generated successfully for page {page_index}")
@@ -331,15 +391,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not image:
                             raise ValueError("Failed to generate image")
                         
-                        # 注意：不在子线程中计算版本号，让主线程统一处理
-                        # 这里先用临时文件名保存，主线程会重命名
+                        # 优化：直接在子线程中计算版本号并保存到最终位置
+                        # 每个页面独立，使用数据库事务保证版本号原子性，避免临时文件
+                        image_path, next_version = save_image_with_version(
+                            image, project_id, page_id, file_service, page_obj=page_obj
+                        )
                         
-                        # 先保存到临时位置
-                        temp_fd, temp_path = tempfile.mkstemp(suffix='.png', prefix=f'temp_{page_id}_')
-                        os.close(temp_fd)
-                        image.save(temp_path)
-                        
-                        return (page_id, temp_path, None)
+                        return (page_id, image_path, None)
                         
                     except Exception as e:
                         import traceback
@@ -357,54 +415,22 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 
                 # Process results as they complete
                 for future in as_completed(futures):
-                    page_id, temp_image_path, error = future.result()
-                    
+                    page_id, image_path, error = future.result()
                     
                     db.session.expire_all()
                     
-                    # Update page in database
+                    # Update page in database (主要是为了更新失败状态)
                     page = Page.query.get(page_id)
                     if page:
                         if error:
                             page.status = 'FAILED'
                             failed += 1
+                            db.session.commit()
                         else:
-                            
-                            # 计算版本号
-                            existing_versions = PageImageVersion.query.filter_by(page_id=page_id).all()
-                            next_version = len(existing_versions) + 1
-                            
-                            # 从临时文件读取图片并保存到正确位置
-                            try:
-                                image = Image.open(temp_image_path)
-                                image_path = file_service.save_generated_image(
-                                    image, project_id, page_id,
-                                    version_number=next_version
-                                )
-                                image.close()
-                            finally:
-                                # 删除临时文件
-                                if os.path.exists(temp_image_path):
-                                    os.unlink(temp_image_path)
-                            
-                            # 标记所有旧版本为非当前版本
-                            for version in existing_versions:
-                                version.is_current = False
-                            
-                            # 创建新版本记录
-                            new_version = PageImageVersion(
-                                page_id=page_id,
-                                image_path=image_path,
-                                version_number=next_version,
-                                is_current=True
-                            )
-                            db.session.add(new_version)
-                            
-                            page.generated_image_path = image_path
-                            page.status = 'COMPLETED'
+                            # 图片已在子线程中保存并创建版本记录，这里只需要更新计数
                             completed += 1
-                        
-                        db.session.commit()
+                            # 刷新页面对象以获取最新状态
+                            db.session.refresh(page)
                     
                     # Update task progress
                     task = Task.query.get(task_id)
@@ -526,34 +552,10 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             if not image:
                 raise ValueError("Failed to generate image")
             
-            # Calculate next version number
-            from models import PageImageVersion
-            existing_versions = PageImageVersion.query.filter_by(page_id=page_id).all()
-            next_version = len(existing_versions) + 1
-            
-            # Save image with version number
-            image_path = file_service.save_generated_image(
-                image, project_id, page_id, 
-                version_number=next_version
+            # 保存图片并创建历史版本记录
+            image_path, next_version = save_image_with_version(
+                image, project_id, page_id, file_service, page_obj=page
             )
-            
-            # Mark all previous versions as not current
-            for version in existing_versions:
-                version.is_current = False
-            
-            # Create new version record
-            new_version = PageImageVersion(
-                page_id=page_id,
-                image_path=image_path,
-                version_number=next_version,
-                is_current=True
-            )
-            db.session.add(new_version)
-            
-            # Update page with current image path
-            page.generated_image_path = image_path
-            page.status = 'COMPLETED'
-            page.updated_at = datetime.utcnow()
             
             # Mark task as completed
             task.status = 'COMPLETED'
@@ -649,34 +651,10 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             if not image:
                 raise ValueError("Failed to edit image")
             
-            # Calculate next version number
-            from models import PageImageVersion
-            existing_versions = PageImageVersion.query.filter_by(page_id=page_id).all()
-            next_version = len(existing_versions) + 1
-            
-            # Save edited image with version number
-            image_path = file_service.save_generated_image(
-                image, project_id, page_id,
-                version_number=next_version
+            # 保存编辑后的图片并创建历史版本记录
+            image_path, next_version = save_image_with_version(
+                image, project_id, page_id, file_service, page_obj=page
             )
-            
-            # Mark all previous versions as not current
-            for version in existing_versions:
-                version.is_current = False
-            
-            # Create new version record
-            new_version = PageImageVersion(
-                page_id=page_id,
-                image_path=image_path,
-                version_number=next_version,
-                is_current=True
-            )
-            db.session.add(new_version)
-            
-            # Update page with current image path
-            page.generated_image_path = image_path
-            page.status = 'COMPLETED'
-            page.updated_at = datetime.utcnow()
             
             # Mark task as completed
             task.status = 'COMPLETED'
