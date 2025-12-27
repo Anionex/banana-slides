@@ -26,6 +26,11 @@ class PageImageVersion(db.Model):
         """Convert to dictionary"""
         # Get project_id from page relationship
         project_id = self.page.project_id if self.page else None
+        # Format created_at with UTC timezone indicator for proper frontend parsing
+        created_at_str = None
+        if self.created_at:
+            # Add 'Z' suffix to indicate UTC timezone, so frontend can parse it correctly
+            created_at_str = self.created_at.isoformat() + 'Z' if not self.created_at.tzinfo else self.created_at.isoformat()
         return {
             'version_id': self.id,
             'page_id': self.page_id,
@@ -33,7 +38,7 @@ class PageImageVersion(db.Model):
             'image_url': f'/files/{project_id}/pages/{self.image_path.split("/")[-1]}' if self.image_path and project_id else None,
             'version_number': self.version_number,
             'is_current': self.is_current,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_at': created_at_str,
         }
     
     def __repr__(self):
