@@ -71,6 +71,12 @@ cp .env.example .env
 ```env
 GOOGLE_API_KEY=your-google-api-key
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+
+# 火山引擎配置（可选，用于 Inpainting 图像消除功能）
+VOLCENGINE_ACCESS_KEY=your-volcengine-access-key
+VOLCENGINE_SECRET_KEY=your-volcengine-secret-key
+VOLCENGINE_INPAINTING_TIMEOUT=60
+VOLCENGINE_INPAINTING_MAX_RETRIES=3
 ```
 
 ### 3. 初始化 / 升级数据库结构（Alembic 迁移）
@@ -155,7 +161,30 @@ uv run python app.py
 - 生成图片管理
 - 自动清理机制
 
-### 4. 数据持久化
+### 4. Inpainting 图像消除（可选）
+
+基于火山引擎的 Inpainting 服务，支持：
+- 根据边界框（bbox）精确消除图像区域
+- 自动生成掩码图像
+- 重新生成背景（保留前景，消除其他区域）
+- 支持批量处理和重试机制
+
+使用方法：
+```python
+from services.inpainting_service import InpaintingService, remove_regions
+from PIL import Image
+
+# 方式1：使用服务类
+service = InpaintingService()
+image = Image.open('original.png')
+bboxes = [(100, 100, 200, 200), (300, 150, 400, 250)]  # 要消除的区域
+result = service.remove_regions_by_bboxes(image, bboxes)
+
+# 方式2：使用便捷函数
+result = remove_regions(image, bboxes, expand_pixels=5)
+```
+
+### 5. 数据持久化
 
 使用 SQLite + SQLAlchemy：
 - 轻量级，无需额外配置

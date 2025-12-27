@@ -657,10 +657,30 @@ export const SlidePreview: React.FC = () => {
   }
 
   if (isGlobalLoading) {
+    // 根据任务进度显示不同的消息
+    let loadingMessage = "处理中...";
+    if (taskProgress && typeof taskProgress === 'object') {
+      const progressData = taskProgress as any;
+      if (progressData.current_step) {
+        // 使用后端提供的当前步骤信息
+        const stepMap: Record<string, string> = {
+          'Generating clean backgrounds': '正在生成干净背景...',
+          'Creating PDF': '正在创建PDF...',
+          'Parsing with MinerU': '正在解析内容...',
+          'Creating editable PPTX': '正在创建可编辑PPTX...',
+          'Complete': '完成！'
+        };
+        loadingMessage = stepMap[progressData.current_step] || progressData.current_step;
+      } else if (progressData.total && progressData.completed !== undefined) {
+        // 默认的进度消息
+        loadingMessage = `处理中 (${progressData.completed}/${progressData.total})...`;
+      }
+    }
+    
     return (
       <Loading
         fullscreen
-        message="生成图片中..."
+        message={loadingMessage}
         progress={taskProgress || undefined}
       />
     );

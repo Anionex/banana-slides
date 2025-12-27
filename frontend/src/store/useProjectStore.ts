@@ -55,7 +55,7 @@ interface ProjectState {
   // 导出
   exportPPTX: () => Promise<void>;
   exportPDF: () => Promise<void>;
-  exportEditablePPTX: () => Promise<void>;
+  exportEditablePPTX: (filename?: string) => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
@@ -388,6 +388,25 @@ const debouncedUpdatePage = debounce(
         // 检查任务状态
         if (task.status === 'COMPLETED') {
           console.log(`[轮询] Task ${taskId} 已完成，刷新项目数据`);
+          
+          // 如果是导出可编辑PPTX任务，检查是否有下载链接
+          if (task.task_type === 'EXPORT_EDITABLE_PPTX' && task.progress) {
+            const progress = typeof task.progress === 'string' 
+              ? JSON.parse(task.progress) 
+              : task.progress;
+            
+            const downloadUrl = progress?.download_url;
+            if (downloadUrl) {
+              console.log('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
+              // 延迟一下，确保状态更新完成后再打开下载链接
+              setTimeout(() => {
+                window.open(downloadUrl, '_blank');
+              }, 500);
+            } else {
+              console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
+            }
+          }
+          
           set({ 
             activeTaskId: null, 
             taskProgress: null, 
@@ -843,28 +862,19 @@ const debouncedUpdatePage = debounce(
     }
   },
 
-  // 导出可编辑PPTX
-  exportEditablePPTX: async () => {
-    const { currentProject } = get();
+  // 导出可编辑PPTX（异步任务）
+  exportEditablePPTX: async (filename?: string) => {
+    const { currentProject, startAsyncTask } = get();
     if (!currentProject) return;
 
-    set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.exportEditablePPTX(currentProject.id);
-      // 优先使用相对路径，避免 Docker 环境下的端口问题
-      const downloadUrl =
-        response.data?.download_url || response.data?.download_url_absolute;
-
-      if (!downloadUrl) {
-        throw new Error('导出链接获取失败');
-      }
-
-      // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      console.log('[导出可编辑PPTX] 启动异步导出任务...');
+      // startAsyncTask 中的 pollTask 会在任务完成时自动处理下载
+      await startAsyncTask(() => api.exportEditablePPTX(currentProject.id, filename));
+      console.log('[导出可编辑PPTX] 异步任务完成');
     } catch (error: any) {
+      console.error('[导出可编辑PPTX] 导出失败:', error);
       set({ error: error.message || '导出可编辑PPTX失败' });
-    } finally {
-      set({ isGlobalLoading: false });
     }
   },
 };});

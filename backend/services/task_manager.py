@@ -793,3 +793,437 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def export_editable_pptx_task(task_id: str, project_id: str, filename: str,
+                               ai_service, file_service,
+                               aspect_ratio: str = "16:9",
+                               resolution: str = "2K",
+                               max_workers: int = 8,
+                               app=None):
+    """
+    Background task for exporting editable PPTX
+    
+    Note: app instance MUST be passed from the request context
+    
+    Steps:
+    1. Generate clean background images (remove text, icons) in parallel
+    2. Create temporary PDF from original images
+    3. Parse PDF with MinerU
+    4. Create editable PPTX from MinerU results + clean backgrounds
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+    
+    with app.app_context():
+        import tempfile
+        import os
+        from services.export_service import ExportService
+        from services.file_parser_service import FileParserService
+        from models import Project, Page
+        from PIL import Image
+        
+        # Track temporary files for cleanup
+        clean_background_paths = []
+        tmp_pdf_path = None
+        
+        try:
+            # Update task status to PROCESSING
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+            
+            task.status = 'PROCESSING'
+            db.session.commit()
+            logger.info(f"Task {task_id} status updated to PROCESSING")
+            
+            # Get project and pages
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+            
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            if not pages:
+                raise ValueError("No pages found for project")
+            
+            # Get image paths
+            image_paths = []
+            for page in pages:
+                if page.generated_image_path:
+                    abs_path = file_service.get_absolute_path(page.generated_image_path)
+                    image_paths.append(abs_path)
+            
+            if not image_paths:
+                raise ValueError("No generated images found for project")
+            
+            # Initialize progress
+            total_steps = len(image_paths) + 3  # pdf + mineru + backgrounds + pptx
+            task.set_progress({
+                "total": total_steps,
+                "completed": 0,
+                "failed": 0,
+                "current_step": "Creating PDF"
+            })
+            db.session.commit()
+            
+            # Step 1: Create temporary PDF from original images (moved before background generation)
+            logger.info("Step 1: Creating PDF for MinerU parsing...")
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
+                tmp_pdf_path = tmp_pdf.name
+            
+            logger.info(f"Creating PDF from {len(image_paths)} images...")
+            ExportService.create_pdf_from_images(image_paths, output_file=tmp_pdf_path)
+            logger.info(f"PDF created: {tmp_pdf_path}")
+            
+            # Update progress: PDF complete
+            task = Task.query.get(task_id)
+            prog = task.get_progress()
+            prog['completed'] = 1
+            prog['current_step'] = "Parsing with MinerU"
+            task.set_progress(prog)
+            db.session.commit()
+            
+            # Step 2: Parse PDF with MinerU
+            logger.info("Parsing PDF with MinerU...")
+            
+            mineru_token = app.config.get('MINERU_TOKEN')
+            mineru_api_base = app.config.get('MINERU_API_BASE', 'https://mineru.net')
+            
+            if not mineru_token:
+                raise ValueError('MinerU token not configured')
+            
+            parser_service = FileParserService(
+                mineru_token=mineru_token,
+                mineru_api_base=mineru_api_base
+            )
+            
+            batch_id, markdown_content, extract_id, error_message, failed_image_count = parser_service.parse_file(
+                file_path=tmp_pdf_path,
+                filename=f'presentation_{project_id}.pdf'
+            )
+            
+            if error_message or not extract_id:
+                error_msg = error_message or 'Failed to parse PDF with MinerU - no extract_id returned'
+                raise ValueError(error_msg)
+            
+            logger.info(f"MinerU parsing completed, extract_id: {extract_id}")
+            
+            # Update progress: MinerU complete
+            task = Task.query.get(task_id)
+            prog = task.get_progress()
+            prog['completed'] = 2
+            prog['current_step'] = "Generating clean backgrounds with inpainting"
+            task.set_progress(prog)
+            db.session.commit()
+            
+            # Step 3: Generate clean backgrounds using inpainting + MinerU bbox
+            logger.info("Step 3: Generating clean backgrounds with inpainting...")
+            from services.export_service_inpainting import InpaintingExportHelper
+            from config import get_config
+            
+            # Get MinerU result directory
+            mineru_result_dir = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                'mineru_files',
+                extract_id
+            )
+            
+            if not os.path.exists(mineru_result_dir):
+                raise ValueError(f'MinerU result directory not found: {mineru_result_dir}')
+            
+            # Check if inpainting is enabled
+            config = get_config()
+            use_inpainting = bool(config.VOLCENGINE_ACCESS_KEY and config.VOLCENGINE_SECRET_KEY)
+            
+            if use_inpainting:
+                logger.info("🚀 Using inpainting for faster background generation")
+            else:
+                logger.info("⚠️ Inpainting disabled (no Volcengine credentials), using original images as backgrounds")
+            
+            clean_background_paths = InpaintingExportHelper.generate_clean_backgrounds_with_inpainting(
+                image_paths=image_paths,
+                mineru_result_dir=mineru_result_dir,
+                use_inpainting=use_inpainting
+            )
+            
+            logger.info(f"Generated {len(clean_background_paths)} clean backgrounds")
+            
+            # Update progress: backgrounds complete
+            task = Task.query.get(task_id)
+            prog = task.get_progress()
+            prog['completed'] = 3
+            prog['current_step'] = "Creating editable PPTX"
+            task.set_progress(prog)
+            db.session.commit()
+            
+            # Step 4: Create editable PPTX from MinerU results
+            logger.info(f"Step 4: Creating editable PPTX from MinerU results: {mineru_result_dir}")
+            
+            # Determine export directory and filename
+            exports_dir = file_service._get_exports_dir(project_id)
+            if not filename.endswith('.pptx'):
+                filename += '.pptx'
+            
+            output_path = os.path.join(exports_dir, filename)
+            
+            # 检查文件是否被占用，如果是则生成新文件名
+            if os.path.exists(output_path):
+                try:
+                    # 尝试以写模式打开文件，检查是否可写
+                    with open(output_path, 'a'):
+                        pass
+                except (IOError, PermissionError) as e:
+                    # 文件被占用，生成新文件名
+                    logger.warning(f"文件被占用: {output_path}，生成新文件名")
+                    base_name = filename.rsplit('.pptx', 1)[0]
+                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                    filename = f"{base_name}_{timestamp}.pptx"
+                    output_path = os.path.join(exports_dir, filename)
+                    logger.info(f"新文件名: {filename}")
+            
+            # Get slide dimensions from first image
+            first_img = Image.open(image_paths[0])
+            slide_width, slide_height = first_img.size
+            first_img.close()
+            
+            # Generate editable PPTX file with clean background images
+            logger.info(f"Creating editable PPTX with {len(clean_background_paths)} clean background images")
+            ExportService.create_editable_pptx_from_mineru(
+                mineru_result_dir=mineru_result_dir,
+                output_file=output_path,
+                slide_width_pixels=slide_width,
+                slide_height_pixels=slide_height,
+                background_images=clean_background_paths
+            )
+            
+            logger.info(f"Editable PPTX created: {output_path}")
+            
+            # Build download URLs
+            download_path = f"/files/{project_id}/exports/{filename}"
+            
+            # Mark task as completed with download URL in progress
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": total_steps,
+                    "completed": total_steps,
+                    "failed": 0,
+                    "current_step": "Complete",
+                    "download_url": download_path,
+                    "filename": filename,
+                    "used_inpainting": use_inpainting
+                })
+                db.session.commit()
+                logger.info(f"Task {task_id} COMPLETED - Editable PPTX exported (inpainting: {use_inpainting})")
+        
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
+            
+            # Mark task as failed
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+        
+        finally:
+            # Clean up temporary PDF
+            if tmp_pdf_path and os.path.exists(tmp_pdf_path):
+                try:
+                    os.unlink(tmp_pdf_path)
+                    logger.info(f"Cleaned up temporary PDF: {tmp_pdf_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temporary PDF: {str(e)}")
+            
+            # Clean up temporary clean background images
+            if clean_background_paths:
+                for bg_path in clean_background_paths:
+                    # Only delete if it's a temporary file (not the original)
+                    if bg_path not in image_paths and os.path.exists(bg_path):
+                        try:
+                            os.unlink(bg_path)
+                            logger.debug(f"Cleaned up temporary background: {bg_path}")
+                        except Exception as e:
+                            logger.warning(f"Failed to clean up temporary background: {str(e)}")
+
+
+def export_editable_pptx_with_recursive_analysis_task(
+    task_id: str, 
+    project_id: str, 
+    filename: str,
+    file_service,
+    max_depth: int = 2,
+    max_workers: int = 4,
+    app=None
+):
+    """
+    使用递归图片可编辑化分析导出可编辑PPTX的后台任务
+    
+    这是新的架构方法，使用ImageEditabilityService进行递归版面分析。
+    与旧方法的区别：
+    - 不再假设图片是16:9
+    - 支持任意尺寸和分辨率
+    - 递归分析图片中的子图和图表
+    - 更智能的坐标映射和元素提取
+    - 不需要 ai_service（使用 ImageEditabilityService 和 MinerU）
+    
+    Args:
+        task_id: 任务ID
+        project_id: 项目ID
+        filename: 输出文件名
+        file_service: 文件服务实例
+        max_depth: 最大递归深度
+        max_workers: 并发处理数
+        app: Flask应用实例
+    """
+    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers})")
+    
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+    
+    with app.app_context():
+        import os
+        from datetime import datetime
+        from PIL import Image
+        from models import Project
+        from services.export_service import ExportService
+        
+        logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
+        
+        try:
+            # Get project
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f'Project {project_id} not found')
+            
+            # Get all pages with images
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            if not pages:
+                raise ValueError('No pages found for project')
+            
+            image_paths = []
+            for page in pages:
+                if page.generated_image_path:
+                    img_path = file_service.get_absolute_path(page.generated_image_path)
+                    if os.path.exists(img_path):
+                        image_paths.append(img_path)
+            
+            if not image_paths:
+                raise ValueError('No generated images found for project')
+            
+            logger.info(f"找到 {len(image_paths)} 张图片")
+            
+            # 初始化任务进度
+            task = Task.query.get(task_id)
+            total_steps = 3  # 1: 递归分析, 2: 创建PPTX, 3: 完成
+            task.set_progress({
+                "total": total_steps,
+                "completed": 0,
+                "failed": 0,
+                "current_step": "开始递归分析..."
+            })
+            db.session.commit()
+            
+            # Step 1: 使用递归分析方法创建可编辑PPTX
+            logger.info("Step 1: 使用递归分析方法处理图片...")
+            
+            # 准备输出路径
+            exports_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports')
+            os.makedirs(exports_dir, exist_ok=True)
+            
+            # Handle filename collision
+            if not filename.endswith('.pptx'):
+                filename += '.pptx'
+            
+            output_path = os.path.join(exports_dir, filename)
+            if os.path.exists(output_path):
+                base_name = filename.rsplit('.', 1)[0]
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                filename = f"{base_name}_{timestamp}.pptx"
+                output_path = os.path.join(exports_dir, filename)
+                logger.info(f"文件名冲突，使用新文件名: {filename}")
+            
+            # 获取MinerU配置
+            mineru_token = app.config.get('MINERU_TOKEN')
+            mineru_api_base = app.config.get('MINERU_API_BASE', 'https://mineru.net')
+            
+            if not mineru_token:
+                raise ValueError('MinerU token not configured')
+            
+            # 获取第一张图片的尺寸作为参考
+            first_img = Image.open(image_paths[0])
+            slide_width, slide_height = first_img.size
+            first_img.close()
+            
+            logger.info(f"幻灯片尺寸: {slide_width}x{slide_height}")
+            logger.info(f"递归深度: {max_depth}, 并发数: {max_workers}")
+            
+            # 更新进度
+            task = Task.query.get(task_id)
+            prog = task.get_progress()
+            prog['completed'] = 1
+            prog['current_step'] = f"递归分析图片中（深度={max_depth}）..."
+            task.set_progress(prog)
+            db.session.commit()
+            
+            # Step 2: 调用新的导出方法
+            logger.info("Step 2: 创建可编辑PPTX...")
+            ExportService.create_editable_pptx_with_recursive_analysis(
+                image_paths=image_paths,
+                output_file=output_path,
+                slide_width_pixels=slide_width,
+                slide_height_pixels=slide_height,
+                mineru_token=mineru_token,
+                mineru_api_base=mineru_api_base,
+                max_depth=max_depth,
+                max_workers=max_workers
+            )
+            
+            logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
+            
+            # 更新进度
+            task = Task.query.get(task_id)
+            prog = task.get_progress()
+            prog['completed'] = 2
+            prog['current_step'] = "完成"
+            task.set_progress(prog)
+            db.session.commit()
+            
+            # Step 3: 标记任务完成
+            download_path = f"/files/{project_id}/exports/{filename}"
+            
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": total_steps,
+                    "completed": total_steps,
+                    "failed": 0,
+                    "current_step": "完成",
+                    "download_url": download_path,
+                    "filename": filename,
+                    "method": "recursive_analysis",
+                    "max_depth": max_depth
+                })
+                db.session.commit()
+                logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
+        
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
+            
+            # 标记任务失败
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()

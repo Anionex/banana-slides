@@ -391,6 +391,33 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
     return prompt
 
 
+def get_clean_background_prompt() -> str:
+    """
+    生成干净背景图片的编辑指令 prompt
+    用于导出可编辑 PPTX 时移除文字和图标
+    
+    Returns:
+        编辑指令字符串
+    """
+    return """\
+{
+    "task": "get_clean_background_of_the_image",
+    "remove_item": [
+        "text",
+        "icon",
+        "symbol",
+        "decoration",
+        "charts"
+    ],
+    "keep_item": [
+        "background_color",
+        "background_gradient",
+        "background_design"
+    ]
+}
+
+"""
+
 def get_description_to_outline_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """
     从描述文本解析出大纲的 prompt

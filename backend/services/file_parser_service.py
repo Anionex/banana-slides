@@ -54,7 +54,8 @@ class FileParserService:
                  google_api_key: str = "", google_api_base: str = "",
                  openai_api_key: str = "", openai_api_base: str = "",
                  image_caption_model: str = "gemini-3-flash-preview",
-                 provider_format: str = None):
+                 provider_format: str = None,
+                 mineru_model_version: str = "vlm"):
         """
         Initialize the file parser service
         
@@ -67,9 +68,11 @@ class FileParserService:
             openai_api_base: OpenAI API base URL
             image_caption_model: Model to use for image captioning
             provider_format: AI provider format ('gemini' or 'openai'). If not provided, reads from environment variable.
+            mineru_model_version: MinerU model version ('vlm' or 'pipeline'). Default is 'vlm'.
         """
         self.mineru_token = mineru_token
         self.mineru_api_base = mineru_api_base
+        self.mineru_model_version = mineru_model_version
         self.get_upload_url_api = f"{mineru_api_base}/api/v4/file-urls/batch"
         self.get_result_api_template = f"{mineru_api_base}/api/v4/extract-results/batch/{{}}"
         
@@ -281,7 +284,7 @@ class FileParserService:
         
         upload_data = {
             "files": [{"name": filename}],
-            "model_version": "vlm"  # or "pipeline"
+            "model_version": self.mineru_model_version  # "vlm" or "pipeline"
         }
         
         try:
