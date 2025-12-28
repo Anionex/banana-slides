@@ -536,27 +536,153 @@ class ImageEditabilityService:
             # 只处理body单元格
             body_cells = [cell for cell in table_cells if cell.get('section') == 'body']
             
-            for idx, cell in enumerate(body_cells):
+            # 收集所有有效单元格的bbox
+            valid_cells = []
+            for cell in body_cells:
+                if cell.get('text', '').strip():
+                    valid_cells.append(cell)
+            
+            if not valid_cells:
+                logger.warning(f"{'  ' * depth}没有有效的单元格")
+                return elements
+            
+            # 目标最小间距（像素）
+            TARGET_MIN_GAP = 6
+            # 每次收缩步长（比例）
+            SHRINK_STEP = 0.02  # 2%
+            # 最小保留比例
+            MIN_SIZE_RATIO = 0.4  # 保留至少40%
+            # 最大迭代次数
+            MAX_ITERATIONS = 20
+            
+            # 初始化单元格bbox（可能会被迭代收缩）
+            cell_data = []
+            for cell in valid_cells:
+                bbox = cell.get('bbox', [0, 0, 0, 0])
+                x0, y0, x1, y1 = bbox
+                cell_data.append({
+                    'cell': cell,
+                    'original_bbox': bbox,
+                    'current_bbox': [float(x0), float(y0), float(x1), float(y1)],
+                    'original_width': x1 - x0,
+                    'original_height': y1 - y0
+                })
+            
+            def calculate_min_gap(cell_data):
+                """计算当前所有单元格间的最小间距（支持合并单元格）"""
+                if len(cell_data) <= 1:
+                    return float('inf')
+                
+                min_gap = float('inf')
+                for i, data1 in enumerate(cell_data):
+                    x0_1, y0_1, x1_1, y1_1 = data1['current_bbox']
+                    for j, data2 in enumerate(cell_data):
+                        if i >= j:
+                            continue
+                        x0_2, y0_2, x1_2, y1_2 = data2['current_bbox']
+                        
+                        # 计算两个矩形之间的最小距离（考虑所有方向）
+                        # 不依赖行列对齐判断，直接计算实际间距
+                        
+                        # 检查X方向是否有重叠
+                        x_overlap = not (x1_1 <= x0_2 or x1_2 <= x0_1)
+                        # 检查Y方向是否有重叠
+                        y_overlap = not (y1_1 <= y0_2 or y1_2 <= y0_1)
+                        
+                        if x_overlap and y_overlap:
+                            # 两个单元格重叠，间距为负数
+                            # 计算重叠区域的大小
+                            overlap_x = min(x1_1, x1_2) - max(x0_1, x0_2)
+                            overlap_y = min(y1_1, y1_2) - max(y0_1, y0_2)
+                            min_gap = min(min_gap, -min(overlap_x, overlap_y))
+                        elif x_overlap:
+                            # X方向有重叠，Y方向分离（垂直相邻）
+                            if y1_1 <= y0_2:
+                                gap = y0_2 - y1_1
+                            else:
+                                gap = y0_1 - y1_2
+                            min_gap = min(min_gap, gap)
+                        elif y_overlap:
+                            # Y方向有重叠，X方向分离（水平相邻）
+                            if x1_1 <= x0_2:
+                                gap = x0_2 - x1_1
+                            else:
+                                gap = x0_1 - x1_2
+                            min_gap = min(min_gap, gap)
+                        else:
+                            # 两个方向都不重叠（对角相邻），计算最近角的距离
+                            # 这种情况一般不需要考虑，因为不是直接相邻
+                            pass
+                
+                return min_gap
+            
+            # 迭代收缩直到满足要求
+            iteration = 0
+            total_shrink_ratio = 0
+            
+            while iteration < MAX_ITERATIONS:
+                current_min_gap = calculate_min_gap(cell_data)
+                
+                # 检查是否满足要求
+                if current_min_gap >= TARGET_MIN_GAP:
+                    if iteration == 0:
+                        logger.info(f"{'  ' * depth}单元格间距已满足要求（最小={current_min_gap:.1f}px ≥ {TARGET_MIN_GAP}px），无需收缩")
+                    else:
+                        logger.info(f"{'  ' * depth}收缩完成：经过{iteration}次迭代，最小间距={current_min_gap:.1f}px，总收缩比例={total_shrink_ratio*100:.1f}%")
+                    break
+                
+                # 继续收缩
+                all_cells_can_shrink = True
+                for data in cell_data:
+                    x0, y0, x1, y1 = data['current_bbox']
+                    current_width = x1 - x0
+                    current_height = y1 - y0
+                    
+                    # 检查是否还能收缩（是否达到最小尺寸）
+                    min_width = data['original_width'] * MIN_SIZE_RATIO
+                    min_height = data['original_height'] * MIN_SIZE_RATIO
+                    
+                    if current_width <= min_width or current_height <= min_height:
+                        all_cells_can_shrink = False
+                        break
+                    
+                    # 计算本次收缩量
+                    shrink_x = max(0.5, current_width * SHRINK_STEP)
+                    shrink_y = max(0.5, current_height * SHRINK_STEP)
+                    
+                    # 应用收缩
+                    new_x0 = x0 + shrink_x
+                    new_y0 = y0 + shrink_y
+                    new_x1 = x1 - shrink_x
+                    new_y1 = y1 - shrink_y
+                    
+                    # 确保不超过最小尺寸
+                    if (new_x1 - new_x0) < min_width:
+                        new_x0 = x0 + (current_width - min_width) / 2
+                        new_x1 = x1 - (current_width - min_width) / 2
+                    if (new_y1 - new_y0) < min_height:
+                        new_y0 = y0 + (current_height - min_height) / 2
+                        new_y1 = y1 - (current_height - min_height) / 2
+                    
+                    # 更新bbox
+                    data['current_bbox'] = [new_x0, new_y0, new_x1, new_y1]
+                
+                if not all_cells_can_shrink:
+                    logger.warning(f"{'  ' * depth}达到最小尺寸限制，停止收缩。当前最小间距={current_min_gap:.1f}px")
+                    break
+                
+                total_shrink_ratio += SHRINK_STEP
+                iteration += 1
+            
+            if iteration >= MAX_ITERATIONS:
+                current_min_gap = calculate_min_gap(cell_data)
+                logger.warning(f"{'  ' * depth}达到最大迭代次数({MAX_ITERATIONS})，当前最小间距={current_min_gap:.1f}px")
+            
+            # 使用最终的收缩后bbox创建元素
+            for idx, data in enumerate(cell_data):
+                cell = data['cell']
                 text = cell.get('text', '')
-                cell_bbox = cell.get('bbox', [0, 0, 0, 0])
-                
-                if not text.strip():
-                    continue
-                
-                # 单元格bbox是相对于表格图片的
-                cell_x0, cell_y0, cell_x1, cell_y1 = cell_bbox
-                
-                # 百度OCR的bbox有较大的兜底margin，向内收缩一圈
-                shrink_pixels = 30  # 向内收缩的像素数
-                cell_x0 = cell_x0 + shrink_pixels
-                cell_y0 = cell_y0 + shrink_pixels
-                cell_x1 = cell_x1 - shrink_pixels
-                cell_y1 = cell_y1 - shrink_pixels
-                
-                # 确保收缩后仍然有效
-                if cell_x1 <= cell_x0 or cell_y1 <= cell_y0:
-                    logger.warning(f"单元格 {idx} bbox收缩后无效，跳过: 原始={cell_bbox}")
-                    continue
+                cell_x0, cell_y0, cell_x1, cell_y1 = data['current_bbox']
                 
                 # 创建局部bbox（已收缩）
                 local_bbox = BBox(
@@ -991,9 +1117,10 @@ class ImageEditabilityService:
         image_id: str,
         root_image_size: Tuple[int, int],
         current_image_size: Tuple[int, int],
-        root_image_path: Optional[str] = None
+        root_image_path: Optional[str] = None,
+        max_workers: int = 4
     ):
-        """递归处理子元素
+        """递归处理子元素（并发处理，因为子元素之间无依赖）
         
         Args:
             elements: 待处理的元素列表
@@ -1003,41 +1130,81 @@ class ImageEditabilityService:
             root_image_size: 根图片尺寸
             current_image_size: 当前图片尺寸
             root_image_path: 根图片路径
+            max_workers: 最大并发数（默认4）
         """
+        # 筛选出需要递归处理的元素
+        elements_to_process = []
         for element in elements:
-            if not self._should_recurse_into_element(element, mineru_result_dir, current_image_size):
-                continue
-            
+            if self._should_recurse_into_element(element, mineru_result_dir, current_image_size):
+                child_image_path = element.metadata.get('resolved_image_path')
+                if child_image_path:
+                    elements_to_process.append((element, child_image_path))
+        
+        if not elements_to_process:
+            return
+        
+        # 如果只有一个元素，直接串行处理（避免线程开销）
+        if len(elements_to_process) == 1:
+            element, child_image_path = elements_to_process[0]
             logger.info(f"{'  ' * depth}  → 递归分析子图 {element.element_id} (类型: {element.element_type})")
-            
-            # 获取子图片路径
-            child_image_path = element.metadata.get('resolved_image_path')
-            if not child_image_path:
-                continue
-            
-            # 递归调用make_image_editable，传递element_type用于选择识别服务
             try:
                 child_editable = self.make_image_editable(
                     image_path=child_image_path,
                     depth=depth + 1,
                     parent_id=image_id,
-                    parent_bbox=element.bbox_global,  # 传递全局bbox用于坐标映射
+                    parent_bbox=element.bbox_global,
                     root_image_size=root_image_size,
-                    element_type=element.element_type,  # 传递元素类型
-                    root_image_path=root_image_path  # 传递根图像路径
+                    element_type=element.element_type,
+                    root_image_path=root_image_path
                 )
-                
-                # 将子图的元素添加到当前元素的children
                 element.children = child_editable.elements
                 element.inpainted_background = child_editable.clean_background
-                
-                # 重要：保存子图的 mineru_result_dir，以便在导出时能找到子元素的图片
                 element.metadata['child_mineru_result_dir'] = child_editable.mineru_result_dir
-                
                 logger.info(f"{'  ' * depth}  ✓ 子图分析完成，提取了 {len(child_editable.elements)} 个子元素")
-            
             except Exception as e:
                 logger.error(f"{'  ' * depth}  ✗ 递归处理失败: {e}", exc_info=True)
+            return
+        
+        # 多个元素时，并发处理
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        logger.info(f"{'  ' * depth}  → 并发处理 {len(elements_to_process)} 个子图（max_workers={max_workers}）")
+        
+        def process_single_child(element, child_image_path):
+            """处理单个子元素的函数"""
+            logger.info(f"{'  ' * depth}  → 递归分析子图 {element.element_id} (类型: {element.element_type})")
+            try:
+                child_editable = self.make_image_editable(
+                    image_path=child_image_path,
+                    depth=depth + 1,
+                    parent_id=image_id,
+                    parent_bbox=element.bbox_global,
+                    root_image_size=root_image_size,
+                    element_type=element.element_type,
+                    root_image_path=root_image_path
+                )
+                return (element, child_editable, None)
+            except Exception as e:
+                logger.error(f"{'  ' * depth}  ✗ 递归处理失败: {e}", exc_info=True)
+                return (element, None, str(e))
+        
+        # 使用线程池并发处理
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(process_single_child, element, child_image_path): element
+                for element, child_image_path in elements_to_process
+            }
+            
+            for future in as_completed(futures):
+                element, child_editable, error = future.result()
+                if error:
+                    continue
+                
+                if child_editable:
+                    element.children = child_editable.elements
+                    element.inpainted_background = child_editable.clean_background
+                    element.metadata['child_mineru_result_dir'] = child_editable.mineru_result_dir
+                    logger.info(f"{'  ' * depth}  ✓ 子图分析完成，提取了 {len(child_editable.elements)} 个子元素")
     
     def make_multi_images_editable(
         self,

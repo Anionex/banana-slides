@@ -202,25 +202,25 @@ def visualize_mask_overlay(
         else:
             original_rgba = original_image.copy()
         
-        # 创建红色半透明掩码用于可视化
-        mask_rgba = Image.new('RGBA', original_image.size, (255, 0, 0, 0))
+        # 创建黑色半透明掩码用于可视化
+        mask_rgba = Image.new('RGBA', original_image.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(mask_rgba)
         
-        # 遍历掩码图像，将白色区域绘制为红色半透明
+        # 遍历掩码图像，将白色区域绘制为黑色半透明
         mask_array = mask_image.load()
         mask_rgba_array = mask_rgba.load()
         
         for y in range(mask_image.size[1]):
             for x in range(mask_image.size[0]):
                 pixel = mask_array[x, y]
-                # 如果是白色（或接近白色），设置为红色半透明
+                # 如果是白色（或接近白色），设置为黑色半透明
                 if isinstance(pixel, tuple):
                     brightness = sum(pixel) / len(pixel)
                 else:
                     brightness = pixel
                 
                 if brightness > 200:  # 接近白色
-                    mask_rgba_array[x, y] = (255, 0, 0, int(128 * alpha))
+                    mask_rgba_array[x, y] = (0, 0, 0, int(128 * alpha))
         
         # 叠加
         result = Image.alpha_composite(original_rgba, mask_rgba)

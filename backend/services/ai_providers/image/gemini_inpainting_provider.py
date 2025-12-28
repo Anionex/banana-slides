@@ -16,21 +16,19 @@ logger = logging.getLogger(__name__)
 class GeminiInpaintingProvider:
     """Gemini Inpainting 消除服务（使用 Gemini 2.5 Flash）"""
     
-    DEFAULT_MODEL = "gemini-2.5-flash-image"
-    DEFAULT_PROMPT = (
-        "You are a professional inpainting and intelligent restoration AI. "
-        "In this image, the areas that need to be removed are marked with RED SEMI-TRANSPARENT overlays and RED BORDERS. "
-        "Your task is to remove ALL content (text, logos, diagrams, illustrations, and any graphic elements) from these RED-MARKED areas, "
-        "while keeping the rest of the image completely untouched. "
-        "For every marked region, fill in a realistic, seamless background that perfectly matches the original global visual style, "
-        "local texture, lighting, and color continuity. "
-        "The generated background should be indistinguishable from the surrounding parts, with no obvious artifacts, "
-        "and should look as if nothing was ever removed. "
-        "Do not hallucinate, invent, or introduce any new visual elements—just reconstruct the true background. "
-        "Absolutely preserve the overall composition, layout, perspective, and proportions of the image. "
-        "Only modify the RED-MARKED areas; do not blur, filter, or alter any other regions. "
-        "Output the final image WITHOUT any red markings—they are only guides for you."
-    )
+    # DEFAULT_MODEL = "gemini-2.5-flash-image"
+    DEFAULT_MODEL = "gemini-3-pro-image-preview"
+    DEFAULT_PROMPT = """\
+你是一个专业的图片前景元素去除专家，以极高的精度进行前景元素的去除工作。
+现在用户向你提供了两张不同的图片：
+1. 原始图片
+2. 使用黑色矩形遮罩标注后的图片，黑色矩形区域表示要移除的前景元素，你只需要处理这些区域。
+
+你需要根据原始图片和黑色遮罩信息，重新绘制黑色遮罩标注的区域，去除前景元素，使得这些区域无缝融入周围的画面，就好像前景元素从来没有出现过。如果一个区域被整体标注，请你将其作为一个整体进行移除，而不是只移除其内部的内容。
+
+禁止遗漏任何一个黑色矩形标注的区域。
+
+"""
     
     def __init__(
         self, 
@@ -63,14 +61,14 @@ class GeminiInpaintingProvider:
     @staticmethod
     def create_marked_image(original_image: Image.Image, mask_image: Image.Image) -> Image.Image:
         """
-        在原图上用红色标注需要修复的区域
+        在原图上用纯黑色框标注需要修复的区域
         
         Args:
             original_image: 原始图像
             mask_image: 掩码图像（白色=需要移除的区域）
             
         Returns:
-            标注后的图像（原图 + 红色半透明叠加 + 红色边框）
+            标注后的图像（原图 + 纯黑色矩形覆盖）
         """
         # 确保 mask 和原图尺寸一致
         if mask_image.size != original_image.size:
@@ -94,42 +92,14 @@ class GeminiInpaintingProvider:
         white_threshold = 200
         mask_regions = np.all(mask_array > white_threshold, axis=2)
         
-        # 在标注区域叠加半透明红色（透明度 40%）
-        red_overlay = np.array([255, 0, 0], dtype=np.uint8)
-        alpha = 0.4
-        marked_array[mask_regions] = (
-            marked_array[mask_regions] * (1 - alpha) + red_overlay * alpha
-        ).astype(np.uint8)
+        # 用纯黑色 (0, 0, 0) 完全覆盖标注区域
+        black_overlay = np.array([0, 0, 0], dtype=np.uint8)
+        marked_array[mask_regions] = black_overlay
         
         # 转回 PIL Image
         marked_image = Image.fromarray(marked_array)
         
-        # 绘制红色边框
-        draw = ImageDraw.Draw(marked_image)
-        
-        # 使用形态学操作找到边界
-        from scipy import ndimage
-        
-        # 膨胀操作找到外边界
-        structure = np.ones((5, 5), dtype=bool)
-        dilated = ndimage.binary_dilation(mask_regions, structure=structure)
-        
-        # 边界 = 膨胀区域 - 原区域
-        border = dilated & ~mask_regions
-        
-        # 在边界位置绘制红色像素（使边框更明显）
-        marked_array = np.array(marked_image)
-        marked_array[border] = [255, 0, 0]  # 纯红色边框
-        
-        # 再次膨胀一次，画第二层边框使其更明显
-        structure2 = np.ones((3, 3), dtype=bool)
-        dilated2 = ndimage.binary_dilation(border, structure=structure2)
-        border2 = dilated2 & ~border & ~mask_regions
-        marked_array[border2] = [220, 0, 0]  # 稍暗的红色外边框
-        
-        marked_image = Image.fromarray(marked_array)
-        
-        logger.debug(f"✅ 已创建标注图像，标注了 {np.sum(mask_regions)} 个像素")
+        logger.debug(f"✅ 已创建标注图像，用纯黑色覆盖了 {np.sum(mask_regions)} 个像素")
         
         return marked_image
     
@@ -183,8 +153,8 @@ class GeminiInpaintingProvider:
             final_mask = full_mask
             logger.info(f"📷 完整页面模式: 页面={final_image.size}, mask扩展到={final_mask.size}, 粘贴位置={crop_box}")
 
-            # 2. 创建标注图像（在原图上用红色标注需要修复的区域）
-            logger.info("🎨 创建标注图像（红色标注需要移除的区域）...")
+            # 2. 创建标注图像（在原图上用纯黑色框标注需要修复的区域）
+            logger.info("🎨 创建标注图像（纯黑色框标注需要移除的区域）...")
             marked_image = self.create_marked_image(final_image, final_mask)
             logger.info(f"✅ 标注图像创建完成: {marked_image.size}")
             
@@ -197,9 +167,9 @@ class GeminiInpaintingProvider:
             
             result_image = self.genai_provider.generate_image(
                 prompt=prompt,
-                ref_images=[marked_image],  # 只传标注后的图像
+                ref_images=[full_page_image, marked_image],  
                 aspect_ratio="16:9",
-                resolution="2K"
+                resolution="1K"
             )
             
             if result_image is None:
@@ -219,9 +189,26 @@ class GeminiInpaintingProvider:
                 logger.info(f"🔄 Resize 从 {result_image.size} 到 {final_image.size}")
                 result_image = result_image.resize(final_image.size, Image.LANCZOS)
             
-            # 7. 裁剪回目标尺寸
-            cropped_result = result_image.crop(result_crop_box)
-            logger.info(f"✂️  从完整页面裁剪: {result_image.size} -> {cropped_result.size}")
+            # 7. 合成图像：只在mask区域使用inpaint结果，其他区域保留原图
+            logger.info("🎨 合成图像：将inpaint结果与原图按mask合并...")
+            
+            # 确保所有图像都是RGB模式
+            if result_image.mode != 'RGB':
+                result_image = result_image.convert('RGB')
+            if final_image.mode != 'RGB':
+                final_image = final_image.convert('RGB')
+            
+            # 将mask转换为灰度图（L模式）
+            mask_for_composite = final_mask.convert('L')
+            
+            # 使用PIL的composite方法合成
+            # mask中白色(255)区域使用inpainting结果，黑色(0)区域使用原图
+            composited_image = Image.composite(result_image, final_image, mask_for_composite)
+            logger.info(f"✅ 图像合成完成！尺寸: {composited_image.size}")
+            
+            # 8. 裁剪回目标尺寸
+            cropped_result = composited_image.crop(result_crop_box)
+            logger.info(f"✂️  从完整页面裁剪: {composited_image.size} -> {cropped_result.size}")
             return cropped_result
             
         except Exception as e:

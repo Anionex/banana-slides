@@ -142,6 +142,8 @@ class PPTXBuilder:
         Calculate appropriate font size based on bounding box and text content
         Pure bbox-based calculation without text_level restrictions
         
+        Improved version with more conservative estimates to prevent text overflow.
+        
         Args:
             bbox: Bounding box [x0, y0, x1, y1] in pixels
             text: Text content
@@ -157,21 +159,29 @@ class PPTXBuilder:
         width_px = bbox[2] - bbox[0]
         height_px = bbox[3] - bbox[1]
         
-        # Add small padding to prevent overflow (3% on each side = 6% total reduction)
-        padding_ratio = 0.03
-        width_px = width_px * (1 - 2 * padding_ratio)
-        height_px = height_px * (1 - 2 * padding_ratio)
-        
         # Convert to inches for PPTX calculations
         width_in = width_px / dpi
         height_in = height_px / dpi
         
+        # Account for text box margins (0.05 inch on each side = 0.1 inch total per dimension)
+        # Add extra safety margin (5% on each side) to prevent overflow
+        safety_margin_ratio = 0.05
+        usable_width = width_in * (1 - 2 * safety_margin_ratio) - 0.1  # Additional 0.1 inch for margins
+        usable_height = height_in * (1 - 2 * safety_margin_ratio) - 0.1  # Additional 0.1 inch for margins
+        
+        if usable_width <= 0 or usable_height <= 0:
+            logger.warning(f"Bbox too small for text: {width_px}x{height_px}px, text: '{text[:30]}...'")
+            return self.MIN_FONT_SIZE
+        
         text_length = len(text)
         
-        # For very short text (1-3 chars), use height-based sizing
+        # Detect CJK characters
+        has_cjk = any('\u4e00' <= char <= '\u9fff' or '\u3040' <= char <= '\u30ff' for char in text)
+        
+        # For very short text (1-3 chars), use height-based sizing with safety margin
         if text_length <= 3:
-            # Use 70% of height for single line text
-            estimated_size = height_in * 0.7 * 72  # 72 points per inch
+            # Use 60% of usable height for single line text (more conservative)
+            estimated_size = usable_height * 0.6 * 72  # 72 points per inch
             return max(self.MIN_FONT_SIZE, min(self.MAX_FONT_SIZE, estimated_size))
         
         # Binary search with finer granularity (0.5pt steps)
@@ -183,34 +193,65 @@ class PPTXBuilder:
         
         for font_size in font_sizes:
             # Estimate character width (proportional fonts)
-            # For CJK characters (Chinese/Japanese/Korean), use slightly wider ratio
-            has_cjk = any('\u4e00' <= char <= '\u9fff' or '\u3040' <= char <= '\u30ff' for char in text)
-            char_width_ratio = 0.7 if has_cjk else 0.55
+            # Use more conservative ratios to account for font rendering differences
+            # Different fonts and characters have varying widths
             
-            char_width_pts = font_size * char_width_ratio
+            # Character width ratios - use more conservative ratios to prevent overflow
+            # For single-line text, we need extra safety margin
+            # - CJK: 0.9 (very conservative) - CJK characters are typically square
+            # - Latin: 0.75 (very conservative) - Account for wider characters like 'W', 'M', etc.
+            # For multi-line text, we can be slightly less conservative
+            base_char_width_ratio = 0.9 if has_cjk else 0.75
+            
+            char_width_pts = font_size * base_char_width_ratio
             char_width_in = char_width_pts / 72
             
-            # Account for text box padding (we set 0.05 inch margins)
-            usable_width = width_in - 0.1  # Left + right margins
-            usable_height = height_in - 0.1  # Top + bottom margins
-            
-            if usable_width <= 0 or usable_height <= 0:
-                continue
-            
             # Calculate how many characters fit per line
+            # Use floor to be conservative (round down)
             chars_per_line = max(1, int(usable_width / char_width_in))
             
-            # Calculate required lines
+            # Calculate required lines (ceiling division)
             required_lines = max(1, (text_length + chars_per_line - 1) // chars_per_line)
             
-            # Line height is typically 1.2x font size
-            line_height_in = (font_size * 1.2) / 72
+            # Special handling for single-line text: add extra safety margin
+            # This prevents single-line text from overflowing to two lines
+            if required_lines == 1:
+                # For single line, add extra 15% safety margin to character width
+                # This ensures the text won't wrap unexpectedly due to font rendering differences
+                conservative_char_width_ratio = base_char_width_ratio * 1.15
+                conservative_char_width_in = (font_size * conservative_char_width_ratio) / 72
+                conservative_chars_per_line = max(1, int(usable_width / conservative_char_width_in))
+                
+                # If text doesn't fit in one line with conservative estimate, reduce font size
+                if text_length > conservative_chars_per_line:
+                    continue  # Try smaller font size
+                
+                # Additional check: ensure we have at least 2-3 characters of buffer
+                # This prevents edge cases where text barely fits
+                if conservative_chars_per_line - text_length < 2:
+                    # If we have less than 2 characters of buffer, be more conservative
+                    if conservative_chars_per_line - text_length < 1:
+                        continue  # Not enough buffer, try smaller font size
+            
+            # Line height: Use 1.3x font size (was 1.2x) to account for line spacing
+            # This provides more vertical space and prevents text from being cut off
+            line_height_ratio = 1.3
+            line_height_in = (font_size * line_height_ratio) / 72
             total_height_needed = required_lines * line_height_in
+            
+            # Add small buffer (2% of total height) for safety
+            height_buffer = total_height_needed * 0.02
+            total_height_needed += height_buffer
             
             # If text fits within usable space, this is our size
             if total_height_needed <= usable_height:
                 best_size = font_size
                 break
+        
+        # Additional safety check: if best_size is still MIN_FONT_SIZE, 
+        # it means even the smallest font doesn't fit - log a warning
+        if best_size == self.MIN_FONT_SIZE and text_length > 3:
+            logger.warning(f"Text may overflow: '{text[:50]}...' in bbox {width_px}x{height_px}px")
         
         return best_size
     

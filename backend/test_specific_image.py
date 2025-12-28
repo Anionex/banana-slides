@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     # 测试图片路径（WSL格式）
-    test_image = "/mnt/d/Desktop/5537a63e-b8a0-4073-a38f-2f6fbc16bf63_1766680105235.png"
+    test_image = "/mnt/d/Desktop/banana-slides/test_outputs/b69fee8d-0f97-4ad9-a3a5-1ea5a88085d8_1766468506083.png"
     
     print("\n" + "="*80)
     print("测试递归图片可编辑化服务 - 单张图片导出PPTX")
@@ -66,11 +66,29 @@ def main():
     # 3. 初始化服务
     print("\n[3/5] 初始化 ImageEditabilityService...")
     from services.image_editability_service import ImageEditabilityService
+    from services.inpainting_service import InpaintingService
+    
+    # 初始化Gemini Inpainting服务
+    google_api_key = os.getenv('GOOGLE_API_KEY')
+    google_api_base = os.getenv('GOOGLE_API_BASE')
+    
+    if not google_api_key:
+        print("  ❌ 错误：GOOGLE_API_KEY 未配置")
+        return 1
+    
+    print(f"  Google API Key: {'✅ 已配置' if google_api_key else '❌ 未配置'}")
+    if google_api_base:
+        print(f"  Google API Base: {google_api_base}")
     
     try:
+        # 创建Gemini Inpainting服务
+        gemini_inpainting = InpaintingService(provider_type="gemini")
+        print(f"  ✅ Gemini Inpainting服务已创建")
+        
         service = ImageEditabilityService(
             mineru_token=mineru_token,
             mineru_api_base=mineru_api_base,
+            inpainting_service=gemini_inpainting,  # 传入Gemini服务
             max_depth=1,  # 只分析1层，加快测试
             min_image_size=300,
             min_image_area=90000,
@@ -82,6 +100,7 @@ def main():
             provider_type = type(service.inpainting_service.provider).__name__
             print(f"  ✅ Inpainting服务已启用")
             print(f"     Provider: {provider_type}")
+            print(f"     Provider类型: {service.inpainting_service.provider_type}")
         else:
             print("  ⚠️  Inpainting服务未启用（将跳过背景生成）")
             
@@ -97,7 +116,7 @@ def main():
     print("  1) 转换为PDF")
     print("  2) 上传MinerU解析")
     print("  3) 提取元素bbox和内容")
-    print("  4) 使用Volcengine Inpainting生成clean background")
+    print("  4) 使用Gemini Inpainting生成clean background")
     print("  5) 检查是否有子图需要递归分析")
     print("\n  请等待...")
     
@@ -185,7 +204,7 @@ def main():
     print(f"\n输出文件: {output_file}")
     print("\n使用的技术:")
     print("  • MinerU: 版面分析和元素提取")
-    print("  • Volcengine Inpainting: 生成clean background")
+    print("  • Gemini Inpainting: 生成clean background（纯黑色mask标注）")
     print("  • 递归分析: 识别图片中的子图和图表")
     print("  • 智能坐标映射: 父子坐标转换")
     print("\n请打开PPTX文件查看可编辑结果！\n")

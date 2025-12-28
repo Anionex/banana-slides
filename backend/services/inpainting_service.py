@@ -236,7 +236,7 @@ class InpaintingService:
             alpha: 掩码透明度
             
         Returns:
-            叠加了红色半透明掩码的预览图
+            叠加了黑色半透明掩码的预览图
         """
         mask = create_mask_from_image_and_bboxes(image, bboxes, expand_pixels)
         return visualize_mask_overlay(image, mask, alpha)

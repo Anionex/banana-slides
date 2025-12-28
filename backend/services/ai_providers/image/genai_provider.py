@@ -18,35 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class GenAIImageProvider(ImageProvider):
-    """Image generation using Google GenAI SDK"""
-    
-    @staticmethod
-    def convert_image_to_rgb(image: Image.Image) -> Image.Image:
-        """
-        将图像转换为 RGB 格式（Gemini API 要求）
-        
-        Args:
-            image: PIL Image 对象
-            
-        Returns:
-            RGB 格式的 PIL Image 对象
-        """
-        if image.mode == 'RGB':
-            return image
-        
-        if image.mode in ('RGBA', 'LA', 'P'):
-            if image.mode == 'RGBA':
-                # 处理透明通道：创建白色背景
-                background = Image.new('RGB', image.size, (255, 255, 255))
-                background.paste(image, mask=image.split()[3])
-                return background
-            else:
-                return image.convert('RGB')
-        
-        # 灰度图等其他格式直接转换
-        return image.convert('RGB')
-    
-    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview"):
     """Image generation using Google GenAI SDK (supports both AI Studio and Vertex AI)"""
 
     def __init__(
@@ -121,11 +92,10 @@ class GenAIImageProvider(ImageProvider):
             # Build contents list with prompt and reference images
             contents = []
             
-            # Add reference images first (if any), converting to RGB
+            # Add reference images first (if any)
             if ref_images:
                 for ref_img in ref_images:
-                    rgb_img = self.convert_image_to_rgb(ref_img)
-                    contents.append(rgb_img)
+                    contents.append(ref_img)
             
             # Add text prompt
             contents.append(prompt)
@@ -174,4 +144,3 @@ class GenAIImageProvider(ImageProvider):
             error_detail = f"Error generating image with GenAI: {type(e).__name__}: {str(e)}"
             logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
-
