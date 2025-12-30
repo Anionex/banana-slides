@@ -140,17 +140,21 @@ def clear_ai_service_cache():
     - Configuration changes (API keys, endpoints, models)
     - Testing scenarios requiring fresh instances
     - Memory cleanup needed
+    
+    Note:
+    - Uses nested locks to ensure atomic cache clearing operation
+    - Prevents race conditions where new instances could be created
+      with stale cached providers during the clearing process
     """
     global _ai_service_instance
     
     with _lock:
         _ai_service_instance = None
         logger.info("AIService singleton cache cleared")
-    
-    with _cache_lock:
-        _text_provider_cache.clear()
-        _image_provider_cache.clear()
-        logger.info("Provider cache cleared")
+        with _cache_lock:
+            _text_provider_cache.clear()
+            _image_provider_cache.clear()
+            logger.info("Provider cache cleared")
 
 
 def get_provider_cache_info() -> dict:
