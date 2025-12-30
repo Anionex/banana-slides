@@ -6,7 +6,8 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.exceptions import BadRequest
 from models import db, Project, Page, Task, ReferenceFile
 from utils import success_response, error_response, not_found, bad_request
-from services import AIService, ProjectContext
+from services import ProjectContext
+from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_descriptions_task, generate_images_task
 import json
 import traceback
@@ -307,8 +308,8 @@ def generate_outline(project_id):
         if not project:
             return not_found('Project')
         
-        # Initialize AI service
-        ai_service = AIService()
+        # Get singleton AI service instance
+        ai_service = get_ai_service()
         
         # Get request data and language parameter
         data = request.get_json() or {}
@@ -429,8 +430,8 @@ def generate_from_description(project_id):
         
         project.description_text = description_text
         
-        # Initialize AI service
-        ai_service = AIService()
+        # Get singleton AI service instance
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -561,8 +562,8 @@ def generate_descriptions(project_id):
         db.session.add(task)
         db.session.commit()
         
-        # Initialize AI service
-        ai_service = AIService()
+        # Get singleton AI service instance
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -758,8 +759,8 @@ def refine_outline(project_id):
         else:
             current_outline = _reconstruct_outline_from_pages(pages)
         
-        # Initialize AI service
-        ai_service = AIService()
+        # Get singleton AI service instance
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -927,8 +928,8 @@ def refine_descriptions(project_id):
                 'description_content': desc_content if desc_content else ''
             })
         
-        # Initialize AI service
-        ai_service = AIService()
+        # Get singleton AI service instance
+        ai_service = get_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
