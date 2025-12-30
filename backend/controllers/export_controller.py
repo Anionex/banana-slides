@@ -222,7 +222,6 @@ def export_editable_pptx(project_id):
         
         # Get services
         from services.file_service import FileService
-        from services.ai_service import AIService
         from services.task_manager import task_manager, export_editable_pptx_task
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])

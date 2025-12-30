@@ -655,8 +655,8 @@ def generate_images(project_id):
         db.session.add(task)
         db.session.commit()
         
-        # Initialize services
-        ai_service = AIService()
+        # Get singleton AI service instance
+        ai_service = get_ai_service()
         
         from services import FileService
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])

@@ -893,8 +893,9 @@ def export_editable_pptx_task(
                 """为单张图片生成干净背景（在线程池中运行）"""
                 with app.app_context():
                     logger.info(f"Processing background {index+1}/{len(image_paths)}...")
-                    from services.ai_service import AIService
-                    ai_service = AIService()
+                    # Get singleton AI service instance
+                    from services.ai_service_manager import get_ai_service
+                    ai_service = get_ai_service()
                     
                     clean_bg_path = ExportService.generate_clean_background(
                         original_image_path=original_image_path,
