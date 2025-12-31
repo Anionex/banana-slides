@@ -1,17 +1,25 @@
 """
 Project Controller - handles project-related endpoints
 """
-import logging
-from flask import Blueprint, request, jsonify, current_app
-from werkzeug.exceptions import BadRequest
-from models import db, Project, Page, Task, ReferenceFile
-from utils import success_response, error_response, not_found, bad_request
-from services import ProjectContext
-from services.ai_service_manager import get_ai_service
-from services.task_manager import task_manager, generate_descriptions_task, generate_images_task
 import json
+import logging
 import traceback
 from datetime import datetime
+
+from flask import Blueprint, request, jsonify, current_app
+from sqlalchemy import desc
+from sqlalchemy.orm import joinedload
+from werkzeug.exceptions import BadRequest
+
+from models import db, Project, Page, Task, ReferenceFile
+from services import ProjectContext
+from services.ai_service_manager import get_ai_service
+from services.task_manager import (
+    task_manager,
+    generate_descriptions_task,
+    generate_images_task
+)
+from utils import success_response, error_response, not_found, bad_request
 
 logger = logging.getLogger(__name__)
 
@@ -109,35 +117,35 @@ def list_projects():
     GET /api/projects - Get all projects (for history)
     
     Query params:
-    - limit: number of projects to return (default: 50)
+    - limit: number of projects to return (default: 50, max: 100)
     - offset: offset for pagination (default: 0)
     """
     try:
-        from sqlalchemy import desc
-        from sqlalchemy.orm import joinedload
-        
+        # Parameter validation
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         
-        # 使用 eager loading 一次性加载项目和关联的页面，避免 N+1 查询
-        projects = Project.query\
+        # Enforce limits to prevent performance issues
+        limit = min(max(1, limit), 100)  # Between 1-100
+        offset = max(0, offset)  # Non-negative
+        
+        # Fetch limit + 1 items to check for more pages efficiently
+        # This avoids a second database query
+        projects_with_extra = Project.query\
             .options(joinedload(Project.pages))\
             .order_by(desc(Project.updated_at))\
-            .limit(limit)\
+            .limit(limit + 1)\
             .offset(offset)\
             .all()
         
-        # 使用游标分页代替 count() - 减少一次全表扫描
-        # 多查询1条判断是否还有更多数据
-        has_more_query = Project.query\
-            .order_by(desc(Project.updated_at))\
-            .limit(1)\
-            .offset(offset + limit)\
-            .first()
+        # Check if there are more items beyond the current page
+        has_more = len(projects_with_extra) > limit
+        # Return only the requested limit
+        projects = projects_with_extra[:limit]
         
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'has_more': has_more_query is not None,
+            'has_more': has_more,
             'limit': limit,
             'offset': offset
         })
@@ -214,9 +222,7 @@ def get_project(project_id):
     GET /api/projects/{project_id} - Get project details
     """
     try:
-        from sqlalchemy.orm import joinedload
-        
-        # 使用 eager loading 加载项目和关联的页面
+        # Use eager loading to load project and related pages
         project = Project.query\
             .options(joinedload(Project.pages))\
             .filter(Project.id == project_id)\
@@ -244,9 +250,7 @@ def update_project(project_id):
     }
     """
     try:
-        from sqlalchemy.orm import joinedload
-        
-        # 使用 eager loading 加载项目和页面（如果需要更新页面顺序）
+        # Use eager loading to load project and pages (for page order updates)
         project = Project.query\
             .options(joinedload(Project.pages))\
             .filter(Project.id == project_id)\
@@ -272,16 +276,16 @@ def update_project(project_id):
         # Update page order if provided
         if 'pages_order' in data:
             pages_order = data['pages_order']
-            # 优化：批量查询所有需要更新的页面，避免 N+1 查询
+            # Optimization: batch query all pages to update, avoiding N+1 queries
             pages_to_update = Page.query.filter(
                 Page.id.in_(pages_order),
                 Page.project_id == project_id
             ).all()
             
-            # 创建 page_id -> page 的映射
+            # Create page_id -> page mapping for O(1) lookup
             pages_map = {page.id: page for page in pages_to_update}
             
-            # 批量更新顺序
+            # Batch update order
             for index, page_id in enumerate(pages_order):
                 if page_id in pages_map:
                     pages_map[page_id].order_index = index
