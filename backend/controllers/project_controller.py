@@ -114,16 +114,32 @@ def list_projects():
     """
     try:
         from sqlalchemy import desc
+        from sqlalchemy.orm import joinedload
         
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         
-        # Get projects ordered by updated_at descending
-        projects = Project.query.order_by(desc(Project.updated_at)).limit(limit).offset(offset).all()
+        # 使用 eager loading 一次性加载项目和关联的页面，避免 N+1 查询
+        projects = Project.query\
+            .options(joinedload(Project.pages))\
+            .order_by(desc(Project.updated_at))\
+            .limit(limit)\
+            .offset(offset)\
+            .all()
+        
+        # 使用游标分页代替 count() - 减少一次全表扫描
+        # 多查询1条判断是否还有更多数据
+        has_more_query = Project.query\
+            .order_by(desc(Project.updated_at))\
+            .limit(1)\
+            .offset(offset + limit)\
+            .first()
         
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'total': Project.query.count()
+            'has_more': has_more_query is not None,
+            'limit': limit,
+            'offset': offset
         })
     
     except Exception as e:
@@ -198,7 +214,13 @@ def get_project(project_id):
     GET /api/projects/{project_id} - Get project details
     """
     try:
-        project = Project.query.get(project_id)
+        from sqlalchemy.orm import joinedload
+        
+        # 使用 eager loading 加载项目和关联的页面
+        project = Project.query\
+            .options(joinedload(Project.pages))\
+            .filter(Project.id == project_id)\
+            .first()
         
         if not project:
             return not_found('Project')

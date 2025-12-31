@@ -10,6 +10,9 @@ db = SQLAlchemy(
         },
         'pool_pre_ping': True,  # 连接前检查
         'pool_recycle': 3600,  # 1小时回收连接
+        'pool_size': 10,  # 连接池大小（默认5）
+        'max_overflow': 20,  # 允许的溢出连接数（默认10）
+        'pool_timeout': 30,  # 获取连接的超时时间（秒）
     }
 )
 
