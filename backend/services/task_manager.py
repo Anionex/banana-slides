@@ -244,15 +244,14 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                                     page.status = 'DESCRIPTION_GENERATED'
                                     completed += 1
                         
-                        # 一次提交多个更新
-                        db.session.commit()
-                        
                         # 更新任务进度
                         task = Task.query.get(task_id)
                         if task:
                             task.update_progress(completed=completed, failed=failed)
-                            db.session.commit()
-                            logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+                        
+                        # 一次提交所有更新（包括页面和任务进度）
+                        db.session.commit()
+                        logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
                         
                         batch_updates = []
                 
@@ -269,14 +268,14 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                                 page.status = 'DESCRIPTION_GENERATED'
                                 completed += 1
                     
-                    db.session.commit()
-                    
                     # 最后一次更新进度
                     task = Task.query.get(task_id)
                     if task:
                         task.update_progress(completed=completed, failed=failed)
-                        db.session.commit()
-                        logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+                    
+                    # 一次提交所有更新（包括页面和任务进度）
+                    db.session.commit()
+                    logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
             
             # Mark task as completed
             task = Task.query.get(task_id)
@@ -473,15 +472,14 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                     # 刷新页面对象以获取最新状态
                                     db.session.refresh(page)
                         
-                        # 一次提交多个更新
-                        db.session.commit()
-                        
                         # 更新任务进度
                         task = Task.query.get(task_id)
                         if task:
                             task.update_progress(completed=completed, failed=failed)
-                            db.session.commit()
-                            logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+                        
+                        # 一次提交所有更新（包括页面和任务进度）
+                        db.session.commit()
+                        logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
                         
                         batch_updates = []
                 
@@ -497,14 +495,14 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 completed += 1
                                 db.session.refresh(page)
                     
-                    db.session.commit()
-                    
                     # 最后一次更新进度
                     task = Task.query.get(task_id)
                     if task:
                         task.update_progress(completed=completed, failed=failed)
-                        db.session.commit()
-                        logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+                    
+                    # 一次提交所有更新（包括页面和任务进度）
+                    db.session.commit()
+                    logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
             
             # Mark task as completed
             task = Task.query.get(task_id)
