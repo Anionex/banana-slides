@@ -5,11 +5,13 @@ from . import db
 
 class Settings(db.Model):
     """
-    Settings model - stores global application settings
+    Settings model - stores per-user application settings
+    每个用户（通过 user_token 标识）拥有独立的配置
     """
     __tablename__ = 'settings'
 
-    id = db.Column(db.Integer, primary_key=True, default=1)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_token = db.Column(db.String(100), nullable=False, unique=True)  # 用户唯一标识token
     ai_provider_format = db.Column(db.String(20), nullable=False, default='gemini')  # AI提供商格式: openai, gemini
     api_base_url = db.Column(db.String(500), nullable=True)  # API基础URL
     api_key = db.Column(db.String(500), nullable=True)  # API密钥
@@ -50,16 +52,24 @@ class Settings(db.Model):
         }
 
     @staticmethod
-    def get_settings():
+    def get_settings(user_token: str = None):
         """
-        Get or create the single settings instance.
-
-        - 首次创建时，用 Config（也就是 .env）里的值初始化，作为“系统默认值”
-        - 之后所有读写都只走数据库，env 只影响初始化/重置逻辑
+        Get or create settings for a specific user.
+        
+        Args:
+            user_token: 用户唯一标识token。如果为None，则尝试获取第一个（兼容旧逻辑）
+        
+        Returns:
+            Settings instance for the user
         """
-        settings = Settings.query.first()
-        if not settings:
-            # 延迟导入，避免循环依赖
+        if user_token:
+            settings = Settings.query.filter_by(user_token=user_token).first()
+        else:
+            # 兼容模式：如果没有提供token，返回第一个（通常是default-user）
+            settings = Settings.query.first()
+        
+        if not settings and user_token:
+            # 用户首次访问，创建默认配置
             from config import Config
 
             # 根据 AI_PROVIDER_FORMAT 选择默认 Provider 的 env 配置
@@ -72,6 +82,7 @@ class Settings(db.Model):
                 default_api_key = Config.GOOGLE_API_KEY or None
 
             settings = Settings(
+                user_token=user_token,
                 ai_provider_format=Config.AI_PROVIDER_FORMAT,
                 api_base_url=default_api_base,
                 api_key=default_api_key,
@@ -86,10 +97,10 @@ class Settings(db.Model):
                 image_caption_model=Config.IMAGE_CAPTION_MODEL,
                 output_language='zh',  # 默认中文
             )
-            settings.id = 1
             db.session.add(settings)
             db.session.commit()
+        
         return settings
 
     def __repr__(self):
-        return f'<Settings id={self.id}>'
+        return f'<Settings id={self.id} user_token={self.user_token}>'

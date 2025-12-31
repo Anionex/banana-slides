@@ -14,14 +14,38 @@ settings_bp = Blueprint(
 )
 
 
+def _get_user_token():
+    """
+    从请求头中获取用户 token
+    
+    Returns:
+        str: 用户 token，如果不存在则返回 None
+    """
+    token = request.headers.get('X-User-Token')
+    if not token:
+        logger.warning("No X-User-Token header found in request")
+    return token
+
+
 # Prevent redirect issues when trailing slash is missing
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
 def get_settings():
     """
-    GET /api/settings - Get application settings
+    GET /api/settings - Get application settings for the current user
+    
+    Headers:
+        X-User-Token: 用户唯一标识token（必需）
     """
     try:
-        settings = Settings.get_settings()
+        user_token = _get_user_token()
+        if not user_token:
+            return bad_request("X-User-Token header is required")
+        
+        settings = Settings.get_settings(user_token)
+        if not settings:
+            # 用户首次访问，会自动创建默认配置
+            settings = Settings.get_settings(user_token)
+        
         return success_response(settings.to_dict())
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
@@ -35,8 +59,11 @@ def get_settings():
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
 def update_settings():
     """
-    PUT /api/settings - Update application settings
+    PUT /api/settings - Update application settings for the current user
 
+    Headers:
+        X-User-Token: 用户唯一标识token（必需）
+    
     Request Body:
         {
             "api_base_url": "https://api.example.com",
@@ -46,11 +73,15 @@ def update_settings():
         }
     """
     try:
+        user_token = _get_user_token()
+        if not user_token:
+            return bad_request("X-User-Token header is required")
+        
         data = request.get_json()
         if not data:
             return bad_request("Request body is required")
 
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(user_token)
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -147,10 +178,17 @@ def update_settings():
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
 def reset_settings():
     """
-    POST /api/settings/reset - Reset settings to default values
+    POST /api/settings/reset - Reset settings to default values for the current user
+    
+    Headers:
+        X-User-Token: 用户唯一标识token（必需）
     """
     try:
-        settings = Settings.get_settings()
+        user_token = _get_user_token()
+        if not user_token:
+            return bad_request("X-User-Token header is required")
+        
+        settings = Settings.get_settings(user_token)
 
         # Reset to default values from Config / .env
         # Priority logic:
@@ -203,8 +241,11 @@ def reset_settings():
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
 def verify_api_key():
     """
-    POST /api/settings/verify - 验证当前API key是否可用
+    POST /api/settings/verify - 验证当前用户的API key是否可用
     通过调用一个轻量的gemini-3-flash-preview测试请求（思考budget=0）来判断
+    
+    Headers:
+        X-User-Token: 用户唯一标识token（必需）
     
     Returns:
         {
@@ -215,51 +256,98 @@ def verify_api_key():
         }
     """
     try:
-        from services.ai_providers import get_text_provider
+        user_token = _get_user_token()
+        if not user_token:
+            return bad_request("X-User-Token header is required")
         
-        # 使用 gemini-3-flash-preview 模型进行验证（思考budget=0，最小开销）
-        verification_model = "gemini-3-flash-preview"
+        # 获取当前用户的设置
+        settings = Settings.get_settings(user_token)
+        if not settings:
+            return success_response({
+                "available": False,
+                "message": "用户设置未找到"
+            })
         
-        # 尝试创建provider并调用一个简单的测试请求
+        # 临时将当前用户的配置应用到 app.config，用于验证
+        # 注意：这只是临时验证，不会永久改变 app.config
+        old_api_key = current_app.config.get("GOOGLE_API_KEY")
+        old_api_base = current_app.config.get("GOOGLE_API_BASE")
+        old_provider_format = current_app.config.get("AI_PROVIDER_FORMAT")
+        
         try:
-            provider = get_text_provider(model=verification_model)
-            # 调用一个简单的测试请求（思考budget=0，最小开销）
-            response = provider.generate_text("Hello", thinking_budget=0)
+            # 临时应用用户配置
+            if settings.api_key:
+                current_app.config["GOOGLE_API_KEY"] = settings.api_key
+                current_app.config["OPENAI_API_KEY"] = settings.api_key
+            if settings.api_base_url:
+                current_app.config["GOOGLE_API_BASE"] = settings.api_base_url
+                current_app.config["OPENAI_API_BASE"] = settings.api_base_url
+            if settings.ai_provider_format:
+                current_app.config["AI_PROVIDER_FORMAT"] = settings.ai_provider_format
+        
+            from services.ai_providers import get_text_provider
+        
+            # 使用 gemini-3-flash-preview 模型进行验证（思考budget=0，最小开销）
+            verification_model = "gemini-3-flash-preview"
             
-            logger.info("API key verification successful")
-            return success_response({
-                "available": True,
-                "message": "API key 可用"
-            })
-            
-        except ValueError as ve:
-            # API key未配置
-            logger.warning(f"API key not configured: {str(ve)}")
-            return success_response({
-                "available": False,
-                "message": "API key 未配置，请在设置中配置 API key 和 API Base URL"
-            })
-        except Exception as e:
-            # API调用失败（可能是key无效、余额不足等）
-            error_msg = str(e)
-            logger.warning(f"API key verification failed: {error_msg}")
-            
-            # 根据错误信息判断具体原因
-            if "401" in error_msg or "unauthorized" in error_msg.lower() or "invalid" in error_msg.lower():
-                message = "API key 无效或已过期，请在设置中检查 API key 配置"
-            elif "429" in error_msg or "quota" in error_msg.lower() or "limit" in error_msg.lower():
-                message = "API 调用超限或余额不足，请在设置中检查配置"
-            elif "403" in error_msg or "forbidden" in error_msg.lower():
-                message = "API 访问被拒绝，请在设置中检查 API key 权限"
-            elif "timeout" in error_msg.lower():
-                message = "API 调用超时，请在设置中检查网络连接和 API Base URL"
+            # 尝试创建provider并调用一个简单的测试请求
+            try:
+                provider = get_text_provider(model=verification_model)
+                # 调用一个简单的测试请求（思考budget=0，最小开销）
+                response = provider.generate_text("Hello", thinking_budget=0)
+                
+                logger.info("API key verification successful")
+                return success_response({
+                    "available": True,
+                    "message": "API key 可用"
+                })
+                
+            except ValueError as ve:
+                # API key未配置
+                logger.warning(f"API key not configured: {str(ve)}")
+                return success_response({
+                    "available": False,
+                    "message": "API key 未配置，请在设置中配置 API key 和 API Base URL"
+                })
+            except Exception as e:
+                # API调用失败（可能是key无效、余额不足等）
+                error_msg = str(e)
+                logger.warning(f"API key verification failed: {error_msg}")
+                
+                # 根据错误信息判断具体原因
+                if "401" in error_msg or "unauthorized" in error_msg.lower() or "invalid" in error_msg.lower():
+                    message = "API key 无效或已过期，请在设置中检查 API key 配置"
+                elif "429" in error_msg or "quota" in error_msg.lower() or "limit" in error_msg.lower():
+                    message = "API 调用超限或余额不足，请在设置中检查配置"
+                elif "403" in error_msg or "forbidden" in error_msg.lower():
+                    message = "API 访问被拒绝，请在设置中检查 API key 权限"
+                elif "timeout" in error_msg.lower():
+                    message = "API 调用超时，请在设置中检查网络连接和 API Base URL"
+                else:
+                    message = f"API 调用失败，请在设置中检查配置: {error_msg}"
+                
+                return success_response({
+                    "available": False,
+                    "message": message
+                })
+        finally:
+            # 恢复原始配置
+            if old_api_key is not None:
+                current_app.config["GOOGLE_API_KEY"] = old_api_key
+                current_app.config["OPENAI_API_KEY"] = old_api_key
             else:
-                message = f"API 调用失败，请在设置中检查配置: {error_msg}"
+                current_app.config.pop("GOOGLE_API_KEY", None)
+                current_app.config.pop("OPENAI_API_KEY", None)
             
-            return success_response({
-                "available": False,
-                "message": message
-            })
+            if old_api_base is not None:
+                current_app.config["GOOGLE_API_BASE"] = old_api_base
+                current_app.config["OPENAI_API_BASE"] = old_api_base
+            else:
+                current_app.config.pop("GOOGLE_API_BASE", None)
+                current_app.config.pop("OPENAI_API_BASE", None)
+            
+            if old_provider_format is not None:
+                current_app.config["AI_PROVIDER_FORMAT"] = old_provider_format
             
     except Exception as e:
         logger.error(f"Error verifying API key: {str(e)}")

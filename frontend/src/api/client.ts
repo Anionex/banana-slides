@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getUserToken } from '@/utils/userToken';
 
 // 开发环境：通过 Vite proxy 转发
 // 生产环境：通过 nginx proxy 转发
@@ -13,6 +14,12 @@ export const apiClient = axios.create({
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    // 添加用户 Token 到请求头（用于多用户隔离）
+    const userToken = getUserToken();
+    if (userToken && config.headers) {
+      config.headers['X-User-Token'] = userToken;
+    }
+    
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置
     // 浏览器会自动添加正确的 Content-Type 和 boundary
     if (config.data instanceof FormData) {

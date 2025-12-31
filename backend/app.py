@@ -98,6 +98,11 @@ def create_app():
     # Database migrations (Alembic via Flask-Migrate)
     Migrate(app, db)
     
+    # Register middleware for user-specific settings
+    from middleware.user_settings_middleware import load_user_settings, restore_default_settings
+    app.before_request(load_user_settings)
+    app.after_request(restore_default_settings)
+    
     # Register blueprints
     app.register_blueprint(project_bp)
     app.register_blueprint(page_bp)
@@ -166,6 +171,8 @@ def _load_settings_to_config(app):
     """Load settings from database and apply to app.config on startup"""
     from models import Settings
     try:
+        # 尝试获取默认用户的设置（兼容模式）
+        # 注意：这里不传 user_token，会返回第一个设置记录
         settings = Settings.get_settings()
         
         # Load AI provider format (always sync, has default value)
@@ -205,7 +212,7 @@ def _load_settings_to_config(app):
         logging.info(f"Loaded worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
 
     except Exception as e:
-        logging.warning(f"Could not load settings from database: {e}")
+        logging.warning(f"Could not load settings from database (this is normal during migration): {e}")
 
 
 # Create app instance
