@@ -66,7 +66,8 @@ task_manager = TaskManager(max_workers=4)
 
 
 def save_image_with_version(image, project_id: str, page_id: str, file_service, 
-                            page_obj=None, image_format: str = 'PNG') -> tuple[str, int]:
+                            page_obj=None, image_format: str = 'PNG', 
+                            commit: bool = True) -> tuple[str, int]:
     """
     保存图片并创建历史版本记录的公共函数
     
@@ -77,6 +78,7 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         file_service: FileService 实例
         page_obj: Page 对象（可选，如果提供则更新页面状态）
         image_format: 图片格式，默认 PNG
+        commit: 是否立即提交事务（默认 True）。批量操作时应设为 False
     
     Returns:
         tuple: (image_path, version_number) - 图片路径和版本号
@@ -117,8 +119,9 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         page_obj.status = 'COMPLETED'
         page_obj.updated_at = datetime.utcnow()
     
-    # 提交事务
-    db.session.commit()
+    # 根据参数决定是否提交事务
+    if commit:
+        db.session.commit()
     
     logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}")
     
@@ -217,6 +220,33 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         logger.error(f"Failed to generate description for page {page_id}: {error_detail}")
                         return (page_id, None, str(e))
             
+            def process_and_commit_batch():
+                """处理批次并提交到数据库的辅助函数"""
+                nonlocal completed, failed, batch_updates
+                
+                # 批量处理
+                for pid, content, err in batch_updates:
+                    page = Page.query.get(pid)
+                    if page:
+                        if err:
+                            page.status = 'FAILED'
+                            failed += 1
+                        else:
+                            page.set_description_content(content)
+                            page.status = 'DESCRIPTION_GENERATED'
+                            completed += 1
+                
+                # 更新任务进度
+                task = Task.query.get(task_id)
+                if task:
+                    task.update_progress(completed=completed, failed=failed)
+                
+                # 一次提交所有更新（包括页面和任务进度）
+                db.session.commit()
+                logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+                
+                batch_updates = []
+            
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -232,50 +262,11 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                     
                     # 优化：批量提交，减少数据库 I/O
                     if len(batch_updates) >= BATCH_SIZE:
-                        # 批量处理
-                        for pid, content, err in batch_updates:
-                            page = Page.query.get(pid)
-                            if page:
-                                if err:
-                                    page.status = 'FAILED'
-                                    failed += 1
-                                else:
-                                    page.set_description_content(content)
-                                    page.status = 'DESCRIPTION_GENERATED'
-                                    completed += 1
-                        
-                        # 更新任务进度
-                        task = Task.query.get(task_id)
-                        if task:
-                            task.update_progress(completed=completed, failed=failed)
-                        
-                        # 一次提交所有更新（包括页面和任务进度）
-                        db.session.commit()
-                        logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
-                        
-                        batch_updates = []
+                        process_and_commit_batch()
                 
                 # 处理剩余的更新
                 if batch_updates:
-                    for pid, content, err in batch_updates:
-                        page = Page.query.get(pid)
-                        if page:
-                            if err:
-                                page.status = 'FAILED'
-                                failed += 1
-                            else:
-                                page.set_description_content(content)
-                                page.status = 'DESCRIPTION_GENERATED'
-                                completed += 1
-                    
-                    # 最后一次更新进度
-                    task = Task.query.get(task_id)
-                    if task:
-                        task.update_progress(completed=completed, failed=failed)
-                    
-                    # 一次提交所有更新（包括页面和任务进度）
-                    db.session.commit()
-                    logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+                    process_and_commit_batch()
             
             # Mark task as completed
             task = Task.query.get(task_id)
@@ -358,20 +349,16 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 """
                 Generate image for a single page
                 注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
+                该函数仅执行图片生成，不进行数据库写入操作
                 """
                 # 关键修复：在子线程中也需要应用上下文
                 with app.app_context():
                     try:
                         logger.debug(f"Starting image generation for page {page_id}, index {page_index}")
-                        # Get page from database in this thread
+                        # Get page from database in this thread (只读操作)
                         page_obj = Page.query.get(page_id)
                         if not page_obj:
                             raise ValueError(f"Page {page_id} not found")
-                        
-                        # Update page status
-                        page_obj.status = 'GENERATING'
-                        db.session.commit()
-                        logger.debug(f"Page {page_id} status updated to GENERATING")
                         
                         # Get description content
                         desc_content = page_obj.get_description_content()
@@ -396,7 +383,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         
                         # 从描述文本中提取图片
                         if desc_text:
-                            image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
+                            # Get singleton AI service instance in worker thread
+                            from services.ai_service_manager import get_ai_service
+                            thread_ai_service = get_ai_service()
+                            image_urls = thread_ai_service.extract_image_urls_from_markdown(desc_text)
                             if image_urls:
                                 logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                                 page_additional_ref_images = image_urls
@@ -410,7 +400,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             # 这个检查已经在 controller 层完成，这里不再检查
                         
                         # Generate image prompt
-                        prompt = ai_service.generate_image_prompt(
+                        # Get singleton AI service instance
+                        from services.ai_service_manager import get_ai_service
+                        thread_ai_service = get_ai_service()
+                        prompt = thread_ai_service.generate_image_prompt(
                             outline, page_data, desc_text, page_index,
                             has_material_images=has_material_images,
                             extra_requirements=extra_requirements,
@@ -420,8 +413,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
                         # Generate image
-                        logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
-                        image = ai_service.generate_image(
+                        logger.info(f"🎨 Calling AI service to generate image for page {page_index}...")
+                        image = thread_ai_service.generate_image(
                             prompt, page_ref_image_path, aspect_ratio, resolution,
                             additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
                         )
@@ -430,19 +423,50 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not image:
                             raise ValueError("Failed to generate image")
                         
-                        # 优化：直接在子线程中计算版本号并保存到最终位置
-                        # 每个页面独立，使用数据库事务保证版本号原子性，避免临时文件
-                        image_path, next_version = save_image_with_version(
-                            image, project_id, page_id, file_service, page_obj=page_obj
-                        )
-                        
-                        return (page_id, image_path, None)
+                        # 返回生成的图片对象，由主线程处理数据库操作
+                        return (page_id, image, None)
                         
                     except Exception as e:
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
                         return (page_id, None, str(e))
+            
+            def process_and_commit_batch():
+                """处理批次并提交到数据库的辅助函数"""
+                nonlocal completed, failed, batch_updates
+                
+                # 批量处理：保存图片并更新页面状态
+                for pid, img, err in batch_updates:
+                    page = Page.query.get(pid)
+                    if page:
+                        if err:
+                            page.status = 'FAILED'
+                            failed += 1
+                        else:
+                            # 在主线程中保存图片并创建版本记录（不立即提交）
+                            try:
+                                page.status = 'GENERATING'
+                                image_path, next_version = save_image_with_version(
+                                    img, project_id, pid, file_service, 
+                                    page_obj=page, commit=False
+                                )
+                                completed += 1
+                            except Exception as save_err:
+                                logger.error(f"Failed to save image for page {pid}: {save_err}")
+                                page.status = 'FAILED'
+                                failed += 1
+                
+                # 更新任务进度
+                task = Task.query.get(task_id)
+                if task:
+                    task.update_progress(completed=completed, failed=failed)
+                
+                # 一次提交所有更新（包括页面、版本记录和任务进度）
+                db.session.commit()
+                logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+                
+                batch_updates = []
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
@@ -454,55 +478,16 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 
                 # Process results as they complete
                 for future in as_completed(futures):
-                    page_id, image_path, error = future.result()
-                    batch_updates.append((page_id, image_path, error))
+                    page_id, image, error = future.result()
+                    batch_updates.append((page_id, image, error))
                     
                     # 优化：批量提交，减少数据库 I/O
                     if len(batch_updates) >= BATCH_SIZE:
-                        # 批量处理
-                        for pid, img_path, err in batch_updates:
-                            page = Page.query.get(pid)
-                            if page:
-                                if err:
-                                    page.status = 'FAILED'
-                                    failed += 1
-                                else:
-                                    # 图片已在子线程中保存，这里只需要更新计数
-                                    completed += 1
-                                    # 刷新页面对象以获取最新状态
-                                    db.session.refresh(page)
-                        
-                        # 更新任务进度
-                        task = Task.query.get(task_id)
-                        if task:
-                            task.update_progress(completed=completed, failed=failed)
-                        
-                        # 一次提交所有更新（包括页面和任务进度）
-                        db.session.commit()
-                        logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
-                        
-                        batch_updates = []
+                        process_and_commit_batch()
                 
                 # 处理剩余的更新
                 if batch_updates:
-                    for pid, img_path, err in batch_updates:
-                        page = Page.query.get(pid)
-                        if page:
-                            if err:
-                                page.status = 'FAILED'
-                                failed += 1
-                            else:
-                                completed += 1
-                                db.session.refresh(page)
-                    
-                    # 最后一次更新进度
-                    task = Task.query.get(task_id)
-                    if task:
-                        task.update_progress(completed=completed, failed=failed)
-                    
-                    # 一次提交所有更新（包括页面和任务进度）
-                    db.session.commit()
-                    logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+                    process_and_commit_batch()
             
             # Mark task as completed
             task = Task.query.get(task_id)
