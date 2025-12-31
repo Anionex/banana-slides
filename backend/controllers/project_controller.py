@@ -119,11 +119,12 @@ def list_projects():
         offset = request.args.get('offset', 0, type=int)
         
         # Get projects ordered by updated_at descending
-        projects = Project.query.order_by(desc(Project.updated_at)).limit(limit).offset(offset).all()
+        # 优化：获取 limit+1 条数据来判断是否有更多，避免 count() 全表扫描
+        projects_with_extra = Project.query.order_by(desc(Project.updated_at)).limit(limit + 1).offset(offset).all()
         
-        # 优化：使用 has_more 代替 count()，避免全表扫描
-        # 如果返回的项目数 < limit，说明没有更多了
-        has_more = len(projects) == limit
+        # 如果返回的项目数 > limit，说明还有更多
+        has_more = len(projects_with_extra) > limit
+        projects = projects_with_extra[:limit]
         
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
