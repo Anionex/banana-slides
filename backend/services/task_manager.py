@@ -182,6 +182,10 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             completed = 0
             failed = 0
             
+            # 优化：批量处理更新，减少数据库事务
+            BATCH_SIZE = 5
+            batch_updates = []
+            
             def generate_single_desc(page_id, page_outline, page_index):
                 """
                 Generate description for a single page
@@ -224,23 +228,50 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 # Process results as they complete
                 for future in as_completed(futures):
                     page_id, desc_content, error = future.result()
+                    batch_updates.append((page_id, desc_content, error))
                     
-                    db.session.expire_all()
-                    
-                    # Update page in database
-                    page = Page.query.get(page_id)
-                    if page:
-                        if error:
-                            page.status = 'FAILED'
-                            failed += 1
-                        else:
-                            page.set_description_content(desc_content)
-                            page.status = 'DESCRIPTION_GENERATED'
-                            completed += 1
+                    # 优化：批量提交，减少数据库 I/O
+                    if len(batch_updates) >= BATCH_SIZE:
+                        # 批量处理
+                        for pid, content, err in batch_updates:
+                            page = Page.query.get(pid)
+                            if page:
+                                if err:
+                                    page.status = 'FAILED'
+                                    failed += 1
+                                else:
+                                    page.set_description_content(content)
+                                    page.status = 'DESCRIPTION_GENERATED'
+                                    completed += 1
                         
+                        # 一次提交多个更新
                         db.session.commit()
+                        
+                        # 更新任务进度
+                        task = Task.query.get(task_id)
+                        if task:
+                            task.update_progress(completed=completed, failed=failed)
+                            db.session.commit()
+                            logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+                        
+                        batch_updates = []
+                
+                # 处理剩余的更新
+                if batch_updates:
+                    for pid, content, err in batch_updates:
+                        page = Page.query.get(pid)
+                        if page:
+                            if err:
+                                page.status = 'FAILED'
+                                failed += 1
+                            else:
+                                page.set_description_content(content)
+                                page.status = 'DESCRIPTION_GENERATED'
+                                completed += 1
                     
-                    # Update task progress
+                    db.session.commit()
+                    
+                    # 最后一次更新进度
                     task = Task.query.get(task_id)
                     if task:
                         task.update_progress(completed=completed, failed=failed)
@@ -319,6 +350,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Generate images in parallel
             completed = 0
             failed = 0
+            
+            # 优化：批量处理更新，减少数据库事务
+            BATCH_SIZE = 3  # 图片生成较慢，批次可以小一些
+            batch_updates = []
             
             def generate_single_image(page_id, page_data, page_index):
                 """
@@ -421,23 +456,50 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 # Process results as they complete
                 for future in as_completed(futures):
                     page_id, image_path, error = future.result()
+                    batch_updates.append((page_id, image_path, error))
                     
-                    db.session.expire_all()
-                    
-                    # Update page in database (主要是为了更新失败状态)
-                    page = Page.query.get(page_id)
-                    if page:
-                        if error:
-                            page.status = 'FAILED'
-                            failed += 1
+                    # 优化：批量提交，减少数据库 I/O
+                    if len(batch_updates) >= BATCH_SIZE:
+                        # 批量处理
+                        for pid, img_path, err in batch_updates:
+                            page = Page.query.get(pid)
+                            if page:
+                                if err:
+                                    page.status = 'FAILED'
+                                    failed += 1
+                                else:
+                                    # 图片已在子线程中保存，这里只需要更新计数
+                                    completed += 1
+                                    # 刷新页面对象以获取最新状态
+                                    db.session.refresh(page)
+                        
+                        # 一次提交多个更新
+                        db.session.commit()
+                        
+                        # 更新任务进度
+                        task = Task.query.get(task_id)
+                        if task:
+                            task.update_progress(completed=completed, failed=failed)
                             db.session.commit()
-                        else:
-                            # 图片已在子线程中保存并创建版本记录，这里只需要更新计数
-                            completed += 1
-                            # 刷新页面对象以获取最新状态
-                            db.session.refresh(page)
+                            logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+                        
+                        batch_updates = []
+                
+                # 处理剩余的更新
+                if batch_updates:
+                    for pid, img_path, err in batch_updates:
+                        page = Page.query.get(pid)
+                        if page:
+                            if err:
+                                page.status = 'FAILED'
+                                failed += 1
+                            else:
+                                completed += 1
+                                db.session.refresh(page)
                     
-                    # Update task progress
+                    db.session.commit()
+                    
+                    # 最后一次更新进度
                     task = Task.query.get(task_id)
                     if task:
                         task.update_progress(completed=completed, failed=failed)

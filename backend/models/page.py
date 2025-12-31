@@ -26,8 +26,9 @@ class Page(db.Model):
     
     # Relationships
     project = db.relationship('Project', back_populates='pages')
+    # 使用 'select' 以支持 eager loading
     image_versions = db.relationship('PageImageVersion', back_populates='page', 
-                                     lazy='dynamic', cascade='all, delete-orphan',
+                                     lazy='select', cascade='all, delete-orphan',
                                      order_by='PageImageVersion.version_number.desc()')
     
     def get_outline_content(self):
@@ -77,7 +78,7 @@ class Page(db.Model):
         }
         
         if include_versions:
-            data['image_versions'] = [v.to_dict() for v in self.image_versions.all()]
+            data['image_versions'] = [v.to_dict() for v in self.image_versions]
         
         return data
     

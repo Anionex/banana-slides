@@ -121,9 +121,15 @@ def list_projects():
         # Get projects ordered by updated_at descending
         projects = Project.query.order_by(desc(Project.updated_at)).limit(limit).offset(offset).all()
         
+        # 优化：使用 has_more 代替 count()，避免全表扫描
+        # 如果返回的项目数 < limit，说明没有更多了
+        has_more = len(projects) == limit
+        
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'total': Project.query.count()
+            'has_more': has_more,
+            'limit': limit,
+            'offset': offset
         })
     
     except Exception as e:
@@ -244,10 +250,15 @@ def update_project(project_id):
         # Update page order if provided
         if 'pages_order' in data:
             pages_order = data['pages_order']
+            # 优化：批量获取所有 pages，避免 N+1 查询
+            pages_dict = {p.id: p for p in Page.query.filter(
+                Page.id.in_(pages_order),
+                Page.project_id == project_id
+            ).all()}
+            
             for index, page_id in enumerate(pages_order):
-                page = Page.query.get(page_id)
-                if page and page.project_id == project_id:
-                    page.order_index = index
+                if page_id in pages_dict:
+                    pages_dict[page_id].order_index = index
         
         project.updated_at = datetime.utcnow()
         db.session.commit()
