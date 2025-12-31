@@ -389,8 +389,11 @@ def generate_outline(project_id):
         # Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
         
-        # 优化：批量删除旧页面（使用一条 SQL 而不是 N 条）
-        Page.query.filter_by(project_id=project_id).delete()
+        # Delete existing pages (using ORM session to trigger cascades)
+        # Note: Cannot use bulk delete as it bypasses ORM cascades for PageImageVersion
+        old_pages = Page.query.filter_by(project_id=project_id).all()
+        for old_page in old_pages:
+            db.session.delete(old_page)
         
         # Create pages from outline
         pages_list = []
