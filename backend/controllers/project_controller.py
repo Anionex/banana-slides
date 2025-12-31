@@ -244,7 +244,13 @@ def update_project(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        from sqlalchemy.orm import joinedload
+        
+        # 使用 eager loading 加载项目和页面（如果需要更新页面顺序）
+        project = Project.query\
+            .options(joinedload(Project.pages))\
+            .filter(Project.id == project_id)\
+            .first()
         
         if not project:
             return not_found('Project')
@@ -266,10 +272,19 @@ def update_project(project_id):
         # Update page order if provided
         if 'pages_order' in data:
             pages_order = data['pages_order']
+            # 优化：批量查询所有需要更新的页面，避免 N+1 查询
+            pages_to_update = Page.query.filter(
+                Page.id.in_(pages_order),
+                Page.project_id == project_id
+            ).all()
+            
+            # 创建 page_id -> page 的映射
+            pages_map = {page.id: page for page in pages_to_update}
+            
+            # 批量更新顺序
             for index, page_id in enumerate(pages_order):
-                page = Page.query.get(page_id)
-                if page and page.project_id == project_id:
-                    page.order_index = index
+                if page_id in pages_map:
+                    pages_map[page_id].order_index = index
         
         project.updated_at = datetime.utcnow()
         db.session.commit()
@@ -374,10 +389,8 @@ def generate_outline(project_id):
         # Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
         
-        # Delete existing pages (using ORM session to trigger cascades)
-        old_pages = Page.query.filter_by(project_id=project_id).all()
-        for old_page in old_pages:
-            db.session.delete(old_page)
+        # 优化：批量删除旧页面（使用一条 SQL 而不是 N 条）
+        Page.query.filter_by(project_id=project_id).delete()
         
         # Create pages from outline
         pages_list = []
