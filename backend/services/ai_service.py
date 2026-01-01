@@ -160,28 +160,95 @@ class AIService:
     def generate_json(self, prompt: str, thinking_budget: int = 1000) -> Union[Dict, List]:
         """
         生成并解析JSON，如果解析失败则重新生成
-        
+
         Args:
             prompt: 生成提示词
             thinking_budget: 思考预算
-            
+
         Returns:
             解析后的JSON对象（字典或列表）
-            
+
         Raises:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
         """
         # 调用AI生成文本
         response_text = self.text_provider.generate_text(prompt, thinking_budget=thinking_budget)
-        
+
         # 清理响应文本：移除markdown代码块标记和多余空白
         cleaned_text = response_text.strip().strip("```json").strip("```").strip()
-        
+
+        # 智能JSON提取：找到第一个有效的JSON结构
+        json_text = self._extract_json_from_text(cleaned_text)
+
         try:
-            return json.loads(cleaned_text)
+            return json.loads(json_text)
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
+            logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 提取的JSON: {json_text[:200]}... 错误: {str(e)}")
             raise
+
+    def _extract_json_from_text(self, text: str) -> str:
+        """
+        从文本中智能提取JSON部分
+
+        Args:
+            text: 包含JSON的文本
+
+        Returns:
+            提取的JSON字符串
+        """
+        import re
+
+        # 移除常见的AI解释前缀
+        text = re.sub(r'^(Here is|这是|以下是|The JSON|JSON格式|输出).*?[:：]\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
+
+        # 查找第一个有效的JSON开始符
+        start_idx = -1
+        if text.startswith('['):
+            start_idx = 0
+        elif text.startswith('{'):
+            start_idx = 0
+        else:
+            # 查找第一个[或{
+            for i, char in enumerate(text):
+                if char in '[{':
+                    start_idx = i
+                    break
+
+        if start_idx == -1:
+            return text  # 如果没找到，直接返回原文本
+
+        # 从开始位置尝试解析JSON
+        json_candidate = text[start_idx:]
+
+        # 简单括号匹配来找到JSON结束位置
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+
+        for i, char in enumerate(json_candidate):
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char in '[{':
+                    bracket_count += 1
+                elif char in ']}':
+                    bracket_count -= 1
+                    if bracket_count == 0:
+                        # 找到了匹配的结束符
+                        return json_candidate[:i+1]
+
+        # 如果括号匹配失败，返回从开始符到文本结尾的内容
+        return json_candidate
     
     @staticmethod
     def _convert_mineru_path_to_local(mineru_path: str) -> Optional[str]:
