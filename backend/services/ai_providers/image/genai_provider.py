@@ -6,10 +6,13 @@ Supports two modes:
 - Vertex AI: Uses GCP service account authentication
 """
 import logging
+import re
+import requests
+from io import BytesIO
 from typing import Optional, List
 from google import genai
 from google.genai import types
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from tenacity import retry, stop_after_attempt, wait_exponential
 from .base import ImageProvider
 from config import get_config
@@ -31,19 +34,11 @@ class GenAIImageProvider(ImageProvider):
     ):
         """
         Initialize GenAI image provider
-
-        Args:
-            api_key: Google API key (for AI Studio mode)
-            api_base: API base URL (for proxies like aihubmix, AI Studio mode only)
-            model: Model name to use
-            vertexai: If True, use Vertex AI instead of AI Studio
-            project_id: GCP project ID (required for Vertex AI mode)
-            location: GCP region (for Vertex AI mode, default: us-central1)
         """
         timeout_ms = int(get_config().GENAI_TIMEOUT * 1000)
 
         if vertexai:
-            # Vertex AI mode - uses service account credentials from GOOGLE_APPLICATION_CREDENTIALS
+            # Vertex AI mode
             logger.info(f"Initializing GenAI image provider in Vertex AI mode, project: {project_id}, location: {location}")
             self.client = genai.Client(
                 vertexai=True,
@@ -52,7 +47,7 @@ class GenAIImageProvider(ImageProvider):
                 http_options=types.HttpOptions(timeout=timeout_ms)
             )
         else:
-            # AI Studio mode - uses API key
+            # AI Studio mode
             http_options = types.HttpOptions(
                 base_url=api_base,
                 timeout=timeout_ms
@@ -78,30 +73,16 @@ class GenAIImageProvider(ImageProvider):
     ) -> Optional[Image.Image]:
         """
         Generate image using Google GenAI SDK
-        
-        Args:
-            prompt: The image generation prompt
-            ref_images: Optional list of reference images
-            aspect_ratio: Image aspect ratio
-            resolution: Image resolution (supports "1K", "2K", "4K")
-            
-        Returns:
-            Generated PIL Image object, or None if failed
         """
         try:
-            # Build contents list with prompt and reference images
+            # Build contents list
             contents = []
-            
-            # Add reference images first (if any)
             if ref_images:
                 for ref_img in ref_images:
                     contents.append(ref_img)
-            
-            # Add text prompt
             contents.append(prompt)
             
-            logger.debug(f"Calling GenAI API for image generation with {len(ref_images) if ref_images else 0} reference images...")
-            logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
+            logger.debug(f"Calling GenAI API (Model: {self.model})...")
             
             response = self.client.models.generate_content(
                 model=self.model,
@@ -117,26 +98,61 @@ class GenAIImageProvider(ImageProvider):
             
             logger.debug("GenAI API call completed")
             
-            # Extract image from response
+            if not response.parts:
+                raise ValueError("Response had no parts.")
+
+            # Priority 1: Try Standard SDK Image Extraction (Inline Data)
             for i, part in enumerate(response.parts):
-                if part.text is not None:
-                    logger.debug(f"Part {i}: TEXT - {part.text[:100] if len(part.text) > 100 else part.text}")
-                else:
+                try:
+                    # Some SDK versions might expose part.image or part.inline_data
+                    # We try the method used in your original code first
+                    image = part.as_image()
+                    if image:
+                        logger.debug(f"Successfully extracted inline image from part {i}")
+                        return image
+                except Exception:
+                    # It's normal to fail here if the part is just text
+                    pass
+
+            # Priority 2: Try URL Extraction from Text (Proxy/Markdown fallback)
+            # We do this in a second pass or if the first pass failed
+            for i, part in enumerate(response.parts):
+                if not part.text:
+                    continue
+                    
+                text_content = part.text
+                logger.debug(f"Part {i} contains text, checking for URLs...")
+                
+                # Regex matches http/https URLs until whitespace or closing parenthesis
+                url_pattern = r'(https?://[^\s\)]+)'
+                urls = re.findall(url_pattern, text_content)
+                
+                for url in urls:
+                    # Clean punctuation that might be captured (Markdown brackets, quotes, trailing dots)
+                    clean_url = url.strip(')"\'].;,')
+                    
                     try:
-                        logger.debug(f"Part {i}: Attempting to extract image...")
-                        image = part.as_image()
-                        if image:
-                            logger.debug(f"Successfully extracted image from part {i}")
-                            return image
-                    except Exception as e:
-                        logger.debug(f"Part {i}: Failed to extract image - {str(e)}")
-            
-            # No image found in response
-            error_msg = "No image found in API response. "
-            if response.parts:
-                error_msg += f"Response had {len(response.parts)} parts but none contained valid images."
-            else:
-                error_msg += "Response had no parts."
+                        logger.debug(f"Attempting to download image from URL: {clean_url}")
+                        # Set a timeout so we don't hang forever
+                        img_response = requests.get(clean_url, timeout=30)
+                        img_response.raise_for_status() # Check for 404/500 errors
+                        
+                        # Try to open content as image directly
+                        image = Image.open(BytesIO(img_response.content))
+                        image.load() # Verify integrity
+                        logger.debug(f"Successfully downloaded and loaded image from URL: {clean_url}")
+                        return image
+                        
+                    except (requests.RequestException, UnidentifiedImageError) as err:
+                        logger.warning(f"Found URL {clean_url} but failed to load image: {err}")
+                        continue
+
+            # If we reach here, no image was found
+            error_msg = f"No image found in API response (checked {len(response.parts)} parts)."
+            # Add snippet of text content for debugging
+            for i, part in enumerate(response.parts):
+                if part.text:
+                    error_msg += f" Part {i} text: {part.text[:200]}..."
             
             raise ValueError(error_msg)
             
@@ -144,4 +160,3 @@ class GenAIImageProvider(ImageProvider):
             error_detail = f"Error generating image with GenAI: {type(e).__name__}: {str(e)}"
             logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
-
