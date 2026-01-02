@@ -391,33 +391,6 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
     return prompt
 
 
-def get_clean_background_prompt() -> str:
-    """
-    生成干净背景图片的编辑指令 prompt
-    用于导出可编辑 PPTX 时移除文字和图标
-    
-    Returns:
-        编辑指令字符串
-    """
-    return """\
-{
-    "task": "get_clean_background_of_the_image",
-    "remove_item": [
-        "text",
-        "icon",
-        "symbol",
-        "decoration",
-        "charts"
-    ],
-    "keep_item": [
-        "background_color",
-        "background_gradient",
-        "background_design"
-    ]
-}
-
-"""
-
 def get_description_to_outline_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """
     从描述文本解析出大纲的 prompt
@@ -754,7 +727,7 @@ def get_clean_background_prompt() -> str:
 你是一位专业的图片前景擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字内容、干净纯净的背景模板图。
 <requirements>
 - 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除。
-- 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框色块。
+- 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框和色块。
 - 对于被前景元素遮挡的背景区域，要智能填补，使背景保持无缝和完整。
 - 输出图片的尺寸、风格、配色必须和原图完全一致。
 - 请勿新增任何元素。
@@ -763,4 +736,41 @@ def get_clean_background_prompt() -> str:
 注意，**所有**文字和图表都应该被彻底移除，**不能遗留任何一个。**
 """
     logger.debug(f"[get_clean_background_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_text_attribute_extraction_prompt(content_hint: str = "") -> str:
+    """
+    生成文字属性提取的 prompt
+    
+    Args:
+        content_hint: 文字内容提示，如果提供则会在prompt中包含文字内容信息
+    
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = """分析这张图片中的文字样式，返回JSON格式的结果。
+
+{content_hint}
+
+请分析图片中的文字并返回以下属性：
+1. font_color: 字体颜色的十六进制值，格式为 "#RRGGBB"，如 "#FF6B6B"、"#000000"
+2. is_bold: 是否为明显粗体，true或false
+3. is_italic: 是否为明显斜体，true或false
+4. is_underline: 是否有下划线，true或false
+5. text_alignment: 文字对齐方式，可选值为 "left", "center", "right", "justify"。
+
+只返回JSON对象，不要包含其他文字：
+```json
+{{
+    "font_color": "#RRGGBB",
+    "is_bold": true/false,
+    "is_italic": true/false,
+    "is_underline": true/false,
+    "text_alignment": "对齐方式"
+}}
+```
+""".format(content_hint=content_hint)
+    
+    logger.debug(f"[get_text_attribute_extraction_prompt] Final prompt:\n{prompt}")
     return prompt
