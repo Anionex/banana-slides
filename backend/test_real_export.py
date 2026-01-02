@@ -60,7 +60,7 @@ def main():
     
     # 3. 初始化服务
     print("\n[3/5] 初始化 ImageEditabilityService...")
-    from services.image_editability_service import ImageEditabilityService
+    from services.image_editability import ImageEditabilityService, ServiceConfig
     
     try:
         service = ImageEditabilityService(
@@ -93,7 +93,7 @@ def main():
         print(f"  尺寸: {editable_img.width}x{editable_img.height}")
         print(f"  提取的元素数量: {len(editable_img.elements)}")
         print(f"  Clean background: {editable_img.clean_background if editable_img.clean_background else '未生成'}")
-        print(f"  MinerU结果目录: {editable_img.mineru_result_dir}")
+        print(f"  深度: {editable_img.depth}")
         
         # 显示元素详情
         if editable_img.elements:

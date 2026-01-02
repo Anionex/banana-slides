@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加backend目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from services.image_editability_service import (
+from services.image_editability import (
     ImageEditabilityService,
     BBox,
     CoordinateMapper
@@ -145,7 +145,7 @@ def test_editable_element_serialization():
     print("测试 EditableElement 序列化")
     print("="*60)
     
-    from services.image_editability_service import EditableElement
+    from services.image_editability import EditableElement
     
     bbox = BBox(x0=10, y0=20, x1=100, y1=120)
     bbox_global = BBox(x0=110, y0=120, x1=200, y1=220)
@@ -181,7 +181,7 @@ def test_editable_image_serialization():
     print("测试 EditableImage 序列化")
     print("="*60)
     
-    from services.image_editability_service import EditableImage, EditableElement
+    from services.image_editability import EditableImage, EditableElement
     
     # 创建测试元素
     elements = []

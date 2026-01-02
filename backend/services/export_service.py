@@ -316,6 +316,10 @@ class ExportService:
         """
         Create editable PPTX file from MinerU parsing results
         
+        .. deprecated::
+            此方法已被 `create_editable_pptx_with_recursive_analysis` 替代。
+            新方法支持递归分析图片中的子图和表格，提供更好的可编辑性。
+        
         Args:
             mineru_result_dir: Directory containing MinerU results (content_list.json, images/, etc.)
             output_file: Optional output file path (if None, returns bytes)
@@ -326,6 +330,12 @@ class ExportService:
         Returns:
             PPTX file as bytes if output_file is None
         """
+        import warnings
+        warnings.warn(
+            "create_editable_pptx_from_mineru is deprecated, use create_editable_pptx_with_recursive_analysis instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
         from utils.pptx_builder import PPTXBuilder
         
         mineru_dir = Path(mineru_result_dir)
@@ -839,7 +849,7 @@ class ExportService:
         Returns:
             PPTX文件字节流（如果output_file为None）
         """
-        from services.image_editability_service import get_image_editability_service
+        from services.image_editability import ServiceConfig, ImageEditabilityService
         from utils.pptx_builder import PPTXBuilder
         
         # 如果已提供分析结果，直接使用；否则需要分析
@@ -851,20 +861,35 @@ class ExportService:
             
             logger.info(f"开始使用递归分析方法创建可编辑PPTX，共 {len(image_paths)} 页")
             
-            # 1. 获取ImageEditabilityService
-            editability_service = get_image_editability_service(
+            # 1. 创建ImageEditabilityService
+            config = ServiceConfig.from_defaults(
                 mineru_token=mineru_token,
                 mineru_api_base=mineru_api_base,
                 max_depth=max_depth
             )
+            editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
             logger.info(f"Step 1: 分析 {len(image_paths)} 张图片（并发数: {max_workers}）...")
-            editable_images = editability_service.make_multi_images_editable(
-                image_paths=image_paths,
-                parallel=True,
-                max_workers=max_workers
-            )
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            editable_images = []
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(editability_service.make_image_editable, img_path): idx
+                    for idx, img_path in enumerate(image_paths)
+                }
+                
+                results = [None] * len(image_paths)
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        results[idx] = future.result()
+                    except Exception as e:
+                        logger.error(f"处理图片 {image_paths[idx]} 失败: {e}")
+                        raise
+                
+                editable_images = results
         
         logger.info(f"Step 2: 创建PPTX...")
         
@@ -909,20 +934,12 @@ class ExportService:
             
             # 添加所有元素（递归地）
             # scale_x = scale_y = 1.0 因为我们已经用正确的尺寸分析了
-            mineru_dir = Path(editable_img.mineru_result_dir) if editable_img.mineru_result_dir else None
-            logger.info(f"    MinerU目录: {mineru_dir}")
             logger.info(f"    元素数量: {len(editable_img.elements)}")
-            
-            if mineru_dir and mineru_dir.exists():
-                logger.info(f"    ✓ MinerU目录存在")
-            else:
-                logger.warning(f"    ✗ MinerU目录不存在或为None")
             
             ExportService._add_editable_elements_to_slide(
                 builder=builder,
                 slide=slide,
                 elements=editable_img.elements,
-                mineru_dir=mineru_dir,
                 scale_x=1.0,
                 scale_y=1.0,
                 depth=0
@@ -945,7 +962,6 @@ class ExportService:
         builder,
         slide,
         elements: List,  # List[EditableElement]
-        mineru_dir: Path,
         scale_x: float = 1.0,
         scale_y: float = 1.0,
         depth: int = 0
@@ -957,10 +973,12 @@ class ExportService:
             builder: PPTXBuilder实例
             slide: 幻灯片对象
             elements: EditableElement列表
-            mineru_dir: MinerU结果目录
             scale_x: X轴缩放因子
             scale_y: Y轴缩放因子
             depth: 当前递归深度
+        
+        Note:
+            elem.image_path 现在是绝对路径，无需额外的目录参数
         """
         for elem in elements:
             elem_type = elem.element_type
@@ -1037,52 +1055,30 @@ class ExportService:
                         except Exception as e:
                             logger.error(f"Failed to add table background: {e}")
                     
-                    # 获取子图的 mineru_result_dir（如果有）
-                    child_mineru_dir = elem.metadata.get('child_mineru_result_dir')
-                    if child_mineru_dir:
-                        child_mineru_dir = Path(child_mineru_dir)
-                    else:
-                        # 如果没有保存，使用父图的目录（向后兼容）
-                        child_mineru_dir = mineru_dir
-                    
-                    # 递归添加单元格，使用正确的 mineru_dir
+                    # 递归添加单元格
                     ExportService._add_editable_elements_to_slide(
                         builder=builder,
                         slide=slide,
                         elements=elem.children,
-                        mineru_dir=child_mineru_dir,
                         scale_x=scale_x,
                         scale_y=scale_y,
                         depth=depth + 1
                     )
                 else:
                     # 没有子元素，添加整体表格图片
-                    if elem.image_path and mineru_dir:
-                        # 查找图片文件
-                        possible_paths = [
-                            mineru_dir / elem.image_path,
-                            mineru_dir / 'images' / Path(elem.image_path).name,
-                            mineru_dir / Path(elem.image_path).name,
-                        ]
-                        
-                        image_path = None
-                        for path in possible_paths:
-                            if path.exists():
-                                image_path = str(path)
-                                break
-                        
-                        if image_path:
-                            try:
-                                builder.add_image_element(
-                                    slide=slide,
-                                    image_path=image_path,
-                                    bbox=bbox_list
-                                )
-                            except Exception as e:
-                                logger.error(f"Failed to add table image: {e}")
-                        else:
-                            logger.warning(f"Table image not found: {elem.image_path}")
-                            builder.add_image_placeholder(slide, bbox_list)
+                    # elem.image_path 现在是绝对路径
+                    if elem.image_path and os.path.exists(elem.image_path):
+                        try:
+                            builder.add_image_element(
+                                slide=slide,
+                                image_path=elem.image_path,
+                                bbox=bbox_list
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to add table image: {e}")
+                    else:
+                        logger.warning(f"Table image not found: {elem.image_path}")
+                        builder.add_image_placeholder(slide, bbox_list)
             
             elif elem_type in ['image', 'figure', 'chart']:
                 # 检查是否应该使用递归渲染
@@ -1121,107 +1117,33 @@ class ExportService:
                         except Exception as e:
                             logger.error(f"Failed to add inpainted background: {e}")
                     
-                    # 获取子图的 mineru_result_dir（如果有）
-                    child_mineru_dir = elem.metadata.get('child_mineru_result_dir')
-                    if child_mineru_dir:
-                        child_mineru_dir = Path(child_mineru_dir)
-                    else:
-                        # 如果没有保存，使用父图的目录（向后兼容）
-                        child_mineru_dir = mineru_dir
-                    
-                    # 递归添加子元素，使用子图的 mineru_dir
+                    # 递归添加子元素
                     ExportService._add_editable_elements_to_slide(
                         builder=builder,
                         slide=slide,
                         elements=elem.children,
-                        mineru_dir=child_mineru_dir,
                         scale_x=scale_x,
                         scale_y=scale_y,
                         depth=depth + 1
                     )
                 else:
-                    # 没有子元素或子元素占比过大，直接添加原图（参考_add_mineru_image_to_slide）
-                    if elem.image_path and mineru_dir:
-                        # 查找图片文件
-                        possible_paths = [
-                            mineru_dir / elem.image_path,
-                            mineru_dir / 'images' / Path(elem.image_path).name,
-                            mineru_dir / Path(elem.image_path).name,
-                        ]
-                        
-                        image_path = None
-                        for path in possible_paths:
-                            if path.exists():
-                                image_path = str(path)
-                                break
-                        
-                        if image_path:
-                            try:
-                                builder.add_image_element(
-                                    slide=slide,
-                                    image_path=image_path,
-                                    bbox=bbox_list
-                                )
-                            except Exception as e:
-                                logger.error(f"Failed to add image: {e}")
-                        else:
-                            logger.warning(f"Image file not found: {elem.image_path}")
-                            builder.add_image_placeholder(slide, bbox_list)
+                    # 没有子元素或子元素占比过大，直接添加原图
+                    # elem.image_path 现在是绝对路径
+                    if elem.image_path and os.path.exists(elem.image_path):
+                        try:
+                            builder.add_image_element(
+                                slide=slide,
+                                image_path=elem.image_path,
+                                bbox=bbox_list
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to add image: {e}")
+                    else:
+                        logger.warning(f"Image file not found: {elem.image_path}")
+                        builder.add_image_placeholder(slide, bbox_list)
             
             else:
                 # 其他类型
                 logger.debug(f"{'  ' * depth}  跳过未知类型: {elem_type}")
     
-    @staticmethod
-    def generate_clean_background(original_image_path: str, ai_service, 
-                                   aspect_ratio: str = "16:9", 
-                                   resolution: str = "2K") -> Optional[str]:
-        """
-        生成干净背景图片（移除文字和图标）
-        
-        Args:
-            original_image_path: 原始图片路径
-            ai_service: AIService 实例
-            aspect_ratio: 图片宽高比
-            resolution: 图片分辨率
-            
-        Returns:
-            生成的干净背景图片路径，如果失败则返回 None
-        """
-        from services.prompts import get_clean_background_prompt
-        
-        try:
-            # 获取编辑指令
-            edit_prompt = get_clean_background_prompt()
-            
-            # 使用 AI 服务编辑图片，移除文字和图标
-            clean_image = ai_service.edit_image(
-                prompt=edit_prompt,
-                current_image_path=original_image_path,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution
-            )
-            
-            if not clean_image:
-                logger.warning(f"Failed to generate clean background for {original_image_path}")
-                return None
-            
-            # 保存到临时文件
-            temp_dir = os.path.dirname(original_image_path)
-            temp_file = tempfile.NamedTemporaryFile(
-                dir=temp_dir,
-                suffix='.png',
-                delete=False
-            )
-            temp_path = temp_file.name
-            temp_file.close()
-            
-            clean_image.save(temp_path)
-            logger.debug(f"Clean background saved to: {temp_path}")
-            
-            return temp_path
-            
-        except Exception as e:
-            logger.error(f"Error generating clean background: {str(e)}", exc_info=True)
-            return None
 

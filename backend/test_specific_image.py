@@ -65,7 +65,7 @@ def main():
     
     # 3. 初始化服务
     print("\n[3/5] 初始化 ImageEditabilityService...")
-    from services.image_editability_service import ImageEditabilityService
+    from services.image_editability import ImageEditabilityService, ServiceConfig
     from services.inpainting_service import InpaintingService
     
     # 初始化Gemini Inpainting服务
@@ -132,7 +132,7 @@ def main():
         print(f"    Clean background: {'✅ 已生成' if editable_img.clean_background else '⚠️  未生成'}")
         if editable_img.clean_background:
             print(f"      路径: {editable_img.clean_background}")
-        print(f"    MinerU结果: {editable_img.mineru_result_dir}")
+        print(f"    深度: {editable_img.depth}")
         
         # 显示元素详情
         if editable_img.elements:

@@ -1,17 +1,23 @@
 """
 ImageEditabilityService 使用示例
 
-展示如何使用新的递归图片可编辑化服务
+展示如何使用图片可编辑化服务
 """
 import os
 import sys
 import json
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 添加backend目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from services.image_editability_service import get_image_editability_service
+from services.image_editability import (
+    ImageEditabilityService,
+    ServiceConfig,
+    BBox,
+    CoordinateMapper
+)
 
 
 def example_1_single_image():
@@ -20,14 +26,17 @@ def example_1_single_image():
     print("示例1: 分析单张图片")
     print("="*60)
     
-    # 获取服务实例
-    service = get_image_editability_service(
+    # 创建配置
+    config = ServiceConfig.from_defaults(
         mineru_token="your_mineru_token_here",
         mineru_api_base="https://mineru.net",
         max_depth=2,          # 最多递归2层
         min_image_size=200,   # 小于200px的图片不递归
         min_image_area=40000  # 小于40000px²的图片不递归
     )
+    
+    # 创建服务实例
+    service = ImageEditabilityService(config)
     
     # 分析图片
     image_path = "/path/to/your/image.png"
@@ -67,10 +76,12 @@ def example_2_multi_images():
     print("示例2: 批量处理多张图片（并发）")
     print("="*60)
     
-    service = get_image_editability_service(
+    # 创建配置和服务（一次创建，多次使用）
+    config = ServiceConfig.from_defaults(
         mineru_token="your_mineru_token_here",
         max_depth=2
     )
+    service = ImageEditabilityService(config)
     
     # 多张图片路径（例如PPT的多页）
     image_paths = [
@@ -79,195 +90,97 @@ def example_2_multi_images():
         "/path/to/slide3.png",
     ]
     
-    print(f"正在处理 {len(image_paths)} 张图片...")
+    print(f"正在并发分析 {len(image_paths)} 张图片...")
     
-    # 并发处理
-    editable_images = service.make_multi_images_editable(
-        image_paths=image_paths,
-        parallel=True,
-        max_workers=4  # 4个并发线程
-    )
-    
-    # 打印结果
-    print("\n处理结果:")
-    for idx, editable_img in enumerate(editable_images):
-        print(f"  第 {idx+1} 页:")
-        print(f"    - 尺寸: {editable_img.width}x{editable_img.height}")
-        print(f"    - 元素数: {len(editable_img.elements)}")
-        print(f"    - 背景: {editable_img.clean_background}")
-    
-    return editable_images
-
-
-def example_3_recursive_analysis():
-    """示例3: 递归分析子图"""
-    print("\n" + "="*60)
-    print("示例3: 递归分析子图")
-    print("="*60)
-    
-    service = get_image_editability_service(
-        mineru_token="your_mineru_token_here",
-        max_depth=3  # 允许更深的递归
-    )
-    
-    image_path = "/path/to/image_with_charts.png"
-    
-    print(f"正在递归分析: {image_path}")
-    editable_img = service.make_image_editable(image_path)
-    
-    # 递归打印元素树
-    def print_element_tree(element, indent=0):
-        prefix = "  " * indent + "└─"
-        print(f"{prefix} {element.element_type} (ID: {element.element_id})")
+    # 并发处理（由调用者控制并发）
+    results = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(service.make_image_editable, img_path): idx
+            for idx, img_path in enumerate(image_paths)
+        }
         
-        if element.inpainted_background_path:
-            print(f"{prefix}   [有inpaint背景]")
-        
-        if element.children:
-            print(f"{prefix}   [有 {len(element.children)} 个子元素]")
-            for child in element.children:
-                print_element_tree(child, indent + 1)
+        # 按原顺序收集结果
+        results = [None] * len(image_paths)
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                results[idx] = future.result()
+                print(f"  ✓ 完成 {image_paths[idx]}")
+            except Exception as e:
+                print(f"  ✗ 失败 {image_paths[idx]}: {e}")
     
-    print("\n元素树:")
-    print(f"根图片 (ID: {editable_img.image_id})")
-    for elem in editable_img.elements:
-        print_element_tree(elem, 0)
-    
-    return editable_img
+    print(f"\n成功处理 {len([r for r in results if r])} 张图片")
+    return results
 
 
-def example_4_export_pptx():
-    """示例4: 导出可编辑PPTX"""
+def example_3_coordinate_mapping():
+    """示例3: 坐标映射（局部坐标 <-> 全局坐标）"""
     print("\n" + "="*60)
-    print("示例4: 导出可编辑PPTX")
+    print("示例3: 坐标映射")
     print("="*60)
     
-    from services.export_service import ExportService
+    # 假设我们有一个父图（PPT页面）中的子图（嵌入的图表）
+    # 父图尺寸: 1920x1080
+    # 子图在父图中的位置: (100, 200) - (500, 600)
+    # 子图内部某个元素的位置: (50, 50) - (150, 100)
     
-    image_paths = [
-        "/path/to/slide1.png",
-        "/path/to/slide2.png",
-        "/path/to/slide3.png",
-    ]
+    parent_bbox = BBox(x0=100, y0=200, x1=500, y1=600)
+    local_bbox = BBox(x0=50, y0=50, x1=150, y1=100)
     
-    output_file = "/path/to/output.pptx"
-    
-    print(f"正在导出 {len(image_paths)} 页到: {output_file}")
-    
-    # 使用递归分析方法导出
-    ExportService.create_editable_pptx_with_recursive_analysis(
-        image_paths=image_paths,
-        output_file=output_file,
-        slide_width_pixels=1920,
-        slide_height_pixels=1080,
-        mineru_token="your_mineru_token_here",
-        mineru_api_base="https://mineru.net",
-        max_depth=2,
-        max_workers=4
+    # 局部坐标 -> 全局坐标
+    global_bbox = CoordinateMapper.local_to_global(
+        local_bbox=local_bbox,
+        parent_bbox=parent_bbox,
+        local_image_size=(400, 400),   # 子图尺寸
+        parent_image_size=(1920, 1080)  # 父图尺寸
     )
     
-    print(f"✓ PPTX已导出: {output_file}")
+    print(f"子图bbox (父图坐标系): {parent_bbox.to_dict()}")
+    print(f"元素bbox (子图坐标系): {local_bbox.to_dict()}")
+    print(f"元素bbox (父图坐标系): {global_bbox.to_dict()}")
+    
+    # 全局坐标 -> 局部坐标
+    recovered_local = CoordinateMapper.global_to_local(
+        global_bbox=global_bbox,
+        parent_bbox=parent_bbox,
+        local_image_size=(400, 400),
+        parent_image_size=(1920, 1080)
+    )
+    
+    print(f"恢复的局部bbox: {recovered_local.to_dict()}")
 
 
-def example_5_coordinate_mapping():
-    """示例5: 坐标映射示例"""
+def example_4_custom_config():
+    """示例4: 自定义配置"""
     print("\n" + "="*60)
-    print("示例5: 坐标映射")
+    print("示例4: 自定义配置")
     print("="*60)
     
-    from services.image_editability_service import BBox, CoordinateMapper
-    
-    # 场景：1920x1080的根图片，包含一个400x200的子图在(100, 100, 500, 300)
-    root_size = (1920, 1080)
-    child_actual_size = (800, 600)  # 子图实际文件尺寸
-    child_bbox_in_parent = BBox(x0=100, y0=100, x1=500, y1=300)
-    
-    # 子图中的一个元素（局部坐标）
-    local_element = BBox(x0=50, y0=50, x1=150, y1=100)
-    
-    print(f"根图片尺寸: {root_size}")
-    print(f"子图实际尺寸: {child_actual_size}")
-    print(f"子图在根图中: {child_bbox_in_parent.to_dict()}")
-    print(f"元素在子图中（局部）: {local_element.to_dict()}")
-    
-    # 映射到全局坐标
-    global_element = CoordinateMapper.local_to_global(
-        local_bbox=local_element,
-        parent_bbox=child_bbox_in_parent,
-        local_image_size=child_actual_size,
-        parent_image_size=root_size
+    # 快速模式：不递归
+    config_fast = ServiceConfig.from_defaults(
+        mineru_token="xxx",
+        max_depth=0  # 不递归
     )
     
-    print(f"元素在根图中（全局）: {global_element.to_dict()}")
-    
-    # 验证逆向映射
-    recovered = CoordinateMapper.global_to_local(
-        global_bbox=global_element,
-        parent_bbox=child_bbox_in_parent,
-        local_image_size=child_actual_size,
-        parent_image_size=root_size
-    )
-    
-    print(f"逆向映射回局部: {recovered.to_dict()}")
-    print(f"映射误差: < 0.001 (精度验证通过)")
-
-
-def example_6_custom_config():
-    """示例6: 自定义配置"""
-    print("\n" + "="*60)
-    print("示例6: 自定义配置")
-    print("="*60)
-    
-    # 配置1: 只分析一层，快速模式
-    service_fast = get_image_editability_service(
-        mineru_token="your_mineru_token_here",
-        max_depth=1,           # 只分析1层
-        min_image_size=300,    # 提高阈值，减少递归
-        min_image_area=90000
-    )
-    print("快速模式: max_depth=1, 高阈值")
-    
-    # 配置2: 深度分析，详细模式
-    service_detailed = get_image_editability_service(
-        mineru_token="your_mineru_token_here",
-        max_depth=4,           # 深度递归
-        min_image_size=100,    # 降低阈值，更多递归
+    # 深度模式：最多递归3层
+    config_deep = ServiceConfig.from_defaults(
+        mineru_token="xxx",
+        max_depth=3,
+        min_image_size=100,  # 更小的图片也递归
         min_image_area=10000
     )
-    print("详细模式: max_depth=4, 低阈值")
     
-    # 配置3: 平衡模式（推荐）
-    service_balanced = get_image_editability_service(
-        mineru_token="your_mineru_token_here",
-        max_depth=2,
-        min_image_size=200,
-        min_image_area=40000
-    )
-    print("平衡模式: max_depth=2, 中等阈值（推荐）")
+    print("快速模式: max_depth=0")
+    print("深度模式: max_depth=3, min_size=100")
 
 
-def main():
-    """运行所有示例"""
-    print("\n" + "="*80)
+if __name__ == "__main__":
     print("ImageEditabilityService 使用示例")
-    print("="*80)
-    
-    print("\n注意: 这些示例需要真实的图片文件和MinerU token才能运行")
-    print("请修改代码中的路径和token后再执行")
+    print("注意: 运行前请替换 mineru_token 和图片路径")
     
     # 取消注释以运行示例
     # example_1_single_image()
     # example_2_multi_images()
-    # example_3_recursive_analysis()
-    # example_4_export_pptx()
-    example_5_coordinate_mapping()
-    example_6_custom_config()
-    
-    print("\n" + "="*80)
-    print("示例完成！")
-    print("="*80)
-
-
-if __name__ == "__main__":
-    main()
-
+    example_3_coordinate_mapping()
+    example_4_custom_config()
