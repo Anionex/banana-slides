@@ -19,17 +19,18 @@ class Project(db.Model):
     extra_requirements = db.Column(db.Text, nullable=True)  # 额外要求，应用到每个页面的AI提示词
     creation_type = db.Column(db.String(20), nullable=False, default='idea')  # idea|outline|descriptions
     template_image_path = db.Column(db.String(500), nullable=True)
-    template_style = db.Column(db.Text, nullable=True)  # 风格描述文本（无模板模式）
+    template_style = db.Column(db.Text, nullable=True)  # 风格描述文本（无模板图模式）
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    pages = db.relationship('Page', back_populates='project', lazy='dynamic', 
+    # 使用 'select' 策略支持 eager loading，同时保持灵活性
+    pages = db.relationship('Page', back_populates='project', lazy='select', 
                            cascade='all, delete-orphan', order_by='Page.order_index')
-    tasks = db.relationship('Task', back_populates='project', lazy='dynamic',
+    tasks = db.relationship('Task', back_populates='project', lazy='select',
                            cascade='all, delete-orphan')
-    materials = db.relationship('Material', back_populates='project', lazy='dynamic',
+    materials = db.relationship('Material', back_populates='project', lazy='select',
                            cascade='all, delete-orphan')
     
     def to_dict(self, include_pages=False):
@@ -58,7 +59,8 @@ class Project(db.Model):
         }
         
         if include_pages:
-            data['pages'] = [page.to_dict() for page in self.pages.order_by('order_index')]
+            # pages 现在是列表，不需要 order_by（已在 relationship 中定义）
+            data['pages'] = [page.to_dict() for page in self.pages]
         
         return data
     

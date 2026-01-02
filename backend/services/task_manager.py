@@ -190,6 +190,10 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 # 关键修复：在子线程中也需要应用上下文
                 with app.app_context():
                     try:
+                        # Get singleton AI service instance
+                        from services.ai_service_manager import get_ai_service
+                        ai_service = get_ai_service()
+                        
                         desc_text = ai_service.generate_page_description(
                             project_context, outline, page_outline, page_index,
                             language=language
@@ -793,8 +797,6 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-
-
 
 
 def export_editable_pptx_with_recursive_analysis_task(

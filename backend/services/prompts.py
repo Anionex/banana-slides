@@ -304,7 +304,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         has_material_images: 是否有素材图片
         extra_requirements: 额外的要求（可能包含风格描述）
         language: 输出语言
-        has_template: 是否有模板图片（False表示无模板模式）
+        has_template: 是否有模板图片（False表示无模板图模式）
         
     Returns:
         格式化后的 prompt 字符串
@@ -751,16 +751,16 @@ def get_clean_background_prompt() -> str:
     用于从完整的PPT页面中提取纯背景
     """
     prompt = """\
-<foreground_erasure_task>
-  <role>你是一位专业的图片前景擦除专家。你的任务是：从原始图片中移除文字和配图，输出一张无任何文字内容、干净纯净的背景模板图。</role>
-  <requirements>
-    - 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除。
-    - 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框色块。
-    - 对于被前景元素遮挡的背景区域，要智能填补，使背景保持无缝和完整。
-    - 输出图片的尺寸、风格、配色必须和原图完全一致。
-    - 请勿新增任何元素。
-  </requirements>
-</foreground_erasure_task>
+你是一位专业的图片前景擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字内容、干净纯净的背景模板图。
+<requirements>
+- 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除。
+- 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框色块。
+- 对于被前景元素遮挡的背景区域，要智能填补，使背景保持无缝和完整。
+- 输出图片的尺寸、风格、配色必须和原图完全一致。
+- 请勿新增任何元素。
+</requirements>
+
+注意，**所有**文字和图表都应该被彻底移除，**不能遗留任何一个。**
 """
     logger.debug(f"[get_clean_background_prompt] Final prompt:\n{prompt}")
     return prompt

@@ -672,10 +672,10 @@ export const Home: React.FC = () => {
                   选择风格模板
                 </h3>
               </div>
-              {/* 无模板模式开关 */}
+              {/* 无模板图模式开关 */}
               <label className="flex items-center gap-2 cursor-pointer group">
                 <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
-                  使用无模板模式
+                  使用文字描述风格
                 </span>
                 <div className="relative">
                   <input
@@ -683,7 +683,7 @@ export const Home: React.FC = () => {
                     checked={useTemplateStyle}
                     onChange={(e) => {
                       setUseTemplateStyle(e.target.checked);
-                      // 切换到无模板模式时，清空模板选择
+                      // 切换到无模板图模式时，清空模板选择
                       if (e.target.checked) {
                         setSelectedTemplate(null);
                         setSelectedTemplateId(null);

@@ -118,7 +118,6 @@
 
 ## 🔥 近期更新
 - 【12-27】: 加入了对无图片模板模式的支持和较高质量的文字预设，现在可以通过纯文字描述的方式来控制ppt页面风格
-- 【12-25】: https://github.com/Anionex/banana-slides/pull/82 支持了基于版面识别、局部重绘和递归分析的可编辑pptx导出方法，开发者可切换至该分支提前尝鲜⛱️
 - 【12-24】: main分支加入了基于nano-banana-pro背景提取的可编辑pptx导出方法（目前Beta）
 
 
@@ -508,7 +507,7 @@ banana-slides/
 **常见问题**
 1.  **支持免费层级的 Gemini API Key 吗？**
     *   免费层级只支持文本生成，不支持图片生成。
-2.  **生成内容时提示 503 错误**
+2.  **生成内容时提示 503 错误或 Retry Error**
     *   可以根据 README 中的命令查看 Docker 内部日志，定位 503 问题的详细报错，一般是模型配置不正确导致。
 3.  **.env 中设置了 API Key 之后，为什么不生效？**
     1.  运行时编辑.env需要重启 Docker 容器以应用更改。
@@ -581,7 +580,7 @@ banana-slides/
 <img width="240" alt="image" src="https://github.com/user-attachments/assets/fd7a286d-711b-445e-aecf-43e3fe356473" />
 
 感谢以下朋友对项目的无偿赞助支持：
-> @曹峥 、@azazo1 、 @刘聪NLP、 @🍟、 @苍何  
+> @雅俗共赏、@曹峥、@以年观日、@John、@azazo1、@刘聪NLP、@🍟、@苍何、@biubiu  
 > 如对赞助列表有疑问（如赞赏后没看到您的名字），可<a href="mailto:anionex@qq.com">联系作者</a>
  
 ## 📈 项目统计

@@ -335,7 +335,7 @@ class AIService:
             has_material_images: 是否有素材图片（从项目描述中提取的图片）
             extra_requirements: Optional extra requirements to apply to all pages
             language: Output language
-            has_template: 是否有模板图片（False表示无模板模式）
+            has_template: 是否有模板图片（False表示无模板图模式）
         
         Returns:
             Image generation prompt

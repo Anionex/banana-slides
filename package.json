@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "setup:test": "uv sync --extra test && cd frontend && npm install",
+    "setup:hooks": "chmod +x scripts/setup_git_hooks.sh && ./scripts/setup_git_hooks.sh",
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "uv run pytest backend/tests/ -v",
     "test:frontend": "cd frontend && npm test -- --run",

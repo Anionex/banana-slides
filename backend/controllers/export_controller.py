@@ -5,6 +5,7 @@ from flask import Blueprint, request, current_app
 from models import db, Project, Page, Task
 from utils import error_response, not_found, bad_request, success_response
 from services import ExportService, FileService
+from services.ai_service_manager import get_ai_service
 import os
 import io
 
@@ -154,11 +155,11 @@ def export_pdf(project_id):
 @export_bp.route('/<project_id>/export/editable-pptx', methods=['POST'])
 def export_editable_pptx(project_id):
     """
-    POST /api/projects/{project_id}/export/editable-pptx - Export Editable PPTX (Async)
+    POST /api/projects/{project_id}/export/editable-pptx - 导出可编辑PPTX（异步）
     
-    🆕 现在使用新的递归分析方法（支持任意尺寸、递归子图分析）
+    使用递归分析方法（支持任意尺寸、递归子图分析）
     
-    This endpoint creates an async task that:
+    这个端点创建一个异步任务来执行以下操作：
     1. 递归分析图片（支持任意尺寸和分辨率）
     2. 转换为PDF并上传MinerU识别
     3. 提取元素bbox和生成clean background（inpainting）
@@ -185,10 +186,9 @@ def export_editable_pptx(project_id):
             "message": "Export task created"
         }
     
-    Poll /api/projects/{project_id}/tasks/{task_id} for progress and download URL
+    轮询 /api/projects/{project_id}/tasks/{task_id} 获取进度和下载链接
     """
     try:
-        import uuid
         import logging
         
         logger = logging.getLogger(__name__)
@@ -215,7 +215,7 @@ def export_editable_pptx(project_id):
         if not filename.endswith('.pptx'):
             filename += '.pptx'
         
-        # 🆕 递归分析参数
+        # 递归分析参数
         max_depth = data.get('max_depth', 2)
         max_workers = data.get('max_workers', 4)
         
@@ -226,10 +226,10 @@ def export_editable_pptx(project_id):
         if not isinstance(max_workers, int) or max_workers < 1 or max_workers > 16:
             return bad_request("max_workers must be an integer between 1 and 16")
         
-        # Create task record (使用新的任务类型)
+        # Create task record
         task = Task(
             project_id=project_id,
-            task_type='EXPORT_EDITABLE_PPTX',  # 保持任务类型不变，便于前端兼容
+            task_type='EXPORT_EDITABLE_PPTX',
             status='PENDING'
         )
         db.session.add(task)
@@ -246,7 +246,7 @@ def export_editable_pptx(project_id):
         # Get Flask app instance for background task
         app = current_app._get_current_object()
         
-        # 🆕 使用新的递归分析任务（注意：不需要 ai_service，使用 ImageEditabilityService）
+        # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
         task_manager.submit_task(
             task.id,
             export_editable_pptx_with_recursive_analysis_task,
@@ -271,8 +271,7 @@ def export_editable_pptx(project_id):
         )
     
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.exception("Error creating export task")
         return error_response('SERVER_ERROR', str(e), 500)
-
-
-

@@ -72,6 +72,13 @@ class PPTXBuilder:
     # Default DPI for pixel to inch conversion
     DEFAULT_DPI = 96
     
+    # python-pptx size limits (1-56 inches, 914400-51206400 EMU)
+    # See: https://github.com/scanny/python-pptx/issues/93
+    MAX_SLIDE_WIDTH_INCHES = 56.0
+    MAX_SLIDE_HEIGHT_INCHES = 56.0
+    MIN_SLIDE_WIDTH_INCHES = 1.0
+    MIN_SLIDE_HEIGHT_INCHES = 1.0
+    
     # Global font size limits (to prevent extreme cases)
     MIN_FONT_SIZE = 6   # Minimum readable size
     MAX_FONT_SIZE = 200  # Maximum reasonable size
@@ -99,6 +106,7 @@ class PPTXBuilder:
     def setup_presentation_size(self, width_pixels: int, height_pixels: int, dpi: int = None):
         """
         Setup presentation size based on pixel dimensions
+        Automatically clamps to python-pptx limits (1-56 inches) while preserving aspect ratio
         
         Args:
             width_pixels: Width in pixels
@@ -106,8 +114,46 @@ class PPTXBuilder:
             dpi: DPI for conversion (default: 96)
         """
         dpi = dpi or self.DEFAULT_DPI
-        self.slide_width_inches = width_pixels / dpi
-        self.slide_height_inches = height_pixels / dpi
+        
+        # Convert pixels to inches
+        width_inches = width_pixels / dpi
+        height_inches = height_pixels / dpi
+        
+        # Check if dimensions exceed python-pptx limits and scale down if needed
+        # python-pptx enforces: 1 <= dimension <= 56 inches
+        scale_factor = 1.0
+        
+        if width_inches > self.MAX_SLIDE_WIDTH_INCHES:
+            scale_factor = self.MAX_SLIDE_WIDTH_INCHES / width_inches
+            logger.warning(
+                f"Slide width {width_inches:.2f}\" exceeds python-pptx limit ({self.MAX_SLIDE_WIDTH_INCHES}\"), "
+                f"scaling down by {scale_factor:.3f}x to maintain aspect ratio"
+            )
+        
+        if height_inches > self.MAX_SLIDE_HEIGHT_INCHES:
+            height_scale = self.MAX_SLIDE_HEIGHT_INCHES / height_inches
+            if height_scale < scale_factor:
+                scale_factor = height_scale
+                logger.warning(
+                    f"Slide height {height_inches:.2f}\" exceeds python-pptx limit ({self.MAX_SLIDE_HEIGHT_INCHES}\"), "
+                    f"scaling down by {scale_factor:.3f}x to maintain aspect ratio"
+                )
+        
+        # Apply scale factor if needed
+        if scale_factor < 1.0:
+            width_inches *= scale_factor
+            height_inches *= scale_factor
+            logger.info(
+                f"Final slide dimensions after scaling: {width_inches:.2f}\" x {height_inches:.2f}\" "
+                f"(from {width_pixels}x{height_pixels}px @ {dpi} DPI)"
+            )
+        
+        # Ensure minimum size constraints
+        width_inches = max(self.MIN_SLIDE_WIDTH_INCHES, width_inches)
+        height_inches = max(self.MIN_SLIDE_HEIGHT_INCHES, height_inches)
+        
+        self.slide_width_inches = width_inches
+        self.slide_height_inches = height_inches
         
         if self.prs:
             self.prs.slide_width = Inches(self.slide_width_inches)

@@ -201,48 +201,75 @@ def reset_settings():
 
 
 def _sync_settings_to_config(settings: Settings):
-    """Sync settings to Flask app config"""
+    """Sync settings to Flask app config and clear AI service cache if needed"""
+    # Track if AI-related settings changed
+    ai_config_changed = False
+    
     # Sync AI provider format (always sync, has default value)
     if settings.ai_provider_format:
+        old_format = current_app.config.get("AI_PROVIDER_FORMAT")
+        if old_format != settings.ai_provider_format:
+            ai_config_changed = True
+            logger.info(f"AI provider format changed: {old_format} -> {settings.ai_provider_format}")
         current_app.config["AI_PROVIDER_FORMAT"] = settings.ai_provider_format
-        logger.info(f"Updated AI_PROVIDER_FORMAT to: {settings.ai_provider_format}")
     
     # Sync API configuration (sync to both GOOGLE_* and OPENAI_* to ensure DB settings override env vars)
     if settings.api_base_url is not None:
+        old_base = current_app.config.get("GOOGLE_API_BASE")
+        if old_base != settings.api_base_url:
+            ai_config_changed = True
+            logger.info(f"API base URL changed: {old_base} -> {settings.api_base_url}")
         current_app.config["GOOGLE_API_BASE"] = settings.api_base_url
         current_app.config["OPENAI_API_BASE"] = settings.api_base_url
-        logger.info(f"Updated API_BASE to: {settings.api_base_url}")
     else:
         # Remove overrides, fall back to env variables or defaults
+        if "GOOGLE_API_BASE" in current_app.config or "OPENAI_API_BASE" in current_app.config:
+            ai_config_changed = True
+            logger.info("API base URL cleared, falling back to defaults")
         current_app.config.pop("GOOGLE_API_BASE", None)
         current_app.config.pop("OPENAI_API_BASE", None)
 
     if settings.api_key is not None:
+        old_key = current_app.config.get("GOOGLE_API_KEY")
+        # Only compare existence, not actual value for security
+        if (old_key is None) != (settings.api_key is None):
+            ai_config_changed = True
+            logger.info("API key updated")
         current_app.config["GOOGLE_API_KEY"] = settings.api_key
         current_app.config["OPENAI_API_KEY"] = settings.api_key
-        logger.info("Updated API key from settings")
     else:
         # Remove overrides, fall back to env variables or defaults
+        if "GOOGLE_API_KEY" in current_app.config or "OPENAI_API_KEY" in current_app.config:
+            ai_config_changed = True
+            logger.info("API key cleared, falling back to defaults")
         current_app.config.pop("GOOGLE_API_KEY", None)
         current_app.config.pop("OPENAI_API_KEY", None)
+    
+    # Check model changes
+    if settings.text_model is not None:
+        old_model = current_app.config.get("TEXT_MODEL")
+        if old_model != settings.text_model:
+            ai_config_changed = True
+            logger.info(f"Text model changed: {old_model} -> {settings.text_model}")
+        current_app.config["TEXT_MODEL"] = settings.text_model
+    
+    if settings.image_model is not None:
+        old_model = current_app.config.get("IMAGE_MODEL")
+        if old_model != settings.image_model:
+            ai_config_changed = True
+            logger.info(f"Image model changed: {old_model} -> {settings.image_model}")
+        current_app.config["IMAGE_MODEL"] = settings.image_model
 
     # Sync image generation settings
     current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution
     current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio
-    logger.info(f"Updated image settings: {settings.image_resolution}, {settings.image_aspect_ratio}")
 
     # Sync worker settings
     current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers
     current_app.config["MAX_IMAGE_WORKERS"] = settings.max_image_workers
     logger.info(f"Updated worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
 
-    # Sync model & MinerU settings (optional, fall back to Config defaults if None)
-    if settings.text_model:
-        current_app.config["TEXT_MODEL"] = settings.text_model
-        logger.info(f"Updated TEXT_MODEL to: {settings.text_model}")
-    if settings.image_model:
-        current_app.config["IMAGE_MODEL"] = settings.image_model
-        logger.info(f"Updated IMAGE_MODEL to: {settings.image_model}")
+    # Sync MinerU settings (optional, fall back to Config defaults if None)
     if settings.mineru_api_base:
         current_app.config["MINERU_API_BASE"] = settings.mineru_api_base
         logger.info(f"Updated MINERU_API_BASE to: {settings.mineru_api_base}")
@@ -252,3 +279,15 @@ def _sync_settings_to_config(settings: Settings):
     if settings.image_caption_model:
         current_app.config["IMAGE_CAPTION_MODEL"] = settings.image_caption_model
         logger.info(f"Updated IMAGE_CAPTION_MODEL to: {settings.image_caption_model}")
+    if settings.output_language:
+        current_app.config["OUTPUT_LANGUAGE"] = settings.output_language
+        logger.info(f"Updated OUTPUT_LANGUAGE to: {settings.output_language}")
+    
+    # Clear AI service cache if AI-related configuration changed
+    if ai_config_changed:
+        try:
+            from services.ai_service_manager import clear_ai_service_cache
+            clear_ai_service_cache()
+            logger.warning("AI configuration changed - AIService cache cleared. New providers will be created on next request.")
+        except Exception as e:
+            logger.error(f"Failed to clear AI service cache: {e}")

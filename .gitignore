@@ -34,7 +34,7 @@
 
 # 忽略临时文档，但保留项目文档
 *.md
-!README*.md
+!README.md
 !docs/**/*.md
 !.github/**/*.md
 *.pyc

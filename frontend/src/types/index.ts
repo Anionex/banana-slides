@@ -61,7 +61,7 @@ export interface Project {
   creation_type?: string;
   template_image_url?: string; // 后端返回 template_image_url
   template_image_path?: string; // 前端使用的别名
-  template_style?: string; // 风格描述文本（无模板模式）
+  template_style?: string; // 风格描述文本（无模板图模式）
   status: ProjectStatus;
   pages: Page[];
   created_at: string;
