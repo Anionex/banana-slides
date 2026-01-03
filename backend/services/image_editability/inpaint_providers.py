@@ -334,24 +334,17 @@ class HybridInpaintProvider(InpaintProvider):
                 logger.error("HybridInpaintProvider: 百度修复失败")
                 return None
             
-            # 保存修复后的图片
-            # with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-            #     tmp_path ="/mnt/d/desktop/repaired_image.png"
-            #     repaired_image.save(tmp_path)
-            #     logger.info(f"HybridInpaintProvider: 修复后的图片保存到 {tmp_path}")
-            
             logger.info("HybridInpaintProvider: 百度修复完成")
             
             # Step 2: 生成式画质提升（可选）
             if enhance_quality and self._generative_provider:
                 logger.info("HybridInpaintProvider Step 2: 生成式画质提升...")
                 
-                # 使用专门的画质提升prompt，传入原图作为参考
+                # 使用专门的画质提升prompt
                 enhanced_image = self._enhance_image_quality(
                     repaired_image,
-                    original_image=image,  # 传入原图让模型知道一开始啥样的
-                    aspect_ratio=kwargs.get('aspect_ratio'),
-                    resolution=kwargs.get('resolution')
+                    kwargs.get('aspect_ratio'),
+                    kwargs.get('resolution')
                 )
                 
                 if enhanced_image:
@@ -371,7 +364,6 @@ class HybridInpaintProvider(InpaintProvider):
     def _enhance_image_quality(
         self,
         image: Image.Image,
-        original_image: Optional[Image.Image] = None,
         aspect_ratio: Optional[str] = None,
         resolution: Optional[str] = None
     ) -> Optional[Image.Image]:
@@ -379,8 +371,7 @@ class HybridInpaintProvider(InpaintProvider):
         使用生成式模型提升图像画质
         
         Args:
-            image: 需要提升画质的图像（经过百度修复后的）
-            original_image: 原始图像（修复前），作为参考让模型知道原来是什么样
+            image: 需要提升画质的图像
             aspect_ratio: 宽高比（可选）
             resolution: 分辨率（可选）
         
@@ -388,11 +379,10 @@ class HybridInpaintProvider(InpaintProvider):
             提升画质后的图像
         """
         try:
-            # 保存修复后的图片（当前需要处理的图片）
+            # 保存临时图片
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
                 tmp_path = tmp_file.name
                 image.save(tmp_path)
-            
             
             # 获取画质提升的prompt
             from services.prompts import get_quality_enhancement_prompt
@@ -402,14 +392,14 @@ class HybridInpaintProvider(InpaintProvider):
             ar = aspect_ratio or self._generative_provider.aspect_ratio
             res = resolution or self._generative_provider.resolution
             
-            # 调用AI服务，传入原图作为参考
+            # 调用AI服务
             enhanced_image = self._generative_provider.ai_service.edit_image(
                 prompt=enhance_prompt,
                 current_image_path=tmp_path,
                 aspect_ratio=ar,
                 resolution=res,
                 original_description=None,
-                additional_ref_images=[original_image]
+                additional_ref_images=None
             )
             
             if not enhanced_image:
