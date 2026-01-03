@@ -16,6 +16,9 @@ import {
   Image as ImageIcon,
   ImagePlus,
   Settings,
+  CheckSquare,
+  Square,
+  Check,
 } from 'lucide-react';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown, ProjectSettingsModal } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
@@ -55,6 +58,9 @@ export const SlidePreview: React.FC = () => {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  // 多选导出相关状态
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [isOutlineExpanded, setIsOutlineExpanded] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -185,17 +191,25 @@ export const SlidePreview: React.FC = () => {
   }, [currentProject, selectedIndex, projectId]);
 
   const handleGenerateAll = async () => {
-    const hasImages = currentProject?.pages.some(
-      (p) => p.generated_image_path
-    );
+    const pageIds = getSelectedPageIdsForExport();
+    const isPartialGenerate = isMultiSelectMode && selectedPageIds.size > 0;
+    
+    // 检查要生成的页面中是否有已有图片的
+    const pagesToGenerate = isPartialGenerate
+      ? currentProject?.pages.filter(p => p.id && selectedPageIds.has(p.id))
+      : currentProject?.pages;
+    const hasImages = pagesToGenerate?.some((p) => p.generated_image_path);
     
     const executeGenerate = async () => {
-      await generateImages();
+      await generateImages(pageIds);
     };
     
     if (hasImages) {
+      const message = isPartialGenerate
+        ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
+        : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
       confirm(
-        '将重新生成所有页面（历史记录将会保存），确定继续吗？',
+        message,
         executeGenerate,
         { title: '确认重新生成', variant: 'warning' }
       );
@@ -532,14 +546,59 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
+  // 多选相关函数
+  const togglePageSelection = (pageId: string) => {
+    setSelectedPageIds(prev => {
+      const next = new Set(prev);
+      if (next.has(pageId)) {
+        next.delete(pageId);
+      } else {
+        next.add(pageId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllPages = () => {
+    if (!currentProject) return;
+    const allPageIds = currentProject.pages
+      .filter(p => p.id && p.generated_image_path)
+      .map(p => p.id!);
+    setSelectedPageIds(new Set(allPageIds));
+  };
+
+  const deselectAllPages = () => {
+    setSelectedPageIds(new Set());
+  };
+
+  const toggleMultiSelectMode = () => {
+    setIsMultiSelectMode(prev => {
+      if (prev) {
+        // 退出多选模式时清空选择
+        setSelectedPageIds(new Set());
+      }
+      return !prev;
+    });
+  };
+
+  // 获取有图片的选中页面ID列表
+  const getSelectedPageIdsForExport = (): string[] | undefined => {
+    if (!isMultiSelectMode || selectedPageIds.size === 0) {
+      return undefined; // 导出全部
+    }
+    return Array.from(selectedPageIds);
+  };
+
   const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx') => {
     setShowExportMenu(false);
+    const pageIds = getSelectedPageIdsForExport();
+    console.log('[handleExport] type:', type, 'isMultiSelectMode:', isMultiSelectMode, 'selectedPageIds:', Array.from(selectedPageIds), 'pageIds for export:', pageIds);
     if (type === 'pptx') {
-      await exportPPTX();
+      await exportPPTX(pageIds);
     } else if (type === 'pdf') {
-      await exportPDF();
+      await exportPDF(pageIds);
     } else if (type === 'editable-pptx') {
-      await exportEditablePPTX();
+      await exportEditablePPTX(undefined, pageIds);
     }
   };
 
@@ -671,10 +730,8 @@ export const SlidePreview: React.FC = () => {
           'Complete': '完成！'
         };
         loadingMessage = stepMap[progressData.current_step] || progressData.current_step;
-      } else if (progressData.total && progressData.completed !== undefined) {
-        // 默认的进度消息
-        loadingMessage = `处理中 (${progressData.completed}/${progressData.total})...`;
       }
+      // 不再显示 "处理中 (X/Y)..." 格式，百分比已在进度条显示
     }
     
     return (
@@ -784,14 +841,27 @@ export const SlidePreview: React.FC = () => {
               size="sm"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={!hasAllImages}
+              disabled={isMultiSelectMode ? selectedPageIds.size === 0 : !hasAllImages}
               className="text-xs md:text-sm"
             >
-              <span className="hidden sm:inline">导出</span>
-              <span className="sm:hidden">导出</span>
+              <span className="hidden sm:inline">
+                {isMultiSelectMode && selectedPageIds.size > 0 
+                  ? `导出 (${selectedPageIds.size})` 
+                  : '导出'}
+              </span>
+              <span className="sm:hidden">
+                {isMultiSelectMode && selectedPageIds.size > 0 
+                  ? `(${selectedPageIds.size})` 
+                  : '导出'}
+              </span>
             </Button>
             {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+                {isMultiSelectMode && selectedPageIds.size > 0 && (
+                  <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+                    将导出选中的 {selectedPageIds.size} 页
+                  </div>
+                )}
                 <button
                   onClick={() => handleExport('pptx')}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
@@ -826,44 +896,122 @@ export const SlidePreview: React.FC = () => {
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
               className="w-full text-sm md:text-base"
+              disabled={isMultiSelectMode && selectedPageIds.size === 0}
             >
-              批量生成图片 ({currentProject.pages.length})
+              {isMultiSelectMode && selectedPageIds.size > 0
+                ? `生成选中页面 (${selectedPageIds.size})`
+                : `批量生成图片 (${currentProject.pages.length})`}
             </Button>
           </div>
           
           {/* 缩略图列表：桌面端垂直，移动端横向滚动 */}
           <div className="flex-1 overflow-y-auto md:overflow-y-auto overflow-x-auto md:overflow-x-visible p-3 md:p-4 min-h-0">
+            {/* 多选模式切换 - 紧凑布局 */}
+            <div className="flex items-center gap-2 text-xs mb-3">
+              <button
+                onClick={toggleMultiSelectMode}
+                className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+                  isMultiSelectMode 
+                    ? 'bg-banana-100 text-banana-700 hover:bg-banana-200' 
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {isMultiSelectMode ? <CheckSquare size={14} /> : <Square size={14} />}
+                <span>{isMultiSelectMode ? '取消多选' : '多选'}</span>
+              </button>
+              {isMultiSelectMode && (
+                <>
+                  <button
+                    onClick={selectedPageIds.size === currentProject.pages.filter(p => p.generated_image_path).length ? deselectAllPages : selectAllPages}
+                    className="text-gray-500 hover:text-banana-600 transition-colors"
+                  >
+                    {selectedPageIds.size === currentProject.pages.filter(p => p.generated_image_path).length ? '取消全选' : '全选'}
+                  </button>
+                  {selectedPageIds.size > 0 && (
+                    <span className="text-banana-600 font-medium">
+                      ({selectedPageIds.size}页)
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
             <div className="flex md:flex-col gap-2 md:gap-4 min-w-max md:min-w-0">
               {currentProject.pages.map((page, index) => (
-                <div key={page.id} className="md:w-full flex-shrink-0">
+                <div key={page.id} className="md:w-full flex-shrink-0 relative">
                   {/* 移动端：简化缩略图 */}
-                  <button
-                    onClick={() => setSelectedIndex(index)}
-                    className={`md:hidden w-20 h-14 rounded border-2 transition-all ${
-                      selectedIndex === index
-                        ? 'border-banana-500 shadow-md'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    {page.generated_image_path ? (
-                      <img
-                        src={getImageUrl(page.generated_image_path, page.updated_at)}
-                        alt={`Slide ${index + 1}`}
-                        className="w-full h-full object-cover rounded"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">
-                        {index + 1}
-                      </div>
+                  <div className="md:hidden relative">
+                    <button
+                      onClick={() => {
+                        if (isMultiSelectMode && page.id && page.generated_image_path) {
+                          togglePageSelection(page.id);
+                        } else {
+                          setSelectedIndex(index);
+                        }
+                      }}
+                      className={`w-20 h-14 rounded border-2 transition-all ${
+                        selectedIndex === index
+                          ? 'border-banana-500 shadow-md'
+                          : 'border-gray-200'
+                      } ${isMultiSelectMode && page.id && selectedPageIds.has(page.id) ? 'ring-2 ring-banana-400' : ''}`}
+                    >
+                      {page.generated_image_path ? (
+                        <img
+                          src={getImageUrl(page.generated_image_path, page.updated_at)}
+                          alt={`Slide ${index + 1}`}
+                          className="w-full h-full object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">
+                          {index + 1}
+                        </div>
+                      )}
+                    </button>
+                    {/* 多选复选框（移动端） */}
+                    {isMultiSelectMode && page.id && page.generated_image_path && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePageSelection(page.id!);
+                        }}
+                        className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                          selectedPageIds.has(page.id)
+                            ? 'bg-banana-500 text-white'
+                            : 'bg-white border-2 border-gray-300'
+                        }`}
+                      >
+                        {selectedPageIds.has(page.id) && <Check size={12} />}
+                      </button>
                     )}
-                  </button>
+                  </div>
                   {/* 桌面端：完整卡片 */}
-                  <div className="hidden md:block">
+                  <div className="hidden md:block relative">
+                    {/* 多选复选框（桌面端） */}
+                    {isMultiSelectMode && page.id && page.generated_image_path && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePageSelection(page.id!);
+                        }}
+                        className={`absolute top-2 left-2 z-10 w-6 h-6 rounded flex items-center justify-center transition-all ${
+                          selectedPageIds.has(page.id)
+                            ? 'bg-banana-500 text-white shadow-md'
+                            : 'bg-white/90 border-2 border-gray-300 hover:border-banana-400'
+                        }`}
+                      >
+                        {selectedPageIds.has(page.id) && <Check size={14} />}
+                      </button>
+                    )}
                     <SlideCard
                       page={page}
                       index={index}
                       isSelected={selectedIndex === index}
-                      onClick={() => setSelectedIndex(index)}
+                      onClick={() => {
+                        if (isMultiSelectMode && page.id && page.generated_image_path) {
+                          togglePageSelection(page.id);
+                        } else {
+                          setSelectedIndex(index);
+                        }
+                      }}
                       onEdit={() => {
                         setSelectedIndex(index);
                         handleEditPage();

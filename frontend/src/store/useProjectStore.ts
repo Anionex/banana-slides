@@ -40,7 +40,7 @@ interface ProjectState {
   generateFromDescription: () => Promise<void>;
   generateDescriptions: () => Promise<void>;
   generatePageDescription: (pageId: string) => Promise<void>;
-  generateImages: () => Promise<void>;
+  generateImages: (pageIds?: string[]) => Promise<void>;
   generatePageImage: (pageId: string, forceRegenerate?: boolean) => Promise<void>;
   editPageImage: (
     pageId: string,
@@ -53,9 +53,9 @@ interface ProjectState {
   ) => Promise<void>;
   
   // 导出
-  exportPPTX: () => Promise<void>;
-  exportPDF: () => Promise<void>;
-  exportEditablePPTX: (filename?: string) => Promise<void>;
+  exportPPTX: (pageIds?: string[]) => Promise<void>;
+  exportPDF: (pageIds?: string[]) => Promise<void>;
+  exportEditablePPTX: (filename?: string, pageIds?: string[]) => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
@@ -654,11 +654,11 @@ const debouncedUpdatePage = debounce(
   },
 
   // 生成图片
-  generateImages: async () => {
+  generateImages: async (pageIds?: string[]) => {
     const { currentProject, startAsyncTask } = get();
     if (!currentProject) return;
 
-    await startAsyncTask(() => api.generateImages(currentProject.id));
+    await startAsyncTask(() => api.generateImages(currentProject.id, undefined, pageIds));
   },
 
   // 生成单页图片（异步）
@@ -813,13 +813,13 @@ const debouncedUpdatePage = debounce(
   },
 
   // 导出PPTX
-  exportPPTX: async () => {
+  exportPPTX: async (pageIds?: string[]) => {
     const { currentProject } = get();
     if (!currentProject) return;
 
     set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.exportPPTX(currentProject.id);
+      const response = await api.exportPPTX(currentProject.id, pageIds);
       // 优先使用相对路径，避免 Docker 环境下的端口问题
       const downloadUrl =
         response.data?.download_url || response.data?.download_url_absolute;
@@ -838,13 +838,13 @@ const debouncedUpdatePage = debounce(
   },
 
   // 导出PDF
-  exportPDF: async () => {
+  exportPDF: async (pageIds?: string[]) => {
     const { currentProject } = get();
     if (!currentProject) return;
 
     set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.exportPDF(currentProject.id);
+      const response = await api.exportPDF(currentProject.id, pageIds);
       // 优先使用相对路径，避免 Docker 环境下的端口问题
       const downloadUrl =
         response.data?.download_url || response.data?.download_url_absolute;
@@ -863,14 +863,14 @@ const debouncedUpdatePage = debounce(
   },
 
   // 导出可编辑PPTX（异步任务）
-  exportEditablePPTX: async (filename?: string) => {
+  exportEditablePPTX: async (filename?: string, pageIds?: string[]) => {
     const { currentProject, startAsyncTask } = get();
     if (!currentProject) return;
 
     try {
       console.log('[导出可编辑PPTX] 启动异步导出任务...');
       // startAsyncTask 中的 pollTask 会在任务完成时自动处理下载
-      await startAsyncTask(() => api.exportEditablePPTX(currentProject.id, filename));
+      await startAsyncTask(() => api.exportEditablePPTX(currentProject.id, filename, pageIds));
       console.log('[导出可编辑PPTX] 异步任务完成');
     } catch (error: any) {
       console.error('[导出可编辑PPTX] 导出失败:', error);

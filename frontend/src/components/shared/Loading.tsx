@@ -54,10 +54,7 @@ export const Loading: React.FC<LoadingProps> = ({
       {/* 进度条 */}
       {progress && (
         <div className="w-full">
-          <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span className="truncate max-w-[70%]">
-              {progress.current_step || `已完成 ${progress.completed}/${progress.total}`}
-            </span>
+          <div className="flex justify-end text-sm text-gray-600 mb-2">
             <span className="font-medium">{percent}%</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -72,18 +69,18 @@ export const Loading: React.FC<LoadingProps> = ({
       {/* 滚动消息日志 */}
       {hasMessages && (
         <div className="w-full mt-4">
-          <div className="bg-gray-900 rounded-lg p-3 h-32 overflow-y-auto font-mono text-xs">
+          <div className="bg-banana-50 border border-banana-200 rounded-lg p-3 h-32 overflow-y-auto text-xs">
             {progress.messages!.map((msg, index) => (
               <div 
                 key={index} 
                 className={cn(
                   "py-0.5",
                   index === progress.messages!.length - 1 
-                    ? "text-banana-400" 
-                    : "text-gray-400"
+                    ? "text-banana-700 font-medium" 
+                    : "text-gray-500"
                 )}
               >
-                <span className="text-gray-600 mr-2">›</span>
+                <span className="text-banana-400 mr-2">›</span>
                 {msg}
               </div>
             ))}

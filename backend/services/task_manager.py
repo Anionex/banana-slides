@@ -278,7 +278,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
-                        language: str = None):
+                        language: str = None,
+                        page_ids: list = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
@@ -287,6 +288,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
     
     Args:
         language: Output language (zh, en, ja, auto)
+        page_ids: Optional list of page IDs to generate (if not provided, generates all pages)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -301,8 +303,14 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             task.status = 'PROCESSING'
             db.session.commit()
             
-            # Get all pages for this project
-            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            # Get pages for this project (filtered by page_ids if provided)
+            if page_ids:
+                pages = Page.query.filter(
+                    Page.project_id == project_id,
+                    Page.id.in_(page_ids)
+                ).order_by(Page.order_index).all()
+            else:
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
             pages_data = ai_service.flatten_outline(outline)
             
             # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
@@ -804,6 +812,7 @@ def export_editable_pptx_with_recursive_analysis_task(
     project_id: str, 
     filename: str,
     file_service,
+    page_ids: list = None,
     max_depth: int = 2,
     max_workers: int = 4,
     app=None
@@ -824,6 +833,7 @@ def export_editable_pptx_with_recursive_analysis_task(
         project_id: 项目ID
         filename: 输出文件名
         file_service: 文件服务实例
+        page_ids: 可选的页面ID列表（如果提供，只导出这些页面）
         max_depth: 最大递归深度
         max_workers: 并发处理数
         app: Flask应用实例
@@ -848,8 +858,14 @@ def export_editable_pptx_with_recursive_analysis_task(
             if not project:
                 raise ValueError(f'Project {project_id} not found')
             
-            # Get all pages with images
-            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            # Get pages (filtered by page_ids if provided)
+            if page_ids:
+                pages = Page.query.filter(
+                    Page.project_id == project_id,
+                    Page.id.in_(page_ids)
+                ).order_by(Page.order_index).all()
+            else:
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
             if not pages:
                 raise ValueError('No pages found for project')
             

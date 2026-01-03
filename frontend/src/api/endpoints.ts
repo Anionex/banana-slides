@@ -221,12 +221,13 @@ export const refineDescriptions = async (
  * 批量生成图片
  * @param projectId 项目ID
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
+ * @param pageIds 可选的页面ID列表，如果不提供则生成所有页面
  */
-export const generateImages = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+export const generateImages = async (projectId: string, language?: OutputLanguage, pageIds?: string[]): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/images`,
-    { language: lang }
+    { language: lang, page_ids: pageIds }
   );
   return response.data;
 };
@@ -408,39 +409,63 @@ export const getTaskStatus = async (projectId: string, taskId: string): Promise<
 
 /**
  * 导出为PPTX
+ * @param projectId 项目ID
+ * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
  */
 export const exportPPTX = async (
-  projectId: string
+  projectId: string,
+  pageIds?: string[]
 ): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const params = new URLSearchParams();
+  if (pageIds && pageIds.length > 0) {
+    params.set('page_ids', pageIds.join(','));
+  }
+  const queryString = params.toString();
+  const url = `/api/projects/${projectId}/export/pptx${queryString ? `?${queryString}` : ''}`;
+  console.log('[exportPPTX] pageIds:', pageIds, 'url:', url);
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(`/api/projects/${projectId}/export/pptx`);
+  >(url);
   return response.data;
 };
 
 /**
  * 导出为PDF
+ * @param projectId 项目ID
+ * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
  */
 export const exportPDF = async (
-  projectId: string
+  projectId: string,
+  pageIds?: string[]
 ): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const params = new URLSearchParams();
+  if (pageIds && pageIds.length > 0) {
+    params.set('page_ids', pageIds.join(','));
+  }
+  const queryString = params.toString();
+  const url = `/api/projects/${projectId}/export/pdf${queryString ? `?${queryString}` : ''}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(`/api/projects/${projectId}/export/pdf`);
+  >(url);
   return response.data;
 };
 
 /**
  * 导出为可编辑PPTX（异步任务）
+ * @param projectId 项目ID
+ * @param filename 可选的文件名
+ * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
  */
 export const exportEditablePPTX = async (
   projectId: string,
-  filename?: string
+  filename?: string,
+  pageIds?: string[]
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
   >(`/api/projects/${projectId}/export/editable-pptx`, {
-    filename
+    filename,
+    page_ids: pageIds
   });
   return response.data;
 };

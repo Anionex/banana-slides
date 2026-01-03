@@ -15,7 +15,11 @@ export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
 def export_pptx(project_id):
     """
-    GET /api/projects/{project_id}/export/pptx?filename=... - Export PPTX
+    GET /api/projects/{project_id}/export/pptx?filename=...&page_ids=id1,id2,id3 - Export PPTX
+    
+    Query params:
+        - filename: optional custom filename
+        - page_ids: optional comma-separated page IDs to export (if not provided, exports all pages)
     
     Returns:
         JSON with download URL, e.g.
@@ -28,13 +32,30 @@ def export_pptx(project_id):
         }
     """
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        
         project = Project.query.get(project_id)
         
         if not project:
             return not_found('Project')
         
-        # Get all completed pages
-        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        # Get page_ids from query params (comma-separated)
+        page_ids_param = request.args.get('page_ids', '')
+        logger.info(f"[export_pptx] page_ids_param: '{page_ids_param}'")
+        selected_page_ids = [pid.strip() for pid in page_ids_param.split(',') if pid.strip()] if page_ids_param else []
+        logger.info(f"[export_pptx] selected_page_ids: {selected_page_ids}")
+        
+        # Get pages (filtered by page_ids if provided)
+        if selected_page_ids:
+            pages = Page.query.filter(
+                Page.project_id == project_id,
+                Page.id.in_(selected_page_ids)
+            ).order_by(Page.order_index).all()
+            logger.info(f"[export_pptx] Filtered to {len(pages)} pages")
+        else:
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            logger.info(f"[export_pptx] Exporting all {len(pages)} pages")
         
         if not pages:
             return bad_request("No pages found for project")
@@ -85,7 +106,11 @@ def export_pptx(project_id):
 @export_bp.route('/<project_id>/export/pdf', methods=['GET'])
 def export_pdf(project_id):
     """
-    GET /api/projects/{project_id}/export/pdf?filename=... - Export PDF
+    GET /api/projects/{project_id}/export/pdf?filename=...&page_ids=id1,id2,id3 - Export PDF
+    
+    Query params:
+        - filename: optional custom filename
+        - page_ids: optional comma-separated page IDs to export (if not provided, exports all pages)
     
     Returns:
         JSON with download URL, e.g.
@@ -103,8 +128,18 @@ def export_pdf(project_id):
         if not project:
             return not_found('Project')
         
-        # Get all completed pages
-        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        # Get page_ids from query params (comma-separated)
+        page_ids_param = request.args.get('page_ids', '')
+        selected_page_ids = [pid.strip() for pid in page_ids_param.split(',') if pid.strip()] if page_ids_param else []
+        
+        # Get pages (filtered by page_ids if provided)
+        if selected_page_ids:
+            pages = Page.query.filter(
+                Page.project_id == project_id,
+                Page.id.in_(selected_page_ids)
+            ).order_by(Page.order_index).all()
+        else:
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         
         if not pages:
             return bad_request("No pages found for project")
@@ -169,6 +204,7 @@ def export_editable_pptx(project_id):
     Request body (JSON):
         {
             "filename": "optional_custom_name.pptx",
+            "page_ids": ["id1", "id2"],  // 可选，要导出的页面ID列表（不提供则导出所有）
             "max_depth": 1,      // 可选，递归深度（默认1=不递归，2=递归一层）
             "max_workers": 4     // 可选，并发数（默认4）
         }
@@ -198,8 +234,22 @@ def export_editable_pptx(project_id):
         if not project:
             return not_found('Project')
         
-        # Get all completed pages
-        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        # Get parameters from request body
+        data = request.get_json() or {}
+        
+        # Get page_ids from request body (array of IDs)
+        selected_page_ids = data.get('page_ids', [])
+        if not isinstance(selected_page_ids, list):
+            selected_page_ids = []
+        
+        # Get pages (filtered by page_ids if provided)
+        if selected_page_ids:
+            pages = Page.query.filter(
+                Page.project_id == project_id,
+                Page.id.in_(selected_page_ids)
+            ).order_by(Page.order_index).all()
+        else:
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         
         if not pages:
             return bad_request("No pages found for project")
@@ -255,6 +305,7 @@ def export_editable_pptx(project_id):
             project_id=project_id,
             filename=filename,
             file_service=file_service,
+            page_ids=selected_page_ids if selected_page_ids else None,
             max_depth=max_depth,
             max_workers=max_workers,
             app=app
