@@ -84,57 +84,23 @@ class PPTXBuilder:
     MIN_FONT_SIZE = 6   # Minimum readable size
     MAX_FONT_SIZE = 200  # Maximum reasonable size
     
-    # Font paths for precise text measurement
-    # Priority: try common fonts that support CJK characters
-    FONT_PATHS = [
-        # 项目内置字体（优先使用，确保 Docker 环境可用）
-        os.path.join(os.path.dirname(__file__), "..", "fonts", "NotoSansSC-Regular.ttf"),
-        # Windows fonts (accessible via /mnt in WSL)
-        "/mnt/c/Windows/Fonts/msyh.ttc",      # Microsoft YaHei (微软雅黑)
-        "/mnt/c/Windows/Fonts/simhei.ttf",    # SimHei (黑体)
-        "/mnt/c/Windows/Fonts/simsun.ttc",    # SimSun (宋体)
-        "/mnt/c/Windows/Fonts/arial.ttf",     # Arial
-        # Linux fonts
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-    ]
+    # 项目内置字体（Noto Sans CJK SC，支持中日韩文字）
+    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "fonts", "NotoSansSC-Regular.ttf")
     
     # Font cache: {size_pt: ImageFont}
     _font_cache: Dict[float, ImageFont.FreeTypeFont] = {}
-    _font_path: Optional[str] = None
-    
-    @classmethod
-    def _get_font_path(cls) -> Optional[str]:
-        """Find available font path"""
-        if cls._font_path is not None:
-            return cls._font_path
-        
-        for path in cls.FONT_PATHS:
-            if os.path.exists(path):
-                cls._font_path = path
-                logger.info(f"Using font: {path}")
-                return path
-        
-        logger.warning("No suitable font found, falling back to estimation")
-        cls._font_path = ""  # Empty string means no font available
-        return None
     
     @classmethod
     def _get_font(cls, size_pt: float) -> Optional[ImageFont.FreeTypeFont]:
         """Get font object for given size (with caching)"""
-        font_path = cls._get_font_path()
-        if not font_path:
-            return None
-        
         # Round to 0.5pt for cache efficiency
         cache_key = round(size_pt * 2) / 2
         
         if cache_key not in cls._font_cache:
             try:
-                cls._font_cache[cache_key] = ImageFont.truetype(font_path, int(size_pt))
+                cls._font_cache[cache_key] = ImageFont.truetype(cls.FONT_PATH, int(size_pt))
             except Exception as e:
-                logger.warning(f"Failed to load font: {e}")
+                logger.warning(f"Failed to load font {cls.FONT_PATH}: {e}")
                 return None
         
         return cls._font_cache[cache_key]

@@ -327,6 +327,16 @@ A: 从当前版本开始，推荐通过前端“系统设置”页面修改：
 A: PNG, JPG, JPEG, GIF, WEBP。在 `config.py` 中的 `ALLOWED_EXTENSIONS` 配置。
 
 
+## 开源字体说明
+
+本项目包含 **Noto Sans CJK SC**（思源黑体简体中文）字体文件，用于 PPT 导出时的精确文本测量。
+
+- **字体文件**: `fonts/NotoSansSC-Regular.ttf`
+- **来源**: [Google Noto CJK Fonts](https://github.com/googlefonts/noto-cjk)
+- **许可证**: [SIL Open Font License 1.1 (OFL)](https://scripts.sil.org/OFL)
+
+OFL 许可证允许自由使用、修改和分发该字体。
+
 ## 联系方式
 
 如有问题或建议，请通过 GitHub Issues 反馈。
