@@ -724,16 +724,16 @@ def get_clean_background_prompt() -> str:
     用于从完整的PPT页面中提取纯背景
     """
     prompt = """\
-你是一位专业的图片前景擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字内容、干净纯净的背景模板图。
+你是一位专业的图片文字&图片擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字和图表内容、干净纯净的底板图。
 <requirements>
-- 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除, 甚至包括页眉、页脚、表头的文字。
+- 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除。
 - 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框和色块。
 - 对于被前景元素遮挡的背景区域，要智能填补，使背景保持无缝和完整，就像被移除的元素从来没有出现过。
 - 输出图片的尺寸、风格、配色必须和原图完全一致。
 - 请勿新增任何元素。
 </requirements>
 
-注意，**任意位置的所有**文字和图表都应该被彻底移除，**不能遗留任何一个。*
+注意，**任意位置的, 所有的**文字和图表都应该被彻底移除，**输出不应该包含任何文字和图表。**
 """
     logger.debug(f"[get_clean_background_prompt] Final prompt:\n{prompt}")
     return prompt
@@ -773,4 +773,99 @@ def get_text_attribute_extraction_prompt(content_hint: str = "") -> str:
 """.format(content_hint=content_hint)
     
     logger.debug(f"[get_text_attribute_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_batch_text_attribute_extraction_prompt(text_elements_json: str) -> str:
+    """
+    生成批量文字属性提取的 prompt
+    
+    新逻辑：给模型提供全图和所有文本元素的 bbox 及内容，
+    让模型一次性分析所有文本的样式属性。
+    
+    Args:
+        text_elements_json: 文本元素列表的 JSON 字符串，每个元素包含：
+            - element_id: 元素唯一标识
+            - bbox: 边界框 [x0, y0, x1, y1]
+            - content: 文字内容
+    
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = f"""你是一位专业的 PPT/文档排版分析专家。请分析这张图片中所有标注的文字区域的样式属性。
+
+我已经从图片中提取了以下文字元素及其位置信息：
+
+```json
+{text_elements_json}
+```
+
+请仔细观察图片，对比每个文字区域在图片中的实际视觉效果，为每个元素分析以下属性：
+
+1. **font_color**: 字体颜色的十六进制值，格式为 "#RRGGBB"
+   - 请仔细观察文字的实际颜色，不要只返回黑色
+   - 常见颜色如：白色 "#FFFFFF"、蓝色 "#0066CC"、红色 "#FF0000" 等
+
+2. **is_bold**: 是否为粗体 (true/false)
+   - 观察笔画粗细，标题通常是粗体
+
+3. **is_italic**: 是否为斜体 (true/false)
+
+4. **is_underline**: 是否有下划线 (true/false)
+
+5. **text_alignment**: 文字对齐方式
+   - "left": 左对齐
+   - "center": 居中对齐
+   - "right": 右对齐
+   - "justify": 两端对齐
+   - 如果无法判断，根据文字在其区域内的位置推测
+
+请返回一个 JSON 数组，数组中每个对象对应输入的一个元素（按相同顺序），包含以下字段：
+- element_id: 与输入相同的元素ID
+- font_color: 颜色十六进制值
+- is_bold: 布尔值
+- is_italic: 布尔值
+- is_underline: 布尔值
+- text_alignment: 对齐方式字符串
+
+只返回 JSON 数组，不要包含其他文字：
+```json
+[
+    {{
+        "element_id": "xxx",
+        "font_color": "#RRGGBB",
+        "is_bold": true/false,
+        "is_italic": true/false,
+        "is_underline": true/false,
+        "text_alignment": "对齐方式"
+    }},
+    ...
+]
+```
+"""
+    
+    logger.debug(f"[get_batch_text_attribute_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_quality_enhancement_prompt() -> str:
+    """
+    生成画质提升的 prompt
+    用于在百度图像修复后，使用生成式模型提升整体画质
+    """
+    prompt = """\
+你是一位专业的图像画质修复专家。你的任务是提升输入图片的整体画质，使其更加清晰、自然。
+
+<requirements>
+- 提升图片的整体清晰度和画质
+- 修复可能存在的模糊、噪点、伪影等问题
+- 使图像的色彩更加自然、和谐
+- 平滑可能存在的修复痕迹，使画面更加连贯
+- **严格保持图片的原始内容不变**：不添加、不删除、不移动任何元素
+- 保持图片的原始构图、布局、色调风格
+- 输出图片的尺寸必须与原图一致
+</requirements>
+
+注意：这是一张已经经过文字去除处理的图片，你的任务只是提升画质，**不要改变任何内容**。
+"""
     return prompt
