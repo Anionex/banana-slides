@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     # 测试图片路径（WSL格式）
-    test_image = "/mnt/d/Desktop/带表格图片.png"
+    test_image = "/mnt/d/Desktop/下载.png"
     
     print("\n" + "="*80)
     print("测试递归图片可编辑化服务 - 单张图片导出PPTX")
@@ -77,20 +77,23 @@ def main():
     
     try:
         # 使用新接口：通过 ServiceConfig.from_defaults 创建配置
-        # 默认使用混合提取器（MinerU版面分析 + 百度高精度OCR）
+        # 默认使用：
+        # - 混合提取器（MinerU版面分析 + 百度高精度OCR）
+        # - 混合Inpaint（百度图像修复 + 生成式画质提升）
         # max_depth 语义：1=只处理表层不递归，2=递归一层，以此类推
         config = ServiceConfig.from_defaults(
             mineru_token=mineru_token,
             mineru_api_base=mineru_api_base,
             upload_folder=upload_folder,
             max_depth=1,  # 只分析表层，不递归（加快测试）
-            use_hybrid_extractor=True  # 使用混合提取器（MinerU + 百度OCR）
+            use_hybrid_extractor=True,  # 使用混合提取器（MinerU + 百度OCR）
+            use_hybrid_inpaint=True,  # 使用混合Inpaint（百度修复 + 生成式画质提升）
         )
         
         service = ImageEditabilityService(config)
         print("  ✅ 服务初始化成功")
         print(f"  ✅ 使用混合提取器（MinerU + 百度高精度OCR）")
-        print(f"  ✅ 使用 GenerativeEdit（Gemini）进行背景重绘")
+        print(f"  ✅ 使用混合Inpaint（百度图像修复 + 生成式画质提升）")
             
     except Exception as e:
         print(f"  ❌ 服务初始化失败: {e}")
@@ -101,10 +104,10 @@ def main():
     # 4. 分析图片（可编辑化）
     print("\n[4/5] 分析图片（这可能需要1-3分钟）...")
     print("  步骤:")
-    print("  1) 转换为PDF")
-    print("  2) 上传MinerU解析")
-    print("  3) 提取元素bbox和内容")
-    print("  4) 使用GenerativeEdit生成clean background")
+    print("  1) MinerU版面分析 + 百度OCR文字识别")
+    print("  2) 合并识别结果（图片内文字删除，表格内文字保留）")
+    print("  3) 百度图像修复精确去除文字区域")
+    print("  4) 生成式模型提升画质")
     print("  5) 检查是否有子图需要递归分析")
     print("\n  请等待...")
     
@@ -202,7 +205,7 @@ def main():
     print("\n使用的技术:")
     print("  • 混合提取器: MinerU版面分析 + 百度高精度OCR")
     print("  • 合并策略: 图片内文字删除，表格内文字保留，文字bbox取OCR结果")
-    print("  • GenerativeEdit (Gemini): 生成clean background")
+    print("  • 混合Inpaint: 百度图像修复精确去除文字 + 生成式画质提升")
     print("  • 递归分析: 识别图片中的子图和图表")
     print("  • 智能坐标映射: 父子坐标转换")
     print("\n请打开PPTX文件查看可编辑结果！\n")

@@ -63,6 +63,8 @@ from .inpaint_providers import (
     InpaintProvider,
     DefaultInpaintProvider,
     GenerativeEditInpaintProvider,
+    BaiduInpaintProvider,
+    HybridInpaintProvider,
     InpaintProviderRegistry
 )
 
@@ -106,6 +108,8 @@ __all__ = [
     'InpaintProvider',
     'DefaultInpaintProvider',
     'GenerativeEditInpaintProvider',
+    'BaiduInpaintProvider',
+    'HybridInpaintProvider',
     'InpaintProviderRegistry',
     # 文字属性提取器
     'TextStyleResult',

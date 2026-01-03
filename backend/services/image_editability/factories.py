@@ -7,7 +7,14 @@ from pathlib import Path
 
 from .extractors import ElementExtractor, MinerUElementExtractor, BaiduOCRElementExtractor, BaiduAccurateOCRElementExtractor, ExtractorRegistry
 from .hybrid_extractor import HybridElementExtractor, create_hybrid_extractor
-from .inpaint_providers import InpaintProvider, DefaultInpaintProvider, GenerativeEditInpaintProvider, InpaintProviderRegistry
+from .inpaint_providers import (
+    InpaintProvider, 
+    DefaultInpaintProvider, 
+    GenerativeEditInpaintProvider, 
+    BaiduInpaintProvider,
+    HybridInpaintProvider,
+    InpaintProviderRegistry
+)
 from .text_attribute_extractors import (
     TextAttributeExtractor,
     CaptionModelTextAttributeExtractor,
@@ -378,6 +385,73 @@ class InpaintProviderFactory:
                    f"mask={mask_provider is not None}, generative={generative_provider is not None}")
         
         return registry
+    
+    @staticmethod
+    def create_baidu_inpaint_provider() -> Optional[BaiduInpaintProvider]:
+        """
+        创建百度图像修复提供者
+        
+        使用百度AI在指定矩形区域去除遮挡物并用背景内容填充。
+        
+        Returns:
+            BaiduInpaintProvider实例，如果不可用则返回None
+        """
+        try:
+            from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
+            baidu_provider = create_baidu_inpainting_provider()
+            if baidu_provider:
+                logger.info("✅ 创建BaiduInpaintProvider")
+                return BaiduInpaintProvider(baidu_provider)
+            else:
+                logger.warning("⚠️ 无法创建百度图像修复Provider（API Key未配置）")
+                return None
+        except Exception as e:
+            logger.warning(f"⚠️ 创建BaiduInpaintProvider失败: {e}")
+            return None
+    
+    @staticmethod
+    def create_hybrid_inpaint_provider(
+        baidu_provider: Optional[BaiduInpaintProvider] = None,
+        generative_provider: Optional[GenerativeEditInpaintProvider] = None,
+        ai_service: Optional[Any] = None,
+        enhance_quality: bool = True
+    ) -> Optional[HybridInpaintProvider]:
+        """
+        创建混合Inpaint提供者（百度修复 + 生成式画质提升）
+        
+        工作流程：
+        1. 先使用百度图像修复API精确去除文字
+        2. 再使用生成式大模型提升整体画质
+        
+        Args:
+            baidu_provider: 百度图像修复提供者（可选，自动创建）
+            generative_provider: 生成式编辑提供者（可选，自动创建）
+            ai_service: AI服务实例（用于创建生成式提供者）
+            enhance_quality: 是否启用画质提升，默认True
+        
+        Returns:
+            HybridInpaintProvider实例，如果无法创建则返回None
+        """
+        # 创建百度修复提供者
+        if baidu_provider is None:
+            baidu_provider = InpaintProviderFactory.create_baidu_inpaint_provider()
+        
+        if baidu_provider is None:
+            logger.warning("⚠️ 无法创建百度图像修复Provider，混合Provider创建失败")
+            return None
+        
+        # 创建生成式提供者（用于画质提升）
+        if generative_provider is None:
+            generative_provider = InpaintProviderFactory.create_generative_edit_provider(
+                ai_service=ai_service
+            )
+        
+        logger.info("✅ 创建HybridInpaintProvider（百度修复 + 生成式画质提升）")
+        return HybridInpaintProvider(
+            baidu_provider=baidu_provider,
+            generative_provider=generative_provider,
+            enhance_quality=enhance_quality
+        )
 
 
 class ServiceConfig:
@@ -418,6 +492,7 @@ class ServiceConfig:
         upload_folder: Optional[str] = None,
         ai_service: Optional[Any] = None,
         use_hybrid_extractor: bool = True,
+        use_hybrid_inpaint: bool = True,
         **kwargs
     ) -> 'ServiceConfig':
         """
@@ -425,13 +500,17 @@ class ServiceConfig:
         
         默认配置（推荐用于导出PPTX）：
         - 元素提取：混合提取器（MinerU版面分析 + 百度高精度OCR）
-        - 背景生成：GenerativeEdit（生成式大模型）
+        - 背景生成：混合Inpaint（百度图像修复 + 生成式画质提升）
         - 递归深度：1
         
         混合提取器合并策略：
         1. 图片类型bbox里包含的百度OCR bbox → 删除
         2. 表格类型bbox里包含的百度OCR bbox → 保留百度OCR结果，删除MinerU表格bbox
         3. 其他类型与百度OCR bbox有交集 → 使用百度OCR结果
+        
+        混合Inpaint策略：
+        1. 先用百度图像修复精确去除指定区域的文字
+        2. 再用生成式模型提升整体画质
         
         支持动态注册新的元素类型到不同的提取器/重绘方法。
         
@@ -443,12 +522,14 @@ class ServiceConfig:
             upload_folder: 上传文件夹路径（可选，默认从 Flask config 获取）
             ai_service: AI服务实例（可选，用于生成式重绘）
             use_hybrid_extractor: 是否使用混合提取器（默认True）
+            use_hybrid_inpaint: 是否使用混合Inpaint（百度修复+生成式画质提升）（默认True）
             **kwargs: 其他配置参数
                 - max_depth: 最大递归深度（默认1）
                 - min_image_size: 最小图片尺寸（默认200）
                 - min_image_area: 最小图片面积（默认40000）
                 - contain_threshold: 混合提取器包含判断阈值（默认0.8）
                 - intersection_threshold: 混合提取器交集判断阈值（默认0.3）
+                - enhance_quality: 混合Inpaint是否启用画质提升（默认True）
         
         Returns:
             ServiceConfig实例
@@ -521,15 +602,33 @@ class ServiceConfig:
             extractor_registry.register_default(mineru_extractor)
             logger.info("✅ MinerU提取器已创建（通用分割）")
         
-        # 创建生成式重绘提供者
-        generative_provider = InpaintProviderFactory.create_generative_edit_provider(
-            ai_service=ai_service
-        )
-        
-        # 创建重绘注册表 - 使用生成式重绘作为默认
+        # 创建Inpaint提供者
         inpaint_registry = InpaintProviderRegistry()
-        inpaint_registry.register_default(generative_provider)
-        logger.info("✅ 重绘注册表已创建（GenerativeEdit通用）")
+        
+        if use_hybrid_inpaint:
+            # 尝试创建混合Inpaint提供者（百度修复 + 生成式画质提升）
+            hybrid_inpaint = InpaintProviderFactory.create_hybrid_inpaint_provider(
+                ai_service=ai_service,
+                enhance_quality=kwargs.get('enhance_quality', True)
+            )
+            
+            if hybrid_inpaint:
+                inpaint_registry.register_default(hybrid_inpaint)
+                logger.info("✅ 混合Inpaint提供者已创建（百度修复 + 生成式画质提升）")
+            else:
+                # 回退到纯生成式重绘
+                generative_provider = InpaintProviderFactory.create_generative_edit_provider(
+                    ai_service=ai_service
+                )
+                inpaint_registry.register_default(generative_provider)
+                logger.warning("⚠️ 混合Inpaint创建失败，回退到GenerativeEdit")
+        else:
+            # 使用纯生成式重绘
+            generative_provider = InpaintProviderFactory.create_generative_edit_provider(
+                ai_service=ai_service
+            )
+            inpaint_registry.register_default(generative_provider)
+            logger.info("✅ 重绘注册表已创建（GenerativeEdit通用）")
         
         return cls(
             upload_folder=upload_path,

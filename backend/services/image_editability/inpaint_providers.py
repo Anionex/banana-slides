@@ -1,9 +1,11 @@
 """
 Inpaint提供者 - 抽象不同的inpaint实现
 
-提供两种重绘方法：
+提供多种重绘方法：
 1. DefaultInpaintProvider - 基于mask的精确区域重绘（使用Volcengine Inpainting服务）
 2. GenerativeEditInpaintProvider - 基于生成式大模型的整图编辑重绘（如Gemini图片编辑）
+3. BaiduInpaintProvider - 基于百度图像修复API的区域重绘
+4. HybridInpaintProvider - 混合方法：先百度修复去除文字，再生成式提升画质
 
 以及注册表：
 - InpaintProviderRegistry - 元素类型到重绘方法的映射注册表
@@ -201,6 +203,220 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         
         except Exception as e:
             logger.error(f"GenerativeEditInpaintProvider处理失败: {e}", exc_info=True)
+            return None
+
+
+class BaiduInpaintProvider(InpaintProvider):
+    """
+    基于百度图像修复API的Inpaint提供者
+    
+    使用百度AI在指定矩形区域去除遮挡物并用背景内容填充。
+    
+    特点：
+    - 基于bbox的精确区域修复
+    - 快速响应，使用背景内容智能填充
+    - 适合去除文字、水印等规则区域
+    
+    注意：修复质量可能不如生成式模型，但速度快且稳定
+    """
+    
+    def __init__(self, baidu_inpainting_provider):
+        """
+        初始化百度图像修复提供者
+        
+        Args:
+            baidu_inpainting_provider: BaiduInpaintingProvider实例（来自ai_providers.image）
+        """
+        self._provider = baidu_inpainting_provider
+    
+    def inpaint_regions(
+        self,
+        image: Image.Image,
+        bboxes: List[tuple],
+        types: Optional[List[str]] = None,
+        **kwargs
+    ) -> Optional[Image.Image]:
+        """
+        使用百度图像修复API处理指定区域
+        
+        支持的kwargs参数：
+        - expand_pixels: int, 扩展像素数，默认2
+        """
+        expand_pixels = kwargs.get('expand_pixels', 2)
+        
+        try:
+            logger.info(f"BaiduInpaintProvider: 开始修复 {len(bboxes)} 个区域...")
+            
+            result_image = self._provider.inpaint_bboxes(
+                image=image,
+                bboxes=bboxes,
+                expand_pixels=expand_pixels
+            )
+            
+            if result_image:
+                logger.info("BaiduInpaintProvider: 修复完成")
+            else:
+                logger.warning("BaiduInpaintProvider: 修复返回空结果")
+            
+            return result_image
+        
+        except Exception as e:
+            logger.error(f"BaiduInpaintProvider处理失败: {e}", exc_info=True)
+            return None
+
+
+class HybridInpaintProvider(InpaintProvider):
+    """
+    混合Inpaint提供者 - 百度修复 + 生成式画质提升
+    
+    工作流程：
+    1. 先使用百度图像修复API去除指定区域的内容（如文字、水印）
+    2. 再使用生成式大模型（如Gemini）提升整体画质，保持内容不变
+    
+    优点：
+    - 百度修复快速精确地去除文字，不会遗漏
+    - 生成式模型提升画质，使修复痕迹更自然
+    
+    适用场景：
+    - 需要精确去除文字且保证高画质的场景
+    - 单独使用生成式模型容易遗漏文字的情况
+    """
+    
+    def __init__(
+        self,
+        baidu_provider: BaiduInpaintProvider,
+        generative_provider: 'GenerativeEditInpaintProvider',
+        enhance_quality: bool = True
+    ):
+        """
+        初始化混合Inpaint提供者
+        
+        Args:
+            baidu_provider: 百度图像修复提供者
+            generative_provider: 生成式编辑提供者（用于画质提升）
+            enhance_quality: 是否在百度修复后使用生成式模型提升画质，默认True
+        """
+        self._baidu_provider = baidu_provider
+        self._generative_provider = generative_provider
+        self._enhance_quality = enhance_quality
+    
+    def inpaint_regions(
+        self,
+        image: Image.Image,
+        bboxes: List[tuple],
+        types: Optional[List[str]] = None,
+        **kwargs
+    ) -> Optional[Image.Image]:
+        """
+        混合处理：先百度修复，再生成式画质提升
+        
+        支持的kwargs参数：
+        - expand_pixels: int, 百度修复的扩展像素数，默认2
+        - enhance_quality: bool, 是否提升画质，默认使用初始化时的值
+        - aspect_ratio: str, 画质提升的宽高比
+        - resolution: str, 画质提升的分辨率
+        """
+        expand_pixels = kwargs.get('expand_pixels', 2)
+        enhance_quality = kwargs.get('enhance_quality', self._enhance_quality)
+        
+        try:
+            # Step 1: 百度图像修复 - 精确去除文字
+            logger.info(f"HybridInpaintProvider Step 1: 百度修复 {len(bboxes)} 个区域...")
+            
+            repaired_image = self._baidu_provider.inpaint_regions(
+                image=image,
+                bboxes=bboxes,
+                types=types,
+                expand_pixels=expand_pixels
+            )
+            
+            if repaired_image is None:
+                logger.error("HybridInpaintProvider: 百度修复失败")
+                return None
+            
+            logger.info("HybridInpaintProvider: 百度修复完成")
+            
+            # Step 2: 生成式画质提升（可选）
+            if enhance_quality and self._generative_provider:
+                logger.info("HybridInpaintProvider Step 2: 生成式画质提升...")
+                
+                # 使用专门的画质提升prompt
+                enhanced_image = self._enhance_image_quality(
+                    repaired_image,
+                    kwargs.get('aspect_ratio'),
+                    kwargs.get('resolution')
+                )
+                
+                if enhanced_image:
+                    logger.info("HybridInpaintProvider: 画质提升完成")
+                    return enhanced_image
+                else:
+                    logger.warning("HybridInpaintProvider: 画质提升失败，返回百度修复结果")
+                    return repaired_image
+            else:
+                logger.info("HybridInpaintProvider: 跳过画质提升")
+                return repaired_image
+        
+        except Exception as e:
+            logger.error(f"HybridInpaintProvider处理失败: {e}", exc_info=True)
+            return None
+    
+    def _enhance_image_quality(
+        self,
+        image: Image.Image,
+        aspect_ratio: Optional[str] = None,
+        resolution: Optional[str] = None
+    ) -> Optional[Image.Image]:
+        """
+        使用生成式模型提升图像画质
+        
+        Args:
+            image: 需要提升画质的图像
+            aspect_ratio: 宽高比（可选）
+            resolution: 分辨率（可选）
+        
+        Returns:
+            提升画质后的图像
+        """
+        try:
+            # 保存临时图片
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+                image.save(tmp_path)
+            
+            # 获取画质提升的prompt
+            from services.prompts import get_quality_enhancement_prompt
+            enhance_prompt = get_quality_enhancement_prompt()
+            
+            # 使用AI服务的aspect_ratio和resolution（如果提供）
+            ar = aspect_ratio or self._generative_provider.aspect_ratio
+            res = resolution or self._generative_provider.resolution
+            
+            # 调用AI服务
+            enhanced_image = self._generative_provider.ai_service.edit_image(
+                prompt=enhance_prompt,
+                current_image_path=tmp_path,
+                aspect_ratio=ar,
+                resolution=res,
+                original_description=None,
+                additional_ref_images=None
+            )
+            
+            if not enhanced_image:
+                return None
+            
+            # 转换为PIL Image
+            if not isinstance(enhanced_image, Image.Image):
+                if hasattr(enhanced_image, '_pil_image'):
+                    enhanced_image = enhanced_image._pil_image
+                else:
+                    logger.error(f"未知的图片类型: {type(enhanced_image)}")
+                    return None
+            
+            return enhanced_image
+        
+        except Exception as e:
+            logger.error(f"画质提升失败: {e}", exc_info=True)
             return None
 
 
