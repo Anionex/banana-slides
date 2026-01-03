@@ -458,7 +458,10 @@ class ExportService:
         max_workers: int = 8
     ) -> Dict[str, Any]:
         """
-        批量并行提取文本样式
+        【旧逻辑 - 已弃用】批量并行提取文本样式（逐个裁剪区域分析）
+        
+        此方法对每一段文字的裁剪区域单独进行分析，无法看到全局信息。
+        请使用 _batch_extract_text_styles_with_full_image 方法替代。
         
         Args:
             text_items: 元组列表，每个元组为 (element_id, image_path, text_content)
@@ -473,7 +476,7 @@ class ExportService:
         if not text_items or not text_attribute_extractor:
             return {}
         
-        logger.info(f"并行提取 {len(text_items)} 个文本元素的样式（并发数: {max_workers}）...")
+        logger.info(f"【旧逻辑】并行提取 {len(text_items)} 个文本元素的样式（并发数: {max_workers}）...")
         
         results = {}
         
@@ -499,6 +502,147 @@ class ExportService:
         
         logger.info(f"✓ 文本样式提取完成，成功 {len(results)}/{len(text_items)} 个")
         return results
+    
+    @staticmethod
+    def _collect_text_elements_for_batch_extraction(
+        elements: List,  # List[EditableElement]
+        depth: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        递归收集所有需要批量提取样式的文本元素（新格式，包含bbox）
+        
+        Args:
+            elements: EditableElement列表
+            depth: 当前递归深度
+        
+        Returns:
+            字典列表，每个字典包含 element_id, bbox, content
+        """
+        text_items = []
+        
+        for elem in elements:
+            elem_type = elem.element_type
+            
+            # 文本类型元素需要提取样式
+            if elem_type in ['text', 'title', 'table_cell']:
+                if elem.content:
+                    text = elem.content.strip()
+                    if text:
+                        # 使用全局坐标 bbox_global
+                        bbox = elem.bbox_global if hasattr(elem, 'bbox_global') and elem.bbox_global else elem.bbox
+                        text_items.append({
+                            'element_id': elem.element_id,
+                            'bbox': [bbox.x0, bbox.y0, bbox.x1, bbox.y1],
+                            'content': text
+                        })
+            
+            # 递归处理子元素
+            if hasattr(elem, 'children') and elem.children:
+                child_items = ExportService._collect_text_elements_for_batch_extraction(
+                    elements=elem.children,
+                    depth=depth + 1
+                )
+                text_items.extend(child_items)
+        
+        return text_items
+    
+    @staticmethod
+    def _batch_extract_text_styles_with_full_image(
+        editable_images: List,  # List[EditableImage]
+        text_attribute_extractor,
+        max_workers: int = 4
+    ) -> Dict[str, Any]:
+        """
+        【新逻辑】使用全图批量提取所有文本样式
+        
+        新方法：给 caption model 提供全图，以及提取后的所有文本 bbox 和内容，
+        让模型一次性分析所有文本的样式属性（颜色、粗体、对齐等）。
+        
+        优势：模型可以看到全局信息，分析更准确。
+        
+        Args:
+            editable_images: EditableImage列表，每个对应一张PPT页面
+            text_attribute_extractor: 文本属性提取器（需要有 extract_batch_with_full_image 方法）
+            max_workers: 并发处理页面数
+        
+        Returns:
+            字典，key为element_id，value为TextStyleResult
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        if not editable_images or not text_attribute_extractor:
+            return {}
+        
+        # 检查提取器是否支持批量提取
+        if not hasattr(text_attribute_extractor, 'extract_batch_with_full_image'):
+            logger.warning("提取器不支持 extract_batch_with_full_image 方法，回退到旧逻辑")
+            # 回退到旧逻辑
+            all_text_items = []
+            for editable_img in editable_images:
+                text_items = ExportService._collect_text_elements_for_extraction(editable_img.elements)
+                all_text_items.extend(text_items)
+            return ExportService._batch_extract_text_styles(
+                text_items=all_text_items,
+                text_attribute_extractor=text_attribute_extractor,
+                max_workers=max_workers * 2
+            )
+        
+        logger.info(f"【新逻辑】使用全图批量分析 {len(editable_images)} 页的文本样式...")
+        
+        all_results = {}
+        
+        def process_single_page(editable_img, page_idx):
+            """处理单个页面的文本样式提取"""
+            try:
+                # 收集该页面的所有文本元素
+                text_elements = ExportService._collect_text_elements_for_batch_extraction(
+                    editable_img.elements
+                )
+                
+                if not text_elements:
+                    logger.info(f"  页面 {page_idx + 1}: 无文本元素")
+                    return {}
+                
+                logger.info(f"  页面 {page_idx + 1}: 分析 {len(text_elements)} 个文本元素...")
+                
+                # 使用原始图片路径作为全图
+                full_image_path = editable_img.image_path
+                
+                # 调用批量提取方法
+                page_results = text_attribute_extractor.extract_batch_with_full_image(
+                    full_image=full_image_path,
+                    text_elements=text_elements
+                )
+                
+                logger.info(f"  页面 {page_idx + 1}: 成功提取 {len(page_results)} 个元素的样式")
+                return page_results
+                
+            except Exception as e:
+                logger.error(f"页面 {page_idx + 1} 文本样式提取失败: {e}", exc_info=True)
+                return {}
+        
+        # 并发处理所有页面
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(process_single_page, img, idx): idx 
+                for idx, img in enumerate(editable_images)
+            }
+            
+            for future in as_completed(futures):
+                page_idx = futures[future]
+                try:
+                    page_results = future.result()
+                    all_results.update(page_results)
+                except Exception as e:
+                    logger.error(f"页面 {page_idx + 1} 处理失败: {e}")
+        
+        total_elements = sum(
+            len(ExportService._collect_text_elements_for_batch_extraction(img.elements))
+            for img in editable_images
+        )
+        logger.info(f"✓ 全图批量文本样式提取完成，成功 {len(all_results)}/{total_elements} 个")
+        
+        return all_results
     
     @staticmethod
     def create_editable_pptx_with_recursive_analysis(
@@ -574,21 +718,16 @@ class ExportService:
                 
                 editable_images = results
         
-        # 2.5. 并行提取所有文本元素的样式（如果提供了提取器）
+        # 2.5. 使用全图批量提取所有文本元素的样式（如果提供了提取器）
         text_styles_cache = {}
         if text_attribute_extractor:
-            logger.info(f"Step 2: 批量提取文本样式...")
-            all_text_items = []
-            for editable_img in editable_images:
-                text_items = ExportService._collect_text_elements_for_extraction(editable_img.elements)
-                all_text_items.extend(text_items)
-            
-            if all_text_items:
-                text_styles_cache = ExportService._batch_extract_text_styles(
-                    text_items=all_text_items,
-                    text_attribute_extractor=text_attribute_extractor,
-                    max_workers=max_workers * 2  # 文本属性提取使用更高并发
-                )
+            logger.info(f"Step 2: 使用全图批量分析文本样式（新逻辑）...")
+            # 使用新的批量提取方法：给模型提供全图和所有文本bbox，一次性分析
+            text_styles_cache = ExportService._batch_extract_text_styles_with_full_image(
+                editable_images=editable_images,
+                text_attribute_extractor=text_attribute_extractor,
+                max_workers=max_workers  # 按页面并发
+            )
         
         logger.info(f"Step 4: 创建PPTX...")
         

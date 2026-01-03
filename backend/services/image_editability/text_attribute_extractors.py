@@ -349,6 +349,170 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
         except Exception as e:
             logger.error(f"解析结果失败: {e}")
             return TextStyleResult(confidence=0.0, metadata={'error': str(e)})
+    
+    def extract_batch_with_full_image(
+        self,
+        full_image: Union[str, Image.Image],
+        text_elements: List[Dict[str, Any]],
+        **kwargs
+    ) -> Dict[str, TextStyleResult]:
+        """
+        【新逻辑】使用全图一次性提取所有文本元素的样式属性
+        
+        优势：模型可以看到全局上下文，提高分析准确性
+        
+        Args:
+            full_image: 完整的页面图片，可以是文件路径或PIL Image对象
+            text_elements: 文本元素列表，每个元素包含：
+                - element_id: 元素唯一标识
+                - bbox: 边界框 [x0, y0, x1, y1]
+                - content: 文字内容
+            **kwargs:
+                - thinking_budget: int, 思考预算，默认1000
+        
+        Returns:
+            字典，key为element_id，value为TextStyleResult
+        """
+        import json
+        import tempfile
+        from services.prompts import get_batch_text_attribute_extraction_prompt
+        
+        thinking_budget = kwargs.get('thinking_budget', 1000)
+        
+        if not text_elements:
+            return {}
+        
+        try:
+            # 准备图片
+            if isinstance(full_image, str):
+                pil_image = Image.open(full_image)
+                tmp_path = full_image  # 如果已经是路径，直接使用
+                need_cleanup = False
+            else:
+                pil_image = full_image
+                # 保存临时图片文件
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    pil_image.save(tmp_path)
+                need_cleanup = True
+            
+            # 构建文本元素的 JSON 描述
+            elements_for_prompt = []
+            for elem in text_elements:
+                elements_for_prompt.append({
+                    'element_id': elem['element_id'],
+                    'bbox': elem['bbox'],
+                    'content': elem['content']
+                })
+            
+            text_elements_json = json.dumps(elements_for_prompt, ensure_ascii=False, indent=2)
+            
+            # 构建 prompt
+            prompt = get_batch_text_attribute_extraction_prompt(text_elements_json)
+            
+            # 调用视觉语言模型
+            try:
+                if hasattr(self.ai_service.text_provider, 'generate_with_image'):
+                    response_text = self.ai_service.text_provider.generate_with_image(
+                        prompt=prompt,
+                        image_path=tmp_path,
+                        thinking_budget=thinking_budget
+                    )
+                elif hasattr(self.ai_service.text_provider, 'generate_text_with_images'):
+                    response_text = self.ai_service.text_provider.generate_text_with_images(
+                        prompt=prompt,
+                        images=[tmp_path],
+                        thinking_budget=thinking_budget
+                    )
+                else:
+                    logger.warning("text_provider不支持图片输入，无法使用批量提取")
+                    return {}
+                
+                # 清理响应文本并解析JSON
+                cleaned_text = response_text.strip()
+                # 移除可能的 markdown 代码块标记
+                if cleaned_text.startswith("```json"):
+                    cleaned_text = cleaned_text[7:]
+                if cleaned_text.startswith("```"):
+                    cleaned_text = cleaned_text[3:]
+                if cleaned_text.endswith("```"):
+                    cleaned_text = cleaned_text[:-3]
+                cleaned_text = cleaned_text.strip()
+                
+                result_list = json.loads(cleaned_text)
+                
+                # 解析结果
+                return self._parse_batch_result(result_list, text_elements)
+                
+            finally:
+                if need_cleanup:
+                    import os
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+        
+        except Exception as e:
+            logger.error(f"批量提取文字属性失败: {e}", exc_info=True)
+            return {}
+    
+    def _parse_batch_result(
+        self,
+        result_list: List[Dict[str, Any]],
+        original_elements: List[Dict[str, Any]]
+    ) -> Dict[str, TextStyleResult]:
+        """
+        解析批量提取的 AI 返回结果
+        
+        Args:
+            result_list: AI 返回的 JSON 列表，每个元素包含样式属性
+            original_elements: 原始输入的元素列表，用于匹配 element_id
+        
+        Returns:
+            字典，key 为 element_id，value 为 TextStyleResult
+        """
+        results = {}
+        
+        # 创建 element_id 到原始元素的映射，用于回退
+        original_map = {elem['element_id']: elem for elem in original_elements}
+        
+        for item in result_list:
+            try:
+                element_id = item.get('element_id')
+                if not element_id:
+                    continue
+                
+                # 解析颜色（十六进制格式）
+                font_color_hex = item.get('font_color', '#000000')
+                if isinstance(font_color_hex, str):
+                    font_color_rgb = self._hex_to_rgb(font_color_hex)
+                else:
+                    font_color_rgb = (0, 0, 0)
+                
+                # 解析布尔值
+                is_bold = bool(item.get('is_bold', False))
+                is_italic = bool(item.get('is_italic', False))
+                is_underline = bool(item.get('is_underline', False))
+                
+                # 解析文字对齐方式
+                text_alignment = item.get('text_alignment')
+                if text_alignment not in ('left', 'center', 'right', 'justify', None):
+                    text_alignment = None
+                
+                results[element_id] = TextStyleResult(
+                    font_color_rgb=font_color_rgb,
+                    is_bold=is_bold,
+                    is_italic=is_italic,
+                    is_underline=is_underline,
+                    text_alignment=text_alignment,
+                    confidence=0.9,
+                    metadata={'source': 'batch_caption_model', 'raw_response': item}
+                )
+                
+            except Exception as e:
+                logger.warning(f"解析元素 {item.get('element_id', 'unknown')} 的样式失败: {e}")
+                continue
+        
+        logger.info(f"批量解析完成: 成功 {len(results)}/{len(original_elements)} 个元素")
+        return results
 
 
 class TextAttributeExtractorRegistry:
