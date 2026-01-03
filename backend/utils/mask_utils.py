@@ -3,10 +3,107 @@
 用于从边界框（bbox）生成黑白掩码图像
 """
 import logging
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Callable
 from PIL import Image, ImageDraw
 
 logger = logging.getLogger(__name__)
+
+
+# ============== Bbox 工具函数 ==============
+
+def normalize_bbox(bbox: Union[Tuple, List, dict]) -> Tuple[int, int, int, int]:
+    """
+    将各种格式的bbox标准化为 (x1, y1, x2, y2) 元组格式
+    
+    支持的输入格式：
+    - 元组/列表: (x1, y1, x2, y2)
+    - 字典: {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+    - 字典: {"x": x, "y": y, "width": w, "height": h}
+    """
+    if isinstance(bbox, dict):
+        if 'x1' in bbox:
+            return (bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'])
+        elif 'x' in bbox:
+            return (bbox['x'], bbox['y'], 
+                   bbox['x'] + bbox['width'], 
+                   bbox['y'] + bbox['height'])
+        else:
+            raise ValueError(f"无法识别的bbox字典格式: {bbox}")
+    elif isinstance(bbox, (tuple, list)) and len(bbox) == 4:
+        return tuple(bbox)
+    else:
+        raise ValueError(f"无法识别的bbox格式: {bbox}")
+
+
+def normalize_bboxes(bboxes: List[Union[Tuple, List, dict]]) -> List[Tuple[int, int, int, int]]:
+    """批量标准化bbox列表"""
+    result = []
+    for bbox in bboxes:
+        try:
+            result.append(normalize_bbox(bbox))
+        except ValueError as e:
+            logger.warning(str(e))
+    return result
+
+
+def merge_two_boxes(box1: Tuple, box2: Tuple) -> Tuple[int, int, int, int]:
+    """合并两个bbox为一个包含它们的最小bbox"""
+    return (
+        min(box1[0], box2[0]),
+        min(box1[1], box2[1]),
+        max(box1[2], box2[2]),
+        max(box1[3], box2[3])
+    )
+
+
+def _iterative_merge(
+    bboxes: List[Tuple[int, int, int, int]],
+    should_merge_fn: Callable[[Tuple, Tuple], bool]
+) -> List[Tuple[int, int, int, int]]:
+    """
+    通用的迭代合并算法
+    
+    Args:
+        bboxes: 标准化后的bbox列表
+        should_merge_fn: 判断两个bbox是否应该合并的函数
+    
+    Returns:
+        合并后的bbox列表
+    """
+    if not bboxes:
+        return []
+    if len(bboxes) == 1:
+        return list(bboxes)
+    
+    normalized = list(bboxes)
+    merged = True
+    
+    while merged:
+        merged = False
+        new_boxes = []
+        used = set()
+        
+        for i, box1 in enumerate(normalized):
+            if i in used:
+                continue
+            
+            current_box = box1
+            
+            for j, box2 in enumerate(normalized):
+                if j <= i or j in used:
+                    continue
+                
+                if should_merge_fn(current_box, box2):
+                    current_box = merge_two_boxes(current_box, box2)
+                    used.add(j)
+                    merged = True
+            
+            new_boxes.append(current_box)
+            used.add(i)
+        
+        normalized = new_boxes
+    
+    return normalized
 
 
 def create_mask_from_bboxes(
@@ -231,6 +328,97 @@ def visualize_mask_overlay(
         return original_image
 
 
+def merge_vertical_nearby_bboxes(
+    bboxes: List[Tuple[int, int, int, int]],
+    vertical_gap_ratio: float = 0.8,
+    horizontal_overlap_ratio: float = 0.3
+) -> List[Tuple[int, int, int, int]]:
+    """
+    合并上下间距很小的边界框（适用于文字行合并）
+    
+    合并策略（基于原始bbox判断，避免雪球效应）：
+    - 按y坐标排序后，先判断每对相邻原始bbox是否应该合并
+    - 如果垂直间距小于平均行高的 vertical_gap_ratio 倍
+    - 并且在水平方向上有至少 horizontal_overlap_ratio 的重叠
+    - 则标记为可合并，最后统一执行合并
+    
+    Args:
+        bboxes: 边界框列表 [(x1, y1, x2, y2), ...]
+        vertical_gap_ratio: 垂直间距阈值，相对于平均行高的比例，默认0.8
+        horizontal_overlap_ratio: 水平重叠比例阈值，默认0.3
+        
+    Returns:
+        合并后的边界框列表
+    """
+    if not bboxes or len(bboxes) <= 1:
+        return list(bboxes) if bboxes else []
+    
+    normalized = normalize_bboxes(bboxes)
+    if not normalized:
+        return []
+    
+    # 按y坐标排序（从上到下）
+    normalized.sort(key=lambda b: b[1])
+    
+    # 计算原始bbox的平均行高
+    avg_height = sum(b[3] - b[1] for b in normalized) / len(normalized)
+    max_vertical_gap = avg_height * vertical_gap_ratio
+    
+    def get_horizontal_overlap(box1, box2):
+        """计算两个bbox在水平方向的重叠比例（相对于较小的宽度）"""
+        overlap_start = max(box1[0], box2[0])
+        overlap_end = min(box1[2], box2[2])
+        overlap = max(0, overlap_end - overlap_start)
+        min_width = min(box1[2] - box1[0], box2[2] - box2[0])
+        return overlap / min_width if min_width > 0 else 0
+    
+    def should_merge_adjacent(box1, box2):
+        """判断两个相邻（按y排序）的原始bbox是否应该合并"""
+        # 垂直间距 = box2的顶部 - box1的底部
+        v_gap = box2[1] - box1[3]
+        
+        # 如果垂直间距太大，不合并
+        if v_gap > max_vertical_gap:
+            return False
+        
+        # 检查水平重叠
+        h_overlap = get_horizontal_overlap(box1, box2)
+        if h_overlap >= horizontal_overlap_ratio:
+            return True
+        
+        # 没有重叠但水平距离很近也合并
+        if h_overlap <= 0:
+            h_gap = max(0, max(box2[0] - box1[2], box1[0] - box2[2]))
+            if h_gap < avg_height:
+                return True
+        
+        return False
+    
+    # 第一步：基于原始bbox判断哪些相邻对应该合并
+    merge_with_next = []
+    for i in range(len(normalized) - 1):
+        merge_with_next.append(should_merge_adjacent(normalized[i], normalized[i + 1]))
+    
+    # 第二步：根据标记执行合并
+    result = []
+    current_box = normalized[0]
+    
+    for i in range(len(merge_with_next)):
+        if merge_with_next[i]:
+            # 和下一个合并
+            current_box = merge_two_boxes(current_box, normalized[i + 1])
+        else:
+            # 不合并，保存当前，开始新组
+            result.append(current_box)
+            current_box = normalized[i + 1]
+    
+    # 添加最后一个
+    result.append(current_box)
+    
+    logger.info(f"合并相邻文字行bbox：{len(bboxes)} -> {len(result)}")
+    return result
+
+
 def merge_overlapping_bboxes(
     bboxes: List[Tuple[int, int, int, int]],
     merge_threshold: int = 10
@@ -248,56 +436,17 @@ def merge_overlapping_bboxes(
     if not bboxes:
         return []
     
-    # 转换为标准格式
-    normalized_bboxes = []
-    for bbox in bboxes:
-        if isinstance(bbox, dict):
-            if 'x1' in bbox:
-                normalized_bboxes.append((bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2']))
-            elif 'x' in bbox:
-                normalized_bboxes.append((bbox['x'], bbox['y'], 
-                                        bbox['x'] + bbox['width'], 
-                                        bbox['y'] + bbox['height']))
-        else:
-            normalized_bboxes.append(tuple(bbox))
+    normalized = normalize_bboxes(bboxes)
+    if not normalized:
+        return []
     
-    # 简单的合并算法：反复合并重叠的框，直到没有可合并的
-    merged = True
-    while merged:
-        merged = False
-        new_bboxes = []
-        used = set()
-        
-        for i, bbox1 in enumerate(normalized_bboxes):
-            if i in used:
-                continue
-                
-            x1, y1, x2, y2 = bbox1
-            merged_any = False
-            
-            for j, bbox2 in enumerate(normalized_bboxes[i+1:], i+1):
-                if j in used:
-                    continue
-                    
-                bx1, by1, bx2, by2 = bbox2
-                
-                # 检查是否重叠或相邻
-                if (x1 - merge_threshold <= bx2 and bx1 <= x2 + merge_threshold and
-                    y1 - merge_threshold <= by2 and by1 <= y2 + merge_threshold):
-                    # 合并
-                    x1 = min(x1, bx1)
-                    y1 = min(y1, by1)
-                    x2 = max(x2, bx2)
-                    y2 = max(y2, by2)
-                    used.add(j)
-                    merged_any = True
-                    merged = True
-            
-            new_bboxes.append((x1, y1, x2, y2))
-            used.add(i)
-        
-        normalized_bboxes = new_bboxes
+    def should_merge(box1, box2):
+        x1, y1, x2, y2 = box1
+        bx1, by1, bx2, by2 = box2
+        return (x1 - merge_threshold <= bx2 and bx1 <= x2 + merge_threshold and
+                y1 - merge_threshold <= by2 and by1 <= y2 + merge_threshold)
     
-    logger.info(f"合并边界框：{len(bboxes)} -> {len(normalized_bboxes)}")
-    return normalized_bboxes
+    result = _iterative_merge(normalized, should_merge)
+    logger.info(f"合并边界框：{len(bboxes)} -> {len(result)}")
+    return result
 

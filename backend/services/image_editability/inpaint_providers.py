@@ -390,9 +390,16 @@ class HybridInpaintProvider(InpaintProvider):
             # 将bboxes转换为百分比形式（相对于图片宽高）
             regions = None
             if inpainted_bboxes:
+                # 先合并上下间距很小的bbox（减少传递给生成式模型的区域数量）
+                from utils.mask_utils import merge_vertical_nearby_bboxes
+                original_count = len(inpainted_bboxes)
+                merged_bboxes = merge_vertical_nearby_bboxes(inpainted_bboxes)
+                if len(merged_bboxes) < original_count:
+                    logger.info(f"合并相邻文字行后：{original_count} -> {len(merged_bboxes)} 个区域")
+                
                 img_width, img_height = image.size
                 regions = []
-                for bbox in inpainted_bboxes:
+                for bbox in merged_bboxes:
                     x0, y0, x1, y1 = bbox
                     # 转换为百分比（0-100）
                     regions.append({
