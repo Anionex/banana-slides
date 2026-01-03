@@ -442,7 +442,7 @@ class ImageEditabilityService:
         logger.info(f"{'  ' * depth}  并行处理 {len(elements_to_process)} 个子元素...")
         
         # 使用线程池并行处理
-        max_workers = min(4, len(elements_to_process))  # 限制并发数
+        max_workers = min(8, len(elements_to_process))  # 限制并发数
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(process_single_element, elem): elem for elem in elements_to_process}
             

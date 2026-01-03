@@ -507,7 +507,7 @@ class ExportService:
         slide_width_pixels: int = 1920,
         slide_height_pixels: int = 1080,
         max_depth: int = 2,
-        max_workers: int = 4,
+        max_workers: int = 8,
         editable_images: List = None,  # 可选：直接传入已分析的EditableImage列表
         text_attribute_extractor = None  # 可选：文字属性提取器，用于提取颜色、粗体、斜体等样式
     ) -> bytes:
