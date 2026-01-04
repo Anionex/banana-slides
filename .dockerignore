@@ -80,7 +80,7 @@ docker-compose*.yml
 
 # Others
 *.lock
-uv.lock
+!uv.lock
 LICENSE
 PRD.md
 *.md
@@ -95,4 +95,3 @@ dist/
 build/
 *.pptx
 *.pdf
-
