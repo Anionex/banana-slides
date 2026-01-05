@@ -196,23 +196,15 @@ class AIService:
         Returns:
             提取的JSON字符串
         """
-        import re
-
         # 移除常见的AI解释前缀
         text = re.sub(r'^(Here is|这是|以下是|The JSON|JSON格式|输出).*?[:：]\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
 
-        # 查找第一个有效的JSON开始符
+        # 查找第一个[或{
         start_idx = -1
-        if text.startswith('['):
-            start_idx = 0
-        elif text.startswith('{'):
-            start_idx = 0
-        else:
-            # 查找第一个[或{
-            for i, char in enumerate(text):
-                if char in '[{':
-                    start_idx = i
-                    break
+        for i, char in enumerate(text):
+            if char in '[{':
+                start_idx = i
+                break
 
         if start_idx == -1:
             return text  # 如果没找到，直接返回原文本
