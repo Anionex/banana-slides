@@ -90,6 +90,21 @@ class Config:
     # 输出语言配置
     # 可选值: 'zh' (中文), 'ja' (日本語), 'en' (English), 'auto' (自动)
     OUTPUT_LANGUAGE = os.getenv('OUTPUT_LANGUAGE', 'zh')
+    
+    # 火山引擎配置
+    VOLCENGINE_ACCESS_KEY = os.getenv('VOLCENGINE_ACCESS_KEY', '')
+    VOLCENGINE_SECRET_KEY = os.getenv('VOLCENGINE_SECRET_KEY', '')
+    VOLCENGINE_INPAINTING_TIMEOUT = int(os.getenv('VOLCENGINE_INPAINTING_TIMEOUT', '60'))  # Inpainting 超时时间（秒）
+    VOLCENGINE_INPAINTING_MAX_RETRIES = int(os.getenv('VOLCENGINE_INPAINTING_MAX_RETRIES', '3'))  # 最大重试次数
+
+    # Inpainting Provider 配置（用于 InpaintingService 的单张图片修复）
+    # 可选值: 'volcengine' (火山引擎), 'gemini' (Google Gemini)
+    # 注意: 可编辑PPTX导出功能使用 ImageEditabilityService，其中 HybridInpaintProvider 会结合百度重绘和生成式质量增强
+    INPAINTING_PROVIDER = os.getenv('INPAINTING_PROVIDER', 'gemini')  # 默认使用 Gemini
+    
+    # 百度 API 配置（用于 OCR 和图像修复）
+    BAIDU_OCR_API_KEY = os.getenv('BAIDU_OCR_API_KEY', '')
+    BAIDU_OCR_API_SECRET = os.getenv('BAIDU_OCR_API_SECRET', '')
 
 
 class DevelopmentConfig(Config):

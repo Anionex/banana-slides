@@ -86,3 +86,36 @@ class GenAITextProvider(TextProvider):
             ),
         )
         return response.text
+    
+    @retry(
+        stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
+        wait=wait_exponential(multiplier=1, min=2, max=10)
+    )
+    def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 1000) -> str:
+        """
+        Generate text with image input using Google GenAI SDK (multimodal)
+        
+        Args:
+            prompt: The input prompt
+            image_path: Path to the image file
+            thinking_budget: Thinking budget for the model
+            
+        Returns:
+            Generated text
+        """
+        from PIL import Image
+        
+        # 加载图片
+        img = Image.open(image_path)
+        
+        # 构建多模态内容
+        contents = [img, prompt]
+        
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget),
+            ),
+        )
+        return response.text

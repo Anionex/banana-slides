@@ -304,7 +304,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         has_material_images: 是否有素材图片
         extra_requirements: 额外的要求（可能包含风格描述）
         language: 输出语言
-        has_template: 是否有模板图片（False表示无模板模式）
+        has_template: 是否有模板图片（False表示无模板图模式）
         
     Returns:
         格式化后的 prompt 字符串
@@ -724,16 +724,206 @@ def get_clean_background_prompt() -> str:
     用于从完整的PPT页面中提取纯背景
     """
     prompt = """\
-你是一位专业的图片前景擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字内容、干净纯净的背景模板图。
+你是一位专业的图片文字&图片擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字和图表内容、干净纯净的底板图。
 <requirements>
 - 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除。
-- 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框色块。
-- 对于被前景元素遮挡的背景区域，要智能填补，使背景保持无缝和完整。
+- 保持原背景设计的完整性（包括渐变、纹理、图案、线条、色块等）。保留原图的文本框和色块。
+- 对于被前景元素遮挡的背景区域，要智能填补，使背景保持无缝和完整，就像被移除的元素从来没有出现过。
 - 输出图片的尺寸、风格、配色必须和原图完全一致。
 - 请勿新增任何元素。
 </requirements>
 
-注意，**所有**文字和图表都应该被彻底移除，**不能遗留任何一个。**
+注意，**任意位置的, 所有的**文字和图表都应该被彻底移除，**输出不应该包含任何文字和图表。**
 """
     logger.debug(f"[get_clean_background_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_text_attribute_extraction_prompt(content_hint: str = "") -> str:
+    """
+    生成文字属性提取的 prompt
+    
+    提取文字内容、颜色、公式等信息。模型输出的文字将替代 OCR 结果。
+    
+    Args:
+        content_hint: 文字内容提示（OCR 结果参考），如果提供则会在 prompt 中包含
+    
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = """你的任务是精确识别这张图片中的文字内容和样式，返回JSON格式的结果。
+
+{content_hint}
+
+## 核心任务
+请仔细观察图片，精确识别：
+1. **文字内容** - 输出你实际看到的文字符号。
+2. **颜色** - 每个字/词的实际颜色
+3. **空格** - 精确识别文本中空格的位置和数量
+4. **公式** - 如果是数学公式，输出 LaTeX 格式
+
+## 注意事项
+- **空格识别**：必须精确还原空格数量，多个连续空格要完整保留，不要合并或省略
+- **颜色分割**：一行文字可能有多种颜色，按颜色分割成片段，一般来说只有两种颜色。
+- **公式识别**：如果片段是数学公式，设置 is_latex=true 并用 LaTeX 格式输出
+- **相邻合并**：相同颜色的相邻普通文字应合并为一个片段
+
+## 输出格式
+- colored_segments: 文字片段数组，每个片段包含：
+  - text: 文字内容（公式时为 LaTeX 格式，如 "x^2"、"\\sum_{{i=1}}^n"）
+  - color: 颜色，十六进制格式 "#RRGGBB"
+  - is_latex: 布尔值，true 表示这是一个 LaTeX 公式片段（可选，默认 false）
+
+只返回JSON对象，不要包含任何其他文字。
+示例输出：
+```json
+{{
+    "colored_segments": [
+        {{"text": "·  创新合成", "color": "#000000"}},
+        {{"text": "1827个任务环境", "color": "#26397A"}},
+        {{"text": "与", "color": "#000000"}},
+        {{"text": "8.5万提示词", "color": "#26397A"}},
+        {{"text": "突破数据瓶颈", "color": "#000000"}},
+        {{"text": "x^2 + y^2 = z^2", "color": "#FF0000", "is_latex": true}}
+    ]
+}}
+```
+""".format(content_hint=content_hint)
+    
+    # logger.debug(f"[get_text_attribute_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_batch_text_attribute_extraction_prompt(text_elements_json: str) -> str:
+    """
+    生成批量文字属性提取的 prompt
+    
+    新逻辑：给模型提供全图和所有文本元素的 bbox 及内容，
+    让模型一次性分析所有文本的样式属性。
+    
+    Args:
+        text_elements_json: 文本元素列表的 JSON 字符串，每个元素包含：
+            - element_id: 元素唯一标识
+            - bbox: 边界框 [x0, y0, x1, y1]
+            - content: 文字内容
+    
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = f"""你是一位专业的 PPT/文档排版分析专家。请分析这张图片中所有标注的文字区域的样式属性。
+
+我已经从图片中提取了以下文字元素及其位置信息：
+
+```json
+{text_elements_json}
+```
+
+请仔细观察图片，对比每个文字区域在图片中的实际视觉效果，为每个元素分析以下属性：
+
+1. **font_color**: 字体颜色的十六进制值，格式为 "#RRGGBB"
+   - 请仔细观察文字的实际颜色，不要只返回黑色
+   - 常见颜色如：白色 "#FFFFFF"、蓝色 "#0066CC"、红色 "#FF0000" 等
+
+2. **is_bold**: 是否为粗体 (true/false)
+   - 观察笔画粗细，标题通常是粗体
+
+3. **is_italic**: 是否为斜体 (true/false)
+
+4. **is_underline**: 是否有下划线 (true/false)
+
+5. **text_alignment**: 文字对齐方式
+   - "left": 左对齐
+   - "center": 居中对齐
+   - "right": 右对齐
+   - "justify": 两端对齐
+   - 如果无法判断，根据文字在其区域内的位置推测
+
+请返回一个 JSON 数组，数组中每个对象对应输入的一个元素（按相同顺序），包含以下字段：
+- element_id: 与输入相同的元素ID
+- text_content: 文字内容
+- font_color: 颜色十六进制值
+- is_bold: 布尔值
+- is_italic: 布尔值
+- is_underline: 布尔值
+- text_alignment: 对齐方式字符串
+
+只返回 JSON 数组，不要包含其他文字：
+```json
+[
+    {{
+        "element_id": "xxx",
+        "text_content": "文字内容",
+        "font_color": "#RRGGBB",
+        "is_bold": true/false,
+        "is_italic": true/false,
+        "is_underline": true/false,
+        "text_alignment": "对齐方式"
+    }},
+    ...
+]
+```
+"""
+    
+    # logger.debug(f"[get_batch_text_attribute_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_quality_enhancement_prompt(inpainted_regions: list = None) -> str:
+    """
+    生成画质提升的 prompt
+    用于在百度图像修复后，使用生成式模型提升整体画质
+    
+    Args:
+        inpainted_regions: 被修复区域列表，每个区域包含百分比坐标：
+            - left, top, right, bottom: 相对于图片宽高的百分比 (0-100)
+            - width_percent, height_percent: 区域宽高占图片的百分比
+    """
+    import json
+    
+    # 构建区域信息
+    regions_info = ""
+    if inpainted_regions and len(inpainted_regions) > 0:
+        regions_json = json.dumps(inpainted_regions, ensure_ascii=False, indent=2)
+        regions_info = f"""
+以下是被抹除工具处理过的具体区域（共 {len(inpainted_regions)} 个矩形区域），请重点修复这些位置：
+
+```json
+{regions_json}
+```
+
+坐标说明（所有数值都是相对于图片宽高的百分比，范围0-100%）：
+- left: 区域左边缘距离图片左边缘的百分比
+- top: 区域上边缘距离图片上边缘的百分比  
+- right: 区域右边缘距离图片左边缘的百分比
+- bottom: 区域下边缘距离图片上边缘的百分比
+- width_percent: 区域宽度占图片宽度的百分比
+- height_percent: 区域高度占图片高度的百分比
+
+例如：left=10 表示区域从图片左侧10%的位置开始。
+"""
+    
+    prompt = f"""\
+你是一位专业的图像修复专家。这张ppt页面图片刚刚经过了文字/对象抹除操作，抹除工具在指定区域留下了一些修复痕迹，包括：
+- 色块不均匀、颜色不连贯
+- 模糊的斑块或涂抹痕迹
+- 与周围背景不协调的区域，比如不和谐的渐变色块
+- 可能的纹理断裂或图案不连续
+{regions_info}
+你的任务是修复这些抹除痕迹，让图片看起来像从未有过对象抹除操作一样自然。
+
+要求：
+- **重点修复上述标注的区域**：这些区域刚刚经过抹除处理，需要让它们与周围背景完美融合
+- 保持纹理、颜色、图案的连续性
+- 提升整体画质，消除模糊、噪点、伪影
+- 保持图片的原始构图、布局、色调风格
+- 禁止添加任何文字、图表、插画、图案、边框等元素
+- 除了上述区域，其他区域不要做任何修改，保持和原图像素级别地一致。
+- 输出图片的尺寸必须与原图一致
+
+请输出修复后的高清ppt页面背景图片，不要遗漏修复任何一个被涂抹的区域。
+"""
+#     prompt = f"""
+# 你是一位专业的图像修复专家。请你修复上传的图像，去除其中的涂抹痕迹，消除所有的模糊、噪点、伪影，输出处理后的高清图像，其他区域保持和原图**完全相同**，颜色、布局、线条、装饰需要完全一致.
+# {regions_info}
+# """
     return prompt

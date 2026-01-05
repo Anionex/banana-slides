@@ -35,7 +35,7 @@
 # 忽略临时文档，但保留项目文档
 *.md
 !README.md
-!docs/**/*.md
+# !docs/**/*.md
 !.github/**/*.md
 *.pyc
 .env
@@ -53,3 +53,5 @@ uploads/
 
 # 镜像源配置脚本的备份文件
 *.orig
+# 本地备份目录（保存测试文件等）
+_local_backup/

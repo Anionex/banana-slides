@@ -9,6 +9,7 @@ from typing import Callable, List, Dict, Any
 from datetime import datetime
 from sqlalchemy import func
 from models import db, Task, Page, Material, PageImageVersion
+from utils import get_filtered_pages
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -278,7 +279,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
-                        language: str = None):
+                        language: str = None,
+                        page_ids: list = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
@@ -287,6 +289,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
     
     Args:
         language: Output language (zh, en, ja, auto)
+        page_ids: Optional list of page IDs to generate (if not provided, generates all pages)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -301,8 +304,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             task.status = 'PROCESSING'
             db.session.commit()
             
-            # Get all pages for this project
-            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            # Get pages for this project (filtered by page_ids if provided)
+            pages = get_filtered_pages(project_id, page_ids)
             pages_data = ai_service.flatten_outline(outline)
             
             # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
@@ -799,305 +802,216 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def export_editable_pptx_task(
-    task_id: str,
-    project_id: str,
+def export_editable_pptx_with_recursive_analysis_task(
+    task_id: str, 
+    project_id: str, 
     filename: str,
-    ai_service,
     file_service,
-    aspect_ratio: str = "16:9",
-    resolution: str = "2K",
-    max_workers: int = 8,
+    page_ids: list = None,
+    max_depth: int = 2,
+    max_workers: int = 4,
+    export_extractor_method: str = 'hybrid',
+    export_inpaint_method: str = 'hybrid',
     app=None
 ):
     """
-    异步导出可编辑 PPTX 的后台任务
+    使用递归图片可编辑化分析导出可编辑PPTX的后台任务
     
-    该任务执行以下步骤：
-    1. 并行生成干净背景图片（移除文字和图标）
-    2. 从原始图片创建临时 PDF
-    3. 使用 MinerU 解析 PDF
-    4. 从 MinerU 结果创建可编辑 PPTX
+    这是新的架构方法，使用ImageEditabilityService进行递归版面分析。
+    与旧方法的区别：
+    - 不再假设图片是16:9
+    - 支持任意尺寸和分辨率
+    - 递归分析图片中的子图和图表
+    - 更智能的坐标映射和元素提取
+    - 不需要 ai_service（使用 ImageEditabilityService 和 MinerU）
     
     Args:
-        task_id: 任务 ID
-        project_id: 项目 ID
+        task_id: 任务ID
+        project_id: 项目ID
         filename: 输出文件名
-        ai_service: AI 服务实例
         file_service: 文件服务实例
-        aspect_ratio: 图片宽高比
-        resolution: 图片分辨率
-        max_workers: 并行处理的最大工作线程数
-        app: Flask 应用实例（必须从请求上下文传递）
+        page_ids: 可选的页面ID列表（如果提供，只导出这些页面）
+        max_depth: 最大递归深度
+        max_workers: 并发处理数
+        export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid')
+        export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid')
+        app: Flask应用实例
     """
+    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method})")
+    
     if app is None:
         raise ValueError("Flask app instance must be provided")
     
     with app.app_context():
-        import tempfile
         import os
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        from services.export_service import ExportService
-        from services.file_parser_service import FileParserService
-        from models import Project, Page
+        from datetime import datetime
         from PIL import Image
+        from models import Project
+        from services.export_service import ExportService
         
-        # 跟踪临时文件以便清理
-        clean_background_paths = []
-        tmp_pdf_path = None
+        logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
         
         try:
-            # 更新任务状态为处理中
-            task = Task.query.get(task_id)
-            if not task:
-                logger.error(f"Task {task_id} not found")
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            logger.info(f"Task {task_id} status updated to PROCESSING")
-            
-            # 获取项目和页面
+            # Get project
             project = Project.query.get(project_id)
             if not project:
-                raise ValueError(f"Project {project_id} not found")
+                raise ValueError(f'Project {project_id} not found')
             
-            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            # Get pages (filtered by page_ids if provided)
+            pages = get_filtered_pages(project_id, page_ids)
             if not pages:
-                raise ValueError("No pages found for project")
+                raise ValueError('No pages found for project')
             
-            # 获取图片路径
             image_paths = []
             for page in pages:
                 if page.generated_image_path:
-                    abs_path = file_service.get_absolute_path(page.generated_image_path)
-                    image_paths.append(abs_path)
+                    img_path = file_service.get_absolute_path(page.generated_image_path)
+                    if os.path.exists(img_path):
+                        image_paths.append(img_path)
             
             if not image_paths:
-                raise ValueError("No generated images found for project")
+                raise ValueError('No generated images found for project')
             
-            # 初始化进度
-            total_steps = len(image_paths) + 3  # backgrounds + pdf + mineru + pptx
+            logger.info(f"找到 {len(image_paths)} 张图片")
+            
+            # 初始化任务进度（包含消息日志）
+            task = Task.query.get(task_id)
             task.set_progress({
-                "total": total_steps,
+                "total": 100,  # 使用百分比
                 "completed": 0,
                 "failed": 0,
-                "current_step": "Generating clean backgrounds"
+                "current_step": "准备中...",
+                "percent": 0,
+                "messages": ["🚀 开始导出可编辑PPTX..."]  # 消息日志
             })
             db.session.commit()
             
-            # Step 1: 并行生成干净背景图片
-            logger.info(f"Step 1: Generating clean backgrounds for {len(image_paths)} images in parallel...")
+            # 进度回调函数 - 更新数据库中的进度
+            progress_messages = ["🚀 开始导出可编辑PPTX..."]
+            max_messages = 10  # 最多保留最近10条消息
             
-            def generate_single_background(index, original_image_path, aspect_ratio, resolution, app):
-                """为单张图片生成干净背景（在线程池中运行）"""
-                with app.app_context():
-                    logger.info(f"Processing background {index+1}/{len(image_paths)}...")
-                    # Get singleton AI service instance
-                    from services.ai_service_manager import get_ai_service
-                    ai_service = get_ai_service()
+            def progress_callback(step: str, message: str, percent: int):
+                """更新任务进度到数据库"""
+                nonlocal progress_messages
+                try:
+                    # 添加新消息到日志
+                    new_message = f"[{step}] {message}"
+                    progress_messages.append(new_message)
+                    # 只保留最近的消息
+                    if len(progress_messages) > max_messages:
+                        progress_messages = progress_messages[-max_messages:]
                     
-                    clean_bg_path = ExportService.generate_clean_background(
-                        original_image_path=original_image_path,
-                        ai_service=ai_service,
-                        aspect_ratio=aspect_ratio,
-                        resolution=resolution
-                    )
-                    
-                    if clean_bg_path:
-                        logger.info(f"Clean background {index+1} generated successfully")
-                        return (index, clean_bg_path)
-                    else:
-                        logger.warning(f"Failed to generate clean background {index+1}, using original image")
-                        return (index, original_image_path)
-            
-            # 并行处理背景
-            results = {}
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {
-                    executor.submit(generate_single_background, i, path, aspect_ratio, resolution, app): i 
-                    for i, path in enumerate(image_paths)
-                }
-                
-                for future in as_completed(futures):
-                    try:
-                        index, clean_bg_path = future.result()
-                        results[index] = clean_bg_path
-                        
-                        # 更新进度
-                        task = Task.query.get(task_id)
-                        prog = task.get_progress()
-                        prog['completed'] = index + 1
-                        task.set_progress(prog)
+                    # 更新数据库
+                    task = Task.query.get(task_id)
+                    if task:
+                        task.set_progress({
+                            "total": 100,
+                            "completed": percent,
+                            "failed": 0,
+                            "current_step": message,
+                            "percent": percent,
+                            "messages": progress_messages.copy()
+                        })
                         db.session.commit()
-                    except Exception as e:
-                        index = futures[future]
-                        logger.error(f"Error generating background {index+1}: {str(e)}")
-                        results[index] = image_paths[index]
+                except Exception as e:
+                    logger.warning(f"更新进度失败: {e}")
             
-            # 按索引排序结果以保持页面顺序
-            clean_background_paths = [results[i] for i in range(len(image_paths))]
-            logger.info(f"Generated {len(clean_background_paths)} clean backgrounds")
+            # Step 1: 准备工作
+            logger.info("Step 1: 准备工作...")
+            progress_callback("准备", f"找到 {len(image_paths)} 张幻灯片图片", 2)
             
-            # 更新进度：背景生成完成
-            task = Task.query.get(task_id)
-            prog = task.get_progress()
-            prog['completed'] = len(image_paths)
-            prog['current_step'] = "Creating PDF"
-            task.set_progress(prog)
-            db.session.commit()
+            # 准备输出路径
+            exports_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports')
+            os.makedirs(exports_dir, exist_ok=True)
             
-            # Step 2: 从原始图片创建临时 PDF
-            logger.info("Step 2: Creating PDF for MinerU parsing...")
-            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
-                tmp_pdf_path = tmp_pdf.name
-            
-            logger.info(f"Creating PDF from {len(image_paths)} images...")
-            ExportService.create_pdf_from_images(image_paths, output_file=tmp_pdf_path)
-            logger.info(f"PDF created: {tmp_pdf_path}")
-            
-            # 更新进度：PDF 完成
-            task = Task.query.get(task_id)
-            prog = task.get_progress()
-            prog['completed'] = len(image_paths) + 1
-            prog['current_step'] = "Parsing with MinerU"
-            task.set_progress(prog)
-            db.session.commit()
-            
-            # Step 3: 使用 MinerU 解析 PDF
-            logger.info("Step 3: Parsing PDF with MinerU...")
-            
-            mineru_token = app.config.get('MINERU_TOKEN')
-            mineru_api_base = app.config.get('MINERU_API_BASE', 'https://mineru.net')
-            
-            if not mineru_token:
-                raise ValueError('MinerU token not configured')
-            
-            parser_service = FileParserService(
-                mineru_token=mineru_token,
-                mineru_api_base=mineru_api_base
-            )
-            
-            batch_id, markdown_content, extract_id, error_message, failed_image_count = parser_service.parse_file(
-                file_path=tmp_pdf_path,
-                filename=f'presentation_{project_id}.pdf'
-            )
-            
-            if error_message or not extract_id:
-                error_msg = error_message or 'Failed to parse PDF with MinerU - no extract_id returned'
-                raise ValueError(error_msg)
-            
-            logger.info(f"MinerU parsing completed, extract_id: {extract_id}")
-            
-            # 更新进度：MinerU 完成
-            task = Task.query.get(task_id)
-            prog = task.get_progress()
-            prog['completed'] = len(image_paths) + 2
-            prog['current_step'] = "Creating editable PPTX"
-            task.set_progress(prog)
-            db.session.commit()
-            
-            # Step 4: 从 MinerU 结果创建可编辑 PPTX
-            logger.info(f"Step 4: Creating editable PPTX from MinerU results: {extract_id}")
-            
-            # 获取 MinerU 结果目录
-            mineru_result_dir = os.path.join(
-                app.config['UPLOAD_FOLDER'],
-                'mineru_files',
-                extract_id
-            )
-            
-            if not os.path.exists(mineru_result_dir):
-                raise ValueError(f'MinerU result directory not found: {mineru_result_dir}')
-            
-            # 确定导出目录和文件名
-            exports_dir = file_service._get_exports_dir(project_id)
+            # Handle filename collision
             if not filename.endswith('.pptx'):
                 filename += '.pptx'
             
             output_path = os.path.join(exports_dir, filename)
-            
-            # 检查文件是否被占用，如果是则生成新文件名
             if os.path.exists(output_path):
-                try:
-                    with open(output_path, 'a'):
-                        pass
-                except (IOError, PermissionError) as e:
-                    logger.warning(f"File is locked: {output_path}, generating new filename")
-                    from datetime import datetime
-                    base_name = filename.rsplit('.pptx', 1)[0]
-                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-                    filename = f"{base_name}_{timestamp}.pptx"
-                    output_path = os.path.join(exports_dir, filename)
-                    logger.info(f"New filename: {filename}")
+                base_name = filename.rsplit('.', 1)[0]
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                filename = f"{base_name}_{timestamp}.pptx"
+                output_path = os.path.join(exports_dir, filename)
+                logger.info(f"文件名冲突，使用新文件名: {filename}")
             
-            # 从第一张图片获取幻灯片尺寸
+            # 获取第一张图片的尺寸作为参考
             first_img = Image.open(image_paths[0])
             slide_width, slide_height = first_img.size
             first_img.close()
             
-            # 使用干净背景图片生成可编辑 PPTX 文件
-            logger.info(f"Creating editable PPTX with {len(clean_background_paths)} clean background images")
-            ExportService.create_editable_pptx_from_mineru(
-                mineru_result_dir=mineru_result_dir,
+            logger.info(f"幻灯片尺寸: {slide_width}x{slide_height}")
+            logger.info(f"递归深度: {max_depth}, 并发数: {max_workers}")
+            progress_callback("准备", f"幻灯片尺寸: {slide_width}×{slide_height}", 3)
+            
+            # Step 2: 创建文字属性提取器
+            from services.image_editability import TextAttributeExtractorFactory
+            text_attribute_extractor = TextAttributeExtractorFactory.create_caption_model_extractor()
+            progress_callback("准备", "文字属性提取器已初始化", 5)
+            
+            # Step 3: 调用导出方法（使用项目的导出设置）
+            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method})...")
+            progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
+            
+            _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
+                image_paths=image_paths,
                 output_file=output_path,
                 slide_width_pixels=slide_width,
                 slide_height_pixels=slide_height,
-                background_images=clean_background_paths
+                max_depth=max_depth,
+                max_workers=max_workers,
+                text_attribute_extractor=text_attribute_extractor,
+                progress_callback=progress_callback,
+                export_extractor_method=export_extractor_method,
+                export_inpaint_method=export_inpaint_method
             )
             
-            logger.info(f"Editable PPTX created: {output_path}")
+            logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
             
-            # 构建下载 URL
+            # Step 4: 标记任务完成
             download_path = f"/files/{project_id}/exports/{filename}"
             
-            # 标记任务为已完成
+            # 添加完成消息
+            progress_messages.append("✅ 导出完成！")
+            
+            # 添加警告信息（如果有）
+            warning_messages = []
+            if export_warnings and export_warnings.has_warnings():
+                warning_messages = export_warnings.to_summary()
+                progress_messages.extend(warning_messages)
+                logger.warning(f"导出有 {len(warning_messages)} 条警告")
+            
             task = Task.query.get(task_id)
             if task:
                 task.status = 'COMPLETED'
-                from datetime import datetime
                 task.completed_at = datetime.utcnow()
                 task.set_progress({
-                    "total": total_steps,
-                    "completed": total_steps,
+                    "total": 100,
+                    "completed": 100,
                     "failed": 0,
-                    "current_step": "Complete",
+                    "current_step": "✓ 导出完成",
+                    "percent": 100,
+                    "messages": progress_messages,
                     "download_url": download_path,
-                    "filename": filename
+                    "filename": filename,
+                    "method": "recursive_analysis",
+                    "max_depth": max_depth,
+                    "warnings": warning_messages,  # 单独的警告列表
+                    "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
                 })
                 db.session.commit()
-                logger.info(f"Task {task_id} COMPLETED - Editable PPTX exported")
+                logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
         
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            logger.error(f"Task {task_id} FAILED: {error_detail}")
+            logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
             
-            # 标记任务为失败
+            # 标记任务失败
             task = Task.query.get(task_id)
             if task:
                 task.status = 'FAILED'
                 task.error_message = str(e)
-                from datetime import datetime
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
-        
-        finally:
-            # 清理临时 PDF
-            if tmp_pdf_path and os.path.exists(tmp_pdf_path):
-                try:
-                    os.unlink(tmp_pdf_path)
-                    logger.info(f"Cleaned up temporary PDF: {tmp_pdf_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary PDF: {str(e)}")
-            
-            # 清理临时干净背景图片
-            if clean_background_paths:
-                for bg_path in clean_background_paths:
-                    # 只删除临时文件（不是原始文件）
-                    if bg_path not in image_paths and os.path.exists(bg_path):
-                        try:
-                            os.unlink(bg_path)
-                            logger.debug(f"Cleaned up temporary background: {bg_path}")
-                        except Exception as e:
-                            logger.warning(f"Failed to clean up temporary background: {str(e)}")

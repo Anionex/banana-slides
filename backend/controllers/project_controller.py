@@ -19,7 +19,10 @@ from services.task_manager import (
     generate_descriptions_task,
     generate_images_task
 )
-from utils import success_response, error_response, not_found, bad_request
+from utils import (
+    success_response, error_response, not_found, bad_request,
+    parse_page_ids_from_body, get_filtered_pages
+)
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +275,12 @@ def update_project(project_id):
         # Update template_style if provided
         if 'template_style' in data:
             project.template_style = data['template_style']
+        
+        # Update export settings if provided
+        if 'export_extractor_method' in data:
+            project.export_extractor_method = data['export_extractor_method']
+        if 'export_inpaint_method' in data:
+            project.export_inpaint_method = data['export_inpaint_method']
         
         # Update page order if provided
         if 'pages_order' in data:
@@ -652,7 +661,8 @@ def generate_images(project_id):
     {
         "max_workers": 8,
         "use_template": true,
-        "language": "zh"  # output language: zh, en, ja, auto
+        "language": "zh",  # output language: zh, en, ja, auto
+        "page_ids": ["id1", "id2"]  # optional: specific page IDs to generate (if not provided, generates all)
     }
     """
     try:
@@ -667,8 +677,11 @@ def generate_images(project_id):
         # IMPORTANT: Expire cached objects to ensure fresh data
         db.session.expire_all()
         
-        # Get pages
-        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        data = request.get_json() or {}
+        
+        # Get page_ids from request body and fetch filtered pages
+        selected_page_ids = parse_page_ids_from_body(data)
+        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
         
         if not pages:
             return bad_request("No pages found for project")
@@ -676,7 +689,6 @@ def generate_images(project_id):
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
         
-        data = request.get_json() or {}
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
@@ -726,7 +738,8 @@ def generate_images(project_id):
             current_app.config['DEFAULT_RESOLUTION'],
             app,
             combined_requirements if combined_requirements.strip() else None,
-            language
+            language,
+            selected_page_ids if selected_page_ids else None
         )
         
         # Update project status

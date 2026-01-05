@@ -9,7 +9,8 @@ from pathlib import Path
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
-from PIL import Image
+from pptx.dml.color import RGBColor
+from PIL import Image, ImageFont, ImageDraw
 from html.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,53 @@ class PPTXBuilder:
     # Global font size limits (to prevent extreme cases)
     MIN_FONT_SIZE = 6   # Minimum readable size
     MAX_FONT_SIZE = 200  # Maximum reasonable size
+    
+    # 项目内置字体（Noto Sans CJK SC，支持中日韩文字）
+    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "fonts", "NotoSansSC-Regular.ttf")
+    
+    # Font cache: {size_pt: ImageFont}
+    _font_cache: Dict[float, ImageFont.FreeTypeFont] = {}
+    
+    @classmethod
+    def _get_font(cls, size_pt: float) -> Optional[ImageFont.FreeTypeFont]:
+        """Get font object for given size (with caching)"""
+        # Round to 0.5pt for cache efficiency
+        cache_key = round(size_pt * 2) / 2
+        
+        if cache_key not in cls._font_cache:
+            try:
+                cls._font_cache[cache_key] = ImageFont.truetype(cls.FONT_PATH, int(size_pt))
+            except Exception as e:
+                logger.warning(f"Failed to load font {cls.FONT_PATH}: {e}")
+                return None
+        
+        return cls._font_cache[cache_key]
+    
+    @classmethod
+    def _measure_text_width(cls, text: str, font_size_pt: float) -> Optional[float]:
+        """
+        Measure text width in points using the actual font
+        
+        Args:
+            text: Text to measure
+            font_size_pt: Font size in points
+            
+        Returns:
+            Text width in points, or None if measurement failed
+        """
+        font = cls._get_font(font_size_pt)
+        if font is None:
+            return None
+        
+        try:
+            # Get text bounding box: (left, top, right, bottom)
+            bbox = font.getbbox(text)
+            width_px = bbox[2] - bbox[0]
+            # Font is loaded at size=font_size_pt, so pixel width ≈ point width
+            return width_px
+        except Exception as e:
+            logger.warning(f"Failed to measure text: {e}")
+            return None
     
     def __init__(self, slide_width_inches: float = None, slide_height_inches: float = None):
         """
@@ -185,8 +233,9 @@ class PPTXBuilder:
     
     def calculate_font_size(self, bbox: List[int], text: str, text_level: Any = None, dpi: int = None) -> float:
         """
-        Calculate appropriate font size based on bounding box and text content
-        Pure bbox-based calculation without text_level restrictions
+        Calculate appropriate font size based on bounding box and text content.
+        Uses precise font measurement when available, falls back to estimation otherwise.
+        Supports both single-line and multi-line (auto-wrap) text.
         
         Args:
             bbox: Bounding box [x0, y0, x1, y1] in pixels
@@ -203,60 +252,78 @@ class PPTXBuilder:
         width_px = bbox[2] - bbox[0]
         height_px = bbox[3] - bbox[1]
         
-        # Add small padding to prevent overflow (3% on each side = 6% total reduction)
-        padding_ratio = 0.03
-        width_px = width_px * (1 - 2 * padding_ratio)
-        height_px = height_px * (1 - 2 * padding_ratio)
+        # Convert to points (1 inch = 72 points)
+        width_pt = (width_px / dpi) * 72
+        height_pt = (height_px / dpi) * 72
         
-        # Convert to inches for PPTX calculations
-        width_in = width_px / dpi
-        height_in = height_px / dpi
+        # MinerU bbox is tight, use it directly
+        # Textbox margins are set to 0 in add_text_element()
+        usable_width_pt = width_pt
+        usable_height_pt = height_pt
+        
+        if usable_width_pt <= 0 or usable_height_pt <= 0:
+            logger.warning(f"Bbox too small for text: {width_px}x{height_px}px, text: '{text[:30]}...'")
+            return self.MIN_FONT_SIZE
         
         text_length = len(text)
         
-        # For very short text (1-3 chars), use height-based sizing
-        if text_length <= 3:
-            # Use 70% of height for single line text
-            estimated_size = height_in * 0.7 * 72  # 72 points per inch
-            return max(self.MIN_FONT_SIZE, min(self.MAX_FONT_SIZE, estimated_size))
+        # Line height ratio: 1.0 for tight bbox
+        line_height_ratio = 1.0
         
-        # Binary search with finer granularity (0.5pt steps)
-        # Start from maximum, work down to find best fit
+        # Try precise measurement first (check if font file exists)
+        use_precise = os.path.exists(self.FONT_PATH)
+        
+        # Binary search: find largest font size that fits
         best_size = self.MIN_FONT_SIZE
         
-        # Use 0.5pt steps for more precision
-        font_sizes = [size / 2.0 for size in range(int(self.MAX_FONT_SIZE * 2), int(self.MIN_FONT_SIZE * 2) - 1, -1)]
-        
-        for font_size in font_sizes:
-            # Estimate character width (proportional fonts)
-            # For CJK characters (Chinese/Japanese/Korean), use slightly wider ratio
-            has_cjk = any('\u4e00' <= char <= '\u9fff' or '\u3040' <= char <= '\u30ff' for char in text)
-            char_width_ratio = 0.7 if has_cjk else 0.55
+        for font_size in range(int(self.MAX_FONT_SIZE), int(self.MIN_FONT_SIZE) - 1, -1):
+            font_size = float(font_size)
             
-            char_width_pts = font_size * char_width_ratio
-            char_width_in = char_width_pts / 72
+            # For text with explicit newlines, calculate each line's width separately
+            lines = text.split('\n')
+            total_required_lines = 0
             
-            # Account for text box padding (we set 0.05 inch margins)
-            usable_width = width_in - 0.1  # Left + right margins
-            usable_height = height_in - 0.1  # Top + bottom margins
+            for line in lines:
+                if not line:
+                    total_required_lines += 1
+                    continue
+                    
+                # Measure line width (precise or estimated)
+                if use_precise:
+                    line_width_pt = self._measure_text_width(line, font_size)
+                    if line_width_pt is None:
+                        use_precise = False
+                
+                if not use_precise:
+                    # Fallback: estimate based on character count
+                    cjk_count = sum(1 for c in line if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af')
+                    non_cjk_count = len(line) - cjk_count
+                    line_width_pt = (cjk_count * 1.0 + non_cjk_count * 0.5) * font_size
+                
+                # How many lines does this explicit line need (auto-wrap)?
+                lines_needed = max(1, -(-int(line_width_pt) // int(usable_width_pt)))
+                total_required_lines += lines_needed
             
-            if usable_width <= 0 or usable_height <= 0:
-                continue
+            required_lines = total_required_lines
             
-            # Calculate how many characters fit per line
-            chars_per_line = max(1, int(usable_width / char_width_in))
+            # Calculate total height needed
+            line_height_pt = font_size * line_height_ratio
+            total_height_pt = required_lines * line_height_pt
             
-            # Calculate required lines
-            required_lines = max(1, (text_length + chars_per_line - 1) // chars_per_line)
-            
-            # Line height is typically 1.2x font size
-            line_height_in = (font_size * 1.2) / 72
-            total_height_needed = required_lines * line_height_in
-            
-            # If text fits within usable space, this is our size
-            if total_height_needed <= usable_height:
+            # Check if it fits
+            if total_height_pt <= usable_height_pt:
                 best_size = font_size
                 break
+        
+        if best_size == self.MIN_FONT_SIZE and text_length > 3:
+            logger.warning(f"Text may overflow: '{text[:50]}...' in bbox {width_px}x{height_px}px")
+        
+        # Debug log for font size calculation
+        logger.debug(
+            f"Font size calc: '{text[:20]}{'...' if len(text) > 20 else ''}' "
+            f"bbox={width_px}x{height_px}px -> {best_size}pt "
+            f"(usable: {usable_width_pt:.1f}x{usable_height_pt:.1f}pt)"
+        )
         
         return best_size
     
@@ -267,60 +334,154 @@ class PPTXBuilder:
         bbox: List[int],
         text_level: Any = None,
         dpi: int = None,
-        align: str = 'left'
+        align: str = 'left',
+        text_style: Any = None
     ):
         """
         Add text element to slide
         
         Args:
             slide: Target slide
-            text: Text content
+            text: Text content (used as fallback if text_style has no colored_segments)
             bbox: Bounding box [x0, y0, x1, y1] in pixels
             text_level: Text level (1=title, 2=heading, etc.) or type string
             dpi: DPI for conversion (default: 96)
             align: Text alignment ('left', 'center', 'right')
+            text_style: TextStyleResult object with font color, bold, italic etc. (optional)
+                        If text_style has colored_segments, those will be used for rendering
+                        and the text content will come from the segments.
         """
         dpi = dpi or self.DEFAULT_DPI
         
-        # Convert bbox to inches
-        left = Inches(self.pixels_to_inches(bbox[0], dpi))
-        top = Inches(self.pixels_to_inches(bbox[1], dpi))
-        width = Inches(self.pixels_to_inches(bbox[2] - bbox[0], dpi))
-        height = Inches(self.pixels_to_inches(bbox[3] - bbox[1], dpi))
+        # Check if we have colored segments (multi-color text)
+        has_colored_segments = (
+            text_style and 
+            hasattr(text_style, 'colored_segments') and 
+            text_style.colored_segments and 
+            len(text_style.colored_segments) > 0
+        )
+        
+        # Determine the actual text to use
+        # If we have colored_segments, use the text from segments (model's recognized text)
+        if has_colored_segments:
+            actual_text = ''.join(seg.text for seg in text_style.colored_segments)
+        else:
+            actual_text = text
+        
+        # Expand bbox slightly to prevent text overflow
+        # MinerU bbox is tight, but font rendering may need extra space
+        EXPAND_RATIO = 0.01  # 1% expansion
+        bbox_width = bbox[2] - bbox[0]
+        bbox_height = bbox[3] - bbox[1]
+        expand_w = bbox_width * EXPAND_RATIO
+        expand_h = bbox_height * EXPAND_RATIO
+        
+        # Convert expanded bbox to inches (expand evenly on all sides)
+        left = Inches(self.pixels_to_inches(bbox[0] - expand_w / 2, dpi))
+        top = Inches(self.pixels_to_inches(bbox[1] - expand_h / 2, dpi))
+        width = Inches(self.pixels_to_inches(bbox_width + expand_w, dpi))
+        height = Inches(self.pixels_to_inches(bbox_height + expand_h, dpi))
         
         # Add text box
         textbox = slide.shapes.add_textbox(left, top, width, height)
         text_frame = textbox.text_frame
-        text_frame.text = text
         text_frame.word_wrap = True
         
-        # Set font size (pass original bbox in pixels and dpi)
-        font_size = self.calculate_font_size(bbox, text, text_level, dpi)
-        paragraph = text_frame.paragraphs[0]
-        paragraph.font.size = Pt(font_size)
+        # Remove margins completely - bbox is tight, no extra space needed
+        text_frame.margin_left = Inches(0)
+        text_frame.margin_right = Inches(0)
+        text_frame.margin_top = Inches(0)
+        text_frame.margin_bottom = Inches(0)
         
-        # Remove default margins for better fit
-        text_frame.margin_left = Inches(0.05)
-        text_frame.margin_right = Inches(0.05)
-        text_frame.margin_top = Inches(0.05)
-        text_frame.margin_bottom = Inches(0.05)
+        def replace_some_chars(text: str) -> str:
+            # replace logic
+            # replace · to • if starts with ·
+            text = text.replace('·', '•', 1) if text.lstrip().startswith('·') else text
+            return text
+        actual_text = replace_some_chars(actual_text)
         
-        # Set alignment
-        if align == 'center':
+        # Calculate font size
+        font_size = self.calculate_font_size(bbox, actual_text, text_level, dpi)
+        
+        # Determine effective alignment - text_style优先，否则使用参数
+        effective_align = align
+        if text_style and hasattr(text_style, 'text_alignment') and text_style.text_alignment:
+            effective_align = text_style.text_alignment
+        
+        # Get style attributes
+        is_bold = False
+        is_italic = False
+        is_underline = False
+        if text_style:
+            is_bold = getattr(text_style, 'is_bold', False)
+            is_italic = getattr(text_style, 'is_italic', False)
+            is_underline = getattr(text_style, 'is_underline', False)
+        
+        # Make title text bold (legacy behavior)
+        if text_level == 1 or text_level == 'title':
+            is_bold = True
+        
+        # Render text with colors
+        if has_colored_segments:
+            # Multi-color text: use runs for each segment
+            paragraph = text_frame.paragraphs[0]
+            paragraph.clear()
+            
+            latex_count = 0
+            for seg in text_style.colored_segments:
+                run = paragraph.add_run()
+                run.text = replace_some_chars(seg.text)
+                run.font.size = Pt(font_size)
+                run.font.bold = is_bold
+                run.font.underline = is_underline
+                # Set segment-specific color
+                r, g, b = seg.color_rgb
+                run.font.color.rgb = RGBColor(r, g, b)
+                
+                # Handle LaTeX formula segments
+                if hasattr(seg, 'is_latex') and seg.is_latex:
+                    # For LaTeX formulas, use italic style as visual hint
+                    # TODO: In future, could render as actual equation using OMML
+                    run.font.italic = True
+                    latex_count += 1
+                    logger.debug(f"  LaTeX formula detected: '{seg.text}'")
+                else:
+                    run.font.italic = is_italic
+            
+            latex_info = f", {latex_count} latex" if latex_count > 0 else ""
+            style_info = f" | multi-color: {len(text_style.colored_segments)} segments{latex_info}"
+        else:
+            # Single color text: use simple text assignment
+            text_frame.text = actual_text
+            # IMPORTANT: Re-get paragraph after setting text_frame.text
+            # because setting text_frame.text creates a new paragraph object
+            paragraph = text_frame.paragraphs[0]
+            paragraph.font.size = Pt(font_size)
+            paragraph.font.bold = is_bold
+            paragraph.font.italic = is_italic
+            paragraph.font.underline = is_underline
+            
+            # Apply single font color if provided
+            if text_style and hasattr(text_style, 'font_color_rgb') and text_style.font_color_rgb:
+                r, g, b = text_style.font_color_rgb
+                paragraph.font.color.rgb = RGBColor(r, g, b)
+            
+            style_info = f" | color={text_style.font_color_rgb if text_style else 'default'}"
+        
+        # Apply alignment after paragraph is finalized
+        if effective_align == 'center':
             paragraph.alignment = PP_ALIGN.CENTER
-        elif align == 'right':
+        elif effective_align == 'right':
             paragraph.alignment = PP_ALIGN.RIGHT
+        elif effective_align == 'justify':
+            paragraph.alignment = PP_ALIGN.JUSTIFY
         else:
             paragraph.alignment = PP_ALIGN.LEFT
-        
-        # Make title text bold
-        if text_level == 1 or text_level == 'title':
-            paragraph.font.bold = True
         
         # Calculate bbox dimensions for logging
         bbox_width = bbox[2] - bbox[0]
         bbox_height = bbox[3] - bbox[1]
-        logger.debug(f"Text: '{text[:35]}' | box: {bbox_width}x{bbox_height}px | font: {font_size:.1f}pt | chars: {len(text)}")
+        logger.debug(f"Text: '{actual_text[:35]}' | box: {bbox_width}x{bbox_height}px | font: {font_size:.1f}pt | chars: {len(actual_text)}{style_info}")
     
     def add_image_element(
         self,
@@ -481,7 +642,10 @@ class PPTXBuilder:
             raise ValueError("No presentation to save")
         
         # Ensure directory exists
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_path_obj = Path(output_path)
+        output_dir = output_path_obj.parent
+        if str(output_dir) != '.':  # Only create directory if it's not current directory
+            output_dir.mkdir(parents=True, exist_ok=True)
         
         self.prs.save(output_path)
         logger.info(f"Saved presentation to: {output_path}")
