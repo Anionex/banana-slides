@@ -538,6 +538,51 @@
         "unknownError": "未知错误"
       }
     },
+    "filePreview": {
+      "title": "文件预览",
+      "noContent": "暂无内容"
+    },
+    "materialGenerator": {
+      "title": "素材生成",
+      "hint": "生成的素材会保存到素材库",
+      "result": "生成结果",
+      "resultPlaceholder": "生成的素材会展示在这里",
+      "promptLabel": "提示词（原样发送给文生图模型）",
+      "promptPlaceholder": "例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页...",
+      "referenceImages": "参考图片（可选）",
+      "selectFromLibrary": "从素材库选择",
+      "mainReference": "主参考图（可选）",
+      "clickToUpload": "点击上传",
+      "extraReference": "额外参考图（可选，多张）",
+      "add": "添加",
+      "generateButton": "生成素材",
+      "generating": "生成中..."
+    },
+    "referenceFile": {
+      "title": "选择参考文件",
+      "fileCount": "共 {{count}} 个文件",
+      "noFiles": "暂无文件",
+      "selected": "已选择 {{count}} 个",
+      "filter": {
+        "all": "所有附件",
+        "unassociated": "未归类附件",
+        "currentProject": "当前项目附件"
+      },
+      "refresh": "刷新",
+      "uploadFile": "上传文件",
+      "uploading": "上传中...",
+      "clearSelection": "清空选择",
+      "loading": "加载中...",
+      "noReferenceFiles": "暂无参考文件",
+      "clickUploadHint": "点击\"上传文件\"按钮添加文件",
+      "parseAfterConfirm": "(确定后解析)",
+      "confirm": "确定",
+      "cancel": "取消",
+      "error": {
+        "loadFailed": "加载文件列表失败",
+        "uploadFailed": "上传失败"
+      }
+    },
     "projectSettings": {
       "title": "设置",
       "tabs": {

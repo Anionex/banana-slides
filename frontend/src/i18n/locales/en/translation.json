@@ -538,6 +538,51 @@
         "unknownError": "Unknown error"
       }
     },
+    "filePreview": {
+      "title": "File Preview",
+      "noContent": "No content"
+    },
+    "materialGenerator": {
+      "title": "Material Generator",
+      "hint": "Generated materials will be saved to material library",
+      "result": "Generated Result",
+      "resultPlaceholder": "Generated materials will appear here",
+      "promptLabel": "Prompt (sent directly to image model)",
+      "promptPlaceholder": "e.g.: Blue-purple gradient background with geometric shapes and tech lines, for tech-themed title page...",
+      "referenceImages": "Reference Images (Optional)",
+      "selectFromLibrary": "Select from Library",
+      "mainReference": "Main Reference (Optional)",
+      "clickToUpload": "Click to upload",
+      "extraReference": "Extra References (Optional, multiple)",
+      "add": "Add",
+      "generateButton": "Generate Material",
+      "generating": "Generating..."
+    },
+    "referenceFile": {
+      "title": "Select Reference Files",
+      "fileCount": "{{count}} files total",
+      "noFiles": "No files",
+      "selected": "{{count}} selected",
+      "filter": {
+        "all": "All Files",
+        "unassociated": "Unassociated",
+        "currentProject": "Current Project"
+      },
+      "refresh": "Refresh",
+      "uploadFile": "Upload File",
+      "uploading": "Uploading...",
+      "clearSelection": "Clear Selection",
+      "loading": "Loading...",
+      "noReferenceFiles": "No reference files",
+      "clickUploadHint": "Click \"Upload File\" button to add files",
+      "parseAfterConfirm": "(Parse after confirm)",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "error": {
+        "loadFailed": "Failed to load files",
+        "uploadFailed": "Upload failed"
+      }
+    },
     "projectSettings": {
       "title": "Settings",
       "tabs": {

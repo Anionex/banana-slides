@@ -538,6 +538,51 @@
         "unknownError": "Lỗi không xác định"
       }
     },
+    "filePreview": {
+      "title": "Xem trước tệp",
+      "noContent": "Không có nội dung"
+    },
+    "materialGenerator": {
+      "title": "Tạo tài liệu",
+      "hint": "Tài liệu tạo ra sẽ được lưu vào thư viện",
+      "result": "Kết quả",
+      "resultPlaceholder": "Tài liệu tạo ra sẽ hiển thị ở đây",
+      "promptLabel": "Prompt (gửi trực tiếp tới mô hình)",
+      "promptPlaceholder": "VD: Nền gradient xanh tím với hình học và đường kỹ thuật, cho trang tiêu đề công nghệ...",
+      "referenceImages": "Ảnh tham khảo (Tùy chọn)",
+      "selectFromLibrary": "Chọn từ thư viện",
+      "mainReference": "Ảnh tham khảo chính (Tùy chọn)",
+      "clickToUpload": "Nhấp để tải lên",
+      "extraReference": "Ảnh tham khảo thêm (Tùy chọn, nhiều)",
+      "add": "Thêm",
+      "generateButton": "Tạo tài liệu",
+      "generating": "Đang tạo..."
+    },
+    "referenceFile": {
+      "title": "Chọn tệp tham khảo",
+      "fileCount": "Tổng {{count}} tệp",
+      "noFiles": "Không có tệp",
+      "selected": "Đã chọn {{count}}",
+      "filter": {
+        "all": "Tất cả tệp",
+        "unassociated": "Chưa phân loại",
+        "currentProject": "Dự án hiện tại"
+      },
+      "refresh": "Làm mới",
+      "uploadFile": "Tải tệp lên",
+      "uploading": "Đang tải lên...",
+      "clearSelection": "Bỏ chọn tất cả",
+      "loading": "Đang tải...",
+      "noReferenceFiles": "Không có tệp tham khảo",
+      "clickUploadHint": "Nhấn \"Tải tệp lên\" để thêm tệp",
+      "parseAfterConfirm": "(Phân tích sau khi xác nhận)",
+      "confirm": "Xác nhận",
+      "cancel": "Hủy",
+      "error": {
+        "loadFailed": "Không thể tải danh sách tệp",
+        "uploadFailed": "Tải lên thất bại"
+      }
+    },
     "projectSettings": {
       "title": "Cài đặt",
       "tabs": {

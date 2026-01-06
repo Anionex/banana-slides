@@ -19,6 +19,11 @@ LANGUAGE_CONFIG = {
         'instruction': '请使用全中文输出。',
         'ppt_text': 'PPT文字请使用全中文。'
     },
+    'vi': {
+        'name': 'Tiếng Việt',
+        'instruction': 'Vui lòng xuất ra hoàn toàn bằng tiếng Việt.',
+        'ppt_text': 'Văn bản PPT phải hoàn toàn bằng tiếng Việt.'
+    },
     'ja': {
         'name': '日本語',
         'instruction': 'すべて日本語で出力してください。',
