@@ -376,5 +376,208 @@
       "templateChanged": "模板更换成功",
       "changeTemplateFailed": "更换模板失败: {{error}}"
     }
+  },
+  "components": {
+    "loading": {
+      "runInBackground": "在后台执行"
+    },
+    "confirmDialog": {
+      "defaultTitle": "确认操作"
+    },
+    "status": {
+      "draft": "草稿",
+      "descriptionGenerated": "已生成描述",
+      "generating": "生成中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "pageStatus": {
+      "noDescription": "未生成描述",
+      "noDescriptionDesc": "还没有生成描述",
+      "descriptionGenerated": "已生成描述",
+      "descriptionGeneratedDesc": "描述已生成",
+      "needDescriptionFirst": "需要先生成描述",
+      "noImage": "未生成图片",
+      "waitingForImage": "描述已生成，等待生成图片",
+      "generatingImage": "正在生成图片",
+      "imageFailed": "图片生成失败",
+      "imageGenerated": "图片已生成",
+      "unknown": "未知",
+      "unknownDesc": "状态未知",
+      "draftDesc": "草稿阶段",
+      "generatingDesc": "正在生成中",
+      "failedDesc": "生成失败",
+      "completedDesc": "全部完成"
+    },
+    "aiRefine": {
+      "ctrlEnterSubmit": "Ctrl+Enter 提交",
+      "history": "历史",
+      "previousRequirements": "之前的修改要求：",
+      "viewHistory": "查看 {{count}} 条历史修改",
+      "submitShortcut": "提交 (Ctrl+Enter)"
+    },
+    "export": {
+      "title": "导出任务",
+      "inProgress": "{{count}} 进行中",
+      "taskType": {
+        "pptx": "PPTX",
+        "pdf": "PDF",
+        "editablePptx": "可编辑 PPTX"
+      },
+      "pageRange": {
+        "all": "全部",
+        "single": "第{{page}}页",
+        "range": "第{{start}}-{{end}}页",
+        "count": "{{count}}页"
+      },
+      "preparing": "准备中...",
+      "waiting": "等待中...",
+      "history": "历史记录",
+      "clear": "清除",
+      "download": "下载",
+      "remove": "移除",
+      "warningsCount": "{{count}} 条警告",
+      "clickToView": "点击查看",
+      "warnings": {
+        "title": "导出警告 ({{count}} 条)",
+        "details": "详细信息",
+        "styleExtractionFailed": "样式提取失败 ({{count}} 个)",
+        "textRenderFailed": "文本渲染失败 ({{count}} 个)",
+        "moreItems": "... 还有 {{count}} 条",
+        "close": "关闭"
+      }
+    },
+    "material": {
+      "title": "选择素材",
+      "count": "共 {{count}} 个素材",
+      "noMaterials": "暂无素材",
+      "selected": "已选择 {{count}} 个",
+      "filter": {
+        "all": "所有素材",
+        "unassociated": "未关联项目",
+        "currentProject": "当前项目",
+        "showMore": "+ 查看更多项目...",
+        "project": "项目"
+      },
+      "actions": {
+        "refresh": "刷新",
+        "upload": "上传",
+        "uploading": "上传中...",
+        "generate": "生成素材",
+        "clearSelection": "清空选择",
+        "deleteMaterial": "删除素材"
+      },
+      "empty": {
+        "loading": "加载中...",
+        "noMaterials": "暂无素材",
+        "uploadOrGenerate": "可以上传图片或使用素材生成功能创建素材",
+        "uploadHint": "可以上传图片作为素材"
+      },
+      "saveToLibrary": "同时保存到我的模板库",
+      "cancel": "取消",
+      "confirm": "确认选择 ({{count}})",
+      "error": {
+        "loadFailed": "加载素材列表失败",
+        "maxSelection": "最多只能选择 {{count}} 个素材",
+        "selectAtLeastOne": "请至少选择一个素材",
+        "uploadFailed": "上传素材失败",
+        "unsupportedFormat": "不支持的图片格式",
+        "deleteFailed": "删除素材失败",
+        "missingId": "无法删除：缺少素材ID"
+      },
+      "toast": {
+        "uploadSuccess": "素材上传成功",
+        "deleteSuccess": "素材已删除"
+      }
+    },
+    "template": {
+      "myTemplates": "我的模板",
+      "presets": "预设模板",
+      "selected": "已选择",
+      "upload": "上传模板",
+      "saveToLibrary": "上传模板时同时保存到我的模板库",
+      "fromMaterial": "从素材库选择",
+      "fromMaterialButton": "从素材库选择作为模板",
+      "deleteTemplate": "删除模板",
+      "toast": {
+        "uploadSuccess": "模板上传成功",
+        "uploadFailed": "模板上传失败",
+        "savedToLibrary": "素材已保存到模板库",
+        "materialSavedToLibrary": "素材已保存到模板库",
+        "selectedFromMaterial": "已从素材库选择作为模板",
+        "loadMaterialFailed": "加载素材失败",
+        "deleteSuccess": "模板已删除",
+        "deleteFailed": "删除模板失败",
+        "cannotDeleteActive": "当前使用中的模板不能删除，请先取消选择或切换",
+        "unknownError": "未知错误"
+      }
+    },
+    "projectSettings": {
+      "title": "设置",
+      "tabs": {
+        "project": "项目设置",
+        "export": "导出设置",
+        "global": "全局设置"
+      },
+      "project": {
+        "title": "项目级配置",
+        "description": "这些设置仅应用于当前项目，不影响其他项目",
+        "extraRequirements": {
+          "title": "额外要求",
+          "description": "在生成每个页面时，AI 会参考这些额外要求",
+          "placeholder": "例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图...",
+          "save": "保存额外要求",
+          "saving": "保存中..."
+        },
+        "style": {
+          "title": "风格描述",
+          "description": "描述您期望的 PPT 整体风格，AI 将根据描述生成相应风格的页面",
+          "placeholder": "例如：简约商务风格，使用深蓝色和白色配色，字体清晰大方，布局整洁...",
+          "save": "保存风格描述",
+          "saving": "保存中...",
+          "tip": "风格描述会在生成图片时自动添加到提示词中。如果同时上传了模板图片，风格描述会作为补充说明。"
+        }
+      },
+      "export": {
+        "title": "可编辑 PPTX 导出设置",
+        "description": "配置「导出可编辑 PPTX」功能的处理方式。这些设置影响导出质量和API调用成本。",
+        "extractor": {
+          "title": "组件提取方法",
+          "description": "选择如何从PPT图片中提取文字、表格等可编辑组件",
+          "hybrid": {
+            "label": "混合提取（推荐）",
+            "description": "MinerU版面分析 + 百度高精度OCR，文字识别更精确"
+          },
+          "mineru": {
+            "label": "MinerU提取",
+            "description": "仅使用MinerU进行版面分析和文字识别"
+          }
+        },
+        "inpaint": {
+          "title": "背景图获取方法",
+          "description": "选择如何生成干净的背景图（移除原图中的文字后用于PPT背景）",
+          "hybrid": {
+            "label": "混合方式获取（推荐）",
+            "description": "百度精确去除文字 + 生成式模型提升画质"
+          },
+          "generative": {
+            "label": "生成式获取",
+            "description": "使用生成式大模型（如Gemini）直接生成背景，背景质量高但有遗留元素的可能"
+          },
+          "baidu": {
+            "label": "百度抹除服务获取",
+            "description": "使用百度图像修复API，速度快但画质一般"
+          },
+          "usesAI": "使用文生图模型"
+        },
+        "costTip": "标有「使用文生图模型」的选项会调用AI图片生成API（如Gemini），每页会产生额外的API调用费用。如果需要控制成本，可选择「百度修复」方式。",
+        "save": "保存导出设置",
+        "saving": "保存中..."
+      },
+      "global": {
+        "title": "全局设置",
+        "description": "这些设置应用于所有项目"
+      }
+    }
   }
 }

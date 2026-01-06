@@ -376,5 +376,208 @@
       "templateChanged": "Đổi mẫu thành công",
       "changeTemplateFailed": "Không thể đổi mẫu: {{error}}"
     }
+  },
+  "components": {
+    "loading": {
+      "runInBackground": "Chạy nền"
+    },
+    "confirmDialog": {
+      "defaultTitle": "Xác nhận hành động"
+    },
+    "status": {
+      "draft": "Bản nháp",
+      "descriptionGenerated": "Đã tạo mô tả",
+      "generating": "Đang tạo",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại"
+    },
+    "pageStatus": {
+      "noDescription": "Chưa có mô tả",
+      "noDescriptionDesc": "Chưa tạo mô tả",
+      "descriptionGenerated": "Đã tạo mô tả",
+      "descriptionGeneratedDesc": "Mô tả đã được tạo",
+      "needDescriptionFirst": "Cần tạo mô tả trước",
+      "noImage": "Chưa có hình",
+      "waitingForImage": "Đã tạo mô tả, đang chờ tạo hình",
+      "generatingImage": "Đang tạo hình",
+      "imageFailed": "Tạo hình thất bại",
+      "imageGenerated": "Đã tạo hình",
+      "unknown": "Không xác định",
+      "unknownDesc": "Trạng thái không xác định",
+      "draftDesc": "Giai đoạn nháp",
+      "generatingDesc": "Đang tạo",
+      "failedDesc": "Tạo thất bại",
+      "completedDesc": "Hoàn thành tất cả"
+    },
+    "aiRefine": {
+      "ctrlEnterSubmit": "Ctrl+Enter để gửi",
+      "history": "Lịch sử",
+      "previousRequirements": "Yêu cầu chỉnh sửa trước đó:",
+      "viewHistory": "Xem {{count}} lịch sử chỉnh sửa",
+      "submitShortcut": "Gửi (Ctrl+Enter)"
+    },
+    "export": {
+      "title": "Tac vu xuat",
+      "inProgress": "{{count}} dang chay",
+      "taskType": {
+        "pptx": "PPTX",
+        "pdf": "PDF",
+        "editablePptx": "PPTX chinh sua duoc"
+      },
+      "pageRange": {
+        "all": "Tat ca",
+        "single": "Trang {{page}}",
+        "range": "Trang {{start}}-{{end}}",
+        "count": "{{count}} trang"
+      },
+      "preparing": "Dang chuan bi...",
+      "waiting": "Dang cho...",
+      "history": "Lich su",
+      "clear": "Xoa",
+      "download": "Tai xuong",
+      "remove": "Xoa",
+      "warningsCount": "{{count}} canh bao",
+      "clickToView": "Nhan de xem",
+      "warnings": {
+        "title": "Canh bao xuat ({{count}})",
+        "details": "Chi tiet",
+        "styleExtractionFailed": "Trich xuat kieu that bai ({{count}})",
+        "textRenderFailed": "Render van ban that bai ({{count}})",
+        "moreItems": "... con {{count}} muc",
+        "close": "Dong"
+      }
+    },
+    "material": {
+      "title": "Chon tai lieu",
+      "count": "Tong {{count}} tai lieu",
+      "noMaterials": "Chua co tai lieu",
+      "selected": "Da chon {{count}}",
+      "filter": {
+        "all": "Tat ca tai lieu",
+        "unassociated": "Khong lien ket",
+        "currentProject": "Du an hien tai",
+        "showMore": "+ Xem them du an...",
+        "project": "Du an"
+      },
+      "actions": {
+        "refresh": "Lam moi",
+        "upload": "Tai len",
+        "uploading": "Dang tai...",
+        "generate": "Tao tai lieu",
+        "clearSelection": "Xoa chon",
+        "deleteMaterial": "Xoa tai lieu"
+      },
+      "empty": {
+        "loading": "Dang tai...",
+        "noMaterials": "Chua co tai lieu",
+        "uploadOrGenerate": "Ban co the tai anh len hoac dung trinh tao tai lieu",
+        "uploadHint": "Ban co the tai anh len lam tai lieu"
+      },
+      "saveToLibrary": "Dong thoi luu vao thu vien mau",
+      "cancel": "Huy",
+      "confirm": "Xac nhan chon ({{count}})",
+      "error": {
+        "loadFailed": "Khong the tai danh sach tai lieu",
+        "maxSelection": "Toi da chon {{count}} tai lieu",
+        "selectAtLeastOne": "Vui long chon it nhat mot tai lieu",
+        "uploadFailed": "Tai tai lieu that bai",
+        "unsupportedFormat": "Dinh dang anh khong ho tro",
+        "deleteFailed": "Khong the xoa tai lieu",
+        "missingId": "Khong the xoa: Thieu ID tai lieu"
+      },
+      "toast": {
+        "uploadSuccess": "Tai tai lieu thanh cong",
+        "deleteSuccess": "Da xoa tai lieu"
+      }
+    },
+    "template": {
+      "myTemplates": "Mau cua toi",
+      "presets": "Mau co san",
+      "selected": "Da chon",
+      "upload": "Tai len mau",
+      "saveToLibrary": "Luu mau tai len vao thu vien",
+      "fromMaterial": "Chon tu tai lieu",
+      "fromMaterialButton": "Chon tu thu vien tai lieu lam mau",
+      "deleteTemplate": "Xoa mau",
+      "toast": {
+        "uploadSuccess": "Tai mau thanh cong",
+        "uploadFailed": "Tai mau that bai",
+        "savedToLibrary": "Da luu mau vao thu vien",
+        "materialSavedToLibrary": "Da luu tai lieu vao thu vien mau",
+        "selectedFromMaterial": "Da chon tu thu vien tai lieu lam mau",
+        "loadMaterialFailed": "Khong the tai tai lieu",
+        "deleteSuccess": "Da xoa mau",
+        "deleteFailed": "Khong the xoa mau",
+        "cannotDeleteActive": "Khong the xoa mau dang dung, vui long bo chon hoac chuyen truoc",
+        "unknownError": "Loi khong xac dinh"
+      }
+    },
+    "projectSettings": {
+      "title": "Cài đặt",
+      "tabs": {
+        "project": "Cài đặt dự án",
+        "export": "Cài đặt xuất",
+        "global": "Cài đặt chung"
+      },
+      "project": {
+        "title": "Cấu hình dự án",
+        "description": "Các cài đặt này chỉ áp dụng cho dự án hiện tại",
+        "extraRequirements": {
+          "title": "Yêu cầu bổ sung",
+          "description": "AI sẽ tham khảo các yêu cầu này khi tạo mỗi trang",
+          "placeholder": "VD: Dùng bố cục gọn, hiển thị tiêu đề cấp 1 ở trên, thêm nhiều hình minh họa...",
+          "save": "Lưu yêu cầu bổ sung",
+          "saving": "Đang lưu..."
+        },
+        "style": {
+          "title": "Mô tả phong cách",
+          "description": "Mô tả phong cách PPT mong muốn, AI sẽ tạo trang theo đó",
+          "placeholder": "VD: Phong cách doanh nghiệp đơn giản, màu xanh đậm và trắng, font rõ ràng, bố cục gọn...",
+          "save": "Lưu mô tả phong cách",
+          "saving": "Đang lưu...",
+          "tip": "Mô tả phong cách sẽ được thêm tự động vào prompt khi tạo hình. Nếu cũng tải lên ảnh mẫu, mô tả phong cách sẽ làm ghi chú bổ sung."
+        }
+      },
+      "export": {
+        "title": "Cài đặt xuất PPTX chỉnh sửa được",
+        "description": "Cấu hình phương pháp xử lý cho \"Xuất PPTX chỉnh sửa được\". Các cài đặt này ảnh hưởng đến chất lượng xuất và chi phí API.",
+        "extractor": {
+          "title": "Phương pháp trích xuất",
+          "description": "Chọn cách trích xuất các thành phần chỉnh sửa được như văn bản và bảng từ ảnh PPT",
+          "hybrid": {
+            "label": "Trích xuất kết hợp (Khuyến nghị)",
+            "description": "Phân tích bố cục MinerU + OCR độ chính xác cao Baidu"
+          },
+          "mineru": {
+            "label": "Trích xuất MinerU",
+            "description": "Chỉ dùng MinerU để phân tích bố cục và nhận dạng văn bản"
+          }
+        },
+        "inpaint": {
+          "title": "Phương pháp lấy ảnh nền",
+          "description": "Chọn cách tạo ảnh nền sạch (xóa văn bản khỏi ảnh gốc cho nền PPT)",
+          "hybrid": {
+            "label": "Phương pháp kết hợp (Khuyến nghị)",
+            "description": "Xóa văn bản chính xác Baidu + Nâng cao chất lượng bằng mô hình sinh"
+          },
+          "generative": {
+            "label": "Phương pháp sinh",
+            "description": "Dùng mô hình AI sinh (như Gemini) để tạo nền trực tiếp, chất lượng cao nhưng có thể còn sót"
+          },
+          "baidu": {
+            "label": "Dịch vụ xóa Baidu",
+            "description": "Dùng API sửa ảnh Baidu, nhanh nhưng chất lượng vừa"
+          },
+          "usesAI": "Dùng mô hình tạo ảnh"
+        },
+        "costTip": "Các tùy chọn đánh dấu \"Dùng mô hình tạo ảnh\" sẽ gọi API tạo ảnh AI (như Gemini), phát sinh thêm chi phí API mỗi trang. Chọn \"Dịch vụ xóa Baidu\" để tiết kiệm chi phí.",
+        "save": "Lưu cài đặt xuất",
+        "saving": "Đang lưu..."
+      },
+      "global": {
+        "title": "Cài đặt chung",
+        "description": "Các cài đặt này áp dụng cho tất cả dự án"
+      }
+    }
   }
 }

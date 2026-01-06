@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
 import { Button } from './Button';
 
@@ -18,12 +19,18 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  title = '确认操作',
+  title,
   message,
-  confirmText = '确定',
-  cancelText = '取消',
+  confirmText,
+  cancelText,
   variant = 'warning',
 }) => {
+  const { t } = useTranslation();
+
+  const displayTitle = title ?? t('components.confirmDialog.defaultTitle');
+  const displayConfirmText = confirmText ?? t('common.confirm');
+  const displayCancelText = cancelText ?? t('common.cancel');
+
   const handleConfirm = () => {
     onConfirm();
     onClose();
@@ -36,7 +43,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={displayTitle} size="sm">
       <div className="space-y-4">
         <div className="flex items-start gap-4">
           <AlertTriangle
@@ -47,13 +54,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </div>
         <div className="flex justify-end gap-3 pt-4">
           <Button variant="ghost" onClick={onClose}>
-            {cancelText}
+            {displayCancelText}
           </Button>
           <Button
             variant={variant === 'danger' ? 'primary' : 'secondary'}
             onClick={handleConfirm}
           >
-            {confirmText}
+            {displayConfirmText}
           </Button>
         </div>
       </div>

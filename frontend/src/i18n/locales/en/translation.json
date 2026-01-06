@@ -376,5 +376,208 @@
       "templateChanged": "Template changed successfully",
       "changeTemplateFailed": "Failed to change template: {{error}}"
     }
+  },
+  "components": {
+    "loading": {
+      "runInBackground": "Run in Background"
+    },
+    "confirmDialog": {
+      "defaultTitle": "Confirm Action"
+    },
+    "status": {
+      "draft": "Draft",
+      "descriptionGenerated": "Description Generated",
+      "generating": "Generating",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "pageStatus": {
+      "noDescription": "No Description",
+      "noDescriptionDesc": "Description not generated yet",
+      "descriptionGenerated": "Description Generated",
+      "descriptionGeneratedDesc": "Description has been generated",
+      "needDescriptionFirst": "Need to generate description first",
+      "noImage": "No Image",
+      "waitingForImage": "Description generated, waiting for image",
+      "generatingImage": "Generating image",
+      "imageFailed": "Image generation failed",
+      "imageGenerated": "Image generated",
+      "unknown": "Unknown",
+      "unknownDesc": "Unknown status",
+      "draftDesc": "Draft stage",
+      "generatingDesc": "Generating in progress",
+      "failedDesc": "Generation failed",
+      "completedDesc": "All completed"
+    },
+    "aiRefine": {
+      "ctrlEnterSubmit": "Ctrl+Enter to submit",
+      "history": "History",
+      "previousRequirements": "Previous modification requests:",
+      "viewHistory": "View {{count}} history items",
+      "submitShortcut": "Submit (Ctrl+Enter)"
+    },
+    "export": {
+      "title": "Export Tasks",
+      "inProgress": "{{count}} in progress",
+      "taskType": {
+        "pptx": "PPTX",
+        "pdf": "PDF",
+        "editablePptx": "Editable PPTX"
+      },
+      "pageRange": {
+        "all": "All",
+        "single": "Page {{page}}",
+        "range": "Pages {{start}}-{{end}}",
+        "count": "{{count}} pages"
+      },
+      "preparing": "Preparing...",
+      "waiting": "Waiting...",
+      "history": "History",
+      "clear": "Clear",
+      "download": "Download",
+      "remove": "Remove",
+      "warningsCount": "{{count}} warnings",
+      "clickToView": "Click to view",
+      "warnings": {
+        "title": "Export Warnings ({{count}})",
+        "details": "Details",
+        "styleExtractionFailed": "Style extraction failed ({{count}})",
+        "textRenderFailed": "Text render failed ({{count}})",
+        "moreItems": "... {{count}} more",
+        "close": "Close"
+      }
+    },
+    "material": {
+      "title": "Select Materials",
+      "count": "{{count}} materials total",
+      "noMaterials": "No materials",
+      "selected": "{{count}} selected",
+      "filter": {
+        "all": "All Materials",
+        "unassociated": "Unassociated",
+        "currentProject": "Current Project",
+        "showMore": "+ Show more projects...",
+        "project": "Project"
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "upload": "Upload",
+        "uploading": "Uploading...",
+        "generate": "Generate Materials",
+        "clearSelection": "Clear Selection",
+        "deleteMaterial": "Delete material"
+      },
+      "empty": {
+        "loading": "Loading...",
+        "noMaterials": "No materials",
+        "uploadOrGenerate": "You can upload images or use the material generator",
+        "uploadHint": "You can upload images as materials"
+      },
+      "saveToLibrary": "Also save to my template library",
+      "cancel": "Cancel",
+      "confirm": "Confirm Selection ({{count}})",
+      "error": {
+        "loadFailed": "Failed to load materials",
+        "maxSelection": "Maximum {{count}} materials can be selected",
+        "selectAtLeastOne": "Please select at least one material",
+        "uploadFailed": "Material upload failed",
+        "unsupportedFormat": "Unsupported image format",
+        "deleteFailed": "Failed to delete material",
+        "missingId": "Cannot delete: Missing material ID"
+      },
+      "toast": {
+        "uploadSuccess": "Material uploaded successfully",
+        "deleteSuccess": "Material deleted"
+      }
+    },
+    "template": {
+      "myTemplates": "My Templates",
+      "presets": "Preset Templates",
+      "selected": "Selected",
+      "upload": "Upload Template",
+      "saveToLibrary": "Save uploaded template to my library",
+      "fromMaterial": "Select from Materials",
+      "fromMaterialButton": "Select from material library as template",
+      "deleteTemplate": "Delete template",
+      "toast": {
+        "uploadSuccess": "Template uploaded successfully",
+        "uploadFailed": "Template upload failed",
+        "savedToLibrary": "Template saved to library",
+        "materialSavedToLibrary": "Material saved to template library",
+        "selectedFromMaterial": "Selected from material library as template",
+        "loadMaterialFailed": "Failed to load material",
+        "deleteSuccess": "Template deleted",
+        "deleteFailed": "Failed to delete template",
+        "cannotDeleteActive": "Cannot delete template in use, please deselect or switch first",
+        "unknownError": "Unknown error"
+      }
+    },
+    "projectSettings": {
+      "title": "Settings",
+      "tabs": {
+        "project": "Project Settings",
+        "export": "Export Settings",
+        "global": "Global Settings"
+      },
+      "project": {
+        "title": "Project Configuration",
+        "description": "These settings only apply to the current project",
+        "extraRequirements": {
+          "title": "Extra Requirements",
+          "description": "AI will reference these extra requirements when generating each page",
+          "placeholder": "e.g.: Use compact layout, show level-1 outline title at top, add more PPT illustrations...",
+          "save": "Save Extra Requirements",
+          "saving": "Saving..."
+        },
+        "style": {
+          "title": "Style Description",
+          "description": "Describe your desired PPT style, AI will generate pages accordingly",
+          "placeholder": "e.g.: Simple business style, dark blue and white color scheme, clear and elegant fonts, clean layout...",
+          "save": "Save Style Description",
+          "saving": "Saving...",
+          "tip": "Style description will be automatically added to prompts when generating images. If a template image is also uploaded, style description will serve as supplementary notes."
+        }
+      },
+      "export": {
+        "title": "Editable PPTX Export Settings",
+        "description": "Configure the processing method for \"Export Editable PPTX\". These settings affect export quality and API call costs.",
+        "extractor": {
+          "title": "Component Extraction Method",
+          "description": "Choose how to extract editable components like text and tables from PPT images",
+          "hybrid": {
+            "label": "Hybrid Extraction (Recommended)",
+            "description": "MinerU layout analysis + Baidu high-precision OCR, more accurate text recognition"
+          },
+          "mineru": {
+            "label": "MinerU Extraction",
+            "description": "Use MinerU only for layout analysis and text recognition"
+          }
+        },
+        "inpaint": {
+          "title": "Background Image Method",
+          "description": "Choose how to generate clean background images (remove text from original for PPT background)",
+          "hybrid": {
+            "label": "Hybrid Method (Recommended)",
+            "description": "Baidu precise text removal + Generative model quality enhancement"
+          },
+          "generative": {
+            "label": "Generative Method",
+            "description": "Use generative AI model (like Gemini) to directly generate background, high quality but may have residual elements"
+          },
+          "baidu": {
+            "label": "Baidu Inpainting Service",
+            "description": "Use Baidu image inpainting API, fast but moderate quality"
+          },
+          "usesAI": "Uses image generation model"
+        },
+        "costTip": "Options marked with \"Uses image generation model\" will call AI image generation API (like Gemini), incurring additional API costs per page. Select \"Baidu Inpainting\" to control costs.",
+        "save": "Save Export Settings",
+        "saving": "Saving..."
+      },
+      "global": {
+        "title": "Global Settings",
+        "description": "These settings apply to all projects"
+      }
+    }
   }
 }
