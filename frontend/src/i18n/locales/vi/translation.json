@@ -1,0 +1,380 @@
+{
+  "app": {
+    "title": "Banana Slides"
+  },
+  "common": {
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "delete": "Xóa",
+    "confirm": "Xác nhận",
+    "loading": "Đang tải...",
+    "error": "Lỗi",
+    "success": "Thành công",
+    "close": "Đóng",
+    "next": "Tiếp theo",
+    "prev": "Quay lại",
+    "back": "Quay lại",
+    "home": "Trang chủ",
+    "generate": "Tạo",
+    "regenerate": "Tạo lại",
+    "edit": "Chỉnh sửa",
+    "upload": "Tải lên",
+    "download": "Tải xuống",
+    "export": "Xuất",
+    "reset": "Đặt lại",
+    "select": "Chọn",
+    "clear": "Xóa hết",
+    "add": "Thêm",
+    "remove": "Xóa",
+    "preview": "Xem trước",
+    "apply": "Áp dụng",
+    "refresh": "Làm mới",
+    "retry": "Thử lại",
+    "unknownError": "Lỗi không xác định"
+  },
+  "nav": {
+    "home": "Trang chủ",
+    "history": "Lịch sử",
+    "settings": "Cài đặt"
+  },
+  "home": {
+    "title": "Banana Slides",
+    "nav": {
+      "materialGen": "Tạo tài liệu",
+      "history": "Lịch sử",
+      "historyShort": "Lịch sử",
+      "settings": "Cài đặt",
+      "settingsShort": "Cài đặt",
+      "help": "Trợ giúp"
+    },
+    "hero": {
+      "tagline": "Tạo bài thuyết trình với AI",
+      "title": "Tạo slide tuyệt vời",
+      "subtitle": "Biến ý tưởng thành bài thuyết trình đẹp mắt với AI"
+    },
+    "features": {
+      "generatePPT": "AI tạo PPT",
+      "naturalLanguageEdit": "Chỉnh sửa bằng ngôn ngữ tự nhiên",
+      "regionEdit": "Chỉnh sửa vùng",
+      "exportPPTX": "Xuất PPTX"
+    },
+    "tabs": {
+      "idea": "Từ ý tưởng",
+      "outline": "Từ dàn ý",
+      "description": "Từ mô tả"
+    },
+    "placeholder": {
+      "idea": "Nhập ý tưởng PPT của bạn trong một câu...",
+      "outline": "Dán hoặc nhập nội dung dàn ý...",
+      "description": "Dán hoặc nhập mô tả trang chi tiết..."
+    },
+    "description": {
+      "idea": "Mô tả ý tưởng và để AI tạo cấu trúc PPT hoàn chỉnh",
+      "outline": "Cung cấp dàn ý và AI sẽ mở rộng từng điểm thành slide chi tiết",
+      "description": "Cung cấp mô tả chi tiết và AI sẽ tạo slide trực tiếp"
+    },
+    "template": {
+      "selectStyleTemplate": "Chọn mẫu phong cách",
+      "useTextDescription": "Sử dụng mô tả văn bản",
+      "stylePlaceholder": "Mô tả phong cách mong muốn, ví dụ: Phong cách tối giản hiện đại với tông màu xanh, bài thuyết trình doanh nghiệp chuyên nghiệp...",
+      "quickSelectPreset": "Chọn nhanh mẫu có sẵn:",
+      "styleTip": "Mô tả phong cách sẽ hướng dẫn AI tạo slide với phong cách hình ảnh nhất quán"
+    },
+    "selectReferenceFile": "Chọn tập tin tham khảo",
+    "parsing": "Đang phân tích...",
+    "uploading": {
+      "image": "Đang tải ảnh lên..."
+    },
+    "error": {
+      "loadTemplates": "Không thể tải mẫu",
+      "unsupportedFileType": "Loại tập tin không được hỗ trợ: {{type}}",
+      "imageUploadNoInfo": "Ảnh đã tải lên nhưng không có URL trả về",
+      "imageUploadFailed": "Tải ảnh thất bại",
+      "imageUploadError": "Lỗi tải ảnh: {{error}}",
+      "fileTooLarge": "Tập tin quá lớn ({{size}}MB), tối đa 200MB",
+      "triggerParseFailed": "Không thể kích hoạt phân tích tập tin",
+      "fileUploadNoInfo": "Tập tin đã tải lên nhưng không có thông tin trả về",
+      "fileUploadFailed": "Tải tập tin thất bại",
+      "fileUploadError": "Lỗi tải tập tin: {{error}}",
+      "emptyContent": "Vui lòng nhập nội dung",
+      "filesParsing": "{{count}} tập tin đang phân tích, vui lòng đợi",
+      "projectCreateFailed": "Không thể tạo dự án"
+    },
+    "success": {
+      "imageUpload": "Tải ảnh thành công",
+      "fileUpload": "Tải tập tin thành công",
+      "filesAdded": "Đã thêm {{count}} tập tin",
+      "imageRemoved": "Đã xóa ảnh"
+    },
+    "tip": {
+      "pptToPdf": "Mẹo: Chuyển PPT sang PDF trước có thể cải thiện chất lượng phân tích"
+    }
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "subtitle": "Cấu hình AI và tùy chọn ứng dụng",
+    "backHome": "Về trang chủ",
+    "loading": "Đang tải cài đặt...",
+    "uiLanguage": "Ngôn ngữ giao diện",
+    "outputLanguage": "Ngôn ngữ slide",
+    "sections": {
+      "api": "Cài đặt API",
+      "models": "Cài đặt mô hình",
+      "mineru": "Cài đặt MinerU",
+      "imageGeneration": "Tạo hình ảnh",
+      "performance": "Hiệu suất",
+      "outputLanguage": "Ngôn ngữ đầu ra"
+    },
+    "fields": {
+      "aiProviderFormat": {
+        "label": "Định dạng nhà cung cấp AI",
+        "description": "Chọn định dạng API cho nhà cung cấp AI",
+        "options": {
+          "openai": "Tương thích OpenAI",
+          "gemini": "Google Gemini"
+        }
+      },
+      "apiBaseUrl": {
+        "label": "URL cơ sở API",
+        "description": "URL cơ sở cho các yêu cầu API"
+      },
+      "apiKey": {
+        "label": "Khóa API",
+        "placeholder": "Nhập khóa API mới để cập nhật",
+        "description": "Khóa API sẽ được mã hóa và lưu trữ an toàn"
+      },
+      "textModel": {
+        "label": "Mô hình văn bản",
+        "placeholder": "Ví dụ: gemini-1.5-pro",
+        "description": "Mô hình cho các tác vụ tạo văn bản"
+      },
+      "imageModel": {
+        "label": "Mô hình hình ảnh",
+        "placeholder": "Ví dụ: imagen-3.0-generate-002",
+        "description": "Mô hình để tạo hình ảnh"
+      },
+      "imageCaptionModel": {
+        "label": "Mô hình mô tả ảnh",
+        "placeholder": "Ví dụ: gemini-1.5-flash",
+        "description": "Mô hình để tạo mô tả hình ảnh"
+      },
+      "mineruApiBase": {
+        "label": "URL cơ sở MinerU",
+        "placeholder": "https://mineru.net/api/v4",
+        "description": "Điểm cuối API cho phân tích tài liệu MinerU"
+      },
+      "mineruToken": {
+        "label": "Token MinerU",
+        "placeholder": "Nhập token mới để cập nhật",
+        "description": "Token xác thực cho dịch vụ MinerU"
+      },
+      "imageResolution": {
+        "label": "Độ phân giải hình ảnh",
+        "description": "Độ phân giải cho hình ảnh được tạo"
+      },
+      "maxDescriptionWorkers": {
+        "label": "Số worker mô tả tối đa",
+        "description": "Số worker đồng thời tối đa để tạo mô tả (1-20)"
+      },
+      "maxImageWorkers": {
+        "label": "Số worker hình ảnh tối đa",
+        "description": "Số worker đồng thời tối đa để tạo hình ảnh (1-20)"
+      },
+      "outputLanguage": {
+        "label": "Ngôn ngữ đầu ra",
+        "description": "Ngôn ngữ cho nội dung slide được AI tạo"
+      },
+      "uiLanguage": {
+        "label": "Ngôn ngữ giao diện",
+        "description": "Ngôn ngữ cho giao diện người dùng"
+      },
+      "sensitiveSet": "Đã đặt ({{length}} ký tự)"
+    },
+    "buttons": {
+      "save": "Lưu cài đặt",
+      "saving": "Đang lưu...",
+      "reset": "Đặt lại mặc định"
+    },
+    "confirm": {
+      "resetTitle": "Đặt lại cài đặt",
+      "resetMessage": "Thao tác này sẽ đặt lại tất cả cài đặt về giá trị mặc định. Bạn có chắc không?",
+      "resetConfirm": "Đặt lại",
+      "cancel": "Hủy"
+    },
+    "toast": {
+      "loadFailed": "Không thể tải cài đặt",
+      "saveSuccess": "Đã lưu cài đặt thành công",
+      "saveFailed": "Không thể lưu cài đặt",
+      "resetSuccess": "Đã đặt lại cài đặt về mặc định",
+      "resetFailed": "Không thể đặt lại cài đặt",
+      "unknownError": "Lỗi không xác định"
+    },
+    "apiKeyHint": {
+      "prefix": "Cần khóa API? Lấy từ",
+      "suffix": "để truy cập nhiều nhà cung cấp AI"
+    }
+  },
+  "outline": {
+    "title": "Chỉnh sửa dàn ý",
+    "addPage": "Thêm trang",
+    "generateAuto": "Tự động tạo dàn ý",
+    "parseOutline": "Phân tích dàn ý",
+    "reparseOutline": "Phân tích lại dàn ý",
+    "regenerate": "Tạo lại dàn ý",
+    "noPages": "Chưa có trang nào",
+    "noPagesHint": "Nhấn \"Thêm trang\" để tạo thủ công, hoặc \"Tự động tạo dàn ý\" để AI giúp bạn",
+    "preview": "Xem trước",
+    "selectCardHint": "Nhấn vào thẻ bên trái để xem chi tiết",
+    "labels": {
+      "title": "Tiêu đề",
+      "points": "Điểm chính"
+    },
+    "loading": {
+      "project": "Đang tải dự án...",
+      "generating": "Đang tạo dàn ý..."
+    },
+    "confirm": {
+      "regenerateTitle": "Xác nhận tạo lại",
+      "regenerateMessage": "Nội dung dàn ý hiện tại sẽ bị ghi đè. Bạn có chắc muốn tiếp tục?"
+    },
+    "aiRefine": {
+      "placeholder": "Ví dụ: Thêm trang về XXX, xóa trang 3, gộp hai trang đầu... - Ctrl+Enter để gửi",
+      "placeholderMobile": "Ví dụ: Thêm/xóa trang... - Ctrl+Enter",
+      "success": "Đã chỉnh sửa dàn ý thành công",
+      "error": "Chỉnh sửa thất bại, vui lòng thử lại sau"
+    },
+    "context": {
+      "idea": "Ý tưởng PPT:",
+      "outline": "Dàn ý:",
+      "description": "Mô tả:"
+    }
+  },
+  "detail": {
+    "title": "Chỉnh sửa mô tả trang",
+    "loadingProject": "Đang tải dự án...",
+    "generateImages": "Tạo hình ảnh",
+    "generateAll": "Tạo tất cả mô tả",
+    "progress": "{{current}} / {{total}} trang đã hoàn thành",
+    "noPages": "Chưa có trang nào",
+    "noPagesHint": "Vui lòng quay lại trang chỉnh sửa dàn ý để thêm trang trước",
+    "backToOutline": "Quay lại chỉnh sửa dàn ý",
+    "aiRefinePlaceholder": "Ví dụ: Làm mô tả chi tiết hơn, xóa một điểm ở trang 2, nhấn mạnh tầm quan trọng của XXX... - Ctrl+Enter để gửi",
+    "aiRefinePlaceholderMobile": "Ví dụ: Làm mô tả chi tiết hơn... - Ctrl+Enter",
+    "confirmRegenerate": "Một số trang đã có mô tả. Tạo lại sẽ ghi đè chúng. Tiếp tục?",
+    "confirmRegeneratePage": "Trang này đã có mô tả. Tạo lại sẽ ghi đè nội dung hiện tại. Tiếp tục?",
+    "confirmRegenerateTitle": "Xác nhận tạo lại",
+    "generateSuccess": "Tạo thành công",
+    "generateFailed": "Tạo thất bại: {{error}}",
+    "refineSuccess": "Đã chỉnh sửa mô tả trang thành công",
+    "refineFailed": "Chỉnh sửa thất bại, vui lòng thử lại sau"
+  },
+  "history": {
+    "title": "Lịch sử",
+    "subtitle": "Xem và quản lý tất cả dự án của bạn",
+    "selected": "Đã chọn {{count}} mục",
+    "cancelSelect": "Hủy chọn",
+    "batchDelete": "Xóa hàng loạt",
+    "selectAll": "Chọn tất cả",
+    "deselectAll": "Bỏ chọn tất cả",
+    "empty": "Chưa có dự án nào",
+    "emptyHint": "Tạo dự án đầu tiên để bắt đầu",
+    "createNew": "Tạo dự án mới",
+    "loadError": "Không thể tải danh sách dự án",
+    "openError": "Không thể mở dự án",
+    "deleteError": "Không thể xóa dự án",
+    "deleteSuccess": "Đã xóa {{count}} dự án thành công",
+    "deletedCurrentProject": "Đã xóa dự án, bao gồm cả dự án đang mở",
+    "confirmDeleteTitle": "Xác nhận xóa",
+    "confirmBatchDeleteTitle": "Xác nhận xóa hàng loạt",
+    "confirmDeleteSingle": "Bạn có chắc muốn xóa dự án \"{{title}}\"? Hành động này không thể hoàn tác.",
+    "confirmDeleteBatch": "Bạn có chắc muốn xóa {{count}} dự án đã chọn? Hành động này không thể hoàn tác.",
+    "emptyTitleError": "Tên dự án không được để trống",
+    "updateTitleSuccess": "Đã cập nhật tên dự án",
+    "updateTitleError": "Không thể cập nhật tên dự án"
+  },
+  "preview": {
+    "title": "Xem trước",
+    "projectSettings": "Cài đặt dự án",
+    "changeTemplate": "Đổi mẫu",
+    "materialGen": "Tạo tài liệu",
+    "generateAll": "Tạo tất cả ({{count}})",
+    "generateSelected": "Tạo trang đã chọn ({{count}})",
+    "multiSelect": "Chọn nhiều",
+    "cancelMultiSelect": "Hủy chọn nhiều",
+    "selectAll": "Chọn tất cả",
+    "deselectAll": "Bỏ chọn tất cả",
+    "pagesCount": "{{count}} trang",
+    "noPages": "Chưa có trang nào",
+    "noPagesDesc": "Vui lòng quay lại trang chỉnh sửa và thêm nội dung trước",
+    "backToEdit": "Quay lại chỉnh sửa",
+    "generating": "Đang tạo...",
+    "notGenerated": "Chưa được tạo",
+    "generateThisPage": "Tạo trang này",
+    "prevPage": "Trang trước",
+    "nextPage": "Trang sau",
+    "historyVersions": "Lịch sử ({{count}})",
+    "version": "Phiên bản",
+    "versionNumber": "Phiên bản {{number}}",
+    "current": "Hiện tại",
+    "generatingStatus": "Đang tạo...",
+    "editPageTitle": "Chỉnh sửa trang",
+    "regionSelect": "Chọn vùng",
+    "endRegionSelect": "Kết thúc chọn vùng",
+    "pageOutline": "Dàn ý trang",
+    "pageDescription": "Mô tả trang",
+    "noDescription": "Không có mô tả",
+    "selectContextImages": "Chọn hình ảnh ngữ cảnh (Tùy chọn)",
+    "useTemplateImage": "Sử dụng hình mẫu",
+    "descriptionImages": "Hình trong mô tả:",
+    "uploadImages": "Tải lên hình ảnh:",
+    "selectFromMaterials": "Chọn từ thư viện tài liệu",
+    "editInstructionLabel": "Nhập hướng dẫn chỉnh sửa (mô tả trang sẽ được tự động thêm)",
+    "editInstructionPlaceholder": "Ví dụ: Xóa các phần tử trong vùng chọn, đổi nền thành màu xanh, tăng cỡ chữ tiêu đề, đổi kiểu hộp văn bản thành nét đứt...",
+    "templateSelectDesc": "Chọn mẫu mới để áp dụng cho các trang PPT tương lai (các trang hiện có sẽ không bị ảnh hưởng). Bạn có thể chọn mẫu có sẵn, mẫu đã tải lên hoặc tải lên mẫu mới.",
+    "uploadingTemplate": "Đang tải lên mẫu...",
+    "exportCount": "Xuất ({{count}})",
+    "exportSelectedPages": "Sẽ xuất {{count}} trang đã chọn",
+    "export": {
+      "pptx": "Xuất dạng PPTX",
+      "pdf": "Xuất dạng PDF",
+      "editablePptx": "Xuất PPTX chỉnh sửa được (Beta)"
+    },
+    "confirm": {
+      "regenerateTitle": "Xác nhận tạo lại",
+      "regenerateAll": "Thao tác này sẽ tạo lại tất cả các trang (lịch sử sẽ được giữ lại). Bạn có chắc không?",
+      "regenerateSelected": "Thao tác này sẽ tạo lại {{count}} trang đã chọn (lịch sử sẽ được giữ lại). Bạn có chắc không?"
+    },
+    "loading": {
+      "project": "Đang tải dự án...",
+      "processing": "Đang xử lý...",
+      "cleanBackground": "Đang tạo nền sạch...",
+      "creatingPdf": "Đang tạo PDF...",
+      "parsing": "Đang phân tích nội dung...",
+      "creatingPptx": "Đang tạo PPTX chỉnh sửa được...",
+      "complete": "Hoàn tất!"
+    },
+    "toast": {
+      "alreadyGenerating": "Trang này đang được tạo, vui lòng đợi...",
+      "generationStarted": "Đã bắt đầu tạo hình ảnh, vui lòng đợi...",
+      "generationFailed": "Tạo thất bại",
+      "versionSwitched": "Đã chuyển sang phiên bản này",
+      "switchFailed": "Chuyển đổi thất bại: {{error}}",
+      "materialsAdded": "Đã thêm {{count}} tài liệu",
+      "loadMaterialsFailed": "Không thể tải tài liệu: {{error}}",
+      "regionAdded": "Đã thêm vùng chọn làm hình tham khảo. Bạn có thể xem và xóa nó trong \"Tải lên hình ảnh\" bên dưới",
+      "cropFailed": "Không thể cắt từ hình hiện tại (hạn chế bảo mật trình duyệt). Hãy thử tải lên hình tham khảo thủ công.",
+      "exportStarted": "Đã bắt đầu tác vụ xuất. Kiểm tra tiến trình trong bảng tác vụ xuất",
+      "exportFailed": "Xuất thất bại",
+      "refreshNoId": "Không thể làm mới: Thiếu ID dự án",
+      "refreshSuccess": "Làm mới thành công",
+      "refreshFailed": "Làm mới thất bại, vui lòng thử lại sau",
+      "requirementsSaved": "Đã lưu yêu cầu bổ sung",
+      "styleSaved": "Đã lưu mô tả phong cách",
+      "exportSettingsSaved": "Đã lưu cài đặt xuất",
+      "saveFailed": "Lưu thất bại: {{error}}",
+      "loadTemplateFailed": "Không thể tải mẫu",
+      "templateChanged": "Đổi mẫu thành công",
+      "changeTemplateFailed": "Không thể đổi mẫu: {{error}}"
+    }
+  }
+}

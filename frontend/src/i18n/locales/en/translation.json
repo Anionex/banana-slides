@@ -1,0 +1,380 @@
+{
+  "app": {
+    "title": "Banana Slides"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "close": "Close",
+    "next": "Next",
+    "prev": "Previous",
+    "back": "Back",
+    "home": "Home",
+    "generate": "Generate",
+    "regenerate": "Regenerate",
+    "edit": "Edit",
+    "upload": "Upload",
+    "download": "Download",
+    "export": "Export",
+    "reset": "Reset",
+    "select": "Select",
+    "clear": "Clear",
+    "add": "Add",
+    "remove": "Remove",
+    "preview": "Preview",
+    "apply": "Apply",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "unknownError": "Unknown error"
+  },
+  "nav": {
+    "home": "Home",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "home": {
+    "title": "Banana Slides",
+    "nav": {
+      "materialGen": "Material Generator",
+      "history": "History",
+      "historyShort": "History",
+      "settings": "Settings",
+      "settingsShort": "Settings",
+      "help": "Help"
+    },
+    "hero": {
+      "tagline": "AI-Powered Presentation Generator",
+      "title": "Create Amazing Slides",
+      "subtitle": "Transform your ideas into beautiful presentations with AI"
+    },
+    "features": {
+      "generatePPT": "AI Generate PPT",
+      "naturalLanguageEdit": "Natural Language Edit",
+      "regionEdit": "Region Edit",
+      "exportPPTX": "Export PPTX"
+    },
+    "tabs": {
+      "idea": "From Idea",
+      "outline": "From Outline",
+      "description": "From Description"
+    },
+    "placeholder": {
+      "idea": "Enter your PPT idea in one sentence...",
+      "outline": "Paste or enter your outline content...",
+      "description": "Paste or enter detailed page descriptions..."
+    },
+    "description": {
+      "idea": "Describe your idea and let AI generate the complete PPT structure",
+      "outline": "Provide an outline and AI will expand each point into detailed slides",
+      "description": "Provide detailed descriptions and AI will create slides directly"
+    },
+    "template": {
+      "selectStyleTemplate": "Select Style Template",
+      "useTextDescription": "Use Text Description",
+      "stylePlaceholder": "Describe your desired style, e.g.: Modern minimalist style with blue tones, professional business presentation...",
+      "quickSelectPreset": "Quick Select Preset:",
+      "styleTip": "Style descriptions will guide AI in generating slides with consistent visual style"
+    },
+    "selectReferenceFile": "Select Reference File",
+    "parsing": "Parsing...",
+    "uploading": {
+      "image": "Uploading image..."
+    },
+    "error": {
+      "loadTemplates": "Failed to load templates",
+      "unsupportedFileType": "Unsupported file type: {{type}}",
+      "imageUploadNoInfo": "Image uploaded but no URL returned",
+      "imageUploadFailed": "Image upload failed",
+      "imageUploadError": "Image upload error: {{error}}",
+      "fileTooLarge": "File too large ({{size}}MB), maximum 200MB",
+      "triggerParseFailed": "Failed to trigger file parsing",
+      "fileUploadNoInfo": "File uploaded but no info returned",
+      "fileUploadFailed": "File upload failed",
+      "fileUploadError": "File upload error: {{error}}",
+      "emptyContent": "Please enter content",
+      "filesParsing": "{{count}} file(s) still parsing, please wait",
+      "projectCreateFailed": "Failed to create project"
+    },
+    "success": {
+      "imageUpload": "Image uploaded successfully",
+      "fileUpload": "File uploaded successfully",
+      "filesAdded": "Added {{count}} file(s)",
+      "imageRemoved": "Image removed"
+    },
+    "tip": {
+      "pptToPdf": "Tip: Converting PPT to PDF first may improve parsing quality"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Configure your AI and application preferences",
+    "backHome": "Back Home",
+    "loading": "Loading settings...",
+    "uiLanguage": "UI Language",
+    "outputLanguage": "Slide Language",
+    "sections": {
+      "api": "API Settings",
+      "models": "Model Settings",
+      "mineru": "MinerU Settings",
+      "imageGeneration": "Image Generation",
+      "performance": "Performance",
+      "outputLanguage": "Output Language"
+    },
+    "fields": {
+      "aiProviderFormat": {
+        "label": "AI Provider Format",
+        "description": "Select the API format for your AI provider",
+        "options": {
+          "openai": "OpenAI Compatible",
+          "gemini": "Google Gemini"
+        }
+      },
+      "apiBaseUrl": {
+        "label": "API Base URL",
+        "description": "The base URL for API requests"
+      },
+      "apiKey": {
+        "label": "API Key",
+        "placeholder": "Enter new API key to update",
+        "description": "Your API key will be encrypted and stored securely"
+      },
+      "textModel": {
+        "label": "Text Model",
+        "placeholder": "e.g.: gemini-1.5-pro",
+        "description": "Model for text generation tasks"
+      },
+      "imageModel": {
+        "label": "Image Model",
+        "placeholder": "e.g.: imagen-3.0-generate-002",
+        "description": "Model for image generation"
+      },
+      "imageCaptionModel": {
+        "label": "Image Caption Model",
+        "placeholder": "e.g.: gemini-1.5-flash",
+        "description": "Model for generating image captions"
+      },
+      "mineruApiBase": {
+        "label": "MinerU API Base",
+        "placeholder": "https://mineru.net/api/v4",
+        "description": "API endpoint for MinerU document parsing"
+      },
+      "mineruToken": {
+        "label": "MinerU Token",
+        "placeholder": "Enter new token to update",
+        "description": "Authentication token for MinerU service"
+      },
+      "imageResolution": {
+        "label": "Image Resolution",
+        "description": "Resolution for generated images"
+      },
+      "maxDescriptionWorkers": {
+        "label": "Max Description Workers",
+        "description": "Maximum concurrent workers for description generation (1-20)"
+      },
+      "maxImageWorkers": {
+        "label": "Max Image Workers",
+        "description": "Maximum concurrent workers for image generation (1-20)"
+      },
+      "outputLanguage": {
+        "label": "Output Language",
+        "description": "Language for AI-generated slide content"
+      },
+      "uiLanguage": {
+        "label": "UI Language",
+        "description": "Language for the user interface"
+      },
+      "sensitiveSet": "Already set ({{length}} chars)"
+    },
+    "buttons": {
+      "save": "Save Settings",
+      "saving": "Saving...",
+      "reset": "Reset to Defaults"
+    },
+    "confirm": {
+      "resetTitle": "Reset Settings",
+      "resetMessage": "This will reset all settings to their default values. Are you sure?",
+      "resetConfirm": "Reset",
+      "cancel": "Cancel"
+    },
+    "toast": {
+      "loadFailed": "Failed to load settings",
+      "saveSuccess": "Settings saved successfully",
+      "saveFailed": "Failed to save settings",
+      "resetSuccess": "Settings reset to defaults",
+      "resetFailed": "Failed to reset settings",
+      "unknownError": "Unknown error"
+    },
+    "apiKeyHint": {
+      "prefix": "Need an API key? Get one from",
+      "suffix": "to access multiple AI providers"
+    }
+  },
+  "outline": {
+    "title": "Edit Outline",
+    "addPage": "Add Page",
+    "generateAuto": "Auto Generate Outline",
+    "parseOutline": "Parse Outline",
+    "reparseOutline": "Re-parse Outline",
+    "regenerate": "Regenerate Outline",
+    "noPages": "No pages yet",
+    "noPagesHint": "Click \"Add Page\" to create manually, or \"Auto Generate Outline\" to let AI do it for you",
+    "preview": "Preview",
+    "selectCardHint": "Click a card on the left to view details",
+    "labels": {
+      "title": "Title",
+      "points": "Points"
+    },
+    "loading": {
+      "project": "Loading project...",
+      "generating": "Generating outline..."
+    },
+    "confirm": {
+      "regenerateTitle": "Confirm Regenerate",
+      "regenerateMessage": "Existing outline content will be overwritten. Are you sure you want to continue?"
+    },
+    "aiRefine": {
+      "placeholder": "e.g.: Add a page about XXX, delete page 3, merge first two pages... - Ctrl+Enter to submit",
+      "placeholderMobile": "e.g.: Add/delete pages... - Ctrl+Enter",
+      "success": "Outline modified successfully",
+      "error": "Modification failed, please try again later"
+    },
+    "context": {
+      "idea": "PPT Idea:",
+      "outline": "Outline:",
+      "description": "Description:"
+    }
+  },
+  "detail": {
+    "title": "Edit Page Descriptions",
+    "loadingProject": "Loading project...",
+    "generateImages": "Generate Images",
+    "generateAll": "Generate All Descriptions",
+    "progress": "{{current}} / {{total}} pages completed",
+    "noPages": "No pages yet",
+    "noPagesHint": "Please go back to outline editor to add pages first",
+    "backToOutline": "Back to Outline Editor",
+    "aiRefinePlaceholder": "e.g.: Make descriptions more detailed, delete a point from page 2, emphasize the importance of XXX... - Ctrl+Enter to submit",
+    "aiRefinePlaceholderMobile": "e.g.: Make descriptions more detailed... - Ctrl+Enter",
+    "confirmRegenerate": "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
+    "confirmRegeneratePage": "This page already has a description. Regenerating will overwrite current content. Continue?",
+    "confirmRegenerateTitle": "Confirm Regenerate",
+    "generateSuccess": "Generated successfully",
+    "generateFailed": "Generation failed: {{error}}",
+    "refineSuccess": "Page descriptions modified successfully",
+    "refineFailed": "Modification failed, please try again later"
+  },
+  "history": {
+    "title": "History",
+    "subtitle": "View and manage all your projects",
+    "selected": "{{count}} selected",
+    "cancelSelect": "Cancel Selection",
+    "batchDelete": "Batch Delete",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "empty": "No projects yet",
+    "emptyHint": "Create your first project to get started",
+    "createNew": "Create New Project",
+    "loadError": "Failed to load projects",
+    "openError": "Failed to open project",
+    "deleteError": "Failed to delete project",
+    "deleteSuccess": "Successfully deleted {{count}} project(s)",
+    "deletedCurrentProject": "Deleted project, including the currently open project",
+    "confirmDeleteTitle": "Confirm Delete",
+    "confirmBatchDeleteTitle": "Confirm Batch Delete",
+    "confirmDeleteSingle": "Are you sure you want to delete \"{{title}}\"? This action cannot be undone.",
+    "confirmDeleteBatch": "Are you sure you want to delete {{count}} selected project(s)? This action cannot be undone.",
+    "emptyTitleError": "Project name cannot be empty",
+    "updateTitleSuccess": "Project name updated",
+    "updateTitleError": "Failed to update project name"
+  },
+  "preview": {
+    "title": "Preview",
+    "projectSettings": "Project Settings",
+    "changeTemplate": "Change Template",
+    "materialGen": "Material Generator",
+    "generateAll": "Generate All ({{count}})",
+    "generateSelected": "Generate Selected ({{count}})",
+    "multiSelect": "Multi-select",
+    "cancelMultiSelect": "Cancel Multi-select",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "pagesCount": "{{count}} pages",
+    "noPages": "No pages yet",
+    "noPagesDesc": "Please go back to edit page and add content first",
+    "backToEdit": "Back to Edit",
+    "generating": "Generating...",
+    "notGenerated": "Not generated yet",
+    "generateThisPage": "Generate This Page",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "historyVersions": "History ({{count}})",
+    "version": "Version",
+    "versionNumber": "Version {{number}}",
+    "current": "Current",
+    "generatingStatus": "Generating...",
+    "editPageTitle": "Edit Page",
+    "regionSelect": "Region Select",
+    "endRegionSelect": "End Region Select",
+    "pageOutline": "Page Outline",
+    "pageDescription": "Page Description",
+    "noDescription": "No description",
+    "selectContextImages": "Select Context Images (Optional)",
+    "useTemplateImage": "Use Template Image",
+    "descriptionImages": "Images in Description:",
+    "uploadImages": "Upload Images:",
+    "selectFromMaterials": "Select from Materials",
+    "editInstructionLabel": "Enter edit instructions (page description will be auto-added)",
+    "editInstructionPlaceholder": "e.g.: Remove selected area elements, change background to blue, increase title font size, change text box style to dashed...",
+    "templateSelectDesc": "Select a new template to apply to future PPT pages (existing pages won't be affected). You can choose preset templates, existing templates, or upload new ones.",
+    "uploadingTemplate": "Uploading template...",
+    "exportCount": "Export ({{count}})",
+    "exportSelectedPages": "Will export {{count}} selected pages",
+    "export": {
+      "pptx": "Export as PPTX",
+      "pdf": "Export as PDF",
+      "editablePptx": "Export Editable PPTX (Beta)"
+    },
+    "confirm": {
+      "regenerateTitle": "Confirm Regenerate",
+      "regenerateAll": "This will regenerate all pages (history will be preserved). Are you sure?",
+      "regenerateSelected": "This will regenerate {{count}} selected pages (history will be preserved). Are you sure?"
+    },
+    "loading": {
+      "project": "Loading project...",
+      "processing": "Processing...",
+      "cleanBackground": "Generating clean backgrounds...",
+      "creatingPdf": "Creating PDF...",
+      "parsing": "Parsing content...",
+      "creatingPptx": "Creating editable PPTX...",
+      "complete": "Complete!"
+    },
+    "toast": {
+      "alreadyGenerating": "This page is already being generated, please wait...",
+      "generationStarted": "Image generation started, please wait...",
+      "generationFailed": "Generation failed",
+      "versionSwitched": "Switched to this version",
+      "switchFailed": "Switch failed: {{error}}",
+      "materialsAdded": "Added {{count}} materials",
+      "loadMaterialsFailed": "Failed to load materials: {{error}}",
+      "regionAdded": "Selected region added as reference image. You can view and remove it in \"Upload Images\" below",
+      "cropFailed": "Cannot crop from current image (browser security restriction). Try uploading reference images manually.",
+      "exportStarted": "Export task started. Check progress in export tasks panel",
+      "exportFailed": "Export failed",
+      "refreshNoId": "Cannot refresh: Missing project ID",
+      "refreshSuccess": "Refreshed successfully",
+      "refreshFailed": "Refresh failed, please try again later",
+      "requirementsSaved": "Extra requirements saved",
+      "styleSaved": "Style description saved",
+      "exportSettingsSaved": "Export settings saved",
+      "saveFailed": "Save failed: {{error}}",
+      "loadTemplateFailed": "Failed to load template",
+      "templateChanged": "Template changed successfully",
+      "changeTemplateFailed": "Failed to change template: {{error}}"
+    }
+  }
+}
