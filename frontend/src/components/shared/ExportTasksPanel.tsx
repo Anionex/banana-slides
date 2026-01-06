@@ -356,6 +356,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
   // 当组件挂载时，恢复所有正在进行的任务并重新开始轮询
   useEffect(() => {
     restoreActiveTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 只在组件挂载时执行一次
   
   // 当有进行中的任务时，自动展开面板

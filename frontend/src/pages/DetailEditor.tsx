@@ -39,7 +39,8 @@ export const DetailEditor: React.FC = () => {
         syncProject(projectId);
       }
     }
-  }, [projectId, currentProject?.id]); // 只在 projectId 或项目ID变化时更新
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
 
   const handleGenerateAll = async () => {

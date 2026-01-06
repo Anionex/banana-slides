@@ -6,6 +6,7 @@ import { listMaterials, uploadMaterial, listProjects, deleteMaterial, type Mater
 import type { Project } from '@/types';
 import { getImageUrl } from '@/api/client';
 import { MaterialGeneratorModal } from './MaterialGeneratorModal';
+import { materialUrlToFile } from './materialUtils';
 
 interface MaterialSelectorProps {
   projectId?: string; // 可选，如果不提供则使用全局接口
@@ -60,7 +61,8 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
       // 每次打开时重置展开状态
       setShowAllProjects(false);
     }
-  }, [isOpen, filterProjectId, projectsLoaded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, filterProjectId]);
 
   const loadProjects = async () => {
     try {
@@ -445,22 +447,4 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
   );
 };
 
-/**
- * 将素材URL转换为File对象
- * 用于需要File对象的场景（如上传参考图）
- */
-export const materialUrlToFile = async (
-  material: Material,
-  filename?: string
-): Promise<File> => {
-  const imageUrl = getImageUrl(material.url);
-  const response = await fetch(imageUrl);
-  const blob = await response.blob();
-  const file = new File(
-    [blob],
-    filename || material.filename,
-    { type: blob.type || 'image/png' }
-  );
-  return file;
-};
 

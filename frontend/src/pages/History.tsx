@@ -25,10 +25,6 @@ export const History: React.FC = () => {
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
   // ===== 数据加载 =====
 
   const loadProjects = useCallback(async () => {
@@ -47,6 +43,10 @@ export const History: React.FC = () => {
       setIsLoading(false);
     }
   }, [t]);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   // ===== 项目选择与导航 =====
 
@@ -82,7 +82,7 @@ export const History: React.FC = () => {
         type: 'error'
       });
     }
-  }, [selectedProjects, editingProjectId, setCurrentProject, syncProject, navigate, getProjectRoute, show, t]);
+  }, [selectedProjects, editingProjectId, setCurrentProject, syncProject, navigate, show, t]);
 
   // ===== 批量选择操作 =====
 

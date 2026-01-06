@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { useConfirm } from './useConfirm';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -68,68 +69,34 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   );
 };
 
-// Hook for easy confirmation dialogs
-export const useConfirm = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [config, setConfig] = useState<{
+// ConfirmDialogWrapper for use with useConfirm hook
+export const ConfirmDialogWrapper: React.FC<{
+  isOpen: boolean;
+  config: {
     message: string;
     title?: string;
     confirmText?: string;
     cancelText?: string;
     variant?: 'danger' | 'warning' | 'info';
-    onConfirm: () => void;
-  } | null>(null);
+  } | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}> = ({ isOpen, config, onClose, onConfirm }) => {
+  if (!config) return null;
 
-  const confirm = useCallback(
-    (
-      message: string,
-      onConfirm: () => void,
-      options?: {
-        title?: string;
-        confirmText?: string;
-        cancelText?: string;
-        variant?: 'danger' | 'warning' | 'info';
-      }
-    ) => {
-      setConfig({
-        message,
-        onConfirm,
-        title: options?.title,
-        confirmText: options?.confirmText,
-        cancelText: options?.cancelText,
-        variant: options?.variant || 'warning',
-      });
-      setIsOpen(true);
-    },
-    []
+  return (
+    <ConfirmDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      onConfirm={onConfirm}
+      message={config.message}
+      title={config.title}
+      confirmText={config.confirmText}
+      cancelText={config.cancelText}
+      variant={config.variant}
+    />
   );
-
-  const close = useCallback(() => {
-    setIsOpen(false);
-    setConfig(null);
-  }, []);
-
-  const handleConfirm = useCallback(() => {
-    if (config?.onConfirm) {
-      config.onConfirm();
-    }
-    close();
-  }, [config, close]);
-
-  return {
-    confirm,
-    ConfirmDialog: config ? (
-      <ConfirmDialog
-        isOpen={isOpen}
-        onClose={close}
-        onConfirm={handleConfirm}
-        message={config.message}
-        title={config.title}
-        confirmText={config.confirmText}
-        cancelText={config.cancelText}
-        variant={config.variant}
-      />
-    ) : null,
-  };
 };
 
+// Re-export useConfirm for convenience
+export { useConfirm };
