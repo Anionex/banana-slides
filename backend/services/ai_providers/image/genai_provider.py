@@ -116,7 +116,9 @@ class GenAIImageProvider(ImageProvider):
             
             # Add thinking config if enabled
             if enable_thinking:
+                thinking_budget = getattr(get_config(), "GENAI_THINKING_BUDGET", 1000)
                 config_params['thinking_config'] = types.ThinkingConfig(
+                    thinking_budget=thinking_budget,
                     include_thoughts=True
                 )
             
