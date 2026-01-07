@@ -1,0 +1,654 @@
+{
+  "app": {
+    "title": "蕉幻"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "confirm": "确认",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "close": "关闭",
+    "next": "下一步",
+    "prev": "上一步",
+    "back": "返回",
+    "home": "主页",
+    "generate": "生成",
+    "regenerate": "重新生成",
+    "edit": "编辑",
+    "upload": "上传",
+    "download": "下载",
+    "export": "导出",
+    "reset": "重置",
+    "select": "选择",
+    "clear": "清除",
+    "add": "添加",
+    "remove": "移除",
+    "preview": "预览",
+    "apply": "应用",
+    "refresh": "刷新",
+    "retry": "重试",
+    "unknownError": "未知错误"
+  },
+  "nav": {
+    "home": "首页",
+    "history": "历史",
+    "settings": "设置"
+  },
+  "home": {
+    "title": "蕉幻",
+    "nav": {
+      "materialGen": "素材生成",
+      "history": "历史项目",
+      "historyShort": "历史",
+      "settings": "系统设置",
+      "settingsShort": "设置",
+      "help": "帮助"
+    },
+    "hero": {
+      "tagline": "AI驱动的演示文稿生成器",
+      "title": "创建精美幻灯片",
+      "subtitle": "用AI将你的想法转化为精美的演示文稿"
+    },
+    "features": {
+      "generatePPT": "AI生成PPT",
+      "naturalLanguageEdit": "自然语言编辑",
+      "regionEdit": "区域编辑",
+      "exportPPTX": "导出PPTX"
+    },
+    "tabs": {
+      "idea": "从想法开始",
+      "outline": "从大纲开始",
+      "description": "从描述开始"
+    },
+    "placeholder": {
+      "idea": "用一句话输入你的PPT想法...",
+      "outline": "粘贴或输入大纲内容...",
+      "description": "粘贴或输入详细的页面描述..."
+    },
+    "description": {
+      "idea": "描述你的想法，让AI生成完整的PPT结构",
+      "outline": "提供大纲，AI将把每个要点扩展成详细的幻灯片",
+      "description": "提供详细描述，AI将直接创建幻灯片"
+    },
+    "template": {
+      "selectStyleTemplate": "选择风格模板",
+      "useTextDescription": "使用文字描述",
+      "stylePlaceholder": "描述你想要的风格，例如：简约现代风格，蓝色调，专业商务演示...",
+      "quickSelectPreset": "快速选择预设：",
+      "styleTip": "风格描述将引导AI生成具有一致视觉风格的幻灯片"
+    },
+    "selectReferenceFile": "选择参考文件",
+    "parsing": "解析中...",
+    "uploading": {
+      "image": "正在上传图片..."
+    },
+    "error": {
+      "loadTemplates": "加载模板失败",
+      "unsupportedFileType": "不支持的文件类型：{{type}}",
+      "imageUploadNoInfo": "图片已上传但未返回URL",
+      "imageUploadFailed": "图片上传失败",
+      "imageUploadError": "图片上传错误：{{error}}",
+      "fileTooLarge": "文件过大（{{size}}MB），最大200MB",
+      "triggerParseFailed": "无法触发文件解析",
+      "fileUploadNoInfo": "文件已上传但未返回信息",
+      "fileUploadFailed": "文件上传失败",
+      "fileUploadError": "文件上传错误：{{error}}",
+      "emptyContent": "请输入内容",
+      "filesParsing": "{{count}}个文件仍在解析中，请稍候",
+      "projectCreateFailed": "创建项目失败"
+    },
+    "success": {
+      "imageUpload": "图片上传成功",
+      "fileUpload": "文件上传成功",
+      "filesAdded": "已添加{{count}}个文件",
+      "imageRemoved": "图片已移除"
+    },
+    "tip": {
+      "pptToPdf": "提示：先将PPT转换为PDF可能会提高解析质量"
+    }
+  },
+  "settings": {
+    "title": "系统设置",
+    "subtitle": "配置AI和应用程序偏好设置",
+    "backHome": "返回首页",
+    "loading": "加载设置中...",
+    "uiLanguage": "界面语言",
+    "outputLanguage": "输出语言",
+    "sections": {
+      "api": "API设置",
+      "models": "模型设置",
+      "mineru": "MinerU设置",
+      "imageGeneration": "图片生成",
+      "performance": "性能",
+      "outputLanguage": "输出语言"
+    },
+    "fields": {
+      "aiProviderFormat": {
+        "label": "AI提供商格式",
+        "description": "选择AI提供商的API格式",
+        "options": {
+          "openai": "OpenAI兼容",
+          "gemini": "Google Gemini"
+        }
+      },
+      "apiBaseUrl": {
+        "label": "API基础URL",
+        "description": "API请求的基础URL"
+      },
+      "apiKey": {
+        "label": "API密钥",
+        "placeholder": "输入新的API密钥以更新",
+        "description": "您的API密钥将被加密并安全存储"
+      },
+      "textModel": {
+        "label": "文本模型",
+        "placeholder": "例如：gemini-1.5-pro",
+        "description": "用于文本生成任务的模型"
+      },
+      "imageModel": {
+        "label": "图片模型",
+        "placeholder": "例如：imagen-3.0-generate-002",
+        "description": "用于图片生成的模型"
+      },
+      "imageCaptionModel": {
+        "label": "图片描述模型",
+        "placeholder": "例如：gemini-1.5-flash",
+        "description": "用于生成图片描述的模型"
+      },
+      "mineruApiBase": {
+        "label": "MinerU API基础",
+        "placeholder": "https://mineru.net/api/v4",
+        "description": "MinerU文档解析的API端点"
+      },
+      "mineruToken": {
+        "label": "MinerU令牌",
+        "placeholder": "输入新的令牌以更新",
+        "description": "MinerU服务的认证令牌"
+      },
+      "imageResolution": {
+        "label": "图片分辨率",
+        "description": "生成图片的分辨率"
+      },
+      "maxDescriptionWorkers": {
+        "label": "最大描述工作线程",
+        "description": "描述生成的最大并发工作线程数（1-20）"
+      },
+      "maxImageWorkers": {
+        "label": "最大图片工作线程",
+        "description": "图片生成的最大并发工作线程数（1-20）"
+      },
+      "outputLanguage": {
+        "label": "输出语言",
+        "description": "AI生成幻灯片内容的语言"
+      },
+      "uiLanguage": {
+        "label": "界面语言",
+        "description": "用户界面的语言"
+      },
+      "sensitiveSet": "已设置（{{length}}个字符）"
+    },
+    "buttons": {
+      "save": "保存设置",
+      "saving": "保存中...",
+      "reset": "重置为默认"
+    },
+    "confirm": {
+      "resetTitle": "重置设置",
+      "resetMessage": "这将把所有设置重置为默认值。确定吗？",
+      "resetConfirm": "重置",
+      "cancel": "取消"
+    },
+    "toast": {
+      "loadFailed": "加载设置失败",
+      "saveSuccess": "设置保存成功",
+      "saveFailed": "保存设置失败",
+      "resetSuccess": "设置已重置为默认值",
+      "resetFailed": "重置设置失败",
+      "unknownError": "未知错误"
+    },
+    "apiKeyHint": {
+      "prefix": "需要API密钥？从",
+      "suffix": "获取以访问多个AI提供商"
+    }
+  },
+  "outline": {
+    "title": "编辑大纲",
+    "addPage": "添加页面",
+    "generateAuto": "自动生成大纲",
+    "parseOutline": "解析大纲",
+    "reparseOutline": "重新解析大纲",
+    "regenerate": "重新生成大纲",
+    "noPages": "还没有页面",
+    "noPagesHint": "点击\"添加页面\"手动创建，或\"自动生成大纲\"让 AI 帮你完成",
+    "preview": "预览",
+    "selectCardHint": "点击左侧卡片查看详情",
+    "labels": {
+      "title": "标题",
+      "points": "要点"
+    },
+    "loading": {
+      "project": "加载项目中...",
+      "generating": "生成大纲中..."
+    },
+    "confirm": {
+      "regenerateTitle": "确认重新生成",
+      "regenerateMessage": "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？"
+    },
+    "aiRefine": {
+      "placeholder": "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
+      "placeholderMobile": "例如：增加/删除页面... · Ctrl+Enter",
+      "success": "大纲修改成功",
+      "error": "修改失败，请稍后重试"
+    },
+    "context": {
+      "idea": "PPT构想:",
+      "outline": "大纲:",
+      "description": "描述:"
+    },
+    "card": {
+      "page": "第 {{index}} 页",
+      "titlePlaceholder": "标题",
+      "pointsPlaceholder": "要点（每行一个）",
+      "confirmDelete": "确定要删除这一页吗？",
+      "confirmDeleteTitle": "确认删除"
+    }
+  },
+  "detail": {
+    "title": "编辑页面描述",
+    "loadingProject": "加载项目中...",
+    "generateImages": "生成图片",
+    "generateAll": "批量生成描述",
+    "progress": "{{current}} / {{total}} 页已完成",
+    "noPages": "还没有页面",
+    "noPagesHint": "请先返回大纲编辑页添加页面",
+    "backToOutline": "返回大纲编辑",
+    "aiRefinePlaceholder": "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
+    "aiRefinePlaceholderMobile": "例如：让描述更详细... · Ctrl+Enter",
+    "confirmRegenerate": "部分页面已有描述，重新生成将覆盖，确定继续吗？",
+    "confirmRegeneratePage": "该页面已有描述，重新生成将覆盖现有内容，确定继续吗？",
+    "confirmRegenerateTitle": "确认重新生成",
+    "generateSuccess": "生成成功",
+    "generateFailed": "生成失败: {{error}}",
+    "refineSuccess": "页面描述修改成功",
+    "refineFailed": "修改失败，请稍后重试"
+  },
+  "history": {
+    "title": "历史项目",
+    "subtitle": "查看和管理你的所有项目",
+    "selected": "已选择 {{count}} 项",
+    "cancelSelect": "取消选择",
+    "batchDelete": "批量删除",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "empty": "暂无历史项目",
+    "emptyHint": "创建你的第一个项目开始使用吧",
+    "createNew": "创建新项目",
+    "loadError": "加载历史项目失败",
+    "openError": "打开项目失败",
+    "deleteError": "删除项目失败",
+    "deleteSuccess": "成功删除 {{count}} 个项目",
+    "deletedCurrentProject": "已删除项目，包括当前打开的项目",
+    "confirmDeleteTitle": "确认删除",
+    "confirmBatchDeleteTitle": "确认批量删除",
+    "confirmDeleteSingle": "确定要删除项目\"{{title}}\"吗？此操作不可恢复。",
+    "confirmDeleteBatch": "确定要删除选中的 {{count}} 个项目吗？此操作不可恢复。",
+    "emptyTitleError": "项目名称不能为空",
+    "updateTitleSuccess": "项目名称已更新",
+    "updateTitleError": "更新项目名称失败",
+    "projectCard": {
+      "clickToEdit": "点击编辑名称",
+      "pageCount": "{{count}} 页",
+      "firstPagePreview": "第一页预览",
+      "deleteProject": "删除项目"
+    }
+  },
+  "preview": {
+    "title": "预览",
+    "projectSettings": "项目设置",
+    "changeTemplate": "更换模板",
+    "materialGen": "素材生成",
+    "generateAll": "批量生成图片 ({{count}})",
+    "generateSelected": "生成选中页面 ({{count}})",
+    "multiSelect": "多选",
+    "cancelMultiSelect": "取消多选",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "pagesCount": "{{count}}页",
+    "noPages": "还没有页面",
+    "noPagesDesc": "请先返回编辑页面添加内容",
+    "backToEdit": "返回编辑",
+    "generating": "正在生成中...",
+    "notGenerated": "尚未生成图片",
+    "generateThisPage": "生成此页",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "historyVersions": "历史版本 ({{count}})",
+    "version": "版本",
+    "versionNumber": "版本 {{number}}",
+    "current": "当前",
+    "generatingStatus": "生成中...",
+    "editPageTitle": "编辑页面",
+    "regionSelect": "区域选图",
+    "endRegionSelect": "结束区域选图",
+    "pageOutline": "页面大纲",
+    "pageDescription": "页面描述",
+    "noDescription": "暂无描述",
+    "selectContextImages": "选择上下文图片（可选）",
+    "useTemplateImage": "使用模板图片",
+    "descriptionImages": "描述中的图片：",
+    "uploadImages": "上传图片：",
+    "selectFromMaterials": "从素材库选择",
+    "editInstructionLabel": "输入修改指令(将自动添加页面描述)",
+    "editInstructionPlaceholder": "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
+    "templateSelectDesc": "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
+    "uploadingTemplate": "正在上传模板...",
+    "exportCount": "导出 ({{count}})",
+    "exportSelectedPages": "将导出选中的 {{count}} 页",
+    "export": {
+      "pptx": "导出为 PPTX",
+      "pdf": "导出为 PDF",
+      "editablePptx": "导出可编辑 PPTX（Beta）"
+    },
+    "confirm": {
+      "regenerateTitle": "确认重新生成",
+      "regenerateAll": "将重新生成所有页面（历史记录将会保存），确定继续吗？",
+      "regenerateSelected": "将重新生成选中的 {{count}} 页（历史记录将会保存），确定继续吗？"
+    },
+    "loading": {
+      "project": "加载项目中...",
+      "processing": "处理中...",
+      "cleanBackground": "正在生成干净背景...",
+      "creatingPdf": "正在创建PDF...",
+      "parsing": "正在解析内容...",
+      "creatingPptx": "正在创建可编辑PPTX...",
+      "complete": "完成！"
+    },
+    "toast": {
+      "alreadyGenerating": "该页面正在生成中，请稍候...",
+      "generationStarted": "已开始生成图片，请稍候...",
+      "generationFailed": "生成失败",
+      "versionSwitched": "已切换到该版本",
+      "switchFailed": "切换失败: {{error}}",
+      "materialsAdded": "已添加 {{count}} 个素材",
+      "loadMaterialsFailed": "加载素材失败: {{error}}",
+      "regionAdded": "已将选中区域添加为参考图片，可在下方\"上传图片\"中查看与删除",
+      "cropFailed": "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。",
+      "exportStarted": "导出任务已开始，可在导出任务面板查看进度",
+      "exportFailed": "导出失败",
+      "refreshNoId": "无法刷新：缺少项目ID",
+      "refreshSuccess": "刷新成功",
+      "refreshFailed": "刷新失败，请稍后重试",
+      "requirementsSaved": "额外要求已保存",
+      "styleSaved": "风格描述已保存",
+      "exportSettingsSaved": "导出设置已保存",
+      "saveFailed": "保存失败: {{error}}",
+      "loadTemplateFailed": "加载模板失败",
+      "templateChanged": "模板更换成功",
+      "changeTemplateFailed": "更换模板失败: {{error}}"
+    },
+    "descriptionCard": {
+      "page": "第 {{index}} 页",
+      "generating": "正在生成描述...",
+      "noDescription": "尚未生成描述",
+      "generatingButton": "生成中...",
+      "editTitle": "编辑页面描述",
+      "contentLabel": "描述内容"
+    },
+    "slideCard": {
+      "notGenerated": "未生成",
+      "confirmDelete": "确定要删除这一页吗？",
+      "confirmDeleteTitle": "确认删除"
+    }
+  },
+  "components": {
+    "loading": {
+      "runInBackground": "在后台执行"
+    },
+    "confirmDialog": {
+      "defaultTitle": "确认操作"
+    },
+    "status": {
+      "draft": "草稿",
+      "descriptionGenerated": "已生成描述",
+      "generating": "生成中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "pageStatus": {
+      "noDescription": "未生成描述",
+      "noDescriptionDesc": "还没有生成描述",
+      "descriptionGenerated": "已生成描述",
+      "descriptionGeneratedDesc": "描述已生成",
+      "needDescriptionFirst": "需要先生成描述",
+      "noImage": "未生成图片",
+      "waitingForImage": "描述已生成，等待生成图片",
+      "generatingImage": "正在生成图片",
+      "imageFailed": "图片生成失败",
+      "imageGenerated": "图片已生成",
+      "unknown": "未知",
+      "unknownDesc": "状态未知",
+      "draftDesc": "草稿阶段",
+      "generatingDesc": "正在生成中",
+      "failedDesc": "生成失败",
+      "completedDesc": "全部完成"
+    },
+    "aiRefine": {
+      "ctrlEnterSubmit": "Ctrl+Enter 提交",
+      "history": "历史",
+      "previousRequirements": "之前的修改要求：",
+      "viewHistory": "查看 {{count}} 条历史修改",
+      "submitShortcut": "提交 (Ctrl+Enter)"
+    },
+    "export": {
+      "title": "导出任务",
+      "inProgress": "{{count}} 进行中",
+      "taskType": {
+        "pptx": "PPTX",
+        "pdf": "PDF",
+        "editablePptx": "可编辑 PPTX"
+      },
+      "pageRange": {
+        "all": "全部",
+        "single": "第{{page}}页",
+        "range": "第{{start}}-{{end}}页",
+        "count": "{{count}}页"
+      },
+      "preparing": "准备中...",
+      "waiting": "等待中...",
+      "history": "历史记录",
+      "clear": "清除",
+      "download": "下载",
+      "remove": "移除",
+      "warningsCount": "{{count}} 条警告",
+      "clickToView": "点击查看",
+      "warnings": {
+        "title": "导出警告 ({{count}} 条)",
+        "details": "详细信息",
+        "styleExtractionFailed": "样式提取失败 ({{count}} 个)",
+        "textRenderFailed": "文本渲染失败 ({{count}} 个)",
+        "moreItems": "... 还有 {{count}} 条",
+        "close": "关闭"
+      }
+    },
+    "material": {
+      "title": "选择素材",
+      "count": "共 {{count}} 个素材",
+      "noMaterials": "暂无素材",
+      "selected": "已选择 {{count}} 个",
+      "filter": {
+        "all": "所有素材",
+        "unassociated": "未关联项目",
+        "currentProject": "当前项目",
+        "showMore": "+ 查看更多项目...",
+        "project": "项目"
+      },
+      "actions": {
+        "refresh": "刷新",
+        "upload": "上传",
+        "uploading": "上传中...",
+        "generate": "生成素材",
+        "clearSelection": "清空选择",
+        "deleteMaterial": "删除素材"
+      },
+      "empty": {
+        "loading": "加载中...",
+        "noMaterials": "暂无素材",
+        "uploadOrGenerate": "可以上传图片或使用素材生成功能创建素材",
+        "uploadHint": "可以上传图片作为素材"
+      },
+      "saveToLibrary": "同时保存到我的模板库",
+      "cancel": "取消",
+      "confirm": "确认选择 ({{count}})",
+      "error": {
+        "loadFailed": "加载素材列表失败",
+        "maxSelection": "最多只能选择 {{count}} 个素材",
+        "selectAtLeastOne": "请至少选择一个素材",
+        "uploadFailed": "上传素材失败",
+        "unsupportedFormat": "不支持的图片格式",
+        "deleteFailed": "删除素材失败",
+        "missingId": "无法删除：缺少素材ID"
+      },
+      "toast": {
+        "uploadSuccess": "素材上传成功",
+        "deleteSuccess": "素材已删除"
+      }
+    },
+    "template": {
+      "myTemplates": "我的模板",
+      "presets": "预设模板",
+      "selected": "已选择",
+      "upload": "上传模板",
+      "saveToLibrary": "上传模板时同时保存到我的模板库",
+      "fromMaterial": "从素材库选择",
+      "fromMaterialButton": "从素材库选择作为模板",
+      "deleteTemplate": "删除模板",
+      "toast": {
+        "uploadSuccess": "模板上传成功",
+        "uploadFailed": "模板上传失败",
+        "savedToLibrary": "素材已保存到模板库",
+        "materialSavedToLibrary": "素材已保存到模板库",
+        "selectedFromMaterial": "已从素材库选择作为模板",
+        "loadMaterialFailed": "加载素材失败",
+        "deleteSuccess": "模板已删除",
+        "deleteFailed": "删除模板失败",
+        "cannotDeleteActive": "当前使用中的模板不能删除，请先取消选择或切换",
+        "unknownError": "未知错误"
+      }
+    },
+    "filePreview": {
+      "title": "文件预览",
+      "noContent": "暂无内容"
+    },
+    "materialGenerator": {
+      "title": "素材生成",
+      "hint": "生成的素材会保存到素材库",
+      "result": "生成结果",
+      "resultPlaceholder": "生成的素材会展示在这里",
+      "promptLabel": "提示词（原样发送给文生图模型）",
+      "promptPlaceholder": "例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页...",
+      "referenceImages": "参考图片（可选）",
+      "selectFromLibrary": "从素材库选择",
+      "mainReference": "主参考图（可选）",
+      "clickToUpload": "点击上传",
+      "extraReference": "额外参考图（可选，多张）",
+      "add": "添加",
+      "generateButton": "生成素材",
+      "generating": "生成中..."
+    },
+    "referenceFile": {
+      "title": "选择参考文件",
+      "fileCount": "共 {{count}} 个文件",
+      "noFiles": "暂无文件",
+      "selected": "已选择 {{count}} 个",
+      "filter": {
+        "all": "所有附件",
+        "unassociated": "未归类附件",
+        "currentProject": "当前项目附件"
+      },
+      "refresh": "刷新",
+      "uploadFile": "上传文件",
+      "uploading": "上传中...",
+      "clearSelection": "清空选择",
+      "loading": "加载中...",
+      "noReferenceFiles": "暂无参考文件",
+      "clickUploadHint": "点击\"上传文件\"按钮添加文件",
+      "parseAfterConfirm": "(确定后解析)",
+      "confirm": "确定",
+      "cancel": "取消",
+      "error": {
+        "loadFailed": "加载文件列表失败",
+        "uploadFailed": "上传失败"
+      }
+    },
+    "projectSettings": {
+      "title": "设置",
+      "tabs": {
+        "project": "项目设置",
+        "export": "导出设置",
+        "global": "全局设置"
+      },
+      "project": {
+        "title": "项目级配置",
+        "description": "这些设置仅应用于当前项目，不影响其他项目",
+        "extraRequirements": {
+          "title": "额外要求",
+          "description": "在生成每个页面时，AI 会参考这些额外要求",
+          "placeholder": "例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图...",
+          "save": "保存额外要求",
+          "saving": "保存中..."
+        },
+        "style": {
+          "title": "风格描述",
+          "description": "描述您期望的 PPT 整体风格，AI 将根据描述生成相应风格的页面",
+          "placeholder": "例如：简约商务风格，使用深蓝色和白色配色，字体清晰大方，布局整洁...",
+          "save": "保存风格描述",
+          "saving": "保存中...",
+          "tip": "风格描述会在生成图片时自动添加到提示词中。如果同时上传了模板图片，风格描述会作为补充说明。"
+        }
+      },
+      "export": {
+        "title": "可编辑 PPTX 导出设置",
+        "description": "配置「导出可编辑 PPTX」功能的处理方式。这些设置影响导出质量和API调用成本。",
+        "extractor": {
+          "title": "组件提取方法",
+          "description": "选择如何从PPT图片中提取文字、表格等可编辑组件",
+          "hybrid": {
+            "label": "混合提取（推荐）",
+            "description": "MinerU版面分析 + 百度高精度OCR，文字识别更精确"
+          },
+          "mineru": {
+            "label": "MinerU提取",
+            "description": "仅使用MinerU进行版面分析和文字识别"
+          }
+        },
+        "inpaint": {
+          "title": "背景图获取方法",
+          "description": "选择如何生成干净的背景图（移除原图中的文字后用于PPT背景）",
+          "hybrid": {
+            "label": "混合方式获取（推荐）",
+            "description": "百度精确去除文字 + 生成式模型提升画质"
+          },
+          "generative": {
+            "label": "生成式获取",
+            "description": "使用生成式大模型（如Gemini）直接生成背景，背景质量高但有遗留元素的可能"
+          },
+          "baidu": {
+            "label": "百度抹除服务获取",
+            "description": "使用百度图像修复API，速度快但画质一般"
+          },
+          "usesAI": "使用文生图模型"
+        },
+        "costTip": "标有「使用文生图模型」的选项会调用AI图片生成API（如Gemini），每页会产生额外的API调用费用。如果需要控制成本，可选择「百度修复」方式。",
+        "save": "保存导出设置",
+        "saving": "保存中..."
+      },
+      "global": {
+        "title": "全局设置",
+        "description": "这些设置应用于所有项目"
+      }
+    }
+  }
+}

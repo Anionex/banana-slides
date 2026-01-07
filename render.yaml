@@ -1,0 +1,54 @@
+# Render Blueprint for Banana Slides
+# Deploy with: Connect GitHub repo → "New Blueprint" → Select this file
+# Docs: https://docs.render.com/blueprint-spec
+
+services:
+  # Backend API Service
+  - type: web
+    name: banana-slides-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .  # Root context because Dockerfile needs pyproject.toml
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "5000"
+      - key: AI_PROVIDER_FORMAT
+        value: gemini
+      - key: TEXT_MODEL
+        value: gemini-2.0-flash
+      - key: IMAGE_MODEL
+        value: gemini-2.0-flash-preview-image-generation
+      - key: OUTPUT_LANGUAGE
+        value: vi
+      - key: GOOGLE_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: CORS_ORIGINS
+        value: https://banana-slides-frontend.onrender.com
+    disk:
+      name: banana-slides-data
+      mountPath: /app/backend/instance
+      sizeGB: 1
+
+  # Frontend Static Site
+  - type: web
+    name: banana-slides-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    pullRequestPreviewsEnabled: true
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://banana-slides-backend.onrender.com

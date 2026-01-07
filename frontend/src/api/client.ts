@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// 开发环境：通过 Vite proxy 转发
-// 生产环境：通过 nginx proxy 转发
-const API_BASE_URL = '';
+// 开发环境：通过 Vite proxy 转发（空字符串）
+// 生产环境：使用环境变量指定的 API URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // 创建 axios 实例
 export const apiClient = axios.create({
@@ -54,24 +54,29 @@ apiClient.interceptors.response.use(
 );
 
 // 图片URL处理工具
-// 使用相对路径，通过代理转发到后端
+// 开发环境：使用相对路径，通过代理转发到后端
+// 生产环境：使用完整的 API URL
 export const getImageUrl = (path?: string, timestamp?: string | number): string => {
   if (!path) return '';
   // 如果已经是完整URL，直接返回
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
-  // 使用相对路径（确保以 / 开头）
-  let url = path.startsWith('/') ? path : '/' + path;
-  
+
+  // 确保路径以 / 开头
+  const normalizedPath = path.startsWith('/') ? path : '/' + path;
+
+  // 使用 API_BASE_URL 构建完整 URL
+  let url = API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath;
+
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
-    const ts = typeof timestamp === 'string' 
-      ? new Date(timestamp).getTime() 
+    const ts = typeof timestamp === 'string'
+      ? new Date(timestamp).getTime()
       : timestamp;
     url += `?v=${ts}`;
   }
-  
+
   return url;
 };
 

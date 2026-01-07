@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { Page, PageStatus } from '@/types';
 
 /**
@@ -16,7 +17,7 @@ export interface DerivedPageStatus {
 
 /**
  * 根据上下文获取页面的派生状态
- * 
+ *
  * @param page - 页面对象
  * @param context - 上下文：'description' | 'image' | 'full'
  * @returns 派生的状态信息
@@ -25,6 +26,7 @@ export const usePageStatus = (
   page: Page,
   context: PageStatusContext = 'full'
 ): DerivedPageStatus => {
+  const { t } = useTranslation();
   const hasDescription = !!page.description_content;
   const hasImage = !!page.generated_image_path;
   const pageStatus = page.status;
@@ -35,14 +37,14 @@ export const usePageStatus = (
       if (!hasDescription) {
         return {
           status: 'DRAFT',
-          label: '未生成描述',
-          description: '还没有生成描述'
+          label: t('components.pageStatus.noDescription'),
+          description: t('components.pageStatus.noDescriptionDesc')
         };
       }
       return {
         status: 'DESCRIPTION_GENERATED',
-        label: '已生成描述',
-        description: '描述已生成'
+        label: t('components.pageStatus.descriptionGenerated'),
+        description: t('components.pageStatus.descriptionGeneratedDesc')
       };
 
     case 'image':
@@ -50,43 +52,43 @@ export const usePageStatus = (
       if (!hasDescription) {
         return {
           status: 'DRAFT',
-          label: '未生成描述',
-          description: '需要先生成描述'
+          label: t('components.pageStatus.noDescription'),
+          description: t('components.pageStatus.needDescriptionFirst')
         };
       }
       if (!hasImage && pageStatus !== 'GENERATING') {
         return {
           status: 'DESCRIPTION_GENERATED',
-          label: '未生成图片',
-          description: '描述已生成，等待生成图片'
+          label: t('components.pageStatus.noImage'),
+          description: t('components.pageStatus.waitingForImage')
         };
       }
       if (pageStatus === 'GENERATING') {
         return {
           status: 'GENERATING',
-          label: '生成中',
-          description: '正在生成图片'
+          label: t('components.status.generating'),
+          description: t('components.pageStatus.generatingImage')
         };
       }
       if (pageStatus === 'FAILED') {
         return {
           status: 'FAILED',
-          label: '失败',
-          description: '图片生成失败'
+          label: t('components.status.failed'),
+          description: t('components.pageStatus.imageFailed')
         };
       }
       if (hasImage) {
         return {
           status: 'COMPLETED',
-          label: '已完成',
-          description: '图片已生成'
+          label: t('components.status.completed'),
+          description: t('components.pageStatus.imageGenerated')
         };
       }
       // 默认返回页面状态
       return {
         status: pageStatus,
-        label: '未知',
-        description: '状态未知'
+        label: t('components.pageStatus.unknown'),
+        description: t('components.pageStatus.unknownDesc')
       };
 
     case 'full':
@@ -94,8 +96,8 @@ export const usePageStatus = (
       // 完整上下文：显示页面的实际状态
       return {
         status: pageStatus,
-        label: getStatusLabel(pageStatus),
-        description: getStatusDescription(pageStatus, hasDescription, hasImage)
+        label: getStatusLabel(pageStatus, t),
+        description: getStatusDescription(pageStatus, t)
       };
   }
 };
@@ -103,15 +105,15 @@ export const usePageStatus = (
 /**
  * 获取状态标签
  */
-function getStatusLabel(status: PageStatus): string {
+function getStatusLabel(status: PageStatus, t: (key: string) => string): string {
   const labels: Record<PageStatus, string> = {
-    DRAFT: '草稿',
-    DESCRIPTION_GENERATED: '已生成描述',
-    GENERATING: '生成中',
-    COMPLETED: '已完成',
-    FAILED: '失败',
+    DRAFT: t('components.status.draft'),
+    DESCRIPTION_GENERATED: t('components.status.descriptionGenerated'),
+    GENERATING: t('components.status.generating'),
+    COMPLETED: t('components.status.completed'),
+    FAILED: t('components.status.failed'),
   };
-  return labels[status] || '未知';
+  return labels[status] || t('components.pageStatus.unknown');
 }
 
 /**
@@ -119,14 +121,12 @@ function getStatusLabel(status: PageStatus): string {
  */
 function getStatusDescription(
   status: PageStatus,
-  _hasDescription: boolean,
-  _hasImage: boolean
+  t: (key: string) => string
 ): string {
-  if (status === 'DRAFT') return '草稿阶段';
-  if (status === 'DESCRIPTION_GENERATED') return '描述已生成';
-  if (status === 'GENERATING') return '正在生成中';
-  if (status === 'FAILED') return '生成失败';
-  if (status === 'COMPLETED') return '全部完成';
-  return '状态未知';
+  if (status === 'DRAFT') return t('components.pageStatus.draftDesc');
+  if (status === 'DESCRIPTION_GENERATED') return t('components.pageStatus.descriptionGeneratedDesc');
+  if (status === 'GENERATING') return t('components.pageStatus.generatingDesc');
+  if (status === 'FAILED') return t('components.pageStatus.failedDesc');
+  if (status === 'COMPLETED') return t('components.pageStatus.completedDesc');
+  return t('components.pageStatus.unknownDesc');
 }
-

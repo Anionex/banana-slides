@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Edit2, Trash2 } from 'lucide-react';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
 import { getImageUrl } from '@/api/client';
@@ -23,6 +24,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
   onDelete,
   isGenerating = false,
 }) => {
+  const { t } = useTranslation();
   const { confirm, ConfirmDialog } = useConfirm();
   const imageUrl = page.generated_image_path
     ? getImageUrl(page.generated_image_path, page.updated_at)
@@ -63,9 +65,9 @@ export const SlideCard: React.FC<SlideCardProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   confirm(
-                    '确定要删除这一页吗？',
+                    t('preview.slideCard.confirmDelete'),
                     onDelete,
-                    { title: '确认删除', variant: 'danger' }
+                    { title: t('preview.slideCard.confirmDeleteTitle'), variant: 'danger' }
                   );
                 }}
                 className="p-2 bg-white rounded-lg hover:bg-red-50 transition-colors"
@@ -78,7 +80,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
               <div className="text-3xl mb-1">🍌</div>
-              <div className="text-xs">未生成</div>
+              <div className="text-xs">{t('preview.slideCard.notGenerated')}</div>
             </div>
           </div>
         )}

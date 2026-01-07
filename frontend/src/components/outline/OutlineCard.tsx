@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
 import type { Page } from '@/types';
@@ -24,6 +25,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   dragHandleProps,
   isAiRefining = false,
 }) => {
+  const { t } = useTranslation();
   const { confirm, ConfirmDialog } = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
@@ -68,7 +70,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
           {/* 页码和章节 */}
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-semibold text-gray-900">
-              第 {index + 1} 页
+              {t('outline.card.page', { index: index + 1 })}
             </span>
             {page.part && (
               <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
@@ -85,14 +87,14 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
-                placeholder="标题"
+                placeholder={t('outline.card.titlePlaceholder')}
               />
               <textarea
                 value={editPoints}
                 onChange={(e) => setEditPoints(e.target.value)}
                 rows={5}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
-                placeholder="要点（每行一个）"
+                placeholder={t('outline.card.pointsPlaceholder')}
               />
               <div className="flex justify-end gap-2">
                 <button
@@ -100,14 +102,14 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                   className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X size={16} className="inline mr-1" />
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={handleSave}
                   className="px-3 py-1.5 text-sm bg-banana-500 text-black rounded-lg hover:bg-banana-600 transition-colors"
                 >
                   <Check size={16} className="inline mr-1" />
-                  保存
+                  {t('common.save')}
                 </button>
               </div>
             </div>
@@ -140,9 +142,9 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 confirm(
-                  '确定要删除这一页吗？',
+                  t('outline.card.confirmDelete'),
                   onDelete,
-                  { title: '确认删除', variant: 'danger' }
+                  { title: t('outline.card.confirmDeleteTitle'), variant: 'danger' }
                 );
               }}
               className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"

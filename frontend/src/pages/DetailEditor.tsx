@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ArrowRight, FileText, Sparkles } from 'lucide-react';
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
@@ -9,6 +10,7 @@ import { refineDescriptions } from '@/api/endpoints';
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
@@ -37,7 +39,8 @@ export const DetailEditor: React.FC = () => {
         syncProject(projectId);
       }
     }
-  }, [projectId, currentProject?.id]); // 只在 projectId 或项目ID变化时更新
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
 
   const handleGenerateAll = async () => {
@@ -51,9 +54,9 @@ export const DetailEditor: React.FC = () => {
     
     if (hasDescriptions) {
       confirm(
-        '部分页面已有描述，重新生成将覆盖，确定继续吗？',
+        t('detail.confirmRegenerate'),
         executeGenerate,
-        { title: '确认重新生成', variant: 'warning' }
+        { title: t('detail.confirmRegenerateTitle'), variant: 'warning' }
       );
     } else {
       await executeGenerate();
@@ -69,30 +72,30 @@ export const DetailEditor: React.FC = () => {
     // 如果已有描述，询问是否覆盖
     if (page.description_content) {
       confirm(
-        '该页面已有描述，重新生成将覆盖现有内容，确定继续吗？',
+        t('detail.confirmRegeneratePage'),
         async () => {
           try {
             await generatePageDescription(pageId);
-            show({ message: '生成成功', type: 'success' });
+            show({ message: t('detail.generateSuccess'), type: 'success' });
           } catch (error: any) {
-            show({ 
-              message: `生成失败: ${error.message || '未知错误'}`, 
-              type: 'error' 
+            show({
+              message: t('detail.generateFailed', { error: error.message || t('common.error') }),
+              type: 'error'
             });
           }
         },
-        { title: '确认重新生成', variant: 'warning' }
+        { title: t('detail.confirmRegenerateTitle'), variant: 'warning' }
       );
       return;
     }
     
     try {
       await generatePageDescription(pageId);
-      show({ message: '生成成功', type: 'success' });
+      show({ message: t('detail.generateSuccess'), type: 'success' });
     } catch (error: any) {
-      show({ 
-        message: `生成失败: ${error.message || '未知错误'}`, 
-        type: 'error' 
+      show({
+        message: t('detail.generateFailed', { error: error.message || t('common.error') }),
+        type: 'error'
       });
     }
   };
@@ -103,22 +106,22 @@ export const DetailEditor: React.FC = () => {
     try {
       const response = await refineDescriptions(projectId, requirement, previousRequirements);
       await syncProject(projectId);
-      show({ 
-        message: response.data?.message || '页面描述修改成功', 
-        type: 'success' 
+      show({
+        message: response.data?.message || t('detail.refineSuccess'),
+        type: 'success'
       });
     } catch (error: any) {
       console.error('修改页面描述失败:', error);
-      const errorMessage = error?.response?.data?.error?.message 
-        || error?.message 
-        || '修改失败，请稍后重试';
+      const errorMessage = error?.response?.data?.error?.message
+        || error?.message
+        || t('detail.refineFailed');
       show({ message: errorMessage, type: 'error' });
       throw error; // 抛出错误让组件知道失败了
     }
-  }, [currentProject, projectId, syncProject, show]);
+  }, [currentProject, projectId, syncProject, show, t]);
 
   if (!currentProject) {
-    return <Loading fullscreen message="加载项目中..." />;
+    return <Loading fullscreen message={t('detail.loadingProject')} />;
   }
 
   const hasAllDescriptions = currentProject.pages.every(
@@ -145,21 +148,21 @@ export const DetailEditor: React.FC = () => {
               }}
               className="flex-shrink-0"
             >
-              <span className="hidden sm:inline">返回</span>
+              <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
               <span className="text-xl md:text-2xl">🍌</span>
-              <span className="text-base md:text-xl font-bold">蕉幻</span>
+              <span className="text-base md:text-xl font-bold">{t('app.title')}</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
-            <span className="text-sm md:text-lg font-semibold hidden lg:inline">编辑页面描述</span>
+            <span className="text-sm md:text-lg font-semibold hidden lg:inline">{t('detail.title')}</span>
           </div>
           
           {/* 中间：AI 修改输入框 */}
           <div className="flex-1 max-w-xl mx-auto hidden md:block md:-translate-x-3 pr-10">
             <AiRefineInput
               title=""
-              placeholder="例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交"
+              placeholder={t('detail.aiRefinePlaceholder')}
               onSubmit={handleAiRefineDescriptions}
               disabled={false}
               className="!p-0 !bg-transparent !border-0"
@@ -176,7 +179,7 @@ export const DetailEditor: React.FC = () => {
               onClick={() => navigate(`/project/${projectId}/outline`)}
               className="hidden md:inline-flex"
             >
-              <span className="hidden lg:inline">上一步</span>
+              <span className="hidden lg:inline">{t('common.prev')}</span>
             </Button>
             <Button
               variant="primary"
@@ -186,7 +189,7 @@ export const DetailEditor: React.FC = () => {
               disabled={!hasAllDescriptions}
               className="text-xs md:text-sm"
             >
-              <span className="hidden sm:inline">生成图片</span>
+              <span className="hidden sm:inline">{t('detail.generateImages')}</span>
             </Button>
           </div>
         </div>
@@ -195,7 +198,7 @@ export const DetailEditor: React.FC = () => {
         <div className="mt-2 md:hidden">
           <AiRefineInput
             title=""
-            placeholder="例如：让描述更详细... · Ctrl+Enter"
+            placeholder={t('detail.aiRefinePlaceholderMobile')}
             onSubmit={handleAiRefineDescriptions}
             disabled={false}
             className="!p-0 !bg-transparent !border-0"
@@ -214,11 +217,13 @@ export const DetailEditor: React.FC = () => {
               onClick={handleGenerateAll}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
-              批量生成描述
+              {t('detail.generateAll')}
             </Button>
             <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
-              {currentProject.pages.filter((p) => p.description_content).length} /{' '}
-              {currentProject.pages.length} 页已完成
+              {t('detail.progress', {
+                current: currentProject.pages.filter((p) => p.description_content).length,
+                total: currentProject.pages.length
+              })}
             </span>
           </div>
         </div>
@@ -239,17 +244,17 @@ export const DetailEditor: React.FC = () => {
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4"><FileText size={48} className="text-gray-300" /></div>
               <h3 className="text-lg md:text-xl font-semibold text-gray-700 mb-2">
-                还没有页面
+                {t('detail.noPages')}
               </h3>
               <p className="text-sm md:text-base text-gray-500 mb-6">
-                请先返回大纲编辑页添加页面
+                {t('detail.noPagesHint')}
               </p>
               <Button
                 variant="primary"
                 onClick={() => navigate(`/project/${projectId}/outline`)}
                 className="text-sm md:text-base"
               >
-                返回大纲编辑
+                {t('detail.backToOutline')}
               </Button>
             </div>
           ) : (

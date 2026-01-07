@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
-import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
+import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, getTemplateFile } from '@/components/shared';
+import { TemplateSelector } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { PRESET_STYLES } from '@/config/presetStyles';
@@ -11,6 +12,7 @@ type CreationType = 'idea' | 'outline' | 'description';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
@@ -45,7 +47,7 @@ export const Home: React.FC = () => {
           setUserTemplates(response.data.templates);
         }
       } catch (error) {
-        console.error('加载用户模板失败:', error);
+        console.error(t('home.error.loadTemplates'), error);
       }
     };
     loadTemplates();
@@ -99,7 +101,7 @@ export const Home: React.FC = () => {
             await handleFileUpload(file);
           } else {
             console.log('File type not allowed');
-            show({ message: `不支持的文件类型: ${fileExt}`, type: 'info' });
+            show({ message: t('home.error.unsupportedFileType', { type: fileExt }), type: 'info' });
           }
         }
       }
@@ -114,7 +116,7 @@ export const Home: React.FC = () => {
     setIsUploadingFile(true);
     try {
       // 显示上传中提示
-      show({ message: '正在上传图片...', type: 'info' });
+      show({ message: t('home.uploading.image'), type: 'info' });
       
       // 保存当前光标位置
       const cursorPosition = textareaRef.current?.selectionStart || content.length;
@@ -151,15 +153,15 @@ export const Home: React.FC = () => {
           }
         }, 0);
         
-        show({ message: '图片上传成功！已插入到光标位置', type: 'success' });
+        show({ message: t('home.success.imageUpload'), type: 'success' });
       } else {
-        show({ message: '图片上传失败：未返回图片信息', type: 'error' });
+        show({ message: t('home.error.imageUploadNoInfo'), type: 'error' });
       }
     } catch (error: any) {
-      console.error('图片上传失败:', error);
-      show({ 
-        message: `图片上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-        type: 'error' 
+      console.error(t('home.error.imageUploadFailed'), error);
+      show({
+        message: t('home.error.imageUploadError', { error: error?.response?.data?.error?.message || error.message || t('common.unknownError') }),
+        type: 'error'
       });
     } finally {
       setIsUploadingFile(false);
@@ -174,17 +176,17 @@ export const Home: React.FC = () => {
     // 检查文件大小（前端预检查）
     const maxSize = 200 * 1024 * 1024; // 200MB
     if (file.size > maxSize) {
-      show({ 
-        message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
-        type: 'error' 
+      show({
+        message: t('home.error.fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
+        type: 'error'
       });
       return;
     }
 
     // 检查是否是PPT文件，提示建议使用PDF
     const fileExt = file.name.split('.').pop()?.toLowerCase();
-    if (fileExt === 'ppt' || fileExt === 'pptx') 
-      show({  message: '💡 提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果',    type: 'info' });
+    if (fileExt === 'ppt' || fileExt === 'pptx')
+      show({ message: t('home.tip.pptToPdf'), type: 'info' });
     
     setIsUploadingFile(true);
     try {
@@ -193,7 +195,7 @@ export const Home: React.FC = () => {
       if (response?.data?.file) {
         const uploadedFile = response.data.file;
         setReferenceFiles(prev => [...prev, uploadedFile]);
-        show({ message: '文件上传成功', type: 'success' });
+        show({ message: t('home.success.fileUpload'), type: 'success' });
         
         // 如果文件状态为 pending，自动触发解析
         if (uploadedFile.parse_status === 'pending') {
@@ -212,26 +214,26 @@ export const Home: React.FC = () => {
               );
             }
           } catch (parseError: any) {
-            console.error('触发文件解析失败:', parseError);
+            console.error(t('home.error.triggerParseFailed'), parseError);
             // 解析触发失败不影响上传成功提示
           }
         }
       } else {
-        show({ message: '文件上传失败：未返回文件信息', type: 'error' });
+        show({ message: t('home.error.fileUploadNoInfo'), type: 'error' });
       }
     } catch (error: any) {
-      console.error('文件上传失败:', error);
+      console.error(t('home.error.fileUploadFailed'), error);
       
       // 特殊处理413错误
       if (error?.response?.status === 413) {
-        show({ 
-          message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
-          type: 'error' 
+        show({
+          message: t('home.error.fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
+          type: 'error'
         });
       } else {
-        show({ 
-          message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-          type: 'error' 
+        show({
+          message: t('home.error.fileUploadError', { error: error?.response?.data?.error?.message || error.message || t('common.unknownError') }),
+          type: 'error'
         });
       }
     } finally {
@@ -269,7 +271,7 @@ export const Home: React.FC = () => {
       });
       return [...updated, ...newFiles];
     });
-    show({ message: `已添加 ${selectedFiles.length} 个参考文件`, type: 'success' });
+    show({ message: t('home.success.filesAdded', { count: selectedFiles.length }), type: 'success' });
   };
 
   // 获取当前已选择的文件ID列表，传递给选择器（使用 useMemo 避免每次渲染都重新计算）
@@ -290,7 +292,7 @@ export const Home: React.FC = () => {
       return newContent.trim();
     });
     
-    show({ message: '已移除图片', type: 'success' });
+    show({ message: t('home.success.imageRemoved'), type: 'success' });
   };
 
   // 文件选择变化
@@ -309,21 +311,21 @@ export const Home: React.FC = () => {
   const tabConfig = {
     idea: {
       icon: <Sparkles size={20} />,
-      label: '一句话生成',
-      placeholder: '例如：生成一份关于 AI 发展史的演讲 PPT',
-      description: '输入你的想法，AI 将为你生成完整的 PPT',
+      label: t('home.tabs.idea'),
+      placeholder: t('home.placeholder.idea'),
+      description: t('home.description.idea'),
     },
     outline: {
       icon: <FileText size={20} />,
-      label: '从大纲生成',
-      placeholder: '粘贴你的 PPT 大纲...\n\n例如：\n第一部分：AI 的起源\n- 1950 年代的开端\n- 达特茅斯会议\n\n第二部分：发展历程\n...',
-      description: '已有大纲？直接粘贴即可快速生成，AI 将自动切分为结构化大纲',
+      label: t('home.tabs.outline'),
+      placeholder: t('home.placeholder.outline'),
+      description: t('home.description.outline'),
     },
     description: {
       icon: <FileEdit size={20} />,
-      label: '从描述生成',
-      placeholder: '粘贴你的完整页面描述...\n\n例如：\n第 1 页\n标题：人工智能的诞生\n内容：1950 年，图灵提出"图灵测试"...\n\n第 2 页\n标题：AI 的发展历程\n内容：1950年代：符号主义...\n...',
-      description: '已有完整描述？AI 将自动解析出大纲并切分为每页描述，直接生成图片',
+      label: t('home.tabs.description'),
+      placeholder: t('home.placeholder.description'),
+      description: t('home.description.description'),
     },
   };
 
@@ -357,7 +359,7 @@ export const Home: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!content.trim()) {
-      show({ message: '请输入内容', type: 'error' });
+      show({ message: t('home.error.emptyContent'), type: 'error' });
       return;
     }
 
@@ -366,9 +368,9 @@ export const Home: React.FC = () => {
       f.parse_status === 'pending' || f.parse_status === 'parsing'
     );
     if (parsingFiles.length > 0) {
-      show({ 
-        message: `还有 ${parsingFiles.length} 个参考文件正在解析中，请等待解析完成`, 
-        type: 'info' 
+      show({
+        message: t('home.error.filesParsing', { count: parsingFiles.length }),
+        type: 'info'
       });
       return;
     }
@@ -391,7 +393,7 @@ export const Home: React.FC = () => {
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
       if (!projectId) {
-        show({ message: '项目创建失败', type: 'error' });
+        show({ message: t('home.error.projectCreateFailed'), type: 'error' });
         return;
       }
       
@@ -444,7 +446,7 @@ export const Home: React.FC = () => {
         navigate(`/project/${projectId}/detail`);
       }
     } catch (error: any) {
-      console.error('创建项目失败:', error);
+      console.error(t('home.error.projectCreateFailed'), error);
       // 错误已经在 store 中处理并显示
     }
   };
@@ -471,7 +473,7 @@ export const Home: React.FC = () => {
               />
             </div>
             <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
-              蕉幻
+              {t('home.title')}
             </span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
@@ -483,7 +485,7 @@ export const Home: React.FC = () => {
               onClick={handleOpenMaterialModal}
               className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden md:inline">素材生成</span>
+              <span className="hidden md:inline">{t('home.nav.materialGen')}</span>
             </Button>
             {/* 手机端：仅图标的素材生成按钮 */}
             <Button
@@ -492,7 +494,7 @@ export const Home: React.FC = () => {
               icon={<ImagePlus size={16} />}
               onClick={handleOpenMaterialModal}
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
-              title="素材生成"
+              title={t('home.nav.materialGen')}
             />
             <Button 
               variant="ghost" 
@@ -500,8 +502,8 @@ export const Home: React.FC = () => {
               onClick={() => navigate('/history')}
               className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden sm:inline">历史项目</span>
-              <span className="sm:hidden">历史</span>
+              <span className="hidden sm:inline">{t('home.nav.history')}</span>
+              <span className="sm:hidden">{t('home.nav.historyShort')}</span>
             </Button>
             <Button
               variant="ghost"
@@ -510,10 +512,10 @@ export const Home: React.FC = () => {
               onClick={() => navigate('/settings')}
               className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden md:inline">设置</span>
-              <span className="sm:hidden">设</span>
+              <span className="hidden md:inline">{t('home.nav.settings')}</span>
+              <span className="sm:hidden">{t('home.nav.settingsShort')}</span>
             </Button>
-            <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:bg-banana-50/50">帮助</Button>
+            <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:bg-banana-50/50">{t('home.nav.help')}</Button>
           </div>
         </div>
       </nav>
@@ -524,7 +526,7 @@ export const Home: React.FC = () => {
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm rounded-full border border-banana-200/50 shadow-sm mb-4">
             <span className="text-2xl animate-pulse"><Sparkles size={20} color="orange" /></span>
-            <span className="text-sm font-medium text-gray-700">基于 nano banana pro🍌 的原生 AI PPT 生成器</span>
+            <span className="text-sm font-medium text-gray-700">{t('home.hero.tagline')}</span>
           </div>
           
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight">
@@ -532,22 +534,22 @@ export const Home: React.FC = () => {
               backgroundSize: '200% auto',
               animation: 'gradient 3s ease infinite',
             }}>
-              蕉幻 · Banana Slides
+              {t('home.hero.title')}
             </span>
           </h1>
           
           <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto font-light">
-            Vibe your PPT like vibing code
+            {t('home.hero.subtitle')}
           </p>
 
           {/* 特性标签 */}
           <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 pt-4">
             {[
-              { icon: <Sparkles size={14} className="text-yellow-600" />, label: '一句话生成 PPT' },
-              { icon: <FileEdit size={14} className="text-blue-500" />, label: '自然语言修改' },
-              { icon: <Search size={14} className="text-orange-500" />, label: '指定区域编辑' },
-              
-              { icon: <Paperclip size={14} className="text-green-600" />, label: '一键导出 PPTX/PDF' },
+              { icon: <Sparkles size={14} className="text-yellow-600" />, label: t('home.features.generatePPT') },
+              { icon: <FileEdit size={14} className="text-blue-500" />, label: t('home.features.naturalLanguageEdit') },
+              { icon: <Search size={14} className="text-orange-500" />, label: t('home.features.regionEdit') },
+
+              { icon: <Paperclip size={14} className="text-green-600" />, label: t('home.features.exportPPTX') },
             ].map((feature, idx) => (
               <span
                 key={idx}
@@ -613,7 +615,7 @@ export const Home: React.FC = () => {
               type="button"
               onClick={handlePaperclipClick}
               className="absolute left-2 md:left-3 bottom-2 md:bottom-3 z-10 p-1.5 md:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors active:scale-95 touch-manipulation"
-              title="选择参考文件"
+              title={t('home.selectReferenceFile')}
             >
               <Paperclip size={18} className="md:w-5 md:h-5" />
             </button>
@@ -631,8 +633,8 @@ export const Home: React.FC = () => {
                 className="shadow-sm text-xs md:text-sm px-3 md:px-4"
               >
                 {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  ? '解析中...'
-                  : '下一步'}
+                  ? t('home.parsing')
+                  : t('common.next')}
               </Button>
             </div>
           </div>
@@ -669,13 +671,13 @@ export const Home: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Palette size={18} className="text-orange-600 flex-shrink-0" />
                 <h3 className="text-base md:text-lg font-semibold text-gray-900">
-                  选择风格模板
+                  {t('home.template.selectStyleTemplate')}
                 </h3>
               </div>
               {/* 无模板图模式开关 */}
               <label className="flex items-center gap-2 cursor-pointer group">
                 <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
-                  使用文字描述风格
+                  {t('home.template.useTextDescription')}
                 </span>
                 <div className="relative">
                   <input
@@ -702,17 +704,17 @@ export const Home: React.FC = () => {
             {useTemplateStyle ? (
               <div className="space-y-3">
                 <Textarea
-                  placeholder="描述您想要的 PPT 风格，例如：简约商务风格，使用蓝色和白色配色，字体清晰大方..."
+                  placeholder={t('home.template.stylePlaceholder')}
                   value={templateStyle}
                   onChange={(e) => setTemplateStyle(e.target.value)}
                   rows={3}
                   className="text-sm border-2 border-gray-200 focus:border-banana-400 transition-colors duration-200"
                 />
-                
+
                 {/* 预设风格按钮 */}
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-gray-600">
-                    快速选择预设风格：
+                    {t('home.template.quickSelectPreset')}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {PRESET_STYLES.map((preset) => (
@@ -756,7 +758,7 @@ export const Home: React.FC = () => {
                 </div>
                 
                 <p className="text-xs text-gray-500">
-                  💡 提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求
+                  {t('home.template.styleTip')}
                 </p>
               </div>
             ) : (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
@@ -21,6 +22,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   isGenerating = false,
   isAiRefining = false,
 }) => {
+  const { t } = useTranslation();
   // 从 description_content 提取文本内容
   const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
     if (!descContent) return '';
@@ -64,7 +66,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
         <div className="bg-banana-50 px-4 py-3 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900">第 {index + 1} 页</span>
+              <span className="font-semibold text-gray-900">{t('preview.descriptionCard.page', { index: index + 1 })}</span>
               {page.part && (
                 <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
                   {page.part}
@@ -83,7 +85,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-3/4" />
               <div className="text-center py-4 text-gray-500 text-sm">
-                正在生成描述...
+                {t('preview.descriptionCard.generating')}
               </div>
             </div>
           ) : text ? (
@@ -93,7 +95,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
           ) : (
             <div className="text-center py-8 text-gray-400">
               <div className="flex text-3xl mb-2 justify-center"><FileText className="text-gray-400" size={48} /></div>
-              <p className="text-sm">尚未生成描述</p>
+              <p className="text-sm">{t('preview.descriptionCard.noDescription')}</p>
             </div>
           )}
         </div>
@@ -107,7 +109,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             onClick={handleEdit}
             disabled={generating}
           >
-            编辑
+            {t('common.edit')}
           </Button>
           <Button
             variant="ghost"
@@ -116,7 +118,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             onClick={onRegenerate}
             disabled={generating}
           >
-            {generating ? '生成中...' : '重新生成'}
+            {generating ? t('preview.descriptionCard.generatingButton') : t('common.regenerate')}
           </Button>
         </div>
       </Card>
@@ -125,22 +127,22 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
       <Modal
         isOpen={isEditing}
         onClose={() => setIsEditing(false)}
-        title="编辑页面描述"
+        title={t('preview.descriptionCard.editTitle')}
         size="lg"
       >
         <div className="space-y-4">
           <Textarea
-            label="描述内容"
+            label={t('preview.descriptionCard.contentLabel')}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             rows={12}
           />
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setIsEditing(false)}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button variant="primary" onClick={handleSave}>
-              保存
+              {t('common.save')}
             </Button>
           </div>
         </div>

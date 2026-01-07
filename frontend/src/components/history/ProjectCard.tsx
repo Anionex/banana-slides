@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Clock, FileText, ChevronRight, Trash2 } from 'lucide-react';
 import { Card } from '@/components/shared';
 import { getProjectTitle, getFirstPageImage, formatDate, getStatusText, getStatusColor } from '@/utils/projectUtils';
@@ -33,6 +34,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onSaveEdit,
   isBatchMode,
 }) => {
+  const { t } = useTranslation();
   // 检测屏幕尺寸，只在非手机端加载图片（必须在早期返回之前声明hooks）
   const [shouldLoadImage, setShouldLoadImage] = useState(false);
   
@@ -100,7 +102,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                     : 'cursor-pointer hover:text-banana-600 transition-colors'
                 }`}
                 onClick={(e) => onStartEdit(e, project)}
-                title={isBatchMode ? undefined : "点击编辑名称"}
+                title={isBatchMode ? undefined : t('history.projectCard.clickToEdit')}
               >
                 {title}
               </h3>
@@ -112,7 +114,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-500 flex-wrap">
             <span className="flex items-center gap-1">
               <FileText size={14} />
-              {pageCount} 页
+              {t('history.projectCard.pageCount', { count: pageCount })}
             </span>
             <span className="flex items-center gap-1">
               <Clock size={14} />
@@ -126,7 +128,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           {firstPageImage ? (
             <img
               src={firstPageImage}
-              alt="第一页预览"
+              alt={t('history.projectCard.firstPagePreview')}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -141,7 +143,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <button
             onClick={(e) => onDelete(e, project)}
             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="删除项目"
+            title={t('history.projectCard.deleteProject')}
           >
             <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
           </button>

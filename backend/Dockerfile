@@ -1,11 +1,12 @@
 # 镜像源配置参数（可通过 build args 覆盖）
 ARG DOCKER_REGISTRY=
-ARG GHCR_REGISTRY=ghcr.io/
+# hadolint ignore=DL3007
+ARG GHCR_REGISTRY=ghcr.io
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
 
 # 安装 uv（使用中间阶段避免 COPY --from 的变量展开问题）
-FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
+FROM ${GHCR_REGISTRY}/astral-sh/uv:latest AS uv
 
 # 使用 Python 3.10 作为基础镜像
 # 如果指定了 DOCKER_REGISTRY，使用镜像源；否则使用官方源

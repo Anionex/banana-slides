@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText } from 'lucide-react';
-import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
+import { Button, Input, Card, Loading, useToast, useConfirm, LanguageSwitcher } from '@/components/shared';
 import * as api from '@/api/endpoints';
 import type { OutputLanguage } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
@@ -46,98 +47,98 @@ const initialFormData = {
   output_language: 'zh' as OutputLanguage,
 };
 
-// 配置驱动的表单区块定义
-const settingsSections: SectionConfig[] = [
+// 配置驱动的表单区块定义 - 使用 i18n
+const getSettingsSections = (t: (key: string) => string): SectionConfig[] => [
   {
-    title: '大模型 API 配置',
+    title: t('settings.sections.api'),
     icon: <Key size={20} />,
     fields: [
       {
         key: 'ai_provider_format',
-        label: 'AI 提供商格式',
+        label: t('settings.fields.aiProviderFormat.label'),
         type: 'buttons',
-        description: '选择 API 请求格式，影响后端如何构造和发送请求。保存设置后生效。',
+        description: t('settings.fields.aiProviderFormat.description'),
         options: [
-          { value: 'openai', label: 'OpenAI 格式' },
-          { value: 'gemini', label: 'Gemini 格式' },
+          { value: 'openai', label: t('settings.fields.aiProviderFormat.options.openai') },
+          { value: 'gemini', label: t('settings.fields.aiProviderFormat.options.gemini') },
         ],
       },
       {
         key: 'api_base_url',
-        label: 'API Base URL',
+        label: t('settings.fields.apiBaseUrl.label'),
         type: 'text',
         placeholder: 'https://api.example.com',
-        description: '设置大模型提供商 API 的基础 URL',
+        description: t('settings.fields.apiBaseUrl.description'),
       },
       {
         key: 'api_key',
-        label: 'API Key',
+        label: t('settings.fields.apiKey.label'),
         type: 'password',
-        placeholder: '输入新的 API Key',
+        placeholder: t('settings.fields.apiKey.placeholder'),
         sensitiveField: true,
         lengthKey: 'api_key_length',
-        description: '留空则保持当前设置不变，输入新值则更新',
+        description: t('settings.fields.apiKey.description'),
       },
     ],
   },
   {
-    title: '模型配置',
+    title: t('settings.sections.models'),
     icon: <FileText size={20} />,
     fields: [
       {
         key: 'text_model',
-        label: '文本大模型',
+        label: t('settings.fields.textModel.label'),
         type: 'text',
-        placeholder: '留空使用环境变量配置 (如: gemini-2.0-flash-exp)',
-        description: '用于生成大纲、描述等文本内容的模型名称',
+        placeholder: t('settings.fields.textModel.placeholder'),
+        description: t('settings.fields.textModel.description'),
       },
       {
         key: 'image_model',
-        label: '图像生成模型',
+        label: t('settings.fields.imageModel.label'),
         type: 'text',
-        placeholder: '留空使用环境变量配置 (如: imagen-3.0-generate-001)',
-        description: '用于生成页面图片的模型名称',
+        placeholder: t('settings.fields.imageModel.placeholder'),
+        description: t('settings.fields.imageModel.description'),
       },
       {
         key: 'image_caption_model',
-        label: '图片识别模型',
+        label: t('settings.fields.imageCaptionModel.label'),
         type: 'text',
-        placeholder: '留空使用环境变量配置 (如: gemini-2.0-flash-exp)',
-        description: '用于识别参考文件中的图片并生成描述',
+        placeholder: t('settings.fields.imageCaptionModel.placeholder'),
+        description: t('settings.fields.imageCaptionModel.description'),
       },
     ],
   },
   {
-    title: 'MinerU 配置',
+    title: t('settings.sections.mineru'),
     icon: <FileText size={20} />,
     fields: [
       {
         key: 'mineru_api_base',
-        label: 'MinerU API Base',
+        label: t('settings.fields.mineruApiBase.label'),
         type: 'text',
-        placeholder: '留空使用环境变量配置 (如: https://mineru.net)',
-        description: 'MinerU 服务地址，用于解析参考文件',
+        placeholder: t('settings.fields.mineruApiBase.placeholder'),
+        description: t('settings.fields.mineruApiBase.description'),
       },
       {
         key: 'mineru_token',
-        label: 'MinerU Token',
+        label: t('settings.fields.mineruToken.label'),
         type: 'password',
-        placeholder: '输入新的 MinerU Token',
+        placeholder: t('settings.fields.mineruToken.placeholder'),
         sensitiveField: true,
         lengthKey: 'mineru_token_length',
-        description: '留空则保持当前设置不变，输入新值则更新',
+        description: t('settings.fields.mineruToken.description'),
       },
     ],
   },
   {
-    title: '图像生成配置',
+    title: t('settings.sections.imageGeneration'),
     icon: <Image size={20} />,
     fields: [
       {
         key: 'image_resolution',
-        label: '图像清晰度（某些OpenAI格式中转调整该值无效）',
+        label: t('settings.fields.imageResolution.label'),
         type: 'select',
-        description: '更高的清晰度会生成更详细的图像，但需要更长时间',
+        description: t('settings.fields.imageResolution.description'),
         options: [
           { value: '1K', label: '1K (1024px)' },
           { value: '2K', label: '2K (2048px)' },
@@ -147,36 +148,36 @@ const settingsSections: SectionConfig[] = [
     ],
   },
   {
-    title: '性能配置',
+    title: t('settings.sections.performance'),
     icon: <Zap size={20} />,
     fields: [
       {
         key: 'max_description_workers',
-        label: '描述生成最大并发数',
+        label: t('settings.fields.maxDescriptionWorkers.label'),
         type: 'number',
         min: 1,
         max: 20,
-        description: '同时生成描述的最大工作线程数 (1-20)，越大速度越快',
+        description: t('settings.fields.maxDescriptionWorkers.description'),
       },
       {
         key: 'max_image_workers',
-        label: '图像生成最大并发数',
+        label: t('settings.fields.maxImageWorkers.label'),
         type: 'number',
         min: 1,
         max: 20,
-        description: '同时生成图像的最大工作线程数 (1-20)，越大速度越快',
+        description: t('settings.fields.maxImageWorkers.description'),
       },
     ],
   },
   {
-    title: '输出语言设置',
+    title: t('settings.sections.outputLanguage'),
     icon: <Globe size={20} />,
     fields: [
       {
         key: 'output_language',
-        label: '默认输出语言',
+        label: t('settings.fields.outputLanguage.label'),
         type: 'buttons',
-        description: 'AI 生成内容时使用的默认语言',
+        description: t('settings.fields.outputLanguage.description'),
         options: OUTPUT_LANGUAGE_OPTIONS,
       },
     ],
@@ -185,6 +186,7 @@ const settingsSections: SectionConfig[] = [
 
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
+  const { t } = useTranslation();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
@@ -192,6 +194,9 @@ export const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
+
+  // 获取当前语言的配置
+  const settingsSections = getSettingsSections(t);
 
   useEffect(() => {
     loadSettings();
@@ -220,9 +225,9 @@ export const Settings: React.FC = () => {
         });
       }
     } catch (error: any) {
-      console.error('加载设置失败:', error);
+      console.error('Load settings failed:', error);
       show({
-        message: '加载设置失败: ' + (error?.message || '未知错误'),
+        message: t('settings.toast.loadFailed') + ': ' + (error?.message || t('settings.toast.unknownError')),
         type: 'error'
       });
     } finally {
@@ -249,13 +254,13 @@ export const Settings: React.FC = () => {
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
-        show({ message: '设置保存成功', type: 'success' });
+        show({ message: t('settings.toast.saveSuccess'), type: 'success' });
         setFormData(prev => ({ ...prev, api_key: '', mineru_token: '' }));
       }
     } catch (error: any) {
-      console.error('保存设置失败:', error);
+      console.error('Save settings failed:', error);
       show({
-        message: '保存设置失败: ' + (error?.response?.data?.error?.message || error?.message || '未知错误'),
+        message: t('settings.toast.saveFailed') + ': ' + (error?.response?.data?.error?.message || error?.message || t('settings.toast.unknownError')),
         type: 'error'
       });
     } finally {
@@ -265,7 +270,7 @@ export const Settings: React.FC = () => {
 
   const handleReset = () => {
     confirm(
-      '将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？',
+      t('settings.confirm.resetMessage'),
       async () => {
         setIsSaving(true);
         try {
@@ -287,12 +292,12 @@ export const Settings: React.FC = () => {
               image_caption_model: response.data.image_caption_model || '',
               output_language: response.data.output_language || 'zh',
             });
-            show({ message: '设置已重置', type: 'success' });
+            show({ message: t('settings.toast.resetSuccess'), type: 'success' });
           }
         } catch (error: any) {
-          console.error('重置设置失败:', error);
+          console.error('Reset settings failed:', error);
           show({
-            message: '重置设置失败: ' + (error?.message || '未知错误'),
+            message: t('settings.toast.resetFailed') + ': ' + (error?.message || t('settings.toast.unknownError')),
             type: 'error'
           });
         } finally {
@@ -300,9 +305,9 @@ export const Settings: React.FC = () => {
         }
       },
       {
-        title: '确认重置为默认配置',
-        confirmText: '确定重置',
-        cancelText: '取消',
+        title: t('settings.confirm.resetTitle'),
+        confirmText: t('settings.confirm.resetConfirm'),
+        cancelText: t('settings.confirm.cancel'),
         variant: 'warning',
       }
     );
@@ -372,7 +377,7 @@ export const Settings: React.FC = () => {
 
     // text, password, number 类型
     const placeholder = field.sensitiveField && settings && field.lengthKey
-      ? `已设置（长度: ${settings[field.lengthKey]}）`
+      ? t('settings.fields.sensitiveSet', { length: settings[field.lengthKey] })
       : field.placeholder || '';
 
     return (
@@ -401,7 +406,7 @@ export const Settings: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loading message="加载设置中..." />
+        <Loading message={t('settings.loading')} />
       </div>
     );
   }
@@ -421,10 +426,10 @@ export const Settings: React.FC = () => {
               </h2>
               <div className="space-y-4">
                 {section.fields.map((field) => renderField(field))}
-                {section.title === '大模型 API 配置' && (
+                {section.title === t('settings.sections.api') && (
                   <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-gray-700">
-                      API 密匙获取可前往{' '}
+                      {t('settings.apiKeyHint.prefix')}{' '}
                       <a
                         href="https://aihubmix.com/?aff=17EC"
                         target="_blank"
@@ -433,8 +438,17 @@ export const Settings: React.FC = () => {
                       >
                         AIHubmix
                       </a>
-                      , 减小迁移成本
+                      {t('settings.apiKeyHint.suffix')}
                     </p>
+                  </div>
+                )}
+                {section.title === t('settings.sections.outputLanguage') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('settings.fields.uiLanguage.label')}
+                    </label>
+                    <LanguageSwitcher />
+                    <p className="mt-1 text-xs text-gray-500">{t('settings.fields.uiLanguage.description')}</p>
                   </div>
                 )}
               </div>
@@ -450,7 +464,7 @@ export const Settings: React.FC = () => {
             onClick={handleReset}
             disabled={isSaving}
           >
-            重置为默认配置
+            {t('settings.buttons.reset')}
           </Button>
           <Button
             variant="primary"
@@ -458,7 +472,7 @@ export const Settings: React.FC = () => {
             onClick={handleSave}
             loading={isSaving}
           >
-            {isSaving ? '保存中...' : '保存设置'}
+            {isSaving ? t('settings.buttons.saving') : t('settings.buttons.save')}
           </Button>
         </div>
       </div>
@@ -469,7 +483,8 @@ export const Settings: React.FC = () => {
 // SettingsPage 组件 - 完整页面包装
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  
+  const { t } = useTranslation();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-banana-50 to-yellow-50">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -484,12 +499,12 @@ export const SettingsPage: React.FC = () => {
                   onClick={() => navigate('/')}
                   className="mr-4"
                 >
-                  返回首页
+                  {t('settings.backHome')}
                 </Button>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">系统设置</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
                   <p className="text-sm text-gray-500 mt-1">
-                    配置应用的各项参数
+                    {t('settings.subtitle')}
                   </p>
                 </div>
               </div>

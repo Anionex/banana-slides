@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal, Markdown, Loading, useToast } from '@/components/shared';
 import { getReferenceFile, type ReferenceFile } from '@/api/endpoints';
 
@@ -11,15 +12,16 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   fileId,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [file, setFile] = useState<ReferenceFile | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { show } = useToast();
-  
+
   // 使用 ref 保存函数引用，避免依赖项变化导致无限循环
   const onCloseRef = useRef(onClose);
   const showRef = useRef(show);
-  
+
   useEffect(() => {
     onCloseRef.current = onClose;
     showRef.current = show;
@@ -39,11 +41,11 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         const response = await getReferenceFile(fileId);
         if (response.data?.file) {
           const fileData = response.data.file;
-          
+
           // 检查文件是否已解析完成
           if (fileData.parse_status !== 'completed') {
             showRef.current({
-              message: '文件尚未解析完成，无法预览',
+              message: t('components.referenceFile.error.notParsed', 'File not parsed yet'),
               type: 'info',
             });
             onCloseRef.current();
@@ -51,12 +53,12 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           }
 
           setFile(fileData);
-          setContent(fileData.markdown_content || '暂无内容');
+          setContent(fileData.markdown_content || t('components.filePreview.noContent'));
         }
       } catch (error: any) {
-        console.error('加载文件内容失败:', error);
+        console.error('Failed to load file content:', error);
         showRef.current({
-          message: error?.response?.data?.error?.message || error.message || '加载文件内容失败',
+          message: error?.response?.data?.error?.message || error.message || t('components.referenceFile.error.loadFailed'),
           type: 'error',
         });
         setFile(null);
@@ -67,18 +69,18 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     };
 
     loadFile();
-  }, [fileId]); // 只依赖 fileId
+  }, [fileId, t]); // 只依赖 fileId 和 t
 
   return (
     <Modal
       isOpen={fileId !== null}
       onClose={onClose}
-      title={file?.filename || '文件预览'}
+      title={file?.filename || t('components.filePreview.title')}
       size="xl"
     >
       {isLoading ? (
         <div className="text-center py-8">
-          <Loading message="加载文件内容中..." />
+          <Loading message={t('common.loading')} />
         </div>
       ) : content ? (
         <div className="max-h-[70vh] overflow-y-auto">
@@ -88,7 +90,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500">
-          <p>暂无内容</p>
+          <p>{t('components.filePreview.noContent')}</p>
         </div>
       )}
     </Modal>
