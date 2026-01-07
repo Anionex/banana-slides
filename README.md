@@ -131,7 +131,7 @@
 
 
 ## 🔥 近期更新
-- 【1-4】 : 可编辑pptx导出全面升级：
+- 【1-4】 : v0.3.0发布：可编辑pptx导出全面升级：
   * 支持最大程度还原图片中文字的字号、颜色、加粗等样式；
   * 支持了识别表格中的文字内容；
   * 更精确的文字大小和文字位置还原逻辑
@@ -215,7 +215,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 ...
 ```
 
-**使用新版可编辑导出配置方法**: 在[百度智能云平台](https://console.bce.baidu.com/iam/#/iam/apikey/list)中获取API KEY，填写在.env文件中的BAIDU_OCR_API_KEY字段（有充足的免费使用额度）。
+**使用新版可编辑导出配置方法，获得更好的可编辑导出效果**: 需在[百度智能云平台](https://console.bce.baidu.com/iam/#/iam/apikey/list)中获取API KEY，填写在.env文件中的BAIDU_OCR_API_KEY字段（有充足的免费使用额度）。详见https://github.com/Anionex/banana-slides/issues/121 中的说明
 
 
 <details>
@@ -248,6 +248,10 @@ OPENAI_API_BASE=https://api.openai.com/v1
 ```bash
 docker compose up -d
 ```
+更新：项目也在dockerhub提供了构建好的前端和后端镜像（同步主分支最新版本），名字分别为：
+1. anoinex/banana-slides-frontend
+2. anoinex/banana-slides-backend
+
 
 > [!TIP]
 > 如遇网络问题，可在 `.env` 文件中取消镜像源配置的注释, 再重新运行启动命令：
@@ -272,8 +276,8 @@ docker compose up -d
 # 查看后端日志（实时查看最后50行）
 sudo docker compose logs -f --tail 50 backend
 
-# 查看所有服务日志
-sudo docker compose logs -f --tail 50
+# 查看所有服务日志（后200行）
+sudo docker compose logs -f --tail 200
 
 # 查看前端日志
 sudo docker compose logs -f --tail 50 frontend
@@ -295,6 +299,8 @@ docker compose down
 docker compose build --no-cache
 docker compose up -d
 ```
+
+**注：感谢优秀开发者朋友 [@ShellMonster](https://github.com/ShellMonster/) 提供了[新人部署教程](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md)，专为没有任何服务器部署经验的新手设计，可[点击链接](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md)查看。**
 
 ### 从源码部署
 
