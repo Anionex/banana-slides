@@ -11,8 +11,8 @@ services:
     container_name: banana-slides-backend
     ports:
       # 宿主机端口:容器内部端口（由 PORT 控制，默认 5000）
-      # 外部访问始终是 http://localhost:5000，内部监听端口可通过 PORT 调整
-      - "5000:${PORT:-5000}"
+      # 外部访问始终是 http://localhost:5010，内部监听端口可通过 PORT 调整
+      - "5010:${PORT:-5010}"
     # 从 .env 文件自动加载所有环境变量
     env_file:
       - .env
@@ -49,7 +49,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: banana-slides-frontend
     ports:
-      - "3000:80"
+      - "3010:80"
     depends_on:
       - backend
     restart: unless-stopped
