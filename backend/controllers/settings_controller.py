@@ -37,12 +37,15 @@ def update_settings():
     """
     PUT /api/settings - Update application settings
 
+    Note: API keys are managed via environment variables only.
+    Users cannot update api_key or api_base_url through this endpoint.
+
     Request Body:
         {
-            "api_base_url": "https://api.example.com",
-            "api_key": "your-api-key",
             "image_resolution": "2K",
-            "image_aspect_ratio": "16:9"
+            "image_aspect_ratio": "16:9",
+            "max_description_workers": 5,
+            "max_image_workers": 8
         }
     """
     try:
@@ -52,25 +55,8 @@ def update_settings():
 
         settings = Settings.get_settings()
 
-        # Update AI provider format configuration
-        if "ai_provider_format" in data:
-            provider_format = data["ai_provider_format"]
-            if provider_format not in ["openai", "gemini"]:
-                return bad_request("AI provider format must be 'openai' or 'gemini'")
-            settings.ai_provider_format = provider_format
-
-        # Update API configuration
-        if "api_base_url" in data:
-            raw_base_url = data["api_base_url"]
-            # Empty string from frontend means "clear override, fall back to env/default"
-            if raw_base_url is None:
-                settings.api_base_url = None
-            else:
-                value = str(raw_base_url).strip()
-                settings.api_base_url = value if value != "" else None
-
-        if "api_key" in data:
-            settings.api_key = data["api_key"]
+        # API key 和 API base URL 已从此接口移除
+        # 这些配置只能通过环境变量(.env)管理，不允许用户修改
 
         # Update image generation configuration
         if "image_resolution" in data:
@@ -148,26 +134,14 @@ def update_settings():
 def reset_settings():
     """
     POST /api/settings/reset - Reset settings to default values
+
+    Note: API keys remain in environment variables and are not reset.
     """
     try:
         settings = Settings.get_settings()
 
         # Reset to default values from Config / .env
-        # Priority logic:
-        # - Check AI_PROVIDER_FORMAT
-        # - If "openai" -> use OPENAI_API_BASE / OPENAI_API_KEY
-        # - Otherwise (default "gemini") -> use GOOGLE_API_BASE / GOOGLE_API_KEY
-        settings.ai_provider_format = Config.AI_PROVIDER_FORMAT
-
-        if (Config.AI_PROVIDER_FORMAT or "").lower() == "openai":
-            default_api_base = Config.OPENAI_API_BASE or None
-            default_api_key = Config.OPENAI_API_KEY or None
-        else:
-            default_api_base = Config.GOOGLE_API_BASE or None
-            default_api_key = Config.GOOGLE_API_KEY or None
-
-        settings.api_base_url = default_api_base
-        settings.api_key = default_api_key
+        # API key 和 API base URL 保持不变，因为它们只从环境变量管理
         settings.text_model = Config.TEXT_MODEL
         settings.image_model = Config.IMAGE_MODEL
         settings.mineru_api_base = Config.MINERU_API_BASE

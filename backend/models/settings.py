@@ -29,12 +29,13 @@ class Settings(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
-        """Convert to dictionary"""
+        """Convert to dictionary - API keys are managed via environment variables only"""
         return {
             'id': self.id,
             'ai_provider_format': self.ai_provider_format,
-            'api_base_url': self.api_base_url,
-            'api_key_length': len(self.api_key) if self.api_key else 0,
+            # API key 和 base URL 从环境变量管理，不暴露给前端
+            # 'api_base_url': self.api_base_url,
+            # 'api_key_length': len(self.api_key) if self.api_key else 0,
             'image_resolution': self.image_resolution,
             'image_aspect_ratio': self.image_aspect_ratio,
             'max_description_workers': self.max_description_workers,

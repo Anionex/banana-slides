@@ -23,10 +23,32 @@ from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
 )
+from utils.device_utils import get_device_id, require_device_id
 
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
+
+
+def _verify_project_access(project, device_id):
+    """
+    验证当前设备是否有权访问该项目
+
+    Args:
+        project: Project对象
+        device_id: 当前请求的device_id
+
+    Returns:
+        bool: 如果有权访问返回True，否则返回False
+    """
+    # 如果项目没有device_id（旧数据），允许访问
+    if not project.device_id:
+        return True
+    # 如果请求没有device_id，拒绝访问有device_id的项目
+    if not device_id:
+        return False
+    # 验证device_id是否匹配
+    return project.device_id == device_id
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -118,41 +140,53 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
 def list_projects():
     """
     GET /api/projects - Get all projects (for history)
-    
+
     Query params:
     - limit: number of projects to return (default: 50, max: 100)
     - offset: offset for pagination (default: 0)
+
+    Headers:
+    - X-Device-ID: Required for device-based filtering
     """
     try:
+        # Get device_id from request header
+        device_id = get_device_id()
+
         # Parameter validation
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        
+
         # Enforce limits to prevent performance issues
         limit = min(max(1, limit), 100)  # Between 1-100
         offset = max(0, offset)  # Non-negative
-        
+
+        # Build query with device_id filter
+        query = Project.query.options(joinedload(Project.pages))
+
+        # Filter by device_id if provided (for multi-tenant isolation)
+        if device_id:
+            query = query.filter(Project.device_id == device_id)
+
         # Fetch limit + 1 items to check for more pages efficiently
         # This avoids a second database query
-        projects_with_extra = Project.query\
-            .options(joinedload(Project.pages))\
+        projects_with_extra = query\
             .order_by(desc(Project.updated_at))\
             .limit(limit + 1)\
             .offset(offset)\
             .all()
-        
+
         # Check if there are more items beyond the current page
         has_more = len(projects_with_extra) > limit
         # Return only the requested limit
         projects = projects_with_extra[:limit]
-        
+
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
             'has_more': has_more,
             'limit': limit,
             'offset': offset
         })
-    
+
     except Exception as e:
         logger.error(f"list_projects failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
@@ -162,7 +196,7 @@ def list_projects():
 def create_project():
     """
     POST /api/projects - Create a new project
-    
+
     Request body:
     {
         "creation_type": "idea|outline|descriptions",
@@ -171,24 +205,31 @@ def create_project():
         "description_text": "...",  # required for descriptions type
         "template_id": "optional"
     }
+
+    Headers:
+    - X-Device-ID: Device identifier for multi-tenant isolation
     """
     try:
         data = request.get_json()
-        
+
         if not data:
             return bad_request("Request body is required")
-        
+
         # creation_type is required
         if 'creation_type' not in data:
             return bad_request("creation_type is required")
-        
+
         creation_type = data.get('creation_type')
-        
+
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
-        
+
+        # Get device_id from request header
+        device_id = get_device_id()
+
         # Create project
         project = Project(
+            device_id=device_id,
             creation_type=creation_type,
             idea_prompt=data.get('idea_prompt'),
             outline_text=data.get('outline_text'),
@@ -196,22 +237,22 @@ def create_project():
             template_style=data.get('template_style'),
             status='DRAFT'
         )
-        
+
         db.session.add(project)
         db.session.commit()
-        
+
         return success_response({
             'project_id': project.id,
             'status': project.status,
             'pages': []
         }, status_code=201)
-    
+
     except BadRequest as e:
         # Handle JSON parsing errors (invalid JSON body)
         db.session.rollback()
         logger.warning(f"create_project: Invalid JSON body - {str(e)}")
         return bad_request("Invalid JSON in request body")
-    
+
     except Exception as e:
         db.session.rollback()
         error_trace = traceback.format_exc()
@@ -223,19 +264,28 @@ def create_project():
 def get_project(project_id):
     """
     GET /api/projects/{project_id} - Get project details
+
+    Headers:
+    - X-Device-ID: Device identifier for access verification
     """
     try:
+        device_id = get_device_id()
+
         # Use eager loading to load project and related pages
         project = Project.query\
             .options(joinedload(Project.pages))\
             .filter(Project.id == project_id)\
             .first()
-        
+
         if not project:
             return not_found('Project')
-        
+
+        # Verify device access
+        if not _verify_project_access(project, device_id):
+            return error_response('FORBIDDEN', 'You do not have permission to access this project', 403)
+
         return success_response(project.to_dict(include_pages=True))
-    
+
     except Exception as e:
         logger.error(f"get_project failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
@@ -245,43 +295,52 @@ def get_project(project_id):
 def update_project(project_id):
     """
     PUT /api/projects/{project_id} - Update project
-    
+
     Request body:
     {
         "idea_prompt": "...",
         "pages_order": ["page-uuid-1", "page-uuid-2", ...]
     }
+
+    Headers:
+    - X-Device-ID: Device identifier for access verification
     """
     try:
+        device_id = get_device_id()
+
         # Use eager loading to load project and pages (for page order updates)
         project = Project.query\
             .options(joinedload(Project.pages))\
             .filter(Project.id == project_id)\
             .first()
-        
+
         if not project:
             return not_found('Project')
-        
+
+        # Verify device access
+        if not _verify_project_access(project, device_id):
+            return error_response('FORBIDDEN', 'You do not have permission to access this project', 403)
+
         data = request.get_json()
-        
+
         # Update idea_prompt if provided
         if 'idea_prompt' in data:
             project.idea_prompt = data['idea_prompt']
-        
+
         # Update extra_requirements if provided
         if 'extra_requirements' in data:
             project.extra_requirements = data['extra_requirements']
-        
+
         # Update template_style if provided
         if 'template_style' in data:
             project.template_style = data['template_style']
-        
+
         # Update export settings if provided
         if 'export_extractor_method' in data:
             project.export_extractor_method = data['export_extractor_method']
         if 'export_inpaint_method' in data:
             project.export_inpaint_method = data['export_inpaint_method']
-        
+
         # Update page order if provided
         if 'pages_order' in data:
             pages_order = data['pages_order']
@@ -290,20 +349,20 @@ def update_project(project_id):
                 Page.id.in_(pages_order),
                 Page.project_id == project_id
             ).all()
-            
+
             # Create page_id -> page mapping for O(1) lookup
             pages_map = {page.id: page for page in pages_to_update}
-            
+
             # Batch update order
             for index, page_id in enumerate(pages_order):
                 if page_id in pages_map:
                     pages_map[page_id].order_index = index
-        
+
         project.updated_at = datetime.utcnow()
         db.session.commit()
-        
+
         return success_response(project.to_dict(include_pages=True))
-    
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"update_project failed: {str(e)}", exc_info=True)
@@ -314,24 +373,33 @@ def update_project(project_id):
 def delete_project(project_id):
     """
     DELETE /api/projects/{project_id} - Delete project
+
+    Headers:
+    - X-Device-ID: Device identifier for access verification
     """
     try:
+        device_id = get_device_id()
+
         project = Project.query.get(project_id)
-        
+
         if not project:
             return not_found('Project')
-        
+
+        # Verify device access
+        if not _verify_project_access(project, device_id):
+            return error_response('FORBIDDEN', 'You do not have permission to access this project', 403)
+
         # Delete project files
         from services import FileService
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_project_files(project_id)
-        
+
         # Delete project from database (cascade will delete pages and tasks)
         db.session.delete(project)
         db.session.commit()
-        
+
         return success_response(message="Project deleted successfully")
-    
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"delete_project failed: {str(e)}", exc_info=True)
@@ -342,21 +410,29 @@ def delete_project(project_id):
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
-    
+
     For 'idea' type: Generate outline from idea_prompt
     For 'outline' type: Parse outline_text into structured format
-    
+
     Request body (optional):
     {
         "idea_prompt": "...",  # for idea type
         "language": "zh"  # output language: zh, en, ja, auto
     }
+
+    Headers:
+    - X-Device-ID: Device identifier for access verification
     """
     try:
+        device_id = get_device_id()
         project = Project.query.get(project_id)
-        
+
         if not project:
             return not_found('Project')
+
+        # Verify device access
+        if not _verify_project_access(project, device_id):
+            return error_response('FORBIDDEN', 'You do not have permission to access this project', 403)
         
         # Get singleton AI service instance
         ai_service = get_ai_service()

@@ -31,9 +31,6 @@ interface SectionConfig {
 
 // 初始表单数据
 const initialFormData = {
-  ai_provider_format: 'gemini' as 'openai' | 'gemini',
-  api_base_url: '',
-  api_key: '',
   text_model: '',
   image_model: '',
   image_caption_model: '',
@@ -47,39 +44,8 @@ const initialFormData = {
 };
 
 // 配置驱动的表单区块定义
+// 注意：API key 和 API base URL 现在仅通过环境变量管理，不在此页面配置
 const settingsSections: SectionConfig[] = [
-  {
-    title: '大模型 API 配置',
-    icon: <Key size={20} />,
-    fields: [
-      {
-        key: 'ai_provider_format',
-        label: 'AI 提供商格式',
-        type: 'buttons',
-        description: '选择 API 请求格式，影响后端如何构造和发送请求。保存设置后生效。',
-        options: [
-          { value: 'openai', label: 'OpenAI 格式' },
-          { value: 'gemini', label: 'Gemini 格式' },
-        ],
-      },
-      {
-        key: 'api_base_url',
-        label: 'API Base URL',
-        type: 'text',
-        placeholder: 'https://api.example.com',
-        description: '设置大模型提供商 API 的基础 URL',
-      },
-      {
-        key: 'api_key',
-        label: 'API Key',
-        type: 'password',
-        placeholder: '输入新的 API Key',
-        sensitiveField: true,
-        lengthKey: 'api_key_length',
-        description: '留空则保持当前设置不变，输入新值则更新',
-      },
-    ],
-  },
   {
     title: '模型配置',
     icon: <FileText size={20} />,
@@ -204,9 +170,6 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData({
-          ai_provider_format: response.data.ai_provider_format || 'gemini',
-          api_base_url: response.data.api_base_url || '',
-          api_key: '',
           image_resolution: response.data.image_resolution || '2K',
           image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
           max_description_workers: response.data.max_description_workers || 5,
@@ -233,14 +196,10 @@ export const Settings: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { api_key, mineru_token, ...otherData } = formData;
+      const { mineru_token, ...otherData } = formData;
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
       };
-
-      if (api_key) {
-        payload.api_key = api_key;
-      }
 
       if (mineru_token) {
         payload.mineru_token = mineru_token;
@@ -250,7 +209,7 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         show({ message: '设置保存成功', type: 'success' });
-        setFormData(prev => ({ ...prev, api_key: '', mineru_token: '' }));
+        setFormData(prev => ({ ...prev, mineru_token: '' }));
       }
     } catch (error: any) {
       console.error('保存设置失败:', error);
@@ -273,9 +232,6 @@ export const Settings: React.FC = () => {
           if (response.data) {
             setSettings(response.data);
             setFormData({
-              ai_provider_format: response.data.ai_provider_format || 'gemini',
-              api_base_url: response.data.api_base_url || '',
-              api_key: '',
               image_resolution: response.data.image_resolution || '2K',
               image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
               max_description_workers: response.data.max_description_workers || 5,
@@ -421,22 +377,6 @@ export const Settings: React.FC = () => {
               </h2>
               <div className="space-y-4">
                 {section.fields.map((field) => renderField(field))}
-                {section.title === '大模型 API 配置' && (
-                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-gray-700">
-                      API 密匙获取可前往{' '}
-                      <a
-                        href="https://aihubmix.com/?aff=17EC"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline font-medium"
-                      >
-                        AIHubmix
-                      </a>
-                      , 减小迁移成本
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           ))}

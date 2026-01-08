@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getDeviceId } from '../utils/deviceId';
 
 // 开发环境：通过 Vite proxy 转发
 // 生产环境：通过 nginx proxy 转发
@@ -13,6 +14,12 @@ export const apiClient = axios.create({
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    // 添加 Device ID 到请求头（用于多用户隔离）
+    const deviceId = getDeviceId();
+    if (config.headers) {
+      config.headers['X-Device-ID'] = deviceId;
+    }
+
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置
     // 浏览器会自动添加正确的 Content-Type 和 boundary
     if (config.data instanceof FormData) {
@@ -24,7 +31,7 @@ apiClient.interceptors.request.use(
       // 对于非 FormData 请求，默认设置为 JSON
       config.headers['Content-Type'] = 'application/json';
     }
-    
+
     return config;
   },
   (error) => {
