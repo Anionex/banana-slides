@@ -337,16 +337,16 @@ const debouncedUpdatePage = debounce(
     }
   },
 
-  // 选择页面
-  setToSelectList: async (pageId) => {
-    const { selectedList } = get()
-    selectedList.add(pageId)
-  },
+  // 将页面添加到选择列表
+  setToSelectList: (pageId) => set((state) => ({
+    selectedList: new Set(state.selectedList).add(pageId)
+  })),
   // 从选择列表中移除页面
-  removeFromSelectList: async (pageId) => {
-    const { selectedList } = get()
-    selectedList.delete(pageId)
-  },
+  removeFromSelectList: (pageId) => set((state) => {
+    const newList = new Set(state.selectedList);
+    newList.delete(pageId);
+    return { selectedList: newList };
+  }),
 
   // 批量删除页面
   batchRemovePages: async () => {
@@ -356,7 +356,7 @@ const debouncedUpdatePage = debounce(
     try {
       await api.deleteBatchPage(currentProject.id, [...selectedList])
       await get().syncProject();
-      selectedList.clear()
+      set({ selectedList: new Set() });
     } catch (error: any) {
       set({ error: error.message || '批量删除页面失败' });
     }

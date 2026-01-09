@@ -108,21 +108,26 @@ def delete_page(project_id, page_id):
         return error_response('SERVER_ERROR', str(e), 500)
 
 @page_bp.route('/<project_id>/pages/batch/<page_ids>', methods=['DELETE'])
-def delete_pageList(project_id, page_ids):
+def delete_pages_batch(project_id, page_ids):
     """
     DELETE /api/projects/{project_id}/pages/batch/{page_ids} - Batch delete page
     """
     try:
-        for page_id in page_ids.split(','):
-            page = Page.query.get(page_id)
+        page_id_list = page_ids.split(',')
+        
+        pages_to_delete = Page.query.filter(
+            Page.project_id == project_id,
+            Page.id.in_(page_id_list)
+        ).all()
     
-            if not page or page.project_id != project_id:
-                return not_found('Page')
-    
+        if len(pages_to_delete) != len(set(page_id_list)):
+            return not_found('Page')
+            
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        for page in pages_to_delete:
             # Delete page image if exists
-            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-            file_service.delete_page_image(project_id, page_id)
-    
+            file_service.delete_page_image(project_id, page.id)
+                
             # Delete page
             db.session.delete(page)
     
