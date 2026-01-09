@@ -10,9 +10,7 @@ Supports modes:
 - sensenova
 - ...
 """
-import logging
 import lazyllm
-from tenacity import retry, stop_after_attempt, wait_exponential
 from .base import TextProvider
 from config import get_config
 

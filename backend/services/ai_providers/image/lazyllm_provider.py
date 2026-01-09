@@ -42,7 +42,7 @@ class LazyllmImageProvider(ImageProvider):
 
     def generate_image(self, prompt: str = None, ref_images: Optional[List[Image.Image]] = None, 
                        aspect_ratio = "16:9", resolution = "4K") -> Optional[Image.Image]:
-        # 将 PIL Image 对象转换为文件路径:lazyllm传入参考图片需要以路径传入。
+        # 将 PIL Image 对象转换为文件路径:lazyllm传入参考图片需要以字符串格式的路径传入。
         file_paths = None
         if ref_images:
             file_paths = []

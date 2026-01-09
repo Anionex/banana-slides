@@ -29,17 +29,27 @@ import os
 import logging
 from typing import Dict, Any
 
-from .text import TextProvider, GenAITextProvider, OpenAITextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider
+from .text import TextProvider, GenAITextProvider, OpenAITextProvider, LazyllmTextProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, LazyllmImageProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider',
-    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider',
+    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'LazyllmTextProvider',
+    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'LazyllmImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format'
 ]
 
+# Lazyllm 集成的不同厂商 API Key 环境变量映射
+LAZYLLM_SOURCE_API_KEY_MAP = {
+    'doubao': 'LAZYLLM_DOUBAO_API_KEY',
+    'qwen': 'LAZYLLM_QWEN_API_KEY',
+    'deepseek': 'LAZYLLM_DEEPSEEK_API_KEY',
+    'glm': 'LAZYLLM_GLM_API_KEY',
+    'siliconflow': 'LAZYLLM_SILICONFLOW_API_KEY',
+    'sensenova': 'LAZYLLM_SENSENOVA_API_KEY',
+    'minimax': 'LAZYLLM_MINIMAX_API_KEY',
+}
 
 def get_provider_format() -> str:
     """
@@ -51,7 +61,7 @@ def get_provider_format() -> str:
         3. Default: 'gemini'
 
     Returns:
-        "gemini", "openai", or "vertex"
+        "gemini", "openai", "vertex" or "lazyllm"
     """
     # Try to get from Flask app config first (database settings)
     try:
@@ -99,6 +109,21 @@ def _get_config_value(key: str, default: str = None) -> str:
     logger.debug(f"[CONFIG] No value found for {key}, returning None")
     return None
 
+def _get_lazyllm_api_key(source: str) -> str:
+    """
+    根据厂商名称获取对应的 API Key
+    
+    Args:
+        source: 厂商名称 (doubao, qwen, deepseek, glm, siliconflow, sensenova, minimax)
+    
+    Returns:
+        对应厂商的 API Key
+    """
+    env_key = LAZYLLM_SOURCE_API_KEY_MAP.get(source.lower(), f'LAZYLLM_{source.upper()}_API_KEY')
+    api_key = _get_config_value(env_key)
+    if not api_key:
+        logger.warning(f"No API key found for Lazyllm source '{source}', expected env var: {env_key}")
+    return api_key
 
 def _get_provider_config() -> Dict[str, Any]:
     """
@@ -155,6 +180,18 @@ def _get_provider_config() -> Dict[str, Any]:
             'api_key': api_key,
             'api_base': api_base,
         }
+    
+    elif provider_format == 'lazyllm':
+        text_source = _get_config_value('LAZYLLM_TEXT_SOURCE', 'siliconflow')
+        image_source = _get_config_value('LAZYLLM_IMAGE_SOURCE', 'siliconflow')
+        
+        logger.info(f"Provider config - format: lazyllm, text_source: {text_source}, image_source: {image_source}")
+        
+        return {
+            'format': 'lazyllm',
+            'text_source': text_source,
+            'image_source': image_source,
+        }
 
     else:
         # Gemini format (default)
@@ -197,6 +234,15 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
             project_id=config['project_id'],
             location=config['location']
         )
+    elif provider_format == 'lazyllm':
+        source = config.get('text_source', 'siliconflow')
+        api_key = _get_lazyllm_api_key(source)
+        logger.info(f"Using Lazyllm for text generation, model: {model}, source: {source}")
+        return LazyllmTextProvider(
+            api_key=api_key, 
+            source=source,
+            model=model
+        )
     else:
         logger.info(f"Using Gemini format for text generation, model: {model}")
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
@@ -230,6 +276,15 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
             vertexai=True,
             project_id=config['project_id'],
             location=config['location']
+        )
+    elif provider_format == 'lazyllm':
+        source = config.get('image_source', 'doubao')
+        api_key = _get_lazyllm_api_key(source)
+        logger.info(f"Using Lazyllm for image generation, model: {model}, source: {source}")
+        return LazyllmImageProvider(
+            api_key=api_key, 
+            source=source,
+            model=model
         )
     else:
         logger.info(f"Using Gemini format for image generation, model: {model}")

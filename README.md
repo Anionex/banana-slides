@@ -212,6 +212,20 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # VERTEX_PROJECT_ID=your-gcp-project-id
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+
+# Lazyllm 格式配置（当 AI_PROVIDER_FORMAT=lazyllm 时使用）
+# 选择文本生成和图片生成使用的厂商
+LAZYLLM_TEXT_SOURCE=deepseek   # 文本生成厂商
+LAZYLLM_IMAGE_SOURCE=doubao    # 图片生成厂商
+
+# 各厂商 API Key（只需配置你要使用的厂商）
+LAZYLLM_DOUBAO_API_KEY=your-doubao-api-key       # 火山引擎/豆包
+LAZYLLM_DEEPSEEK_API_KEY=your-deepseek-api-key   # DeepSeek
+LAZYLLM_QWEN_API_KEY=your-qwen-api-key           # 阿里云/通义千问
+LAZYLLM_GLM_API_KEY=your-glm-api-key             # 智谱 GLM
+LAZYLLM_SILICONFLOW_API_KEY=your-siliconflow-api-key  # 硅基流动
+LAZYLLM_SENSENOVA_API_KEY=your-sensenova-api-key      # 商汤日日新
+LAZYLLM_MINIMAX_API_KEY=your-minimax-api-key     # MiniMax
 ...
 ```
 
