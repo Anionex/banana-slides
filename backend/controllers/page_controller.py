@@ -107,6 +107,36 @@ def delete_page(project_id, page_id):
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
 
+@page_bp.route('/<project_id>/pages/batch/<page_ids>', methods=['DELETE'])
+def delete_pageList(project_id, page_ids):
+    """
+    DELETE /api/projects/{project_id}/pages/batch/{page_ids} - Batch delete page
+    """
+    try:
+        for page_id in page_ids.split(','):
+            page = Page.query.get(page_id)
+    
+            if not page or page.project_id != project_id:
+                return not_found('Page')
+    
+            # Delete page image if exists
+            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+            file_service.delete_page_image(project_id, page_id)
+    
+            # Delete page
+            db.session.delete(page)
+    
+        # Update project
+        project = Project.query.get(project_id)
+        if project:
+            project.updated_at = datetime.utcnow()
+
+        db.session.commit()
+        return success_response(message="Pages deleted successfully")
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])
 def update_page_outline(project_id, page_id):
