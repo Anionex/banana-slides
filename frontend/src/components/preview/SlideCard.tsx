@@ -75,10 +75,36 @@ export const SlideCard: React.FC<SlideCardProps> = ({
             </div>
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
+          <div className="w-full h-full flex items-center justify-center text-gray-400 relative">
             <div className="text-center">
               <div className="text-3xl mb-1">🍌</div>
               <div className="text-xs">未生成</div>
+            </div>
+            {/* 悬停操作 - 未生成图片时也显示 */}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                className="p-2 bg-white rounded-lg hover:bg-banana-50 transition-colors"
+                title="生成图片"
+              >
+                <Edit2 size={18} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm(
+                    '确定要删除这一页吗？',
+                    onDelete,
+                    { title: '确认删除', variant: 'danger' }
+                  );
+                }}
+                className="p-2 bg-white rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={18} className="text-red-600" />
+              </button>
             </div>
           </div>
         )}
@@ -96,7 +122,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
             isSelected ? 'text-banana-600' : 'text-gray-700'
           }`}
         >
-          {index + 1}. {page.outline_content.title}
+          {index + 1}. {page.outline_content?.title || '未命名'}
         </span>
       </div>
       {ConfirmDialog}

@@ -1,5 +1,5 @@
 // 页面状态
-export type PageStatus = 'DRAFT' | 'DESCRIPTION_GENERATED' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+export type PageStatus = 'DRAFT' | 'OUTLINE_GENERATED' | 'DESCRIPTION_GENERATED' | 'GENERATING' | 'COMPLETED' | 'FAILED';
 
 // 项目状态
 export type ProjectStatus = 'DRAFT' | 'OUTLINE_GENERATED' | 'DESCRIPTIONS_GENERATED' | 'COMPLETED';
@@ -129,6 +129,9 @@ export interface Settings {
   max_image_workers: number;
   text_model?: string;
   image_model?: string;
+  image_edit_model?: string;
+  image_generation_endpoint_type?: 'dalle' | 'openai_chat';
+  image_edit_endpoint_type?: 'dalle' | 'openai_chat';
   mineru_api_base?: string;
   mineru_token_length: number;
   image_caption_model?: string;

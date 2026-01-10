@@ -21,11 +21,14 @@ import {
   Check,
   FileText,
   Loader2,
+  Edit2,
+  Save,
+  Plus,
 } from 'lucide-react';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown, ProjectSettingsModal, ExportTasksPanel } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, addPage, generatePageDescription, updatePageOutline, updatePageDescription } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
@@ -47,6 +50,7 @@ export const SlidePreview: React.FC = () => {
     generateImages,
     editPageImage,
     deletePageById,
+    updatePageLocal,
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
@@ -122,6 +126,21 @@ export const SlidePreview: React.FC = () => {
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  // 大纲编辑状态
+  const [isOutlineEditing, setIsOutlineEditing] = useState(false);
+  const [editOutlineTitle, setEditOutlineTitle] = useState('');
+  const [editOutlinePoints, setEditOutlinePoints] = useState('');
+  // 描述编辑状态
+  const [isDescriptionEditing, setIsDescriptionEditing] = useState(false);
+  const [editDescriptionText, setEditDescriptionText] = useState('');
+  // 插入新页面状态
+  const [isPageEditModalOpen, setIsPageEditModalOpen] = useState(false);
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editingPageTitle, setEditingPageTitle] = useState('');
+  const [editingPagePoints, setEditingPagePoints] = useState('');
+  const [editingPageDescription, setEditingPageDescription] = useState('');
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [isSavingPage, setIsSavingPage] = useState(false);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
@@ -808,6 +827,144 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
+  // 立即插入空白页面并打开编辑弹窗
+  const handleInsertPage = async (afterIndex: number) => {
+    if (!projectId) return;
+
+    try {
+      const newPage = {
+        outline_content: {
+          title: '新页面',
+          points: [],
+        },
+        order_index: afterIndex + 1,
+      };
+
+      const response = await addPage(projectId, newPage);
+      const createdPage = response.data;
+
+      await syncProject(projectId);
+
+      // 选中新插入的页面
+      setSelectedIndex(afterIndex + 1);
+
+      // 打开编辑弹窗
+      if (createdPage?.page_id || createdPage?.id) {
+        const pageId = createdPage.page_id || createdPage.id;
+        setEditingPageId(pageId);
+        setEditingPageTitle(createdPage.outline_content?.title || '新页面');
+        setEditingPagePoints(createdPage.outline_content?.points?.join('\n') || '');
+        setEditingPageDescription(createdPage.description_content?.text || '');
+        setIsPageEditModalOpen(true);
+      }
+    } catch (error: any) {
+      show({
+        message: `插入页面失败: ${error.message || '未知错误'}`,
+        type: 'error',
+      });
+    }
+  };
+
+  // 保存页面编辑
+  const handleSavePageEdit = async () => {
+    if (!projectId || !editingPageId) return;
+
+    setIsSavingPage(true);
+    try {
+      // 更新大纲
+      await updatePageOutline(projectId, editingPageId, {
+        title: editingPageTitle.trim() || '新页面',
+        points: editingPagePoints.split('\n').filter((p) => p.trim()),
+      });
+
+      // 如果有描述内容，更新描述
+      if (editingPageDescription.trim()) {
+        await updatePageDescription(projectId, editingPageId, {
+          text: editingPageDescription.trim(),
+        });
+      }
+
+      await syncProject(projectId);
+      setIsPageEditModalOpen(false);
+      show({ message: '页面已保存', type: 'success' });
+    } catch (error: any) {
+      show({
+        message: `保存失败: ${error.message || '未知错误'}`,
+        type: 'error',
+      });
+    } finally {
+      setIsSavingPage(false);
+    }
+  };
+
+  // 生成页面描述
+  const handleGeneratePageDescription = async () => {
+    if (!projectId || !editingPageId) return;
+
+    // 先保存大纲
+    setIsSavingPage(true);
+    try {
+      await updatePageOutline(projectId, editingPageId, {
+        title: editingPageTitle.trim() || '新页面',
+        points: editingPagePoints.split('\n').filter((p) => p.trim()),
+      });
+      await syncProject(projectId);
+    } catch (error: any) {
+      show({
+        message: `保存大纲失败: ${error.message || '未知错误'}`,
+        type: 'error',
+      });
+      setIsSavingPage(false);
+      return;
+    }
+    setIsSavingPage(false);
+
+    // 生成描述
+    setIsGeneratingDescription(true);
+    try {
+      const response = await generatePageDescription(projectId, editingPageId, true);
+      await syncProject(projectId);
+
+      // 从响应中获取生成的描述
+      const descText = response.data?.description_content?.text || '';
+      setEditingPageDescription(descText);
+      show({ message: '描述已生成', type: 'success' });
+    } catch (error: any) {
+      show({
+        message: `生成描述失败: ${error.message || '未知错误'}`,
+        type: 'error',
+      });
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
+
+  // 删除正在编辑的页面
+  const handleDeleteEditingPage = async () => {
+    if (!editingPageId) return;
+
+    try {
+      await deletePageById(editingPageId);
+      setIsPageEditModalOpen(false);
+      show({ message: '页面已删除', type: 'success' });
+    } catch (error: any) {
+      show({
+        message: `删除失败: ${error.message || '未知错误'}`,
+        type: 'error',
+      });
+    }
+  };
+
+  // 打开已有页面的编辑弹窗
+  const openPageEditModal = (page: Page) => {
+    if (!page.id) return;
+    setEditingPageId(page.id);
+    setEditingPageTitle(page.outline_content?.title || '');
+    setEditingPagePoints(page.outline_content?.points?.join('\n') || '');
+    setEditingPageDescription(page.description_content?.text || '');
+    setIsPageEditModalOpen(true);
+  };
+
   if (!currentProject) {
     return <Loading fullscreen message="加载项目中..." />;
   }
@@ -1071,7 +1228,25 @@ export const SlidePreview: React.FC = () => {
             </div>
             <div className="flex md:flex-col gap-2 md:gap-4 min-w-max md:min-w-0">
               {currentProject.pages.map((page, index) => (
-                <div key={page.id} className="md:w-full flex-shrink-0 relative">
+                <div key={page.id || `page-${index}`} className="md:w-full flex-shrink-0 relative">
+                  {/* 在此页面前插入按钮（悬浮显示） - 仅第一个页面显示 */}
+                  {index === 0 && (
+                    <div className="hidden md:block absolute -top-4 left-0 right-0 z-20 h-8 group/insert-top">
+                      <div className="flex justify-center items-center h-full opacity-0 group-hover/insert-top:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInsertPage(-1);
+                          }}
+                          className="px-3 py-1 bg-banana-500 text-black text-xs rounded-full shadow-lg hover:bg-banana-600 transition-all flex items-center gap-1 transform hover:scale-105"
+                          title="在开头插入新页面"
+                        >
+                          <Plus size={12} />
+                          <span>插入</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {/* 移动端：简化缩略图 */}
                   <div className="md:hidden relative">
                     <button
@@ -1118,7 +1293,7 @@ export const SlidePreview: React.FC = () => {
                     )}
                   </div>
                   {/* 桌面端：完整卡片 */}
-                  <div className="hidden md:block relative">
+                  <div className="hidden md:block relative group/slide">
                     {/* 多选复选框（桌面端） */}
                     {isMultiSelectMode && page.id && page.generated_image_path && (
                       <button
@@ -1153,6 +1328,22 @@ export const SlidePreview: React.FC = () => {
                       onDelete={() => page.id && deletePageById(page.id)}
                       isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
                     />
+                  </div>
+                  {/* 在此页面后插入按钮（悬浮显示） - 独立的间隙触发区域 */}
+                  <div className="hidden md:block absolute -bottom-4 left-0 right-0 z-20 h-8 group/insert-bottom">
+                    <div className="flex justify-center items-center h-full opacity-0 group-hover/insert-bottom:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleInsertPage(index);
+                        }}
+                        className="px-3 py-1 bg-banana-500 text-black text-xs rounded-full shadow-lg hover:bg-banana-600 transition-all flex items-center gap-1 transform hover:scale-105"
+                        title={`在第 ${index + 1} 页后插入新页面`}
+                      >
+                        <Plus size={12} />
+                        <span>插入</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1421,66 +1612,218 @@ export const SlidePreview: React.FC = () => {
             )}
           </div>
 
-          {/* 大纲内容 - 可折叠 */}
+          {/* 大纲内容 - 可折叠，支持编辑 */}
           {selectedPage?.outline_content && (
             <div className="bg-gray-50 rounded-lg border border-gray-200">
               <button
-                onClick={() => setIsOutlineExpanded(!isOutlineExpanded)}
+                onClick={() => {
+                  if (!isOutlineEditing) {
+                    setIsOutlineExpanded(!isOutlineExpanded);
+                  }
+                }}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
               >
                 <h4 className="text-sm font-semibold text-gray-700">页面大纲</h4>
-                {isOutlineExpanded ? (
-                  <ChevronUp size={18} className="text-gray-500" />
-                ) : (
-                  <ChevronDown size={18} className="text-gray-500" />
-                )}
+                <div className="flex items-center gap-2">
+                  {isOutlineExpanded && !isOutlineEditing && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditOutlineTitle(selectedPage.outline_content?.title || '');
+                        setEditOutlinePoints(selectedPage.outline_content?.points?.join('\n') || '');
+                        setIsOutlineEditing(true);
+                      }}
+                      className="p-1 text-gray-500 hover:text-banana-600 hover:bg-banana-50 rounded transition-colors"
+                      title="编辑大纲"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  )}
+                  {isOutlineExpanded ? (
+                    <ChevronUp size={18} className="text-gray-500" />
+                  ) : (
+                    <ChevronDown size={18} className="text-gray-500" />
+                  )}
+                </div>
               </button>
               {isOutlineExpanded && (
                 <div className="px-4 pb-4 space-y-2">
-                  <div className="text-sm font-medium text-gray-900 mb-2">
-                    {selectedPage.outline_content.title}
-                  </div>
-                  {selectedPage.outline_content.points && selectedPage.outline_content.points.length > 0 && (
-                    <div className="text-sm text-gray-600">
-                      <Markdown>{selectedPage.outline_content.points.join('\n')}</Markdown>
+                  {isOutlineEditing ? (
+                    /* 编辑模式 */
+                    <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">标题</label>
+                        <input
+                          type="text"
+                          value={editOutlineTitle}
+                          onChange={(e) => setEditOutlineTitle(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 text-sm"
+                          placeholder="标题"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">要点（每行一个）</label>
+                        <textarea
+                          value={editOutlinePoints}
+                          onChange={(e) => setEditOutlinePoints(e.target.value)}
+                          rows={5}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none text-sm"
+                          placeholder="要点（每行一个）"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setIsOutlineEditing(false);
+                            setEditOutlineTitle('');
+                            setEditOutlinePoints('');
+                          }}
+                          className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                          <X size={14} />
+                          取消
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (selectedPage.id) {
+                              updatePageLocal(selectedPage.id, {
+                                outline_content: {
+                                  title: editOutlineTitle,
+                                  points: editOutlinePoints.split('\n').filter((p) => p.trim()),
+                                },
+                              });
+                              setIsOutlineEditing(false);
+                              show({ message: '大纲已更新', type: 'success' });
+                            }
+                          }}
+                          className="px-3 py-1.5 text-sm bg-banana-500 text-black rounded-lg hover:bg-banana-600 transition-colors flex items-center gap-1"
+                        >
+                          <Save size={14} />
+                          保存
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    /* 查看模式 */
+                    <>
+                      <div className="text-sm font-medium text-gray-900 mb-2">
+                        {selectedPage.outline_content?.title || '未命名'}
+                      </div>
+                      {selectedPage.outline_content?.points && selectedPage.outline_content.points.length > 0 && (
+                        <div className="text-sm text-gray-600">
+                          <Markdown>{selectedPage.outline_content.points.join('\n')}</Markdown>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
             </div>
           )}
 
-          {/* 描述内容 - 可折叠 */}
+          {/* 描述内容 - 可折叠，支持编辑 */}
           {selectedPage?.description_content && (
             <div className="bg-blue-50 rounded-lg border border-blue-200">
               <button
-                onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                onClick={() => {
+                  if (!isDescriptionEditing) {
+                    setIsDescriptionExpanded(!isDescriptionExpanded);
+                  }
+                }}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
               >
                 <h4 className="text-sm font-semibold text-gray-700">页面描述</h4>
-                {isDescriptionExpanded ? (
-                  <ChevronUp size={18} className="text-gray-500" />
-                ) : (
-                  <ChevronDown size={18} className="text-gray-500" />
-                )}
+                <div className="flex items-center gap-2">
+                  {isDescriptionExpanded && !isDescriptionEditing && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const desc = selectedPage.description_content;
+                        let text = '';
+                        if (desc && 'text' in desc) {
+                          text = desc.text as string;
+                        } else if (desc && 'text_content' in desc && Array.isArray(desc.text_content)) {
+                          text = desc.text_content.join('\n');
+                        }
+                        setEditDescriptionText(text);
+                        setIsDescriptionEditing(true);
+                      }}
+                      className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                      title="编辑描述"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  )}
+                  {isDescriptionExpanded ? (
+                    <ChevronUp size={18} className="text-gray-500" />
+                  ) : (
+                    <ChevronDown size={18} className="text-gray-500" />
+                  )}
+                </div>
               </button>
               {isDescriptionExpanded && (
                 <div className="px-4 pb-4">
-                  <div className="text-sm text-gray-700 max-h-48 overflow-y-auto">
-                    <Markdown>
-                      {(() => {
-                        const desc = selectedPage.description_content;
-                        if (!desc) return '暂无描述';
-                        // 处理两种格式
-                        if ('text' in desc) {
-                          return desc.text;
-                        } else if ('text_content' in desc && Array.isArray(desc.text_content)) {
-                          return desc.text_content.join('\n');
-                        }
-                        return '暂无描述';
-                      })() as string}
-                    </Markdown>
-                  </div>
+                  {isDescriptionEditing ? (
+                    /* 编辑模式 */
+                    <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">页面描述（支持 Markdown，图片链接会在生成时作为参考）</label>
+                        <textarea
+                          value={editDescriptionText}
+                          onChange={(e) => setEditDescriptionText(e.target.value)}
+                          rows={10}
+                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm font-mono"
+                          placeholder="页面描述..."
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setIsDescriptionEditing(false);
+                            setEditDescriptionText('');
+                          }}
+                          className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                          <X size={14} />
+                          取消
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (selectedPage.id) {
+                              updatePageLocal(selectedPage.id, {
+                                description_content: {
+                                  text: editDescriptionText,
+                                },
+                              });
+                              setIsDescriptionEditing(false);
+                              show({ message: '描述已更新，重新生成图片时将使用新描述', type: 'success' });
+                            }
+                          }}
+                          className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1"
+                        >
+                          <Save size={14} />
+                          保存
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 查看模式 */
+                    <div className="text-sm text-gray-700 max-h-48 overflow-y-auto">
+                      <Markdown>
+                        {(() => {
+                          const desc = selectedPage.description_content;
+                          if (!desc) return '暂无描述';
+                          // 处理两种格式
+                          if ('text' in desc) {
+                            return desc.text;
+                          } else if ('text_content' in desc && Array.isArray(desc.text_content)) {
+                            return desc.text_content.join('\n');
+                          }
+                          return '暂无描述';
+                        })() as string}
+                      </Markdown>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1712,7 +2055,89 @@ export const SlidePreview: React.FC = () => {
           />
         </>
       )}
-      
+
+      {/* 页面编辑 Modal */}
+      <Modal
+        isOpen={isPageEditModalOpen}
+        onClose={handleDeleteEditingPage}
+        title="编辑页面内容"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* 大纲部分 */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-3">
+            <h4 className="text-sm font-semibold text-gray-700">页面大纲</h4>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">标题</label>
+              <input
+                type="text"
+                value={editingPageTitle}
+                onChange={(e) => setEditingPageTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 text-sm"
+                placeholder="页面标题"
+                disabled={isSavingPage || isGeneratingDescription}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">要点（每行一个，可选）</label>
+              <textarea
+                value={editingPagePoints}
+                onChange={(e) => setEditingPagePoints(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none text-sm"
+                placeholder="- 要点1&#10;- 要点2&#10;- 要点3"
+                disabled={isSavingPage || isGeneratingDescription}
+              />
+            </div>
+          </div>
+
+          {/* 描述部分 */}
+          <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-700">页面描述</h4>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleGeneratePageDescription}
+                disabled={isSavingPage || isGeneratingDescription || !editingPageTitle.trim()}
+              >
+                {isGeneratingDescription ? '生成中...' : '基于大纲生成描述'}
+              </Button>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                描述内容（支持 Markdown，图片链接会在生成时作为参考）
+              </label>
+              <textarea
+                value={editingPageDescription}
+                onChange={(e) => setEditingPageDescription(e.target.value)}
+                rows={8}
+                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm font-mono"
+                placeholder="详细描述这一页的内容、布局、配色等...&#10;&#10;可以包含图片链接作为参考：&#10;![参考图](https://example.com/image.jpg)"
+                disabled={isSavingPage || isGeneratingDescription}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t gap-3">
+              <Button
+                variant="danger"
+                onClick={handleDeleteEditingPage}
+                disabled={isSavingPage || isGeneratingDescription}
+              >
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSavePageEdit}
+                disabled={isSavingPage || isGeneratingDescription}
+              >
+                {isSavingPage ? '保存中...' : '保存'}
+              </Button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };
