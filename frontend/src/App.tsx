@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { History } from './pages/History';
 import { OutlineEditor } from './pages/OutlineEditor';
@@ -30,7 +30,7 @@ function App() {
   }, [error, setError, show]);
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/history" element={<History />} />
@@ -42,7 +42,7 @@ function App() {
       </Routes>
       <ToastContainer />
       <GithubLink />
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 

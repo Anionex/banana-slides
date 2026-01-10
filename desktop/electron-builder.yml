@@ -1,0 +1,51 @@
+appId: com.banana.slides
+productName: Banana Slides
+copyright: Copyright © 2024 Anionex
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - "main.js"
+  - "python-manager.js"
+  - "preload.js"
+  - "splash.html"
+  - "package.json"
+  - "node_modules/**/*"
+
+extraResources:
+  # 打包后端 exe
+  - from: "backend/"
+    to: "backend"
+    filter:
+      - "**/*"
+  # 打包前端静态资源
+  - from: "frontend/"
+    to: "frontend"
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: "BananaSlides-${version}-Setup.${ext}"
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Banana Slides"
+
+# 压缩设置
+compression: maximum
+removePackageScripts: true

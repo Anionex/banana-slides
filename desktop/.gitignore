@@ -1,0 +1,12 @@
+# Desktop build artifacts
+/frontend/
+/backend/
+/dist/
+/node_modules/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

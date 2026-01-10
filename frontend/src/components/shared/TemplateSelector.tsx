@@ -7,13 +7,13 @@ import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
 const presetTemplates = [
-  { id: '1', name: '复古卷轴', preview: '/templates/template_y.png' },
-  { id: '2', name: '矢量插画', preview: '/templates/template_vector_illustration.png' },
-  { id: '3', name: '拟物玻璃', preview: '/templates/template_glass.png' },
+  { id: '1', name: '复古卷轴', preview: './templates/template_y.png' },
+  { id: '2', name: '矢量插画', preview: './templates/template_vector_illustration.png' },
+  { id: '3', name: '拟物玻璃', preview: './templates/template_glass.png' },
   
-  { id: '4', name: '科技蓝', preview: '/templates/template_b.png' },
-  { id: '5', name: '简约商务', preview: '/templates/template_s.png' },
-  { id: '6', name: '学术报告', preview: '/templates/template_academic.jpg' },
+  { id: '4', name: '科技蓝', preview: './templates/template_b.png' },
+  { id: '5', name: '简约商务', preview: './templates/template_s.png' },
+  { id: '6', name: '学术报告', preview: './templates/template_academic.jpg' },
 ];
 
 interface TemplateSelectorProps {

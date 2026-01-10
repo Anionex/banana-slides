@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
   
   return {
     envDir,
+    // Electron 需要相对路径来加载本地资源
+    base: './',
     plugins: [react()],
     resolve: {
       alias: {

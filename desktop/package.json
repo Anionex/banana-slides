@@ -1,0 +1,30 @@
+{
+  "name": "banana-slides-desktop",
+  "version": "0.3.0",
+  "description": "Banana Slides Desktop Application - AI-powered PPT generator",
+  "main": "main.js",
+  "author": "Anionex",
+  "license": "CC-BY-NC-SA-4.0",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build:backend": "cd ../backend && pyinstaller banana-slides.spec --clean --noconfirm",
+    "build:frontend": "cd ../frontend && npm run build",
+    "build:electron": "electron-builder --win",
+    "build:all": "npm run build:frontend && npm run build:backend && npm run build:electron",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "electron-log": "^5.0.0",
+    "get-port": "^5.1.1"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.0"
+  },
+  "build": {
+    "extends": "electron-builder.yml"
+  }
+}

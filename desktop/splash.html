@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Banana Slides Loading...</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        -webkit-app-region: drag;
+      }
+
+      .container {
+        text-align: center;
+        color: white;
+      }
+
+      .logo {
+        font-size: 72px;
+        margin-bottom: 20px;
+        animation: bounce 1s ease-in-out infinite;
+      }
+
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+
+      .title {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 30px;
+        background: linear-gradient(90deg, #f9d423, #ff4e50);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .loading-bar {
+        width: 200px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        overflow: hidden;
+        margin: 0 auto 20px;
+      }
+
+      .loading-progress {
+        width: 30%;
+        height: 100%;
+        background: linear-gradient(90deg, #f9d423, #ff4e50);
+        border-radius: 2px;
+        animation: loading 1.5s ease-in-out infinite;
+      }
+
+      @keyframes loading {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(400%);
+        }
+      }
+
+      .status {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo">🍌</div>
+      <div class="title">Banana Slides</div>
+      <div class="loading-bar">
+        <div class="loading-progress"></div>
+      </div>
+      <div class="status">正在启动服务...</div>
+    </div>
+
+    <script>
+      const statusTexts = [
+        "正在启动服务...",
+        "正在加载 AI 模块...",
+        "正在初始化数据库...",
+        "即将完成...",
+      ];
+      let statusIndex = 0;
+
+      setInterval(() => {
+        statusIndex = (statusIndex + 1) % statusTexts.length;
+        document.querySelector(".status").textContent =
+          statusTexts[statusIndex];
+      }, 2000);
+    </script>
+  </body>
+</html>

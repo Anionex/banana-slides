@@ -465,7 +465,7 @@ export const Home: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="flex items-center">
               <img
-                src="/logo.png"
+                src="./logo.png"
                 alt="蕉幻 Banana Slides Logo"
                 className="h-10 md:h-12 w-auto rounded-lg object-contain"
               />

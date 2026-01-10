@@ -5,6 +5,14 @@ import os
 import sys
 import logging
 from pathlib import Path
+
+# 确保 Windows 上使用 UTF-8 编码输出（windowed 模式下 stdout/stderr 可能为 None）
+if sys.platform == 'win32':
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr is not None:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from dotenv import load_dotenv
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -55,19 +63,39 @@ def create_app():
     # Load configuration from Config class
     app.config.from_object(Config)
     
-    # Override with environment-specific paths (use absolute path)
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    instance_dir = os.path.join(backend_dir, 'instance')
-    os.makedirs(instance_dir, exist_ok=True)
+    # Override with environment-specific paths
+    # 打包后的应用通过环境变量传递用户数据目录
+    database_path = os.getenv('DATABASE_PATH')
+    upload_folder = os.getenv('UPLOAD_FOLDER')
+    export_folder = os.getenv('EXPORT_FOLDER')
     
-    db_path = os.path.join(instance_dir, 'database.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    if database_path:
+        # 使用 Electron 传递的数据库路径
+        os.makedirs(os.path.dirname(database_path), exist_ok=True)
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}'
+    else:
+        # 开发模式：使用相对路径
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        instance_dir = os.path.join(backend_dir, 'instance')
+        os.makedirs(instance_dir, exist_ok=True)
+        db_path = os.path.join(instance_dir, 'database.db')
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     
-    # Ensure upload folder exists
-    project_root = os.path.dirname(backend_dir)
-    upload_folder = os.path.join(project_root, 'uploads')
-    os.makedirs(upload_folder, exist_ok=True)
-    app.config['UPLOAD_FOLDER'] = upload_folder
+    if upload_folder:
+        # 使用 Electron 传递的上传目录
+        os.makedirs(upload_folder, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = upload_folder
+    else:
+        # 开发模式：使用相对路径
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(backend_dir)
+        upload_folder = os.path.join(project_root, 'uploads')
+        os.makedirs(upload_folder, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = upload_folder
+    
+    if export_folder:
+        os.makedirs(export_folder, exist_ok=True)
+        app.config['EXPORT_FOLDER'] = export_folder
     
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
@@ -111,6 +139,13 @@ def create_app():
     app.register_blueprint(settings_bp)
 
     with app.app_context():
+        # 确保数据库表存在（对于打包后的应用特别重要）
+        try:
+            db.create_all()
+            logging.info("Database tables created/verified successfully")
+        except Exception as e:
+            logging.warning(f"Database table creation warning: {e}")
+        
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
