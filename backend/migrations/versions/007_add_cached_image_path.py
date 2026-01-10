@@ -1,0 +1,31 @@
+"""add cached_image_path to pages
+
+Revision ID: 007_add_cached_image_path
+Revises: 006_add_export_settings
+Create Date: 2026-01-11 00:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision = '007_add_cached_image_path'
+down_revision = '006_add_export_settings'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    """
+    Add cached_image_path field to pages table.
+    This stores the path to compressed JPG thumbnail for faster frontend loading.
+    """
+    op.add_column('pages', sa.Column('cached_image_path', sa.String(500), nullable=True))
+
+
+def downgrade() -> None:
+    """
+    Remove cached_image_path field from pages table.
+    """
+    op.drop_column('pages', 'cached_image_path')
