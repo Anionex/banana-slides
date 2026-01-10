@@ -149,6 +149,16 @@ export const SlidePreview: React.FC = () => {
     return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
   }, [currentProject?.pages]);
 
+  // 所有有ID的页面（用于多选）
+  const allSelectablePages = useMemo(() => {
+    return currentProject?.pages.filter(p => p.id) || [];
+  }, [currentProject?.pages]);
+
+  // 失败的页面
+  const failedPages = useMemo(() => {
+    return currentProject?.pages.filter(p => p.id && p.status === 'FAILED') || [];
+  }, [currentProject?.pages]);
+
   // 加载项目数据 & 用户模板
   useEffect(() => {
     if (projectId && (!currentProject || currentProject.id !== projectId)) {
@@ -598,12 +608,17 @@ export const SlidePreview: React.FC = () => {
   };
 
   const selectAllPages = () => {
-    const allPageIds = pagesWithImages.map(p => p.id!);
+    const allPageIds = allSelectablePages.map(p => p.id!);
     setSelectedPageIds(new Set(allPageIds));
   };
 
   const deselectAllPages = () => {
     setSelectedPageIds(new Set());
+  };
+
+  const selectFailedPages = () => {
+    const failedPageIds = failedPages.map(p => p.id!);
+    setSelectedPageIds(new Set(failedPageIds));
   };
 
   const toggleMultiSelectMode = () => {
@@ -1213,11 +1228,19 @@ export const SlidePreview: React.FC = () => {
               {isMultiSelectMode && (
                 <>
                   <button
-                    onClick={selectedPageIds.size === pagesWithImages.length ? deselectAllPages : selectAllPages}
+                    onClick={selectedPageIds.size === allSelectablePages.length ? deselectAllPages : selectAllPages}
                     className="text-gray-500 hover:text-banana-600 transition-colors"
                   >
-                    {selectedPageIds.size === pagesWithImages.length ? '取消全选' : '全选'}
+                    {selectedPageIds.size === allSelectablePages.length ? '取消全选' : '全选'}
                   </button>
+                  {failedPages.length > 0 && (
+                    <button
+                      onClick={selectFailedPages}
+                      className="text-red-500 hover:text-red-600 transition-colors"
+                    >
+                      选中失败({failedPages.length})
+                    </button>
+                  )}
                   {selectedPageIds.size > 0 && (
                     <span className="text-banana-600 font-medium">
                       ({selectedPageIds.size}页)
@@ -1251,7 +1274,7 @@ export const SlidePreview: React.FC = () => {
                   <div className="md:hidden relative">
                     <button
                       onClick={() => {
-                        if (isMultiSelectMode && page.id && page.generated_image_path) {
+                        if (isMultiSelectMode && page.id) {
                           togglePageSelection(page.id);
                         } else {
                           setSelectedIndex(index);
@@ -1276,7 +1299,7 @@ export const SlidePreview: React.FC = () => {
                       )}
                     </button>
                     {/* 多选复选框（移动端） */}
-                    {isMultiSelectMode && page.id && page.generated_image_path && (
+                    {isMultiSelectMode && page.id && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1295,7 +1318,7 @@ export const SlidePreview: React.FC = () => {
                   {/* 桌面端：完整卡片 */}
                   <div className="hidden md:block relative group/slide">
                     {/* 多选复选框（桌面端） */}
-                    {isMultiSelectMode && page.id && page.generated_image_path && (
+                    {isMultiSelectMode && page.id && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1315,7 +1338,7 @@ export const SlidePreview: React.FC = () => {
                       index={index}
                       isSelected={selectedIndex === index}
                       onClick={() => {
-                        if (isMultiSelectMode && page.id && page.generated_image_path) {
+                        if (isMultiSelectMode && page.id) {
                           togglePageSelection(page.id);
                         } else {
                           setSelectedIndex(index);
@@ -1528,8 +1551,13 @@ export const SlidePreview: React.FC = () => {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={handleEditPage}
-                      disabled={!selectedPage?.generated_image_path}
+                      onClick={() => {
+                        if (selectedPage?.generated_image_path) {
+                          handleEditPage();
+                        } else if (selectedPage) {
+                          openPageEditModal(selectedPage);
+                        }
+                      }}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       编辑
@@ -2059,7 +2087,7 @@ export const SlidePreview: React.FC = () => {
       {/* 页面编辑 Modal */}
       <Modal
         isOpen={isPageEditModalOpen}
-        onClose={handleDeleteEditingPage}
+        onClose={() => setIsPageEditModalOpen(false)}
         title="编辑页面内容"
         size="lg"
       >

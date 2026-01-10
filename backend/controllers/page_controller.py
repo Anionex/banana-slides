@@ -24,26 +24,25 @@ page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
 def create_page(project_id):
     """
     POST /api/projects/{project_id}/pages - Add new page
-
+    
     Request body:
     {
         "order_index": 2,
         "part": "optional",
-        "outline_content": {"title": "...", "points": [...]},
-        "description_content": {"text": "..."} // optional
+        "outline_content": {"title": "...", "points": [...]}
     }
     """
     try:
         project = Project.query.get(project_id)
-
+        
         if not project:
             return not_found('Project')
-
+        
         data = request.get_json()
-
+        
         if not data or 'order_index' not in data:
             return bad_request("order_index is required")
-
+        
         # Create new page
         page = Page(
             project_id=project_id,
@@ -51,32 +50,27 @@ def create_page(project_id):
             part=data.get('part'),
             status='DRAFT'
         )
-
+        
         if 'outline_content' in data:
             page.set_outline_content(data['outline_content'])
-            page.status = 'OUTLINE_GENERATED'
-
-        if 'description_content' in data:
-            page.set_description_content(data['description_content'])
-            page.status = 'DESCRIPTION_GENERATED'
-
-        # Update existing pages' order_index BEFORE adding the new page
-        # to make room for the new page at the specified index
-        existing_pages = Page.query.filter(
+        
+        db.session.add(page)
+        
+        # Update other pages' order_index if necessary
+        other_pages = Page.query.filter(
             Page.project_id == project_id,
             Page.order_index >= data['order_index']
         ).all()
-
-        for p in existing_pages:
-            p.order_index += 1
-
-        db.session.add(page)
-
+        
+        for p in other_pages:
+            if p.id != page.id:
+                p.order_index += 1
+        
         project.updated_at = datetime.utcnow()
         db.session.commit()
-
+        
         return success_response(page.to_dict(), status_code=201)
-
+    
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
