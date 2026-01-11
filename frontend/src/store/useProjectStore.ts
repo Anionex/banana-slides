@@ -707,20 +707,28 @@ const debouncedUpdatePage = debounce(
   },
 
   // 轮询图片生成任务（非阻塞，支持单页和批量）
-  pollImageTask: async (taskId: string, pageIds: string[]) => {
-    const { currentProject } = get();
-    if (!currentProject) {
-      console.warn('[批量轮询] 没有当前项目，停止轮询');
+  pollImageTask: (taskId: string, pageIds: string[]) => {
+    // 保存 projectId 而不是 currentProject，避免闭包陈旧问题
+    const projectId = get().currentProject?.id;
+    if (!projectId) {
+      console.warn('[批量轮询] 没有当前项目ID，停止轮询');
       return;
     }
 
     const poll = async () => {
       try {
-        const response = await api.getTaskStatus(currentProject.id!, taskId);
+        const response = await api.getTaskStatus(projectId, taskId);
         const task = response.data;
-        
+
         if (!task) {
           console.warn('[批量轮询] 响应中没有任务数据');
+          // 清除任务记录以避免永久卡住
+          const { pageGeneratingTasks } = get();
+          const newTasks = { ...pageGeneratingTasks };
+          pageIds.forEach(id => {
+            delete newTasks[id];
+          });
+          set({ pageGeneratingTasks: newTasks });
           return;
         }
 
@@ -733,9 +741,7 @@ const debouncedUpdatePage = debounce(
           const { pageGeneratingTasks } = get();
           const newTasks = { ...pageGeneratingTasks };
           pageIds.forEach(id => {
-            if (newTasks[id] === taskId) {
-              delete newTasks[id];
-            }
+            delete newTasks[id];
           });
           set({ pageGeneratingTasks: newTasks });
           // 刷新项目数据
@@ -746,11 +752,9 @@ const debouncedUpdatePage = debounce(
           const { pageGeneratingTasks } = get();
           const newTasks = { ...pageGeneratingTasks };
           pageIds.forEach(id => {
-            if (newTasks[id] === taskId) {
-              delete newTasks[id];
-            }
+            delete newTasks[id];
           });
-          set({ 
+          set({
             pageGeneratingTasks: newTasks,
             error: normalizeErrorMessage(task.error_message || task.error || '批量生成失败')
           });
@@ -768,9 +772,7 @@ const debouncedUpdatePage = debounce(
           const { pageGeneratingTasks } = get();
           const newTasks = { ...pageGeneratingTasks };
           pageIds.forEach(id => {
-            if (newTasks[id] === taskId) {
-              delete newTasks[id];
-            }
+            delete newTasks[id];
           });
           set({ pageGeneratingTasks: newTasks });
         }
@@ -780,9 +782,7 @@ const debouncedUpdatePage = debounce(
         const { pageGeneratingTasks } = get();
         const newTasks = { ...pageGeneratingTasks };
         pageIds.forEach(id => {
-          if (newTasks[id] === taskId) {
-            delete newTasks[id];
-          }
+          delete newTasks[id];
         });
         set({ pageGeneratingTasks: newTasks });
       }

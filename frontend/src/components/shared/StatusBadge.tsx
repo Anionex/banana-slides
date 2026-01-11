@@ -11,6 +11,10 @@ const statusConfig: Record<PageStatus, { label: string; className: string }> = {
     label: '草稿',
     className: 'bg-gray-100 text-gray-600',
   },
+  OUTLINE_GENERATED: {
+    label: '已生成大纲',
+    className: 'bg-purple-100 text-purple-600',
+  },
   DESCRIPTION_GENERATED: {
     label: '已生成描述',
     className: 'bg-blue-100 text-blue-600',
@@ -30,8 +34,11 @@ const statusConfig: Record<PageStatus, { label: string; className: string }> = {
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
-  const config = statusConfig[status];
-  
+  const config = statusConfig[status] || {
+    label: status || '未知',
+    className: 'bg-gray-100 text-gray-600',
+  };
+
   return (
     <span
       className={cn(
