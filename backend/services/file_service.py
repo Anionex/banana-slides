@@ -73,27 +73,27 @@ class FileService:
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
     
-    def save_generated_image(self, image: Image.Image, project_id: str, 
-                           page_id: str, image_format: str = 'PNG', 
+    def save_generated_image(self, image: Image.Image, project_id: str,
+                           page_id: str, image_format: str = 'PNG',
                            version_number: int = None) -> str:
         """
         Save generated image with version support
-        
+
         Args:
             image: PIL Image object
             project_id: Project ID
             page_id: Page ID
             image_format: Image format (PNG, JPEG, etc.)
             version_number: Optional version number. If None, uses timestamp-based naming
-        
+
         Returns:
             Relative file path from upload folder
         """
         pages_dir = self._get_pages_dir(project_id)
-        
+
         # Use lowercase extension
         ext = image_format.lower()
-        
+
         # Generate filename with version number or timestamp
         if version_number is not None:
             filename = f"{page_id}_v{version_number}.{ext}"
@@ -102,13 +102,52 @@ class FileService:
             import time
             timestamp = int(time.time() * 1000)  # milliseconds
             filename = f"{page_id}_{timestamp}.{ext}"
-        
+
         filepath = pages_dir / filename
-        
+
         # Save image - format is determined by file extension or explicitly specified
         # Some PIL Image objects may not support format parameter, so we use extension
         image.save(str(filepath))
-        
+
+        # Return relative path
+        return filepath.relative_to(self.upload_folder).as_posix()
+
+    def save_cached_image(self, image: Image.Image, project_id: str,
+                         page_id: str, version_number: int,
+                         quality: int = 85) -> str:
+        """
+        Save compressed JPG thumbnail for faster frontend loading
+
+        Args:
+            image: PIL Image object
+            project_id: Project ID
+            page_id: Page ID
+            version_number: Version number
+            quality: JPEG quality (1-100), default 85
+
+        Returns:
+            Relative file path from upload folder
+        """
+        pages_dir = self._get_pages_dir(project_id)
+
+        # Generate filename with _thumb suffix
+        filename = f"{page_id}_v{version_number}_thumb.jpg"
+        filepath = pages_dir / filename
+
+        # Convert to RGB if necessary (JPG doesn't support transparency)
+        if image.mode in ('RGBA', 'LA', 'P'):
+            # Create white background for transparent images
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        # Save as compressed JPEG
+        image.save(str(filepath), 'JPEG', quality=quality, optimize=True)
+
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
 
