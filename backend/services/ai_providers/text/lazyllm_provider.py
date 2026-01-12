@@ -1,6 +1,5 @@
 """
 Lazyllm framework for text generation
-
 Supports modes:
 - Qwen
 - Deepseek
@@ -10,11 +9,10 @@ Supports modes:
 - sensenova
 - ...
 """
-import lazyllm
 from .base import TextProvider
 from config import get_config
 
-class LazyllmTextProvider(TextProvider):
+class LazyLLMTextProvider(TextProvider):
     """Text generation using lazyllm"""
     def __init__(self, source: str = 'deepseek', model: str = "deepseek-v3-1-terminus", api_key: str = None):
         """
@@ -24,12 +22,20 @@ class LazyllmTextProvider(TextProvider):
             source: text model provider, support qwen,doubao,deepseek,siliconflow,glm...
             model: Model name to use
             api_key: qwen/doubao/siliconflow/... API key
+            type: Category of the online service. Defaults to ``llm``.
         """
+        try:
+            import lazyllm
+        except ImportError as e:
+            raise ImportError(
+                "LazyLLM and its related dependencies are not detected. Please add 'lazyllm>=0.7.2' to the [project.optional-dependencies] section in pyproject.toml, "
+                "or run the command: uv pip install '.[sdk]' to reinstall the dependencies." 
+            ) from e
         self.client = lazyllm.OnlineModule(
             source = source, 
             model = model, 
             api_key = api_key,
-            type = 'llm', # 指定模型类型:本文生成模型
+            type = 'llm',
             )
         
         
@@ -46,5 +52,3 @@ class LazyllmTextProvider(TextProvider):
         """
         message = self.client(prompt)
         return message
-
-        

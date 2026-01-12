@@ -29,14 +29,14 @@ import os
 import logging
 from typing import Dict, Any
 
-from .text import TextProvider, GenAITextProvider, OpenAITextProvider, LazyllmTextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, LazyllmImageProvider
+from .text import TextProvider, GenAITextProvider, OpenAITextProvider, LazyLLMTextProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, LazyLLMImageProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'LazyllmTextProvider',
-    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'LazyllmImageProvider',
+    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'LazyLLMTextProvider',
+    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'LazyLLMImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format'
 ]
 
@@ -238,7 +238,7 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         source = config.get('text_source', 'siliconflow')
         api_key = _get_lazyllm_api_key(source)
         logger.info(f"Using Lazyllm for text generation, model: {model}, source: {source}")
-        return LazyllmTextProvider(
+        return LazyLLMTextProvider(
             api_key=api_key, 
             source=source,
             model=model
@@ -281,7 +281,7 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         source = config.get('image_source', 'doubao')
         api_key = _get_lazyllm_api_key(source)
         logger.info(f"Using Lazyllm for image generation, model: {model}, source: {source}")
-        return LazyllmImageProvider(
+        return LazyLLMImageProvider(
             api_key=api_key, 
             source=source,
             model=model

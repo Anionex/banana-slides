@@ -6,22 +6,22 @@ Support models:
 - qwen-image-edit-plus
 - qwen-image-edit-plus-2025-10-30
 
-- doubao-seedream-4.5
 - doubao-seedream-4-0-250828
 - doubao-seededit-3-0-i2i-250628
+- doubao-seedream-4.5
 """
 import tempfile
 import os
-import lazyllm
+# import lazyllm
 from typing import Optional, List
 from PIL import Image
 from .base import ImageProvider
 from config import get_config
-from lazyllm.components.formatter import decode_query_with_filepaths
-from lazyllm import LOG
+# from lazyllm.components.formatter import decode_query_with_filepaths
+# from lazyllm import LOG
 
 
-class LazyllmImageProvider(ImageProvider):
+class LazyLLMImageProvider(ImageProvider):
     """Image generation using Lazyllm framework"""
     def __init__(self, source: str = 'doubao', model: str = 'doubao-seedream-4-0-250828',
                  api_key: str = None):
@@ -32,17 +32,27 @@ class LazyllmImageProvider(ImageProvider):
             source: image_editing model provider, support qwen,doubao,siliconflow now.
             model: Model name to use
             api_key: qwen/doubao/siliconflow API key
+            type: Category of the online service. Defaults to ``llm``.
         """
+        try:
+            import lazyllm
+            from lazyllm.components.formatter import decode_query_with_filepaths
+            from lazyllm import LOG
+        except ImportError as e:
+            raise ImportError(
+                "LazyLLM and its related dependencies are not detected. Please add 'lazyllm>=0.7.2' to the [project.optional-dependencies] section in pyproject.toml, "
+                "or run the command: uv pip install '.[sdk]' to reinstall the dependencies." 
+            ) from e
+        
         self.client = lazyllm.OnlineModule(
             source=source,
             model=model,
             api_key=api_key,
-            type='image_editing', # 指定模型类型:图片编辑模型。
+            type='image_editing',
         )
 
     def generate_image(self, prompt: str = None, ref_images: Optional[List[Image.Image]] = None, 
                        aspect_ratio = "16:9", resolution = "1920*1080") -> Optional[Image.Image]:
-        # 分辨率字符串转换：针对qwen系列
         resolution_map = {
             "1K": "1920*1080",
             "2K": "2048*1080",
@@ -50,7 +60,7 @@ class LazyllmImageProvider(ImageProvider):
         }
         if resolution in resolution_map:
             resolution = resolution_map[resolution]
-        # 将 PIL Image 对象转换为文件路径:lazyllm传入参考图片需要以字符串格式的路径传入。
+        # Convert a PIL Image object to a file path: When passing a reference image to lazyllm, you need to input a path in string format.
         file_paths = None
         if ref_images:
             file_paths = []
@@ -63,15 +73,13 @@ class LazyllmImageProvider(ImageProvider):
         if not image_path:
             LOG.warning('No images found in response')
             raise ValueError()
-        # 从 dict 中取出图片路径
         if isinstance(image_path, dict):
             files = image_path.get('files')
             if files and isinstance(files, list) and len(files) > 0:
-                image_path = files[0]  # 取第一个图片路径
+                image_path = files[0]
             else:
                 LOG.warning('No valid image path in response')
                 return None
-        LOG.info(f'Found image: {image_path}')
         try:
             image = Image.open(image_path)
             LOG.info(f'✓ Successfully loaded image from: {image_path}')

@@ -11,7 +11,7 @@ dependencies = [
     "google-genai>=1.52.0",
     "openai>=1.0.0",
     "pydantic>=2.9.0",
-    "pillow>=8.0,<12.0.0",
+    "pillow>=12.0.0",
     "python-pptx>=1.0.0",
     "python-dotenv>=1.0.1",
     "reportlab>=4.1.0",
@@ -21,42 +21,7 @@ dependencies = [
     "alembic>=1.13.0",
     "flask-migrate>=4.0.0",
     "img2pdf>=0.5.1",
-    "lazyllm",
-    "toml",
-    "fastapi>=0.111.0",
-    "loguru>=0.7.2",
-    "pydantic",
-    "requests>=2.32.2",
-    "uvicorn",
-    "cloudpickle>=3.0.0",
-    "gradio==5.49.1",
-    "gradio-client>=0.6.1",
-    "protobuf>=3.20.1",
-    "docstring-parser",
-    "json5",
-    "tiktoken",
-    "spacy<=3.7.5",
-    "bm25s",
-    "pystemmer",
-    "nltk",
-    "pyjwt>=2.8.0",
-    "sentencepiece",
-    "psycopg2-binary",
-    "sqlalchemy",
-    "psutil",
-    "pypdf",
-    "numpy==1.26.4",
-    "async-timeout",
-    "httpx>=0.28.0,<1.0.0",
-    "docx2txt",
-    "ebooklib",
-    "html2text",
-    "olefile",
-    "openpyxl",
-    "python-pptx",
-    "tenacity",
-    "beautifulsoup4",
-    "deepdiff>=8.6.1",
+
 ]
 
 [project.optional-dependencies]
@@ -72,6 +37,7 @@ test = [
 sdk = [
     "dashscope",
     "volcengine-python-sdk",
+    "lazyllm>=0.7.2"
 ]
 
 [tool.uv]

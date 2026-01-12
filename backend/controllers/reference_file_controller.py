@@ -65,7 +65,17 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
                 openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
                 openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
                 image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
+                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+                lazyllm_image_caption_source=current_app.config.get('LAZYLLM_IMAGE_CAPTION_SOURCE', 'qwen'),
+                lazyllm_api_keys={
+                    "qwen": current_app.config.get('LAZYLLM_QWEN_API_KEY', ''),
+                    "doubao": current_app.config.get('LAZYLLM_DOUBAO_API_KEY', ''),
+                    "deepseek": current_app.config.get('LAZYLLM_DEEPSEEK_API_KEY', ''),
+                    "glm": current_app.config.get('LAZYLLM_GLM_API_KEY', ''),
+                    "siliconflow": current_app.config.get('LAZYLLM_SILICONFLOW_API_KEY', ''),
+                    "sensenova": current_app.config.get('LAZYLLM_SENSENOVA_API_KEY', ''),
+                    "minimax": current_app.config.get('LAZYLLM_MINIMAX_API_KEY', ''),
+                }
             )
             
             # Parse file

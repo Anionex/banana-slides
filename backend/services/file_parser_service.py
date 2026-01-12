@@ -55,7 +55,8 @@ class FileParserService:
                  openai_api_key: str = "", openai_api_base: str = "",
                  image_caption_model: str = "gemini-3-flash-preview",
                  provider_format: str = None,
-                 mineru_model_version: str = "vlm"):
+                 mineru_model_version: str = "vlm",
+                 lazyllm_image_caption_source=None, lazyllm_api_keys=None,):
         """
         Initialize the file parser service
         
@@ -81,11 +82,14 @@ class FileParserService:
         self._google_api_base = google_api_base
         self._openai_api_key = openai_api_key
         self._openai_api_base = openai_api_base
-        self.image_caption_model = image_caption_model
+        self._image_caption_model = image_caption_model
+        self._lazyllm_api_keys = lazyllm_api_keys
+        self._lazyllm_image_caption_source = lazyllm_image_caption_source
         
         # Clients will be initialized lazily based on AI_PROVIDER_FORMAT
         self._gemini_client = None
         self._openai_client = None
+        self._lazyllm_client = None
         self._provider_format = _get_ai_provider_format(provider_format)
     
     def _get_gemini_client(self):
@@ -109,10 +113,33 @@ class FileParserService:
             )
         return self._openai_client
     
+    def _get_lazyllm_client(self):
+        """Lazily initialize LazyLLM client，支持多厂商 api_key 配置"""
+        try:
+            import lazyllm
+        except ImportError as e:
+            raise ImportError(
+                "LazyLLM and its related dependencies are not detected. Please add 'lazyllm>=0.7.2' to the [project.optional-dependencies] section in pyproject.toml, " 
+                "or run the command: uv pip install '.[sdk]' to reinstall the dependencies."
+            ) from e
+        source = self._lazyllm_image_caption_source or "qwen"
+        model = self._image_caption_model or "qwen-vl-plus"
+        api_key = self._lazyllm_api_keys.get(source, "")
+
+        self._lazyllm_client = lazyllm.OnlineModule(
+            source=source,
+            model=model,
+            api_key=api_key,
+            type="vlm",
+        )
+        return self._lazyllm_client
+    
     def _can_generate_captions(self) -> bool:
         """Check if image caption generation is available"""
         if self._provider_format == 'openai':
             return bool(self._openai_api_key)
+        elif self._provider_format == 'lazyllm':
+            return bool(self._lazyllm_api_keys)  # 只要配置了 key 就可以
         else:
             return bool(self._google_api_key)
     
@@ -682,6 +709,16 @@ class FileParserService:
                     temperature=0.3
                 )
                 caption = response.choices[0].message.content.strip()
+            elif self._provider_format == 'lazyllm':
+                # Use LazyLLM format
+                client = self._get_lazyllm_client()
+                import tempfile
+                import os
+                file_path = []
+                temp_path = os.path.join(tempfile.gettempdir(), f'lazyllm_ref.png')
+                image.save(temp_path)
+                file_path.append(temp_path)
+                caption = client(prompt, lazyllm_files=file_path)
             else:
                 # Use Gemini SDK format (default)
                 from google.genai import types
