@@ -54,13 +54,12 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
       - name: Install dependencies (with test extras)
-        run: |
-          uv sync --extra test
+        working-directory: backend
+        run: uv sync --extra test
       
       - name: Run unit tests
-        run: |
-          cd backend
-          uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term
+        working-directory: backend
+        run: uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term
         continue-on-error: false
       
       - name: Upload coverage report
@@ -90,11 +89,12 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
       - name: Install dependencies (with test extras)
+        working-directory: backend
         run: uv sync --extra test
       
       - name: Run integration tests
+        working-directory: backend
         run: |
-          cd backend
           # Skip tests that require running backend service (marked with @pytest.mark.requires_service)
           # These tests will run in the docker-test stage where services are started
           uv run pytest tests/integration -v -m "not requires_service"
@@ -297,7 +297,8 @@ jobs:
           # Source the cargo env to use uv immediately
           . "$HOME/.cargo/env"
           
-          # Now uv is available in PATH
+          # Now uv is available in PATH (run from backend where pyproject.toml is)
+          cd backend
           uv sync --extra test
       
       # NOTE: API Full Flow test is commented out because UI E2E test covers the same flow
@@ -402,9 +403,9 @@ jobs:
       
       - name: Backend dependency security scan
         run: |
-          # Use uv for consistency
-          uv pip install safety
-          uv run safety check --json || echo "Security vulnerabilities found (warning)"
+          # Install safety for security scanning
+          pip install safety
+          safety check --json || echo "Security vulnerabilities found (warning)"
         continue-on-error: true
       
       - name: Frontend dependency security scan
