@@ -15,9 +15,9 @@ export default defineConfig(({ mode }) => {
   // 使用 loadEnv 加载环境变量（第三个参数为空字符串表示加载所有变量，不仅仅是 VITE_ 前缀的）
   const env = loadEnv(mode, envDir, '')
   
-  // 读取后端端口，默认 5000
+  // 读取后端端口，默认 5010
   // 支持从环境变量 PORT 读取（与后端保持一致）
-  const backendPort = env.PORT || '5000'
+  const backendPort = env.PORT || '5010'
   const backendUrl = `http://localhost:${backendPort}`
   
   return {

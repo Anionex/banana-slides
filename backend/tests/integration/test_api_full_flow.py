@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:5010"
 API_TIMEOUT = 180  # 3 minutes timeout for AI operations
 
 

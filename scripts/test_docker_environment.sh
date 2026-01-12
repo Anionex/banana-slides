@@ -99,7 +99,7 @@ if [ ! -f "$WAIT_SCRIPT" ]; then
     frontend_ready=false
     
     while [ $waited -lt $max_wait ]; do
-        if curl -s http://localhost:5000/health >/dev/null 2>&1; then
+        if curl -s http://localhost:5010/health >/dev/null 2>&1; then
             backend_ready=true
         fi
         if curl -s http://localhost:3000 >/dev/null 2>&1; then
@@ -124,7 +124,7 @@ else
     chmod +x "$WAIT_SCRIPT"
     
     log_info "Waiting for backend..."
-    if "$WAIT_SCRIPT" http://localhost:5000/health 60 2; then
+    if "$WAIT_SCRIPT" http://localhost:5010/health 60 2; then
         log_success "Backend is ready"
     else
         log_error "Backend startup timeout"
@@ -156,7 +156,7 @@ log_success "Container status normal"
 
 # 6. Backend health check
 log_info "Step 6/10: Backend health check..."
-backend_health=$(curl -s http://localhost:5000/health)
+backend_health=$(curl -s http://localhost:5010/health)
 if echo "$backend_health" | grep -q '"status":"ok"'; then
     log_success "Backend health check passed"
     echo "    Response: $backend_health"
@@ -181,7 +181,7 @@ log_info "Step 8/10: API functionality tests..."
 
 # 8.1 Create project
 log_info "  8.1 Creating project..."
-create_response=$(curl -s -X POST http://localhost:5000/api/projects \
+create_response=$(curl -s -X POST http://localhost:5010/api/projects \
     -H "Content-Type: application/json" \
     -d '{"creation_type":"idea","idea_prompt":"Docker test project"}')
 
@@ -196,7 +196,7 @@ fi
 
 # 8.2 Get project
 log_info "  8.2 Getting project details..."
-get_response=$(curl -s http://localhost:5000/api/projects/$project_id)
+get_response=$(curl -s http://localhost:5010/api/projects/$project_id)
 if echo "$get_response" | grep -q '"success":true'; then
     log_success "  Project retrieved successfully"
 else
@@ -207,7 +207,7 @@ fi
 # 8.3 Upload template (if exists)
 if [ -f "template_g.png" ]; then
     log_info "  8.3 Uploading template file..."
-    upload_response=$(curl -s -X POST http://localhost:5000/api/projects/$project_id/template \
+    upload_response=$(curl -s -X POST http://localhost:5010/api/projects/$project_id/template \
         -F "template_image=@template_g.png")
     
     if echo "$upload_response" | grep -q '"success":true'; then
@@ -221,7 +221,7 @@ fi
 
 # 8.4 Delete project (cleanup)
 log_info "  8.4 Deleting test project..."
-delete_response=$(curl -s -X DELETE http://localhost:5000/api/projects/$project_id)
+delete_response=$(curl -s -X DELETE http://localhost:5010/api/projects/$project_id)
 if echo "$delete_response" | grep -q '"success":true'; then
     log_success "  Project deleted successfully"
 else
@@ -234,7 +234,7 @@ log_success "API functionality tests passed"
 log_info "Step 9/10: Data persistence test..."
 
 # Create a project
-create_response=$(curl -s -X POST http://localhost:5000/api/projects \
+create_response=$(curl -s -X POST http://localhost:5010/api/projects \
     -H "Content-Type: application/json" \
     -d '{"creation_type":"idea","idea_prompt":"Persistence test"}')
 persist_project_id=$(echo "$create_response" | jq -r '.data.project_id')
@@ -246,14 +246,14 @@ sleep 5
 
 # Wait for backend to recover
 for i in {1..30}; do
-    if curl -s http://localhost:5000/health >/dev/null 2>&1; then
+    if curl -s http://localhost:5010/health >/dev/null 2>&1; then
         break
     fi
     sleep 1
 done
 
 # Check if project still exists
-persist_check=$(curl -s http://localhost:5000/api/projects/$persist_project_id)
+persist_check=$(curl -s http://localhost:5010/api/projects/$persist_project_id)
 if echo "$persist_check" | grep -q '"success":true'; then
     log_success "Data persistence test passed"
 else
@@ -262,7 +262,7 @@ else
 fi
 
 # Cleanup test data
-curl -s -X DELETE http://localhost:5000/api/projects/$persist_project_id >/dev/null
+curl -s -X DELETE http://localhost:5010/api/projects/$persist_project_id >/dev/null
 
 # 10. Log check
 log_info "Step 10/10: Checking container logs for errors..."
