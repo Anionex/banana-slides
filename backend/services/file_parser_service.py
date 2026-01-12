@@ -114,7 +114,7 @@ class FileParserService:
         return self._openai_client
     
     def _get_lazyllm_client(self):
-        """Lazily initialize LazyLLM client，支持多厂商 api_key 配置"""
+        """Lazily initialize LazyLLM client"""
         try:
             import lazyllm
         except ImportError as e:
@@ -139,7 +139,7 @@ class FileParserService:
         if self._provider_format == 'openai':
             return bool(self._openai_api_key)
         elif self._provider_format == 'lazyllm':
-            return bool(self._lazyllm_api_keys)  # 只要配置了 key 就可以
+            return bool(self._lazyllm_api_keys)
         else:
             return bool(self._google_api_key)
     
