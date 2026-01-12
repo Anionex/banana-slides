@@ -62,7 +62,7 @@
 docker compose up -d
 
 # 3. 等待服务就绪（使用智能等待脚本）
-./scripts/wait-for-health.sh http://localhost:5000/health 60 2
+./scripts/wait-for-health.sh http://localhost:5010/health 60 2
 ./scripts/wait-for-health.sh http://localhost:3000 60 2
 
 # 4. 运行测试
@@ -97,7 +97,7 @@ npx playwright test api-full-flow.spec.ts --workers=1
 docker compose up -d
 
 # 3. 等待服务就绪
-./scripts/wait-for-health.sh http://localhost:5000/health 60 2
+./scripts/wait-for-health.sh http://localhost:5010/health 60 2
 ./scripts/wait-for-health.sh http://localhost:3000 60 2
 
 # 4. 运行测试

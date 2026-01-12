@@ -108,7 +108,7 @@ jobs:
           fi
           
           # Health check
-          if curl -f http://localhost:5000/health; then
+          if curl -f http://localhost:5010/health; then
             echo "Backend smoke test passed"
             kill $SERVER_PID
           else

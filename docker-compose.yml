@@ -10,9 +10,11 @@ services:
         PYPI_INDEX_URL: ${PYPI_INDEX_URL:-}
     container_name: banana-slides-backend
     ports:
-      # 宿主机端口:容器内部端口（由 PORT 控制，默认 5000）
-      # 外部访问始终是 http://localhost:5000，内部监听端口可通过 PORT 调整
-      - "5000:${PORT:-5000}"
+      # 宿主机端口 : 容器内部端口
+      # BACKEND_HOST_PORT 控制宿主机暴露端口（默认 5010，避免 macOS 系统端口冲突）
+      # PORT 控制容器内部服务监听端口（默认 5010）
+      # 外部访问地址：http://localhost:${BACKEND_HOST_PORT}
+      - "${BACKEND_HOST_PORT:-5010}:${PORT:-5010}"      
     # 从 .env 文件自动加载所有环境变量
     env_file:
       - .env
@@ -28,8 +30,8 @@ services:
       # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
     restart: unless-stopped
     healthcheck:
-      # 健康检查同样跟随 PORT（默认 5000）
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-5000}/health"]
+      # 健康检查同样跟随 PORT（默认 5010）
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-5010}/health"]
       interval: 30s
       timeout: 10s
       retries: 3

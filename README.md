@@ -175,7 +175,7 @@
 
 如果你使用 Windows, 请先安装 Windows Docker Desktop，检查系统托盘中的 Docker 图标，确保 Docker 正在运行，然后使用相同的步骤操作。
 
-> **提示**：如果遇到问题，确保在 Docker Desktop 设置中启用了 WSL 2 后端（推荐），并确保端口 3000 和 5000 未被占用。
+> **提示**：如果遇到问题，确保在 Docker Desktop 设置中启用了 WSL 2 后端（推荐），并确保端口 3000 和 5010 未被占用。
 
 </details>
 
@@ -269,7 +269,7 @@ docker compose up -d
 3. **访问应用**
 
 - 前端：http://localhost:3000
-- 后端 API：http://localhost:5000
+- 后端 API：http://localhost:5010
 
 4. **查看日志**
 
@@ -362,7 +362,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
 
-PORT=5000
+PORT=5010
 ...
 ```
 
@@ -380,7 +380,7 @@ npm install
 
 3. **配置API地址**
 
-前端会自动连接到 `http://localhost:5000` 的后端服务。如需修改，请编辑 `src/api/client.ts`。
+前端会自动连接到 `http://localhost:5010` 的后端服务。如需修改，请编辑 `src/api/client.ts`。
 
 
 #### 启动后端服务
@@ -392,9 +392,9 @@ cd backend
 uv run alembic upgrade head && uv run python app.py
 ```
 
-后端服务将在 `http://localhost:5000` 启动。
+后端服务将在 `http://localhost:5010` 启动。
 
-访问 `http://localhost:5000/health` 验证服务是否正常运行。
+访问 `http://localhost:5010/health` 验证服务是否正常运行。
 
 #### 启动前端开发服务器
 

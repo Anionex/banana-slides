@@ -85,7 +85,7 @@ jobs:
       - name: Health check
         run: |
           for i in {1..30}; do
-            if curl -f http://localhost:5000/health && curl -f http://localhost:3000; then
+            if curl -f http://localhost:5010/health && curl -f http://localhost:3000; then
               echo "Services are ready"
               break
             fi

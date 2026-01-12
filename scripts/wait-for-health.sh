@@ -4,7 +4,7 @@
 
 set -e
 
-URL="${1:-http://localhost:5000/health}"
+URL="${1:-http://localhost:5010/health}"
 TIMEOUT="${2:-60}"
 INTERVAL="${3:-2}"
 
