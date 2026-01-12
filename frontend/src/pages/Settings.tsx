@@ -44,6 +44,7 @@ const initialFormData = {
   max_description_workers: 5,
   max_image_workers: 8,
   output_language: 'zh' as OutputLanguage,
+  baidu_ocr_api_key: '',
 };
 
 // 配置驱动的表单区块定义
@@ -181,6 +182,21 @@ const settingsSections: SectionConfig[] = [
       },
     ],
   },
+  {
+    title: '百度 API 配置',
+    icon: <Key size={20} />,
+    fields: [
+      {
+        key: 'baidu_ocr_api_key',
+        label: '百度 API Key',
+        type: 'password',
+        placeholder: '输入百度 API Key',
+        sensitiveField: true,
+        lengthKey: 'baidu_ocr_api_key_length',
+        description: '用于可编辑 PPTX 导出功能，留空则保持当前设置不变',
+      },
+    ],
+  },
 ];
 
 // Settings 组件 - 纯嵌入模式（可复用）
@@ -217,6 +233,7 @@ export const Settings: React.FC = () => {
           mineru_token: '',
           image_caption_model: response.data.image_caption_model || '',
           output_language: response.data.output_language || 'zh',
+          baidu_ocr_api_key: '',
         });
       }
     } catch (error: any) {
@@ -233,7 +250,7 @@ export const Settings: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { api_key, mineru_token, ...otherData } = formData;
+      const { api_key, mineru_token, baidu_ocr_api_key, ...otherData } = formData;
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
       };
@@ -246,11 +263,15 @@ export const Settings: React.FC = () => {
         payload.mineru_token = mineru_token;
       }
 
+      if (baidu_ocr_api_key) {
+        payload.baidu_ocr_api_key = baidu_ocr_api_key;
+      }
+
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
         show({ message: '设置保存成功', type: 'success' });
-        setFormData(prev => ({ ...prev, api_key: '', mineru_token: '' }));
+        setFormData(prev => ({ ...prev, api_key: '', mineru_token: '', baidu_ocr_api_key: '' }));
       }
     } catch (error: any) {
       console.error('保存设置失败:', error);
@@ -286,6 +307,7 @@ export const Settings: React.FC = () => {
               mineru_token: '',
               image_caption_model: response.data.image_caption_model || '',
               output_language: response.data.output_language || 'zh',
+              baidu_ocr_api_key: '',
             });
             show({ message: '设置已重置', type: 'success' });
           }
@@ -434,6 +456,21 @@ export const Settings: React.FC = () => {
                         AIHubmix
                       </a>
                       , 减小迁移成本
+                    </p>
+                  </div>
+                )}
+                {section.title === '百度 API 配置' && (
+                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-gray-700">
+                      API Key 的获取方法请查阅{' '}
+                      <a
+                        href="https://github.com/Anionex/banana-slides/issues/121"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline font-medium"
+                      >
+                        GitHub Issue #121
+                      </a>
                     </p>
                   </div>
                 )}

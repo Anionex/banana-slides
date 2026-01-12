@@ -139,12 +139,37 @@ def create_app():
     app.register_blueprint(settings_bp)
 
     with app.app_context():
-        # 确保数据库表存在（对于打包后的应用特别重要）
+        # 自动执行数据库迁移（对于打包后的应用升级特别重要）
         try:
-            db.create_all()
-            logging.info("Database tables created/verified successfully")
+            from flask_migrate import upgrade as alembic_upgrade
+            from alembic.config import Config as AlembicConfig
+            from alembic import command
+            import os as _os
+            
+            # 确定迁移目录路径
+            if _os.getenv('DATABASE_PATH'):
+                # 打包模式：migrations 目录在 resources/backend/migrations
+                migrations_dir = _os.path.join(_os.path.dirname(__file__), 'migrations')
+            else:
+                # 开发模式：migrations 目录在 backend/migrations
+                backend_dir = _os.path.dirname(_os.path.abspath(__file__))
+                migrations_dir = _os.path.join(backend_dir, 'migrations')
+            
+            if _os.path.exists(migrations_dir):
+                logging.info(f"Running database migrations from: {migrations_dir}")
+                alembic_upgrade()
+                logging.info("Database migrations completed successfully")
+            else:
+                logging.warning(f"Migrations directory not found: {migrations_dir}, skipping migrations")
+                # 回退到 create_all（仅创建不存在的表）
+                db.create_all()
         except Exception as e:
-            logging.warning(f"Database table creation warning: {e}")
+            logging.warning(f"Database migration warning: {e}, falling back to create_all")
+            try:
+                db.create_all()
+                logging.info("Database tables created/verified successfully (fallback)")
+            except Exception as create_error:
+                logging.error(f"Database table creation failed: {create_error}")
         
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)

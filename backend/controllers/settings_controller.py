@@ -123,6 +123,9 @@ def update_settings():
             else:
                 return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
 
+        if "baidu_ocr_api_key" in data:
+            settings.baidu_ocr_api_key = data["baidu_ocr_api_key"]
+
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
@@ -178,6 +181,7 @@ def reset_settings():
         settings.image_aspect_ratio = Config.DEFAULT_ASPECT_RATIO
         settings.max_description_workers = Config.MAX_DESCRIPTION_WORKERS
         settings.max_image_workers = Config.MAX_IMAGE_WORKERS
+        settings.baidu_ocr_api_key = Config.BAIDU_OCR_API_KEY or None
         settings.updated_at = datetime.now(timezone.utc)
 
         db.session.commit()
@@ -282,6 +286,9 @@ def _sync_settings_to_config(settings: Settings):
     if settings.output_language:
         current_app.config["OUTPUT_LANGUAGE"] = settings.output_language
         logger.info(f"Updated OUTPUT_LANGUAGE to: {settings.output_language}")
+    if settings.baidu_ocr_api_key is not None:
+        current_app.config["BAIDU_OCR_API_KEY"] = settings.baidu_ocr_api_key
+        logger.info("Updated BAIDU_OCR_API_KEY from settings")
     
     # Clear AI service cache if AI-related configuration changed
     if ai_config_changed:
