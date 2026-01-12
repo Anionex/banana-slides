@@ -111,8 +111,9 @@
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
 <img width="1748" height="538" alt="PPT与PDF导出" src="https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984" />
 
-### 5. 可编辑组件pptx导出（Beta迭代中）
-- **智能递归进行组件分析提取、文字提取、表格提取，最终得到可手动编辑的pptx**
+### 5. 可自由编辑的pptx导出（Beta迭代中）
+- **导出图像为高还原度、背景干净的、可自由编辑图像和文字的PPT页面**
+- 相关更新见 https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 
 <br>
@@ -532,7 +533,9 @@ banana-slides/
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
-<img width="301" alt="image" src="https://github.com/user-attachments/assets/57e6bae0-b127-4e01-8ccf-5669522b0162" />
+<img width="301" alt="image" src="https://github.com/user-attachments/assets/6a557e4b-8be5-4946-a6fc-307e0fb0d69c" />
+
+
 
 
 
@@ -596,6 +599,22 @@ banana-slides/
 </a>
 <p>感谢AIHubMix对本项目的赞助</p>
 </div>
+
+
+<div align="center">
+
+
+ <img width="120" alt="image" src="https://github.com/user-attachments/assets/ac2ad6ec-c1cf-4aaa-859c-756b54168c96" />
+
+<details>
+  <summary>感谢<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0">AI火宝</a>对本项目的赞助</summary>
+  “聚合全球多模型API服务商。更低价格享受安全、稳定且72小时链接全球最新模型的服务。”
+</details>
+
+  
+</div>
+
+
 
 ## 致谢
 
