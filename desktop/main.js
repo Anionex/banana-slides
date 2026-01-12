@@ -256,6 +256,9 @@ class BananaApp {
       this.mainWindow.focus();
     });
 
+    // 设置中文应用菜单
+    this.setupApplicationMenu();
+
     // 处理外部链接
     this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       shell.openExternal(url);
@@ -289,6 +292,133 @@ class BananaApp {
     });
 
     log.info("Main window created");
+  }
+
+  /**
+   * 设置中文应用菜单
+   */
+  setupApplicationMenu() {
+    const isMac = process.platform === 'darwin';
+
+    const template = [
+      // macOS 应用菜单
+      ...(isMac ? [{
+        label: app.name,
+        submenu: [
+          { label: '关于 Banana Slides', role: 'about' },
+          { type: 'separator' },
+          {
+            label: '偏好设置...', accelerator: 'Cmd+,', click: () => {
+              this.mainWindow.webContents.send('navigate', '/settings');
+            }
+          },
+          { type: 'separator' },
+          { label: '隐藏 Banana Slides', role: 'hide' },
+          { label: '隐藏其他', role: 'hideOthers' },
+          { label: '显示全部', role: 'unhide' },
+          { type: 'separator' },
+          { label: '退出 Banana Slides', role: 'quit' }
+        ]
+      }] : []),
+
+      // 文件菜单
+      {
+        label: '文件',
+        submenu: [
+          {
+            label: '新建项目', accelerator: 'CmdOrCtrl+N', click: () => {
+              this.mainWindow.webContents.send('navigate', '/');
+            }
+          },
+          {
+            label: '历史项目', accelerator: 'CmdOrCtrl+H', click: () => {
+              this.mainWindow.webContents.send('navigate', '/history');
+            }
+          },
+          { type: 'separator' },
+          isMac ? { label: '关闭窗口', role: 'close' } : { label: '退出', role: 'quit' }
+        ]
+      },
+
+      // 编辑菜单
+      {
+        label: '编辑',
+        submenu: [
+          { label: '撤销', role: 'undo' },
+          { label: '重做', role: 'redo' },
+          { type: 'separator' },
+          { label: '剪切', role: 'cut' },
+          { label: '复制', role: 'copy' },
+          { label: '粘贴', role: 'paste' },
+          ...(isMac ? [
+            { label: '粘贴并匹配样式', role: 'pasteAndMatchStyle' },
+            { label: '删除', role: 'delete' },
+            { label: '全选', role: 'selectAll' },
+          ] : [
+            { label: '删除', role: 'delete' },
+            { type: 'separator' },
+            { label: '全选', role: 'selectAll' }
+          ])
+        ]
+      },
+
+      // 视图菜单
+      {
+        label: '视图',
+        submenu: [
+          { label: '重新加载', role: 'reload' },
+          { label: '强制重新加载', role: 'forceReload' },
+          { label: '开发者工具', role: 'toggleDevTools' },
+          { type: 'separator' },
+          { label: '实际大小', role: 'resetZoom' },
+          { label: '放大', role: 'zoomIn' },
+          { label: '缩小', role: 'zoomOut' },
+          { type: 'separator' },
+          { label: '全屏', role: 'togglefullscreen' }
+        ]
+      },
+
+      // 窗口菜单
+      {
+        label: '窗口',
+        submenu: [
+          { label: '最小化', role: 'minimize' },
+          { label: '缩放', role: 'zoom' },
+          ...(isMac ? [
+            { type: 'separator' },
+            { label: '前置所有窗口', role: 'front' },
+          ] : [
+            { label: '关闭', role: 'close' }
+          ])
+        ]
+      },
+
+      // 帮助菜单
+      {
+        label: '帮助',
+        submenu: [
+          {
+            label: '访问 GitHub', click: () => {
+              shell.openExternal('https://github.com/zhizinan1997/banana-slides');
+            }
+          },
+          {
+            label: '报告问题', click: () => {
+              shell.openExternal('https://github.com/zhizinan1997/banana-slides/issues');
+            }
+          },
+          { type: 'separator' },
+          {
+            label: '检查更新...', click: () => {
+              this.mainWindow.webContents.send('check-for-updates');
+            }
+          }
+        ]
+      }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
   }
 
   createTray() {

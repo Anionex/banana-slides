@@ -57,6 +57,31 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
+      # 从 Git tag 获取版本号并同步到 package.json
+      - name: Sync version from Git tag
+        run: |
+          # 从 tag 中提取版本号 (v1.0.6 -> 1.0.6)
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Building version: $VERSION"
+          
+          # 更新 desktop/package.json
+          cd desktop
+          $env:VERSION = "$VERSION"
+          $json = Get-Content package.json -Raw | ConvertFrom-Json
+          $json.version = $env:VERSION
+          $json | ConvertTo-Json -Depth 10 | Set-Content package.json
+          cd ..
+          
+          # 更新 frontend/package.json
+          cd frontend
+          $json = Get-Content package.json -Raw | ConvertFrom-Json
+          $json.version = $env:VERSION
+          $json | ConvertTo-Json -Depth 10 | Set-Content package.json
+          cd ..
+          
+          echo "Version synced to $VERSION"
+        shell: pwsh
+
       # 构建前端
       - name: Install frontend dependencies
         working-directory: frontend
@@ -149,6 +174,25 @@ jobs:
 
       - name: Install PyInstaller
         run: pip install pyinstaller
+
+      # 从 Git tag 获取版本号并同步到 package.json
+      - name: Sync version from Git tag
+        run: |
+          # 从 tag 中提取版本号 (v1.0.6 -> 1.0.6)
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Building version: $VERSION"
+          
+          # 使用 jq 更新 package.json (macOS 自带 jq)
+          # 如果没有 jq，使用 node
+          if command -v jq &> /dev/null; then
+            jq ".version = \"$VERSION\"" desktop/package.json > tmp.json && mv tmp.json desktop/package.json
+            jq ".version = \"$VERSION\"" frontend/package.json > tmp.json && mv tmp.json frontend/package.json
+          else
+            node -e "const fs = require('fs'); const p = JSON.parse(fs.readFileSync('desktop/package.json')); p.version = '$VERSION'; fs.writeFileSync('desktop/package.json', JSON.stringify(p, null, 2));"
+            node -e "const fs = require('fs'); const p = JSON.parse(fs.readFileSync('frontend/package.json')); p.version = '$VERSION'; fs.writeFileSync('frontend/package.json', JSON.stringify(p, null, 2));"
+          fi
+          
+          echo "Version synced to $VERSION"
 
       # 生成 macOS 图标（如果不存在）
       - name: Generate macOS icon
