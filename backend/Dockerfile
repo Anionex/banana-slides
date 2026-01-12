@@ -34,9 +34,9 @@ RUN if [ -n "$APT_MIRROR" ]; then \
 COPY --from=uv /uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv
 
-# 复制项目配置文件
-COPY pyproject.toml ./
-COPY uv.lock* ./
+# 复制项目配置文件（现在在 backend/ 目录）
+COPY backend/pyproject.toml ./
+COPY backend/uv.lock* ./
 
 # 配置 PyPI 镜像源（如果指定）
 ENV UV_INDEX_URL=${PYPI_INDEX_URL}

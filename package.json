@@ -4,17 +4,17 @@
   "description": "AI-powered PPT generation application",
   "private": true,
   "scripts": {
-    "setup:test": "uv sync --extra test && cd frontend && npm install",
+    "setup:test": "cd backend && uv sync --extra test && cd ../frontend && npm install",
     "setup:hooks": "chmod +x scripts/setup_git_hooks.sh && ./scripts/setup_git_hooks.sh",
     "test": "npm run test:backend && npm run test:frontend",
-    "test:backend": "uv run pytest backend/tests/ -v",
+    "test:backend": "cd backend && uv run pytest tests/ -v",
     "test:frontend": "cd frontend && npm test -- --run",
     "test:e2e": "cd frontend && npm run test:e2e",
     "test:e2e:ui": "cd frontend && npm run test:e2e:ui",
     "test:docker": "chmod +x scripts/test_docker_environment.sh && ./scripts/test_docker_environment.sh",
     "test:all": "npm run test && npm run test:docker && npm run test:e2e",
     "lint": "npm run lint:backend && npm run lint:frontend",
-    "lint:backend": "uv run flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics",
+    "lint:backend": "cd backend && uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics",
     "lint:frontend": "cd frontend && npm run lint",
     "dev": "docker compose up",
     "dev:backend": "cd backend && uv run python app.py",
@@ -28,4 +28,3 @@
     "node": ">=18.0.0"
   }
 }
-

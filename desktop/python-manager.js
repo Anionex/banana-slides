@@ -142,17 +142,19 @@ class PythonManager {
      */
     getBackendPath() {
         const isDev = process.argv.includes('--dev');
+        // Windows 使用 .exe 后缀，macOS/Linux 无后缀
+        const exeName = process.platform === 'win32' ? 'banana-backend.exe' : 'banana-backend';
 
         if (app.isPackaged) {
-            // 打包后：resourcesPath/backend/banana-backend.exe
-            return path.join(process.resourcesPath, 'backend', 'banana-backend.exe');
+            // 打包后：resourcesPath/backend/banana-backend[.exe]
+            return path.join(process.resourcesPath, 'backend', exeName);
         } else if (isDev) {
             // 开发模式：直接使用源码运行（需要单独启动后端）
             // 这里返回一个占位符，实际上开发时应该手动启动后端
             throw new Error('Development mode: Please start backend manually with "cd backend && uv run python app.py"');
         } else {
             // 本地构建测试
-            return path.join(__dirname, 'backend', 'banana-backend.exe');
+            return path.join(__dirname, 'backend', exeName);
         }
     }
 

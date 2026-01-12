@@ -1,0 +1,263 @@
+name: Build Desktop App
+
+# 在创建 Release 时触发，或手动触发
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.3.0)'
+        required: false
+        default: ''
+
+# 取消同一分支上的旧构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  # ============================================
+  # Windows 构建
+  # ============================================
+  build-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      # 构建前端
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # 构建后端
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync
+
+      - name: Package backend with PyInstaller
+        working-directory: backend
+        run: pyinstaller ../desktop/banana-slides.spec --clean --noconfirm
+
+      # 复制构建产物到 desktop 目录
+      - name: Copy build artifacts
+        run: |
+          if (Test-Path "desktop\frontend") { Remove-Item -Recurse -Force "desktop\frontend" }
+          if (Test-Path "desktop\backend") { Remove-Item -Recurse -Force "desktop\backend" }
+          Copy-Item -Recurse "frontend\dist" "desktop\frontend"
+          Copy-Item -Recurse "backend\dist\banana-backend" "desktop\backend"
+        shell: pwsh
+
+      # 构建 Electron 应用
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build Electron (Windows)
+        working-directory: desktop
+        run: npm run build:electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 上传构建产物
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+
+      # 上传到 Release
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: desktop/dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # macOS 构建
+  # ============================================
+  build-macos:
+    name: Build macOS Installer
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      # 生成 macOS 图标（如果不存在）
+      - name: Generate macOS icon
+        run: |
+          if [ ! -f "desktop/resources/icon.icns" ]; then
+            echo "⚠️ icon.icns not found, attempting to generate from icon.png..."
+            if [ -f "desktop/resources/icon.png" ]; then
+              mkdir -p desktop/resources/icon.iconset
+              # 生成不同尺寸的图标
+              sips -z 16 16     desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_16x16.png
+              sips -z 32 32     desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_16x16@2x.png
+              sips -z 32 32     desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_32x32.png
+              sips -z 64 64     desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_32x32@2x.png
+              sips -z 128 128   desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_128x128.png
+              sips -z 256 256   desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_128x128@2x.png
+              sips -z 256 256   desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_256x256.png
+              sips -z 512 512   desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_256x256@2x.png
+              sips -z 512 512   desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_512x512.png
+              sips -z 1024 1024 desktop/resources/icon.png --out desktop/resources/icon.iconset/icon_512x512@2x.png
+              # 转换为 icns
+              iconutil -c icns desktop/resources/icon.iconset -o desktop/resources/icon.icns
+              rm -rf desktop/resources/icon.iconset
+              echo "✅ icon.icns generated successfully"
+            else
+              echo "⚠️ icon.png not found, skipping icon generation"
+            fi
+          else
+            echo "✅ icon.icns already exists"
+          fi
+
+      # 构建前端
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # 构建后端
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync
+
+      - name: Package backend with PyInstaller
+        working-directory: backend
+        run: pyinstaller ../desktop/banana-slides.spec --clean --noconfirm
+
+      # 复制构建产物到 desktop 目录
+      - name: Copy build artifacts
+        run: |
+          rm -rf desktop/frontend desktop/backend
+          cp -r frontend/dist desktop/frontend
+          cp -r backend/dist/banana-backend desktop/backend
+
+      # 构建 Electron 应用
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build Electron (macOS ${{ matrix.arch }})
+        working-directory: desktop
+        run: npx electron-builder --mac --${{ matrix.arch }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 上传构建产物
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer-${{ matrix.arch }}
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+
+      # 上传到 Release
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: desktop/dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # 构建摘要
+  # ============================================
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos]
+    if: always()
+    
+    steps:
+      - name: Check build results
+        run: |
+          echo "## 🍌 Banana Slides Desktop Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build-windows.result }}" == "success" ]; then
+            echo "✅ **Windows**: Build successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Windows**: Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.build-macos.result }}" == "success" ]; then
+            echo "✅ **macOS**: Build successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **macOS**: Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Artifacts are available in the Actions tab or attached to the Release." >> $GITHUB_STEP_SUMMARY

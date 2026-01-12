@@ -8,6 +8,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 block_cipher = None
 
 # 收集各种依赖的数据文件
+# Note: paths are relative to backend/ since we run pyinstaller from there
 datas = [
     ('fonts', 'fonts'),                    # 字体文件
     ('migrations', 'migrations'),          # Alembic 迁移文件
@@ -146,6 +147,15 @@ pyz = PYZ(
 )
 
 # 创建可执行文件
+# 根据平台选择图标文件
+import platform
+if platform.system() == 'Windows':
+    icon_file = 'resources/icon.ico' if os.path.exists('resources/icon.ico') else None
+elif platform.system() == 'Darwin':
+    icon_file = 'resources/icon.icns' if os.path.exists('resources/icon.icns') else None
+else:
+    icon_file = None
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -161,7 +171,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='../desktop/resources/icon.ico' if os.path.exists('../desktop/resources/icon.ico') else None,
+    icon=icon_file,
 )
 
 # 收集所有文件

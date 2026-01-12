@@ -73,8 +73,8 @@ cd backend
 echo Installing Python dependencies...
 pip install -r requirements.txt 2>nul || uv sync
 
-:: 运行 PyInstaller
-pyinstaller banana-slides.spec --clean --noconfirm
+:: 运行 PyInstaller（spec 文件在 desktop 目录）
+pyinstaller ../desktop/banana-slides.spec --clean --noconfirm
 if errorlevel 1 (
     echo [ERROR] Backend packaging failed!
     pause

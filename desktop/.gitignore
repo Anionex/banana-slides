@@ -1,12 +1,14 @@
-# Desktop build artifacts
-/frontend/
-/backend/
-/dist/
-/node_modules/
+# Build artifacts (copied during build)
+frontend/
+backend/
+dist/
+
+# Node
+node_modules/
 
 # Logs
 *.log
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db

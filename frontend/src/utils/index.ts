@@ -64,7 +64,7 @@ export function throttle<T extends (...args: any[]) => any>(
 }
 
 /**
- * 下载文件
+ * 下载文件（从 Blob）
  */
 export function downloadFile(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
@@ -76,6 +76,58 @@ export function downloadFile(blob: Blob, filename: string) {
   document.body.removeChild(link);
   window.URL.revokeObjectURL(url);
 }
+
+// 声明 Electron API 类型
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: boolean;
+      downloadFile: (url: string, filename: string) => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>;
+      getBackendPort: () => string;
+      platform: string;
+    };
+  }
+}
+
+/**
+ * 从 URL 下载文件
+ * 在 Electron 环境中使用 IPC 调用原生下载对话框
+ * 在浏览器中使用 a 标签下载或打开新窗口
+ */
+export async function downloadFromUrl(url: string, filename?: string): Promise<void> {
+  // 从 URL 中提取文件名
+  const extractedFilename = filename || url.split('/').pop() || 'download';
+
+  // 检查是否在 Electron 环境中
+  if (window.electronAPI?.isElectron) {
+    console.log('[Download] Using Electron IPC to download:', url);
+    try {
+      const result = await window.electronAPI.downloadFile(url, extractedFilename);
+      if (result.success) {
+        console.log('[Download] File saved to:', result.path);
+      } else if (result.canceled) {
+        console.log('[Download] User canceled download');
+      } else {
+        console.error('[Download] Failed:', result.error);
+        throw new Error(result.error || '下载失败');
+      }
+    } catch (error) {
+      console.error('[Download] Error:', error);
+      throw error;
+    }
+  } else {
+    // 浏览器环境：使用 a 标签下载
+    console.log('[Download] Using browser download:', url);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = extractedFilename;
+    // 某些浏览器需要将链接添加到 DOM
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
 
 /**
  * 格式化日期
@@ -103,9 +155,9 @@ export function generateId(): string {
  */
 export function normalizeErrorMessage(errorMessage: string | null | undefined): string {
   if (!errorMessage) return '操作失败';
-  
+
   const message = errorMessage.toLowerCase();
-  
+
   if (message.includes('no template image found')) {
     return '当前项目还没有模板，请先点击页面工具栏的"更换模板"按钮，选择或上传一张模板图片后再生成。';
   } else if (message.includes('page must have description content')) {
@@ -113,7 +165,7 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   } else if (message.includes('image already exists')) {
     return '该页面已经有图片，如需重新生成，请在生成时选择"重新生成"或稍后重试。';
   }
-  
+
   return errorMessage;
 }
 

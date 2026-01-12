@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     // 获取应用版本
     getVersion: () => ipcRenderer.invoke('get-version'),
-    
+
     // 获取后端端口（从 URL 参数获取）
     getBackendPort: () => {
         const params = new URLSearchParams(window.location.search);
@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 获取用户数据路径
     getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
+    // 下载文件（弹出保存对话框，下载到本地）
+    downloadFile: (url, filename) => ipcRenderer.invoke('download-file', { url, filename }),
+
     // 平台信息
     platform: process.platform,
 
@@ -31,3 +34,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 console.log('Preload script loaded');
+

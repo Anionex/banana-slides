@@ -45,6 +45,50 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Banana Slides"
+  # 覆盖安装支持
+  allowElevation: true                    # 允许提升权限
+  differentialPackage: false              # 禁用差异包（确保完整安装）
+  deleteAppDataOnUninstall: false         # 卸载时保留用户数据
+  runAfterFinish: true                    # 安装完成后自动启动应用
+  installerSidebar: null                  # 使用默认侧边栏
+  # 升级时自动关闭运行中的应用
+  include: resources/installer.nsh        # 自定义安装脚本（处理升级）
+  warningsAsErrors: false                 # 警告不作为错误
+
+# macOS 配置
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: resources/icon.icns
+  artifactName: "BananaSlides-${version}-${arch}.${ext}"
+  category: public.app-category.productivity
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 380
+
+# Linux 配置 (可选)
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: resources/icon.png
+  artifactName: "BananaSlides-${version}-${arch}.${ext}"
+  category: Office
 
 # 压缩设置
 compression: maximum

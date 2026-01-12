@@ -2,7 +2,7 @@
 name = "banana-slides"
 version = "0.3.0"
 description = "Banana Slides – AI native PPT generator"
-readme = "README.md"
+readme = "../README.md"
 requires-python = ">=3.10"
 dependencies = [
     "flask>=3.0.0",
@@ -38,7 +38,7 @@ test = [
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"

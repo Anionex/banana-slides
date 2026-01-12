@@ -32,6 +32,14 @@
 # 保留项目模板图片
 !template*.png
 
+# 保留桌面端图标资源
+!desktop/resources/*.png
+!desktop/resources/*.ico
+!desktop/resources/*.icns
+
+# 保留 logo 目录
+!logo/*.png
+
 # 忽略临时文档，但保留项目文档
 *.md
 !README.md
@@ -55,3 +63,19 @@ uploads/
 *.orig
 # 本地备份目录（保存测试文件等）
 _local_backup/
+
+# Log files
+*.log
+
+# Database
+backend/instance/
+*.db
+
+# Desktop build artifacts
+desktop/frontend/
+desktop/backend/
+desktop/dist/
+
+# PyInstaller
+build/
+*.spec.bak

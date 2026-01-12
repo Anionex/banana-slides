@@ -3,7 +3,7 @@ import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, Al
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
 import type { Page } from '@/types';
 import { Button } from './Button';
-import { cn } from '@/utils';
+import { cn, downloadFromUrl } from '@/utils';
 
 const taskTypeLabels: Record<ExportTaskType, string> = {
   'pptx': 'PPTX',
@@ -21,7 +21,7 @@ const getPageRangeText = (pageIds: string[] | undefined, pages: Page[]): string 
   if (!pageIds || pageIds.length === 0) {
     return '全部';
   }
-  
+
   // 找到所有页面的索引
   const indices: number[] = [];
   pageIds.forEach(pageId => {
@@ -30,15 +30,15 @@ const getPageRangeText = (pageIds: string[] | undefined, pages: Page[]): string 
       indices.push(index);
     }
   });
-  
+
   if (indices.length === 0) {
     return `${pageIds.length}页`;
   }
-  
+
   indices.sort((a, b) => a - b);
   const minIndex = indices[0];
   const maxIndex = indices[indices.length - 1];
-  
+
   // 如果是连续的，显示范围；否则显示数量
   if (indices.length === maxIndex - minIndex + 1) {
     // 连续范围
@@ -76,12 +76,12 @@ const WarningsModal: React.FC<{
   warningDetails?: any;
 }> = ({ isOpen, onClose, warnings, warningDetails }) => {
   if (!isOpen) return null;
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* 背景遮罩 */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      
+
       {/* Modal 内容 */}
       <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
         {/* Header */}
@@ -99,7 +99,7 @@ const WarningsModal: React.FC<{
             <X size={18} className="text-gray-500" />
           </button>
         </div>
-        
+
         {/* 警告列表 */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-2">
@@ -113,12 +113,12 @@ const WarningsModal: React.FC<{
               </div>
             ))}
           </div>
-          
+
           {/* 详细信息（如果有） */}
           {warningDetails && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <h4 className="text-sm font-medium text-gray-700 mb-2">详细信息</h4>
-              
+
               {warningDetails.style_extraction_failed?.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs text-gray-500 mb-1">
@@ -138,7 +138,7 @@ const WarningsModal: React.FC<{
                   </div>
                 </div>
               )}
-              
+
               {warningDetails.text_render_failed?.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs text-gray-500 mb-1">
@@ -156,7 +156,7 @@ const WarningsModal: React.FC<{
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
           <button
@@ -173,7 +173,7 @@ const WarningsModal: React.FC<{
 
 const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void }> = ({ task, pages, onRemove }) => {
   const [showWarningsModal, setShowWarningsModal] = useState(false);
-  
+
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -193,7 +193,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
 
   const progressPercent = getProgressPercent();
   const isProcessing = task.status === 'PROCESSING' || task.status === 'RUNNING' || task.status === 'PENDING';
-  
+
   const hasWarnings = task.status === 'COMPLETED' && task.progress?.warnings && task.progress.warnings.length > 0;
 
   return (
@@ -201,7 +201,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
       <div className="mt-0.5">
         <TaskStatusIcon status={task.status} />
       </div>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-medium text-gray-700 truncate">
@@ -214,7 +214,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             {formatTime(task.createdAt)}
           </span>
         </div>
-        
+
         {/* 进度条 - 显示在进行中的任务 */}
         {isProcessing && (
           <div className="mt-2 space-y-1.5">
@@ -231,7 +231,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
                     </span>
                   )}
                 </div>
-                
+
                 {/* 进度条 */}
                 <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
                   <div
@@ -239,7 +239,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
-                
+
                 {/* 显示消息日志（如果有） */}
                 {task.progress.messages && task.progress.messages.length > 0 && (
                   <div className="mt-1.5 space-y-0.5">
@@ -261,13 +261,13 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             )}
           </div>
         )}
-        
+
         {task.status === 'FAILED' && task.errorMessage && (
           <p className="text-xs text-red-500 mt-1 truncate" title={task.errorMessage}>
             {task.errorMessage}
           </p>
         )}
-        
+
         {/* 显示完成后的警告信息（点击查看详情） */}
         {hasWarnings && (
           <>
@@ -285,7 +285,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
                 </span>
               </div>
             </button>
-            
+
             <WarningsModal
               isOpen={showWarningsModal}
               onClose={() => setShowWarningsModal(false)}
@@ -295,20 +295,24 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
           </>
         )}
       </div>
-      
+
       <div className="flex items-center gap-1 flex-shrink-0">
         {task.status === 'COMPLETED' && task.downloadUrl && (
           <Button
             variant="primary"
             size="sm"
             icon={<Download size={14} />}
-            onClick={() => window.open(task.downloadUrl, '_blank')}
+            onClick={() => {
+              downloadFromUrl(task.downloadUrl!).catch(err => {
+                console.error('[导出任务] 下载失败:', err);
+              });
+            }}
             className="text-xs px-2 py-1"
           >
             下载
           </Button>
         )}
-        
+
         <button
           onClick={onRemove}
           className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -330,35 +334,35 @@ interface ExportTasksPanelProps {
 export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, pages = [], className }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const { tasks, removeTask, clearCompleted, restoreActiveTasks } = useExportTasksStore();
-  
+
   // Filter tasks for current project if projectId is provided
-  const filteredTasks = projectId 
+  const filteredTasks = projectId
     ? tasks.filter(task => task.projectId === projectId)
     : tasks;
-  
+
   const activeTasks = filteredTasks.filter(
     task => task.status === 'PENDING' || task.status === 'PROCESSING' || task.status === 'RUNNING'
   );
   const completedTasks = filteredTasks.filter(
     task => task.status === 'COMPLETED' || task.status === 'FAILED'
   );
-  
+
   // 当组件挂载时，恢复所有正在进行的任务并重新开始轮询
   useEffect(() => {
     restoreActiveTasks();
   }, []); // 只在组件挂载时执行一次
-  
+
   // 当有进行中的任务时，自动展开面板
   useEffect(() => {
     if (activeTasks.length > 0 && !isExpanded) {
       setIsExpanded(true);
     }
   }, [activeTasks.length, isExpanded]);
-  
+
   if (filteredTasks.length === 0) {
     return null;
   }
-  
+
   return (
     <div className={cn(
       "bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden",
@@ -381,7 +385,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
           )}
         </div>
       </button>
-      
+
       {/* Content */}
       {isExpanded && (
         <div className="max-h-96 overflow-y-auto">
@@ -389,8 +393,8 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
           {activeTasks.length > 0 && (
             <div className="p-2 border-b border-gray-100">
               {activeTasks.map(task => (
-                <TaskItem 
-                  key={task.id} 
+                <TaskItem
+                  key={task.id}
                   task={task}
                   pages={pages}
                   onRemove={() => removeTask(task.id)}
@@ -398,7 +402,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
               ))}
             </div>
           )}
-          
+
           {/* Completed tasks */}
           {completedTasks.length > 0 && (
             <div className="p-2">
@@ -413,8 +417,8 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                 </button>
               </div>
               {completedTasks.map(task => (
-                <TaskItem 
-                  key={task.id} 
+                <TaskItem
+                  key={task.id}
                   task={task}
                   pages={pages}
                   onRemove={() => removeTask(task.id)}

@@ -1,5 +1,8 @@
-const { app, BrowserWindow, Tray, Menu, dialog, shell } = require("electron");
+const { app, BrowserWindow, Tray, Menu, dialog, shell, ipcMain } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const https = require("https");
+const http = require("http");
 const log = require("electron-log");
 const PythonManager = require("./python-manager");
 
@@ -60,6 +63,7 @@ class BananaApp {
 
       this.createMainWindow(backendPort);
       this.createTray();
+      this.setupIpcHandlers(backendPort);
     } catch (error) {
       log.error("Failed to start application:", error);
       dialog.showErrorBox(
@@ -68,6 +72,97 @@ class BananaApp {
       );
       app.quit();
     }
+  }
+
+  /**
+   * 设置 IPC 处理器
+   */
+  setupIpcHandlers(backendPort) {
+    // 下载文件处理器
+    ipcMain.handle('download-file', async (event, { url, filename }) => {
+      log.info(`[Download] Downloading file: ${url}`);
+
+      try {
+        // 弹出保存对话框
+        const result = await dialog.showSaveDialog(this.mainWindow, {
+          defaultPath: filename || 'download',
+          filters: [
+            { name: '所有文件', extensions: ['*'] },
+            { name: 'PowerPoint', extensions: ['pptx'] },
+            { name: 'PDF', extensions: ['pdf'] },
+          ]
+        });
+
+        if (result.canceled || !result.filePath) {
+          log.info('[Download] User canceled save dialog');
+          return { success: false, canceled: true };
+        }
+
+        const savePath = result.filePath;
+        log.info(`[Download] Saving to: ${savePath}`);
+
+        // 如果 URL 是相对路径，转换为绝对路径
+        let fullUrl = url;
+        if (url.startsWith('/')) {
+          fullUrl = `http://127.0.0.1:${backendPort}${url}`;
+        }
+
+        // 下载文件
+        await this.downloadToFile(fullUrl, savePath);
+
+        log.info(`[Download] File saved successfully: ${savePath}`);
+
+        // 可选：打开文件所在目录
+        shell.showItemInFolder(savePath);
+
+        return { success: true, path: savePath };
+      } catch (error) {
+        log.error('[Download] Error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // 获取后端端口
+    ipcMain.handle('get-backend-port', () => backendPort);
+  }
+
+  /**
+   * 下载文件到指定路径
+   */
+  downloadToFile(url, filePath) {
+    return new Promise((resolve, reject) => {
+      const protocol = url.startsWith('https') ? https : http;
+      const file = fs.createWriteStream(filePath);
+
+      protocol.get(url, (response) => {
+        // 处理重定向
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          file.close();
+          fs.unlinkSync(filePath);
+          return this.downloadToFile(response.headers.location, filePath)
+            .then(resolve)
+            .catch(reject);
+        }
+
+        if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(filePath);
+          reject(new Error(`HTTP ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      }).on('error', (err) => {
+        file.close();
+        fs.unlink(filePath, () => { }); // 删除不完整的文件
+        reject(err);
+      });
+    });
   }
 
   showSplash() {
@@ -147,7 +242,7 @@ class BananaApp {
       if (!this.isQuitting) {
         this.isQuitting = true;
         log.info("Window closing, quitting application...");
-        
+
         // 先停止后端进程
         this.pythonManager.stop().then(() => {
           log.info("Backend stopped, quitting app");
@@ -156,10 +251,10 @@ class BananaApp {
           log.error("Error stopping backend:", err);
           app.quit();
         });
-        
+
         // 暂时阻止关闭，等后端停止后再退出
         event.preventDefault();
-        
+
         // 设置超时强制退出（防止后端停止失败导致卡住）
         setTimeout(() => {
           log.warn("Force quitting after timeout");
