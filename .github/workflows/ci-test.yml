@@ -215,7 +215,7 @@ jobs:
       - name: Wait for services to be healthy
         run: |
           chmod +x scripts/wait-for-health.sh
-          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:5010/health 60 2
           ./scripts/wait-for-health.sh http://localhost:3000 60 2
       
       - name: Health check
@@ -223,7 +223,7 @@ jobs:
           chmod +x scripts/wait-for-health.sh
           # Backend health check
           echo "Checking backend..."
-          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:5010/health 60 2
           
           # Frontend health check (with content verification)
           echo "Checking frontend..."
