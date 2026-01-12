@@ -28,6 +28,7 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     fi && \
     apt-get update && apt-get install -y \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # 从 uv 阶段复制二进制文件
@@ -69,4 +70,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # 启动应用
 CMD ["sh", "-c", "uv run --directory backend alembic upgrade head && uv run --directory backend python app.py"]
-

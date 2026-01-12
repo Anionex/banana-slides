@@ -12,20 +12,20 @@ services:
     ports:
       # 宿主机端口:容器内部端口（由 PORT 控制，默认 5000）
       # 外部访问始终是 http://localhost:5000，内部监听端口可通过 PORT 调整
-      - "5000:${PORT:-5000}"
+      - "5001:${PORT:-5000}"
     # 从 .env 文件自动加载所有环境变量
     env_file:
       - .env
     # Vertex AI 配置（使用 Vertex AI 时取消以下注释）
-    # environment:
-    #   - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
     volumes:
       # 持久化数据库
       - ./backend/instance:/app/backend/instance
       # 持久化上传的文件
       - ./uploads:/app/uploads
       # GCP 服务账户文件（仅 Vertex AI 用户需要取消下一行注释）
-      # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
+      - ./gcp-service-account.json:/app/gcp-service-account.json:ro
     restart: unless-stopped
     healthcheck:
       # 健康检查同样跟随 PORT（默认 5000）
@@ -63,4 +63,3 @@ networks:
 volumes:
   backend-data:
   uploads-data:
-
