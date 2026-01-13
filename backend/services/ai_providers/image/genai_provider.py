@@ -75,7 +75,8 @@ class GenAIImageProvider(ImageProvider):
         ref_images: Optional[List[Image.Image]] = None,
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
-        enable_thinking: bool = True
+        enable_thinking: bool = True,
+        thinking_budget: int = 1024
     ) -> Optional[Image.Image]:
         """
         Generate image using Google GenAI SDK
@@ -86,6 +87,7 @@ class GenAIImageProvider(ImageProvider):
             aspect_ratio: Image aspect ratio
             resolution: Image resolution (supports "1K", "2K", "4K")
             enable_thinking: If True, enable thinking chain mode (may generate multiple images)
+            thinking_budget: Thinking budget for the model
             
         Returns:
             Generated PIL Image object, or None if failed
@@ -116,8 +118,10 @@ class GenAIImageProvider(ImageProvider):
             
             # Add thinking config if enabled
             if enable_thinking:
-                config_params['thinking_config'] = types.ThinkingConfig(
-                    include_thoughts=True
+                # In Vertex AI (Gemini) Thinking mode, enabling include_thoughts=True requires explicitly setting thinking_budget
+                config_params['thinking_config'] = types.ThinkingConfig(  
+                    thinking_budget=thinking_budget, 
+                    include_thoughts=True  
                 )
             
             response = self.client.models.generate_content(
