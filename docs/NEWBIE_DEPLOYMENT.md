@@ -242,14 +242,16 @@ Banana Slides 支持两种 API 格式，在网页设置中只需选择格式并�
 
 | 使用场景 | API 格式 | API Base 填写示例 | 注意事项 |
 |---------|---------|-------------------|----------|
-| **AIHubMix** | Gemini 格式 | `https://aihubmix.com` | ⚠️ 只需填写域名，**不要**加 `/v1beta` |
+| **AIHubMix** | Gemini 格式 | `https://aihubmix.com/gemini` | ✅ **需要**包含 `/gemini` 路径 |
 | **Google 官方** | Gemini 格式 | `https://generativelanguage.googleapis.com` | ⚠️ 只需填写域名，**不要**加 `/v1beta` |
 | **本地 Ollama** | Gemini 格式 | `http://localhost:11434` | ⚠️ 只需填写域名/IP，**不要**加 `/v1beta` |
 | **AIHubMix** | OpenAI 格式 | `https://aihubmix.com/v1` | ✅ **需要**包含路径版本号 `/v1` |
 | **OpenAI 官方** | OpenAI 格式 | `https://api.openai.com/v1` | ✅ **需要**包含路径版本号 `/v1` |
 | **本地 vLLM** | OpenAI 格式 | `http://localhost:8000/v1` | ✅ **需要**包含路径版本号 `/v1` |
 
-> ⚠️ **常见错误**：将 Gemini 格式的 API Base 填写为 `https://aihubmix.com/v1beta` 会导致路径重复变成 `https://aihubmix.com/v1beta/v1beta`
+> ⚠️ **常见错误**：
+> - AIHubMix Gemini 格式忘记加 `/gemini` 路径，应填写为 `https://aihubmix.com/gemini`
+> - Google 官方 Gemini 格式错误填写为 `https://generativelanguage.googleapis.com/v1beta` 会导致路径重复
 >
 > 💡 **本地部署提示**：使用本地 Ollama 或 vLLM 等服务时，确保服务已启动，API Base 地址格式为 `http://localhost:端口号`
 
@@ -409,7 +411,7 @@ flowchart TD
    | 配置项 | 说明 | 填写示例 |
    |--------|------|---------|
    | **API 格式** | 选择 `Gemini 格式` 或 `OpenAI 格式` | `Gemini 格式`（推荐） |
-   | **API Base** | API 服务地址（参考下方填写规则） | `https://aihubmix.com` |
+   | **API Base** | API 服务地址（参考下方填写规则） | `https://aihubmix.com/gemini` |
    | **API Key** | 你获取的 API 密钥 | `AIzaSy...` |
 
    > 💡 **兼容性说明**：只要是兼容标准 **OpenAI v1** 或 **Gemini v1beta** 格式的 API 服务都可以使用：
@@ -420,7 +422,7 @@ flowchart TD
 
    | 使用场景 | API 格式 | API Base 填写示例 |
    |---------|---------|-------------------|
-   | **AIHubMix（推荐）** | Gemini 格式 | `https://aihubmix.com` ⚠️ 不要加 `/v1beta` |
+   | **AIHubMix（推荐）** | Gemini 格式 | `https://aihubmix.com/gemini` ✅ **需要**包含 `/gemini` 路径 |
    | **Google 官方** | Gemini 格式 | `https://generativelanguage.googleapis.com` ⚠️ 不要加 `/v1beta` |
    | **本地 Ollama** | Gemini 格式 | `http://localhost:11434` ⚠️ 不要加 `/v1beta` |
    | **AIHubMix** | OpenAI 格式 | `https://aihubmix.com/v1` ✅ 需要加 `/v1` |
@@ -428,7 +430,8 @@ flowchart TD
    | **本地 vLLM** | OpenAI 格式 | `http://localhost:8000/v1` ✅ 需要加 `/v1` |
 
    > ⚠️ **重要提示**：
-   > - **Gemini 格式**的 API Base 只需填写域名，**不要**在后面添加 `/v1beta`，系统会自动拼接
+   > - **AIHubMix Gemini 格式**的 API Base 需要填写完整路径 `https://aihubmix.com/gemini`
+   > - **Google 官方 Gemini 格式**只需填写域名，**不要**在后面添加 `/v1beta`，系统会自动拼接
    > - **OpenAI 格式**的 API Base 需要填写完整路径，例如 `https://api.openai.com/v1`
    > - **本地服务**确保已启动，地址格式为 `http://localhost:端口号`
 
