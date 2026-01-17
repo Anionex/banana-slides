@@ -376,6 +376,9 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 """
 
+    # 模板分析结果示例（仅当有模板图片时显示）
+    template_example = "【固定元素】: 学校logo、蓝色表头、背景装饰\n【可变区域】: 标题、副标题、演讲人信息\n\n" if has_template_image else ""
+
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -391,7 +394,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 5. 不要包含任何额外的说明性文字或注释
 
 输出格式示例：
-{"【固定元素】: 学校logo、蓝色表头、背景装饰\n【可变区域】: 标题、副标题、演讲人信息\n\n" if has_template_image else ""}页面标题：原始社会：与自然共生
+{template_example}页面标题：原始社会：与自然共生
 {"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
 
 页面文字：
