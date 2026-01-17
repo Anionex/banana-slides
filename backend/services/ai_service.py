@@ -495,13 +495,17 @@ class AIService:
                             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
             
             logger.debug(f"Calling image provider for generation with {len(ref_images)} reference images...")
+            logger.debug(f"Enable reasoning/thinking: {self.enable_reasoning}")
             
             # 使用 image_provider 生成图片
+            # 根据 enable_reasoning 配置控制图像生成的思考模式
             return self.image_provider.generate_image(
                 prompt=prompt,
                 ref_images=ref_images if ref_images else None,
                 aspect_ratio=aspect_ratio,
-                resolution=resolution
+                resolution=resolution,
+                enable_thinking=self.enable_reasoning,
+                thinking_budget=1024 if self.enable_reasoning else 0
             )
             
         except Exception as e:
