@@ -56,6 +56,9 @@ export type ExportExtractorMethod = 'mineru' | 'hybrid';
 // 导出设置 - 背景图获取方法
 export type ExportInpaintMethod = 'generative' | 'baidu' | 'hybrid';
 
+// 模版使用模式
+export type TemplateMode = 'strict' | 'reference';
+
 // 项目
 export interface Project {
   project_id: string;  // 后端返回 project_id
@@ -68,6 +71,7 @@ export interface Project {
   template_image_url?: string; // 后端返回 template_image_url
   template_image_path?: string; // 前端使用的别名
   template_style?: string; // 风格描述文本（无模板图模式）
+  template_mode?: TemplateMode; // 模版使用模式：strict（严格复刻）| reference（参考风格）
   // 导出设置
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法
@@ -106,6 +110,7 @@ export interface CreateProjectRequest {
   description_text?: string;
   template_image?: File;
   template_style?: string;
+  template_mode?: TemplateMode;
 }
 
 // API响应

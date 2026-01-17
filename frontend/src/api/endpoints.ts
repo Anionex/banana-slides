@@ -22,6 +22,7 @@ export const createProject = async (data: CreateProjectRequest): Promise<ApiResp
     outline_text: data.outline_text,
     description_text: data.description_text,
     template_style: data.template_style,
+    template_mode: data.template_mode,
   });
   return response.data;
 };
@@ -104,12 +105,16 @@ export const updatePagesOrder = async (
  * 生成大纲
  * @param projectId 项目ID
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
+ * @param targetPageCount 目标页数（可选）
  */
-export const generateOutline = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+export const generateOutline = async (projectId: string, language?: OutputLanguage, targetPageCount?: number): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/outline`,
-    { language: lang }
+    {
+      language: lang,
+      ...(targetPageCount ? { target_page_count: targetPageCount } : {})
+    }
   );
   return response.data;
 };
@@ -753,6 +758,182 @@ export const dissociateFileFromProject = async (
 ): Promise<ApiResponse<{ file: ReferenceFile; message: string }>> => {
   const response = await apiClient.post<ApiResponse<{ file: ReferenceFile; message: string }>>(
     `/api/reference-files/${fileId}/dissociate`
+  );
+  return response.data;
+};
+
+// ===== 页面模板 API =====
+
+export interface PageTemplateInfo {
+  page_id: string;
+  order_index: number;
+  template_image_url: string | null;
+  part?: string;
+}
+
+export interface PageTemplateBinding {
+  page_id: string;
+  order_index: number;
+  template_image_path: string | null;
+  template_image_url: string | null;
+  part?: string;
+}
+
+/**
+ * 批量上传页面模板
+ * @param projectId 项目ID
+ * @param templates 模板文件列表（按顺序与页面绑定）
+ */
+export const uploadBatchTemplates = async (
+  projectId: string,
+  templates: File[]
+): Promise<ApiResponse<{
+  bindings: PageTemplateBinding[];
+  total_pages: number;
+  templates_bound: number;
+}>> => {
+  const formData = new FormData();
+  templates.forEach((file) => {
+    formData.append('templates', file);
+  });
+
+  const response = await apiClient.post<ApiResponse<{
+    bindings: PageTemplateBinding[];
+    total_pages: number;
+    templates_bound: number;
+  }>>(
+    `/api/projects/${projectId}/templates/batch`,
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 获取项目所有页面的模板绑定状态
+ * @param projectId 项目ID
+ */
+export const getPageTemplates = async (
+  projectId: string
+): Promise<ApiResponse<{
+  bindings: PageTemplateBinding[];
+  total_pages: number;
+  pages_with_templates: number;
+}>> => {
+  const response = await apiClient.get<ApiResponse<{
+    bindings: PageTemplateBinding[];
+    total_pages: number;
+    pages_with_templates: number;
+  }>>(
+    `/api/projects/${projectId}/page-templates`
+  );
+  return response.data;
+};
+
+/**
+ * 为单个页面上传模板
+ * @param projectId 项目ID
+ * @param pageId 页面ID
+ * @param template 模板文件
+ */
+export const uploadPageTemplate = async (
+  projectId: string,
+  pageId: string,
+  template: File
+): Promise<ApiResponse<{
+  page_id: string;
+  template_image_url: string;
+}>> => {
+  const formData = new FormData();
+  formData.append('template_image', template);
+
+  const response = await apiClient.post<ApiResponse<{
+    page_id: string;
+    template_image_url: string;
+  }>>(
+    `/api/projects/${projectId}/pages/${pageId}/template`,
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 删除页面模板
+ * @param projectId 项目ID
+ * @param pageId 页面ID
+ */
+export const deletePageTemplate = async (
+  projectId: string,
+  pageId: string
+): Promise<ApiResponse<{ page_id: string; message: string }>> => {
+  const response = await apiClient.delete<ApiResponse<{ page_id: string; message: string }>>(
+    `/api/projects/${projectId}/pages/${pageId}/template`
+  );
+  return response.data;
+};
+
+// ===== 预备模板 API (Pending Templates) =====
+
+export interface PendingTemplate {
+  order_index: number;
+  file_path?: string;
+  file_url?: string;
+  filename?: string;
+}
+
+/**
+ * 上传预备模板（在大纲生成前上传）
+ * 这些模板会在大纲生成时供 AI 参考，并自动关联到生成的页面
+ * @param projectId 项目ID
+ * @param templates 模板文件列表
+ */
+export const uploadPendingTemplates = async (
+  projectId: string,
+  templates: File[]
+): Promise<ApiResponse<{
+  templates: PendingTemplate[];
+  message: string;
+}>> => {
+  const formData = new FormData();
+  templates.forEach((file) => {
+    formData.append('templates', file);
+  });
+
+  const response = await apiClient.post<ApiResponse<{
+    templates: PendingTemplate[];
+    message: string;
+  }>>(
+    `/api/projects/${projectId}/pending-templates`,
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 获取预备模板列表
+ * @param projectId 项目ID
+ */
+export const getPendingTemplates = async (
+  projectId: string
+): Promise<ApiResponse<{
+  templates: PendingTemplate[];
+}>> => {
+  const response = await apiClient.get<ApiResponse<{
+    templates: PendingTemplate[];
+  }>>(
+    `/api/projects/${projectId}/pending-templates`
+  );
+  return response.data;
+};
+
+/**
+ * 清除预备模板
+ * @param projectId 项目ID
+ */
+export const clearPendingTemplates = async (
+  projectId: string
+): Promise<ApiResponse<{ message: string }>> => {
+  const response = await apiClient.delete<ApiResponse<{ message: string }>>(
+    `/api/projects/${projectId}/pending-templates`
   );
   return response.data;
 };

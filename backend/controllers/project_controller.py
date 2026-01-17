@@ -58,24 +58,31 @@ def _get_project_reference_files_content(project_id: str) -> list:
 def _reconstruct_outline_from_pages(pages: list) -> list:
     """
     Reconstruct outline structure from Page objects
-    
+
     Args:
         pages: List of Page objects ordered by order_index
-        
+
     Returns:
         Outline structure (list) with optional part grouping
     """
     outline = []
     current_part = None
     current_part_pages = []
-    
+
     for page in pages:
         outline_content = page.get_outline_content()
         if not outline_content:
             continue
-            
+
         page_data = outline_content.copy()
-        
+
+        # 添加内容源映射（paragraph_ids, image_ids, table_ids）
+        content_source = page.get_content_source()
+        if content_source:
+            page_data['paragraph_ids'] = content_source.get('paragraph_ids', [])
+            page_data['image_ids'] = content_source.get('image_ids', [])
+            page_data['table_ids'] = content_source.get('table_ids', [])
+
         # 如果当前页面属于一个 part
         if page.part:
             # 如果这是新的 part，先保存之前的 part（如果有）
@@ -85,7 +92,7 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
                     "pages": current_part_pages
                 })
                 current_part_pages = []
-            
+
             current_part = page.part
             # 移除 part 字段，因为它在顶层
             if 'part' in page_data:
@@ -100,17 +107,17 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
                 })
                 current_part = None
                 current_part_pages = []
-            
+
             # 直接添加页面
             outline.append(page_data)
-    
+
     # 保存最后一个 part（如果有）
     if current_part:
         outline.append({
             "part": current_part,
             "pages": current_part_pages
         })
-    
+
     return outline
 
 
@@ -186,7 +193,12 @@ def create_project():
         
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
-        
+
+        # 验证并提取 template_mode
+        template_mode = data.get('template_mode', 'strict')
+        if template_mode not in ['strict', 'reference']:
+            template_mode = 'strict'
+
         # Create project
         project = Project(
             creation_type=creation_type,
@@ -194,6 +206,7 @@ def create_project():
             outline_text=data.get('outline_text'),
             description_text=data.get('description_text'),
             template_style=data.get('template_style'),
+            template_mode=template_mode,
             status='DRAFT'
         )
         
@@ -275,7 +288,11 @@ def update_project(project_id):
         # Update template_style if provided
         if 'template_style' in data:
             project.template_style = data['template_style']
-        
+
+        # Update template_mode if provided
+        if 'template_mode' in data:
+            project.template_mode = data['template_mode']
+
         # Update export settings if provided
         if 'export_extractor_method' in data:
             project.export_extractor_method = data['export_extractor_method']
@@ -342,29 +359,31 @@ def delete_project(project_id):
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
-    
+
     For 'idea' type: Generate outline from idea_prompt
     For 'outline' type: Parse outline_text into structured format
-    
+
     Request body (optional):
     {
         "idea_prompt": "...",  # for idea type
-        "language": "zh"  # output language: zh, en, ja, auto
+        "language": "zh",  # output language: zh, en, ja, auto
+        "target_page_count": 10  # optional: target number of pages to generate
     }
     """
     try:
         project = Project.query.get(project_id)
-        
+
         if not project:
             return not_found('Project')
-        
+
         # Get singleton AI service instance
         ai_service = get_ai_service()
-        
+
         # Get request data and language parameter
         data = request.get_json() or {}
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        target_page_count = data.get('target_page_count')  # 目标页数
+
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
         if reference_files_content:
@@ -373,13 +392,35 @@ def generate_outline(project_id):
                 logger.info(f"  - {rf['filename']}: {len(rf['content'])} characters")
         else:
             logger.info(f"No reference files found for project {project_id}")
-        
+
+        # Get pending templates for multimodal outline generation
+        from services import FileService
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        pending_templates = file_service.get_pending_templates(project_id)
+        template_image_paths = [t['path'] for t in pending_templates] if pending_templates else None
+
+        if template_image_paths:
+            logger.info(f"Found {len(template_image_paths)} pending templates for outline generation")
+
+        # 构建文档索引（如果有参考文件）
+        from services.document_indexer import document_indexer, DocumentIndex
+        doc_index = None
+        indexed_content = None
+
+        if reference_files_content:
+            # 合并所有参考文件内容
+            combined_content = "\n\n".join([rf['content'] for rf in reference_files_content])
+            if combined_content.strip():
+                doc_index = document_indexer.index_document(combined_content)
+                indexed_content = document_indexer.format_indexed_content_for_prompt(doc_index)
+                logger.info(f"Document indexed: {len(doc_index.paragraphs)} paragraphs, {len(doc_index.images)} images, {len(doc_index.tables)} tables")
+
         # 根据项目类型选择不同的处理方式
         if project.creation_type == 'outline':
             # 从大纲生成：解析用户输入的大纲文本
             if not project.outline_text:
                 return bad_request("outline_text is required for outline type project")
-            
+
             # Create project context and parse outline text into structured format
             project_context = ProjectContext(project, reference_files_content)
             outline = ai_service.parse_outline_text(project_context, language=language)
@@ -389,25 +430,31 @@ def generate_outline(project_id):
         else:
             # 一句话生成：从idea生成大纲
             idea_prompt = data.get('idea_prompt') or project.idea_prompt
-            
+
             if not idea_prompt:
                 return bad_request("idea_prompt is required")
-            
+
             project.idea_prompt = idea_prompt
-            
-            # Create project context and generate outline from idea
+
+            # Create project context and generate outline from idea (with indexed content and templates)
             project_context = ProjectContext(project, reference_files_content)
-            outline = ai_service.generate_outline(project_context, language=language)
-        
+            outline = ai_service.generate_outline(
+                project_context,
+                language=language,
+                indexed_content=indexed_content,
+                target_page_count=target_page_count,
+                template_images=template_image_paths
+            )
+
         # Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
-        
+
         # Delete existing pages (using ORM session to trigger cascades)
         # Note: Cannot use bulk delete as it bypasses ORM cascades for PageImageVersion
         old_pages = Page.query.filter_by(project_id=project_id).all()
         for old_page in old_pages:
             db.session.delete(old_page)
-        
+
         # Create pages from outline
         pages_list = []
         for i, page_data in enumerate(pages_data):
@@ -421,23 +468,52 @@ def generate_outline(project_id):
                 'title': page_data.get('title'),
                 'points': page_data.get('points', [])
             })
-            
+
+            # 保存内容源映射（如果有索引）
+            if doc_index:
+                content_source = {
+                    'paragraph_ids': page_data.get('paragraph_ids', []),
+                    'image_ids': page_data.get('image_ids', []),
+                    'table_ids': page_data.get('table_ids', [])
+                }
+                page.set_content_source(content_source)
+
             db.session.add(page)
             pages_list.append(page)
-        
+
+        # IMPORTANT: Flush to generate page IDs before associating templates
+        db.session.flush()
+
+        # Associate pending templates with pages (in order)
+        if pending_templates:
+            logger.info(f"Associating {len(pending_templates)} pending templates with {len(pages_list)} pages")
+            for i, page in enumerate(pages_list):
+                if i < len(pending_templates):
+                    # Move pending template to page template
+                    template_path = file_service.move_pending_to_page_template(
+                        project_id,
+                        pending_templates[i]['path'],
+                        page.id
+                    )
+                    page.template_image_path = template_path
+                    logger.info(f"Associated template {i} with page {page.id}")
+
+            # Clear remaining pending templates (if any)
+            file_service.clear_pending_templates(project_id)
+
         # Update project status
         project.status = 'OUTLINE_GENERATED'
         project.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
         logger.info(f"大纲生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面")
-        
+
         # Return pages
         return success_response({
             'pages': [page.to_dict() for page in pages_list]
         })
-    
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"generate_outline failed: {str(e)}", exc_info=True)
@@ -615,14 +691,28 @@ def generate_descriptions(project_id):
         
         # Get singleton AI service instance
         ai_service = get_ai_service()
-        
+
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
         project_context = ProjectContext(project, reference_files_content)
-        
+
+        # 构建文档索引（如果有参考文件且页面有内容源映射）
+        from services.document_indexer import document_indexer
+        doc_index = None
+
+        # 检查是否有页面有内容源映射
+        has_content_source = any(page.get_content_source() for page in pages)
+
+        if reference_files_content and has_content_source:
+            # 合并所有参考文件内容
+            combined_content = "\n\n".join([rf['content'] for rf in reference_files_content])
+            if combined_content.strip():
+                doc_index = document_indexer.index_document(combined_content)
+                logger.info(f"Document indexed for descriptions: {len(doc_index.paragraphs)} paragraphs, {len(doc_index.images)} images, {len(doc_index.tables)} tables")
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -633,7 +723,8 @@ def generate_descriptions(project_id):
             outline,
             max_workers,
             app,
-            language
+            language,
+            doc_index
         )
         
         # Update project status
@@ -720,10 +811,13 @@ def generate_images(project_id):
         if project.template_style:
             style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
             combined_requirements = combined_requirements + style_requirement
-        
+
+        # Get template_mode from project
+        template_mode = project.template_mode or 'strict'
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -739,7 +833,8 @@ def generate_images(project_id):
             app,
             combined_requirements if combined_requirements.strip() else None,
             language,
-            selected_page_ids if selected_page_ids else None
+            selected_page_ids if selected_page_ids else None,
+            template_mode
         )
         
         # Update project status

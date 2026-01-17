@@ -70,6 +70,7 @@ export const OutlineEditor: React.FC = () => {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [targetPageCount, setTargetPageCount] = useState<number | undefined>(undefined);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
 
@@ -104,13 +105,13 @@ export const OutlineEditor: React.FC = () => {
 
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
-    
+
     if (currentProject.pages.length > 0) {
       confirm(
         '已有大纲内容，重新生成将覆盖现有内容，确定继续吗？',
         async () => {
           try {
-            await generateOutline();
+            await generateOutline(targetPageCount);
             // generateOutline 内部已经调用了 syncProject，这里不需要再次调用
           } catch (error) {
             console.error('生成大纲失败:', error);
@@ -120,9 +121,9 @@ export const OutlineEditor: React.FC = () => {
       );
       return;
     }
-    
+
     try {
-      await generateOutline();
+      await generateOutline(targetPageCount);
       // generateOutline 内部已经调用了 syncProject，这里不需要再次调用
     } catch (error) {
       console.error('生成大纲失败:', error);
@@ -276,23 +277,32 @@ export const OutlineEditor: React.FC = () => {
               >
                 添加页面
               </Button>
-              {currentProject.pages.length === 0 ? (
+              {/* 页数输入 + 生成大纲按钮 */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={targetPageCount ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTargetPageCount(val === '' ? undefined : parseInt(val, 10));
+                  }}
+                  placeholder="页数"
+                  className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                  title="指定生成的大纲页数（可选）"
+                />
                 <Button
                   variant="secondary"
                   onClick={handleGenerateOutline}
-                  className="w-full sm:w-auto text-sm md:text-base"
+                  className="flex-1 sm:flex-none text-sm md:text-base"
                 >
-                  {currentProject.creation_type === 'outline' ? '解析大纲' : '自动生成大纲'}
+                  {currentProject.pages.length === 0
+                    ? (currentProject.creation_type === 'outline' ? '解析大纲' : '自动生成大纲')
+                    : (currentProject.creation_type === 'outline' ? '重新解析大纲' : '重新生成大纲')
+                  }
                 </Button>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={handleGenerateOutline}
-                  className="w-full sm:w-auto text-sm md:text-base"
-                >
-                  {currentProject.creation_type === 'outline' ? '重新解析大纲' : '重新生成大纲'}
-                </Button>
-              )}
+              </div>
               {/* 手机端：保存按钮 */}
               <Button 
                 variant="secondary" 
