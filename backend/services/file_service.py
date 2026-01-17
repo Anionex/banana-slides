@@ -4,11 +4,64 @@ File Service - handles all file operations
 import os
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from werkzeug.utils import secure_filename
 from PIL import Image
 from models import Project
 from models import db
+
+
+# Default max width for cached thumbnails (for frontend display)
+DEFAULT_THUMBNAIL_MAX_WIDTH = 1920
+
+
+def convert_image_to_rgb(image: Image.Image) -> Image.Image:
+    """
+    Convert image to RGB mode for JPEG compatibility.
+    Handles RGBA, LA, P modes by compositing onto white background.
+    
+    Args:
+        image: PIL Image object
+        
+    Returns:
+        RGB mode PIL Image
+    """
+    if image.mode in ('RGBA', 'LA', 'P'):
+        # Create white background for transparent images
+        background = Image.new('RGB', image.size, (255, 255, 255))
+        if image.mode == 'P':
+            image = image.convert('RGBA')
+        if image.mode in ('RGBA', 'LA'):
+            background.paste(image, mask=image.split()[-1])
+        else:
+            background.paste(image)
+        return background
+    elif image.mode != 'RGB':
+        return image.convert('RGB')
+    return image
+
+
+def resize_image_to_max_width(image: Image.Image, max_width: int) -> Image.Image:
+    """
+    Resize image to fit within max_width while maintaining aspect ratio.
+    Only resizes if image is larger than max_width.
+    
+    Args:
+        image: PIL Image object
+        max_width: Maximum width in pixels
+        
+    Returns:
+        Resized PIL Image (or original if already smaller)
+    """
+    if image.width <= max_width:
+        return image
+    
+    # Calculate new height maintaining aspect ratio
+    ratio = max_width / image.width
+    new_height = int(image.height * ratio)
+    
+    # Use LANCZOS for high-quality downscaling
+    return image.resize((max_width, new_height), Image.Resampling.LANCZOS)
 
 
 class FileService:
@@ -134,16 +187,8 @@ class FileService:
         filename = f"{page_id}_v{version_number}_thumb.jpg"
         filepath = pages_dir / filename
 
-        # Convert to RGB if necessary (JPG doesn't support transparency)
-        if image.mode in ('RGBA', 'LA', 'P'):
-            # Create white background for transparent images
-            background = Image.new('RGB', image.size, (255, 255, 255))
-            if image.mode == 'P':
-                image = image.convert('RGBA')
-            background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
-            image = background
-        elif image.mode != 'RGB':
-            image = image.convert('RGB')
+        # Convert to RGB using shared function
+        image = convert_image_to_rgb(image)
 
         # Save as compressed JPEG
         image.save(str(filepath), 'JPEG', quality=quality, optimize=True)

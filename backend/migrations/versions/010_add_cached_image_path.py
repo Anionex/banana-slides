@@ -1,8 +1,8 @@
 """add cached_image_path to pages
 
-Revision ID: 007_add_cached_image_path
-Revises: 006_add_export_settings
-Create Date: 2026-01-11 00:00:00.000000
+Revision ID: 010_add_cached_image_path
+Revises: 009_split_reasoning_config
+Create Date: 2026-01-18 00:00:00.000000
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '007_add_cached_image_path'
-down_revision = '006_add_export_settings'
+revision = '010_add_cached_image_path'
+down_revision = '009_split_reasoning_config'
 branch_labels = None
 depends_on = None
 

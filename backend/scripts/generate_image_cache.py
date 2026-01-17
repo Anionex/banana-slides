@@ -20,8 +20,40 @@ from models import db, Page
 from config import Config
 
 
-def generate_cache_for_existing_images():
-    """Generate JPG thumbnails for all existing PNG images"""
+def convert_image_to_rgb(image: Image.Image) -> Image.Image:
+    """
+    Convert image to RGB mode for JPEG compatibility.
+    Handles RGBA, LA, P modes by compositing onto white background.
+
+    Args:
+        image: PIL Image object
+
+    Returns:
+        RGB mode PIL Image
+    """
+    if image.mode in ('RGBA', 'LA', 'P'):
+        # Create white background for transparent images
+        background = Image.new('RGB', image.size, (255, 255, 255))
+        if image.mode == 'P':
+            image = image.convert('RGBA')
+        if image.mode in ('RGBA', 'LA'):
+            background.paste(image, mask=image.split()[-1])
+        else:
+            background.paste(image)
+        return background
+    elif image.mode != 'RGB':
+        return image.convert('RGB')
+    return image
+
+
+def generate_cache_for_existing_images(batch_size=100):
+    """
+    Generate JPG thumbnails for all existing PNG images
+
+    Args:
+        batch_size: Number of images to process before committing to database
+                   This ensures progress is saved even if script is interrupted
+    """
     app = Flask(__name__)
     app.config.from_object(Config)
 
@@ -41,7 +73,7 @@ def generate_cache_for_existing_images():
         skipped = 0
         errors = 0
 
-        for page in pages:
+        for i, page in enumerate(pages):
             try:
                 # Get original image path
                 original_path = upload_folder / page.generated_image_path
@@ -60,15 +92,8 @@ def generate_cache_for_existing_images():
                 # Load and convert image
                 image = Image.open(original_path)
 
-                # Convert to RGB if necessary
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new('RGB', image.size, (255, 255, 255))
-                    if image.mode == 'P':
-                        image = image.convert('RGBA')
-                    background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
-                    image = background
-                elif image.mode != 'RGB':
-                    image = image.convert('RGB')
+                # Convert to RGB using shared function
+                image = convert_image_to_rgb(image)
 
                 # Save as compressed JPEG
                 image.save(str(cache_path), 'JPEG', quality=85, optimize=True)
@@ -80,11 +105,16 @@ def generate_cache_for_existing_images():
                 processed += 1
                 print(f"  [OK] {page.id}: {cache_filename}")
 
+                # Commit in batches to ensure progress is saved
+                if (i + 1) % batch_size == 0:
+                    db.session.commit()
+                    print(f"  [PROGRESS] Committed batch at {i + 1}/{len(pages)}")
+
             except Exception as e:
                 print(f"  [ERROR] {page.id}: {e}")
                 errors += 1
 
-        # Commit all changes
+        # Final commit for any remaining changes
         db.session.commit()
 
         print(f"\nDone!")
