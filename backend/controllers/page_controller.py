@@ -125,10 +125,12 @@ def delete_pages_batch(project_id, page_ids):
             
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         for page in pages_to_delete:
-            # Delete page image if exists
-            file_service.delete_page_image(project_id, page.id)
-                
-            # Delete page
+            # 删除与此页面关联的所有图片版本文件
+            for version in page.image_versions:
+                if version.image_path:
+                    file_service.delete_page_image_version(version.image_path)
+
+            # 删除页面对象，这将通过级联删除删除 PageImageVersion 记录
             db.session.delete(page)
     
         # Update project
