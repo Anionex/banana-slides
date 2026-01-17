@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Upload, X, GripVertical, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Upload, X, GripVertical, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { useToast } from './Toast';
 

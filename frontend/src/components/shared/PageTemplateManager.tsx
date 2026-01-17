@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Upload, AlertCircle, Loader2, Check, Image as ImageIcon, GripVertical } from 'lucide-react';
+import { X, Upload, AlertCircle, Loader2, Check, Image as ImageIcon } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { useToast } from './Toast';
@@ -25,7 +25,7 @@ export const PageTemplateManager: React.FC<PageTemplateManagerProps> = ({
   isOpen,
   onClose,
   projectId,
-  pages,
+  pages: _pages,
   onTemplatesUpdated,
 }) => {
   const [bindings, setBindings] = useState<PageTemplateBinding[]>([]);
@@ -35,14 +35,7 @@ export const PageTemplateManager: React.FC<PageTemplateManagerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const { show, ToastContainer } = useToast();
 
-  // Load current bindings when modal opens
-  useEffect(() => {
-    if (isOpen && projectId) {
-      loadBindings();
-    }
-  }, [isOpen, projectId]);
-
-  const loadBindings = async () => {
+  const loadBindings = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await getPageTemplates(projectId);
@@ -54,7 +47,14 @@ export const PageTemplateManager: React.FC<PageTemplateManagerProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId]);
+
+  // Load current bindings when modal opens
+  useEffect(() => {
+    if (isOpen && projectId) {
+      loadBindings();
+    }
+  }, [isOpen, projectId, loadBindings]);
 
   const generateId = () => `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -171,7 +171,7 @@ export const PageTemplateManager: React.FC<PageTemplateManagerProps> = ({
     return () => {
       pendingTemplates.forEach(t => URL.revokeObjectURL(t.previewUrl));
     };
-  }, []);
+  }, [pendingTemplates]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="页面模板管理" size="lg">
