@@ -7,10 +7,12 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any
 from datetime import datetime
+from flask import current_app
 from sqlalchemy import func
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from pathlib import Path
+from services.file_service import FileService
 
 logger = logging.getLogger(__name__)
 
@@ -126,16 +128,17 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
     return image_path, next_version
 
 
-def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
-                               project_context, outline: List[Dict], 
+def generate_descriptions_task(task_id: str, project_id: str, ai_service,
+                               project_context, outline: List[Dict],
                                max_workers: int = 5, app=None,
-                               language: str = None):
+                               language: str = None,
+                               document_index=None):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
-    
+
     Note: app instance MUST be passed from the request context
-    
+
     Args:
         task_id: Task ID
         project_id: Project ID
@@ -145,6 +148,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         max_workers: Maximum number of parallel workers
         app: Flask app instance
         language: Output language (zh, en, ja, auto)
+        document_index: Optional DocumentIndex object for content mapping
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -183,7 +187,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             completed = 0
             failed = 0
             
-            def generate_single_desc(page_id, page_outline, page_index):
+            def generate_single_desc(page_id, page_outline, page_index, page_content_source=None):
                 """
                 Generate description for a single page
                 注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
@@ -193,11 +197,40 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                     try:
                         # Get singleton AI service instance
                         from services.ai_service_manager import get_ai_service
+                        from services.document_indexer import document_indexer
                         ai_service = get_ai_service()
-                        
+                        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+                        # Get page-level template path if available
+                        page_obj = Page.query.get(page_id)
+                        template_image_path = None
+                        if page_obj and page_obj.template_image_path:
+                            template_image_path = file_service.get_absolute_path(page_obj.template_image_path)
+                            logger.info(f"Description generation: Page {page_id} (index {page_index}) using template: {template_image_path}")
+                        else:
+                            logger.info(f"Description generation: Page {page_id} (index {page_index}) has NO template assigned")
+
+                        # 获取页面专属内容（如果有内容源映射）
+                        page_specific_content = None
+                        if document_index and page_content_source:
+                            paragraph_ids = page_content_source.get('paragraph_ids', [])
+                            image_ids = page_content_source.get('image_ids', [])
+                            table_ids = page_content_source.get('table_ids', [])
+
+                            if paragraph_ids or image_ids or table_ids:
+                                page_specific_content = document_indexer.get_content_by_range(
+                                    document_index,
+                                    paragraph_ids=paragraph_ids,
+                                    image_ids=image_ids,
+                                    table_ids=table_ids
+                                )
+                                logger.debug(f"Page {page_id} using specific content: paragraphs={paragraph_ids}, images={image_ids}, tables={table_ids}")
+
                         desc_text = ai_service.generate_page_description(
                             project_context, outline, page_outline, page_index,
-                            language=language
+                            language=language,
+                            template_image_path=template_image_path,
+                            page_specific_content=page_specific_content
                         )
                         
                         # Parse description into structured format
@@ -217,10 +250,24 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(generate_single_desc, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
-                ]
+                futures = []
+                for i, (page, page_data) in enumerate(zip(pages, pages_data), 1):
+                    # 从页面数据中获取内容源映射（如果存在）
+                    page_content_source = None
+                    if document_index:
+                        # 从 page_data 中提取内容源（大纲生成时分配的）
+                        page_content_source = {
+                            'paragraph_ids': page_data.get('paragraph_ids', []),
+                            'image_ids': page_data.get('image_ids', []),
+                            'table_ids': page_data.get('table_ids', [])
+                        }
+                        # 保存内容源到页面
+                        page.set_content_source(page_content_source)
+                        db.session.commit()
+
+                    futures.append(
+                        executor.submit(generate_single_desc, page.id, page_data, i, page_content_source)
+                    )
                 
                 # Process results as they complete
                 for future in as_completed(futures):
@@ -275,21 +322,23 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
 
 
 def generate_images_task(task_id: str, project_id: str, ai_service, file_service,
-                        outline: List[Dict], use_template: bool = True, 
+                        outline: List[Dict], use_template: bool = True,
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
                         language: str = None,
-                        page_ids: list = None):
+                        page_ids: list = None,
+                        template_mode: str = 'strict'):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
-    
+
     Note: app instance MUST be passed from the request context
-    
+
     Args:
         language: Output language (zh, en, ja, auto)
         page_ids: Optional list of page IDs to generate (if not provided, generates all pages)
+        template_mode: Template usage mode ('strict' for exact copy, 'reference' for style reference)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -370,21 +419,28 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                                 page_additional_ref_images = image_urls
                                 has_material_images = True
-                        
+
                         # 在子线程中动态获取模板路径，确保使用最新模板
+                        # 优先使用页级模板，如果没有则回退到项目级模板
                         page_ref_image_path = None
-                        if use_template:
+                        if page_obj.template_image_path:
+                            # Use page-level template if available
+                            page_ref_image_path = file_service.get_absolute_path(page_obj.template_image_path)
+                            logger.debug(f"Using page-level template for page {page_id}: {page_ref_image_path}")
+                        elif use_template:
+                            # Fall back to project-level template
                             page_ref_image_path = file_service.get_template_path(project_id)
                             # 注意：如果有风格描述，即使没有模板图片也允许生成
                             # 这个检查已经在 controller 层完成，这里不再检查
-                        
+
                         # Generate image prompt
                         prompt = ai_service.generate_image_prompt(
                             outline, page_data, desc_text, page_index,
                             has_material_images=has_material_images,
                             extra_requirements=extra_requirements,
                             language=language,
-                            has_template=use_template
+                            has_template=use_template,
+                            template_mode=template_mode
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
@@ -473,16 +529,20 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 db.session.commit()
 
 
-def generate_single_page_image_task(task_id: str, project_id: str, page_id: str, 
+def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                                     ai_service, file_service, outline: List[Dict],
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
                                     extra_requirements: str = None,
-                                    language: str = None):
+                                    language: str = None,
+                                    template_mode: str = 'strict'):
     """
     Background task for generating a single page image
-    
+
     Note: app instance MUST be passed from the request context
+
+    Args:
+        template_mode: Template usage mode ('strict' for exact copy, 'reference' for style reference)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -531,12 +591,16 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     additional_ref_images = image_urls
                     has_material_images = True
             
-            # Get template path if use_template
+            # Get template path - prioritize page-level template
             ref_image_path = None
-            if use_template:
+            if page.template_image_path:
+                # Use page-level template if available
+                ref_image_path = file_service.get_absolute_path(page.template_image_path)
+                logger.info(f"Using page-level template for page {page_id}: {ref_image_path}")
+            elif use_template:
+                # Fall back to project-level template
                 ref_image_path = file_service.get_template_path(project_id)
-                # 注意：如果有风格描述，即使没有模板图片也允许生成
-                # 这个检查已经在 controller 层完成，这里不再检查
+                logger.info(f"Using project-level template for page {page_id}: {ref_image_path}")
             
             # Generate image prompt
             page_data = page.get_outline_content() or {}
@@ -548,7 +612,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 has_material_images=has_material_images,
                 extra_requirements=extra_requirements,
                 language=language,
-                has_template=use_template
+                has_template=use_template,
+                template_mode=template_mode
             )
             
             # Generate image

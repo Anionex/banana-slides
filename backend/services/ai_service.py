@@ -188,6 +188,52 @@ class AIService:
         retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
         reraise=True
     )
+    def generate_json_with_images(self, prompt: str, images: List[str], thinking_budget: int = 1000) -> Union[Dict, List]:
+        """
+        带多张图片输入的JSON生成，如果解析失败则重新生成（最多重试3次）
+
+        Args:
+            prompt: 生成提示词
+            images: 图片文件路径列表
+            thinking_budget: 思考预算
+
+        Returns:
+            解析后的JSON对象（字典或列表）
+
+        Raises:
+            json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
+            ValueError: text_provider 不支持图片输入
+        """
+        # 调用AI生成文本（带图片）
+        if hasattr(self.text_provider, 'generate_text_with_images'):
+            response_text = self.text_provider.generate_text_with_images(
+                prompt=prompt,
+                images=images,
+                thinking_budget=thinking_budget
+            )
+        elif hasattr(self.text_provider, 'generate_with_image') and len(images) == 1:
+            response_text = self.text_provider.generate_with_image(
+                prompt=prompt,
+                image_path=images[0],
+                thinking_budget=thinking_budget
+            )
+        else:
+            raise ValueError("text_provider 不支持多图片输入")
+
+        # 清理响应文本：移除markdown代码块标记和多余空白
+        cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+        try:
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON解析失败（带多图片），将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
+        reraise=True
+    )
     def generate_json_with_image(self, prompt: str, image_path: str, thinking_budget: int = 1000) -> Union[Dict, List]:
         """
         带图片输入的JSON生成，如果解析失败则重新生成（最多重试3次）
@@ -271,19 +317,34 @@ class AIService:
             logger.error(f"Failed to download image from {url}: {str(e)}")
             return None
     
-    def generate_outline(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
+    def generate_outline(self, project_context: ProjectContext, language: str = None,
+                         indexed_content: str = None, target_page_count: int = None,
+                         template_images: List[str] = None) -> List[Dict]:
         """
         Generate PPT outline from idea prompt
-        Based on demo.py gen_outline()
-        
+
         Args:
             project_context: 项目上下文对象，包含所有原始信息
-            
+            language: 输出语言
+            indexed_content: 可选的已索引文档内容（带 [P1], [IMG1] 等编号）
+            target_page_count: 可选的目标页数限制
+            template_images: 可选的模板图片路径列表，用于多模态大纲生成
+
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
-        outline_prompt = get_outline_generation_prompt(project_context, language)
-        outline = self.generate_json(outline_prompt, thinking_budget=1000)
+        outline_prompt = get_outline_generation_prompt(
+            project_context, language, indexed_content, target_page_count,
+            has_templates=bool(template_images)
+        )
+
+        if template_images:
+            # Use multimodal API when template images are provided
+            logger.info(f"Using multimodal outline generation with {len(template_images)} template images")
+            outline = self.generate_json_with_images(outline_prompt, template_images, thinking_budget=1000)
+        else:
+            outline = self.generate_json(outline_prompt, thinking_budget=1000)
+
         return outline
     
     def parse_outline_text(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
@@ -319,34 +380,49 @@ class AIService:
                 pages.append(item)
         return pages
     
-    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict], 
-                                 page_outline: Dict, page_index: int, language='zh') -> str:
+    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
+                                 page_outline: Dict, page_index: int, language='zh',
+                                 template_image_path: Optional[str] = None,
+                                 page_specific_content: Optional[str] = None) -> str:
         """
         Generate description for a single page
         Based on demo.py gen_desc() logic
-        
+
         Args:
             project_context: 项目上下文对象，包含所有原始信息
             outline: Complete outline
             page_outline: Outline for this specific page
             page_index: Page number (1-indexed)
-        
+            language: Output language
+            template_image_path: Optional path to page-level template image for multimodal analysis
+            page_specific_content: 该页面专属的参考内容（从文档索引中提取）
+
         Returns:
             Text description for the page
         """
         part_info = f"\nThis page belongs to: {page_outline['part']}" if 'part' in page_outline else ""
-        
+
         desc_prompt = get_page_description_prompt(
             project_context=project_context,
             outline=outline,
             page_outline=page_outline,
             page_index=page_index,
             part_info=part_info,
-            language=language
+            language=language,
+            has_template_image=bool(template_image_path),
+            page_specific_content=page_specific_content
         )
-        
-        response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=1000)
-        
+
+        if template_image_path:
+            # Use multimodal API when template image is provided
+            response_text = self.text_provider.generate_text_with_images(
+                desc_prompt,
+                images=[template_image_path],
+                thinking_budget=1000
+            )
+        else:
+            response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=1000)
+
         return dedent(response_text)
     
     def generate_outline_text(self, outline: List[Dict]) -> str:
@@ -363,16 +439,17 @@ class AIService:
         result = "\n".join(text_parts)
         return dedent(result)
     
-    def generate_image_prompt(self, outline: List[Dict], page: Dict, 
-                            page_desc: str, page_index: int, 
+    def generate_image_prompt(self, outline: List[Dict], page: Dict,
+                            page_desc: str, page_index: int,
                             has_material_images: bool = False,
                             extra_requirements: Optional[str] = None,
                             language='zh',
-                            has_template: bool = True) -> str:
+                            has_template: bool = True,
+                            template_mode: str = 'strict') -> str:
         """
         Generate image generation prompt for a page
         Based on demo.py gen_prompts()
-        
+
         Args:
             outline: Complete outline
             page: Page outline data
@@ -382,7 +459,8 @@ class AIService:
             extra_requirements: Optional extra requirements to apply to all pages
             language: Output language
             has_template: 是否有模板图片（False表示无模板图模式）
-        
+            template_mode: 模板使用模式 ('strict' 严格复刻 | 'reference' 参考风格)
+
         Returns:
             Image generation prompt
         """
@@ -406,7 +484,8 @@ class AIService:
             extra_requirements=extra_requirements,
             language=language,
             has_template=has_template,
-            page_index=page_index
+            page_index=page_index,
+            template_mode=template_mode
         )
         
         return prompt

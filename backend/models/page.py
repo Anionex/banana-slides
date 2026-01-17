@@ -20,6 +20,8 @@ class Page(db.Model):
     outline_content = db.Column(db.Text, nullable=True)  # JSON string
     description_content = db.Column(db.Text, nullable=True)  # JSON string
     generated_image_path = db.Column(db.String(500), nullable=True)
+    template_image_path = db.Column(db.String(500), nullable=True)  # Page-level template image path
+    content_source = db.Column(db.Text, nullable=True)  # JSON: {"paragraph_ids": [], "image_ids": [], "table_ids": []}
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -61,7 +63,23 @@ class Page(db.Model):
             self.description_content = json.dumps(data, ensure_ascii=False)
         else:
             self.description_content = None
-    
+
+    def get_content_source(self):
+        """Parse content_source from JSON string"""
+        if self.content_source:
+            try:
+                return json.loads(self.content_source)
+            except json.JSONDecodeError:
+                return None
+        return None
+
+    def set_content_source(self, data):
+        """Set content_source as JSON string"""
+        if data:
+            self.content_source = json.dumps(data, ensure_ascii=False)
+        else:
+            self.content_source = None
+
     def to_dict(self, include_versions=False):
         """Convert to dictionary"""
         data = {
@@ -70,7 +88,9 @@ class Page(db.Model):
             'part': self.part,
             'outline_content': self.get_outline_content(),
             'description_content': self.get_description_content(),
+            'content_source': self.get_content_source(),
             'generated_image_url': f'/files/{self.project_id}/pages/{self.generated_image_path.split("/")[-1]}' if self.generated_image_path else None,
+            'template_image_url': f'/files/{self.project_id}/page_templates/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

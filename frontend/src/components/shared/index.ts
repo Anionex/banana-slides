@@ -22,5 +22,7 @@ export { ImagePreviewList } from './ImagePreviewList';
 export { ProjectResourcesList } from './ProjectResourcesList';
 export { ProjectSettingsModal } from './ProjectSettingsModal';
 export { ExportTasksPanel } from './ExportTasksPanel';
+export { MultiTemplateUploader, type TemplateFile } from './MultiTemplateUploader';
+export { PageTemplateManager } from './PageTemplateManager';
 
 

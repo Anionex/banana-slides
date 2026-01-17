@@ -20,6 +20,8 @@ class Project(db.Model):
     creation_type = db.Column(db.String(20), nullable=False, default='idea')  # idea|outline|descriptions
     template_image_path = db.Column(db.String(500), nullable=True)
     template_style = db.Column(db.Text, nullable=True)  # 风格描述文本（无模板图模式）
+    # 模板使用模式
+    template_mode = db.Column(db.String(20), nullable=True, default='strict')  # strict|reference
     # 导出设置
     export_extractor_method = db.Column(db.String(50), nullable=True, default='hybrid')  # 组件提取方法: mineru, hybrid
     export_inpaint_method = db.Column(db.String(50), nullable=True, default='hybrid')  # 背景图获取方法: generative, baidu, hybrid
@@ -56,6 +58,7 @@ class Project(db.Model):
             'creation_type': self.creation_type,
             'template_image_url': f'/files/{self.id}/template/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
             'template_style': self.template_style,
+            'template_mode': self.template_mode or 'strict',
             'export_extractor_method': self.export_extractor_method or 'hybrid',
             'export_inpaint_method': self.export_inpaint_method or 'hybrid',
             'status': self.status,

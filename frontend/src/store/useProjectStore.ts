@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Task } from '@/types';
+import type { Project, Task, TemplateMode } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 
@@ -21,7 +21,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, templateMode?: TemplateMode) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -37,7 +37,7 @@ interface ProjectState {
   pollImageTask: (taskId: string, pageIds: string[]) => void;
   
   // 生成操作
-  generateOutline: () => Promise<void>;
+  generateOutline: (targetPageCount?: number) => Promise<void>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: () => Promise<void>;
   generatePageDescription: (pageId: string) => Promise<void>;
@@ -102,11 +102,11 @@ const debouncedUpdatePage = debounce(
   setError: (error) => set({ error }),
 
   // 初始化项目
-  initializeProject: async (type, content, templateImage, templateStyle) => {
+  initializeProject: async (type, content, templateImage, templateStyle, templateMode) => {
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
-      
+
       if (type === 'idea') {
         request.idea_prompt = content;
       } else if (type === 'outline') {
@@ -114,10 +114,15 @@ const debouncedUpdatePage = debounce(
       } else if (type === 'description') {
         request.description_text = content;
       }
-      
+
       // 添加风格描述（如果有）
       if (templateStyle && templateStyle.trim()) {
         request.template_style = templateStyle.trim();
+      }
+
+      // 添加模板模式（如果有）
+      if (templateMode) {
+        request.template_mode = templateMode;
       }
       
       // 1. 创建项目
@@ -450,13 +455,13 @@ const debouncedUpdatePage = debounce(
   },
 
   // 生成大纲（同步操作，不需要轮询）
-  generateOutline: async () => {
+  generateOutline: async (targetPageCount?: number) => {
     const { currentProject } = get();
     if (!currentProject) return;
 
     set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.generateOutline(currentProject.id!);
+      const response = await api.generateOutline(currentProject.id!, undefined, targetPageCount);
       console.log('[生成大纲] API响应:', response);
       
       // 刷新项目数据，确保获取最新的大纲页面

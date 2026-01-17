@@ -2,12 +2,19 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
-import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
+import { TemplateSelector, getTemplateFile, type MultiTemplateFile, type TemplateSelectionType } from '@/components/shared/TemplateSelector';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, uploadPendingTemplates } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { PRESET_STYLES } from '@/config/presetStyles';
+import type { TemplateMode } from '@/types';
 
 type CreationType = 'idea' | 'outline' | 'description';
+
+// 模板模式选项
+const TEMPLATE_MODE_OPTIONS: { value: TemplateMode; label: string; description: string }[] = [
+  { value: 'strict', label: '严格复刻', description: '严格复制模板的布局、配色、装饰元素，生成结果与模板高度一致' },
+  { value: 'reference', label: '参考风格', description: '参考模板的配色、布局和装饰风格，但文字内容和标题结构可自由调整' },
+];
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -28,7 +35,10 @@ export const Home: React.FC = () => {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
+  const [selectedTemplateMode, setSelectedTemplateMode] = useState<TemplateMode>('strict');
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
+  const [multiTemplates, setMultiTemplates] = useState<MultiTemplateFile[]>([]);
+  const [templateSelectionType, setTemplateSelectionType] = useState<TemplateSelectionType>('single');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -385,8 +395,12 @@ export const Home: React.FC = () => {
       
       // 传递风格描述（只要有内容就传递，不管开关状态）
       const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
-      
-      await initializeProject(activeTab, content, templateFile || undefined, styleDesc);
+
+      // 只有选择了模板时才传递模板模式
+      const hasTemplate = templateFile || selectedTemplateId || selectedPresetTemplateId;
+      const modeToPass = hasTemplate ? selectedTemplateMode : undefined;
+
+      await initializeProject(activeTab, content, templateFile || undefined, styleDesc, modeToPass);
       
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
@@ -436,7 +450,26 @@ export const Home: React.FC = () => {
       } else {
         console.log('No materials to associate');
       }
-      
+
+      // 上传预备模板到项目（如果有，且选择了多模板模式）
+      // 这些模板会在大纲生成时供 AI 参考，并自动关联到生成的页面
+      if (templateSelectionType === 'multi' && multiTemplates.length > 0) {
+        console.log(`Uploading ${multiTemplates.length} pending templates to project ${projectId}`);
+        try {
+          const templateFiles = multiTemplates.map(t => t.file);
+          const response = await uploadPendingTemplates(projectId, templateFiles);
+          console.log('Pending templates uploaded successfully:', response);
+          // 清理预览URL
+          multiTemplates.forEach(t => URL.revokeObjectURL(t.previewUrl));
+          setMultiTemplates([]);
+        } catch (error) {
+          console.error('Failed to upload pending templates:', error);
+          // 不影响主流程，继续执行
+        }
+      } else {
+        console.log('No pending templates to upload (single mode or empty)');
+      }
+
       if (activeTab === 'idea' || activeTab === 'outline') {
         navigate(`/project/${projectId}/outline`);
       } else if (activeTab === 'description') {
@@ -760,13 +793,60 @@ export const Home: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <TemplateSelector
-                onSelect={handleTemplateSelect}
-                selectedTemplateId={selectedTemplateId}
-                selectedPresetTemplateId={selectedPresetTemplateId}
-                showUpload={true} // 在主页上传的模板保存到用户模板库
-                projectId={currentProjectId}
-              />
+              <>
+                <TemplateSelector
+                  onSelect={handleTemplateSelect}
+                  selectedTemplateId={selectedTemplateId}
+                  selectedPresetTemplateId={selectedPresetTemplateId}
+                  showUpload={true}
+                  projectId={currentProjectId}
+                  multiTemplates={multiTemplates}
+                  onMultiTemplatesChange={setMultiTemplates}
+                  selectionType={templateSelectionType}
+                  onSelectionTypeChange={setTemplateSelectionType}
+                />
+
+                {/* 模板模式选择 - 当有模板选中时显示（单张或多张） */}
+                {((templateSelectionType === 'single' && (selectedTemplate || selectedTemplateId || selectedPresetTemplateId)) ||
+                  (templateSelectionType === 'multi' && multiTemplates.length > 0)) && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      选择模板使用模式
+                    </h4>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      {TEMPLATE_MODE_OPTIONS.map((option) => (
+                        <label
+                          key={option.value}
+                          className={`flex-1 flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                            selectedTemplateMode === option.value
+                              ? 'border-banana-500 bg-banana-50'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="templateMode"
+                            value={option.value}
+                            checked={selectedTemplateMode === option.value}
+                            onChange={(e) => setSelectedTemplateMode(e.target.value as TemplateMode)}
+                            className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500"
+                          />
+                          <div className="flex-1">
+                            <span className={`font-medium ${
+                              selectedTemplateMode === option.value ? 'text-banana-700' : 'text-gray-700'
+                            }`}>
+                              {option.label}
+                            </span>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {option.description}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

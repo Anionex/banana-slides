@@ -106,23 +106,107 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
     return '\n'.join(xml_parts)
 
 
-def get_outline_generation_prompt(project_context: 'ProjectContext', language: str = None) -> str:
+def get_outline_generation_prompt(project_context: 'ProjectContext', language: str = None,
+                                   indexed_content: str = None, target_page_count: int = None,
+                                   has_templates: bool = False) -> str:
     """
     生成 PPT 大纲的 prompt
-    
+
     Args:
         project_context: 项目上下文对象，包含所有原始信息
         language: 输出语言代码（'zh', 'ja', 'en', 'auto'），如果为 None 则使用默认语言
-        
+        indexed_content: 可选的已索引文档内容（带 [P1], [IMG1] 等编号）
+        target_page_count: 可选的目标页数限制
+        has_templates: 是否有模板图片输入（用于多模态大纲生成）
+
     Returns:
         格式化后的 prompt 字符串
     """
     files_xml = _format_reference_files_xml(project_context.reference_files_content)
     idea_prompt = project_context.idea_prompt or ""
-    
-    prompt = (f"""\
-You are a helpful assistant that generates an outline for a ppt.
 
+    # 页数限制提示
+    page_count_instruction = ""
+    if target_page_count and target_page_count > 0:
+        page_count_instruction = f"\n\n**IMPORTANT: Generate EXACTLY {target_page_count} pages (including the title page).** Adjust the content density per page to fit this requirement.\n"
+
+    # 模板分析指令（当有模板图片时添加）
+    template_instruction = ""
+    if has_templates:
+        template_instruction = """
+**IMPORTANT: Reference template images have been provided.**
+Analyze the template images to understand:
+1. Overall visual style (colors, fonts, decorative elements)
+2. Page types (title page, content page, section divider, conclusion, etc.)
+3. Layout patterns (text placement, image areas, spacing)
+
+Use this analysis to:
+- Match the outline structure to the template structure when possible
+- Understand what type of content each template is designed for
+- Generate page titles and content points that fit the template designs
+
+The templates are provided as style references only. Generate content based on the user's request, but consider the template styles when structuring the outline.
+"""
+
+    # 如果有索引内容，使用带内容分配的提示
+    if indexed_content:
+        prompt = f"""\
+You are a helpful assistant that generates an outline for a PPT based on the indexed document below.
+{template_instruction}
+<indexed_document>
+{indexed_content}
+</indexed_document>
+{page_count_instruction}
+IMPORTANT: For each page, you MUST specify which document content it should use by referencing the IDs above:
+- "paragraph_ids": Array of paragraph IDs (e.g., [1, 2, 3] for [P1], [P2], [P3])
+- "image_ids": Array of image IDs (e.g., [1, 2] for [IMG1], [IMG2])
+- "table_ids": Array of table IDs (e.g., [1] for [TABLE1])
+
+CRITICAL Rules for content assignment:
+1. Each paragraph should only be assigned to ONE page (no duplicates across pages)
+2. Each image should only be assigned to ONE page (no duplicates across pages)
+3. Each table should only be assigned to ONE page (no duplicates across pages)
+4. First page (cover/title page) should typically have no document content - keep paragraph_ids, image_ids, table_ids as empty arrays
+5. Distribute content logically based on the topic of each page
+6. It's OK to not use all content if it doesn't fit the PPT structure
+
+You can organize the content in two ways:
+
+1. Simple format (for short PPTs without major sections):
+[
+    {{"title": "Title Page", "points": ["Subtitle", "Presenter Info"], "paragraph_ids": [], "image_ids": [], "table_ids": []}},
+    {{"title": "Topic 1", "points": ["point1", "point2"], "paragraph_ids": [1, 2], "image_ids": [1], "table_ids": []}},
+    {{"title": "Topic 2", "points": ["point1", "point2"], "paragraph_ids": [3, 4], "image_ids": [2], "table_ids": []}}
+]
+
+2. Part-based format (for longer PPTs with major sections):
+[
+    {{
+        "part": "Part 1: Introduction",
+        "pages": [
+            {{"title": "Welcome", "points": ["point1"], "paragraph_ids": [], "image_ids": [], "table_ids": []}},
+            {{"title": "Overview", "points": ["point1", "point2"], "paragraph_ids": [1, 2], "image_ids": [1], "table_ids": []}}
+        ]
+    }},
+    {{
+        "part": "Part 2: Main Content",
+        "pages": [
+            {{"title": "Topic 1", "points": ["point1", "point2"], "paragraph_ids": [3, 4, 5], "image_ids": [2], "table_ids": [1]}}
+        ]
+    }}
+]
+
+Choose the format that best fits the content. Use parts when the PPT has clear major sections.
+The user's request: {idea_prompt}
+
+Now generate the outline with content assignment. Return only the JSON, don't include any other text.
+{get_language_instruction(language)}
+"""
+    else:
+        # 原始提示（无索引内容时使用）
+        prompt = f"""\
+You are a helpful assistant that generates an outline for a ppt.
+{template_instruction}{page_count_instruction}
 You can organize the content in two ways:
 
 1. Simple format (for short PPTs without major sections):
@@ -151,8 +235,8 @@ Unless otherwise specified, the first page should be kept simplest, containing o
 
 The user's request: {idea_prompt}. Now generate the outline, don't include any other text.
 {get_language_instruction(language)}
-""")
-    
+"""
+
     final_prompt = files_xml + prompt
     logger.debug(f"[get_outline_generation_prompt] Final prompt:\n{final_prompt}")
     return final_prompt
@@ -222,24 +306,33 @@ Now parse the outline text above into the structured format. Return only the JSO
     return final_prompt
 
 
-def get_page_description_prompt(project_context: 'ProjectContext', outline: list, 
-                                page_outline: dict, page_index: int, 
+def get_page_description_prompt(project_context: 'ProjectContext', outline: list,
+                                page_outline: dict, page_index: int,
                                 part_info: str = "",
-                                language: str = None) -> str:
+                                language: str = None,
+                                has_template_image: bool = False,
+                                page_specific_content: str = None) -> str:
     """
     生成单个页面描述的 prompt
-    
+
     Args:
         project_context: 项目上下文对象，包含所有原始信息
         outline: 完整大纲
         page_outline: 当前页面的大纲
         page_index: 页面编号（从1开始）
         part_info: 可选的章节信息
-        
+        language: 输出语言
+        has_template_image: 是否有模板图片（用于多模态调用时）
+        page_specific_content: 该页面专属的参考内容（从文档索引中提取）
+
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    # 如果有页面专属内容，不使用完整的参考文件
+    if page_specific_content:
+        files_xml = ""
+    else:
+        files_xml = _format_reference_files_xml(project_context.reference_files_content)
     # 根据项目类型选择最相关的原始输入
     if project_context.creation_type == 'idea' and project_context.idea_prompt:
         original_input = project_context.idea_prompt
@@ -249,7 +342,43 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
         original_input = f"用户提供的描述：\n{project_context.description_text}"
     else:
         original_input = project_context.idea_prompt or ""
-    
+
+    # 模板分析提示（仅当有模板图片时添加）
+    template_analysis_prompt = ""
+    if has_template_image:
+        template_analysis_prompt = """
+【模板图片分析】
+你收到了一张该页面的模板参考图。请仔细分析：
+1. **识别固定元素**：logo、表头、背景装饰、固定文字（如学校名称、机构名称）等
+2. **识别可变区域**：标题位置、内容区域、要点列表等需要填充新内容的位置
+3. **生成的描述应该只填充可变区域的内容，固定元素会保持不变**
+
+请在输出开头先简要说明模板结构，然后生成页面描述：
+【固定元素】: (简要列出模板中的固定元素)
+【可变区域】: (简要列出需要填充内容的区域)
+
+"""
+
+    # 页面专属内容提示（如果有的话）
+    page_content_prompt = ""
+    if page_specific_content:
+        page_content_prompt = f"""
+<page_source_content>
+以下是该页面应该使用的参考内容（已在大纲生成时分配），请严格基于这些内容生成描述：
+{page_specific_content}
+</page_source_content>
+
+【内容使用规则】：
+- 只使用上述 <page_source_content> 中的内容
+- 不要编造或引用未在上述内容中出现的图片
+- 如果内容不足，请简化要点而不是添加无关内容
+- 图片链接请保持原样输出
+
+"""
+
+    # 模板分析结果示例（仅当有模板图片时显示）
+    template_example = "【固定元素】: 学校logo、蓝色表头、背景装饰\n【可变区域】: 标题、副标题、演讲人信息\n\n" if has_template_image else ""
+
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -257,8 +386,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 现在请为第 {page_index} 页生成描述：
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
-
-【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
+{template_analysis_prompt}{page_content_prompt}【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
 1. 文字内容要简洁精炼，每条要点控制在15-25字以内
 2. 条理清晰，使用列表形式组织内容
 3. 避免冗长的句子和复杂的表述
@@ -266,7 +394,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 5. 不要包含任何额外的说明性文字或注释
 
 输出格式示例：
-页面标题：原始社会：与自然共生
+{template_example}页面标题：原始社会：与自然共生
 {"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
 
 页面文字：
@@ -287,16 +415,17 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     return final_prompt
 
 
-def get_image_generation_prompt(page_desc: str, outline_text: str, 
+def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 current_section: str,
                                 has_material_images: bool = False,
                                 extra_requirements: str = None,
                                 language: str = None,
                                 has_template: bool = True,
-                                page_index: int = 1) -> str:
+                                page_index: int = 1,
+                                template_mode: str = 'strict') -> str:
     """
     生成图片生成 prompt
-    
+
     Args:
         page_desc: 页面描述文本
         outline_text: 大纲文本
@@ -305,7 +434,9 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         extra_requirements: 额外的要求（可能包含风格描述）
         language: 输出语言
         has_template: 是否有模板图片（False表示无模板图模式）
-        
+        page_index: 页面索引（从1开始）
+        template_mode: 模板使用模式 ('strict' 严格复刻 | 'reference' 参考风格)
+
     Returns:
         格式化后的 prompt 字符串
     """
@@ -315,7 +446,9 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         material_images_note = (
             "\n\n提示：" + ("除了模板参考图片（用于风格参考）外，还提供了额外的素材图片。" if has_template else "用户提供了额外的素材图片。") +
             "这些素材图片是可供挑选和使用的元素，你可以从这些素材图片中选择合适的图片、图标、图表或其他视觉元素"
-            "直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材图片中的元素。"
+            "直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材图片中的元素。\n"
+            "**【重要】关于素材图片的使用规则：素材图片必须保持原样放置，绝对禁止对素材图片进行任何形式的修改、重绘、美化或风格转换。"
+            "图片的内容、颜色、风格、细节必须与原图完全一致，只能调整大小和位置。**"
         )
     
     # 添加额外要求到提示词
@@ -324,7 +457,19 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         extra_req_text = f"\n\n额外要求（请务必遵循）：\n{extra_requirements}\n"
 
     # 根据是否有模板生成不同的设计指南内容（保持原prompt要点顺序）
-    template_style_guideline = "- 配色和设计语言和模板图片严格相似。" if has_template else "- 严格按照风格描述进行设计。"
+    # 根据模板模式（strict/reference）生成不同的指南
+    if has_template:
+        if template_mode == 'strict':
+            # 严格模式：严格复制模板的布局、配色、装饰元素
+            template_style_guideline = "- 配色和设计语言和模板图片严格相似。"
+            decoration_guideline = "- 严格复制模板图片的整体布局、背景样式和视觉风格。模板中没有的装饰元素（如插画、图标、图形）请不要添加。"
+        else:  # reference 模式
+            # 参考风格模式：参考配色+布局+装饰风格，但文字内容和标题完全自由生成
+            template_style_guideline = "- 参考模板图片的配色方案和整体视觉风格。"
+            decoration_guideline = "- 参考模板图片的布局结构和装饰风格，但根据实际内容需要灵活调整，不必完全复刻表头、标题结构。\n- 忽略模板图片中的页码、角标、页数标识（如 1/10、第1页 等），不要在生成的图片中添加任何页码元素。"
+    else:
+        template_style_guideline = "- 严格按照风格描述进行设计。"
+        decoration_guideline = "- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。"
     forbidden_template_text_guidline = "- 只参考风格设计，禁止出现模板中的文字。\n" if has_template else ""
 
     # 该处参考了@歸藏的A工具箱
@@ -348,7 +493,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 {template_style_guideline}
 - 根据内容自动设计最完美的构图，不重不漏地渲染"页面描述"中的文本。
 - 如非必要，禁止出现 markdown 格式符号（如 # 和 * 等）。
-{forbidden_template_text_guidline}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
+{forbidden_template_text_guidline}{decoration_guideline}
 </design_guidelines>
 {get_ppt_language_instruction(language)}
 {material_images_note}{extra_req_text}

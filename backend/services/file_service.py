@@ -37,6 +37,18 @@ class FileService:
         pages_dir.mkdir(exist_ok=True, parents=True)
         return pages_dir
 
+    def _get_page_templates_dir(self, project_id: str) -> Path:
+        """Get page-level templates directory for project"""
+        page_templates_dir = self._get_project_dir(project_id) / "page_templates"
+        page_templates_dir.mkdir(exist_ok=True, parents=True)
+        return page_templates_dir
+
+    def _get_pending_templates_dir(self, project_id: str) -> Path:
+        """Get pending templates directory for project (templates uploaded before outline generation)"""
+        pending_dir = self._get_project_dir(project_id) / "pending_templates"
+        pending_dir.mkdir(exist_ok=True, parents=True)
+        return pending_dir
+
     def _get_exports_dir(self, project_id: str) -> Path:
         """Get exports directory for project (for generated PPT/PDF files)"""
         exports_dir = self._get_project_dir(project_id) / "exports"
@@ -211,7 +223,114 @@ class FileService:
                 file.unlink()
         
         return True
-    
+
+    def save_page_template(self, file, project_id: str, page_id: str) -> str:
+        """
+        Save page-level template image file
+
+        Args:
+            file: FileStorage object from Flask request
+            project_id: Project ID
+            page_id: Page ID
+
+        Returns:
+            Relative file path from upload folder
+        """
+        page_templates_dir = self._get_page_templates_dir(project_id)
+
+        # Secure filename and preserve extension
+        original_filename = secure_filename(file.filename)
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'png'
+        filename = f"{page_id}.{ext}"
+
+        filepath = page_templates_dir / filename
+
+        # Delete old template file for this page if exists
+        for old_file in page_templates_dir.glob(f"{page_id}.*"):
+            if old_file.is_file():
+                old_file.unlink()
+
+        file.save(str(filepath))
+
+        # Return relative path
+        return filepath.relative_to(self.upload_folder).as_posix()
+
+    def save_page_template_from_path(self, source_path: str, project_id: str, page_id: str) -> str:
+        """
+        Save page-level template image from an existing file path
+
+        Args:
+            source_path: Absolute path to source image file
+            project_id: Project ID
+            page_id: Page ID
+
+        Returns:
+            Relative file path from upload folder
+        """
+        import shutil
+
+        page_templates_dir = self._get_page_templates_dir(project_id)
+
+        # Get extension from source file
+        source = Path(source_path)
+        ext = source.suffix.lower().lstrip('.') or 'png'
+        filename = f"{page_id}.{ext}"
+
+        filepath = page_templates_dir / filename
+
+        # Delete old template file for this page if exists
+        for old_file in page_templates_dir.glob(f"{page_id}.*"):
+            if old_file.is_file():
+                old_file.unlink()
+
+        # Copy file
+        shutil.copy2(source_path, filepath)
+
+        # Return relative path
+        return filepath.relative_to(self.upload_folder).as_posix()
+
+    def get_page_template_path(self, project_id: str, page_id: str) -> Optional[str]:
+        """
+        Get page-level template file path
+
+        Args:
+            project_id: Project ID
+            page_id: Page ID
+
+        Returns:
+            Absolute path to template file or None
+        """
+        page_templates_dir = self._get_page_templates_dir(project_id)
+
+        # Find template file for this page
+        for file in page_templates_dir.glob(f"{page_id}.*"):
+            if file.is_file():
+                return str(file)
+
+        return None
+
+    def delete_page_template(self, project_id: str, page_id: str) -> bool:
+        """
+        Delete page-level template
+
+        Args:
+            project_id: Project ID
+            page_id: Page ID
+
+        Returns:
+            True if deleted successfully
+        """
+        page_templates_dir = self._get_page_templates_dir(project_id)
+
+        # Delete template file for this page
+        deleted = False
+        for file in page_templates_dir.glob(f"{page_id}.*"):
+            if file.is_file():
+                file.unlink()
+                deleted = True
+
+        return deleted
+
     def delete_page_image(self, project_id: str, page_id: str) -> bool:
         """
         Delete page image
@@ -325,19 +444,128 @@ class FileService:
     def delete_user_template(self, template_id: str) -> bool:
         """
         Delete user template
-        
+
         Args:
             template_id: Template ID
-        
+
         Returns:
             True if deleted successfully
         """
         import shutil
         templates_dir = self._get_user_templates_dir()
         template_dir = templates_dir / template_id
-        
+
         if template_dir.exists():
             shutil.rmtree(template_dir)
-        
+
+        return True
+
+    def save_pending_template(self, file, project_id: str, order_index: int) -> str:
+        """
+        Save pending template image (uploaded before outline generation)
+
+        Args:
+            file: FileStorage object from Flask request
+            project_id: Project ID
+            order_index: Order index for the template (0-based)
+
+        Returns:
+            Relative file path from upload folder
+        """
+        pending_dir = self._get_pending_templates_dir(project_id)
+
+        # Secure filename and preserve extension
+        original_filename = secure_filename(file.filename)
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'png'
+        filename = f"pending_{order_index}.{ext}"
+
+        filepath = pending_dir / filename
+        file.save(str(filepath))
+
+        # Return relative path
+        return filepath.relative_to(self.upload_folder).as_posix()
+
+    def get_pending_templates(self, project_id: str) -> list:
+        """
+        Get all pending templates for a project, sorted by order index
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            List of dicts with 'path' (absolute) and 'relative_path' keys
+        """
+        pending_dir = self._get_pending_templates_dir(project_id)
+
+        if not pending_dir.exists():
+            return []
+
+        templates = []
+        for file in pending_dir.iterdir():
+            if file.is_file() and file.stem.startswith('pending_'):
+                try:
+                    order_index = int(file.stem.split('_')[1])
+                    templates.append({
+                        'path': str(file),
+                        'relative_path': file.relative_to(self.upload_folder).as_posix(),
+                        'order_index': order_index
+                    })
+                except (ValueError, IndexError):
+                    continue
+
+        # Sort by order index
+        templates.sort(key=lambda t: t['order_index'])
+        return templates
+
+    def move_pending_to_page_template(self, project_id: str, pending_path: str, page_id: str) -> str:
+        """
+        Move a pending template to become a page template
+
+        Args:
+            project_id: Project ID
+            pending_path: Absolute path to pending template
+            page_id: Page ID to associate with
+
+        Returns:
+            Relative path to the new page template
+        """
+        import shutil
+
+        source = Path(pending_path)
+        if not source.exists():
+            raise FileNotFoundError(f"Pending template not found: {pending_path}")
+
+        page_templates_dir = self._get_page_templates_dir(project_id)
+        ext = source.suffix.lower().lstrip('.') or 'png'
+        filename = f"{page_id}.{ext}"
+
+        dest = page_templates_dir / filename
+
+        # Delete old template file for this page if exists
+        for old_file in page_templates_dir.glob(f"{page_id}.*"):
+            if old_file.is_file():
+                old_file.unlink()
+
+        # Move file
+        shutil.move(str(source), str(dest))
+
+        return dest.relative_to(self.upload_folder).as_posix()
+
+    def clear_pending_templates(self, project_id: str) -> bool:
+        """
+        Clear all pending templates for a project
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            True if cleared successfully
+        """
+        import shutil
+        pending_dir = self._get_pending_templates_dir(project_id)
+
+        if pending_dir.exists():
+            shutil.rmtree(pending_dir)
+
         return True
     
