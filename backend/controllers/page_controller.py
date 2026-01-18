@@ -668,6 +668,9 @@ def set_current_image_version(project_id, page_id, version_id):
         # Set this version as current
         version.is_current = True
         page.generated_image_path = version.image_path
+        # 同时更新 cached_image_path，指向该版本的缓存图
+        cached_filename = f"{page_id}_v{version.version_number}_thumb.jpg"
+        page.cached_image_path = f"{project_id}/pages/{cached_filename}"
         page.updated_at = datetime.utcnow()
         
         db.session.commit()
