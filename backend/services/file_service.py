@@ -11,76 +11,33 @@ from models import Project
 from models import db
 
 
-# Default max width for cached thumbnails (for frontend display)
-DEFAULT_THUMBNAIL_MAX_WIDTH = 1920
-
-
 def convert_image_to_rgb(image: Image.Image) -> Image.Image:
     """
     Convert image to RGB mode for JPEG compatibility.
-    Handles RGBA, LA, P modes by compositing onto white background.
-    
+    Handles RGBA, LA, P (palette) and other modes by compositing onto white background.
+
     Args:
         image: PIL Image object
-        
-    Returns:
-        RGB mode PIL Image
-    """
-    if image.mode in ('RGBA', 'LA', 'P'):
-        # Create white background for transparent images
-        background = Image.new('RGB', image.size, (255, 255, 255))
-        if image.mode == 'P':
-            image = image.convert('RGBA')
-        if image.mode in ('RGBA', 'LA'):
-            background.paste(image, mask=image.split()[-1])
-        else:
-            background.paste(image)
-        return background
-    elif image.mode != 'RGB':
-        return image.convert('RGB')
-    return image
 
-
-def resize_image_to_max_width(image: Image.Image, max_width: int) -> Image.Image:
-    """
-    Resize image to fit within max_width while maintaining aspect ratio.
-    Only resizes if image is larger than max_width.
-    
-    Args:
-        image: PIL Image object
-        max_width: Maximum width in pixels
-        
-    Returns:
-        Resized PIL Image (or original if already smaller)
-    """
-    if image.width <= max_width:
-        return image
-    
-    # Calculate new height maintaining aspect ratio
-    ratio = max_width / image.width
-    new_height = int(image.height * ratio)
-    
-    # Use LANCZOS for high-quality downscaling
-    return image.resize((max_width, new_height), Image.Resampling.LANCZOS)
-
-
-def convert_image_to_rgb(image: Image.Image) -> Image.Image:
-    """
-    Convert image to RGB mode for JPEG compatibility.
-    Handles RGBA, LA, P (palette) and other modes.
-    
-    Args:
-        image: PIL Image object
-        
     Returns:
         PIL Image in RGB mode
     """
     if image.mode in ('RGBA', 'LA', 'P'):
         # Create white background for transparent images
         background = Image.new('RGB', image.size, (255, 255, 255))
+
+        # Convert palette mode to RGBA to handle transparency
         if image.mode == 'P':
             image = image.convert('RGBA')
-        background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+
+        # Paste image onto white background using alpha channel as mask
+        # For RGBA and LA modes, the last channel is the alpha/transparency channel
+        if image.mode in ('RGBA', 'LA'):
+            background.paste(image, mask=image.split()[-1])
+        else:
+            # This shouldn't happen after P->RGBA conversion, but handle just in case
+            background.paste(image)
+
         return background
     elif image.mode != 'RGB':
         return image.convert('RGB')

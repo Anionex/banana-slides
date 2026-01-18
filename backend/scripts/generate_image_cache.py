@@ -34,20 +34,32 @@ def generate_cache_for_existing_images(batch_size=100):
     db.init_app(app)
 
     with app.app_context():
-        # Get all pages with generated images but no cache
-        pages = Page.query.filter(
+        # Count total pages with generated images but no cache
+        total_count = Page.query.filter(
             Page.generated_image_path.isnot(None),
             Page.cached_image_path.is_(None)
-        ).all()
+        ).count()
 
-        print(f"Found {len(pages)} pages with images but no cache")
+        print(f"Found {total_count} pages with images but no cache")
+
+        if total_count == 0:
+            print("No pages to process")
+            return
 
         upload_folder = Path(app.config['UPLOAD_FOLDER'])
         processed = 0
         skipped = 0
         errors = 0
 
-        for i, page in enumerate(pages):
+        # Process in batches to avoid loading all data into memory at once
+        # Use yield_per() to fetch records in chunks
+        pages_query = Page.query.filter(
+            Page.generated_image_path.isnot(None),
+            Page.cached_image_path.is_(None)
+        ).yield_per(batch_size)
+
+        batch_count = 0
+        for page in pages_query:
             try:
                 # Get original image path
                 original_path = upload_folder / page.generated_image_path
@@ -75,24 +87,32 @@ def generate_cache_for_existing_images(batch_size=100):
                 # Save as compressed JPEG
                 image.save(str(cache_path), 'JPEG', quality=85, optimize=True)
 
+                # Close image to free memory
+                image.close()
+
                 # Update database
                 cached_relative_path = cache_path.relative_to(upload_folder).as_posix()
                 page.cached_image_path = cached_relative_path
 
                 processed += 1
+                batch_count += 1
                 print(f"  [OK] {page.id}: {cache_filename}")
 
                 # Commit in batches to ensure progress is saved
-                if (i + 1) % batch_size == 0:
+                if batch_count >= batch_size:
                     db.session.commit()
-                    print(f"  [PROGRESS] Committed batch at {i + 1}/{len(pages)}")
+                    # Expunge all objects from session to free memory
+                    db.session.expunge_all()
+                    print(f"  [PROGRESS] Committed batch, total processed: {processed}/{total_count}")
+                    batch_count = 0
 
             except Exception as e:
                 print(f"  [ERROR] {page.id}: {e}")
                 errors += 1
 
         # Final commit for any remaining changes
-        db.session.commit()
+        if batch_count > 0:
+            db.session.commit()
 
         print(f"\nDone!")
         print(f"  Processed: {processed}")
