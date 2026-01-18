@@ -4,7 +4,7 @@ File Service - handles all file operations
 import os
 import uuid
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 from werkzeug.utils import secure_filename
 from PIL import Image
 from models import Project
