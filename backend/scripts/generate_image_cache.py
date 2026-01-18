@@ -7,7 +7,6 @@ Usage:
     cd backend
     python scripts/generate_image_cache.py
 """
-import os
 import sys
 from pathlib import Path
 
@@ -18,32 +17,7 @@ from PIL import Image
 from flask import Flask
 from models import db, Page
 from config import Config
-
-
-def convert_image_to_rgb(image: Image.Image) -> Image.Image:
-    """
-    Convert image to RGB mode for JPEG compatibility.
-    Handles RGBA, LA, P modes by compositing onto white background.
-
-    Args:
-        image: PIL Image object
-
-    Returns:
-        RGB mode PIL Image
-    """
-    if image.mode in ('RGBA', 'LA', 'P'):
-        # Create white background for transparent images
-        background = Image.new('RGB', image.size, (255, 255, 255))
-        if image.mode == 'P':
-            image = image.convert('RGBA')
-        if image.mode in ('RGBA', 'LA'):
-            background.paste(image, mask=image.split()[-1])
-        else:
-            background.paste(image)
-        return background
-    elif image.mode != 'RGB':
-        return image.convert('RGB')
-    return image
+from services.file_service import convert_image_to_rgb, resize_image_for_thumbnail
 
 
 def generate_cache_for_existing_images(batch_size=100):
@@ -91,6 +65,9 @@ def generate_cache_for_existing_images(batch_size=100):
 
                 # Load and convert image
                 image = Image.open(original_path)
+
+                # Resize image to reduce file size and improve loading speed
+                image = resize_image_for_thumbnail(image, max_width=1920)
 
                 # Convert to RGB using shared function
                 image = convert_image_to_rgb(image)

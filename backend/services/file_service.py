@@ -64,6 +64,48 @@ def resize_image_to_max_width(image: Image.Image, max_width: int) -> Image.Image
     return image.resize((max_width, new_height), Image.Resampling.LANCZOS)
 
 
+def convert_image_to_rgb(image: Image.Image) -> Image.Image:
+    """
+    Convert image to RGB mode for JPEG compatibility.
+    Handles RGBA, LA, P (palette) and other modes.
+    
+    Args:
+        image: PIL Image object
+        
+    Returns:
+        PIL Image in RGB mode
+    """
+    if image.mode in ('RGBA', 'LA', 'P'):
+        # Create white background for transparent images
+        background = Image.new('RGB', image.size, (255, 255, 255))
+        if image.mode == 'P':
+            image = image.convert('RGBA')
+        background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+        return background
+    elif image.mode != 'RGB':
+        return image.convert('RGB')
+    return image
+
+
+def resize_image_for_thumbnail(image: Image.Image, max_width: int = 1920) -> Image.Image:
+    """
+    Resize image for thumbnail if it exceeds max width.
+    Maintains aspect ratio.
+    
+    Args:
+        image: PIL Image object
+        max_width: Maximum width in pixels (default 1920)
+        
+    Returns:
+        Resized PIL Image (or original if already smaller)
+    """
+    if image.width > max_width:
+        ratio = max_width / image.width
+        new_height = int(image.height * ratio)
+        return image.resize((max_width, new_height), Image.Resampling.LANCZOS)
+    return image
+
+
 class FileService:
     """Service for file management"""
     
@@ -167,7 +209,7 @@ class FileService:
 
     def save_cached_image(self, image: Image.Image, project_id: str,
                          page_id: str, version_number: int,
-                         quality: int = 85) -> str:
+                         quality: int = 85, max_width: int = 1920) -> str:
         """
         Save compressed JPG thumbnail for faster frontend loading
 
@@ -177,6 +219,7 @@ class FileService:
             page_id: Page ID
             version_number: Version number
             quality: JPEG quality (1-100), default 85
+            max_width: Maximum thumbnail width in pixels (default 1920)
 
         Returns:
             Relative file path from upload folder
@@ -187,6 +230,9 @@ class FileService:
         filename = f"{page_id}_v{version_number}_thumb.jpg"
         filepath = pages_dir / filename
 
+        # Resize image if too large (for faster loading)
+        image = resize_image_for_thumbnail(image, max_width)
+        
         # Convert to RGB using shared function
         image = convert_image_to_rgb(image)
 
