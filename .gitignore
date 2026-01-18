@@ -47,6 +47,7 @@ gcp-service-account.json
 generate-example.py
 *.mdc
 *.pdf
+banana_slides_tutorial/
 .cursor/worktrees.json
 uploads/
 !assets/*
