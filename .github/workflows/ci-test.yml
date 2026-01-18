@@ -194,7 +194,7 @@ jobs:
           LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
           FLASK_ENV: ${{ secrets.FLASK_ENV }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          PORT: ${{ secrets.PORT }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
           MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
           MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}

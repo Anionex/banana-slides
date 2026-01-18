@@ -823,9 +823,10 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_ocr_api_key_length' | 'created_at' | 'updated_at'>> & { 
     api_key?: string;
     mineru_token?: string;
+    baidu_ocr_api_key?: string;
   }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
@@ -837,5 +838,53 @@ export const updateSettings = async (
  */
 export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
+/**
+ * 测试百度 OCR 服务
+ */
+export const testBaiduOcr = async (): Promise<ApiResponse<{ recognized_text: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ recognized_text: string }>>('/api/settings/tests/baidu-ocr');
+  return response.data;
+};
+
+/**
+ * 测试文本生成模型
+ */
+export const testTextModel = async (): Promise<ApiResponse<{ reply: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ reply: string }>>('/api/settings/tests/text-model');
+  return response.data;
+};
+
+/**
+ * 测试图片识别模型
+ */
+export const testCaptionModel = async (): Promise<ApiResponse<{ caption: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ caption: string }>>('/api/settings/tests/caption-model');
+  return response.data;
+};
+
+/**
+ * 测试百度图像修复
+ */
+export const testBaiduInpaint = async (): Promise<ApiResponse<{ image_size: [number, number] }>> => {
+  const response = await apiClient.post<ApiResponse<{ image_size: [number, number] }>>('/api/settings/tests/baidu-inpaint');
+  return response.data;
+};
+
+/**
+ * 测试图像生成模型
+ */
+export const testImageModel = async (): Promise<ApiResponse<{ image_size: [number, number] }>> => {
+  const response = await apiClient.post<ApiResponse<{ image_size: [number, number] }>>('/api/settings/tests/image-model');
+  return response.data;
+};
+
+/**
+ * 测试 MinerU PDF 解析
+ */
+export const testMineruPdf = async (): Promise<ApiResponse<{ batch_id: string; extract_id: string; content_preview: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ batch_id: string; extract_id: string; content_preview: string }>>('/api/settings/tests/mineru-pdf');
   return response.data;
 };

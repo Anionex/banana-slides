@@ -65,40 +65,45 @@ class GenAITextProvider(TextProvider):
     
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True
     )
-    def generate_text(self, prompt: str, thinking_budget: int = 1000) -> str:
+    def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
         Generate text using Google GenAI SDK
         
         Args:
             prompt: The input prompt
-            thinking_budget: Thinking budget for the model
+            thinking_budget: Thinking budget for the model (0 = disable thinking)
             
         Returns:
             Generated text
         """
+        # 构建配置，只有在 thinking_budget > 0 时才启用推理模式
+        config_params = {}
+        if thinking_budget > 0:
+            config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
+        
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget),
-            ),
+            config=types.GenerateContentConfig(**config_params) if config_params else None,
         )
         return response.text
     
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True
     )
-    def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 1000) -> str:
+    def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         """
         Generate text with image input using Google GenAI SDK (multimodal)
         
         Args:
             prompt: The input prompt
             image_path: Path to the image file
-            thinking_budget: Thinking budget for the model
+            thinking_budget: Thinking budget for the model (0 = disable thinking)
             
         Returns:
             Generated text
@@ -111,11 +116,14 @@ class GenAITextProvider(TextProvider):
         # 构建多模态内容
         contents = [img, prompt]
         
+        # 构建配置，只有在 thinking_budget > 0 时才启用推理模式
+        config_params = {}
+        if thinking_budget > 0:
+            config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
+        
         response = self.client.models.generate_content(
             model=self.model,
             contents=contents,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget),
-            ),
+            config=types.GenerateContentConfig(**config_params) if config_params else None,
         )
         return response.text

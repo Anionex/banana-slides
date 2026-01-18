@@ -22,7 +22,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, Markdown, ProjectSettingsModal, ExportTasksPanel } from '@/components/shared';
+import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
@@ -33,7 +33,7 @@ import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX } from '@/api/endpoints';
-import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod } from '@/types';
+import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
 export const SlidePreview: React.FC = () => {
@@ -47,6 +47,7 @@ export const SlidePreview: React.FC = () => {
     generateImages,
     editPageImage,
     deletePageById,
+    updatePageLocal,
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
@@ -63,6 +64,10 @@ export const SlidePreview: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
+  // 大纲和描述编辑状态
+  const [editOutlineTitle, setEditOutlineTitle] = useState('');
+  const [editOutlinePoints, setEditOutlinePoints] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   // 多选导出相关状态
@@ -338,6 +343,21 @@ export const SlidePreview: React.FC = () => {
     setIsOutlineExpanded(false);
     setIsDescriptionExpanded(false);
 
+    // 初始化大纲和描述编辑状态
+    setEditOutlineTitle(page?.outline_content?.title || '');
+    setEditOutlinePoints(page?.outline_content?.points?.join('\n') || '');
+    // 提取描述文本
+    const descContent = page?.description_content;
+    let descText = '';
+    if (descContent) {
+      if ('text' in descContent) {
+        descText = descContent.text as string;
+      } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
+        descText = descContent.text_content.join('\n');
+      }
+    }
+    setEditDescription(descText);
+
     if (pageId && editContextByPage[pageId]) {
       // 恢复该页上次编辑的内容和图片选择
       const cached = editContextByPage[pageId];
@@ -366,11 +386,55 @@ export const SlidePreview: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
+  // 保存大纲和描述修改
+  const handleSaveOutlineAndDescription = useCallback(() => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page?.id) return;
+
+    const updates: Partial<Page> = {};
+    
+    // 检查大纲是否有变化
+    const originalTitle = page.outline_content?.title || '';
+    const originalPoints = page.outline_content?.points?.join('\n') || '';
+    if (editOutlineTitle !== originalTitle || editOutlinePoints !== originalPoints) {
+      updates.outline_content = {
+        title: editOutlineTitle,
+        points: editOutlinePoints.split('\n').filter((p) => p.trim()),
+      };
+    }
+    
+    // 检查描述是否有变化
+    const descContent = page.description_content;
+    let originalDesc = '';
+    if (descContent) {
+      if ('text' in descContent) {
+        originalDesc = descContent.text as string;
+      } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
+        originalDesc = descContent.text_content.join('\n');
+      }
+    }
+    if (editDescription !== originalDesc) {
+      updates.description_content = {
+        text: editDescription,
+      } as DescriptionContent;
+    }
+    
+    // 如果有修改，保存更新
+    if (Object.keys(updates).length > 0) {
+      updatePageLocal(page.id, updates);
+      show({ message: '大纲和描述已保存', type: 'success' });
+    }
+  }, [currentProject, selectedIndex, editOutlineTitle, editOutlinePoints, editDescription, updatePageLocal, show]);
+
   const handleSubmitEdit = useCallback(async () => {
     if (!currentProject || !editPrompt.trim()) return;
     
     const page = currentProject.pages[selectedIndex];
     if (!page.id) return;
+
+    // 先保存大纲和描述的修改
+    handleSaveOutlineAndDescription();
 
     // 调用后端编辑接口
     await editPageImage(
@@ -399,7 +463,7 @@ export const SlidePreview: React.FC = () => {
     }));
 
     setIsEditModalOpen(false);
-  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage]);
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1191,7 +1255,7 @@ export const SlidePreview: React.FC = () => {
                       <img
                         src={imageUrl}
                         alt={`Slide ${selectedIndex + 1}`}
-                        className="w-full h-full object-contain select-none"
+                        className="w-full h-full object-cover select-none"
                         draggable={false}
                       />
                     ) : (
@@ -1421,70 +1485,70 @@ export const SlidePreview: React.FC = () => {
             )}
           </div>
 
-          {/* 大纲内容 - 可折叠 */}
-          {selectedPage?.outline_content && (
-            <div className="bg-gray-50 rounded-lg border border-gray-200">
-              <button
-                onClick={() => setIsOutlineExpanded(!isOutlineExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
-              >
-                <h4 className="text-sm font-semibold text-gray-700">页面大纲</h4>
-                {isOutlineExpanded ? (
-                  <ChevronUp size={18} className="text-gray-500" />
-                ) : (
-                  <ChevronDown size={18} className="text-gray-500" />
-                )}
-              </button>
-              {isOutlineExpanded && (
-                <div className="px-4 pb-4 space-y-2">
-                  <div className="text-sm font-medium text-gray-900 mb-2">
-                    {selectedPage.outline_content.title}
-                  </div>
-                  {selectedPage.outline_content.points && selectedPage.outline_content.points.length > 0 && (
-                    <div className="text-sm text-gray-600">
-                      <Markdown>{selectedPage.outline_content.points.join('\n')}</Markdown>
-                    </div>
-                  )}
-                </div>
+          {/* 大纲内容 - 可编辑 */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200">
+            <button
+              onClick={() => setIsOutlineExpanded(!isOutlineExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
+            >
+              <h4 className="text-sm font-semibold text-gray-700">页面大纲（可编辑）</h4>
+              {isOutlineExpanded ? (
+                <ChevronUp size={18} className="text-gray-500" />
+              ) : (
+                <ChevronDown size={18} className="text-gray-500" />
               )}
-            </div>
-          )}
+            </button>
+            {isOutlineExpanded && (
+              <div className="px-4 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">标题</label>
+                  <input
+                    type="text"
+                    value={editOutlineTitle}
+                    onChange={(e) => setEditOutlineTitle(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
+                    placeholder="输入页面标题"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">要点（每行一个）</label>
+                  <textarea
+                    value={editOutlinePoints}
+                    onChange={(e) => setEditOutlinePoints(e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                    placeholder="每行输入一个要点"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
-          {/* 描述内容 - 可折叠 */}
-          {selectedPage?.description_content && (
-            <div className="bg-blue-50 rounded-lg border border-blue-200">
-              <button
-                onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
-              >
-                <h4 className="text-sm font-semibold text-gray-700">页面描述</h4>
-                {isDescriptionExpanded ? (
-                  <ChevronUp size={18} className="text-gray-500" />
-                ) : (
-                  <ChevronDown size={18} className="text-gray-500" />
-                )}
-              </button>
-              {isDescriptionExpanded && (
-                <div className="px-4 pb-4">
-                  <div className="text-sm text-gray-700 max-h-48 overflow-y-auto">
-                    <Markdown>
-                      {(() => {
-                        const desc = selectedPage.description_content;
-                        if (!desc) return '暂无描述';
-                        // 处理两种格式
-                        if ('text' in desc) {
-                          return desc.text;
-                        } else if ('text_content' in desc && Array.isArray(desc.text_content)) {
-                          return desc.text_content.join('\n');
-                        }
-                        return '暂无描述';
-                      })() as string}
-                    </Markdown>
-                  </div>
-                </div>
+          {/* 描述内容 - 可编辑 */}
+          <div className="bg-blue-50 rounded-lg border border-blue-200">
+            <button
+              onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
+            >
+              <h4 className="text-sm font-semibold text-gray-700">页面描述（可编辑）</h4>
+              {isDescriptionExpanded ? (
+                <ChevronUp size={18} className="text-gray-500" />
+              ) : (
+                <ChevronDown size={18} className="text-gray-500" />
               )}
-            </div>
-          )}
+            </button>
+            {isDescriptionExpanded && (
+              <div className="px-4 pb-4">
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                  placeholder="输入页面的详细描述内容"
+                />
+              </div>
+            )}
+          </div>
 
           {/* 上下文图片选择 */}
           <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-4">
@@ -1617,17 +1681,28 @@ export const SlidePreview: React.FC = () => {
             onChange={(e) => setEditPrompt(e.target.value)}
             rows={4}
           />
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
-              取消
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSubmitEdit}
-              disabled={!editPrompt.trim()}
+          <div className="flex justify-between gap-3">
+            <Button 
+              variant="secondary" 
+              onClick={() => {
+                handleSaveOutlineAndDescription();
+                setIsEditModalOpen(false);
+              }}
             >
-              生成
+              仅保存大纲/描述
             </Button>
+            <div className="flex gap-3">
+              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSubmitEdit}
+                disabled={!editPrompt.trim()}
+              >
+                生成图片
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

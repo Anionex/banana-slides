@@ -1,10 +1,11 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download } from 'lucide-react';
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions } from '@/api/endpoints';
+import { exportDescriptionsToMarkdown } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -117,6 +118,13 @@ export const DetailEditor: React.FC = () => {
     }
   }, [currentProject, projectId, syncProject, show]);
 
+  // 导出页面描述为 Markdown 文件
+  const handleExportDescriptions = useCallback(() => {
+    if (!currentProject) return;
+    exportDescriptionsToMarkdown(currentProject);
+    show({ message: '导出成功', type: 'success' });
+  }, [currentProject, show]);
+
   if (!currentProject) {
     return <Loading fullscreen message="加载项目中..." />;
   }
@@ -215,6 +223,15 @@ export const DetailEditor: React.FC = () => {
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               批量生成描述
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={handleExportDescriptions}
+              disabled={!currentProject.pages.some(p => p.description_content)}
+              className="flex-1 sm:flex-initial text-sm md:text-base"
+            >
+              导出描述
             </Button>
             <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}

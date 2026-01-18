@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain } from 'lucide-react';
 import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
 import type { OutputLanguage } from '@/api/endpoints';
@@ -8,7 +8,7 @@ import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
 
 // 配置项类型定义
-type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons';
+type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
 
 interface FieldConfig {
   key: keyof typeof initialFormData;
@@ -29,6 +29,14 @@ interface SectionConfig {
   fields: FieldConfig[];
 }
 
+type TestStatus = 'idle' | 'loading' | 'success' | 'error';
+
+interface ServiceTestState {
+  status: TestStatus;
+  message?: string;
+  detail?: string;
+}
+
 // 初始表单数据
 const initialFormData = {
   ai_provider_format: 'gemini' as 'openai' | 'gemini',
@@ -44,6 +52,12 @@ const initialFormData = {
   max_description_workers: 5,
   max_image_workers: 8,
   output_language: 'zh' as OutputLanguage,
+  // 推理模式配置（分别控制文本和图像）
+  enable_text_reasoning: false,
+  text_thinking_budget: 1024,
+  enable_image_reasoning: false,
+  image_thinking_budget: 1024,
+  baidu_ocr_api_key: '',
 };
 
 // 配置驱动的表单区块定义
@@ -181,6 +195,61 @@ const settingsSections: SectionConfig[] = [
       },
     ],
   },
+  {
+    title: '文本推理模式',
+    icon: <Brain size={20} />,
+    fields: [
+      {
+        key: 'enable_text_reasoning',
+        label: '启用文本推理',
+        type: 'switch',
+        description: '开启后，文本生成（大纲、描述等）会使用 extended thinking 进行深度推理',
+      },
+      {
+        key: 'text_thinking_budget',
+        label: '文本思考负载',
+        type: 'number',
+        min: 1,
+        max: 8192,
+        description: '文本推理的思考 token 预算 (1-8192)，数值越大推理越深入',
+      },
+    ],
+  },
+  {
+    title: '图像推理模式',
+    icon: <Brain size={20} />,
+    fields: [
+      {
+        key: 'enable_image_reasoning',
+        label: '启用图像推理',
+        type: 'switch',
+        description: '开启后，图像生成会使用思考链模式，可能获得更好的构图效果',
+      },
+      {
+        key: 'image_thinking_budget',
+        label: '图像思考负载',
+        type: 'number',
+        min: 1,
+        max: 8192,
+        description: '图像推理的思考 token 预算 (1-8192)，数值越大推理越深入',
+      },
+    ],
+  },
+  {
+    title: '百度 OCR 配置',
+    icon: <FileText size={20} />,
+    fields: [
+      {
+        key: 'baidu_ocr_api_key',
+        label: '百度 OCR API Key',
+        type: 'password',
+        placeholder: '输入百度 OCR API Key',
+        sensitiveField: true,
+        lengthKey: 'baidu_ocr_api_key_length',
+        description: '用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变',
+      },
+    ],
+  },
 ];
 
 // Settings 组件 - 纯嵌入模式（可复用）
@@ -192,6 +261,7 @@ export const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
+  const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
 
   useEffect(() => {
     loadSettings();
@@ -217,6 +287,11 @@ export const Settings: React.FC = () => {
           mineru_token: '',
           image_caption_model: response.data.image_caption_model || '',
           output_language: response.data.output_language || 'zh',
+          enable_text_reasoning: response.data.enable_text_reasoning || false,
+          text_thinking_budget: response.data.text_thinking_budget || 1024,
+          enable_image_reasoning: response.data.enable_image_reasoning || false,
+          image_thinking_budget: response.data.image_thinking_budget || 1024,
+          baidu_ocr_api_key: '',
         });
       }
     } catch (error: any) {
@@ -233,7 +308,7 @@ export const Settings: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { api_key, mineru_token, ...otherData } = formData;
+      const { api_key, mineru_token, baidu_ocr_api_key, ...otherData } = formData;
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
       };
@@ -246,11 +321,16 @@ export const Settings: React.FC = () => {
         payload.mineru_token = mineru_token;
       }
 
+      if (baidu_ocr_api_key) {
+        payload.baidu_ocr_api_key = baidu_ocr_api_key;
+      }
+
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
         show({ message: '设置保存成功', type: 'success' });
-        setFormData(prev => ({ ...prev, api_key: '', mineru_token: '' }));
+        show({ message: '建议在本页底部进行服务测试，验证关键配置', type: 'info' });
+        setFormData(prev => ({ ...prev, api_key: '', mineru_token: '', baidu_ocr_api_key: '' }));
       }
     } catch (error: any) {
       console.error('保存设置失败:', error);
@@ -286,6 +366,11 @@ export const Settings: React.FC = () => {
               mineru_token: '',
               image_caption_model: response.data.image_caption_model || '',
               output_language: response.data.output_language || 'zh',
+              enable_text_reasoning: response.data.enable_text_reasoning || false,
+              text_thinking_budget: response.data.text_thinking_budget || 1024,
+              enable_image_reasoning: response.data.enable_image_reasoning || false,
+              image_thinking_budget: response.data.image_thinking_budget || 1024,
+              baidu_ocr_api_key: '',
             });
             show({ message: '设置已重置', type: 'success' });
           }
@@ -310,6 +395,29 @@ export const Settings: React.FC = () => {
 
   const handleFieldChange = (key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updateServiceTest = (key: string, nextState: ServiceTestState) => {
+    setServiceTestStates(prev => ({ ...prev, [key]: nextState }));
+  };
+
+  const handleServiceTest = async (
+    key: string,
+    action: () => Promise<any>,
+    formatDetail: (data: any) => string
+  ) => {
+    updateServiceTest(key, { status: 'loading' });
+    try {
+      const response = await action();
+      const detail = formatDetail(response.data);
+      const message = response.message || '测试成功';
+      updateServiceTest(key, { status: 'success', message, detail });
+      show({ message, type: 'success' });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error?.message || error?.message || '未知错误';
+      updateServiceTest(key, { status: 'error', message: errorMessage });
+      show({ message: '测试失败: ' + errorMessage, type: 'error' });
+    }
   };
 
   const renderField = (field: FieldConfig) => {
@@ -370,13 +478,51 @@ export const Settings: React.FC = () => {
       );
     }
 
+    // switch 类型 - 开关切换
+    if (field.type === 'switch') {
+      const isEnabled = Boolean(value);
+      return (
+        <div key={field.key}>
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700">
+              {field.label}
+            </label>
+            <button
+              type="button"
+              onClick={() => handleFieldChange(field.key, !isEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 ${
+                isEnabled ? 'bg-banana-500' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          {field.description && (
+            <p className="mt-1 text-sm text-gray-500">{field.description}</p>
+          )}
+        </div>
+      );
+    }
+
     // text, password, number 类型
     const placeholder = field.sensitiveField && settings && field.lengthKey
       ? `已设置（长度: ${settings[field.lengthKey]}）`
       : field.placeholder || '';
 
+    // 判断是否禁用（思考负载字段在对应开关关闭时禁用）
+    let isDisabled = false;
+    if (field.key === 'text_thinking_budget') {
+      isDisabled = !formData.enable_text_reasoning;
+    } else if (field.key === 'image_thinking_budget') {
+      isDisabled = !formData.enable_image_reasoning;
+    }
+
     return (
-      <div key={field.key}>
+      <div key={field.key} className={isDisabled ? 'opacity-50' : ''}>
         <Input
           label={field.label}
           type={field.type === 'number' ? 'number' : field.type}
@@ -390,6 +536,7 @@ export const Settings: React.FC = () => {
           }}
           min={field.min}
           max={field.max}
+          disabled={isDisabled}
         />
         {field.description && (
           <p className="mt-1 text-sm text-gray-500">{field.description}</p>
@@ -440,6 +587,97 @@ export const Settings: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 服务测试区 */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2 flex items-center">
+            <FileText size={20} />
+            <span className="ml-2">服务测试</span>
+          </h2>
+          <p className="text-sm text-gray-500">
+            提前验证关键服务配置是否可用，避免使用期间异常。
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                key: 'baidu-ocr',
+                title: 'Baidu OCR 服务',
+                description: '识别测试图片文字，验证 BAIDU_OCR_API_KEY 配置',
+                action: api.testBaiduOcr,
+                formatDetail: (data: any) => (data?.recognized_text ? `识别结果：${data.recognized_text}` : ''),
+              },
+              {
+                key: 'text-model',
+                title: '文本生成模型',
+                description: '发送短提示词，验证文本模型与 API 配置',
+                action: api.testTextModel,
+                formatDetail: (data: any) => (data?.reply ? `模型回复：${data.reply}` : ''),
+              },
+              {
+                key: 'caption-model',
+                title: '图片识别模型',
+                description: '生成测试图片并请求模型输出描述',
+                action: api.testCaptionModel,
+                formatDetail: (data: any) => (data?.caption ? `识别描述：${data.caption}` : ''),
+              },
+              {
+                key: 'baidu-inpaint',
+                title: 'Baidu 图像修复',
+                description: '使用测试图片执行修复，验证百度 inpaint 服务',
+                action: api.testBaiduInpaint,
+                formatDetail: (data: any) => (data?.image_size ? `输出尺寸：${data.image_size[0]}x${data.image_size[1]}` : ''),
+              },
+              {
+                key: 'image-model',
+                title: '图像生成模型',
+                description: '基于测试图片生成演示文稿背景图',
+                action: api.testImageModel,
+                formatDetail: (data: any) => (data?.image_size ? `输出尺寸：${data.image_size[0]}x${data.image_size[1]}` : ''),
+              },
+              {
+                key: 'mineru-pdf',
+                title: 'MinerU 解析 PDF',
+                description: '上传测试 PDF 并等待解析结果返回',
+                action: api.testMineruPdf,
+                formatDetail: (data: any) => (data?.content_preview ? `解析预览：${data.content_preview}` : ''),
+              },
+            ].map((item) => {
+              const testState = serviceTestStates[item.key] || { status: 'idle' as TestStatus };
+              const isLoadingTest = testState.status === 'loading';
+              return (
+                <div
+                  key={item.key}
+                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-2"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="text-base font-semibold text-gray-800">{item.title}</div>
+                      <div className="text-sm text-gray-500">{item.description}</div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={isLoadingTest}
+                      onClick={() => handleServiceTest(item.key, item.action, item.formatDetail)}
+                    >
+                      {isLoadingTest ? '测试中...' : '开始测试'}
+                    </Button>
+                  </div>
+                  {testState.status === 'success' && (
+                    <p className="text-sm text-green-600">
+                      {testState.message}{testState.detail ? `｜${testState.detail}` : ''}
+                    </p>
+                  )}
+                  {testState.status === 'error' && (
+                    <p className="text-sm text-red-600">
+                      {testState.message}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* 操作按钮 */}
