@@ -113,7 +113,8 @@ def delete_pages_batch(project_id, page_ids):
     DELETE /api/projects/{project_id}/pages/batch/{page_ids} - Batch delete page
     """
     try:
-        page_id_list = page_ids.split(',')
+        page_id_list_temp = page_ids.split(',')
+        page_id_list = [pid for pid in page_id_list_temp if pid]
         
         pages_to_delete = Page.query.filter(
             Page.project_id == project_id,
