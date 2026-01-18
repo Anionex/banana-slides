@@ -51,68 +51,71 @@ def generate_cache_for_existing_images(batch_size=100):
         skipped = 0
         errors = 0
 
-        # Process in batches to avoid loading all data into memory at once
-        # Use yield_per() to fetch records in chunks
-        pages_query = Page.query.filter(
-            Page.generated_image_path.isnot(None),
-            Page.cached_image_path.is_(None)
-        ).yield_per(batch_size)
+        # Process in batches using offset/limit pagination to avoid memory issues
+        # This is safer than yield_per() + expunge_all() which can conflict
+        offset = 0
+        while offset < total_count:
+            # Fetch a batch of pages
+            pages_batch = Page.query.filter(
+                Page.generated_image_path.isnot(None),
+                Page.cached_image_path.is_(None)
+            ).order_by(Page.id).offset(offset).limit(batch_size).all()
 
-        batch_count = 0
-        for page in pages_query:
-            try:
-                # Get original image path
-                original_path = upload_folder / page.generated_image_path
+            # Break if no more pages to process
+            if not pages_batch:
+                break
 
-                if not original_path.exists():
-                    print(f"  [SKIP] Original image not found: {original_path}")
-                    skipped += 1
-                    continue
+            for page in pages_batch:
+                try:
+                    # Get original image path
+                    original_path = upload_folder / page.generated_image_path
 
-                # Generate cache path (replace extension with _thumb.jpg)
-                # e.g., xxx_v1.png -> xxx_v1_thumb.jpg
-                stem = original_path.stem  # xxx_v1
-                cache_filename = f"{stem}_thumb.jpg"
-                cache_path = original_path.parent / cache_filename
+                    if not original_path.exists():
+                        print(f"  [SKIP] Original image not found: {original_path}")
+                        skipped += 1
+                        continue
 
-                # Load and convert image
-                image = Image.open(original_path)
+                    # Generate cache path (replace extension with _thumb.jpg)
+                    # e.g., xxx_v1.png -> xxx_v1_thumb.jpg
+                    stem = original_path.stem  # xxx_v1
+                    cache_filename = f"{stem}_thumb.jpg"
+                    cache_path = original_path.parent / cache_filename
 
-                # Resize image to reduce file size and improve loading speed
-                image = resize_image_for_thumbnail(image, max_width=1920)
+                    # Load and convert image
+                    image = Image.open(original_path)
 
-                # Convert to RGB using shared function
-                image = convert_image_to_rgb(image)
+                    # Resize image to reduce file size and improve loading speed
+                    image = resize_image_for_thumbnail(image, max_width=1920)
 
-                # Save as compressed JPEG
-                image.save(str(cache_path), 'JPEG', quality=85, optimize=True)
+                    # Convert to RGB using shared function
+                    image = convert_image_to_rgb(image)
 
-                # Close image to free memory
-                image.close()
+                    # Save as compressed JPEG
+                    image.save(str(cache_path), 'JPEG', quality=85, optimize=True)
 
-                # Update database
-                cached_relative_path = cache_path.relative_to(upload_folder).as_posix()
-                page.cached_image_path = cached_relative_path
+                    # Close image to free memory
+                    image.close()
 
-                processed += 1
-                batch_count += 1
-                print(f"  [OK] {page.id}: {cache_filename}")
+                    # Update database
+                    cached_relative_path = cache_path.relative_to(upload_folder).as_posix()
+                    page.cached_image_path = cached_relative_path
 
-                # Commit in batches to ensure progress is saved
-                if batch_count >= batch_size:
-                    db.session.commit()
-                    # Expunge all objects from session to free memory
-                    db.session.expunge_all()
-                    print(f"  [PROGRESS] Committed batch, total processed: {processed}/{total_count}")
-                    batch_count = 0
+                    processed += 1
+                    print(f"  [OK] {page.id}: {cache_filename}")
 
-            except Exception as e:
-                print(f"  [ERROR] {page.id}: {e}")
-                errors += 1
+                except Exception as e:
+                    print(f"  [ERROR] {page.id}: {e}")
+                    errors += 1
 
-        # Final commit for any remaining changes
-        if batch_count > 0:
+            # Commit this batch
             db.session.commit()
+            # Clear session to free memory
+            db.session.expunge_all()
+
+            print(f"  [PROGRESS] Committed batch, total processed: {processed}/{total_count}")
+
+            # Move to next batch
+            offset += batch_size
 
         print(f"\nDone!")
         print(f"  Processed: {processed}")
