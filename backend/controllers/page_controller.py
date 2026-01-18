@@ -670,9 +670,8 @@ def set_current_image_version(project_id, page_id, version_id):
         page.generated_image_path = version.image_path
 
         # 更新 cached_image_path，指向该版本的缓存图（如果存在）
-        cached_filename = f"{page_id}_v{version.version_number}_thumb.jpg"
-        cached_relative_path = f"{project_id}/pages/{cached_filename}"
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        cached_relative_path = file_service.get_cached_image_path(project_id, page_id, version.version_number)
         if file_service.file_exists(cached_relative_path):
             page.cached_image_path = cached_relative_path
         else:

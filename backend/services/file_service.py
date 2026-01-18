@@ -164,6 +164,24 @@ class FileService:
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
 
+    def get_cached_image_path(self, project_id: str, page_id: str, version_number: int) -> str:
+        """
+        Generate the relative path for a cached thumbnail image.
+
+        This method centralizes the path generation logic for cached images,
+        ensuring consistency across the codebase (DRY principle).
+
+        Args:
+            project_id: Project ID
+            page_id: Page ID
+            version_number: Version number
+
+        Returns:
+            Relative file path from upload folder (e.g., "project_id/pages/page_id_v1_thumb.jpg")
+        """
+        filename = f"{page_id}_v{version_number}_thumb.jpg"
+        return f"{project_id}/pages/{filename}"
+
     def save_cached_image(self, image: Image.Image, project_id: str,
                          page_id: str, version_number: int,
                          quality: int = 85, max_width: int = 1920) -> str:
@@ -183,13 +201,14 @@ class FileService:
         """
         pages_dir = self._get_pages_dir(project_id)
 
-        # Generate filename with _thumb suffix
-        filename = f"{page_id}_v{version_number}_thumb.jpg"
+        # Use centralized path generation
+        relative_path = self.get_cached_image_path(project_id, page_id, version_number)
+        filename = Path(relative_path).name
         filepath = pages_dir / filename
 
         # Resize image if too large (for faster loading)
         image = resize_image_for_thumbnail(image, max_width)
-        
+
         # Convert to RGB using shared function
         image = convert_image_to_rgb(image)
 
@@ -197,7 +216,7 @@ class FileService:
         image.save(str(filepath), 'JPEG', quality=quality, optimize=True)
 
         # Return relative path
-        return filepath.relative_to(self.upload_folder).as_posix()
+        return relative_path
 
     def save_material_image(self, image: Image.Image, project_id: Optional[str],
                             image_format: str = 'PNG') -> str:
