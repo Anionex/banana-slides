@@ -237,19 +237,28 @@ class FileService:
     
     def delete_page_image_version(self, image_path: str) -> bool:
         """
-        Delete a specific image version file
-        
+        Delete a specific image version file and its cache
+
         Args:
             image_path: Relative path to the image file
-        
+
         Returns:
             True if deleted successfully
         """
         filepath = self.upload_folder / image_path.replace('\\', '/')
+        deleted = False
+
         if filepath.exists() and filepath.is_file():
             filepath.unlink()
-            return True
-        return False
+            deleted = True
+
+        # Also delete corresponding cache file (_thumb.jpg)
+        # e.g., xxx_v1.png -> xxx_v1_thumb.jpg
+        cache_filepath = filepath.parent / f"{filepath.stem}_thumb.jpg"
+        if cache_filepath.exists() and cache_filepath.is_file():
+            cache_filepath.unlink()
+
+        return deleted
     
     def get_file_url(self, project_id: Optional[str], file_type: str, filename: str) -> str:
         """
@@ -301,22 +310,23 @@ class FileService:
     
     def delete_page_image(self, project_id: str, page_id: str) -> bool:
         """
-        Delete page image
-        
+        Delete all page images (all versions and their caches)
+
         Args:
             project_id: Project ID
             page_id: Page ID
-        
+
         Returns:
             True if deleted successfully
         """
         pages_dir = self._get_pages_dir(project_id)
-        
-        # Find and delete page image (any extension)
-        for file in pages_dir.glob(f"{page_id}.*"):
+
+        # Find and delete all page image files (all versions and caches)
+        # Pattern matches: {page_id}_v1.png, {page_id}_v1_thumb.jpg, etc.
+        for file in pages_dir.glob(f"{page_id}_*"):
             if file.is_file():
                 file.unlink()
-        
+
         return True
     
     def delete_project_files(self, project_id: str) -> bool:
