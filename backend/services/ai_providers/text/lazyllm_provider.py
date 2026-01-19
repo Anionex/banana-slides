@@ -9,6 +9,7 @@ Supports modes:
 - sensenova
 - ...
 """
+import lazyllm
 from .base import TextProvider
 from config import get_config
 
@@ -24,14 +25,6 @@ class LazyLLMTextProvider(TextProvider):
             api_key: qwen/doubao/siliconflow/... API key
             type: Category of the online service. Defaults to ``llm``.
         """
-        try:
-            import lazyllm
-        except ImportError as e:
-            raise ImportError(
-                "LazyLLM and its related dependencies are not installed or incompatible. "
-                "Please run: uv pip install '.[sdk]' to install all optional dependencies. "
-                "And you must ensure 'google-genai<1.52.0' and 'pillow<12.0.0,>=8.0.0' to resolve dependency conflicts."
-            ) from e
         self.client = lazyllm.OnlineModule(
             source = source, 
             model = model, 
