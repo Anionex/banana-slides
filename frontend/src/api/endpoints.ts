@@ -379,7 +379,17 @@ export const updatePageOutline = async (
  */
 export const deletePage = async (projectId: string, pageId: string): Promise<ApiResponse> => {
   const response = await apiClient.delete<ApiResponse>(
-    `/api/projects/${projectId}/pages/${pageId}`
+      `/api/projects/${projectId}/pages/${pageId}`
+  );
+  return response.data;
+};
+
+/**
+ * 批量删除页面
+ */
+export const deleteBatchPage = async (projectId: string, pageIds: string[]): Promise<ApiResponse> => {
+  const response = await apiClient.delete<ApiResponse>(
+      `/api/projects/${projectId}/pages/batch/${pageIds}`,
   );
   return response.data;
 };
