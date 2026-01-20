@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
+import { MaterialGallery } from './pages/MaterialGallery';
 import { History } from './pages/History';
 import { OutlineEditor } from './pages/OutlineEditor';
 import { DetailEditor } from './pages/DetailEditor';
@@ -33,6 +34,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/materials" element={<MaterialGallery />} />
         <Route path="/history" element={<History />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
