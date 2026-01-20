@@ -1,34 +1,34 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React， { useState， useEffect， useRef， useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
-import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
+import { Sparkles， FileText， FileEdit， ImagePlus， Paperclip， Palette， Lightbulb， 搜索， 设置， Image as ImageIcon } from 'lucide-react';
+import { Button， Textarea， Card， useToast， MaterialGeneratorModal， ReferenceFileList， ReferenceFileSelector， FilePreviewModal， ImagePreviewList } from '@/components/shared';
+import { TemplateSelector， getTemplateFile } from '@/components/shared/TemplateSelector';
+import { listUserTemplates， 输入 UserTemplate， uploadReferenceFile， 输入 ReferenceFile， associateFileToProject， triggerFileParse， uploadMaterial， associateMaterialsToProject， listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
-type CreationType = 'idea' | 'outline' | 'description';
+输入 CreationType = 'idea' | 'outline' | 'description';
 
-export const Home: React.FC = () => {
+export const 主页: React.FC = () => {
   const navigate = useNavigate();
-  const { initializeProject, isGlobalLoading } = useProjectStore();
-  const { show, ToastContainer } = useToast();
+  const { initializeProject， isGlobalLoading } = useProjectStore();
+  const { show， ToastContainer } = useToast();
   
-  const [activeTab, setActiveTab] = useState<CreationType>('idea');
-  const [content, setContent] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
-  const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
-  const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
-  const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
-  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
-  const [useTemplateStyle, setUseTemplateStyle] = useState(false);
-  const [templateStyle, setTemplateStyle] = useState('');
-  const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
+  const [activeTab， setActiveTab] = useState<CreationType>('idea');
+  const [content， setContent] = useState('');
+  const [selectedTemplate， setSelectedTemplate] = useState<File | null>(null);
+  const [selectedTemplateId， setSelectedTemplateId] = useState<string | null>(null);
+  const [selectedPresetTemplateId， setSelectedPresetTemplateId] = useState<string | null>(null);
+  const [isMaterialModalOpen， setIsMaterialModalOpen] = useState(false);
+  const [currentProjectId， setCurrentProjectId] = useState<string | null>(null);
+  const [userTemplates， setUserTemplates] = useState<UserTemplate[]>([]);
+  const [referenceFiles， setReferenceFiles] = useState<ReferenceFile[]>([]);
+  const [isUploadingFile， setIsUploadingFile] = useState(false);
+  const [isFileSelectorOpen， setIsFileSelectorOpen] = useState(false);
+  const [previewFileId， setPreviewFileId] = useState<string | null>(null);
+  const [useTemplateStyle， setUseTemplateStyle] = useState(false);
+  const [templateStyle， setTemplateStyle] = useState('');
+  const [hoveredPresetId， setHoveredPresetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
