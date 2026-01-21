@@ -112,7 +112,7 @@ def get_system_templates():
 def upload_user_template():
     """
     POST /api/user-templates - Upload user template image
-    
+
     Content-Type: multipart/form-data
     Form: template_image=@file.png
     Optional: name=Template Name
@@ -121,42 +121,46 @@ def upload_user_template():
         # Check if file is in request
         if 'template_image' not in request.files:
             return bad_request("No file uploaded")
-        
+
         file = request.files['template_image']
-        
+
         if file.filename == '':
             return bad_request("No file selected")
-        
+
         # Validate file extension
         if not allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
             return bad_request("Invalid file type. Allowed types: png, jpg, jpeg, gif, webp")
-        
+
         # Get optional name
         name = request.form.get('name', None)
-        
+
         # Get file size before saving
         file.seek(0, 2)  # Seek to end
         file_size = file.tell()
         file.seek(0)  # Reset to beginning
-        
+
         # Generate template ID first
         import uuid
         template_id = str(uuid.uuid4())
-        
+
         # Save template file first (using the generated ID)
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_path = file_service.save_user_template(file, template_id)
-        
+
+        # Generate thumbnail for faster loading
+        thumb_path = file_service.save_user_template_thumbnail(template_id, file_path)
+
         # Create template record with file_path already set
         template = UserTemplate(
             id=template_id,
             name=name,
             file_path=file_path,
+            thumb_path=thumb_path,
             file_size=file_size
         )
         db.session.add(template)
         db.session.commit()
-        
+
         return success_response(template.to_dict())
     
     except Exception as e:

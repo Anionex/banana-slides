@@ -6,6 +6,7 @@ import os
 import json
 import logging
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from textwrap import dedent
@@ -148,6 +149,18 @@ class ExportService:
         """
         # Create presentation
         prs = Presentation()
+        
+        # Set author/date metadata for exported PPTX
+        try:
+            core = prs.core_properties
+            now = datetime.now(timezone.utc)
+            core.author = "banana-slides"
+            core.last_modified_by = "banana-slides"
+            core.created = now
+            core.modified = now
+            core.last_printed = None
+        except Exception as e:
+            logger.warning(f"Failed to set core properties: {e}")
         
         # Set slide dimensions to 16:9 (width 10 inches, height 5.625 inches)
         prs.slide_width = Inches(10)

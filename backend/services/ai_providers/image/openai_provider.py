@@ -57,18 +57,23 @@ class OpenAIImageProvider(ImageProvider):
         prompt: str,
         ref_images: Optional[List[Image.Image]] = None,
         aspect_ratio: str = "16:9",
-        resolution: str = "2K"
+        resolution: str = "2K",
+        enable_thinking: bool = False,
+        thinking_budget: int = 0
     ) -> Optional[Image.Image]:
         """
         Generate image using OpenAI SDK
         
         Note: OpenAI format does NOT support 4K images, defaults to 1K
+        Note: enable_thinking and thinking_budget are ignored (OpenAI format doesn't support thinking mode)
         
         Args:
             prompt: The image generation prompt
             ref_images: Optional list of reference images
             aspect_ratio: Image aspect ratio
             resolution: Image resolution (only 1K supported, parameter ignored)
+            enable_thinking: Ignored, kept for interface compatibility
+            thinking_budget: Ignored, kept for interface compatibility
             
         Returns:
             Generated PIL Image object, or None if failed

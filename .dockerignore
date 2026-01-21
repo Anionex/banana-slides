@@ -54,6 +54,7 @@ docs/
 demo.py
 gemini_genai.py
 generate-example.py
+!assets/**
 *.png
 *.jpg
 *.jpeg

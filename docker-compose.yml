@@ -10,9 +10,9 @@ services:
         PYPI_INDEX_URL: ${PYPI_INDEX_URL:-}
     container_name: banana-slides-backend
     ports:
-      # 宿主机端口:容器内部端口（由 PORT 控制，默认 5000）
-      # 外部访问始终是 http://localhost:5000，内部监听端口可通过 PORT 调整
-      - "5000:${PORT:-5000}"
+      # 宿主机端口:容器内部端口
+      # 宿主机端口由 BACKEND_PORT 控制，容器内部固定 5000
+      - "${BACKEND_PORT:-5000}:5000"
     # 从 .env 文件自动加载所有环境变量
     env_file:
       - .env
@@ -28,8 +28,8 @@ services:
       # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
     restart: unless-stopped
     healthcheck:
-      # 健康检查同样跟随 PORT（默认 5000）
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-5000}/health"]
+      # 健康检查使用容器内部固定端口 5000
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -44,7 +44,6 @@ services:
       # Windows 兼容性：禁用符号链接跟随 + 前端构建参数
       args:
         DOCKER_BUILDKIT: 1
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
         DOCKER_REGISTRY: ${DOCKER_REGISTRY:-}
         NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: banana-slides-frontend

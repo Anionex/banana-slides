@@ -16,8 +16,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, '')
   
   // 读取后端端口，默认 5000
-  // 支持从环境变量 PORT 读取（与后端保持一致）
-  const backendPort = env.PORT || '5000'
+  const backendPort = env.BACKEND_PORT || '5000'
   const backendUrl = `http://localhost:${backendPort}`
   
   return {
@@ -38,7 +37,7 @@ export default defineConfig(({ mode }) => {
         overlay: true, // 显示错误覆盖层
       },
       proxy: {
-        // API 请求代理到后端（端口从环境变量 PORT 读取）
+        // API 请求代理到后端（端口从环境变量 BACKEND_PORT 读取）
         '/api': {
           target: backendUrl,
           changeOrigin: true,

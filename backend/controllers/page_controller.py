@@ -664,10 +664,20 @@ def set_current_image_version(project_id, page_id, version_id):
         
         # Mark all versions as not current
         PageImageVersion.query.filter_by(page_id=page_id).update({'is_current': False})
-        
+
         # Set this version as current
         version.is_current = True
         page.generated_image_path = version.image_path
+
+        # 更新 cached_image_path，指向该版本的缓存图（如果存在）
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        cached_relative_path = file_service.get_cached_image_path(project_id, page_id, version.version_number)
+        if file_service.file_exists(cached_relative_path):
+            page.cached_image_path = cached_relative_path
+        else:
+            # 缓存文件不存在，设置为 None，to_dict() 会回退到原图
+            page.cached_image_path = None
+
         page.updated_at = datetime.utcnow()
         
         db.session.commit()

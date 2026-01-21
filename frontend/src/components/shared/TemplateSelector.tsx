@@ -7,13 +7,12 @@ import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
 const presetTemplates = [
-  { id: '1', name: '复古卷轴', preview: '/templates/template_y.png' },
-  { id: '2', name: '矢量插画', preview: '/templates/template_vector_illustration.png' },
-  { id: '3', name: '拟物玻璃', preview: '/templates/template_glass.png' },
-  
-  { id: '4', name: '科技蓝', preview: '/templates/template_b.png' },
-  { id: '5', name: '简约商务', preview: '/templates/template_s.png' },
-  { id: '6', name: '学术报告', preview: '/templates/template_academic.jpg' },
+  { id: '1', name: '复古卷轴', preview: '/templates/template_y.png', thumb: '/templates/template_y-thumb.webp' },
+  { id: '2', name: '矢量插画', preview: '/templates/template_vector_illustration.png', thumb: '/templates/template_vector_illustration-thumb.webp' },
+  { id: '3', name: '拟物玻璃', preview: '/templates/template_glass.png', thumb: '/templates/template_glass-thumb.webp' },
+  { id: '4', name: '科技蓝', preview: '/templates/template_b.png', thumb: '/templates/template_b-thumb.webp' },
+  { id: '5', name: '简约商务', preview: '/templates/template_s.png', thumb: '/templates/template_s-thumb.webp' },
+  { id: '6', name: '学术报告', preview: '/templates/template_academic.jpg', thumb: '/templates/template_academic-thumb.webp' },
 ];
 
 interface TemplateSelectorProps {
@@ -173,7 +172,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                   }`}
                 >
                   <img
-                    src={getImageUrl(template.template_image_url)}
+                    src={getImageUrl(template.thumb_url || template.template_image_url)}
                     alt={template.name || 'Template'}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
@@ -219,7 +218,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                 {template.preview ? (
                   <>
                     <img
-                      src={template.preview}
+                      src={template.thumb || template.preview}
                       alt={template.name}
                       className="absolute inset-0 w-full h-full object-cover"
                     />

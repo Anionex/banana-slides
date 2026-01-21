@@ -25,6 +25,16 @@ class Settings(db.Model):
     mineru_token = db.Column(db.String(500), nullable=True)  # MinerU API Token（覆盖 Config.MINERU_TOKEN）
     image_caption_model = db.Column(db.String(100), nullable=True)  # 图片识别模型（覆盖 Config.IMAGE_CAPTION_MODEL）
     output_language = db.Column(db.String(10), nullable=False, default='zh')  # 输出语言偏好（zh, en, ja, auto）
+    
+    # 推理模式配置（分别控制文本和图像生成）
+    enable_text_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 文本生成是否开启推理
+    text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
+    enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
+    image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
+    
+    # 百度 OCR 配置
+    baidu_ocr_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
+    
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -45,6 +55,11 @@ class Settings(db.Model):
             'mineru_token_length': len(self.mineru_token) if self.mineru_token else 0,
             'image_caption_model': self.image_caption_model,
             'output_language': self.output_language,
+            'enable_text_reasoning': self.enable_text_reasoning,
+            'text_thinking_budget': self.text_thinking_budget,
+            'enable_image_reasoning': self.enable_image_reasoning,
+            'image_thinking_budget': self.image_thinking_budget,
+            'baidu_ocr_api_key_length': len(self.baidu_ocr_api_key) if self.baidu_ocr_api_key else 0,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -85,6 +100,7 @@ class Settings(db.Model):
                 mineru_token=Config.MINERU_TOKEN,
                 image_caption_model=Config.IMAGE_CAPTION_MODEL,
                 output_language='zh',  # 默认中文
+                baidu_ocr_api_key=Config.BAIDU_OCR_API_KEY or None,
             )
             settings.id = 1
             db.session.add(settings)

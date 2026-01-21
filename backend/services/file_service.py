@@ -11,6 +11,58 @@ from models import Project
 from models import db
 
 
+def convert_image_to_rgb(image: Image.Image) -> Image.Image:
+    """
+    Convert image to RGB mode for JPEG compatibility.
+    Handles RGBA, LA, P (palette) and other modes by compositing onto white background.
+
+    Args:
+        image: PIL Image object
+
+    Returns:
+        PIL Image in RGB mode
+    """
+    if image.mode in ('RGBA', 'LA', 'P'):
+        # Create white background for transparent images
+        background = Image.new('RGB', image.size, (255, 255, 255))
+
+        # Convert palette mode to RGBA to handle transparency
+        if image.mode == 'P':
+            image = image.convert('RGBA')
+
+        # Paste image onto white background using alpha channel as mask
+        # For RGBA and LA modes, the last channel is the alpha/transparency channel
+        if image.mode in ('RGBA', 'LA'):
+            background.paste(image, mask=image.split()[-1])
+        else:
+            # This shouldn't happen after P->RGBA conversion, but handle just in case
+            background.paste(image)
+
+        return background
+    elif image.mode != 'RGB':
+        return image.convert('RGB')
+    return image
+
+
+def resize_image_for_thumbnail(image: Image.Image, max_width: int = 1920) -> Image.Image:
+    """
+    Resize image for thumbnail if it exceeds max width.
+    Maintains aspect ratio.
+    
+    Args:
+        image: PIL Image object
+        max_width: Maximum width in pixels (default 1920)
+        
+    Returns:
+        Resized PIL Image (or original if already smaller)
+    """
+    if image.width > max_width:
+        ratio = max_width / image.width
+        new_height = int(image.height * ratio)
+        return image.resize((max_width, new_height), Image.Resampling.LANCZOS)
+    return image
+
+
 class FileService:
     """Service for file management"""
     
@@ -73,27 +125,27 @@ class FileService:
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
     
-    def save_generated_image(self, image: Image.Image, project_id: str, 
-                           page_id: str, image_format: str = 'PNG', 
+    def save_generated_image(self, image: Image.Image, project_id: str,
+                           page_id: str, image_format: str = 'PNG',
                            version_number: int = None) -> str:
         """
         Save generated image with version support
-        
+
         Args:
             image: PIL Image object
             project_id: Project ID
             page_id: Page ID
             image_format: Image format (PNG, JPEG, etc.)
             version_number: Optional version number. If None, uses timestamp-based naming
-        
+
         Returns:
             Relative file path from upload folder
         """
         pages_dir = self._get_pages_dir(project_id)
-        
+
         # Use lowercase extension
         ext = image_format.lower()
-        
+
         # Generate filename with version number or timestamp
         if version_number is not None:
             filename = f"{page_id}_v{version_number}.{ext}"
@@ -102,15 +154,69 @@ class FileService:
             import time
             timestamp = int(time.time() * 1000)  # milliseconds
             filename = f"{page_id}_{timestamp}.{ext}"
-        
+
         filepath = pages_dir / filename
-        
+
         # Save image - format is determined by file extension or explicitly specified
         # Some PIL Image objects may not support format parameter, so we use extension
         image.save(str(filepath))
-        
+
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
+
+    def get_cached_image_path(self, project_id: str, page_id: str, version_number: int) -> str:
+        """
+        Generate the relative path for a cached thumbnail image.
+
+        This method centralizes the path generation logic for cached images,
+        ensuring consistency across the codebase (DRY principle).
+
+        Args:
+            project_id: Project ID
+            page_id: Page ID
+            version_number: Version number
+
+        Returns:
+            Relative file path from upload folder (e.g., "project_id/pages/page_id_v1_thumb.jpg")
+        """
+        filename = f"{page_id}_v{version_number}_thumb.jpg"
+        return f"{project_id}/pages/{filename}"
+
+    def save_cached_image(self, image: Image.Image, project_id: str,
+                         page_id: str, version_number: int,
+                         quality: int = 85, max_width: int = 1920) -> str:
+        """
+        Save compressed JPG thumbnail for faster frontend loading
+
+        Args:
+            image: PIL Image object
+            project_id: Project ID
+            page_id: Page ID
+            version_number: Version number
+            quality: JPEG quality (1-100), default 85
+            max_width: Maximum thumbnail width in pixels (default 1920)
+
+        Returns:
+            Relative file path from upload folder
+        """
+        pages_dir = self._get_pages_dir(project_id)
+
+        # Use centralized path generation
+        relative_path = self.get_cached_image_path(project_id, page_id, version_number)
+        filename = Path(relative_path).name
+        filepath = pages_dir / filename
+
+        # Resize image if too large (for faster loading)
+        image = resize_image_for_thumbnail(image, max_width)
+
+        # Convert to RGB using shared function
+        image = convert_image_to_rgb(image)
+
+        # Save as compressed JPEG
+        image.save(str(filepath), 'JPEG', quality=quality, optimize=True)
+
+        # Return relative path
+        return relative_path
 
     def save_material_image(self, image: Image.Image, project_id: Optional[str],
                             image_format: str = 'PNG') -> str:
@@ -150,19 +256,28 @@ class FileService:
     
     def delete_page_image_version(self, image_path: str) -> bool:
         """
-        Delete a specific image version file
-        
+        Delete a specific image version file and its cache
+
         Args:
             image_path: Relative path to the image file
-        
+
         Returns:
             True if deleted successfully
         """
         filepath = self.upload_folder / image_path.replace('\\', '/')
+        deleted = False
+
         if filepath.exists() and filepath.is_file():
             filepath.unlink()
-            return True
-        return False
+            deleted = True
+
+        # Also delete corresponding cache file (_thumb.jpg)
+        # e.g., xxx_v1.png -> xxx_v1_thumb.jpg
+        cache_filepath = filepath.parent / f"{filepath.stem}_thumb.jpg"
+        if cache_filepath.exists() and cache_filepath.is_file():
+            cache_filepath.unlink()
+
+        return deleted
     
     def get_file_url(self, project_id: Optional[str], file_type: str, filename: str) -> str:
         """
@@ -214,22 +329,23 @@ class FileService:
     
     def delete_page_image(self, project_id: str, page_id: str) -> bool:
         """
-        Delete page image
-        
+        Delete all page images (all versions and their caches)
+
         Args:
             project_id: Project ID
             page_id: Page ID
-        
+
         Returns:
             True if deleted successfully
         """
         pages_dir = self._get_pages_dir(project_id)
-        
-        # Find and delete page image (any extension)
-        for file in pages_dir.glob(f"{page_id}.*"):
+
+        # Find and delete all page image files (all versions and caches)
+        # Pattern matches: {page_id}_v1.png, {page_id}_v1_thumb.jpg, etc.
+        for file in pages_dir.glob(f"{page_id}_*"):
             if file.is_file():
                 file.unlink()
-        
+
         return True
     
     def delete_project_files(self, project_id: str) -> bool:
@@ -325,19 +441,64 @@ class FileService:
     def delete_user_template(self, template_id: str) -> bool:
         """
         Delete user template
-        
+
         Args:
             template_id: Template ID
-        
+
         Returns:
             True if deleted successfully
         """
         import shutil
         templates_dir = self._get_user_templates_dir()
         template_dir = templates_dir / template_id
-        
+
         if template_dir.exists():
             shutil.rmtree(template_dir)
-        
+
         return True
+
+    def save_user_template_thumbnail(self, template_id: str, original_path: str,
+                                      quality: int = 80, max_width: int = 600) -> Optional[str]:
+        """
+        Generate and save thumbnail for user template
+
+        Args:
+            template_id: Template ID
+            original_path: Relative path to original template image
+            quality: JPEG quality (1-100), default 80
+            max_width: Maximum thumbnail width in pixels (default 600)
+
+        Returns:
+            Relative file path to thumbnail, or None if failed
+        """
+        try:
+            # Get full path to original image
+            original_full_path = self.upload_folder / original_path.replace('\\', '/')
+
+            if not original_full_path.exists():
+                return None
+
+            # Open and process image
+            image = Image.open(str(original_full_path))
+
+            # Resize if needed
+            image = resize_image_for_thumbnail(image, max_width)
+
+            # Convert to RGB for JPEG
+            image = convert_image_to_rgb(image)
+
+            # Save thumbnail
+            templates_dir = self._get_user_templates_dir()
+            template_dir = templates_dir / template_id
+            template_dir.mkdir(exist_ok=True, parents=True)
+
+            thumb_filename = "template-thumb.webp"
+            thumb_filepath = template_dir / thumb_filename
+
+            image.save(str(thumb_filepath), 'WEBP', quality=quality)
+            image.close()
+
+            return thumb_filepath.relative_to(self.upload_folder).as_posix()
+        except Exception:
+            return None
     

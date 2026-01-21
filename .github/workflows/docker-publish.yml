@@ -98,7 +98,6 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:buildcache,mode=max
           build-args: |
             DOCKER_BUILDKIT=1
-            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
             DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
             NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
       

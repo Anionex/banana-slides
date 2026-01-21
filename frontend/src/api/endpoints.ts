@@ -602,6 +602,7 @@ export interface UserTemplate {
   template_id: string;
   name?: string;
   template_image_url: string;
+  thumb_url?: string;  // Thumbnail URL for faster loading
   created_at?: string;
   updated_at?: string;
 }
@@ -813,9 +814,10 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_ocr_api_key_length' | 'created_at' | 'updated_at'>> & { 
     api_key?: string;
     mineru_token?: string;
+    baidu_ocr_api_key?: string;
   }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
@@ -827,5 +829,87 @@ export const updateSettings = async (
  */
 export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
+/**
+ * 验证 API key 是否可用
+ */
+export const verifyApiKey = async (): Promise<ApiResponse<{ available: boolean; message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ available: boolean; message: string }>>('/api/settings/verify');
+  return response.data;
+};
+
+/**
+ * 可选的测试设置类型
+ */
+export interface TestSettingsOverride {
+  api_key?: string;
+  api_base_url?: string;
+  text_model?: string;
+  image_model?: string;
+  image_caption_model?: string;
+  mineru_api_base?: string;
+  mineru_token?: string;
+  baidu_ocr_api_key?: string;
+  ai_provider_format?: 'openai' | 'gemini';
+  image_resolution?: string;
+  enable_text_reasoning?: boolean;
+  text_thinking_budget?: number;
+  enable_image_reasoning?: boolean;
+  image_thinking_budget?: number;
+}
+
+/**
+ * 测试百度 OCR 服务
+ * @param settings 可选的设置覆盖（未保存的设置）
+ */
+export const testBaiduOcr = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ recognized_text: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ recognized_text: string }>>('/api/settings/tests/baidu-ocr', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试文本生成模型
+ * @param settings 可选的设置覆盖（未保存的设置）
+ */
+export const testTextModel = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ reply: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ reply: string }>>('/api/settings/tests/text-model', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试图片识别模型
+ * @param settings 可选的设置覆盖（未保存的设置）
+ */
+export const testCaptionModel = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ caption: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ caption: string }>>('/api/settings/tests/caption-model', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试百度图像修复
+ * @param settings 可选的设置覆盖（未保存的设置）
+ */
+export const testBaiduInpaint = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ image_size: [number, number] }>> => {
+  const response = await apiClient.post<ApiResponse<{ image_size: [number, number] }>>('/api/settings/tests/baidu-inpaint', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试图像生成模型
+ * @param settings 可选的设置覆盖（未保存的设置）
+ */
+export const testImageModel = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ image_size: [number, number] }>> => {
+  const response = await apiClient.post<ApiResponse<{ image_size: [number, number] }>>('/api/settings/tests/image-model', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试 MinerU PDF 解析
+ * @param settings 可选的设置覆盖（未保存的设置）
+ */
+export const testMineruPdf = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ batch_id: string; extract_id: string; content_preview: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ batch_id: string; extract_id: string; content_preview: string }>>('/api/settings/tests/mineru-pdf', settings || {});
   return response.data;
 };

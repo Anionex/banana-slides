@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -22,6 +22,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal,
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineOutline } from '@/api/endpoints';
+import { exportOutlineToMarkdown } from '@/utils/projectUtils';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器
@@ -148,6 +149,13 @@ export const OutlineEditor: React.FC = () => {
       throw error; // 抛出错误让组件知道失败了
     }
   }, [currentProject, projectId, syncProject, show]);
+
+  // 导出大纲为 Markdown 文件
+  const handleExportOutline = useCallback(() => {
+    if (!currentProject) return;
+    exportOutlineToMarkdown(currentProject);
+    show({ message: '导出成功', type: 'success' });
+  }, [currentProject, show]);
 
   const selectedPage = currentProject?.pages.find((p) => p.id === selectedPageId);
 
@@ -293,6 +301,15 @@ export const OutlineEditor: React.FC = () => {
                   {currentProject.creation_type === 'outline' ? '重新解析大纲' : '重新生成大纲'}
                 </Button>
               )}
+              <Button
+                variant="secondary"
+                icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={handleExportOutline}
+                disabled={currentProject.pages.length === 0}
+                className="w-full sm:w-auto text-sm md:text-base"
+              >
+                导出大纲
+              </Button>
               {/* 手机端：保存按钮 */}
               <Button 
                 variant="secondary" 

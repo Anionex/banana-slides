@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
@@ -374,6 +374,18 @@ export const Home: React.FC = () => {
     }
 
     try {
+      try {
+        const historyResponse = await listProjects(1, 0);
+        if ((historyResponse.data?.projects || []).length === 0) {
+          show({
+            message: '建议先到设置页底部进行服务测试，避免后续功能异常',
+            type: 'info'
+          });
+        }
+      } catch (error) {
+        console.warn('检查历史项目失败，跳过提示:', error);
+      }
+
       // 如果有模板ID但没有File，按需加载
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {

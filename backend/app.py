@@ -193,6 +193,46 @@ def _load_settings_to_config(app):
         app.config['MAX_IMAGE_WORKERS'] = settings.max_image_workers
         logging.info(f"Loaded worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
 
+        # Load model settings (FIX for Issue #136: these were missing before)
+        if settings.text_model:
+            app.config['TEXT_MODEL'] = settings.text_model
+            logging.info(f"Loaded TEXT_MODEL from settings: {settings.text_model}")
+        
+        if settings.image_model:
+            app.config['IMAGE_MODEL'] = settings.image_model
+            logging.info(f"Loaded IMAGE_MODEL from settings: {settings.image_model}")
+        
+        # Load MinerU settings
+        if settings.mineru_api_base:
+            app.config['MINERU_API_BASE'] = settings.mineru_api_base
+            logging.info(f"Loaded MINERU_API_BASE from settings: {settings.mineru_api_base}")
+        
+        if settings.mineru_token:
+            app.config['MINERU_TOKEN'] = settings.mineru_token
+            logging.info("Loaded MINERU_TOKEN from settings")
+        
+        # Load image caption model
+        if settings.image_caption_model:
+            app.config['IMAGE_CAPTION_MODEL'] = settings.image_caption_model
+            logging.info(f"Loaded IMAGE_CAPTION_MODEL from settings: {settings.image_caption_model}")
+        
+        # Load output language
+        if settings.output_language:
+            app.config['OUTPUT_LANGUAGE'] = settings.output_language
+            logging.info(f"Loaded OUTPUT_LANGUAGE from settings: {settings.output_language}")
+        
+        # Load reasoning mode settings (separate for text and image)
+        app.config['ENABLE_TEXT_REASONING'] = settings.enable_text_reasoning
+        app.config['TEXT_THINKING_BUDGET'] = settings.text_thinking_budget
+        app.config['ENABLE_IMAGE_REASONING'] = settings.enable_image_reasoning
+        app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget
+        logging.info(f"Loaded reasoning config: text={settings.enable_text_reasoning}(budget={settings.text_thinking_budget}), image={settings.enable_image_reasoning}(budget={settings.image_thinking_budget})")
+        
+        # Load Baidu OCR settings
+        if settings.baidu_ocr_api_key:
+            app.config['BAIDU_OCR_API_KEY'] = settings.baidu_ocr_api_key
+            logging.info("Loaded BAIDU_OCR_API_KEY from settings")
+
     except Exception as e:
         logging.warning(f"Could not load settings from database: {e}")
 
@@ -204,9 +244,9 @@ app = create_app()
 if __name__ == '__main__':
     # Run development server
     if os.getenv("IN_DOCKER", "0") == "1":
-        port = 5000 # 在 docker 内部部署时始终使用 5000 端口.
+        port = 5000  # Docker 容器内部固定使用 5000 端口
     else:
-        port = int(os.getenv('PORT', 5000))
+        port = int(os.getenv('BACKEND_PORT', 5000))
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
     
     logging.info(

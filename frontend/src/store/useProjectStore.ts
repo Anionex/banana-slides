@@ -63,15 +63,25 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 const debouncedUpdatePage = debounce(
   async (projectId: string, pageId: string, data: any) => {
       try {
+    const promises: Promise<any>[] = [];
+    
     // 如果更新的是 description_content，使用专门的端点
     if (data.description_content) {
-      await api.updatePageDescription(projectId, pageId, data.description_content);
-    } else if (data.outline_content) {
-      // 如果更新的是 outline_content，使用专门的端点
-      await api.updatePageOutline(projectId, pageId, data.outline_content);
-    } else {
+      promises.push(api.updatePageDescription(projectId, pageId, data.description_content));
+    }
+    
+    // 如果更新的是 outline_content，使用专门的端点
+    if (data.outline_content) {
+      promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
+    }
+    
+    // 如果没有特定的内容更新，使用通用端点
+    if (promises.length === 0) {
       await api.updatePage(projectId, pageId, data);
-        }
+    } else {
+      // 并行执行所有更新请求
+      await Promise.all(promises);
+    }
         
         // API调用成功后，同步项目状态以更新updated_at
         // 这样可以确保历史记录页面显示最新的更新时间
@@ -701,7 +711,6 @@ const debouncedUpdatePage = debounce(
       }
     } catch (error: any) {
       console.error('[批量生成] 启动失败:', error);
-      set({ error: normalizeErrorMessage(error.message || '批量生成图片失败') });
       throw error;
     }
   },

@@ -66,11 +66,11 @@ class TaskManager:
 task_manager = TaskManager(max_workers=4)
 
 
-def save_image_with_version(image, project_id: str, page_id: str, file_service, 
+def save_image_with_version(image, project_id: str, page_id: str, file_service,
                             page_obj=None, image_format: str = 'PNG') -> tuple[str, int]:
     """
     保存图片并创建历史版本记录的公共函数
-    
+
     Args:
         image: PIL Image 对象
         project_id: 项目ID
@@ -78,31 +78,39 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         file_service: FileService 实例
         page_obj: Page 对象（可选，如果提供则更新页面状态）
         image_format: 图片格式，默认 PNG
-    
+
     Returns:
         tuple: (image_path, version_number) - 图片路径和版本号
-    
+
     这个函数会：
     1. 计算下一个版本号（使用 MAX 查询确保安全）
     2. 标记所有旧版本为非当前版本
     3. 保存图片到最终位置
-    4. 创建新版本记录
-    5. 如果提供了 page_obj，更新页面状态和图片路径
+    4. 生成并保存压缩的缓存图片
+    5. 创建新版本记录
+    6. 如果提供了 page_obj，更新页面状态和图片路径
     """
     # 使用 MAX 查询确保版本号安全（即使有版本被删除也不会重复）
     max_version = db.session.query(func.max(PageImageVersion.version_number)).filter_by(page_id=page_id).scalar() or 0
     next_version = max_version + 1
-    
+
     # 批量更新：标记所有旧版本为非当前版本（使用单条 SQL 更高效）
     PageImageVersion.query.filter_by(page_id=page_id).update({'is_current': False})
-    
-    # 保存图片到最终位置（使用版本号）
+
+    # 保存原图到最终位置（使用版本号）
     image_path = file_service.save_generated_image(
         image, project_id, page_id,
         version_number=next_version,
         image_format=image_format
     )
-    
+
+    # 生成并保存压缩的缓存图片（用于前端快速显示）
+    cached_image_path = file_service.save_cached_image(
+        image, project_id, page_id,
+        version_number=next_version,
+        quality=85
+    )
+
     # 创建新版本记录
     new_version = PageImageVersion(
         page_id=page_id,
@@ -111,18 +119,19 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         is_current=True
     )
     db.session.add(new_version)
-    
+
     # 如果提供了 page_obj，更新页面状态和图片路径
     if page_obj:
         page_obj.generated_image_path = image_path
+        page_obj.cached_image_path = cached_image_path
         page_obj.status = 'COMPLETED'
         page_obj.updated_at = datetime.utcnow()
-    
+
     # 提交事务
     db.session.commit()
-    
-    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}")
-    
+
+    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}, cached: {cached_image_path}")
+
     return image_path, next_version
 
 

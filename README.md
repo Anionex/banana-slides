@@ -362,7 +362,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
 
-PORT=5000
+BACKEND_PORT=5000
 ...
 ```
 
@@ -533,7 +533,10 @@ banana-slides/
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
-<img width="301" alt="image" src="https://github.com/user-attachments/assets/57e6bae0-b127-4e01-8ccf-5669522b0162" />
+<img width="301"  alt="image" src="https://github.com/user-attachments/assets/8812130e-1f79-40e6-893d-694b4f6ff406" />
+
+
+
 
 
 
@@ -602,7 +605,7 @@ banana-slides/
 <div align="center">
 
 
- <img width="100" alt="image" src="https://github.com/user-attachments/assets/ac2ad6ec-c1cf-4aaa-859c-756b54168c96" />
+ <img width="120" alt="image" src="https://github.com/user-attachments/assets/ac2ad6ec-c1cf-4aaa-859c-756b54168c96" />
 
 <details>
   <summary>感谢<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0">AI火宝</a>对本项目的赞助</summary>
@@ -629,7 +632,7 @@ banana-slides/
 <img width="240" alt="image" src="https://github.com/user-attachments/assets/fd7a286d-711b-445e-aecf-43e3fe356473" />
 
 感谢以下朋友对项目的无偿赞助支持：
-> @雅俗共赏、@曹峥、@以年观日、@John、@azazo1、@刘聪NLP、@🍟、@苍何、@biubiu  
+> @雅俗共赏、@曹峥、@以年观日、@John、@胡yun星Ethan, @azazo1、@刘聪NLP、@🍟、@苍何、@biubiu  
 > 如对赞助列表有疑问（如赞赏后没看到您的名字），可<a href="mailto:anionex@qq.com">联系作者</a>
  
 ## 📈 项目统计

@@ -29,13 +29,13 @@ class OpenAITextProvider(TextProvider):
         )
         self.model = model
     
-    def generate_text(self, prompt: str, thinking_budget: int = 1000) -> str:
+    def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
         Generate text using OpenAI SDK
         
         Args:
             prompt: The input prompt
-            thinking_budget: Not used in OpenAI format, kept for interface compatibility
+            thinking_budget: Not used in OpenAI format, kept for interface compatibility (0 = default)
             
         Returns:
             Generated text

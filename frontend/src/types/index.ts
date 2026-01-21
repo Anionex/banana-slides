@@ -133,6 +133,12 @@ export interface Settings {
   mineru_token_length: number;
   image_caption_model?: string;
   output_language: 'zh' | 'en' | 'ja' | 'auto';
+  // 推理模式配置（分别控制文本和图像）
+  enable_text_reasoning: boolean;
+  text_thinking_budget: number;
+  enable_image_reasoning: boolean;
+  image_thinking_budget: number;
+  baidu_ocr_api_key_length: number;
   created_at?: string;
   updated_at?: string;
 }
