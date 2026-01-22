@@ -549,8 +549,8 @@ export const Home: React.FC = () => {
 
       {/* 主内容 */}
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
-        {/* 站点状态栏 */}
-        <SiteStatusBanner className="mb-6 md:mb-8" />
+        {/* 站点状态栏
+        <SiteStatusBanner className="mb-6 md:mb-8" /> */}
         
         {/* Hero 标题区 */}
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
@@ -569,7 +569,7 @@ export const Home: React.FC = () => {
           </h1>
           
           <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto font-light">
-            迈向 PPT 制作的全新时代
+            Transform your ideas into beautiful slides in minutes
           </p>
 
           {/* 特性标签 */}

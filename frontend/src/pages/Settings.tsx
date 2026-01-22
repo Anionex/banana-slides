@@ -642,7 +642,7 @@ export const Settings: React.FC = () => {
                         , 减小迁移成本(为了安全，强烈建议您限制密匙额度)
                       </p>
                     </div>
-                    <div className="mt-3">
+                    {/* <div className="mt-3">
                       <Button
                         variant="secondary"
                         icon={<CheckCircle size={18} />}
@@ -653,7 +653,7 @@ export const Settings: React.FC = () => {
                       >
                         {isVerifying ? '验证中...' : '测试 API 连接'}
                       </Button>
-                    </div>
+                    </div> */}
                   </>
                 )}
               </div>
