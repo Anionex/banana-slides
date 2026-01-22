@@ -581,6 +581,33 @@ export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ 
 };
 
 /**
+ * 批量下载素材（打包为zip）
+ * @param materialIds 素材ID列表
+ */
+export const downloadMaterialsZip = async (
+  materialIds: string[]
+): Promise<ApiResponse<{ download_url: string }>> => {
+  const response = await apiClient.post<Blob>(
+    '/api/materials/download',
+    { material_ids: materialIds },
+    { responseType: 'blob' }
+  );
+
+  // 直接触发下载
+  const blob = response.data;
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'materials.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+
+  return { success: true, data: { download_url: '' } };
+};
+
+/**
  * 关联素材到项目（通过URL）
  * @param projectId 项目ID
  * @param materialUrls 素材URL列表

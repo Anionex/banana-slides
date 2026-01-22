@@ -9,6 +9,7 @@ export { StatusBadge } from './StatusBadge';
 export { ContextualStatusBadge } from './ContextualStatusBadge';
 export { ConfirmDialog, useConfirm } from './ConfirmDialog';
 export { MaterialGeneratorModal } from './MaterialGeneratorModal';
+export { MaterialCenterModal } from './MaterialCenterModal';
 export { ReferenceFileCard } from './ReferenceFileCard';
 export { ReferenceFileSelector } from './ReferenceFileSelector';
 export { FilePreviewModal } from './FilePreviewModal';
@@ -22,6 +23,7 @@ export { ImagePreviewList } from './ImagePreviewList';
 export { ProjectResourcesList } from './ProjectResourcesList';
 export { SponsorModal } from './SponsorModal';
 export { SiteStatusBanner } from './SiteStatusBanner';
+export { HelpModal } from './HelpModal';
 export { ProjectSettingsModal } from './ProjectSettingsModal';
 export { ExportTasksPanel } from './ExportTasksPanel';
 

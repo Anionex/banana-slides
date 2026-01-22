@@ -246,16 +246,12 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 2. **启动服务**
 
-```bash
-docker compose up -d
-```
-
-**⚡ 使用预构建镜像快速部署（推荐）**
+**⚡ 使用预构建镜像**
 
 项目在 Docker Hub 提供了构建好的前端和后端镜像（同步主分支最新版本），可以跳过本地构建步骤，实现快速部署：
 
 ```bash
-# 使用预构建镜像启动（更快、更稳定）
+# 使用预构建镜像启动（无需从头构建）
 docker compose -f docker-compose.prod.yml up -d
 ```
 
@@ -263,8 +259,11 @@ docker compose -f docker-compose.prod.yml up -d
 - `anoinex/banana-slides-frontend:latest`
 - `anoinex/banana-slides-backend:latest`
 
-详细的预构建镜像部署说明请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)
+**从头构建镜像**
 
+```bash
+docker compose up -d
+```
 
 > [!TIP]
 > 如遇网络问题，可在 `.env` 文件中取消镜像源配置的注释, 再重新运行启动命令：

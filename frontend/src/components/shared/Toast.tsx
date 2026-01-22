@@ -37,9 +37,8 @@ export const Toast: React.FC<ToastProps> = ({
   return (
     <div
       className={cn(
-        'fixed top-4 right-4 z-50',
         'flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg',
-        'animate-in slide-in-from-right',
+        'animate-in slide-in-from-right transition-all duration-300',
         styles[type]
       )}
     >
@@ -61,7 +60,11 @@ export const useToast = () => {
 
   const show = (props: Omit<ToastProps, 'onClose'>) => {
     const id = Math.random().toString(36);
-    setToasts((prev) => [...prev, { id, props }]);
+    setToasts((prev) => {
+      const newToasts = [...prev, { id, props }];
+      // 最多保留5个toast，超过则移除最早的
+      return newToasts.length > 5 ? newToasts.slice(-5) : newToasts;
+    });
   };
 
   const remove = (id: string) => {
@@ -71,15 +74,16 @@ export const useToast = () => {
   return {
     show,
     ToastContainer: () => (
-      <>
+      <div className="fixed top-20 right-4 z-50 flex flex-col items-end gap-2 pointer-events-none">
         {toasts.map((toast) => (
-          <Toast
-            key={toast.id}
-            {...toast.props}
-            onClose={() => remove(toast.id)}
-          />
+          <div key={toast.id} className="pointer-events-auto">
+            <Toast
+              {...toast.props}
+              onClose={() => remove(toast.id)}
+            />
+          </div>
         ))}
-      </>
+      </div>
     ),
   };
 };
