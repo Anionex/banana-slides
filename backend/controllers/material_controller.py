@@ -1,7 +1,7 @@
 """
 Material Controller - handles standalone material image generation
 """
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, send_file
 from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService
@@ -13,6 +13,8 @@ from typing import Optional
 import tempfile
 import shutil
 import time
+import zipfile
+import io
 
 
 material_bp = Blueprint('materials', __name__, url_prefix='/api/projects')
@@ -382,13 +384,13 @@ def delete_material(material_id):
 def associate_materials_to_project():
     """
     POST /api/materials/associate - Associate materials to a project by URLs
-    
+
     Request body (JSON):
     {
         "project_id": "project_id",
         "material_urls": ["url1", "url2", ...]
     }
-    
+
     Returns:
         List of associated material IDs and count
     """
@@ -396,18 +398,18 @@ def associate_materials_to_project():
         data = request.get_json() or {}
         project_id = data.get('project_id')
         material_urls = data.get('material_urls', [])
-        
+
         if not project_id:
             return bad_request("project_id is required")
-        
+
         if not material_urls or not isinstance(material_urls, list):
             return bad_request("material_urls must be a non-empty array")
-        
+
         # Validate project exists
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
-        
+
         # Find materials by URLs and update their project_id
         updated_ids = []
         materials_to_update = Material.query.filter(
@@ -417,15 +419,76 @@ def associate_materials_to_project():
         for material in materials_to_update:
             material.project_id = project_id
             updated_ids.append(material.id)
-        
+
         db.session.commit()
-        
+
         return success_response({
             "updated_ids": updated_ids,
             "count": len(updated_ids)
         })
-    
+
     except Exception as e:
         db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@material_global_bp.route('/download', methods=['POST'])
+def download_materials_zip():
+    """
+    POST /api/materials/download - Download multiple materials as a zip file
+
+    Request body (JSON):
+    {
+        "material_ids": ["id1", "id2", ...]
+    }
+
+    Returns:
+        Zip file containing all requested materials
+    """
+    try:
+        data = request.get_json() or {}
+        material_ids = data.get('material_ids', [])
+
+        if not material_ids or not isinstance(material_ids, list):
+            return bad_request("material_ids must be a non-empty array")
+
+        # Query materials
+        materials = Material.query.filter(Material.id.in_(material_ids)).all()
+
+        if not materials:
+            return not_found('Materials')
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+        # Create zip file in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for material in materials:
+                try:
+                    # Get absolute path of the material file
+                    material_path = Path(file_service.get_absolute_path(material.relative_path))
+
+                    if material_path.exists():
+                        # Use original filename or material filename
+                        arcname = material.filename
+                        zip_file.write(str(material_path), arcname)
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to add material {material.id} to zip: {e}")
+                    continue
+
+        zip_buffer.seek(0)
+
+        # Generate filename with timestamp
+        timestamp = int(time.time())
+        zip_filename = f"materials_{timestamp}.zip"
+
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=zip_filename
+        )
+
+    except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 

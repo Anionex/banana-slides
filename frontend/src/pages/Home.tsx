@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList } from '@/components/shared';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle } from 'lucide-react';
+import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, HelpModal } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -20,6 +20,8 @@ export const Home: React.FC = () => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
+  const [isMaterialCenterOpen, setIsMaterialCenterOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
@@ -506,6 +508,25 @@ export const Home: React.FC = () => {
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
               title="素材生成"
             />
+            {/* 桌面端：带文字的素材中心按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<FolderOpen size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => setIsMaterialCenterOpen(true)}
+              className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+            >
+              <span className="hidden md:inline">素材中心</span>
+            </Button>
+            {/* 手机端：仅图标的素材中心按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<FolderOpen size={16} />}
+              onClick={() => setIsMaterialCenterOpen(true)}
+              className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
+              title="素材中心"
+            />
             <Button 
               variant="ghost" 
               size="sm" 
@@ -525,7 +546,23 @@ export const Home: React.FC = () => {
               <span className="hidden md:inline">设置</span>
               <span className="sm:hidden">设</span>
             </Button>
-            <Button variant="ghost" size="sm" className="hidden md:inline-flex hover:bg-banana-50/50">帮助</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsHelpModalOpen(true)}
+              className="hidden md:inline-flex hover:bg-banana-50/50"
+            >
+              帮助
+            </Button>
+            {/* 移动端帮助按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<HelpCircle size={16} />}
+              onClick={() => setIsHelpModalOpen(true)}
+              className="md:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
+              title="帮助"
+            />
           </div>
         </div>
       </nav>
@@ -791,6 +828,11 @@ export const Home: React.FC = () => {
         isOpen={isMaterialModalOpen}
         onClose={() => setIsMaterialModalOpen(false)}
       />
+      {/* 素材中心模态 */}
+      <MaterialCenterModal
+        isOpen={isMaterialCenterOpen}
+        onClose={() => setIsMaterialCenterOpen(false)}
+      />
       {/* 参考文件选择器 */}
       {/* 在 Home 页面，始终查询全局文件，因为此时还没有项目 */}
       <ReferenceFileSelector
@@ -803,6 +845,11 @@ export const Home: React.FC = () => {
       />
       
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      {/* 帮助模态框 */}
+      <HelpModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+      />
     </div>
   );
 };
