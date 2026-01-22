@@ -228,7 +228,43 @@ export const SlidePreview: React.FC = () => {
     const hasImages = pagesToGenerate?.some((p) => p.generated_image_path);
     
     const executeGenerate = async () => {
-      await generateImages(pageIds);
+      try {
+        await generateImages(pageIds);
+      } catch (error: any) {
+        console.error('批量生成错误:', error);
+        console.error('错误响应:', error?.response?.data);
+
+        // 提取后端返回的更具体错误信息
+        let errorMessage = '生成失败';
+        const respData = error?.response?.data;
+
+        if (respData) {
+          if (respData.error?.message) {
+            errorMessage = respData.error.message;
+          } else if (respData.message) {
+            errorMessage = respData.message;
+          } else if (respData.error) {
+            errorMessage =
+              typeof respData.error === 'string'
+                ? respData.error
+                : respData.error.message || errorMessage;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        console.log('提取的错误消息:', errorMessage);
+
+        // 使用统一的错误消息规范化函数
+        errorMessage = normalizeErrorMessage(errorMessage);
+
+        console.log('规范化后的错误消息:', errorMessage);
+
+        show({
+          message: errorMessage,
+          type: 'error',
+        });
+      }
     };
     
     if (hasImages) {

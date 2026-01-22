@@ -711,7 +711,6 @@ const debouncedUpdatePage = debounce(
       }
     } catch (error: any) {
       console.error('[批量生成] 启动失败:', error);
-      set({ error: normalizeErrorMessage(error.message || '批量生成图片失败') });
       throw error;
     }
   },

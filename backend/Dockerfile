@@ -55,6 +55,9 @@ RUN if [ -f uv.lock ]; then \
 # 复制后端代码
 COPY backend/ ./backend/
 
+# 复制测试资源
+COPY assets/ ./assets/
+
 # 创建必要的目录
 RUN mkdir -p /app/backend/instance /app/uploads
 

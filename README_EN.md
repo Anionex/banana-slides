@@ -248,6 +248,22 @@ If you want to use Google Cloud Vertex AI (available via GCP new user credits), 
 docker compose up -d
 ```
 
+**⚡ Quick Deployment with Pre-built Images (Recommended)**
+
+Pre-built frontend and backend images are available on Docker Hub (synced with the main branch), allowing you to skip the local build process for faster deployment:
+
+```bash
+# Start with pre-built images (faster and more stable)
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Image names:
+- `anoinex/banana-slides-frontend:latest`
+- `anoinex/banana-slides-backend:latest`
+
+For detailed instructions on deploying with pre-built images, please refer to [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+
 > [!TIP]
 > If you encounter network issues, you can uncomment the mirror source configuration in the `.env` file and rerun the startup command:
 > ```env
