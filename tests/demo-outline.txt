@@ -1,0 +1,60 @@
+# Demo: Ứng dụng AI trong đời sống 2026
+
+## Slide 1: Trang bìa
+- Tiêu đề: AI - Cuộc cách mạng thay đổi mọi thứ
+- Subtitle: Ứng dụng AI trong đời sống năm 2026
+- Logo công ty góc phải
+
+## Slide 2: Mục lục
+- AI là gì?
+- Ứng dụng trong y tế
+- Ứng dụng trong giáo dục
+- Ứng dụng trong giao thông
+- Thách thức và tương lai
+
+## Slide 3: AI là gì?
+- Định nghĩa trí tuệ nhân tạo
+- Lịch sử phát triển từ 1950 đến nay
+- Các loại AI: Narrow AI, General AI, Super AI
+- Biểu đồ timeline các milestone quan trọng
+
+## Slide 4: AI trong Y tế
+- Chẩn đoán bệnh qua hình ảnh X-quang, MRI
+- Robot phẫu thuật tự động
+- Dự đoán dịch bệnh với Big Data
+- Thuốc cá nhân hóa dựa trên DNA
+- Icon: bệnh viện, robot, DNA
+
+## Slide 5: AI trong Giáo dục
+- Gia sư AI 24/7
+- Học tập cá nhân hóa theo tốc độ
+- Chấm điểm tự động
+- Dịch thuật real-time trong lớp học đa ngôn ngữ
+- Ví dụ: Duolingo, Khan Academy, Claude
+
+## Slide 6: AI trong Giao thông
+- Xe tự lái Tesla, Waymo
+- Tối ưu hóa giao thông thành phố thông minh
+- Dự đoán tai nạn và cảnh báo
+- Drone giao hàng
+- Hình minh họa: xe tự lái, thành phố thông minh
+
+## Slide 7: Thách thức
+- Vấn đề đạo đức và thiên kiến
+- Mất việc làm do tự động hóa
+- Quyền riêng tư dữ liệu
+- An ninh mạng
+- Biểu đồ: thống kê lo ngại của người dân
+
+## Slide 8: Tương lai AI
+- Dự đoán đến năm 2030
+- AGI - Trí tuệ nhân tạo tổng quát
+- Hợp tác AI-Human
+- Quy định pháp luật mới
+- Quote: "AI sẽ là điện của thế kỷ 21" - Andrew Ng
+
+## Slide 9: Kết luận
+- Tóm tắt 3 điểm chính
+- Kêu gọi hành động: Học AI từ hôm nay
+- Q&A
+- Thông tin liên hệ

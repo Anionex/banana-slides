@@ -29,7 +29,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(true); // 上传模板时是否保存到模板库（默认勾选）
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
 
   // 加载用户模板列表
   useEffect(() => {
@@ -276,7 +276,6 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
           </div>
         )}
       </div>
-      <ToastContainer />
       {/* 素材选择器 */}
       {projectId && (
         <MaterialSelector

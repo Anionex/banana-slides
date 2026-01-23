@@ -21,7 +21,7 @@ export const DetailEditor: React.FC = () => {
     generatePageDescription,
     pageDescriptionGeneratingTasks,
   } = useProjectStore();
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
   const [isAiRefining, setIsAiRefining] = React.useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
@@ -277,7 +277,6 @@ export const DetailEditor: React.FC = () => {
           )}
         </div>
       </main>
-      <ToastContainer />
       {ConfirmDialog}
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
     </div>

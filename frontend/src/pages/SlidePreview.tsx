@@ -123,7 +123,7 @@ export const SlidePreview: React.FC = () => {
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
   // Memoize pages with generated images to avoid re-computing in multiple places
@@ -1632,9 +1632,8 @@ export const SlidePreview: React.FC = () => {
           </div>
         </div>
       </Modal>
-      <ToastContainer />
       {ConfirmDialog}
-      
+
       {/* 模板选择 Modal */}
       <Modal
         isOpen={isTemplateModalOpen}

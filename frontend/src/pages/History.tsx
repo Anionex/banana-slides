@@ -22,7 +22,7 @@ export const History: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
   // ===== 数据加载 =====
@@ -382,7 +382,6 @@ export const History: React.FC = () => {
           </div>
         )}
       </main>
-      <ToastContainer />
       {ConfirmDialog}
     </div>
   );

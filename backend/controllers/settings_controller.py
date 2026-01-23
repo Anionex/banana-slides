@@ -118,10 +118,10 @@ def update_settings():
 
         if "output_language" in data:
             language = data["output_language"]
-            if language in ["zh", "en", "ja", "auto"]:
+            if language in ["zh", "en", "ja", "vi", "auto"]:
                 settings.output_language = language
             else:
-                return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
+                return bad_request("Output language must be 'zh', 'en', 'ja', 'vi', or 'auto'")
 
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()

@@ -187,7 +187,7 @@ const getSettingsSections = (t: (key: string) => string): SectionConfig[] => [
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
   const { t } = useTranslation();
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
   const [settings, setSettings] = useState<SettingsType | null>(null);
@@ -413,7 +413,6 @@ export const Settings: React.FC = () => {
 
   return (
     <>
-      <ToastContainer />
       {ConfirmDialog}
       <div className="space-y-8">
         {/* 配置区块（配置驱动） */}

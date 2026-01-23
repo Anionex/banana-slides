@@ -73,7 +73,7 @@ export const OutlineEditor: React.FC = () => {
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const { confirm, ConfirmDialog } = useConfirm();
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
 
   // 加载项目数据
   useEffect(() => {
@@ -417,8 +417,7 @@ export const OutlineEditor: React.FC = () => {
         )}
       </div>
       {ConfirmDialog}
-      <ToastContainer />
-      
+
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
     </div>
   );

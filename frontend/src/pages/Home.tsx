@@ -14,7 +14,7 @@ export const Home: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { initializeProject, isGlobalLoading } = useProjectStore();
-  const { show, ToastContainer } = useToast();
+  const { show } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
   const [content, setContent] = useState('');
@@ -774,7 +774,6 @@ export const Home: React.FC = () => {
 
         </Card>
       </main>
-      <ToastContainer />
       {/* 素材生成模态 - 在主页始终生成全局素材 */}
       <MaterialGeneratorModal
         projectId={null}
