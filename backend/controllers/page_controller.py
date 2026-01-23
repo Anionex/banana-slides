@@ -107,6 +107,44 @@ def delete_page(project_id, page_id):
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
 
+@page_bp.route('/<project_id>/pages/batch/<page_ids>', methods=['DELETE'])
+def delete_pages_batch(project_id, page_ids):
+    """
+    DELETE /api/projects/{project_id}/pages/batch/{page_ids} - Batch delete page
+    """
+    try:
+        page_id_list_temp = page_ids.split(',')
+        page_id_list = [pid for pid in page_id_list_temp if pid]
+        
+        pages_to_delete = Page.query.filter(
+            Page.project_id == project_id,
+            Page.id.in_(page_id_list)
+        ).all()
+    
+        if len(pages_to_delete) != len(set(page_id_list)):
+            return not_found('Page')
+            
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        for page in pages_to_delete:
+            # 删除与此页面关联的所有图片版本文件
+            for version in page.image_versions:
+                if version.image_path:
+                    file_service.delete_page_image_version(version.image_path)
+
+            # 删除页面对象，这将通过级联删除删除 PageImageVersion 记录
+            db.session.delete(page)
+    
+        # Update project
+        project = Project.query.get(project_id)
+        if project:
+            project.updated_at = datetime.utcnow()
+
+        db.session.commit()
+        return success_response(message="Pages deleted successfully")
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])
 def update_page_outline(project_id, page_id):

@@ -12,6 +12,7 @@ interface OutlineCardProps {
   isSelected: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isAiRefining?: boolean;
+  onSelect: (flag: boolean)=>void;
 }
 
 export const OutlineCard: React.FC<OutlineCardProps> = ({
@@ -23,6 +24,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   isSelected,
   dragHandleProps,
   isAiRefining = false,
+  onSelect,
 }) => {
   const { confirm, ConfirmDialog } = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
@@ -135,6 +137,10 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
         {/* 操作按钮 */}
         {!isEditing && (
           <div className="flex-shrink-0 flex gap-2">
+            <input type={"checkbox"} onChange={(e) => {
+              e.stopPropagation();
+              onSelect(e.target.checked);
+            }}/>
             <button
               onClick={(e) => {
                 e.stopPropagation();

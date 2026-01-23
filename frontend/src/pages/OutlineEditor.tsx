@@ -34,6 +34,7 @@ const SortableCard: React.FC<{
   onClick: () => void;
   isSelected: boolean;
   isAiRefining?: boolean;
+  onSelect: (flag: boolean)=>void;
 }> = (props) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: props.page.id || `page-${props.index}`,
@@ -66,6 +67,9 @@ export const OutlineEditor: React.FC = () => {
     addNewPage,
     generateOutline,
     isGlobalLoading,
+    batchRemovePages,
+    setToSelectList,
+    removeFromSelectList,
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -277,10 +281,10 @@ export const OutlineEditor: React.FC = () => {
             {/* 操作按钮 */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4 md:mb-6">
               <Button
-                variant="primary"
-                icon={<Plus size={16} className="md:w-[18px] md:h-[18px]" />}
-                onClick={addNewPage}
-                className="w-full sm:w-auto text-sm md:text-base"
+                  variant="primary"
+                  icon={<Plus size={16} className="md:w-[18px] md:h-[18px]" />}
+                  onClick={addNewPage}
+                  className="w-full sm:w-auto text-sm md:text-base"
               >
                 添加页面
               </Button>
@@ -301,6 +305,19 @@ export const OutlineEditor: React.FC = () => {
                   {currentProject.creation_type === 'outline' ? '重新解析大纲' : '重新生成大纲'}
                 </Button>
               )}
+              <Button
+                  variant="secondary"
+                  onClick={() => {
+                    confirm(
+                      "确定批量删除选中页面吗?",
+                      batchRemovePages,
+                      { title: '确认删除', variant: 'danger' }
+                    )
+                  }}
+                  className="w-full sm:w-auto text-sm md:text-base"
+                >
+                批量删除
+              </Button>
               <Button
                 variant="secondary"
                 icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
@@ -362,6 +379,7 @@ export const OutlineEditor: React.FC = () => {
                         onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
                         onDelete={() => page.id && deletePageById(page.id)}
                         onClick={() => setSelectedPageId(page.id || null)}
+                        onSelect={(flag: boolean) => page.id && (flag ? setToSelectList(page.id) : removeFromSelectList(page.id))}
                         isSelected={selectedPageId === page.id}
                         isAiRefining={isAiRefining}
                       />
