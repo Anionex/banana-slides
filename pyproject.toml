@@ -21,6 +21,7 @@ dependencies = [
     "alembic>=1.13.0",
     "flask-migrate>=4.0.0",
     "img2pdf>=0.5.1",
+    "lazyllm>=0.7.3",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,11 @@ test = [
     "httpx>=0.25.0",
     "flake8>=6.1.0",
     "black>=23.0.0",
+]
+sdk = [
+    "dashscope",
+    "volcengine-python-sdk",
+    
 ]
 
 [tool.uv]

@@ -213,6 +213,20 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # VERTEX_PROJECT_ID=your-gcp-project-id
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+
+# LazyLLM format configuration (used when AI_PROVIDER_FORMAT=lazyllm)
+TEXT_MODEL_SOURCE=deepseek        # text model provider
+IMAGE_MODEL_SOURCE=doubao         # image-editing model provider
+IMAGE_CAPTION_MODEL_SOURCE=qwen   # image decription model provider
+
+# API Keys for different provider
+BANANA_DOUBAO_API_KEY=your-doubao-api-key            # doubao
+BANANA_DEEPSEEK_API_KEY=your-deepseek-api-key        # DeepSeek
+BANANA_QWEN_API_KEY=your-qwen-api-key                # qwen
+BANANA_GLM_API_KEY=your-glm-api-key                  # GLM
+BANANA_SILICONFLOW_API_KEY=your-siliconflow-api-key  # siliconflow
+BANANA_SENSENOVA_API_KEY=your-sensenova-api-key      # sensenova
+BANANA_MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 ...
 ```
 

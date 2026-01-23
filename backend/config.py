@@ -45,7 +45,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
-    # AI Provider 格式配置: "gemini" (Google GenAI SDK), "openai" (OpenAI SDK), "vertex" (Vertex AI)
+    # AI Provider 格式配置: "gemini" (Google GenAI SDK), "openai" (OpenAI SDK), "vertex" (Vertex AI), "lazyllm" (Lazyllm Framework)
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
     # Vertex AI 专用配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
@@ -61,6 +61,11 @@ class Config:
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '300.0'))  # 增加到 5 分钟（生成清洁背景图需要很长时间）
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
+
+    # Lazyllm 格式专用配置（当 AI_PROVIDER_FORMAT=lazyllm 时使用）
+    TEXT_MODEL_SOURCE = os.getenv('TEXT_MODEL_SOURCE', 'deepseek')                   # 文本生成模型厂商
+    IMAGE_MODEL_SOURCE = os.getenv('IMAGE_MODEL_SOURCE', 'doubao')                   # 图片生成模型厂商
+    IMAGE_CAPTION_MODEL_SOURCE = os.getenv('IMAGE_CAPTION_MODEL_SOURCE', 'doubao')   # 图片识别模型厂商
     
     # AI 模型配置
     TEXT_MODEL = os.getenv('TEXT_MODEL', 'gemini-3-flash-preview')
