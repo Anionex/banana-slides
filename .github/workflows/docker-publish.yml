@@ -42,12 +42,18 @@ jobs:
       
       - name: Login to Docker Hub
         uses: docker/login-action@v3
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
       - name: Extract metadata for backend
         id: meta-backend
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend
@@ -60,6 +66,9 @@ jobs:
       
       - name: Extract metadata for frontend
         id: meta-frontend
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend
@@ -71,6 +80,9 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
       
       - name: Build and push backend image
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -82,11 +94,14 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend:buildcache,mode=max
           build-args: |
             DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
-            GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io/' }}
+            GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io' }}
             APT_MIRROR=${{ secrets.APT_MIRROR }}
             PYPI_INDEX_URL=${{ secrets.PYPI_INDEX_URL }}
       
       - name: Build and push frontend image
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -102,6 +117,9 @@ jobs:
             NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
       
       - name: Image digest
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           echo "Backend image: ${{ steps.meta-backend.outputs.tags }}"
           echo "Frontend image: ${{ steps.meta-frontend.outputs.tags }}"

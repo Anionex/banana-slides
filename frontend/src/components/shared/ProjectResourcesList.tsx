@@ -37,7 +37,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
   // 加载素材列表
   const loadMaterials = useCallback(async () => {
     if (!projectId || !showImages) return;
-    
+
     setIsLoadingMaterials(true);
     try {
       const response = await listMaterials(projectId);
@@ -50,7 +50,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
     } finally {
       setIsLoadingMaterials(false);
     }
-  }, [projectId, showImages]);
+  }, [projectId, showImages, show]);
 
   // 加载文件列表
   const loadFiles = useCallback(async () => {

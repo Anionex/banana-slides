@@ -4,10 +4,10 @@ export { Textarea } from './Textarea';
 export { Card } from './Card';
 export { Modal } from './Modal';
 export { Loading, Skeleton } from './Loading';
-export { Toast, useToast } from './Toast';
+export { Toast, ToastContainer, useToast } from './Toast';
 export { StatusBadge } from './StatusBadge';
 export { ContextualStatusBadge } from './ContextualStatusBadge';
-export { ConfirmDialog, useConfirm } from './ConfirmDialog';
+export { ConfirmDialog, ConfirmDialogWrapper, useConfirm } from './ConfirmDialog';
 export { MaterialGeneratorModal } from './MaterialGeneratorModal';
 export { MaterialCenterModal } from './MaterialCenterModal';
 export { ReferenceFileCard } from './ReferenceFileCard';
@@ -24,5 +24,8 @@ export { ProjectResourcesList } from './ProjectResourcesList';
 export { HelpModal } from './HelpModal';
 export { ProjectSettingsModal } from './ProjectSettingsModal';
 export { ExportTasksPanel } from './ExportTasksPanel';
+export { LanguageSwitcher } from './LanguageSwitcher';
 
-
+// Utility exports
+export { materialUrlToFile } from './materialUtils';
+export { getTemplateFile, presetTemplates } from './templateUtils';

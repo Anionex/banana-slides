@@ -132,7 +132,7 @@ export interface Settings {
   mineru_api_base?: string;
   mineru_token_length: number;
   image_caption_model?: string;
-  output_language: 'zh' | 'en' | 'ja' | 'auto';
+  output_language: 'zh' | 'vi' | 'en' | 'ja' | 'auto';
   // 推理模式配置（分别控制文本和图像）
   enable_text_reasoning: boolean;
   text_thinking_budget: number;

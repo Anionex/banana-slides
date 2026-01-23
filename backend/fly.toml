@@ -1,0 +1,58 @@
+# Fly.io configuration for Banana Slides Backend
+# Deploy: cd backend && fly launch --no-deploy && fly deploy
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "banana-slides-api"
+primary_region = "sin"  # Singapore - closest to Vietnam
+
+[build]
+  dockerfile = "Dockerfile"
+  # Build context is parent directory (needs pyproject.toml)
+  [build.args]
+    DOCKER_REGISTRY = ""
+    GHCR_REGISTRY = "ghcr.io"
+
+[env]
+  PORT = "5000"
+  AI_PROVIDER_FORMAT = "gemini"
+  TEXT_MODEL = "gemini-2.0-flash"
+  IMAGE_MODEL = "gemini-2.0-flash-preview-image-generation"
+  OUTPUT_LANGUAGE = "vi"
+  FLASK_ENV = "production"
+  LOG_LEVEL = "INFO"
+  MAX_DESCRIPTION_WORKERS = "5"
+  MAX_IMAGE_WORKERS = "8"
+
+[http_service]
+  internal_port = 5000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 5000
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+# Persistent volume for SQLite database
+# Create with: fly volumes create banana_data --size 1 --region sin
+[mounts]
+  source = "banana_data"
+  destination = "/app/backend/instance"
+  initial_size = "1gb"

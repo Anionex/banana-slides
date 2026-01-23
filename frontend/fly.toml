@@ -1,0 +1,40 @@
+# Fly.io configuration for Banana Slides Frontend
+# Deploy: cd frontend && fly launch --no-deploy && fly deploy
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "banana-slides-web"
+primary_region = "sin"  # Singapore - closest to Vietnam
+
+[build]
+  dockerfile = "Dockerfile"
+  [build.args]
+    DOCKER_REGISTRY = ""
+    # Set your backend URL here
+    VITE_API_BASE_URL = "https://banana-slides-api.fly.dev"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 80
+    path = "/"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "5s"

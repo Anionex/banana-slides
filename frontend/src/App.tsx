@@ -7,11 +7,11 @@ import { DetailEditor } from './pages/DetailEditor';
 import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { useProjectStore } from './store/useProjectStore';
-import { useToast, GithubLink } from './components/shared';
+import { useToast, ToastContainer, GithubLink } from './components/shared';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
-  const { show, ToastContainer } = useToast();
+  const { show, toasts, remove } = useToast();
 
   // 恢复项目状态
   useEffect(() => {
@@ -40,7 +40,7 @@ function App() {
         <Route path="/project/:projectId/preview" element={<SlidePreview />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <ToastContainer />
+      <ToastContainer toasts={toasts} remove={remove} />
       <GithubLink />
     </BrowserRouter>
   );
