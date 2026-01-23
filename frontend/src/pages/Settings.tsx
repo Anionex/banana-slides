@@ -466,11 +466,46 @@ export const Settings: React.FC = () => {
         testSettings.image_thinking_budget = formData.image_thinking_budget;
       }
 
+      // 启动异步测试，获取任务ID
       const response = await action(testSettings);
-      const detail = formatDetail(response.data);
-      const message = response.message || '测试成功';
-      updateServiceTest(key, { status: 'success', message, detail });
-      show({ message, type: 'success' });
+      const taskId = response.data.task_id;
+
+      // 开始轮询任务状态
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await api.getTestStatus(taskId);
+          const taskStatus = statusResponse.data.status;
+
+          if (taskStatus === 'COMPLETED') {
+            clearInterval(pollInterval);
+            const detail = formatDetail(statusResponse.data.result || {});
+            const message = statusResponse.data.message || '测试成功';
+            updateServiceTest(key, { status: 'success', message, detail });
+            show({ message, type: 'success' });
+          } else if (taskStatus === 'FAILED') {
+            clearInterval(pollInterval);
+            const errorMessage = statusResponse.data.error || '测试失败';
+            updateServiceTest(key, { status: 'error', message: errorMessage });
+            show({ message: '测试失败: ' + errorMessage, type: 'error' });
+          }
+          // 如果是 PENDING 或 PROCESSING，继续轮询
+        } catch (pollError: any) {
+          clearInterval(pollInterval);
+          const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || '轮询失败';
+          updateServiceTest(key, { status: 'error', message: errorMessage });
+          show({ message: '测试失败: ' + errorMessage, type: 'error' });
+        }
+      }, 2000); // 每2秒轮询一次
+
+      // 设置最大轮询时间（2分钟）
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (serviceTestStates[key]?.status === 'loading') {
+          updateServiceTest(key, { status: 'error', message: '测试超时' });
+          show({ message: '测试超时，请重试', type: 'error' });
+        }
+      }, 120000);
+
     } catch (error: any) {
       const errorMessage = error?.response?.data?.error?.message || error?.message || '未知错误';
       updateServiceTest(key, { status: 'error', message: errorMessage });
@@ -670,6 +705,11 @@ export const Settings: React.FC = () => {
           <p className="text-sm text-gray-500">
             提前验证关键服务配置是否可用，避免使用期间异常。
           </p>
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-gray-700">
+              💡 提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。
+            </p>
+          </div>
           <div className="space-y-4">
             {[
               {
@@ -703,16 +743,16 @@ export const Settings: React.FC = () => {
               {
                 key: 'image-model',
                 title: '图像生成模型',
-                description: '基于测试图片生成演示文稿背景图',
+                description: '基于测试图片生成演示文稿背景图（1K, 可能需要 20-40 秒）',
                 action: api.testImageModel,
                 formatDetail: (data: any) => (data?.image_size ? `输出尺寸：${data.image_size[0]}x${data.image_size[1]}` : ''),
               },
               {
                 key: 'mineru-pdf',
                 title: 'MinerU 解析 PDF',
-                description: '上传测试 PDF 并等待解析结果返回',
+                description: '上传测试 PDF 并等待解析结果返回（可能需要 30-60 秒）',
                 action: api.testMineruPdf,
-                formatDetail: (data: any) => (data?.content_preview ? `解析预览：${data.content_preview}` : ''),
+                formatDetail: (data: any) => (data?.content_preview ? `解析预览：${data.content_preview}` : data?.message || ''),
               },
             ].map((item) => {
               const testState = serviceTestStates[item.key] || { status: 'idle' as TestStatus };

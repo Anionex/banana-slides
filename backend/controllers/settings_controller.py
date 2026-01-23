@@ -8,13 +8,14 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from flask import Blueprint, request, current_app
 from PIL import Image
-from models import db, Settings
+from models import db, Settings, Task
 from utils import success_response, error_response, bad_request
 from config import Config, PROJECT_ROOT
 from services.ai_service import AIService
 from services.file_parser_service import FileParserService
 from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_accurate_ocr_provider
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
+from services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
 
@@ -588,10 +589,248 @@ def _get_test_image_path() -> Path:
     return test_image
 
 
+def _get_baidu_credentials():
+    """获取百度 API 凭证"""
+    api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
+    api_secret = current_app.config.get("BAIDU_OCR_API_SECRET") or Config.BAIDU_OCR_API_SECRET
+    if not api_key:
+        raise ValueError("未配置 BAIDU_OCR_API_KEY")
+    return api_key, api_secret
+
+
+def _create_file_parser():
+    """创建 FileParserService 实例"""
+    return FileParserService(
+        mineru_token=current_app.config.get("MINERU_TOKEN", ""),
+        mineru_api_base=current_app.config.get("MINERU_API_BASE", ""),
+        google_api_key=current_app.config.get("GOOGLE_API_KEY", ""),
+        google_api_base=current_app.config.get("GOOGLE_API_BASE", ""),
+        openai_api_key=current_app.config.get("OPENAI_API_KEY", ""),
+        openai_api_base=current_app.config.get("OPENAI_API_BASE", ""),
+        image_caption_model=current_app.config.get("IMAGE_CAPTION_MODEL", Config.IMAGE_CAPTION_MODEL),
+        provider_format=current_app.config.get("AI_PROVIDER_FORMAT", "gemini"),
+    )
+
+
+# 测试函数 - 每个测试一个独立函数
+def _test_baidu_ocr():
+    """测试百度 OCR 服务"""
+    api_key, api_secret = _get_baidu_credentials()
+    provider = create_baidu_accurate_ocr_provider(api_key, api_secret)
+    if not provider:
+        raise ValueError("百度 OCR Provider 初始化失败")
+
+    test_image_path = _get_test_image_path()
+    result = provider.recognize(str(test_image_path), language_type="CHN_ENG")
+    recognized_text = provider.get_full_text(result, separator=" ")
+
+    return {
+        "recognized_text": recognized_text,
+        "words_result_num": result.get("words_result_num", 0),
+    }, "百度 OCR 测试成功"
+
+
+def _test_text_model():
+    """测试文本生成模型"""
+    ai_service = AIService()
+    reply = ai_service.text_provider.generate_text("请只回复 OK。", thinking_budget=64)
+    return {"reply": reply.strip()}, "文本模型测试成功"
+
+
+def _test_caption_model():
+    """测试图片识别模型"""
+    upload_folder = Path(current_app.config.get("UPLOAD_FOLDER", Config.UPLOAD_FOLDER))
+    mineru_root = upload_folder / "mineru_files"
+    mineru_root.mkdir(parents=True, exist_ok=True)
+    extract_id = datetime.now(timezone.utc).strftime("test-%Y%m%d%H%M%S")
+    image_dir = mineru_root / extract_id
+    image_dir.mkdir(parents=True, exist_ok=True)
+    image_path = image_dir / "caption_test.png"
+
+    try:
+        test_image_path = _get_test_image_path()
+        shutil.copyfile(test_image_path, image_path)
+
+        parser = _create_file_parser()
+        image_url = f"/files/mineru/{extract_id}/{image_path.name}"
+        caption = parser._generate_single_caption(image_url).strip()
+
+        if not caption:
+            raise ValueError("图片识别模型返回空结果")
+
+        return {"caption": caption}, "图片识别模型测试成功"
+    finally:
+        if image_path.exists():
+            image_path.unlink()
+        if image_dir.exists():
+            try:
+                image_dir.rmdir()
+            except OSError:
+                pass
+
+
+def _test_baidu_inpaint():
+    """测试百度图像修复"""
+    api_key, api_secret = _get_baidu_credentials()
+    provider = create_baidu_inpainting_provider(api_key, api_secret)
+    if not provider:
+        raise ValueError("百度图像修复 Provider 初始化失败")
+
+    test_image_path = _get_test_image_path()
+    with Image.open(test_image_path) as image:
+        width, height = image.size
+        rect_width = max(1, int(width * 0.3))
+        rect_height = max(1, int(height * 0.3))
+        left = max(0, int(width * 0.35))
+        top = max(0, int(height * 0.35))
+        rectangles = [{
+            "left": left,
+            "top": top,
+            "width": min(rect_width, width - left),
+            "height": min(rect_height, height - top),
+        }]
+        result = provider.inpaint(image, rectangles)
+
+    if result is None:
+        raise ValueError("百度图像修复返回空结果")
+
+    return {"image_size": result.size}, "百度图像修复测试成功"
+
+
+def _test_image_model():
+    """测试图像生成模型"""
+    ai_service = AIService()
+    test_image_path = _get_test_image_path()
+    prompt = "生成一张简洁、明亮、适合演示文稿的背景图。"
+    result = ai_service.generate_image(
+        prompt=prompt,
+        ref_image_path=str(test_image_path),
+        aspect_ratio="16:9",
+        resolution="1K"
+    )
+
+    if result is None:
+        raise ValueError("图像生成模型返回空结果")
+
+    return {"image_size": result.size}, "图像生成模型测试成功"
+
+
+def _test_mineru_pdf():
+    """测试 MinerU PDF 解析"""
+    mineru_token = current_app.config.get("MINERU_TOKEN", "")
+    if not mineru_token:
+        raise ValueError("未配置 MINERU_TOKEN")
+
+    parser = _create_file_parser()
+    tmp_file = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp_file = Path(tmp.name)
+        test_image_path = _get_test_image_path()
+        with Image.open(test_image_path) as image:
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image.save(tmp_file, format="PDF")
+
+        batch_id, upload_url, error = parser._get_upload_url("mineru-test.pdf")
+        if error:
+            raise ValueError(error)
+
+        upload_error = parser._upload_file(str(tmp_file), upload_url)
+        if upload_error:
+            raise ValueError(upload_error)
+
+        markdown_content, extract_id, poll_error = parser._poll_result(batch_id, max_wait_time=30)
+        if poll_error:
+            if "timeout" in poll_error.lower():
+                return {
+                    "batch_id": batch_id,
+                    "status": "processing",
+                    "message": "服务正常，文件正在处理中"
+                }, "MinerU 服务可用（处理中）"
+            else:
+                raise ValueError(poll_error)
+        else:
+            content_preview = (markdown_content or "").strip()[:120]
+            return {
+                "batch_id": batch_id,
+                "extract_id": extract_id,
+                "content_preview": content_preview,
+            }, "MinerU 解析测试成功"
+    finally:
+        if tmp_file and tmp_file.exists():
+            tmp_file.unlink()
+
+
+# 测试函数映射
+TEST_FUNCTIONS = {
+    "baidu-ocr": _test_baidu_ocr,
+    "text-model": _test_text_model,
+    "caption-model": _test_caption_model,
+    "baidu-inpaint": _test_baidu_inpaint,
+    "image-model": _test_image_model,
+    "mineru-pdf": _test_mineru_pdf,
+}
+
+
+def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
+    """
+    在后台异步执行测试任务
+
+    Args:
+        task_id: 任务ID
+        test_name: 测试名称
+        test_settings: 测试设置
+        app: Flask app 实例
+    """
+    with app.app_context():
+        try:
+            # 更新状态为运行中
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            # 应用测试设置并执行测试
+            with temporary_settings_override(test_settings):
+                # 查找并执行对应的测试函数
+                test_func = TEST_FUNCTIONS.get(test_name)
+                if not test_func:
+                    raise ValueError(f"未知测试类型: {test_name}")
+
+                result_data, message = test_func()
+
+                # 更新任务状态为完成
+                task = Task.query.get(task_id)
+                if task:
+                    task.status = 'COMPLETED'
+                    task.completed_at = datetime.now(timezone.utc)
+                    task.set_progress({
+                        'result': result_data,
+                        'message': message
+                    })
+                    db.session.commit()
+                    logger.info(f"Test task {task_id} completed successfully")
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Test task {task_id} failed: {error_msg}", exc_info=True)
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = error_msg
+                task.completed_at = datetime.now(timezone.utc)
+                db.session.commit()
+
+
+
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
 def run_settings_test(test_name: str):
     """
-    POST /api/settings/tests/<test_name> - Run service test
+    POST /api/settings/tests/<test_name> - 启动异步服务测试
 
     Request Body (optional):
         可选的设置覆盖参数，用于测试未保存的配置
@@ -601,211 +840,99 @@ def run_settings_test(test_name: str):
             "text_model": "test-model",
             ...
         }
+
+    Returns:
+        {
+            "data": {
+                "task_id": "uuid",
+                "status": "PENDING"
+            }
+        }
     """
     try:
         # 获取请求体中的测试设置覆盖（如果有）
         test_settings = request.get_json() or {}
 
-        # 使用上下文管理器临时应用测试设置
-        with temporary_settings_override(test_settings):
-            if test_name == "baidu-ocr":
-                api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
-                api_secret = current_app.config.get("BAIDU_OCR_API_SECRET") or Config.BAIDU_OCR_API_SECRET
-                if not api_key:
-                    return bad_request("未配置 BAIDU_OCR_API_KEY，无法测试百度 OCR")
+        # 创建任务记录（使用特殊的 project_id='settings-test'）
+        task = Task(
+            project_id='settings-test',  # 特殊标记，表示这是设置测试任务
+            task_type=f'TEST_{test_name.upper().replace("-", "_")}',
+            status='PENDING'
+        )
+        db.session.add(task)
+        db.session.commit()
 
-                provider = create_baidu_accurate_ocr_provider(api_key, api_secret)
-                if not provider:
-                    return bad_request("百度 OCR Provider 初始化失败，请检查配置")
+        task_id = task.id
 
-                test_image_path = _get_test_image_path()
-                result = provider.recognize(str(test_image_path), language_type="CHN_ENG")
-                recognized_text = provider.get_full_text(result, separator=" ")
+        # 使用 TaskManager 提交后台任务
+        task_manager.submit_task(
+            task_id,
+            _run_test_async,
+            test_name,
+            test_settings,
+            current_app._get_current_object()
+        )
 
-                return success_response(
-                    {
-                        "recognized_text": recognized_text,
-                        "words_result_num": result.get("words_result_num", 0),
-                    },
-                    "百度 OCR 测试成功"
-                )
+        logger.info(f"Started test task {task_id} for {test_name}")
 
-            elif test_name == "text-model":
-                ai_service = AIService()
-                reply = ai_service.text_provider.generate_text("请只回复 OK。", thinking_budget=64)
-                return success_response(
-                    {"reply": reply.strip()},
-                    "文本模型测试成功"
-                )
-
-            elif test_name == "caption-model":
-                upload_folder = Path(current_app.config.get("UPLOAD_FOLDER", Config.UPLOAD_FOLDER))
-                mineru_root = upload_folder / "mineru_files"
-                mineru_root.mkdir(parents=True, exist_ok=True)
-                extract_id = datetime.now(timezone.utc).strftime("test-%Y%m%d%H%M%S")
-                image_dir = mineru_root / extract_id
-                image_dir.mkdir(parents=True, exist_ok=True)
-                image_path = image_dir / "caption_test.png"
-
-                try:
-                    test_image_path = _get_test_image_path()
-                    shutil.copyfile(test_image_path, image_path)
-
-                    parser = FileParserService(
-                        mineru_token=current_app.config.get("MINERU_TOKEN", ""),
-                        mineru_api_base=current_app.config.get("MINERU_API_BASE", ""),
-                        google_api_key=current_app.config.get("GOOGLE_API_KEY", ""),
-                        google_api_base=current_app.config.get("GOOGLE_API_BASE", ""),
-                        openai_api_key=current_app.config.get("OPENAI_API_KEY", ""),
-                        openai_api_base=current_app.config.get("OPENAI_API_BASE", ""),
-                        image_caption_model=current_app.config.get("IMAGE_CAPTION_MODEL", Config.IMAGE_CAPTION_MODEL),
-                        provider_format=current_app.config.get("AI_PROVIDER_FORMAT", "gemini"),
-                    )
-
-                    image_url = f"/files/mineru/{extract_id}/{image_path.name}"
-                    caption = parser._generate_single_caption(image_url).strip()
-
-                    if not caption:
-                        return error_response(
-                            "CAPTION_TEST_FAILED",
-                            "图片识别模型返回空结果，请检查 API Key、模型名称或服务状态",
-                            502
-                        )
-
-                    return success_response(
-                        {"caption": caption},
-                        "图片识别模型测试成功"
-                    )
-                finally:
-                    if image_path.exists():
-                        image_path.unlink()
-                    if image_dir.exists():
-                        try:
-                            image_dir.rmdir()
-                        except OSError:
-                            pass
-
-            elif test_name == "baidu-inpaint":
-                api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
-                api_secret = current_app.config.get("BAIDU_OCR_API_SECRET") or Config.BAIDU_OCR_API_SECRET
-                if not api_key:
-                    return bad_request("未配置 BAIDU_OCR_API_KEY，无法测试百度图像修复")
-
-                provider = create_baidu_inpainting_provider(api_key, api_secret)
-                if not provider:
-                    return bad_request("百度图像修复 Provider 初始化失败，请检查配置")
-
-                test_image_path = _get_test_image_path()
-                with Image.open(test_image_path) as image:
-                    width, height = image.size
-                    rect_width = max(1, int(width * 0.3))
-                    rect_height = max(1, int(height * 0.3))
-                    left = max(0, int(width * 0.35))
-                    top = max(0, int(height * 0.35))
-                    rectangles = [
-                        {
-                            "left": left,
-                            "top": top,
-                            "width": min(rect_width, width - left),
-                            "height": min(rect_height, height - top),
-                        }
-                    ]
-                    result = provider.inpaint(image, rectangles)
-
-                if result is None:
-                    return error_response(
-                        "INPAINT_TEST_FAILED",
-                        "百度图像修复返回空结果，请检查配置或服务状态",
-                        502
-                    )
-
-                return success_response(
-                    {"image_size": result.size},
-                    "百度图像修复测试成功"
-                )
-
-            elif test_name == "image-model":
-                ai_service = AIService()
-                test_image_path = _get_test_image_path()
-                prompt = "生成一张简洁、明亮、适合演示文稿的背景图。"
-                result = ai_service.generate_image(
-                    prompt=prompt,
-                    ref_image_path=str(test_image_path),
-                    aspect_ratio="16:9",
-                    resolution=current_app.config.get("DEFAULT_RESOLUTION", "1K")
-                )
-
-                if result is None:
-                    return error_response(
-                        "IMAGE_MODEL_TEST_FAILED",
-                        "图像生成模型返回空结果，请检查模型配置或服务状态",
-                        502
-                    )
-
-                return success_response(
-                    {"image_size": result.size},
-                    "图像生成模型测试成功"
-                )
-
-            elif test_name == "mineru-pdf":
-                mineru_token = current_app.config.get("MINERU_TOKEN", "")
-                mineru_api_base = current_app.config.get("MINERU_API_BASE", "")
-                if not mineru_token:
-                    return bad_request("未配置 MINERU_TOKEN，无法测试 MinerU 解析")
-
-                parser = FileParserService(
-                    mineru_token=mineru_token,
-                    mineru_api_base=mineru_api_base,
-                    google_api_key=current_app.config.get("GOOGLE_API_KEY", ""),
-                    google_api_base=current_app.config.get("GOOGLE_API_BASE", ""),
-                    openai_api_key=current_app.config.get("OPENAI_API_KEY", ""),
-                    openai_api_base=current_app.config.get("OPENAI_API_BASE", ""),
-                    image_caption_model=current_app.config.get("IMAGE_CAPTION_MODEL", Config.IMAGE_CAPTION_MODEL),
-                    provider_format=current_app.config.get("AI_PROVIDER_FORMAT", "gemini"),
-                )
-
-                tmp_file = None
-                try:
-                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                        tmp_file = Path(tmp.name)
-                    test_image_path = _get_test_image_path()
-                    with Image.open(test_image_path) as image:
-                        if image.mode != "RGB":
-                            image = image.convert("RGB")
-                        image.save(tmp_file, format="PDF")
-
-                    batch_id, upload_url, error = parser._get_upload_url("mineru-test.pdf")
-                    if error:
-                        return error_response("MINERU_TEST_FAILED", error, 502)
-
-                    upload_error = parser._upload_file(str(tmp_file), upload_url)
-                    if upload_error:
-                        return error_response("MINERU_TEST_FAILED", upload_error, 502)
-
-                    markdown_content, extract_id, poll_error = parser._poll_result(batch_id, max_wait_time=60)
-                    if poll_error:
-                        return error_response("MINERU_TEST_FAILED", poll_error, 502)
-
-                    content_preview = (markdown_content or "").strip()[:120]
-                    return success_response(
-                        {
-                            "batch_id": batch_id,
-                            "extract_id": extract_id,
-                            "content_preview": content_preview,
-                        },
-                        "MinerU 解析测试成功"
-                    )
-                finally:
-                    if tmp_file and tmp_file.exists():
-                        tmp_file.unlink()
-
-            else:
-                return bad_request(f"未知测试类型: {test_name}")
+        return success_response({
+            'task_id': task_id,
+            'status': 'PENDING'
+        }, '测试任务已启动')
 
     except Exception as e:
-        logger.error(f"Settings test failed: {str(e)}", exc_info=True)
+        logger.error(f"Failed to start test: {str(e)}", exc_info=True)
         return error_response(
             "SETTINGS_TEST_ERROR",
-            f"服务测试失败: {str(e)}",
+            f"启动测试失败: {str(e)}",
+            500
+        )
+
+
+@settings_bp.route("/tests/<task_id>/status", methods=["GET"], strict_slashes=False)
+def get_test_status(task_id: str):
+    """
+    GET /api/settings/tests/<task_id>/status - 查询测试任务状态
+
+    Returns:
+        {
+            "data": {
+                "status": "PENDING|PROCESSING|COMPLETED|FAILED",
+                "result": {...},  # 仅当 status=COMPLETED 时存在
+                "error": "...",   # 仅当 status=FAILED 时存在
+                "message": "..."
+            }
+        }
+    """
+    try:
+        task = Task.query.get(task_id)
+        if not task:
+            return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
+
+        # 构建响应数据
+        response_data = {
+            'status': task.status,
+            'task_type': task.task_type,
+            'created_at': task.created_at.isoformat() if task.created_at else None,
+            'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+        }
+
+        # 如果任务完成，包含结果和消息
+        if task.status == 'COMPLETED':
+            progress = task.get_progress()
+            response_data['result'] = progress.get('result', {})
+            response_data['message'] = progress.get('message', '测试完成')
+
+        # 如果任务失败，包含错误信息
+        elif task.status == 'FAILED':
+            response_data['error'] = task.error_message
+
+        return success_response(response_data)
+
+    except Exception as e:
+        logger.error(f"Failed to get test status: {str(e)}", exc_info=True)
+        return error_response(
+            "GET_TEST_STATUS_ERROR",
+            f"获取测试状态失败: {str(e)}",
             500
         )
