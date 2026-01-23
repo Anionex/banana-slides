@@ -5,16 +5,22 @@ This demo module provides simple APIs for image editing/generation and text gene
 using the LazyLLM framework, mimicking the style of gemini_genai.py.
 
 Supported Image Providers:
-  - qwen (阿里云通义千问): qwen-image-edit, qwen-image-edit-plus
-  - doubao (火山引擎豆包): doubao-seedream-4-0-250828, doubao-seedream-4.5
-  - siliconflow (硅基流动): Various image models
+  - qwen (阿里云通义千问)
+  - doubao (火山引擎豆包)
+  - siliconflow (硅基流动)
 
 Supported Text Providers:
-  - deepseek: deepseek-v3, deepseek-v3.2
-  - qwen: qwen-max, qwen-plus, qwen-turbo
-  - doubao: doubao-pro-128k, doubao-lite-128k
-  - glm: glm-4, glm-4-plus
-  - siliconflow: Various text models
+  - deepseek
+  - qwen
+  - doubao
+  - glm
+  - siliconflow
+
+Before running this demo, you need to configure the providers' api_key in the environment variables based on your choice.
+defaut source is qwen.
+e.g.:
+    export BANANA_QWEN_API_KEY = "your-api-key"
+
 """
 import os
 import sys
@@ -36,51 +42,25 @@ from lazyllm import LOG
 DEFAULT_ASPECT_RATIO = "16:9"  # "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"
 DEFAULT_RESOLUTION = "2K"      # "1K", "2K", "4K"
 
-# LazyLLM default sources (from .env)
-DEFAULT_TEXT_SOURCE = os.getenv("LAZYLLM_TEXT_SOURCE", "qwen")
-DEFAULT_TEXT_MODEL = os.getenv("TEXT_MODEL", "deepseek-v3.2")
+# default sources and models
+DEFAULT_TEXT_SOURCE = 'qwen'
+DEFAULT_TEXT_MODEL = 'deepseek-v3.2'
 
-DEFAULT_IMAGE_SOURCE = os.getenv("LAZYLLM_IMAGE_SOURCE", "qwen")
-DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL", "qwen-image-edit")
+DEFAULT_IMAGE_SOURCE = 'qwen'
+DEFAULT_IMAGE_MODEL = 'qwen-image-edit-plus'
 
-DEFAULT_VLM_SOURCE = os.getenv("LAZYLLM_IMAGE_CAPTION_SOURCE", "qwen")
-DEFAULT_VLM_MODEL = os.getenv("IMAGE_CAPTION_MODEL", "qwen-vl-plus")
-
-# API Keys from environment variables
-API_KEYS = {
-    'qwen': os.getenv("LAZYLLM_QWEN_API_KEY", ""),
-    'doubao': os.getenv("LAZYLLM_DOUBAO_API_KEY", ""),
-    'deepseek': os.getenv("LAZYLLM_DEEPSEEK_API_KEY", ""),
-    'glm': os.getenv("LAZYLLM_GLM_API_KEY", ""),
-    'siliconflow': os.getenv("LAZYLLM_SILICONFLOW_API_KEY", ""),
-    'sensenova': os.getenv("LAZYLLM_SENSENOVA_API_KEY", ""),
-    'minimax': os.getenv("LAZYLLM_MINIMAX_API_KEY", ""),
-}
-
-
-def _get_api_key(source: str) -> str:
-    """Get API key for the specified source"""
-    api_key = API_KEYS.get(source.lower(), "")
-    if not api_key:
-        raise ValueError(
-            f"API key not found for source '{source}'. "
-            f"Please set LAZYLLM_{source.upper()}_API_KEY in .env file."
-        )
-    return api_key
-
+DEFAULT_VLM_SOURCE = 'qwen'
+DEFAULT_VLM_MODEL = 'qwen-vl-plus'
 
 # ===== Text Generation =====
 
 def gen_text(prompt: str, 
              source: str = DEFAULT_TEXT_SOURCE,
              model: str = DEFAULT_TEXT_MODEL,
-             api_key: str = None) -> str:
-    if not api_key:
-        api_key = _get_api_key(source)
-    client = lazyllm.OnlineModule(
+            ) -> str:
+    client = lazyllm.namespace('BANANA').OnlineModule(
         source=source,
         model=model,
-        api_key=api_key,
         type='llm',
     )
     result = client(prompt)
@@ -103,10 +83,7 @@ def gen_image(prompt: str,
               model: str = DEFAULT_IMAGE_MODEL,
               aspect_ratio: str = DEFAULT_ASPECT_RATIO,
               resolution: str = DEFAULT_RESOLUTION,
-              api_key: str = None) -> Optional[Image.Image]:
-    if not api_key:
-        api_key = _get_api_key(source)
-    
+              ) -> Optional[Image.Image]:
     # Convert resolution shorthand to actual resolution
     resolution_map = {
         "1K": "1920*1080",
@@ -114,10 +91,9 @@ def gen_image(prompt: str,
         "4K": "3840*2160"
     }
     actual_resolution = resolution_map.get(resolution, resolution)
-    client = lazyllm.OnlineModule(
+    client = lazyllm.namespace('BANANA').OnlineModule(
         source=source,
         model=model,
-        api_key=api_key,
         type='image_editing',
     )
     
@@ -162,14 +138,11 @@ def describe_image(image_path: str,
                    api_key: str = None) -> str:
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
-    if not api_key:
-        api_key = _get_api_key(source)
     if not prompt:
         prompt = "Please describe this image in detail."
-    client = lazyllm.OnlineModule(
+    client = lazyllm.namespace('BANANA').OnlineModule(
         source=source,
         model=model,
-        api_key=api_key,
         type='vlm',
     )
     

@@ -216,18 +216,18 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 # Lazyllm 格式配置（当 AI_PROVIDER_FORMAT=lazyllm 时使用）
 # 选择文本生成和图片生成使用的厂商
-LAZYLLM_TEXT_SOURCE=deepseek        # 文本生成模型厂商
-LAZYLLM_IMAGE_SOURCE=doubao         # 图片编辑模型厂商
-LAZYLLM_IMAGE_CAPTION_SOURCE=qwen   # 图片描述模型厂商
+TEXT_MODEL_SOURCE=deepseek        # 文本生成模型厂商
+IMAGE_MODEL_SOURCE=doubao         # 图片编辑模型厂商
+IMAGE_CAPTION_MODEL_SOURCE=qwen   # 图片描述模型厂商
 
 # 各厂商 API Key（只需配置你要使用的厂商）
-LAZYLLM_DOUBAO_API_KEY=your-doubao-api-key            # 火山引擎/豆包
-LAZYLLM_DEEPSEEK_API_KEY=your-deepseek-api-key        # DeepSeek
-LAZYLLM_QWEN_API_KEY=your-qwen-api-key                # 阿里云/通义千问
-LAZYLLM_GLM_API_KEY=your-glm-api-key                  # 智谱 GLM
-LAZYLLM_SILICONFLOW_API_KEY=your-siliconflow-api-key  # 硅基流动
-LAZYLLM_SENSENOVA_API_KEY=your-sensenova-api-key      # 商汤日日新
-LAZYLLM_MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
+BANANA_DOUBAO_API_KEY=your-doubao-api-key            # 火山引擎/豆包
+BANANA_DEEPSEEK_API_KEY=your-deepseek-api-key        # DeepSeek
+BANANA_QWEN_API_KEY=your-qwen-api-key                # 阿里云/通义千问
+BANANA_GLM_API_KEY=your-glm-api-key                  # 智谱 GLM
+BANANA_SILICONFLOW_API_KEY=your-siliconflow-api-key  # 硅基流动
+BANANA_SENSENOVA_API_KEY=your-sensenova-api-key      # 商汤日日新
+BANANA_MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 ...
 ```
 
