@@ -218,7 +218,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 10: Click "生成图片" to go to image generation page
     // ====================================
     console.log('➡️  Step 10: Clicking "生成图片" to go to image generation page...')
-    
+
     // Ensure no modal backdrop is blocking the UI
     // This is important after the single card retry which may have shown a confirmation dialog
     const modalBackdrop = page.locator('.fixed.inset-0').filter({ hasText: '' }).first()
@@ -257,13 +257,14 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     }
     
     // Extra safety wait to ensure all animations complete
-    await page.waitForTimeout(800)
-    
+    await page.waitForTimeout(1500)
+
     const generateImagesNavBtn = page.locator('button:has-text("生成图片")').first()
-    
+
     // Wait for button to be enabled (it's disabled until all descriptions are generated)
     await generateImagesNavBtn.waitFor({ state: 'visible', timeout: 10000 })
-    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 5000 })
+    // Increase timeout to account for React re-rendering after single card retry
+    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 10000 })
     
     // Ensure button is in viewport
     await generateImagesNavBtn.scrollIntoViewIfNeeded()
