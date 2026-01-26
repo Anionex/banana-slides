@@ -212,6 +212,15 @@ cp .env.example .env
 ```
 
 编辑 `.env` 文件，配置必要的环境变量：
+
+**第三方 / 代理 API 配置提示（AI_PROVIDER_FORMAT / Base URL）**
+
+- `AI_PROVIDER_FORMAT=openai`：用于 OpenAI 兼容接口（`OPENAI_API_*`），`OPENAI_API_BASE` 通常需要包含 `/v1`（例如 `https://api.openai.com/v1` / `https://xxx/v1`）。
+- `AI_PROVIDER_FORMAT=gemini`：用于 Gemini 原生接口或代理（`GOOGLE_API_*`），`GOOGLE_API_BASE` 通常不需要 `/v1`，代理常见是 `https://xxx/gemini`。
+- Base URL 末尾不要带 `/`（常见错误：`.../v1/`、`.../gemini/` 会导致路径拼接异常）。
+- 图片生成：本项目的 OpenAI 格式图片生成可能限制到 1K 分辨率；需要更高分辨率更建议使用 `gemini` 格式。
+- 验证方式：在网页设置页 `/settings` 填写并保存后，尝试生成“大纲”；成功说明 Key/Base 可访问。
+
 > **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**  
 ```env
 # AI Provider格式配置 (gemini / openai / vertex)
@@ -371,6 +380,15 @@ cp .env.example .env
 ```
 
 编辑 `.env` 文件，配置你的 API 密钥：
+
+**第三方 / 代理 API 配置提示（AI_PROVIDER_FORMAT / Base URL）**
+
+- `AI_PROVIDER_FORMAT=openai`：用于 OpenAI 兼容接口（`OPENAI_API_*`），`OPENAI_API_BASE` 通常需要包含 `/v1`（例如 `https://api.openai.com/v1` / `https://xxx/v1`）。
+- `AI_PROVIDER_FORMAT=gemini`：用于 Gemini 原生接口或代理（`GOOGLE_API_*`），`GOOGLE_API_BASE` 通常不需要 `/v1`，代理常见是 `https://xxx/gemini`。
+- Base URL 末尾不要带 `/`（常见错误：`.../v1/`、`.../gemini/` 会导致路径拼接异常）。
+- 图片生成：本项目的 OpenAI 格式图片生成可能限制到 1K 分辨率；需要更高分辨率更建议使用 `gemini` 格式。
+- 验证方式：在网页设置页 `/settings` 填写并保存后，尝试生成“大纲”；成功说明 Key/Base 可访问。
+
 > **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本** 
 ```env
 # AI Provider格式配置 (gemini / openai / vertex)

@@ -211,6 +211,15 @@ cp .env.example .env
 ```
 
 Edit the `.env` file and configure the necessary environment variables:
+
+**Third-party / Proxy API configuration tips (AI_PROVIDER_FORMAT / Base URL)**
+
+- `AI_PROVIDER_FORMAT=openai`: for OpenAI-compatible endpoints (`OPENAI_API_*`). `OPENAI_API_BASE` usually needs to include `/v1` (e.g. `https://api.openai.com/v1` or `https://xxx/v1`).
+- `AI_PROVIDER_FORMAT=gemini`: for Gemini-native endpoints/proxies (`GOOGLE_API_*`). `GOOGLE_API_BASE` usually does not include `/v1`; proxies commonly look like `https://xxx/gemini`.
+- Avoid a trailing `/` in base URLs (common pitfall: `.../v1/`, `.../gemini/` can break path concatenation).
+- Image generation: OpenAI-format image generation may be limited to 1K in this project; prefer `gemini` format for higher resolutions.
+- Quick validation: use the web UI Settings page at `/settings` — if outline generation works, your key/base URL is reachable.
+
 > **The LLM interfaces in this project follow the AIHubMix platform format. It is recommended to use [AIHubMix](https://aihubmix.com/?aff=17EC) to obtain an API key to reduce migration costs.**  
 ```env
 
@@ -383,6 +392,15 @@ cp .env.example .env
 ```
 
 Edit the `.env` file and configure your API keys:
+
+**Third-party / Proxy API configuration tips (AI_PROVIDER_FORMAT / Base URL)**
+
+- `AI_PROVIDER_FORMAT=openai`: for OpenAI-compatible endpoints (`OPENAI_API_*`). `OPENAI_API_BASE` usually needs to include `/v1` (e.g. `https://api.openai.com/v1` or `https://xxx/v1`).
+- `AI_PROVIDER_FORMAT=gemini`: for Gemini-native endpoints/proxies (`GOOGLE_API_*`). `GOOGLE_API_BASE` usually does not include `/v1`; proxies commonly look like `https://xxx/gemini`.
+- Avoid a trailing `/` in base URLs (common pitfall: `.../v1/`, `.../gemini/` can break path concatenation).
+- Image generation: OpenAI-format image generation may be limited to 1K in this project; prefer `gemini` format for higher resolutions.
+- Quick validation: use the web UI Settings page at `/settings` — if outline generation works, your key/base URL is reachable.
+
 > **The LLM interface in this project follows the AIHubMix platform format. It is recommended to use [AIHubMix](https://aihubmix.com/?aff=17EC) to obtain API keys to reduce migration costs.** 
 ```env
 
