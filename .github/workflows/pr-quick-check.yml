@@ -96,13 +96,26 @@ jobs:
           # Start in background
           uv run python app.py &
           SERVER_PID=$!
+
+          cleanup() {
+            if kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "Stopping backend..."
+              kill "$SERVER_PID" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
           
           # Wait for startup
-          echo "Waiting for backend to start..."
-          sleep 10
+          echo "Waiting for backend to become healthy..."
+          if ! bash ../scripts/wait-for-health.sh http://localhost:5000/health 60 2; then
+            echo "Backend smoke test failed (health check timeout)"
+            echo "Checking backend logs..."
+            cat ../instance/app.log 2>/dev/null || echo "No log file found"
+            exit 1
+          fi
           
           # Check if process is still running
-          if ! kill -0 $SERVER_PID 2>/dev/null; then
+          if ! kill -0 "$SERVER_PID" 2>/dev/null; then
             echo "Backend process has exited"
             exit 1
           fi
@@ -110,15 +123,12 @@ jobs:
           # Health check
           if curl -f http://localhost:5000/health; then
             echo "Backend smoke test passed"
-            kill $SERVER_PID
           else
             echo "Backend smoke test failed"
             echo "Checking backend logs..."
             cat ../instance/app.log 2>/dev/null || echo "No log file found"
-            kill $SERVER_PID
             exit 1
           fi
         env:
           GOOGLE_API_KEY: mock-key-for-testing
           TESTING: true
-
