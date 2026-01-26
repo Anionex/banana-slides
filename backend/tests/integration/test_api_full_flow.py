@@ -26,8 +26,7 @@ from PIL import Image
 
 # Skip these tests if service is not running (for backend-integration-test stage)
 pytestmark = pytest.mark.skipif(
-    os.environ.get('SKIP_SERVICE_TESTS', '').lower() == 'true'
-    or os.environ.get('TESTING', '').lower() == 'true',
+    os.environ.get('SKIP_SERVICE_TESTS', '').lower() == 'true',
     reason="Skipping tests that require running backend service"
 )
 
