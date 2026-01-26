@@ -48,10 +48,14 @@ def create_page(project_id):
             part = None
 
         if part is None and data['order_index'] > 0:
-            previous_page = Page.query.filter(
-                Page.project_id == project_id,
-                Page.order_index == data['order_index'] - 1
-            ).first()
+            previous_page = (
+                Page.query.filter(
+                    Page.project_id == project_id,
+                    Page.order_index < data['order_index'],
+                )
+                .order_by(Page.order_index.desc())
+                .first()
+            )
             if previous_page and previous_page.part:
                 part = previous_page.part
         
