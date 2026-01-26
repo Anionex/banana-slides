@@ -15,6 +15,27 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+def _log_retry(retry_state):
+    """记录重试信息"""
+    logger.warning(
+        f"GenAI 请求失败，正在重试 ({retry_state.attempt_number}/{get_config().GENAI_MAX_RETRIES + 1})，"
+        f"错误: {retry_state.outcome.exception() if retry_state.outcome else 'unknown'}"
+    )
+
+
+def _validate_response(response):
+    """验证响应是否有效，无效则抛出异常触发重试"""
+    if response.text is None:
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'finish_reason'):
+                logger.warning(f"Response text is None, finish_reason: {candidate.finish_reason}")
+            if hasattr(candidate, 'safety_ratings'):
+                logger.warning(f"Safety ratings: {candidate.safety_ratings}")
+        raise ValueError("AI model returned empty response (response.text is None)")
+    return response.text
+
+
 class GenAITextProvider(TextProvider):
     """Text generation using Google GenAI SDK (supports both AI Studio and Vertex AI)"""
 
@@ -66,7 +87,8 @@ class GenAITextProvider(TextProvider):
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True
+        reraise=True,
+        before_sleep=_log_retry
     )
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
@@ -89,12 +111,13 @@ class GenAITextProvider(TextProvider):
             contents=prompt,
             config=types.GenerateContentConfig(**config_params) if config_params else None,
         )
-        return response.text
+        return _validate_response(response)
     
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True
+        reraise=True,
+        before_sleep=_log_retry
     )
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         """
@@ -126,4 +149,4 @@ class GenAITextProvider(TextProvider):
             contents=contents,
             config=types.GenerateContentConfig(**config_params) if config_params else None,
         )
-        return response.text
+        return _validate_response(response)

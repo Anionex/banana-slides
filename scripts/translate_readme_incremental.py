@@ -136,7 +136,7 @@ def find_changed_blocks(content: str, changed_lines: set) -> set:
 
 
 def translate_block(content: str, text_provider) -> str:
-    """翻译单个内容块"""
+    """翻译单个内容块（provider 层已有重试机制）"""
     translation_prompt = f"""Please translate the following Chinese Markdown content to English.
 
 Requirements:
