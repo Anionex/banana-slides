@@ -1,8 +1,10 @@
 """Settings Controller - handles application settings endpoints"""
 
 import logging
+import re
 import shutil
 import tempfile
+from math import gcd
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import contextmanager
@@ -22,6 +24,71 @@ logger = logging.getLogger(__name__)
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
+
+# Accept custom ratios but guard against obviously invalid input.
+# Prefer common ratios used by common image models.
+_COMMON_IMAGE_ASPECT_RATIOS = {
+    "1:1",
+    "3:4",
+    "4:3",
+    "16:9",
+    "9:16",
+    "21:9",
+    "3:2",
+    "2:3",
+    "4:5",
+    "5:4",
+}
+
+_ASPECT_RATIO_PATTERN = re.compile(r"^\d+:\d+$")
+_ASPECT_RATIO_MIN = 0.2
+_ASPECT_RATIO_MAX = 5.0
+
+
+def _normalize_image_aspect_ratio(raw_value):
+    """
+    Normalize and validate aspect ratio input.
+
+    - Accepts "W:H" where W/H are positive integers.
+    - Reduces by gcd (e.g., "1920:1080" -> "16:9").
+    - Rejects obviously invalid or extreme ratios.
+    """
+    if raw_value is None:
+        raise ValueError("Image aspect ratio is required")
+
+    value = str(raw_value).strip()
+    if value == "":
+        raise ValueError("Image aspect ratio is required")
+
+    if not _ASPECT_RATIO_PATTERN.fullmatch(value):
+        raise ValueError(
+            "Image aspect ratio must match \\d+:\\d+ (e.g., 16:9, 4:3, 1:1)"
+        )
+
+    width, height = (int(part) for part in value.split(":", 1))
+    if width <= 0 or height <= 0:
+        raise ValueError("Image aspect ratio must be positive integers (e.g., 16:9)")
+
+    divisor = gcd(width, height)
+    width //= divisor
+    height //= divisor
+
+    ratio_value = width / height
+    if ratio_value < _ASPECT_RATIO_MIN or ratio_value > _ASPECT_RATIO_MAX:
+        raise ValueError(
+            f"Image aspect ratio must be between {_ASPECT_RATIO_MIN:.1f} and {_ASPECT_RATIO_MAX:.1f} (e.g., 16:9)"
+        )
+
+    normalized = f"{width}:{height}"
+    if len(normalized) > 10:
+        raise ValueError("Image aspect ratio is too long")
+
+    if normalized not in _COMMON_IMAGE_ASPECT_RATIOS:
+        logger.info(
+            f"Non-standard image_aspect_ratio provided: {normalized} (allowed, but may not be supported by all providers)"
+        )
+
+    return normalized
 
 
 @contextmanager
@@ -180,8 +247,12 @@ def update_settings():
             settings.image_resolution = resolution
 
         if "image_aspect_ratio" in data:
-            aspect_ratio = data["image_aspect_ratio"]
-            settings.image_aspect_ratio = aspect_ratio
+            try:
+                settings.image_aspect_ratio = _normalize_image_aspect_ratio(
+                    data["image_aspect_ratio"]
+                )
+            except ValueError as e:
+                return bad_request(str(e))
 
         # Update worker configuration
         if "max_description_workers" in data:
