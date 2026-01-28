@@ -15,6 +15,7 @@ dependencies = [
     "python-pptx>=1.0.0",
     "python-dotenv>=1.0.1",
     "reportlab>=4.1.0",
+    "requests>=2.0.0",
     "werkzeug>=3.0.1",
     "markitdown[all]",
     "tenacity>=9.0.0",

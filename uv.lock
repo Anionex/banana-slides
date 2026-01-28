@@ -177,6 +177,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-pptx" },
     { name = "reportlab" },
+    { name = "requests" },
     { name = "tenacity" },
     { name = "werkzeug" },
 ]
@@ -215,6 +216,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "python-pptx", specifier = ">=1.0.0" },
     { name = "reportlab", specifier = ">=4.1.0" },
+    { name = "requests", specifier = ">=2.0.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "werkzeug", specifier = ">=3.0.1" },
 ]

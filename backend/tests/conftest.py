@@ -17,6 +17,7 @@ sys.path.insert(0, str(backend_path))
 
 # 设置测试环境变量 - 必须在导入app之前设置
 os.environ['TESTING'] = 'true'
+os.environ.setdefault('SKIP_SERVICE_TESTS', 'true')
 os.environ['USE_MOCK_AI'] = 'true'  # 标记使用mock AI服务
 os.environ['GOOGLE_API_KEY'] = os.environ.get('GOOGLE_API_KEY', 'mock-api-key-for-testing')
 os.environ['FLASK_ENV'] = 'testing'
@@ -178,4 +179,3 @@ def assert_error_response(response, expected_status=None):
     assert data is not None
     assert data.get('success') is False or 'error' in data
     return data
-
