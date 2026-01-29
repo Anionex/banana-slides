@@ -856,16 +856,21 @@ def export_editable_pptx_with_recursive_analysis_task(
         from datetime import datetime
         from PIL import Image
         from models import Project
-        from services.export_service import ExportService
-        
+        from services.export_service import ExportService, ExportError
+
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
-        
+
         try:
             # Get project
             project = Project.query.get(project_id)
             if not project:
                 raise ValueError(f'Project {project_id} not found')
-            
+
+            # 读取项目的导出设置：是否允许返回半成品
+            export_allow_partial = project.export_allow_partial or False
+            fail_fast = not export_allow_partial
+            logger.info(f"导出设置: export_allow_partial={export_allow_partial}, fail_fast={fail_fast}")
+
             # Get pages (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             if not pages:
@@ -960,9 +965,9 @@ def export_editable_pptx_with_recursive_analysis_task(
             progress_callback("准备", "文字属性提取器已初始化", 5)
             
             # Step 3: 调用导出方法（使用项目的导出设置）
-            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method})...")
+            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, fail_fast={fail_fast})...")
             progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
-            
+
             _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
                 image_paths=image_paths,
                 output_file=output_path,
@@ -973,7 +978,8 @@ def export_editable_pptx_with_recursive_analysis_task(
                 text_attribute_extractor=text_attribute_extractor,
                 progress_callback=progress_callback,
                 export_extractor_method=export_extractor_method,
-                export_inpaint_method=export_inpaint_method
+                export_inpaint_method=export_inpaint_method,
+                fail_fast=fail_fast
             )
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
@@ -1011,7 +1017,37 @@ def export_editable_pptx_with_recursive_analysis_task(
                 })
                 db.session.commit()
                 logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
-        
+
+        except ExportError as e:
+            # 导出错误（fail_fast 模式下的详细错误）
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"✗ 任务 {task_id} 导出失败: {e.message}")
+            logger.error(f"错误类型: {e.error_type}, 详情: {e.details}")
+
+            # 标记任务失败，包含详细错误信息
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                # 构建详细的错误消息
+                error_message = f"{e.message}"
+                if e.help_text:
+                    error_message += f"\n\n💡 {e.help_text}"
+                task.error_message = error_message
+                task.completed_at = datetime.utcnow()
+                # 在 progress 中保存详细错误信息
+                task.set_progress({
+                    "total": 100,
+                    "completed": 0,
+                    "failed": 1,
+                    "current_step": "导出失败",
+                    "percent": 0,
+                    "error_type": e.error_type,
+                    "error_details": e.details,
+                    "help_text": e.help_text
+                })
+                db.session.commit()
+
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
