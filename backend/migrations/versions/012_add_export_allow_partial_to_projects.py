@@ -19,6 +19,8 @@ depends_on = None
 def upgrade():
     # Add export_allow_partial column to projects table
     op.add_column('projects', sa.Column('export_allow_partial', sa.Boolean(), nullable=True, server_default='0'))
+    # 为现有行设置默认值 false，避免 NULL 状态
+    op.execute("UPDATE projects SET export_allow_partial = false WHERE export_allow_partial IS NULL")
 
 
 def downgrade():
