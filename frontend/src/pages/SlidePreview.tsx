@@ -32,7 +32,7 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
@@ -110,7 +110,14 @@ export const SlidePreview: React.FC = () => {
   const [exportInpaintMethod, setExportInpaintMethod] = useState<ExportInpaintMethod>(
     (currentProject?.export_inpaint_method as ExportInpaintMethod) || 'hybrid'
   );
+  const [exportAllowPartial, setExportAllowPartial] = useState<boolean>(
+    currentProject?.export_allow_partial || false
+  );
   const [isSavingExportSettings, setIsSavingExportSettings] = useState(false);
+  // 1K分辨率警告对话框状态
+  const [show1KWarningDialog, setShow1KWarningDialog] = useState(false);
+  const [skip1KWarningChecked, setSkip1KWarningChecked] = useState(false);
+  const [pending1KAction, setPending1KAction] = useState<(() => Promise<void>) | null>(null);
   // 每页编辑参数缓存（前端会话内缓存，便于重复执行）
   const [editContextByPage, setEditContextByPage] = useState<Record<string, {
     prompt: string;
@@ -170,6 +177,7 @@ export const SlidePreview: React.FC = () => {
         // 初始化导出设置
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
+        setExportAllowPartial(currentProject.export_allow_partial || false);
         lastProjectId.current = currentProject.id || null;
         isEditingRequirements.current = false;
         isEditingTemplateStyle.current = false;
@@ -216,23 +224,142 @@ export const SlidePreview: React.FC = () => {
     loadVersions();
   }, [currentProject, selectedIndex, projectId]);
 
-  const handleGenerateAll = async () => {
-    const pageIds = getSelectedPageIdsForExport();
-    const isPartialGenerate = isMultiSelectMode && selectedPageIds.size > 0;
-    
-    // 检查要生成的页面中是否有已有图片的
-    const pagesToGenerate = isPartialGenerate
-      ? currentProject?.pages.filter(p => p.id && selectedPageIds.has(p.id))
-      : currentProject?.pages;
-    const hasImages = pagesToGenerate?.some((p) => p.generated_image_path);
-    
-    const executeGenerate = async () => {
-      try {
-        await generateImages(pageIds);
-      } catch (error: any) {
-        console.error('批量生成错误:', error);
-        console.error('错误响应:', error?.response?.data);
+  // 检查是否需要显示1K分辨率警告
+  const checkResolutionAndExecute = useCallback(async (action: () => Promise<void>) => {
+    // 检查 localStorage 中是否已跳过警告
+    const skipWarning = localStorage.getItem('skip1KResolutionWarning') === 'true';
+    if (skipWarning) {
+      await action();
+      return;
+    }
 
+    try {
+      const response = await getSettings();
+      const resolution = response.data?.image_resolution;
+
+      // 如果是1K分辨率，显示警告对话框
+      if (resolution === '1K') {
+        setPending1KAction(() => action);
+        setSkip1KWarningChecked(false);
+        setShow1KWarningDialog(true);
+      } else {
+        // 不是1K分辨率，直接执行
+        await action();
+      }
+    } catch (error) {
+      console.error('获取设置失败:', error);
+      // 获取设置失败时，直接执行（不阻塞用户）
+      await action();
+    }
+  }, []);
+
+  // 确认1K分辨率警告后执行
+  const handleConfirm1KWarning = useCallback(async () => {
+    // 如果勾选了"不再提示"，保存到 localStorage
+    if (skip1KWarningChecked) {
+      localStorage.setItem('skip1KResolutionWarning', 'true');
+    }
+
+    setShow1KWarningDialog(false);
+
+    // 执行待处理的操作
+    if (pending1KAction) {
+      await pending1KAction();
+      setPending1KAction(null);
+    }
+  }, [skip1KWarningChecked, pending1KAction]);
+
+  // 取消1K分辨率警告
+  const handleCancel1KWarning = useCallback(() => {
+    setShow1KWarningDialog(false);
+    setPending1KAction(null);
+  }, []);
+
+  const handleGenerateAll = async () => {
+    // 先检查分辨率，如果是1K则显示警告
+    await checkResolutionAndExecute(async () => {
+      const pageIds = getSelectedPageIdsForExport();
+      const isPartialGenerate = isMultiSelectMode && selectedPageIds.size > 0;
+
+      // 检查要生成的页面中是否有已有图片的
+      const pagesToGenerate = isPartialGenerate
+        ? currentProject?.pages.filter(p => p.id && selectedPageIds.has(p.id))
+        : currentProject?.pages;
+      const hasImages = pagesToGenerate?.some((p) => p.generated_image_path);
+
+      const executeGenerate = async () => {
+        try {
+          await generateImages(pageIds);
+        } catch (error: any) {
+          console.error('批量生成错误:', error);
+          console.error('错误响应:', error?.response?.data);
+
+          // 提取后端返回的更具体错误信息
+          let errorMessage = '生成失败';
+          const respData = error?.response?.data;
+
+          if (respData) {
+            if (respData.error?.message) {
+              errorMessage = respData.error.message;
+            } else if (respData.message) {
+              errorMessage = respData.message;
+            } else if (respData.error) {
+              errorMessage =
+                typeof respData.error === 'string'
+                  ? respData.error
+                  : respData.error.message || errorMessage;
+            }
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          console.log('提取的错误消息:', errorMessage);
+
+          // 使用统一的错误消息规范化函数
+          errorMessage = normalizeErrorMessage(errorMessage);
+
+          console.log('规范化后的错误消息:', errorMessage);
+
+          show({
+            message: errorMessage,
+            type: 'error',
+          });
+        }
+      };
+
+      if (hasImages) {
+        const message = isPartialGenerate
+          ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
+          : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
+        confirm(
+          message,
+          executeGenerate,
+          { title: '确认重新生成', variant: 'warning' }
+        );
+      } else {
+        await executeGenerate();
+      }
+    });
+  };
+
+  const handleRegeneratePage = useCallback(async () => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page.id) return;
+
+    // 如果该页面正在生成，不重复提交
+    if (pageGeneratingTasks[page.id]) {
+      show({ message: '该页面正在生成中，请稍候...', type: 'info' });
+      return;
+    }
+
+    // 先检查分辨率，如果是1K则显示警告
+    await checkResolutionAndExecute(async () => {
+      try {
+        // 使用统一的 generateImages，传入单个页面 ID
+        await generateImages([page.id!]);
+        show({ message: '已开始生成图片，请稍候...', type: 'success' });
+      } catch (error: any) {
         // 提取后端返回的更具体错误信息
         let errorMessage = '生成失败';
         const respData = error?.response?.data;
@@ -252,78 +379,16 @@ export const SlidePreview: React.FC = () => {
           errorMessage = error.message;
         }
 
-        console.log('提取的错误消息:', errorMessage);
-
         // 使用统一的错误消息规范化函数
         errorMessage = normalizeErrorMessage(errorMessage);
-
-        console.log('规范化后的错误消息:', errorMessage);
 
         show({
           message: errorMessage,
           type: 'error',
         });
       }
-    };
-    
-    if (hasImages) {
-      const message = isPartialGenerate
-        ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
-        : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
-      confirm(
-        message,
-        executeGenerate,
-        { title: '确认重新生成', variant: 'warning' }
-      );
-    } else {
-      await executeGenerate();
-    }
-  };
-
-  const handleRegeneratePage = useCallback(async () => {
-    if (!currentProject) return;
-    const page = currentProject.pages[selectedIndex];
-    if (!page.id) return;
-    
-    // 如果该页面正在生成，不重复提交
-    if (pageGeneratingTasks[page.id]) {
-      show({ message: '该页面正在生成中，请稍候...', type: 'info' });
-      return;
-    }
-    
-    try {
-      // 使用统一的 generateImages，传入单个页面 ID
-      await generateImages([page.id]);
-      show({ message: '已开始生成图片，请稍候...', type: 'success' });
-    } catch (error: any) {
-      // 提取后端返回的更具体错误信息
-      let errorMessage = '生成失败';
-      const respData = error?.response?.data;
-
-      if (respData) {
-        if (respData.error?.message) {
-          errorMessage = respData.error.message;
-        } else if (respData.message) {
-          errorMessage = respData.message;
-        } else if (respData.error) {
-          errorMessage =
-            typeof respData.error === 'string'
-              ? respData.error
-              : respData.error.message || errorMessage;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      // 使用统一的错误消息规范化函数
-      errorMessage = normalizeErrorMessage(errorMessage);
-
-      show({
-        message: errorMessage,
-        type: 'error',
-      });
-    }
-  }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show]);
+    });
+  }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show, checkResolutionAndExecute]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -842,25 +907,26 @@ export const SlidePreview: React.FC = () => {
 
   const handleSaveExportSettings = useCallback(async () => {
     if (!currentProject || !projectId) return;
-    
+
     setIsSavingExportSettings(true);
     try {
-      await updateProject(projectId, { 
+      await updateProject(projectId, {
         export_extractor_method: exportExtractorMethod,
-        export_inpaint_method: exportInpaintMethod 
+        export_inpaint_method: exportInpaintMethod,
+        export_allow_partial: exportAllowPartial
       });
       // 更新本地项目状态
       await syncProject(projectId);
       show({ message: '导出设置已保存', type: 'success' });
     } catch (error: any) {
-      show({ 
-        message: `保存失败: ${error.message || '未知错误'}`, 
-        type: 'error' 
+      show({
+        message: `保存失败: ${error.message || '未知错误'}`,
+        type: 'error'
       });
     } finally {
       setIsSavingExportSettings(false);
     }
-  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, syncProject, show]);
+  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, syncProject, show]);
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
@@ -1816,14 +1882,57 @@ export const SlidePreview: React.FC = () => {
             // 导出设置
             exportExtractorMethod={exportExtractorMethod}
             exportInpaintMethod={exportInpaintMethod}
+            exportAllowPartial={exportAllowPartial}
             onExportExtractorMethodChange={setExportExtractorMethod}
             onExportInpaintMethodChange={setExportInpaintMethod}
+            onExportAllowPartialChange={setExportAllowPartial}
             onSaveExportSettings={handleSaveExportSettings}
             isSavingExportSettings={isSavingExportSettings}
           />
         </>
       )}
-      
+
+      {/* 1K分辨率警告对话框 */}
+      <Modal
+        isOpen={show1KWarningDialog}
+        onClose={handleCancel1KWarning}
+        title="1K分辨率警告"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="text-2xl">⚠️</div>
+            <div className="flex-1">
+              <p className="text-sm text-amber-800">
+                当前使用 <strong>1K 分辨率</strong> 生成图片，可能导致渲染的文字模糊。
+              </p>
+              <p className="text-sm text-amber-700 mt-2">
+                建议在「项目设置 → 全局设置」中切换到 <strong>2K</strong> 或 <strong>4K</strong> 分辨率以获得更清晰的效果。
+              </p>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skip1KWarningChecked}
+              onChange={(e) => setSkip1KWarningChecked(e.target.checked)}
+              className="w-4 h-4 text-banana-600 rounded focus:ring-banana-500"
+            />
+            <span className="text-sm text-gray-600">不再提示</span>
+          </label>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={handleCancel1KWarning}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={handleConfirm1KWarning}>
+              仍然生成
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };

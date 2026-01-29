@@ -19,8 +19,10 @@ interface ProjectSettingsModalProps {
   // 导出设置
   exportExtractorMethod?: ExportExtractorMethod;
   exportInpaintMethod?: ExportInpaintMethod;
+  exportAllowPartial?: boolean;
   onExportExtractorMethodChange?: (value: ExportExtractorMethod) => void;
   onExportInpaintMethodChange?: (value: ExportInpaintMethod) => void;
+  onExportAllowPartialChange?: (value: boolean) => void;
   onSaveExportSettings?: () => void;
   isSavingExportSettings?: boolean;
 }
@@ -77,8 +79,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   // 导出设置
   exportExtractorMethod = 'hybrid',
   exportInpaintMethod = 'hybrid',
+  exportAllowPartial = false,
   onExportExtractorMethodChange,
   onExportInpaintMethodChange,
+  onExportAllowPartialChange,
   onSaveExportSettings,
   isSavingExportSettings = false,
 }) => {
@@ -303,6 +307,38 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     <p className="text-xs text-amber-900">
                       <strong>成本提示：</strong>标有「使用文生图模型」的选项会调用AI图片生成API（如Gemini），
                       每页会产生额外的API调用费用。如果需要控制成本，可选择「百度修复」方式。
+                    </p>
+                  </div>
+                </div>
+
+                {/* 返回半成品选项 */}
+                <div className="bg-red-50 rounded-lg p-6 space-y-4">
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 mb-2">错误处理策略</h4>
+                    <p className="text-sm text-gray-600">
+                      配置导出过程中遇到错误时的处理方式
+                    </p>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={exportAllowPartial}
+                      onChange={(e) => onExportAllowPartialChange?.(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-red-500 focus:ring-red-500 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">允许返回半成品</div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        开启后，导出过程中遇到错误（如样式提取失败、文本渲染失败等）时会跳过错误继续导出，
+                        最终可能得到不完整的结果。关闭时，任何错误都会立即停止导出并提示具体原因。
+                      </div>
+                    </div>
+                  </label>
+                  <div className="bg-red-100 rounded-md p-3 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-red-700 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-900">
+                      <strong>警告：</strong>开启此选项可能导致导出的 PPTX 文件中部分文字样式丢失、
+                      元素位置错误或内容缺失。建议仅在需要快速获取结果且可以接受质量损失时开启。
                     </p>
                   </div>
                 </div>
