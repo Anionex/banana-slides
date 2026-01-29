@@ -101,10 +101,9 @@ class Config:
     # 可选值: 'volcengine' (火山引擎), 'gemini' (Google Gemini)
     # 注意: 可编辑PPTX导出功能使用 ImageEditabilityService，其中 HybridInpaintProvider 会结合百度重绘和生成式质量增强
     INPAINTING_PROVIDER = os.getenv('INPAINTING_PROVIDER', 'gemini')  # 默认使用 Gemini
-    
+
     # 百度 API 配置（用于 OCR 和图像修复）
     BAIDU_OCR_API_KEY = os.getenv('BAIDU_OCR_API_KEY', '')
-    BAIDU_OCR_API_SECRET = os.getenv('BAIDU_OCR_API_SECRET', '')
 
 
 class DevelopmentConfig(Config):

@@ -545,10 +545,9 @@ def _get_test_image_path() -> Path:
 def _get_baidu_credentials():
     """获取百度 API 凭证"""
     api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
-    api_secret = current_app.config.get("BAIDU_OCR_API_SECRET") or Config.BAIDU_OCR_API_SECRET
     if not api_key:
         raise ValueError("未配置 BAIDU_OCR_API_KEY")
-    return api_key, api_secret
+    return api_key
 
 
 def _create_file_parser():
@@ -568,8 +567,8 @@ def _create_file_parser():
 # 测试函数 - 每个测试一个独立函数
 def _test_baidu_ocr():
     """测试百度 OCR 服务"""
-    api_key, api_secret = _get_baidu_credentials()
-    provider = create_baidu_accurate_ocr_provider(api_key, api_secret)
+    api_key = _get_baidu_credentials()
+    provider = create_baidu_accurate_ocr_provider(api_key)
     if not provider:
         raise ValueError("百度 OCR Provider 初始化失败")
 
@@ -624,8 +623,8 @@ def _test_caption_model():
 
 def _test_baidu_inpaint():
     """测试百度图像修复"""
-    api_key, api_secret = _get_baidu_credentials()
-    provider = create_baidu_inpainting_provider(api_key, api_secret)
+    api_key = _get_baidu_credentials()
+    provider = create_baidu_inpainting_provider(api_key)
     if not provider:
         raise ValueError("百度图像修复 Provider 初始化失败")
 
