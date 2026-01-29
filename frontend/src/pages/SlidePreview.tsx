@@ -1904,7 +1904,7 @@ export const SlidePreview: React.FC = () => {
             <div className="text-2xl">⚠️</div>
             <div className="flex-1">
               <p className="text-sm text-amber-800">
-                当前使用 <strong>1K 分辨率</strong> 生成图片，可能导致渲染的文字模糊。
+                当前使用 <strong>1K 分辨率</strong> 生成图片，可能导致渲染的文字乱码或模糊。
               </p>
               <p className="text-sm text-amber-700 mt-2">
                 建议在「项目设置 → 全局设置」中切换到 <strong>2K</strong> 或 <strong>4K</strong> 分辨率以获得更清晰的效果。
