@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings } from 'lucide-react';
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
 import type { Page } from '@/types';
 import { Button } from './Button';
@@ -263,9 +263,38 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
         )}
         
         {task.status === 'FAILED' && task.errorMessage && (
-          <p className="text-xs text-red-500 mt-1 truncate" title={task.errorMessage}>
-            {task.errorMessage}
-          </p>
+          <div className="mt-2 space-y-2">
+            {/* 错误消息 */}
+            <div className="p-2 bg-red-50 border border-red-200 rounded">
+              <div className="flex items-start gap-2">
+                <XCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-red-700 font-medium">导出失败</p>
+                  <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap break-words">
+                    {task.errorMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 帮助提示 */}
+            {task.progress?.help_text && (
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                <div className="flex items-start gap-2">
+                  <HelpCircle size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    {task.progress.help_text}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 快捷操作提示 */}
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              <Settings size={12} />
+              <span>可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项</span>
+            </div>
+          </div>
         )}
         
         {/* 显示完成后的警告信息（点击查看详情） */}

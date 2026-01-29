@@ -20,6 +20,49 @@ import img2pdf
 logger = logging.getLogger(__name__)
 
 
+class ExportError(Exception):
+    """
+    导出过程中的错误异常
+
+    当 fail_fast=True 时，任何导出错误都会抛出此异常，
+    包含详细的错误信息和帮助提示。
+    """
+    def __init__(self, message: str, error_type: str = 'unknown', details: Dict[str, Any] = None, help_text: str = None):
+        """
+        Args:
+            message: 错误消息
+            error_type: 错误类型 (style_extraction, text_render, image_add, inpaint, config, service)
+            details: 详细错误信息
+            help_text: 帮助提示文本
+        """
+        super().__init__(message)
+        self.message = message
+        self.error_type = error_type
+        self.details = details or {}
+        self.help_text = help_text or self._get_default_help_text(error_type)
+
+    def _get_default_help_text(self, error_type: str) -> str:
+        """根据错误类型返回默认帮助提示"""
+        help_texts = {
+            'style_extraction': '样式提取失败可能是由于百度OCR API配置问题。请检查「项目设置 -> 导出设置」中的配置，或尝试切换到「MinerU提取」方法。',
+            'text_render': '文本渲染失败可能是由于字体或编码问题。请检查页面内容是否包含特殊字符。',
+            'image_add': '图片添加失败可能是由于图片文件损坏或路径错误。请尝试重新生成该页面的图片。',
+            'inpaint': '背景修复失败可能是由于API配置问题。请检查「项目设置 -> 导出设置」中的背景图获取方法配置。',
+            'config': '配置错误。请检查「项目设置 -> 导出设置」中的相关配置。',
+            'service': '服务不可用。请稍后重试或联系管理员。',
+        }
+        return help_texts.get(error_type, '如果问题持续出现，可以在「项目设置 -> 导出设置」中开启「返回半成品」选项以跳过错误继续导出。')
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'message': self.message,
+            'error_type': self.error_type,
+            'details': self.details,
+            'help_text': self.help_text
+        }
+
+
 @dataclass
 class ExportWarnings:
     """
@@ -768,7 +811,8 @@ class ExportService:
     def _batch_extract_text_styles_hybrid(
         editable_images: List,  # List[EditableImage]
         text_attribute_extractor,
-        max_workers: int = 8
+        max_workers: int = 8,
+        fail_fast: bool = False
     ) -> Tuple[Dict[str, Any], List[Tuple[str, str]]]:
         """
         【混合策略】结合全局识别和单个裁剪识别的优势
@@ -864,9 +908,24 @@ class ExportService:
                 if style:
                     return element_id, style, None
                 else:
-                    return element_id, None, "样式提取返回空"
+                    error_msg = "样式提取返回空"
+                    if fail_fast:
+                        raise ExportError(
+                            message=f"文本样式提取失败: {error_msg}",
+                            error_type='style_extraction',
+                            details={'element_id': element_id, 'text_content': text_content[:50]}
+                        )
+                    return element_id, None, error_msg
+            except ExportError:
+                raise  # 重新抛出 ExportError
             except Exception as e:
                 logger.warning(f"单个识别失败 [{element_id}]: {e}")
+                if fail_fast:
+                    raise ExportError(
+                        message=f"文本样式提取失败: {str(e)}",
+                        error_type='style_extraction',
+                        details={'element_id': element_id, 'text_content': text_content[:50]}
+                    )
                 return element_id, None, str(e)
         
         # 并发执行全局识别和单个裁剪识别
@@ -956,7 +1015,8 @@ class ExportService:
         text_attribute_extractor = None,  # 可选：文字属性提取器，用于提取颜色、粗体、斜体等样式
         progress_callback = None,  # 可选：进度回调函数 (step, message, percent) -> None
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
-        export_inpaint_method: str = 'hybrid'  # 背景修复方法: generative, baidu, hybrid
+        export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
+        fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -981,7 +1041,8 @@ class ExportService:
                 可通过 TextAttributeExtractorFactory.create_caption_model_extractor() 创建
             export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid'，默认 'hybrid')
             export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid'，默认 'hybrid')
-        
+            fail_fast: 是否在遇到错误时立即停止（默认 True）。设为 False 则收集警告继续导出。
+
         Returns:
             (pptx_bytes, warnings): 元组，包含 PPTX 字节流和警告信息
             - pptx_bytes: PPTX 文件字节流（如果 output_file 为 None），否则为 None
@@ -1067,7 +1128,8 @@ class ExportService:
                 text_styles_cache, failed_extractions = ExportService._batch_extract_text_styles_hybrid(
                     editable_images=editable_images,
                     text_attribute_extractor=text_attribute_extractor,
-                    max_workers=max_workers * 2
+                    max_workers=max_workers * 2,
+                    fail_fast=fail_fast
                 )
                 
                 # 记录样式提取失败的元素（详细）
@@ -1143,7 +1205,8 @@ class ExportService:
                 scale_y=scale_y,
                 depth=0,
                 text_styles_cache=text_styles_cache,  # 使用预提取的样式缓存
-                warnings=warnings  # 收集警告
+                warnings=warnings,  # 收集警告
+                fail_fast=fail_fast  # 传递 fail_fast 参数
             )
             
             logger.info(f"    ✓ 第 {page_idx + 1} 页完成，添加了 {len(editable_img.elements)} 个元素")
@@ -1180,7 +1243,8 @@ class ExportService:
         scale_y: float = 1.0,
         depth: int = 0,
         text_styles_cache: Dict[str, Any] = None,  # 预提取的文本样式缓存，key为element_id
-        warnings: 'ExportWarnings' = None  # 警告收集器
+        warnings: 'ExportWarnings' = None,  # 警告收集器
+        fail_fast: bool = False  # 是否在遇到错误时立即停止
     ):
         """
         递归地将EditableElement添加到幻灯片
@@ -1245,6 +1309,12 @@ class ExportService:
                             )
                         except Exception as e:
                             logger.warning(f"添加文本元素失败: {e}")
+                            if fail_fast:
+                                raise ExportError(
+                                    message=f"添加文本元素失败: {str(e)}",
+                                    error_type='text_render',
+                                    details={'text': text[:50], 'bbox': bbox_list}
+                                )
                             if warnings:
                                 warnings.add_text_render_failed(text, str(e))
             
@@ -1267,9 +1337,15 @@ class ExportService:
                                 align='center',
                                 text_style=text_style
                             )
-                            
+
                         except Exception as e:
                             logger.warning(f"添加单元格失败: {e}")
+                            if fail_fast:
+                                raise ExportError(
+                                    message=f"添加表格单元格失败: {str(e)}",
+                                    error_type='text_render',
+                                    details={'text': text[:50], 'bbox': bbox_list}
+                                )
                             if warnings:
                                 warnings.add_text_render_failed(text, str(e))
             
@@ -1298,7 +1374,8 @@ class ExportService:
                         scale_y=scale_y,
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
-                        warnings=warnings
+                        warnings=warnings,
+                        fail_fast=fail_fast
                     )
                 else:
                     # 没有子元素，添加整体表格图片
@@ -1362,7 +1439,8 @@ class ExportService:
                         scale_y=scale_y,
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
-                        warnings=warnings
+                        warnings=warnings,
+                        fail_fast=fail_fast
                     )
                 else:
                     # 没有子元素或子元素占比过大，直接添加原图
