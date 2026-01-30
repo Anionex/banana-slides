@@ -134,7 +134,8 @@ class FileParserService:
         if self._provider_format == 'openai':
             return bool(self._openai_api_key)
         elif self._provider_format == 'lazyllm':
-            return True
+            source = (self._lazyllm_image_caption_source or "qwen").upper()
+            return bool(os.getenv(f"BANANA_{source}_API_KEY"))
         else:
             return bool(self._google_api_key)
     
