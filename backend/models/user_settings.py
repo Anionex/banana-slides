@@ -1,0 +1,125 @@
+"""UserSettings model - per-user application settings"""
+from datetime import datetime, timezone
+from . import db
+
+
+class UserSettings(db.Model):
+    """
+    UserSettings model - stores per-user application settings
+    Each user has their own settings including API keys and preferences.
+    """
+    __tablename__ = 'user_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), unique=True, nullable=False, index=True)
+    
+    # AI Provider settings
+    ai_provider_format = db.Column(db.String(20), nullable=False, default='gemini')  # AI提供商格式: openai, gemini
+    api_base_url = db.Column(db.String(500), nullable=True)  # API基础URL
+    api_key = db.Column(db.String(500), nullable=True)  # API密钥 (加密存储)
+    
+    # Image generation settings
+    image_resolution = db.Column(db.String(20), nullable=False, default='2K')  # 图像清晰度: 1K, 2K, 4K
+    image_aspect_ratio = db.Column(db.String(10), nullable=False, default='16:9')  # 图像比例: 16:9, 4:3, 1:1
+    
+    # Concurrency settings
+    max_description_workers = db.Column(db.Integer, nullable=False, default=5)  # 描述生成最大工作线程数
+    max_image_workers = db.Column(db.Integer, nullable=False, default=8)  # 图像生成最大工作线程数
+
+    # Model settings
+    text_model = db.Column(db.String(100), nullable=True)  # 文本大模型名称
+    image_model = db.Column(db.String(100), nullable=True)  # 图片大模型名称
+    image_caption_model = db.Column(db.String(100), nullable=True)  # 图片识别模型
+    
+    # MinerU settings
+    mineru_api_base = db.Column(db.String(255), nullable=True)  # MinerU 服务地址
+    mineru_token = db.Column(db.String(500), nullable=True)  # MinerU API Token
+    
+    # Language settings
+    output_language = db.Column(db.String(10), nullable=False, default='zh')  # 输出语言偏好（zh, en, ja, auto）
+    
+    # Reasoning mode settings
+    enable_text_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 文本生成是否开启推理
+    text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
+    enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
+    image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
+    
+    # Third-party API keys
+    baidu_ocr_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), 
+                          onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = db.relationship('User', back_populates='settings')
+
+    def to_dict(self):
+        """Convert to dictionary (hide sensitive values)"""
+        return {
+            'id': self.id,
+            'ai_provider_format': self.ai_provider_format,
+            'api_base_url': self.api_base_url,
+            'api_key_length': len(self.api_key) if self.api_key else 0,
+            'image_resolution': self.image_resolution,
+            'image_aspect_ratio': self.image_aspect_ratio,
+            'max_description_workers': self.max_description_workers,
+            'max_image_workers': self.max_image_workers,
+            'text_model': self.text_model,
+            'image_model': self.image_model,
+            'mineru_api_base': self.mineru_api_base,
+            'mineru_token_length': len(self.mineru_token) if self.mineru_token else 0,
+            'image_caption_model': self.image_caption_model,
+            'output_language': self.output_language,
+            'enable_text_reasoning': self.enable_text_reasoning,
+            'text_thinking_budget': self.text_thinking_budget,
+            'enable_image_reasoning': self.enable_image_reasoning,
+            'image_thinking_budget': self.image_thinking_budget,
+            'baidu_ocr_api_key_length': len(self.baidu_ocr_api_key) if self.baidu_ocr_api_key else 0,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    @staticmethod
+    def get_or_create_for_user(user_id: str) -> 'UserSettings':
+        """
+        Get or create settings for a user.
+        
+        If settings don't exist, create with defaults from Config (env vars).
+        """
+        settings = UserSettings.query.filter_by(user_id=user_id).first()
+        if not settings:
+            from config import Config
+
+            # Determine default API configuration based on provider format
+            if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
+                default_api_base = Config.OPENAI_API_BASE or None
+                default_api_key = Config.OPENAI_API_KEY or None
+            else:
+                default_api_base = Config.GOOGLE_API_BASE or None
+                default_api_key = Config.GOOGLE_API_KEY or None
+
+            settings = UserSettings(
+                user_id=user_id,
+                ai_provider_format=Config.AI_PROVIDER_FORMAT,
+                api_base_url=default_api_base,
+                api_key=default_api_key,
+                image_resolution=Config.DEFAULT_RESOLUTION,
+                image_aspect_ratio=Config.DEFAULT_ASPECT_RATIO,
+                max_description_workers=Config.MAX_DESCRIPTION_WORKERS,
+                max_image_workers=Config.MAX_IMAGE_WORKERS,
+                text_model=Config.TEXT_MODEL,
+                image_model=Config.IMAGE_MODEL,
+                mineru_api_base=Config.MINERU_API_BASE,
+                mineru_token=Config.MINERU_TOKEN,
+                image_caption_model=Config.IMAGE_CAPTION_MODEL,
+                output_language='zh',
+                baidu_ocr_api_key=Config.BAIDU_OCR_API_KEY or None,
+            )
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+
+    def __repr__(self):
+        return f'<UserSettings id={self.id} user_id={self.user_id}>'

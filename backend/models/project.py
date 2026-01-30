@@ -13,6 +13,7 @@ class Project(db.Model):
     __tablename__ = 'projects'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
     idea_prompt = db.Column(db.Text, nullable=True)
     outline_text = db.Column(db.Text, nullable=True)  # 用户输入的大纲文本（用于outline类型）
     description_text = db.Column(db.Text, nullable=True)  # 用户输入的描述文本（用于description类型）
@@ -29,6 +30,7 @@ class Project(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
+    user = db.relationship('User', back_populates='projects')
     # 使用 'select' 策略支持 eager loading，同时保持灵活性
     pages = db.relationship('Page', back_populates='project', lazy='select', 
                            cascade='all, delete-orphan', order_by='Page.order_index')
@@ -36,6 +38,11 @@ class Project(db.Model):
                            cascade='all, delete-orphan')
     materials = db.relationship('Material', back_populates='project', lazy='select',
                            cascade='all, delete-orphan')
+    
+    # Composite index for user queries
+    __table_args__ = (
+        db.Index('ix_projects_user_updated', 'user_id', 'updated_at'),
+    )
     
     def to_dict(self, include_pages=False):
         """Convert to dictionary"""

@@ -21,6 +21,8 @@ dependencies = [
     "alembic>=1.13.0",
     "flask-migrate>=4.0.0",
     "img2pdf>=0.5.1",
+    "pyjwt>=2.8.0",
+    "stripe>=7.0.0",
 ]
 
 [project.optional-dependencies]

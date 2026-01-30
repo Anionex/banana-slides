@@ -24,6 +24,7 @@ from config import Config
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
+from controllers.auth_controller import auth_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp
 
 
@@ -99,6 +100,7 @@ def create_app():
     Migrate(app, db)
     
     # Register blueprints
+    app.register_blueprint(auth_bp)  # Auth endpoints
     app.register_blueprint(project_bp)
     app.register_blueprint(page_bp)
     app.register_blueprint(template_bp)
