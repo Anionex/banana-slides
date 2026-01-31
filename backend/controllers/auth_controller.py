@@ -1,16 +1,23 @@
 """
 Authentication Controller - handles auth-related API endpoints
 """
+import os
 import logging
 from flask import Blueprint, request
 
 from services.auth_service import AuthService
+from services.email_service import email_service
 from middlewares.auth import auth_required, get_current_user
 from utils.response import success_response, error_response, bad_request
 
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+
+def _get_frontend_url() -> str:
+    """Get the frontend base URL for email links."""
+    return os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -62,8 +69,16 @@ def register():
         # Generate tokens
         tokens = AuthService.generate_tokens(user)
         
-        # TODO: Send verification email
-        # EmailService.send_verification_email(user.email, user.verification_token)
+        # Send verification email
+        verification_url = f"{_get_frontend_url()}/verify-email?token={user.verification_token}"
+        email_sent = email_service.send_verification_email(
+            to=user.email,
+            username=user.username or user.email.split('@')[0],
+            verification_url=verification_url
+        )
+        
+        if not email_sent:
+            logger.warning(f"Failed to send verification email to {user.email}")
         
         logger.info(f"User registered successfully: {user.id}")
         
@@ -276,8 +291,16 @@ def resend_verification():
         if error:
             return error_response('RESEND_FAILED', error, 400)
         
-        # TODO: Send verification email
-        # EmailService.send_verification_email(user.email, user.verification_token)
+        # Send verification email
+        verification_url = f"{_get_frontend_url()}/verify-email?token={user.verification_token}"
+        email_sent = email_service.send_verification_email(
+            to=user.email,
+            username=user.username or user.email.split('@')[0],
+            verification_url=verification_url
+        )
+        
+        if not email_sent:
+            logger.warning(f"Failed to send verification email to {user.email}")
         
         return success_response({'message': '验证邮件已发送'})
     
@@ -317,9 +340,16 @@ def forgot_password():
         user, error = AuthService.request_password_reset(email)
         
         if user:
-            # TODO: Send password reset email
-            # EmailService.send_password_reset_email(user.email, user.password_reset_token)
-            pass
+            # Send password reset email
+            reset_url = f"{_get_frontend_url()}/reset-password?token={user.password_reset_token}"
+            email_sent = email_service.send_password_reset_email(
+                to=user.email,
+                username=user.username or user.email.split('@')[0],
+                reset_url=reset_url
+            )
+            
+            if not email_sent:
+                logger.warning(f"Failed to send password reset email to {user.email}")
         
         # Always return success to prevent email enumeration
         return success_response({'message': '如果该邮箱已注册，您将收到重置密码的邮件'})

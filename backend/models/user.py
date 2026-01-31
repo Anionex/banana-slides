@@ -24,7 +24,11 @@ class User(db.Model):
     stripe_customer_id = db.Column(db.String(100), nullable=True, index=True)
     stripe_subscription_id = db.Column(db.String(100), nullable=True)
     
-    # Quota usage (current values)
+    # Credits system (积分制)
+    credits_balance = db.Column(db.Integer, default=0)  # 当前积分余额
+    credits_used_total = db.Column(db.Integer, default=0)  # 累计使用积分
+    
+    # Legacy quota fields (kept for backward compatibility)
     projects_count = db.Column(db.Integer, default=0)
     storage_used_mb = db.Column(db.Float, default=0.0)
     ai_calls_this_month = db.Column(db.Integer, default=0)
@@ -66,10 +70,10 @@ class User(db.Model):
             'avatar_url': self.avatar_url,
             'subscription_plan': self.subscription_plan,
             'subscription_expires_at': self.subscription_expires_at.isoformat() if self.subscription_expires_at else None,
+            'credits_balance': self.credits_balance,
+            'credits_used_total': self.credits_used_total,
             'projects_count': self.projects_count,
             'storage_used_mb': self.storage_used_mb,
-            'ai_calls_this_month': self.ai_calls_this_month,
-            'ai_calls_reset_at': self.ai_calls_reset_at.isoformat() if self.ai_calls_reset_at else None,
             'is_active': self.is_active,
             'email_verified': self.email_verified,
             'created_at': self.created_at.isoformat() if self.created_at else None,
