@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Task } from '@/types';
+import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 
