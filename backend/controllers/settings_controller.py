@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from flask import Blueprint, request, current_app
 from PIL import Image
-from models import db, Settings, Task
+from models import db, Settings, UserSettings, Task
 from utils import success_response, error_response, bad_request
 from config import Config, PROJECT_ROOT
 from services.ai_service import AIService
@@ -16,6 +16,7 @@ from services.file_parser_service import FileParserService
 from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_accurate_ocr_provider
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.task_manager import task_manager
+from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +117,14 @@ def temporary_settings_override(settings_override: dict):
 
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
+@auth_required
 def get_settings():
     """
-    GET /api/settings - Get application settings
+    GET /api/settings - Get user-specific application settings
     """
     try:
-        settings = Settings.get_settings()
+        user = get_current_user()
+        settings = UserSettings.get_or_create_for_user(user.id)
         return success_response(settings.to_dict())
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
@@ -133,9 +136,10 @@ def get_settings():
 
 
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
+@auth_required
 def update_settings():
     """
-    PUT /api/settings - Update application settings
+    PUT /api/settings - Update user-specific application settings
 
     Request Body:
         {
@@ -146,11 +150,12 @@ def update_settings():
         }
     """
     try:
+        user = get_current_user()
         data = request.get_json()
         if not data:
             return bad_request("Request body is required")
 
-        settings = Settings.get_settings()
+        settings = UserSettings.get_or_create_for_user(user.id)
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -268,12 +273,14 @@ def update_settings():
 
 
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
+@auth_required
 def reset_settings():
     """
-    POST /api/settings/reset - Reset settings to default values
+    POST /api/settings/reset - Reset user settings to default values
     """
     try:
-        settings = Settings.get_settings()
+        user = get_current_user()
+        settings = UserSettings.get_or_create_for_user(user.id)
 
         # Reset to default values from Config / .env
         # Priority logic:
@@ -330,6 +337,7 @@ def reset_settings():
 
 
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
+@auth_required
 def verify_api_key():
     """
     POST /api/settings/verify - 验证API key是否可用
@@ -344,8 +352,9 @@ def verify_api_key():
         }
     """
     try:
-        # 获取当前设置
-        settings = Settings.get_settings()
+        user = get_current_user()
+        # 获取当前用户设置
+        settings = UserSettings.get_or_create_for_user(user.id)
         if not settings:
             return success_response({
                 "available": False,
@@ -418,7 +427,7 @@ def verify_api_key():
         )
 
 
-def _sync_settings_to_config(settings: Settings):
+def _sync_settings_to_config(settings):
     """Sync settings to Flask app config and clear AI service cache if needed"""
     # Track if AI-related settings changed
     ai_config_changed = False
@@ -780,6 +789,7 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
 
 
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
+@auth_required
 def run_settings_test(test_name: str):
     """
     POST /api/settings/tests/<test_name> - 启动异步服务测试
@@ -802,6 +812,7 @@ def run_settings_test(test_name: str):
         }
     """
     try:
+        user = get_current_user()
         # 获取请求体中的测试设置覆盖（如果有）
         test_settings = request.get_json() or {}
 
@@ -842,6 +853,7 @@ def run_settings_test(test_name: str):
 
 
 @settings_bp.route("/tests/<task_id>/status", methods=["GET"], strict_slashes=False)
+@auth_required
 def get_test_status(task_id: str):
     """
     GET /api/settings/tests/<task_id>/status - 查询测试任务状态

@@ -6,6 +6,7 @@ from flask import Blueprint, request, current_app
 from models import db, Project, UserTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
+from middlewares.auth import auth_required, get_current_user
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,16 @@ template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
 
 
+def _get_user_project(project_id: str, user_id: str):
+    """Get a project that belongs to the specified user."""
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id
+    ).first()
+
+
 @template_bp.route('/<project_id>/template', methods=['POST'])
+@auth_required
 def upload_template(project_id):
     """
     POST /api/projects/{project_id}/template - Upload template image
@@ -23,7 +33,8 @@ def upload_template(project_id):
     Form: template_image=@file.png
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -61,12 +72,14 @@ def upload_template(project_id):
 
 
 @template_bp.route('/<project_id>/template', methods=['DELETE'])
+@auth_required
 def delete_template(project_id):
     """
     DELETE /api/projects/{project_id}/template - Delete template
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -92,6 +105,7 @@ def delete_template(project_id):
 
 
 @template_bp.route('/templates', methods=['GET'])
+@auth_required
 def get_system_templates():
     """
     GET /api/templates - Get system preset templates
@@ -109,6 +123,7 @@ def get_system_templates():
 # ========== User Template Endpoints ==========
 
 @user_template_bp.route('', methods=['POST'])
+@auth_required
 def upload_user_template():
     """
     POST /api/user-templates - Upload user template image
@@ -118,6 +133,8 @@ def upload_user_template():
     Optional: name=Template Name
     """
     try:
+        user = get_current_user()
+        
         # Check if file is in request
         if 'template_image' not in request.files:
             return bad_request("No file uploaded")
@@ -150,9 +167,10 @@ def upload_user_template():
         # Generate thumbnail for faster loading
         thumb_path = file_service.save_user_template_thumbnail(template_id, file_path)
 
-        # Create template record with file_path already set
+        # Create template record with file_path already set and user association
         template = UserTemplate(
             id=template_id,
+            user_id=user.id,
             name=name,
             file_path=file_path,
             thumb_path=thumb_path,
@@ -176,12 +194,18 @@ def upload_user_template():
 
 
 @user_template_bp.route('', methods=['GET'])
+@auth_required
 def list_user_templates():
     """
     GET /api/user-templates - Get list of user templates
     """
     try:
-        templates = UserTemplate.query.order_by(UserTemplate.created_at.desc()).all()
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        templates = UserTemplate.query.filter(
+            UserTemplate.user_id == user.id
+        ).order_by(UserTemplate.created_at.desc()).all()
         
         return success_response({
             'templates': [template.to_dict() for template in templates]
@@ -192,12 +216,19 @@ def list_user_templates():
 
 
 @user_template_bp.route('/<template_id>', methods=['DELETE'])
+@auth_required
 def delete_user_template(template_id):
     """
     DELETE /api/user-templates/{template_id} - Delete user template
     """
     try:
-        template = UserTemplate.query.get(template_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        template = UserTemplate.query.filter(
+            UserTemplate.id == template_id,
+            UserTemplate.user_id == user.id
+        ).first()
         
         if not template:
             return not_found('UserTemplate')

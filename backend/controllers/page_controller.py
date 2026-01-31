@@ -267,6 +267,7 @@ def update_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/description', methods=['POST'])
+@auth_required
 def generate_page_description(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/description - Generate single page description
@@ -277,14 +278,16 @@ def generate_page_description(project_id, page_id):
     }
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
             return not_found('Page')
-        
-        project = Project.query.get(project_id)
-        if not project:
-            return not_found('Project')
         
         data = request.get_json() or {}
         force_regenerate = data.get('force_regenerate', False)
@@ -351,6 +354,7 @@ def generate_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
+@auth_required
 def generate_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/image - Generate single page image
@@ -362,14 +366,16 @@ def generate_page_image(project_id, page_id):
     }
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
             return not_found('Page')
-        
-        project = Project.query.get(project_id)
-        if not project:
-            return not_found('Project')
         
         data = request.get_json() or {}
         use_template = data.get('use_template', True)
@@ -528,6 +534,7 @@ def generate_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/edit/image', methods=['POST'])
+@auth_required
 def edit_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/edit/image - Edit page image
@@ -549,6 +556,12 @@ def edit_page_image(project_id, page_id):
     - context_images: file uploads (multiple files with key "context_images")
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
@@ -556,10 +569,6 @@ def edit_page_image(project_id, page_id):
         
         if not page.generated_image_path:
             return bad_request("Page must have generated image first")
-        
-        project = Project.query.get(project_id)
-        if not project:
-            return not_found('Project')
         
         # Initialize services
         ai_service = get_ai_service()
@@ -702,11 +711,18 @@ def edit_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/image-versions', methods=['GET'])
+@auth_required
 def get_page_image_versions(project_id, page_id):
     """
     GET /api/projects/{project_id}/pages/{page_id}/image-versions - Get all image versions for a page
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
@@ -724,12 +740,19 @@ def get_page_image_versions(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/image-versions/<version_id>/set-current', methods=['POST'])
+@auth_required
 def set_current_image_version(project_id, page_id, version_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/image-versions/{version_id}/set-current
     Set a specific version as the current one
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:

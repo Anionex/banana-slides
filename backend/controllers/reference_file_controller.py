@@ -16,10 +16,19 @@ import threading
 from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
+from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
 
 reference_file_bp = Blueprint('reference_file', __name__)
+
+
+def _get_user_project(project_id: str, user_id: str):
+    """Get a project that belongs to the specified user."""
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id
+    ).first()
 
 
 def _allowed_file(filename: str, allowed_extensions: set) -> bool:
@@ -103,6 +112,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
 
 
 @reference_file_bp.route('/upload', methods=['POST'])
+@auth_required
 def upload_reference_file():
     """
     POST /api/reference-files/upload - Upload a reference file
@@ -115,6 +125,8 @@ def upload_reference_file():
         Reference file information with status
     """
     try:
+        user = get_current_user()
+        
         # Check if file is in request
         if 'file' not in request.files:
             return bad_request("No file provided")
@@ -152,8 +164,8 @@ def upload_reference_file():
         if project_id == 'none' or not project_id:
             project_id = None
         else:
-            # Verify project exists
-            project = Project.query.get(project_id)
+            # Verify project exists and belongs to user
+            project = _get_user_project(project_id, user.id)
             if not project:
                 return not_found('Project')
         
@@ -185,8 +197,9 @@ def upload_reference_file():
         file.save(str(file_path))
         file_size = os.path.getsize(file_path)
         
-        # Create database record
+        # Create database record with user association
         reference_file = ReferenceFile(
+            user_id=user.id,
             project_id=project_id,
             filename=original_filename,
             file_path=str(file_path.relative_to(upload_folder)),
@@ -211,6 +224,7 @@ def upload_reference_file():
 
 
 @reference_file_bp.route('/<file_id>', methods=['GET'])
+@auth_required
 def get_reference_file(file_id):
     """
     GET /api/reference-files/<file_id> - Get reference file information
@@ -219,7 +233,14 @@ def get_reference_file(file_id):
         Reference file information including parse status
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        reference_file = ReferenceFile.query.filter(
+            ReferenceFile.id == file_id,
+            ReferenceFile.user_id == user.id
+        ).first()
+        
         if not reference_file:
             return not_found('Reference file')
         
@@ -232,6 +253,7 @@ def get_reference_file(file_id):
 
 
 @reference_file_bp.route('/<file_id>', methods=['DELETE'])
+@auth_required
 def delete_reference_file(file_id):
     """
     DELETE /api/reference-files/<file_id> - Delete a reference file
@@ -240,7 +262,14 @@ def delete_reference_file(file_id):
         Success message
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        reference_file = ReferenceFile.query.filter(
+            ReferenceFile.id == file_id,
+            ReferenceFile.user_id == user.id
+        ).first()
+        
         if not reference_file:
             return not_found('Reference file')
         
@@ -268,12 +297,13 @@ def delete_reference_file(file_id):
 
 
 @reference_file_bp.route('/project/<project_id>', methods=['GET'])
+@auth_required
 def list_project_reference_files(project_id):
     """
     GET /api/reference-files/project/<project_id> - List all reference files for a project
     
     Special values:
-    - 'all': List all reference files (global + all projects)
+    - 'all': List all reference files for current user (global + all projects)
     - 'global' or 'none': List only global files (not associated with any project)
     - project_id: List files for specific project
     
@@ -281,19 +311,24 @@ def list_project_reference_files(project_id):
         List of reference files
     """
     try:
-        # Special case: 'all' means list all files
+        user = get_current_user()
+        
+        # Always filter by user_id for data isolation
+        base_query = ReferenceFile.query.filter(ReferenceFile.user_id == user.id)
+        
+        # Special case: 'all' means list all user's files
         if project_id == 'all':
-            reference_files = ReferenceFile.query.all()
+            reference_files = base_query.all()
         # Special case: 'global' or 'none' means list global files (not associated with any project)
         elif project_id in ['global', 'none']:
-            reference_files = ReferenceFile.query.filter_by(project_id=None).all()
+            reference_files = base_query.filter(ReferenceFile.project_id.is_(None)).all()
         else:
-            # Verify project exists
-            project = Project.query.get(project_id)
+            # Verify project exists and belongs to user
+            project = _get_user_project(project_id, user.id)
             if not project:
                 return not_found('Project')
             
-            reference_files = ReferenceFile.query.filter_by(project_id=project_id).all()
+            reference_files = base_query.filter(ReferenceFile.project_id == project_id).all()
         
         # 列表查询时不包含 markdown_content 和失败计数，加快响应速度
         return success_response({
@@ -306,6 +341,7 @@ def list_project_reference_files(project_id):
 
 
 @reference_file_bp.route('/<file_id>/parse', methods=['POST'])
+@auth_required
 def trigger_file_parse(file_id):
     """
     POST /api/reference-files/<file_id>/parse - Trigger parsing for a reference file
@@ -314,7 +350,14 @@ def trigger_file_parse(file_id):
         Updated reference file information
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        reference_file = ReferenceFile.query.filter(
+            ReferenceFile.id == file_id,
+            ReferenceFile.user_id == user.id
+        ).first()
+        
         if not reference_file:
             return not_found('Reference file')
         
@@ -362,6 +405,7 @@ def trigger_file_parse(file_id):
 
 
 @reference_file_bp.route('/<file_id>/associate', methods=['POST'])
+@auth_required
 def associate_file_to_project(file_id):
     """
     POST /api/reference-files/<file_id>/associate - Associate a reference file to a project
@@ -375,7 +419,14 @@ def associate_file_to_project(file_id):
         Updated reference file information
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        reference_file = ReferenceFile.query.filter(
+            ReferenceFile.id == file_id,
+            ReferenceFile.user_id == user.id
+        ).first()
+        
         if not reference_file:
             return not_found('Reference file')
         
@@ -385,8 +436,8 @@ def associate_file_to_project(file_id):
         if not project_id:
             return bad_request("project_id is required")
         
-        # Verify project exists
-        project = Project.query.get(project_id)
+        # Verify project exists and belongs to user
+        project = _get_user_project(project_id, user.id)
         if not project:
             return not_found('Project')
         
@@ -405,6 +456,7 @@ def associate_file_to_project(file_id):
 
 
 @reference_file_bp.route('/<file_id>/dissociate', methods=['POST'])
+@auth_required
 def dissociate_file_from_project(file_id):
     """
     POST /api/reference-files/<file_id>/dissociate - Remove a reference file from its project
@@ -416,7 +468,14 @@ def dissociate_file_from_project(file_id):
         Updated reference file information
     """
     try:
-        reference_file = ReferenceFile.query.get(file_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        reference_file = ReferenceFile.query.filter(
+            ReferenceFile.id == file_id,
+            ReferenceFile.user_id == user.id
+        ).first()
+        
         if not reference_file:
             return not_found('Reference file')
         

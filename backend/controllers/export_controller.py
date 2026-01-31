@@ -13,13 +13,23 @@ from utils import (
 )
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
+from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
 
 export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
 
 
+def _get_user_project(project_id: str, user_id: str):
+    """Get a project that belongs to the specified user."""
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id
+    ).first()
+
+
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
+@auth_required
 def export_pptx(project_id):
     """
     GET /api/projects/{project_id}/export/pptx?filename=...&page_ids=id1,id2,id3 - Export PPTX
@@ -39,7 +49,8 @@ def export_pptx(project_id):
         }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -98,6 +109,7 @@ def export_pptx(project_id):
 
 
 @export_bp.route('/<project_id>/export/pdf', methods=['GET'])
+@auth_required
 def export_pdf(project_id):
     """
     GET /api/projects/{project_id}/export/pdf?filename=...&page_ids=id1,id2,id3 - Export PDF
@@ -117,7 +129,8 @@ def export_pdf(project_id):
         }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -172,6 +185,7 @@ def export_pdf(project_id):
 
 
 @export_bp.route('/<project_id>/export/editable-pptx', methods=['POST'])
+@auth_required
 def export_editable_pptx(project_id):
     """
     POST /api/projects/{project_id}/export/editable-pptx - 导出可编辑PPTX（异步）
@@ -209,7 +223,8 @@ def export_editable_pptx(project_id):
     轮询 /api/projects/{project_id}/tasks/{task_id} 获取进度和下载链接
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')

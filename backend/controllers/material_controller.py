@@ -7,6 +7,7 @@ from utils import success_response, error_response, not_found, bad_request
 from services import FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
+from middlewares.auth import auth_required, get_current_user
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from typing import Optional
@@ -23,28 +24,37 @@ material_global_bp = Blueprint('materials_global', __name__, url_prefix='/api/ma
 ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
 
 
-def _build_material_query(filter_project_id: str):
-    """Build common material query with project validation."""
-    query = Material.query
+def _get_user_project(project_id: str, user_id: str):
+    """Get a project that belongs to the specified user."""
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id
+    ).first()
+
+
+def _build_material_query(filter_project_id: str, user_id: str):
+    """Build common material query with project validation and user filtering."""
+    # Always filter by user_id for data isolation
+    query = Material.query.filter(Material.user_id == user_id)
 
     if filter_project_id == 'all':
         return query, None
     if filter_project_id == 'none':
         return query.filter(Material.project_id.is_(None)), None
 
-    project = Project.query.get(filter_project_id)
+    project = _get_user_project(filter_project_id, user_id)
     if not project:
         return None, not_found('Project')
 
     return query.filter(Material.project_id == filter_project_id), None
 
 
-def _get_materials_list(filter_project_id: str):
+def _get_materials_list(filter_project_id: str, user_id: str):
     """
     Common logic to get materials list.
     Returns (materials_list, error_response)
     """
-    query, error = _build_material_query(filter_project_id)
+    query, error = _build_material_query(filter_project_id, user_id)
     if error:
         return None, error
     
@@ -54,19 +64,19 @@ def _get_materials_list(filter_project_id: str):
     return materials_list, None
 
 
-def _handle_material_upload(default_project_id: Optional[str] = None):
+def _handle_material_upload(user_id: str, default_project_id: Optional[str] = None):
     """
     Common logic to handle material upload.
     Returns Flask response object.
     """
     try:
         raw_project_id = request.args.get('project_id', default_project_id)
-        target_project_id, error = _resolve_target_project_id(raw_project_id)
+        target_project_id, error = _resolve_target_project_id(raw_project_id, user_id)
         if error:
             return error
 
         file = request.files.get('file')
-        material, error = _save_material_file(file, target_project_id)
+        material, error = _save_material_file(file, target_project_id, user_id)
         if error:
             return error
 
@@ -77,9 +87,9 @@ def _handle_material_upload(default_project_id: Optional[str] = None):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
-def _resolve_target_project_id(raw_project_id: Optional[str], allow_none: bool = True):
+def _resolve_target_project_id(raw_project_id: Optional[str], user_id: str, allow_none: bool = True):
     """
-    Normalize project_id from request.
+    Normalize project_id from request with user validation.
     Returns (project_id | None, error_response | None)
     """
     if allow_none and (raw_project_id is None or raw_project_id == 'none'):
@@ -89,14 +99,14 @@ def _resolve_target_project_id(raw_project_id: Optional[str], allow_none: bool =
         return None, bad_request("project_id cannot be 'all' when uploading materials")
 
     if raw_project_id:
-        project = Project.query.get(raw_project_id)
+        project = _get_user_project(raw_project_id, user_id)
         if not project:
             return None, not_found('Project')
 
     return raw_project_id, None
 
 
-def _save_material_file(file, target_project_id: Optional[str]):
+def _save_material_file(file, target_project_id: Optional[str], user_id: str):
     """Shared logic for saving uploaded material files to disk and DB."""
     if not file or not file.filename:
         return None, bad_request("file is required")
@@ -127,6 +137,7 @@ def _save_material_file(file, target_project_id: Optional[str]):
         image_url = f"/files/materials/{unique_filename}"
 
     material = Material(
+        user_id=user_id,
         project_id=target_project_id,
         filename=unique_filename,
         relative_path=relative_path,
@@ -143,6 +154,7 @@ def _save_material_file(file, target_project_id: Optional[str]):
 
 
 @material_bp.route('/<project_id>/materials/generate', methods=['POST'])
+@auth_required
 def generate_material_image(project_id):
     """
     POST /api/projects/{project_id}/materials/generate - Generate a standalone material image
@@ -155,9 +167,11 @@ def generate_material_image(project_id):
     Note: project_id can be 'none' to generate global materials (not associated with any project)
     """
     try:
+        user = get_current_user()
+        
         # 支持 'none' 作为特殊值，表示生成全局素材
         if project_id != 'none':
-            project = Project.query.get(project_id)
+            project = _get_user_project(project_id, user.id)
             if not project:
                 return not_found('Project')
         else:
@@ -269,6 +283,7 @@ def generate_material_image(project_id):
 
 
 @material_bp.route('/<project_id>/materials', methods=['GET'])
+@auth_required
 def list_materials(project_id):
     """
     GET /api/projects/{project_id}/materials - List materials for a specific project
@@ -277,7 +292,8 @@ def list_materials(project_id):
         List of material images with filename, url, and metadata for the specified project
     """
     try:
-        materials_list, error = _get_materials_list(project_id)
+        user = get_current_user()
+        materials_list, error = _get_materials_list(project_id, user.id)
         if error:
             return error
         
@@ -291,6 +307,7 @@ def list_materials(project_id):
 
 
 @material_bp.route('/<project_id>/materials/upload', methods=['POST'])
+@auth_required
 def upload_material(project_id):
     """
     POST /api/projects/{project_id}/materials/upload - Upload a material image
@@ -302,10 +319,12 @@ def upload_material(project_id):
     Returns:
         Material info with filename, url, and metadata
     """
-    return _handle_material_upload(default_project_id=project_id)
+    user = get_current_user()
+    return _handle_material_upload(user.id, default_project_id=project_id)
 
 
 @material_global_bp.route('', methods=['GET'])
+@auth_required
 def list_all_materials():
     """
     GET /api/materials - Global materials endpoint for complex queries
@@ -320,8 +339,9 @@ def list_all_materials():
         List of material images with filename, url, and metadata
     """
     try:
+        user = get_current_user()
         filter_project_id = request.args.get('project_id', 'all')
-        materials_list, error = _get_materials_list(filter_project_id)
+        materials_list, error = _get_materials_list(filter_project_id, user.id)
         if error:
             return error
         
@@ -335,6 +355,7 @@ def list_all_materials():
 
 
 @material_global_bp.route('/upload', methods=['POST'])
+@auth_required
 def upload_material_global():
     """
     POST /api/materials/upload - Upload a material image (global, not bound to a project)
@@ -346,16 +367,25 @@ def upload_material_global():
     Returns:
         Material info with filename, url, and metadata
     """
-    return _handle_material_upload(default_project_id=None)
+    user = get_current_user()
+    return _handle_material_upload(user.id, default_project_id=None)
 
 
 @material_global_bp.route('/<material_id>', methods=['DELETE'])
+@auth_required
 def delete_material(material_id):
     """
     DELETE /api/materials/{material_id} - Delete a material and its file
     """
     try:
-        material = Material.query.get(material_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        material = Material.query.filter(
+            Material.id == material_id,
+            Material.user_id == user.id
+        ).first()
+        
         if not material:
             return not_found('Material')
 
@@ -381,6 +411,7 @@ def delete_material(material_id):
 
 
 @material_global_bp.route('/associate', methods=['POST'])
+@auth_required
 def associate_materials_to_project():
     """
     POST /api/materials/associate - Associate materials to a project by URLs
@@ -395,6 +426,7 @@ def associate_materials_to_project():
         List of associated material IDs and count
     """
     try:
+        user = get_current_user()
         data = request.get_json() or {}
         project_id = data.get('project_id')
         material_urls = data.get('material_urls', [])
@@ -405,14 +437,15 @@ def associate_materials_to_project():
         if not material_urls or not isinstance(material_urls, list):
             return bad_request("material_urls must be a non-empty array")
 
-        # Validate project exists
-        project = Project.query.get(project_id)
+        # Validate project exists and belongs to user
+        project = _get_user_project(project_id, user.id)
         if not project:
             return not_found('Project')
 
-        # Find materials by URLs and update their project_id
+        # Find materials by URLs and update their project_id (only user's materials)
         updated_ids = []
         materials_to_update = Material.query.filter(
+            Material.user_id == user.id,
             Material.url.in_(material_urls),
             Material.project_id.is_(None)
         ).all()
@@ -433,6 +466,7 @@ def associate_materials_to_project():
 
 
 @material_global_bp.route('/download', methods=['POST'])
+@auth_required
 def download_materials_zip():
     """
     POST /api/materials/download - Download multiple materials as a zip file
@@ -446,14 +480,18 @@ def download_materials_zip():
         Zip file containing all requested materials
     """
     try:
+        user = get_current_user()
         data = request.get_json() or {}
         material_ids = data.get('material_ids', [])
 
         if not material_ids or not isinstance(material_ids, list):
             return bad_request("material_ids must be a non-empty array")
 
-        # Query materials
-        materials = Material.query.filter(Material.id.in_(material_ids)).all()
+        # Query materials (only user's materials)
+        materials = Material.query.filter(
+            Material.user_id == user.id,
+            Material.id.in_(material_ids)
+        ).all()
 
         if not materials:
             return not_found('Materials')
