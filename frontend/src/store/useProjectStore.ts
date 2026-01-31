@@ -295,15 +295,41 @@ const debouncedUpdatePage = debounce(
       .map((id) => currentProject.pages.find((p) => p.id === id))
       .filter(Boolean) as any[];
 
+    // 更新每个页面的 part 字段，使其与前一页保持一致
+    // 第一页保持原有 part，后续页面继承前一页的 part
+    const pagesWithUpdatedPart = reorderedPages.map((page, index) => {
+      if (index === 0) {
+        return page;
+      }
+      const prevPage = reorderedPages[index - 1];
+      // 如果前一页有 part 且与当前页不同，则更新
+      if (prevPage?.part !== undefined && prevPage.part !== page.part) {
+        return { ...page, part: prevPage.part };
+      }
+      return page;
+    });
+
     set({
       currentProject: {
         ...currentProject,
-        pages: reorderedPages,
+        pages: pagesWithUpdatedPart,
       },
     });
 
     try {
       await api.updatePagesOrder(currentProject.id, newOrder);
+
+      // 更新被移动页面的 part 字段
+      const updatePromises = pagesWithUpdatedPart
+        .filter((page, index) => {
+          const originalPage = reorderedPages[index];
+          return page.part !== originalPage.part && page.id;
+        })
+        .map((page) => api.updatePage(currentProject.id, page.id!, { part: page.part }));
+
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
     } catch (error: any) {
       set({ error: error.message || '更新顺序失败' });
       // 失败后重新同步
