@@ -1,9 +1,58 @@
 import React, { useState } from 'react';
 import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { useT } from '@/hooks/useT';
+
+const helpI18n = {
+  zh: {
+    help: {
+      title: "蕉幻 · Banana Slides", quickStart: "快速开始", quickStartDesc: "完成基础配置，开启 AI 创作之旅",
+      featuresIntro: "功能介绍", featuresIntroDesc: "探索如何使用 AI 快速创建精美 PPT",
+      showcases: "结果案例", showcasesDesc: "以下是使用蕉幻生成的 PPT 案例展示", viewMoreCases: "查看更多使用案例",
+      welcome: "欢迎使用蕉幻！", welcomeDesc: "在开始前，让我们先完成基础配置",
+      step1Title: "配置 API Key", step1Desc: "前往设置页面，配置项目需要使用的API服务，包括：",
+      step1Items: { apiConfig: "您的 AI 服务提供商的 API Base 和 API Key", modelConfig: "配置文本、图像生成模型(banana pro)和图像描述模型", mineruConfig: "若需要文件解析功能，请配置 MinerU Token", editableExport: "若需要可编辑导出功能，请配置MinerU TOKEN 和 Baidu API KEY" },
+      step2Title: "保存并测试", step2Desc: "配置完成后，务必点击「保存设置」按钮，然后在页面底部进行服务测试，确保各项服务正常工作。",
+      step3Title: "开始创作", step3Desc: "配置成功后，返回首页即可开始使用 AI 生成精美的 PPT！",
+      step4Title: "*问题反馈", step4Desc: "若使用过程中遇到问题，可在github issue提出",
+      goToGithubIssue: "前往Github issue", goToSettings: "前往设置页面",
+      tip: "提示", tipContent: "如果您还没有 API Key，可以前往对应服务商官网注册获取。配置完成后，建议先进行服务测试，避免后续使用出现问题。",
+      prevPage: "上一页", nextPage: "下一页", guidePage: "引导页",
+      showcaseTitles: { softwareDev: "软件开发最佳实践", deepseek: "DeepSeek-V3.2技术展示", prefabFood: "预制菜智能产线装备研发和产业化", moneyHistory: "钱的演变：从贝壳到纸币的旅程" },
+      features: {
+        flexiblePaths: { title: "灵活多样的创作路径", description: "支持想法、大纲、页面描述三种起步方式，满足不同创作习惯。", details: ["一句话生成：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述", "自然语言编辑：支持以 Vibe 形式口头修改大纲或描述，AI 实时响应调整", "大纲/描述模式：既可一键批量生成，也可手动调整细节"] },
+        materialParsing: { title: "强大的素材解析能力", description: "上传多种格式文件，自动解析内容，为生成提供丰富素材。", details: ["多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容", "智能提取：自动识别文本中的关键点、图片链接和图表信息", "风格参考：支持上传参考图片或模板，定制 PPT 风格"] },
+        vibeEditing: { title: "「Vibe」式自然语言修改", description: "不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。", details: ["局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）", "整页优化：基于 nano banana pro🍌 生成高清、风格统一的页面"] },
+        easyExport: { title: "开箱即用的格式导出", description: "一键导出标准格式，直接演示无需调整。", details: ["多格式支持：一键导出标准 PPTX 或 PDF 文件", "完美适配：默认 16:9 比例，排版无需二次调整"] }
+      }
+    }
+  },
+  en: {
+    help: {
+      title: "Banana Slides", quickStart: "Quick Start", quickStartDesc: "Complete basic configuration and start your AI creation journey",
+      featuresIntro: "Features", featuresIntroDesc: "Explore how to use AI to quickly create beautiful PPT",
+      showcases: "Showcases", showcasesDesc: "Here are PPT examples generated with Banana Slides", viewMoreCases: "View more examples",
+      welcome: "Welcome to Banana Slides!", welcomeDesc: "Let's complete the basic configuration before you start",
+      step1Title: "Configure API Key", step1Desc: "Go to settings page to configure the API services needed for the project, including:",
+      step1Items: { apiConfig: "Your AI service provider's API Base and API Key", modelConfig: "Configure text, image generation model (banana pro) and image caption model", mineruConfig: "If you need file parsing, configure MinerU Token", editableExport: "If you need editable export, configure MinerU TOKEN and Baidu API KEY" },
+      step2Title: "Save and Test", step2Desc: "After configuration, be sure to click \"Save Settings\" button, then test services at the bottom of the page to ensure everything works properly.",
+      step3Title: "Start Creating", step3Desc: "After successful configuration, return to home page to start using AI to generate beautiful PPT!",
+      step4Title: "*Feedback", step4Desc: "If you encounter issues while using, please raise them on GitHub issues",
+      goToGithubIssue: "Go to GitHub Issues", goToSettings: "Go to Settings",
+      tip: "Tip", tipContent: "If you don't have an API Key yet, you can register on the corresponding service provider's website. After configuration, it's recommended to test services first to avoid issues later.",
+      prevPage: "Previous", nextPage: "Next", guidePage: "Guide",
+      showcaseTitles: { softwareDev: "Software Development Best Practices", deepseek: "DeepSeek-V3.2 Technical Showcase", prefabFood: "Prefab Food Intelligent Production Line R&D", moneyHistory: "The Evolution of Money: From Shells to Paper" },
+      features: {
+        flexiblePaths: { title: "Flexible Creation Paths", description: "Support idea, outline, and page description as starting points to meet different creative habits.", details: ["One-line generation: Enter a topic, AI automatically generates a clear outline and page-by-page content description", "Natural language editing: Support Vibe-style verbal modification of outlines or descriptions, AI responds in real-time", "Outline/Description mode: Either batch generate with one click, or manually adjust details"] },
+        materialParsing: { title: "Powerful Material Parsing", description: "Upload multiple format files, automatically parse content to provide rich materials for generation.", details: ["Multi-format support: Upload PDF/Docx/MD/Txt files, backend automatically parses content", "Smart extraction: Automatically identify key points, image links and chart information in text", "Style reference: Support uploading reference images or templates to customize PPT style"] },
+        vibeEditing: { title: "\"Vibe\" Style Natural Language Editing", description: "No longer limited by complex menu buttons, directly issue modification commands through natural language.", details: ["Partial redraw: Make verbal modifications to unsatisfying areas (e.g., \"Change this chart to a pie chart\")", "Full page optimization: Generate HD, style-consistent pages based on nano banana pro🍌"] },
+        easyExport: { title: "Ready-to-Use Format Export", description: "One-click export to standard formats, present directly without adjustments.", details: ["Multi-format support: One-click export to standard PPTX or PDF files", "Perfect fit: Default 16:9 ratio, no secondary layout adjustments needed"] }
+      }
+    }
+  }
+};
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -28,7 +77,7 @@ const featureIcons = [
 ];
 
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
-  const { t } = useTranslation();
+  const t = useT(helpI18n);
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(0);
   const [currentShowcase, setCurrentShowcase] = useState(0);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { referenceFileI18n } from '@/i18n/referenceFileI18n';
 import { Button, useToast, Modal } from '@/components/shared';
 import {
   listProjectReferenceFiles,
@@ -38,7 +39,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   maxSelection,
   initialSelectedIds = [],
 }) => {
-  const { t } = useTranslation();
+  const t = useT(referenceFileI18n);
   const { show } = useToast();
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -247,7 +248,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       return fileExt === 'ppt' || fileExt === 'pptx';
     });
     
-    if (hasPptFiles) show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+    if (hasPptFiles) show({ message: `💡 ${t('shared.pptTip')}`, type: 'info' });
     
 
     setIsUploading(true);

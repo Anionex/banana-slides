@@ -3,9 +3,40 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, MessageSquare, Download, ChevronRight, Github, ChevronLeft } from 'lucide-react';
 import { Button, Footer } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+
+// 组件内翻译
+const landingI18n = {
+  zh: {
+    landing: {
+      nav: { enter: "进入应用" },
+      hero: {
+        badge: "新一代 AI 演示文稿生成器",
+        title_start: "让创意",
+        title_highlight: "瞬间落地",
+        title_end: "无需繁琐排版",
+        subtitle: "专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几分钟。",
+        cta_primary: "免费开始使用"
+      }
+    }
+  },
+  en: {
+    landing: {
+      nav: { enter: "Enter App" },
+      hero: {
+        badge: "Next Gen AI Presentation Generator",
+        title_start: "Turn Ideas into",
+        title_highlight: "Reality Instantly",
+        title_end: "No Formatting Hassle",
+        subtitle: "Focus on your content and ideas, leave the rest to Banana Slides. From outline to beautiful slides in seconds.",
+        cta_primary: "Get Started for Free"
+      }
+    }
+  }
+};
 
 // Feature keys consistent with HelpModal
-const featureKeys = ['flexiblePaths', 'materialParsing', 'vibeEditing', 'easyExport'] as const;
+const _featureKeys = ['flexiblePaths', 'materialParsing', 'vibeEditing', 'easyExport'] as const;
 
 // Showcase data consistent with HelpModal
 const showcaseKeys = [
@@ -17,7 +48,8 @@ const showcaseKeys = [
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
+  const t = useT(landingI18n);
   const [currentShowcase, setCurrentShowcase] = useState(0);
 
   // Auto-rotate showcase
@@ -80,7 +112,7 @@ export const Landing: React.FC = () => {
             onClick={() => navigate('/')}
             className="shadow-lg shadow-banana-500/20 hover:shadow-banana-500/30 transition-all"
           >
-            {t('landing.nav.enter', '进入应用')}
+            {t('landing.nav.enter')}
           </Button>
         </div>
       </nav>
@@ -93,23 +125,23 @@ export const Landing: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-banana-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-banana-500"></span>
             </span>
-            {t('landing.hero.badge', '新一代 AI 演示文稿生成器')}
+            {t('landing.hero.badge')}
           </div>
 
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-gray-900 dark:text-white leading-[1.1]">
-            {t('landing.hero.title_start', '让创意')}
+            {t('landing.hero.title_start')}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-banana-500 via-orange-500 to-pink-500 px-2 relative inline-block">
-              {t('landing.hero.title_highlight', '瞬间落地')}
+              {t('landing.hero.title_highlight')}
               <svg className="absolute w-full h-3 -bottom-1 left-0 text-banana-200 dark:text-banana-900/30 -z-10" viewBox="0 0 100 10" preserveAspectRatio="none">
                 <path d="M0 5 Q 50 10 100 5" stroke="currentColor" strokeWidth="8" fill="none" />
               </svg>
             </span>
             <br className="hidden md:block" />
-            {t('landing.hero.title_end', '无需繁琐排版')}
+            {t('landing.hero.title_end')}
           </h1>
 
           <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed font-light">
-            {t('landing.hero.subtitle', '专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几分钟。')}
+            {t('landing.hero.subtitle')}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -119,7 +151,7 @@ export const Landing: React.FC = () => {
               onClick={() => navigate('/')}
               icon={<ChevronRight size={20} />}
             >
-              {t('landing.hero.cta_primary', '免费开始使用')}
+              {t('landing.hero.cta_primary')}
             </Button>
             <a
               href="https://github.com/Anionex/banana-slides"

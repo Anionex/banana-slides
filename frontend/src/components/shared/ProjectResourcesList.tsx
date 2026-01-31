@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon, RefreshCw, X, FileText } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 import { listMaterials, deleteMaterial, listProjectReferenceFiles, type Material, type ReferenceFile } from '@/api/endpoints';
 import { getImageUrl } from '@/api/client';
 import { useToast } from './Toast';
@@ -27,7 +28,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
   onFileClick,
   onImageClick,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   const { show } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [files, setFiles] = useState<ReferenceFile[]>([]);

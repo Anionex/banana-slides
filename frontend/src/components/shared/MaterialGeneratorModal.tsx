@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, ImagePlus, Upload, X, FolderOpen } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
+import { useT } from '@/hooks/useT';
+import { materialI18n } from '@/i18n/materialI18n';
 import { Textarea } from './Textarea';
 import { Button } from './Button';
 import { useToast } from './Toast';
@@ -23,7 +24,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(materialI18n);
   const { show } = useToast();
   const [prompt, setPrompt] = useState('');
   const [refImage, setRefImage] = useState<File | null>(null);

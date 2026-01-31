@@ -7,13 +7,131 @@ import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateS
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
+import { useT } from '@/hooks/useT';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
 type CreationType = 'idea' | 'outline' | 'description';
 
+// 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
+const homeI18n = {
+  zh: {
+    home: {
+      title: '蕉幻',
+      subtitle: 'Vibe your PPT like vibing code',
+      tagline: '基于 nano banana pro🍌 的原生 AI PPT 生成器',
+      features: {
+        oneClick: '一句话生成 PPT',
+        naturalEdit: '自然语言修改',
+        regionEdit: '指定区域编辑',
+        export: '一键导出 PPTX/PDF',
+      },
+      tabs: {
+        idea: '一句话生成',
+        outline: '从大纲生成',
+        description: '从描述生成',
+      },
+      tabDescriptions: {
+        idea: '输入你的想法，AI 将为你生成完整的 PPT',
+        outline: '已有大纲？直接粘贴即可快速生成，AI 将自动切分为结构化大纲',
+        description: '已有完整描述？AI 将自动解析出大纲并切分为每页描述，直接生成图片',
+      },
+      placeholders: {
+        idea: '例如：生成一份关于 AI 发展史的演讲 PPT',
+        outline: '粘贴你的 PPT 大纲...',
+        description: '粘贴你的完整页面描述...',
+      },
+      template: {
+        title: '选择风格模板',
+        useTextStyle: '使用文字描述风格',
+        stylePlaceholder: '描述您想要的 PPT 风格，例如：简约商务风格，使用蓝色和白色配色，字体清晰大方...',
+        presetStyles: '快速选择预设风格：',
+        styleTip: '提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求',
+      },
+      actions: {
+        selectFile: '选择参考文件',
+        parsing: '解析中...',
+        createProject: '创建新项目',
+      },
+      messages: {
+        enterContent: '请输入内容',
+        filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
+        projectCreateFailed: '项目创建失败',
+        uploadingImage: '正在上传图片...',
+        imageUploadSuccess: '图片上传成功！已插入到光标位置',
+        imageUploadFailed: '图片上传失败',
+        fileUploadSuccess: '文件上传成功',
+        fileUploadFailed: '文件上传失败',
+        fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
+        unsupportedFileType: '不支持的文件类型: {{type}}',
+        pptTip: '提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果',
+        filesAdded: '已添加 {{count}} 个参考文件',
+        imageRemoved: '已移除图片',
+        serviceTestTip: '建议先到设置页底部进行服务测试，避免后续功能异常',
+      },
+    },
+  },
+  en: {
+    home: {
+      title: 'Banana Slides',
+      subtitle: 'Vibe your PPT like vibing code',
+      tagline: 'AI-native PPT generator powered by nano banana pro🍌',
+      features: {
+        oneClick: 'One-click PPT generation',
+        naturalEdit: 'Natural language editing',
+        regionEdit: 'Region-specific editing',
+        export: 'Export to PPTX/PDF',
+      },
+      tabs: {
+        idea: 'From Idea',
+        outline: 'From Outline',
+        description: 'From Description',
+      },
+      tabDescriptions: {
+        idea: 'Enter your idea, AI will generate a complete PPT for you',
+        outline: 'Have an outline? Paste it directly, AI will split it into structured outline',
+        description: 'Have descriptions? AI will parse and generate images directly',
+      },
+      placeholders: {
+        idea: 'e.g., Generate a presentation about the history of AI',
+        outline: 'Paste your PPT outline...',
+        description: 'Paste your complete page descriptions...',
+      },
+      template: {
+        title: 'Select Style Template',
+        useTextStyle: 'Use text description for style',
+        stylePlaceholder: 'Describe your desired PPT style, e.g., minimalist business style...',
+        presetStyles: 'Quick select preset styles:',
+        styleTip: 'Tip: Click preset styles to quick fill, or customize',
+      },
+      actions: {
+        selectFile: 'Select reference file',
+        parsing: 'Parsing...',
+        createProject: 'Create New Project',
+      },
+      messages: {
+        enterContent: 'Please enter content',
+        filesParsing: '{{count}} reference file(s) are still parsing, please wait',
+        projectCreateFailed: 'Failed to create project',
+        uploadingImage: 'Uploading image...',
+        imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
+        imageUploadFailed: 'Failed to upload image',
+        fileUploadSuccess: 'File uploaded successfully',
+        fileUploadFailed: 'Failed to upload file',
+        fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
+        unsupportedFileType: 'Unsupported file type: {{type}}',
+        pptTip: 'Tip: Convert PPT to PDF for better parsing results',
+        filesAdded: 'Added {{count}} reference file(s)',
+        imageRemoved: 'Image removed',
+        serviceTestTip: 'Test services in Settings first to avoid issues',
+      },
+    },
+  },
+};
+
 export const Home: React.FC = () => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
+  const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
@@ -120,7 +238,7 @@ export const Home: React.FC = () => {
             await handleFileUpload(file);
           } else {
             console.log('File type not allowed');
-            show({ message: t('home.messages.unsupportedFileType', { type: fileExt }), type: 'info' });
+            show({ message: t('home.messages.unsupportedFileType', { type: fileExt || '' }), type: 'info' });
           }
         }
       }

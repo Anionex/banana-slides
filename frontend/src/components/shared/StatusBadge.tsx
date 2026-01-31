@@ -1,6 +1,7 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils';
+import { useT } from '@/hooks/useT';
+import { statusI18n } from '@/i18n/statusI18n';
 import type { PageStatus } from '@/types';
 
 interface StatusBadgeProps {
@@ -24,7 +25,7 @@ const statusLabelKeys: Record<PageStatus, string> = {
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
-  const { t } = useTranslation();
+  const t = useT(statusI18n);
   const className = statusClassNames[status];
   const labelKey = statusLabelKeys[status];
   

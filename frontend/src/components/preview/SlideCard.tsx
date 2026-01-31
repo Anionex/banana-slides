@@ -1,6 +1,7 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { Edit2, Trash2 } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
 import { getImageUrl } from '@/api/client';
 import type { Page } from '@/types';
@@ -24,7 +25,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
   onDelete,
   isGenerating = false,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   const { confirm, ConfirmDialog } = useConfirm();
   const imageUrl = page.generated_image_path
     ? getImageUrl(page.generated_image_path, page.updated_at)

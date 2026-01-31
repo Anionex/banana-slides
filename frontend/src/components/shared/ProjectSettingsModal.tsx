@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Button, Textarea } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+import { projectSettingsI18n } from '@/i18n/projectSettingsI18n';
 import { Settings } from '@/pages/Settings';
 import type { ExportExtractorMethod, ExportInpaintMethod } from '@/types';
 
@@ -48,7 +49,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onSaveExportSettings,
   isSavingExportSettings = false,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(projectSettingsI18n);
   const [activeTab, setActiveTab] = useState<SettingsTab>('project');
 
   const EXTRACTOR_METHOD_OPTIONS: { value: ExportExtractorMethod; labelKey: string; descKey: string }[] = [
@@ -148,7 +149,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     disabled={isSavingRequirements}
                     className="w-full sm:w-auto"
                   >
-                    {isSavingRequirements ? t('settings.actions.saving') : t('projectSettings.saveExtraRequirements')}
+                    {isSavingRequirements ? t('shared.saving') : t('projectSettings.saveExtraRequirements')}
                   </Button>
                 </div>
 
@@ -174,12 +175,12 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       disabled={isSavingTemplateStyle}
                       className="w-full sm:w-auto"
                     >
-                      {isSavingTemplateStyle ? t('settings.actions.saving') : t('projectSettings.saveStyleDescription')}
+                      {isSavingTemplateStyle ? t('shared.saving') : t('projectSettings.saveStyleDescription')}
                     </Button>
                   </div>
                   <div className="bg-blue-100 rounded-md p-3">
                     <p className="text-xs text-blue-900">
-                      💡 <strong>{t('help.tip')}：</strong>{t('projectSettings.styleTip')}
+                      💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
                     </p>
                   </div>
                 </div>
@@ -270,7 +271,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   <div className="bg-amber-100 rounded-md p-3 flex items-start gap-2">
                     <AlertTriangle size={16} className="text-amber-700 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-900">
-                      <strong>{t('help.tip')}：</strong>{t('projectSettings.costTip')}
+                      <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
                     </p>
                   </div>
                 </div>
@@ -311,7 +312,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       onClick={onSaveExportSettings}
                       disabled={isSavingExportSettings}
                     >
-                      {isSavingExportSettings ? t('settings.actions.saving') : t('projectSettings.saveExportSettings')}
+                      {isSavingExportSettings ? t('shared.saving') : t('projectSettings.saveExportSettings')}
                     </Button>
                   </div>
                 )}

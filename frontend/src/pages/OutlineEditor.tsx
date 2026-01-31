@@ -1,7 +1,57 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+
+// 组件内翻译
+const outlineI18n = {
+  zh: {
+    outline: {
+      title: "编辑大纲", pageCount: "共 {{count}} 页", addPage: "添加页面",
+      generateDescriptions: "生成描述", generating: "生成中...", chapter: "章节",
+      page: "第 {{num}} 页", titleLabel: "标题", keyPoints: "要点",
+      keyPointsPlaceholder: "要点（每行一个）", addKeyPoint: "添加要点",
+      deletePage: "删除页面", confirmDeletePage: "确定要删除这一页吗？",
+      preview: "预览", clickToPreview: "点击左侧卡片查看详情",
+      noPages: "还没有页面", noPagesHint: "点击「添加页面」手动创建，或「自动生成大纲」让 AI 帮你完成",
+      parseOutline: "解析大纲", autoGenerate: "自动生成大纲",
+      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲",
+      aiPlaceholder: "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
+      aiPlaceholderShort: "例如：增加/删除页面... · Ctrl+Enter",
+      contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
+      messages: {
+        outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
+        confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
+        confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
+        refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
+        loadingProject: "加载项目中...", generatingOutline: "生成大纲中..."
+      }
+    }
+  },
+  en: {
+    outline: {
+      title: "Edit Outline", pageCount: "{{count}} pages", addPage: "Add Page",
+      generateDescriptions: "Generate Descriptions", generating: "Generating...", chapter: "Chapter",
+      page: "Page {{num}}", titleLabel: "Title", keyPoints: "Key Points",
+      keyPointsPlaceholder: "Key points (one per line)", addKeyPoint: "Add Key Point",
+      deletePage: "Delete Page", confirmDeletePage: "Are you sure you want to delete this page?",
+      preview: "Preview", clickToPreview: "Click a card on the left to view details",
+      noPages: "No pages yet", noPagesHint: "Click \"Add Page\" to create manually, or \"Auto Generate\" to let AI help you",
+      parseOutline: "Parse Outline", autoGenerate: "Auto Generate Outline",
+      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline",
+      aiPlaceholder: "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
+      aiPlaceholderShort: "e.g., Add/delete pages... · Ctrl+Enter",
+      contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
+      messages: {
+        outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
+        confirmRegenerate: "Existing outline will be overwritten. Continue?",
+        confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
+        refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
+        loadingProject: "Loading project...", generatingOutline: "Generating outline..."
+      }
+    }
+  }
+};
 import {
   DndContext,
   closestCenter,
@@ -56,7 +106,7 @@ const SortableCard: React.FC<{
 export const OutlineEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const t = useT(outlineI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {

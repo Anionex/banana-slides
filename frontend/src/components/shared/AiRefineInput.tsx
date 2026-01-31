@@ -1,6 +1,7 @@
 import React, { useState, memo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Sparkles, History, ChevronDown, ChevronUp, Send } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 
 export interface AiRefineInputProps {
   /** 标题文字 */
@@ -25,7 +26,7 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
   className = '',
   onStatusChange,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   const [requirement, setRequirement] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [history, setHistory] = useState<string[]>([]);

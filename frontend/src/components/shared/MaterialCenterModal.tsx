@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
+import { useT } from '@/hooks/useT';
+import { materialI18n } from '@/i18n/materialI18n';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { listMaterials, uploadMaterial, listProjects, deleteMaterial, downloadMaterialsZip, type Material } from '@/api/endpoints';
@@ -17,7 +18,7 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(materialI18n);
   const { show } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set());

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
+import { useT } from '@/hooks/useT';
+import { exportI18n } from '@/i18n/exportI18n';
 import type { Page } from '@/types';
 import { Button } from './Button';
 import { cn } from '@/utils';
@@ -59,7 +60,7 @@ const WarningsModal: React.FC<{
   warnings: string[];
   warningDetails?: any;
 }> = ({ isOpen, onClose, warnings, warningDetails }) => {
-  const { t } = useTranslation();
+  const t = useT(exportI18n);
   
   if (!isOpen) return null;
   
@@ -152,7 +153,7 @@ const WarningsModal: React.FC<{
 };
 
 const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void }> = ({ task, pages, onRemove }) => {
-  const { t } = useTranslation();
+  const t = useT(exportI18n);
   const [showWarningsModal, setShowWarningsModal] = useState(false);
   
   const taskTypeLabels: Record<ExportTaskType, string> = {
@@ -335,7 +336,7 @@ interface ExportTasksPanelProps {
 }
 
 export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, pages = [], className }) => {
-  const { t } = useTranslation();
+  const t = useT(exportI18n);
   const [isExpanded, setIsExpanded] = useState(true);
   const { tasks, removeTask, clearCompleted, restoreActiveTasks } = useExportTasksStore();
   
@@ -404,7 +405,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
           {completedTasks.length > 0 && (
             <div className="p-2">
               <div className="flex items-center justify-between px-3 py-1 mb-1">
-                <span className="text-xs text-gray-400">{t('history.historyRecords')}</span>
+                <span className="text-xs text-gray-400">{t('shared.historyRecords')}</span>
                 <button
                   onClick={clearCompleted}
                   className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"

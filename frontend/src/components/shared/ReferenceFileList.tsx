@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
 import { ReferenceFileCard, useToast } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+import { referenceFileI18n } from '@/i18n/referenceFileI18n';
 import { listProjectReferenceFiles, type ReferenceFile } from '@/api/endpoints';
 
 interface ReferenceFileListProps {
@@ -25,7 +26,7 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
   title,
   className = 'mb-6',
 }) => {
-  const { t } = useTranslation();
+  const t = useT(referenceFileI18n);
   const [internalFiles, setInternalFiles] = useState<ReferenceFile[]>([]);
   const { show } = useToast();
   const showRef = useRef(show);

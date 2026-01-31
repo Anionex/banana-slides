@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
+import { useT } from '@/hooks/useT';
+import { referenceFileI18n } from '@/i18n/referenceFileI18n';
 
 export interface ReferenceFileCardProps {
   file: ReferenceFile;
@@ -18,7 +19,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   deleteMode = 'delete',
   onClick,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(referenceFileI18n);
   const [file, setFile] = useState<ReferenceFile>(initialFile);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReparsing, setIsReparsing] = useState(false);

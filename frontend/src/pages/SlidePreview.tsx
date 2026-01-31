@@ -1,7 +1,91 @@
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useT } from '@/hooks/useT';
+
+// 组件内翻译
+const previewI18n = {
+  zh: {
+    preview: {
+      title: "预览", pageCount: "共 {{count}} 页", export: "导出",
+      exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
+      exportEditablePptx: "导出可编辑 PPTX（Beta）",
+      exportSelectedPages: "将导出选中的 {{count}} 页",
+      regenerate: "重新生成", regenerating: "生成中...",
+      editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
+      projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
+      batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
+      multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
+      noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
+      generating: "正在生成中...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
+      prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
+      versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
+      regionSelect: "区域选图", endRegionSelect: "结束区域选图",
+      pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）",
+      enterTitle: "输入页面标题", pointsPerLine: "要点（每行一个）",
+      enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容",
+      selectContextImages: "选择上下文图片（可选）", useTemplateImage: "使用模板图片",
+      imagesInDescription: "描述中的图片", uploadImages: "上传图片",
+      selectFromMaterials: "从素材库选择", upload: "上传",
+      editPromptLabel: "输入修改指令(将自动添加页面描述)",
+      editPromptPlaceholder: "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
+      saveOutlineOnly: "仅保存大纲/描述", generateImage: "生成图片",
+      templateModalDesc: "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
+      uploadingTemplate: "正在上传模板...",
+      resolution1KWarning: "1K分辨率警告",
+      resolution1KWarningText: "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
+      resolution1KWarningHint: "建议在「项目设置 → 全局设置」中切换到 2K 或 4K 分辨率以获得更清晰的效果。",
+      dontShowAgain: "不再提示", generateAnyway: "仍然生成",
+      messages: {
+        exportSuccess: "导出成功", exportFailed: "导出失败",
+        regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
+        loadingProject: "加载项目中...", processing: "处理中...",
+        generatingBackgrounds: "正在生成干净背景...", creatingPdf: "正在创建PDF...",
+        parsingContent: "正在解析内容...", creatingPptx: "正在创建可编辑PPTX...", complete: "完成！"
+      }
+    }
+  },
+  en: {
+    preview: {
+      title: "Preview", pageCount: "{{count}} pages", export: "Export",
+      exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
+      exportEditablePptx: "Export Editable PPTX (Beta)",
+      exportSelectedPages: "Will export {{count}} selected page(s)",
+      regenerate: "Regenerate", regenerating: "Generating...",
+      editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
+      projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
+      batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
+      multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
+      noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
+      generating: "Generating...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
+      prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
+      versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
+      regionSelect: "Region Select", endRegionSelect: "End Region Select",
+      pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)",
+      enterTitle: "Enter page title", pointsPerLine: "Key Points (one per line)",
+      enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description",
+      selectContextImages: "Select Context Images (Optional)", useTemplateImage: "Use Template Image",
+      imagesInDescription: "Images in Description", uploadImages: "Upload Images",
+      selectFromMaterials: "Select from Materials", upload: "Upload",
+      editPromptLabel: "Enter edit instructions (page description will be auto-added)",
+      editPromptPlaceholder: "e.g., Remove elements in selected area, change background to blue, increase title font size, change text box style to dashed...",
+      saveOutlineOnly: "Save Outline/Description Only", generateImage: "Generate Image",
+      templateModalDesc: "Selecting a new template will apply to future PPT page generation (won't affect already generated pages). You can choose preset templates, existing templates, or upload a new one.",
+      uploadingTemplate: "Uploading template...",
+      resolution1KWarning: "1K Resolution Warning",
+      resolution1KWarningText: "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
+      resolution1KWarningHint: "It's recommended to switch to 2K or 4K resolution in \"Project Settings → Global Settings\" for clearer results.",
+      dontShowAgain: "Don't show again", generateAnyway: "Generate Anyway",
+      messages: {
+        exportSuccess: "Export successful", exportFailed: "Export failed",
+        regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
+        loadingProject: "Loading project...", processing: "Processing...",
+        generatingBackgrounds: "Generating clean backgrounds...", creatingPdf: "Creating PDF...",
+        parsingContent: "Parsing content...", creatingPptx: "Creating editable PPTX...", complete: "Complete!"
+      }
+    }
+  }
+};
 import {
   Home,
   ArrowLeft,
@@ -40,7 +124,7 @@ import { normalizeErrorMessage } from '@/utils';
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const t = useT(previewI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {

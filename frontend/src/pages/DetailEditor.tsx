@@ -1,7 +1,49 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ArrowRight, FileText, Sparkles, Download } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+
+// 组件内翻译
+const detailI18n = {
+  zh: {
+    detail: {
+      title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
+      generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
+      description: "描述", batchGenerate: "批量生成描述", export: "导出描述",
+      pagesCompleted: "页已完成", noPages: "还没有页面",
+      noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
+      aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
+      aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
+      messages: {
+        generateSuccess: "生成成功", generateFailed: "生成失败",
+        confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
+        confirmRegenerateTitle: "确认重新生成",
+        confirmRegeneratePage: "该页面已有描述，重新生成将覆盖现有内容，确定继续吗？",
+        refineSuccess: "页面描述修改成功", refineFailed: "修改失败，请稍后重试",
+        exportSuccess: "导出成功", loadingProject: "加载项目中..."
+      }
+    }
+  },
+  en: {
+    detail: {
+      title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
+      generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
+      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions",
+      pagesCompleted: "pages completed", noPages: "No pages yet",
+      noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
+      aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
+      aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
+      messages: {
+        generateSuccess: "Generated successfully", generateFailed: "Generation failed",
+        confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
+        confirmRegenerateTitle: "Confirm Regenerate",
+        confirmRegeneratePage: "This page already has a description. Regenerating will overwrite it. Continue?",
+        refineSuccess: "Descriptions modified successfully", refineFailed: "Modification failed, please try again",
+        exportSuccess: "Export successful", loadingProject: "Loading project..."
+      }
+    }
+  }
+};
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -11,7 +53,7 @@ import { exportDescriptionsToMarkdown } from '@/utils/projectUtils';
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const t = useT(detailI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 
 interface ImagePreviewListProps {
   content: string;
@@ -37,7 +38,7 @@ export const ImagePreviewList: React.FC<ImagePreviewListProps> = ({
   onRemoveImage,
   className = ''
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   // 解析图片列表
   const images = useMemo(() => parseMarkdownImages(content), [content]);
 
@@ -86,7 +87,7 @@ export const ImagePreviewList: React.FC<ImagePreviewListProps> = ({
                 <button
                   onClick={() => onRemoveImage(image.url)}
                   className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 active:scale-95"
-                  title={t('home.messages.imageRemoved')}
+                  title={t('shared.imageRemoved')}
                 >
                   <X size={14} />
                 </button>

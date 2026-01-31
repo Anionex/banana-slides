@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Modal, Markdown, Loading, useToast } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 import { getReferenceFile, type ReferenceFile } from '@/api/endpoints';
 
 interface FilePreviewModalProps {
@@ -12,7 +13,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   fileId,
   onClose,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   const [file, setFile] = useState<ReferenceFile | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

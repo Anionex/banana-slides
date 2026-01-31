@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Clock, FileText, ChevronRight, Trash2 } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 import { Card } from '@/components/shared';
 import { getProjectTitle, getFirstPageImage, formatDate, getStatusText, getStatusColor } from '@/utils/projectUtils';
 import type { Project } from '@/types';
@@ -34,7 +35,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onSaveEdit,
   isBatchMode,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   // 检测屏幕尺寸，只在非手机端加载图片（必须在早期返回之前声明hooks）
   const [shouldLoadImage, setShouldLoadImage] = useState(false);
   
@@ -128,7 +129,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           {firstPageImage ? (
             <img
               src={firstPageImage}
-              alt={t('preview.page', { num: 1 })}
+              alt={t('shared.page', { num: 1 })}
               className="w-full h-full object-cover"
             />
           ) : (

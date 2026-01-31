@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { sharedI18n } from '@/i18n/sharedI18n';
 import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
 import type { Page } from '@/types';
 
@@ -25,7 +26,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   dragHandleProps,
   isAiRefining = false,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(sharedI18n);
   const { confirm, ConfirmDialog } = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
@@ -82,7 +83,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
           {/* 页码和章节 */}
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">
-              {t('outline.page', { num: index + 1 })}
+              {t('shared.page', { num: index + 1 })}
             </span>
             {isEditing ? (
               <input
@@ -91,7 +92,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 onChange={(e) => setEditPart(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 className="text-xs px-2 py-0.5 w-24 border border-blue-300 bg-blue-50 dark:bg-blue-900/30 text-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder={t('outline.chapter')}
+                placeholder={t('shared.chapter')}
               />
             ) : (
               page.part && (
@@ -110,14 +111,14 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
-                placeholder={t('outline.titleLabel')}
+                placeholder={t('shared.titleLabel')}
               />
               <textarea
                 value={editPoints}
                 onChange={(e) => setEditPoints(e.target.value)}
                 rows={5}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
-                placeholder={t('outline.keyPointsPlaceholder')}
+                placeholder={t('shared.keyPointsPlaceholder')}
               />
               <div className="flex justify-end gap-2">
                 <button
@@ -165,7 +166,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 confirm(
-                  t('outline.confirmDeletePage'),
+                  t('shared.confirmDeletePage'),
                   onDelete,
                   { title: t('slideCard.confirmDeleteTitle'), variant: 'danger' }
                 );

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ImageIcon, RefreshCw, Upload, Sparkles, X } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Button, useToast, Modal } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+import { materialI18n } from '@/i18n/materialI18n';
 import { listMaterials, uploadMaterial, listProjects, deleteMaterial, type Material } from '@/api/endpoints';
 import type { Project } from '@/types';
 import { getImageUrl } from '@/api/client';
@@ -26,7 +27,7 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
   maxSelection,
   showSaveAsTemplateOption = false,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(materialI18n);
   const { show } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set());

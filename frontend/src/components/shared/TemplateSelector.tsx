@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Button, useToast, MaterialSelector } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+import { templateI18n } from '@/i18n/templateI18n';
 import { getImageUrl } from '@/api/client';
 import { listUserTemplates, uploadUserTemplate, deleteUserTemplate, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
@@ -22,7 +23,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   showUpload = true,
   projectId,
 }) => {
-  const { t } = useTranslation();
+  const t = useT(templateI18n);
   const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
