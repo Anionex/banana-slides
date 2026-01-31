@@ -53,6 +53,10 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
     setIsEditing(false);
   };
 
+  const rawPart = page.part?.trim();
+  const hasPart = Boolean(rawPart);
+  const partLabel = hasPart ? rawPart : '未分组';
+
   return (
     <Card
       className={`p-4 relative ${
@@ -78,11 +82,13 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
             <span className="text-sm font-semibold text-gray-900">
               第 {index + 1} 页
             </span>
-            {page.part && (
-              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                {page.part}
-              </span>
-            )}
+            <span
+              className={`text-xs px-2 py-0.5 rounded ${
+                hasPart ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              {partLabel}
+            </span>
           </div>
 
           {isEditing ? (
@@ -164,4 +170,3 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
     </Card>
   );
 };
-

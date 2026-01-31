@@ -317,9 +317,13 @@ const debouncedUpdatePage = debounce(
     if (!currentProject) return;
 
     try {
+      const lastPage = currentProject.pages[currentProject.pages.length - 1];
+      const inheritedPart = lastPage?.part?.trim() || undefined;
+
       const newPage = {
         outline_content: { title: '新页面', points: [] },
         order_index: currentProject.pages.length,
+        ...(inheritedPart ? { part: inheritedPart } : {}),
       };
       
       const response = await api.addPage(currentProject.id, newPage);

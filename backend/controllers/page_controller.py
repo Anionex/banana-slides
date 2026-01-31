@@ -42,12 +42,28 @@ def create_page(project_id):
         
         if not data or 'order_index' not in data:
             return bad_request("order_index is required")
+
+        part = data.get('part')
+        if part is not None and isinstance(part, str) and not part.strip():
+            part = None
+
+        if part is None and data['order_index'] > 0:
+            previous_page = (
+                Page.query.filter(
+                    Page.project_id == project_id,
+                    Page.order_index < data['order_index'],
+                )
+                .order_by(Page.order_index.desc())
+                .first()
+            )
+            if previous_page and previous_page.part:
+                part = previous_page.part
         
         # Create new page
         page = Page(
             project_id=project_id,
             order_index=data['order_index'],
-            part=data.get('part'),
+            part=part,
             status='DRAFT'
         )
         
