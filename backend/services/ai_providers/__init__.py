@@ -29,17 +29,16 @@ import os
 import logging
 from typing import Dict, Any
 
-from .text import TextProvider, GenAITextProvider, OpenAITextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider
+from .text import TextProvider, GenAITextProvider, OpenAITextProvider, LazyLLMTextProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, LazyLLMImageProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider',
-    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider',
+    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'LazyLLMTextProvider',
+    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'LazyLLMImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format'
 ]
-
 
 def get_provider_format() -> str:
     """
@@ -51,7 +50,7 @@ def get_provider_format() -> str:
         3. Default: 'gemini'
 
     Returns:
-        "gemini", "openai", or "vertex"
+        "gemini", "openai", "vertex" or "lazyllm"
     """
     # Try to get from Flask app config first (database settings)
     try:
@@ -98,7 +97,6 @@ def _get_config_value(key: str, default: str = None) -> str:
         return default
     logger.debug(f"[CONFIG] No value found for {key}, returning None")
     return None
-
 
 def _get_provider_config() -> Dict[str, Any]:
     """
@@ -155,6 +153,18 @@ def _get_provider_config() -> Dict[str, Any]:
             'api_key': api_key,
             'api_base': api_base,
         }
+    
+    elif provider_format == 'lazyllm':
+        text_source = _get_config_value('TEXT_MODEL_SOURCE', 'deepseek')
+        image_source = _get_config_value('IMAGE_MODEL_SOURCE', 'doubao')
+        
+        logger.info(f"Provider config - format: lazyllm, text_source: {text_source}, image_source: {image_source}")
+        
+        return {
+            'format': 'lazyllm',
+            'text_source': text_source,
+            'image_source': image_source,
+        }
 
     else:
         # Gemini format (default)
@@ -197,6 +207,13 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
             project_id=config['project_id'],
             location=config['location']
         )
+    elif provider_format == 'lazyllm':
+        source = config.get('text_source', 'deepseek')
+        logger.info(f"Using Lazyllm for text generation, model: {model}, source: {source}")
+        return LazyLLMTextProvider(
+            source=source,
+            model=model
+        )
     else:
         logger.info(f"Using Gemini format for text generation, model: {model}")
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
@@ -230,6 +247,13 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
             vertexai=True,
             project_id=config['project_id'],
             location=config['location']
+        )
+    elif provider_format == 'lazyllm':
+        source = config.get('image_source', 'doubao')
+        logger.info(f"Using Lazyllm for image generation, model: {model}, source: {source}")
+        return LazyLLMImageProvider(
+            source=source,
+            model=model
         )
     else:
         logger.info(f"Using Gemini format for image generation, model: {model}")

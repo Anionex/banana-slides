@@ -9,6 +9,7 @@ import zipfile
 import io
 import base64
 import requests
+import tempfile
 from typing import Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
@@ -54,8 +55,10 @@ class FileParserService:
                  google_api_key: str = "", google_api_base: str = "",
                  openai_api_key: str = "", openai_api_base: str = "",
                  image_caption_model: str = "gemini-3-flash-preview",
+                 lazyllm_image_caption_source: str = "", 
                  provider_format: str = None,
-                 mineru_model_version: str = "vlm"):
+                 mineru_model_version: str = "vlm",
+                 ):
         """
         Initialize the file parser service
         
@@ -67,6 +70,7 @@ class FileParserService:
             openai_api_key: OpenAI API key for image captioning (used when AI_PROVIDER_FORMAT=openai)
             openai_api_base: OpenAI API base URL
             image_caption_model: Model to use for image captioning
+            lazyllm_image_caption_source: image caption model provider for lazyllm
             provider_format: AI provider format ('gemini' or 'openai'). If not provided, reads from environment variable.
             mineru_model_version: MinerU model version ('vlm' or 'pipeline'). Default is 'vlm'.
         """
@@ -81,11 +85,13 @@ class FileParserService:
         self._google_api_base = google_api_base
         self._openai_api_key = openai_api_key
         self._openai_api_base = openai_api_base
-        self.image_caption_model = image_caption_model
+        self._image_caption_model = image_caption_model
+        self._lazyllm_image_caption_source = lazyllm_image_caption_source
         
         # Clients will be initialized lazily based on AI_PROVIDER_FORMAT
         self._gemini_client = None
         self._openai_client = None
+        self._lazyllm_client = None
         self._provider_format = _get_ai_provider_format(provider_format)
     
     def _get_gemini_client(self):
@@ -109,10 +115,27 @@ class FileParserService:
             )
         return self._openai_client
     
+    def _get_lazyllm_client(self):
+        """Lazily initialize LazyLLM client"""
+        if self._lazyllm_client is None:
+            import lazyllm
+            source = self._lazyllm_image_caption_source or "qwen"
+            model = self._image_caption_model or "qwen-vl-plus"
+
+            self._lazyllm_client = lazyllm.namespace('BANANA').OnlineModule(
+                source=source,
+                model=model,
+                type="vlm",
+            )
+        return self._lazyllm_client
+    
     def _can_generate_captions(self) -> bool:
         """Check if image caption generation is available"""
         if self._provider_format == 'openai':
             return bool(self._openai_api_key)
+        elif self._provider_format == 'lazyllm':
+            source = (self._lazyllm_image_caption_source or "qwen").upper()
+            return bool(os.getenv(f"BANANA_{source}_API_KEY"))
         else:
             return bool(self._google_api_key)
     
@@ -682,6 +705,14 @@ class FileParserService:
                     temperature=0.3
                 )
                 caption = response.choices[0].message.content.strip()
+            elif self._provider_format == 'lazyllm':
+                # Use LazyLLM format
+                client = self._get_lazyllm_client()
+                file_path = []
+                temp_path = os.path.join(tempfile.gettempdir(), f'lazyllm_ref.png')
+                image.save(temp_path)
+                file_path.append(temp_path)
+                caption = client(prompt, lazyllm_files=file_path)
             else:
                 # Use Gemini SDK format (default)
                 from google.genai import types

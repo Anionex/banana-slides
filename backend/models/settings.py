@@ -81,6 +81,9 @@ class Settings(db.Model):
             if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
                 default_api_base = Config.OPENAI_API_BASE or None
                 default_api_key = Config.OPENAI_API_KEY or None
+            elif (Config.AI_PROVIDER_FORMAT or '').lower() == 'lazyllm':
+                default_api_base = None
+                default_api_key = None
             else:
                 # 默认为 gemini（Google）
                 default_api_base = Config.GOOGLE_API_BASE or None
