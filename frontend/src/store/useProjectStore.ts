@@ -66,17 +66,22 @@ const debouncedUpdatePage = debounce(
   async (projectId: string, pageId: string, data: any) => {
       try {
     const promises: Promise<any>[] = [];
-    
+
     // 如果更新的是 description_content，使用专门的端点
     if (data.description_content) {
       promises.push(api.updatePageDescription(projectId, pageId, data.description_content));
     }
-    
+
     // 如果更新的是 outline_content，使用专门的端点
     if (data.outline_content) {
       promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
     }
-    
+
+    // 如果更新的是 part 字段，使用通用端点
+    if ('part' in data) {
+      promises.push(api.updatePage(projectId, pageId, { part: data.part }));
+    }
+
     // 如果没有特定的内容更新，使用通用端点
     if (promises.length === 0) {
       await api.updatePage(projectId, pageId, data);

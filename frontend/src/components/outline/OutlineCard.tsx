@@ -28,14 +28,16 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
   const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
+  const [editPart, setEditPart] = useState(page.part || '');
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {
     if (!isEditing) {
       setEditTitle(page.outline_content.title);
       setEditPoints(page.outline_content.points.join('\n'));
+      setEditPart(page.part || '');
     }
-  }, [page.outline_content.title, page.outline_content.points, isEditing]);
+  }, [page.outline_content.title, page.outline_content.points, page.part, isEditing]);
 
   const handleSave = () => {
     onUpdate({
@@ -43,6 +45,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
         title: editTitle,
         points: editPoints.split('\n').filter((p) => p.trim()),
       },
+      part: editPart.trim() || undefined,
     });
     setIsEditing(false);
   };
@@ -50,6 +53,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   const handleCancel = () => {
     setEditTitle(page.outline_content.title);
     setEditPoints(page.outline_content.points.join('\n'));
+    setEditPart(page.part || '');
     setIsEditing(false);
   };
 
@@ -78,10 +82,21 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
             <span className="text-sm font-semibold text-gray-900">
               第 {index + 1} 页
             </span>
-            {page.part && (
-              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                {page.part}
-              </span>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editPart}
+                onChange={(e) => setEditPart(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs px-2 py-0.5 w-24 border border-blue-300 bg-blue-50 text-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="章节"
+              />
+            ) : (
+              page.part && (
+                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                  {page.part}
+                </span>
+              )
             )}
           </div>
 
