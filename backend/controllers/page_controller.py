@@ -8,6 +8,7 @@ from utils import success_response, error_response, not_found, bad_request
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
+from middlewares.auth import auth_required, get_current_user
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -20,7 +21,16 @@ logger = logging.getLogger(__name__)
 page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
 
 
+def _get_user_project(project_id: str, user_id: str):
+    """Get a project that belongs to the specified user."""
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id
+    ).first()
+
+
 @page_bp.route('/<project_id>/pages', methods=['POST'])
+@auth_required
 def create_page(project_id):
     """
     POST /api/projects/{project_id}/pages - Add new page
@@ -33,7 +43,8 @@ def create_page(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -77,11 +88,18 @@ def create_page(project_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>', methods=['DELETE'])
+@auth_required
 def delete_page(project_id, page_id):
     """
     DELETE /api/projects/{project_id}/pages/{page_id} - Delete page
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
 
         if not page or page.project_id != project_id:
@@ -95,9 +113,7 @@ def delete_page(project_id, page_id):
         db.session.delete(page)
 
         # Update project
-        project = Project.query.get(project_id)
-        if project:
-            project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.utcnow()
 
         db.session.commit()
 
@@ -109,6 +125,7 @@ def delete_page(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>', methods=['PUT'])
+@auth_required
 def update_page(project_id, page_id):
     """
     PUT /api/projects/{project_id}/pages/{page_id} - Update page fields
@@ -119,6 +136,12 @@ def update_page(project_id, page_id):
     }
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
 
         if not page or page.project_id != project_id:
@@ -150,6 +173,7 @@ def update_page(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])
+@auth_required
 def update_page_outline(project_id, page_id):
     """
     PUT /api/projects/{project_id}/pages/{page_id}/outline - Edit page outline
@@ -160,6 +184,12 @@ def update_page_outline(project_id, page_id):
     }
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:
@@ -188,6 +218,7 @@ def update_page_outline(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/description', methods=['PUT'])
+@auth_required
 def update_page_description(project_id, page_id):
     """
     PUT /api/projects/{project_id}/pages/{page_id}/description - Edit description
@@ -202,6 +233,12 @@ def update_page_description(project_id, page_id):
     }
     """
     try:
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
+        
+        if not project:
+            return not_found('Project')
+        
         page = Page.query.get(page_id)
         
         if not page or page.project_id != project_id:

@@ -23,10 +23,28 @@ from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
 )
+from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
+
+
+def _get_user_project(project_id: str, user_id: str):
+    """
+    Get a project that belongs to the specified user.
+    
+    Args:
+        project_id: Project ID
+        user_id: User ID
+        
+    Returns:
+        Project if found and belongs to user, None otherwise
+    """
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id
+    ).first()
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -115,15 +133,18 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
 
 
 @project_bp.route('', methods=['GET'])
+@auth_required
 def list_projects():
     """
-    GET /api/projects - Get all projects (for history)
+    GET /api/projects - Get all projects for current user (for history)
     
     Query params:
     - limit: number of projects to return (default: 50, max: 100)
     - offset: offset for pagination (default: 0)
     """
     try:
+        user = get_current_user()
+        
         # Parameter validation
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
@@ -133,8 +154,9 @@ def list_projects():
         offset = max(0, offset)  # Non-negative
         
         # Fetch limit + 1 items to check for more pages efficiently
-        # This avoids a second database query
+        # Filter by current user's projects only
         projects_with_extra = Project.query\
+            .filter(Project.user_id == user.id)\
             .options(joinedload(Project.pages))\
             .order_by(desc(Project.updated_at))\
             .limit(limit + 1)\
@@ -159,6 +181,7 @@ def list_projects():
 
 
 @project_bp.route('', methods=['POST'])
+@auth_required
 def create_project():
     """
     POST /api/projects - Create a new project
@@ -173,6 +196,7 @@ def create_project():
     }
     """
     try:
+        user = get_current_user()
         data = request.get_json()
         
         if not data:
@@ -187,8 +211,9 @@ def create_project():
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
         
-        # Create project
+        # Create project with user association
         project = Project(
+            user_id=user.id,
             creation_type=creation_type,
             idea_prompt=data.get('idea_prompt'),
             outline_text=data.get('outline_text'),
@@ -198,6 +223,10 @@ def create_project():
         )
         
         db.session.add(project)
+        
+        # Update user's project count
+        user.projects_count += 1
+        
         db.session.commit()
         
         return success_response({
@@ -220,15 +249,19 @@ def create_project():
 
 
 @project_bp.route('/<project_id>', methods=['GET'])
+@auth_required
 def get_project(project_id):
     """
     GET /api/projects/{project_id} - Get project details
     """
     try:
+        user = get_current_user()
+        
         # Use eager loading to load project and related pages
+        # Filter by user_id for data isolation
         project = Project.query\
+            .filter(Project.id == project_id, Project.user_id == user.id)\
             .options(joinedload(Project.pages))\
-            .filter(Project.id == project_id)\
             .first()
         
         if not project:
@@ -242,6 +275,7 @@ def get_project(project_id):
 
 
 @project_bp.route('/<project_id>', methods=['PUT'])
+@auth_required
 def update_project(project_id):
     """
     PUT /api/projects/{project_id} - Update project
@@ -253,10 +287,13 @@ def update_project(project_id):
     }
     """
     try:
+        user = get_current_user()
+        
         # Use eager loading to load project and pages (for page order updates)
+        # Filter by user_id for data isolation
         project = Project.query\
+            .filter(Project.id == project_id, Project.user_id == user.id)\
             .options(joinedload(Project.pages))\
-            .filter(Project.id == project_id)\
             .first()
         
         if not project:
@@ -311,12 +348,16 @@ def update_project(project_id):
 
 
 @project_bp.route('/<project_id>', methods=['DELETE'])
+@auth_required
 def delete_project(project_id):
     """
     DELETE /api/projects/{project_id} - Delete project
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        
+        # Filter by user_id for data isolation
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -328,6 +369,10 @@ def delete_project(project_id):
         
         # Delete project from database (cascade will delete pages and tasks)
         db.session.delete(project)
+        
+        # Update user's project count
+        user.projects_count = max(0, user.projects_count - 1)
+        
         db.session.commit()
         
         return success_response(message="Project deleted successfully")
@@ -339,6 +384,7 @@ def delete_project(project_id):
 
 
 @project_bp.route('/<project_id>/generate/outline', methods=['POST'])
+@auth_required
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
@@ -353,7 +399,8 @@ def generate_outline(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -445,6 +492,7 @@ def generate_outline(project_id):
 
 
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
+@auth_required
 def generate_from_description(project_id):
     """
     POST /api/projects/{project_id}/generate/from-description - Generate outline and page descriptions from description text
@@ -463,7 +511,8 @@ def generate_from_description(project_id):
     """
     
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -562,6 +611,7 @@ def generate_from_description(project_id):
 
 
 @project_bp.route('/<project_id>/generate/descriptions', methods=['POST'])
+@auth_required
 def generate_descriptions(project_id):
     """
     POST /api/projects/{project_id}/generate/descriptions - Generate descriptions
@@ -573,7 +623,8 @@ def generate_descriptions(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -653,6 +704,7 @@ def generate_descriptions(project_id):
 
 
 @project_bp.route('/<project_id>/generate/images', methods=['POST'])
+@auth_required
 def generate_images(project_id):
     """
     POST /api/projects/{project_id}/generate/images - Generate images
@@ -666,7 +718,8 @@ def generate_images(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -767,11 +820,19 @@ def generate_images(project_id):
 
 
 @project_bp.route('/<project_id>/tasks/<task_id>', methods=['GET'])
+@auth_required
 def get_task_status(project_id, task_id):
     """
     GET /api/projects/{project_id}/tasks/{task_id} - Get task status
     """
     try:
+        user = get_current_user()
+        
+        # Verify project belongs to user first
+        project = _get_user_project(project_id, user.id)
+        if not project:
+            return not_found('Project')
+        
         task = Task.query.get(task_id)
         
         if not task or task.project_id != project_id:
@@ -785,6 +846,7 @@ def get_task_status(project_id, task_id):
 
 
 @project_bp.route('/<project_id>/refine/outline', methods=['POST'])
+@auth_required
 def refine_outline(project_id):
     """
     POST /api/projects/{project_id}/refine/outline - Refine outline based on user requirements
@@ -796,7 +858,8 @@ def refine_outline(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
@@ -939,6 +1002,7 @@ def refine_outline(project_id):
 
 
 @project_bp.route('/<project_id>/refine/descriptions', methods=['POST'])
+@auth_required
 def refine_descriptions(project_id):
     """
     POST /api/projects/{project_id}/refine/descriptions - Refine page descriptions based on user requirements
@@ -950,7 +1014,8 @@ def refine_descriptions(project_id):
     }
     """
     try:
-        project = Project.query.get(project_id)
+        user = get_current_user()
+        project = _get_user_project(project_id, user.id)
         
         if not project:
             return not_found('Project')
