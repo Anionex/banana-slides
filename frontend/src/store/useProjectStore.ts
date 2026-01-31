@@ -297,24 +297,34 @@ const debouncedUpdatePage = debounce(
     const { currentProject } = get();
     if (!currentProject) return;
 
+    // 找出被移动的页面：比较新旧顺序，找出位置发生变化的页面
+    const oldOrder = currentProject.pages.map((p) => p.id);
+
     // 乐观更新
     const reorderedPages = newOrder
       .map((id) => currentProject.pages.find((p) => p.id === id))
       .filter(Boolean) as any[];
 
-    // 更新每个页面的 part 字段，使其与前一页保持一致
-    // 第一页保持原有 part，后续页面继承前一页的 part
-    // 使用 reduce 实现链式传播，确保 part 值能正确传递
-    const pagesWithUpdatedPart = reorderedPages.reduce((acc: any[], page: any) => {
-      const prevPage = acc[acc.length - 1];
-      const inheritedPart = getInheritedPart(prevPage);
-      if (inheritedPart !== undefined && inheritedPart !== page.part) {
-        acc.push({ ...page, part: inheritedPart });
-      } else {
-        acc.push(page);
+    // 只更新被移动页面的 part 字段（位置发生变化的页面）
+    // 被移动的页面继承其新位置前一页的 part
+    const pagesWithUpdatedPart = reorderedPages.map((page: any, index: number) => {
+      const oldIndex = oldOrder.indexOf(page.id);
+      // 如果页面位置没变，保持原样
+      if (oldIndex === index) {
+        return page;
       }
-      return acc;
-    }, []);
+      // 页面位置变了，继承新位置前一页的 part
+      if (index === 0) {
+        // 移动到第一位，保持原有 part
+        return page;
+      }
+      const prevPage = reorderedPages[index - 1];
+      const inheritedPart = getInheritedPart(prevPage);
+      if (inheritedPart !== undefined) {
+        return { ...page, part: inheritedPart };
+      }
+      return page;
+    });
 
     set({
       currentProject: {
@@ -329,8 +339,8 @@ const debouncedUpdatePage = debounce(
       // 更新被移动页面的 part 字段
       const updatePromises = pagesWithUpdatedPart
         .filter((page, index) => {
-          const originalPage = reorderedPages[index];
-          return page.part !== originalPage.part && page.id;
+          const originalPage = currentProject.pages.find((p) => p.id === page.id);
+          return originalPage && page.part !== originalPage.part && page.id;
         })
         .map((page) => api.updatePage(currentProject.id, page.id!, { part: page.part }));
 
