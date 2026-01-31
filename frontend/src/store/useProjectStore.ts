@@ -317,11 +317,22 @@ const debouncedUpdatePage = debounce(
     if (!currentProject) return;
 
     try {
-      const newPage = {
+      // 获取最后一页的 part 字段，新页面继承该值
+      const lastPage = currentProject.pages[currentProject.pages.length - 1];
+      const newPage: {
+        outline_content: { title: string; points: string[] };
+        order_index: number;
+        part?: string;
+      } = {
         outline_content: { title: '新页面', points: [] },
         order_index: currentProject.pages.length,
       };
-      
+
+      // 如果存在前一页且有 part 字段，则继承
+      if (lastPage?.part) {
+        newPage.part = lastPage.part;
+      }
+
       const response = await api.addPage(currentProject.id, newPage);
       if (response.data) {
         await get().syncProject();
