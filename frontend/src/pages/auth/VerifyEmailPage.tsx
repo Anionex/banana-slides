@@ -26,7 +26,9 @@ export default function VerifyEmailPage() {
         setStatus('success');
       } catch (err: any) {
         setStatus('error');
-        setError(err.response?.data?.message || err.response?.data?.error || '验证失败');
+        // 后端错误格式: { error: { code, message }, success: false }
+        const errorData = err.response?.data;
+        setError(errorData?.error?.message || errorData?.message || '验证失败');
       }
     };
 

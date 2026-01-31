@@ -27,7 +27,9 @@ export default function LoginPage() {
       await loginUser(email, password);
       navigate(from, { replace: true });
     } catch (err: any) {
-      const message = err.response?.data?.message || err.response?.data?.error || '登录失败，请重试';
+      // 后端错误格式: { error: { code, message }, success: false }
+      const errorData = err.response?.data;
+      const message = errorData?.error?.message || errorData?.message || '登录失败，请重试';
       setError(message);
     } finally {
       setLoading(false);

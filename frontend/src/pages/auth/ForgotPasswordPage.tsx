@@ -21,7 +21,9 @@ export default function ForgotPasswordPage() {
       await authApi.forgotPassword(email);
       setSuccess(true);
     } catch (err: any) {
-      const message = err.response?.data?.message || err.response?.data?.error || '发送失败，请重试';
+      // 后端错误格式: { error: { code, message }, success: false }
+      const errorData = err.response?.data;
+      const message = errorData?.error?.message || errorData?.message || '发送失败，请重试';
       setError(message);
     } finally {
       setLoading(false);
