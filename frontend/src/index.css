@@ -26,6 +26,55 @@
   --transition-fast: 150ms ease-in-out;
   --transition-base: 250ms ease-in-out;
   --transition-slow: 350ms ease-in-out;
+
+  /* 背景色 */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F5F5;
+  --bg-tertiary: #FAFAFA;
+  --bg-elevated: #FFFFFF;
+  --bg-hover: #F5F5F5;
+
+  /* 文字色 */
+  --text-primary: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-tertiary: #757575;
+
+  /* 边框色 */
+  --border-primary: #E5E5E5;
+  --border-secondary: #F0F0F0;
+  --border-hover: #D4D4D4;
+}
+
+.dark {
+  /* 主色 - 黄色系（深色模式下稍微调亮） */
+  --banana-yellow: #F5A623;
+  --banana-yellow-light: #FFD700;
+  --banana-yellow-dark: #E6930E;
+  --banana-yellow-pale: #2A2520;
+
+  /* 中性色 - 深色模式 */
+  --black: #F5F5F5;
+  --black-80: #D4D4D4;
+  --black-60: #8E8E8E;
+  --black-10: #1E1E24;
+  --white: #13131A;
+
+  /* 背景色 */
+  --bg-primary: #13131A;
+  --bg-secondary: #1E1E24;
+  --bg-tertiary: #17171E;
+  --bg-elevated: #252530;
+  --bg-hover: #2E2E38;
+
+  /* 文字色 */
+  --text-primary: #FFFFFF;
+  --text-secondary: #B0B0B0;
+  --text-tertiary: #6E6E6E;
+
+  /* 边框色 */
+  --border-primary: #2E2E38;
+  --border-secondary: #252530;
+  --border-hover: #3E3E48;
 }
 
 * {
@@ -41,6 +90,9 @@ body {
   /* 移动端优化 */
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 #root {
@@ -54,7 +106,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--black-10);
+  background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { Button, useToast, Modal } from '@/components/shared';
 import {
@@ -37,6 +38,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   maxSelection,
   initialSelectedIds = [],
 }) => {
+  const { t } = useTranslation();
   const { show } = useToast();
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -182,7 +184,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     const selected = files.filter((f) => selectedFiles.has(f.id));
     
     if (selected.length === 0) {
-      show({ message: '请至少选择一个文件', type: 'info' });
+      show({ message: t('referenceFile.messages.selectAtLeastOne'), type: 'info' });
       return;
     }
     
@@ -222,7 +224,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       );
       
       if (validFiles.length === 0) {
-        show({ message: '请选择有效的文件', type: 'info' });
+        show({ message: t('referenceFile.messages.selectValid'), type: 'info' });
         return;
       }
       
@@ -245,7 +247,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       return fileExt === 'ppt' || fileExt === 'pptx';
     });
     
-    if (hasPptFiles) show({  message: '💡 提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果', type: 'info' });
+    if (hasPptFiles) show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
     
 
     setIsUploading(true);
@@ -268,7 +270,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
         .filter((f): f is ReferenceFile => f !== undefined);
 
       if (uploadedFiles.length > 0) {
-        show({ message: `成功上传 ${uploadedFiles.length} 个文件`, type: 'success' });
+        show({ message: t('referenceFile.messages.uploadSuccess', { count: uploadedFiles.length }), type: 'success' });
         
         // 只有正在解析的文件才添加到轮询列表（pending 状态的文件不轮询）
         const needsParsing = uploadedFiles.filter(f => 
@@ -317,7 +319,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     const fileId = file.id;
 
     if (!fileId) {
-      show({ message: '无法删除：缺少文件ID', type: 'error' });
+      show({ message: t('referenceFile.messages.cannotDelete'), type: 'error' });
       return;
     }
 
@@ -329,7 +331,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
     try {
       await deleteReferenceFile(fileId);
-      show({ message: '文件删除成功', type: 'success' });
+      show({ message: t('referenceFile.messages.deleteSuccess'), type: 'success' });
       
       // 从选择中移除
       setSelectedFiles((prev) => {
@@ -402,7 +404,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       <div className="space-y-4">
         {/* 工具栏 */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-foreground-tertiary">
             <span>{files.length > 0 ? `共 ${files.length} 个文件` : '暂无文件'}</span>
             {selectedFiles.size > 0 && (
               <span className="ml-2 text-banana-600">
@@ -418,7 +420,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             <select
               value={filterProjectId}
               onChange={(e) => setFilterProjectId(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-banana-500"
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
             >
               <option value="all">所有附件</option>
               <option value="none">未归类附件</option>
@@ -466,11 +468,11 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
         />
 
         {/* 文件列表 */}
-        <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+        <div className="border border-gray-200 dark:border-border-primary rounded-lg max-h-96 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-              <span className="ml-2 text-gray-500">加载中...</span>
+              <span className="ml-2 text-gray-500 dark:text-foreground-tertiary">加载中...</span>
             </div>
           ) : files.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
@@ -479,7 +481,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
               <p className="text-sm mt-1">点击"上传文件"按钮添加文件</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200 dark:divide-border-primary">
               {files.map((file) => {
                 const isSelected = selectedFiles.has(file.id);
                 const isDeleting = deletingIds.has(file.id);
@@ -491,7 +493,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                     onClick={() => handleSelectFile(file)}
                     className={`
                       p-4 cursor-pointer transition-colors
-                      ${isSelected ? 'bg-banana-50 border-l-4 border-l-banana-500' : 'hover:bg-gray-50'}
+                      ${isSelected ? 'bg-banana-50 dark:bg-background-secondary border-l-4 border-l-banana-500' : 'hover:bg-gray-50 dark:hover:bg-background-hover'}
                       ${file.parse_status === 'failed' ? 'opacity-60' : ''}
                     `}
                   >
@@ -503,7 +505,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                             w-5 h-5 rounded border-2 flex items-center justify-center
                             ${isSelected
                               ? 'bg-banana-500 border-banana-500'
-                              : 'border-gray-300'
+                              : 'border-gray-300 dark:border-border-primary'
                             }
                             ${file.parse_status === 'failed' ? 'opacity-50' : ''}
                           `}
@@ -516,7 +518,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
                       {/* 文件图标 */}
                       <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
                           <FileText className="w-5 h-5 text-blue-600" />
                         </div>
                       </div>
@@ -524,10 +526,10 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                       {/* 文件信息 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-medium text-gray-900 dark:text-foreground-primary truncate">
                             {file.filename}
                           </p>
-                          <span className="text-xs text-gray-500 flex-shrink-0">
+                          <span className="text-xs text-gray-500 dark:text-foreground-tertiary flex-shrink-0">
                             {formatFileSize(file.file_size)}
                           </span>
                         </div>
@@ -535,7 +537,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                         {/* 状态 */}
                         <div className="flex items-center gap-1.5 mt-1">
                           {getStatusIcon(file)}
-                          <p className="text-xs text-gray-600">
+                          <p className="text-xs text-gray-600 dark:text-foreground-tertiary">
                             {getStatusText(file)}
                             {isPending && (
                               <span className="ml-1 text-orange-500">(确定后解析)</span>
@@ -582,8 +584,8 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
         </div>
 
         {/* 底部操作栏 */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500">
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-border-primary">
+          <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
             💡 提示：选择未解析的文件将自动开始解析
           </p>
           <div className="flex items-center gap-2">

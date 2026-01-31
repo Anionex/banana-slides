@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain } from 'lucide-react';
 import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
@@ -254,6 +255,7 @@ const settingsSections: SectionConfig[] = [
 
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
+  const { t } = useTranslation();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
@@ -328,8 +330,8 @@ export const Settings: React.FC = () => {
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
-        show({ message: '设置保存成功', type: 'success' });
-        show({ message: '建议在本页底部进行服务测试，验证关键配置', type: 'info' });
+        show({ message: t('settings.messages.saveSuccess'), type: 'success' });
+        show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         setFormData(prev => ({ ...prev, api_key: '', mineru_token: '', baidu_ocr_api_key: '' }));
       }
     } catch (error: any) {
@@ -372,7 +374,7 @@ export const Settings: React.FC = () => {
               image_thinking_budget: response.data.image_thinking_budget || 1024,
               baidu_ocr_api_key: '',
             });
-            show({ message: '设置已重置', type: 'success' });
+            show({ message: t('settings.messages.resetSuccess'), type: 'success' });
           }
         } catch (error: any) {
           console.error('重置设置失败:', error);
@@ -457,14 +459,14 @@ export const Settings: React.FC = () => {
             clearInterval(pollInterval);
             const errorMessage = statusResponse.data.error || '测试失败';
             updateServiceTest(key, { status: 'error', message: errorMessage });
-            show({ message: '测试失败: ' + errorMessage, type: 'error' });
+            show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
         } catch (pollError: any) {
           clearInterval(pollInterval);
-          const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || '轮询失败';
+          const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || t('settings.serviceTest.testFailed');
           updateServiceTest(key, { status: 'error', message: errorMessage });
-          show({ message: '测试失败: ' + errorMessage, type: 'error' });
+          show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
         }
       }, 2000); // 每2秒轮询一次
 
@@ -473,14 +475,14 @@ export const Settings: React.FC = () => {
         clearInterval(pollInterval);
         if (serviceTestStates[key]?.status === 'loading') {
           updateServiceTest(key, { status: 'error', message: '测试超时' });
-          show({ message: '测试超时，请重试', type: 'error' });
+          show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
         }
       }, 120000);
 
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.error?.message || error?.message || '未知错误';
+      const errorMessage = error?.response?.data?.error?.message || error?.message || t('common.unknownError');
       updateServiceTest(key, { status: 'error', message: errorMessage });
-      show({ message: '测试失败: ' + errorMessage, type: 'error' });
+      show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
     }
   };
 
@@ -490,7 +492,7 @@ export const Settings: React.FC = () => {
     if (field.type === 'buttons' && field.options) {
       return (
         <div key={field.key}>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
             {field.label}
           </label>
           <div className="flex flex-wrap gap-2">
@@ -504,7 +506,7 @@ export const Settings: React.FC = () => {
                     ? option.value === 'openai'
                       ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
                       : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md'
-                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                    : 'bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover hover:border-gray-300 dark:hover:border-gray-500'
                 }`}
               >
                 {option.label}
@@ -512,7 +514,7 @@ export const Settings: React.FC = () => {
             ))}
           </div>
           {field.description && (
-            <p className="mt-1 text-xs text-gray-500">{field.description}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
           )}
         </div>
       );
@@ -521,13 +523,13 @@ export const Settings: React.FC = () => {
     if (field.type === 'select' && field.options) {
       return (
         <div key={field.key}>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
             {field.label}
           </label>
           <select
             value={value as string}
             onChange={(e) => handleFieldChange(field.key, e.target.value)}
-            className="w-full h-10 px-4 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+            className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
           >
             {field.options.map((option) => (
               <option key={option.value} value={option.value}>
@@ -536,7 +538,7 @@ export const Settings: React.FC = () => {
             ))}
           </select>
           {field.description && (
-            <p className="mt-1 text-sm text-gray-500">{field.description}</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
           )}
         </div>
       );
@@ -548,7 +550,7 @@ export const Settings: React.FC = () => {
       return (
         <div key={field.key}>
           <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary">
               {field.label}
             </label>
             <button
@@ -559,14 +561,14 @@ export const Settings: React.FC = () => {
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-background-secondary transition-transform ${
                   isEnabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
           </div>
           {field.description && (
-            <p className="mt-1 text-sm text-gray-500">{field.description}</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
           )}
         </div>
       );
@@ -603,7 +605,7 @@ export const Settings: React.FC = () => {
           disabled={isDisabled}
         />
         {field.description && (
-          <p className="mt-1 text-sm text-gray-500">{field.description}</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
         )}
       </div>
     );
@@ -626,15 +628,15 @@ export const Settings: React.FC = () => {
         <div className="space-y-8">
           {settingsSections.map((section) => (
             <div key={section.title}>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                 {section.icon}
                 <span className="ml-2">{section.title}</span>
               </h2>
               <div className="space-y-4">
                 {section.fields.map((field) => renderField(field))}
                 {section.title === '大模型 API 配置' && (
-                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-gray-700">
+                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+                    <p className="text-sm text-gray-700 dark:text-foreground-secondary">
                       API 密匙获取可前往{' '}
                       <a
                         href="https://aihubmix.com/?aff=17EC"
@@ -655,15 +657,15 @@ export const Settings: React.FC = () => {
 
         {/* 服务测试区 */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2 flex items-center">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-2 flex items-center">
             <FileText size={20} />
             <span className="ml-2">服务测试</span>
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
             提前验证关键服务配置是否可用，避免使用期间异常。
           </p>
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-gray-700">
+          <div className="p-3 bg-yellow-50 dark:bg-background-primary border border-yellow-200 dark:border-yellow-700 rounded-lg">
+            <p className="text-sm text-gray-700 dark:text-foreground-secondary">
               💡 提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。
             </p>
           </div>
@@ -717,12 +719,12 @@ export const Settings: React.FC = () => {
               return (
                 <div
                   key={item.key}
-                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-2"
+                  className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-2"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <div className="text-base font-semibold text-gray-800">{item.title}</div>
-                      <div className="text-sm text-gray-500">{item.description}</div>
+                      <div className="text-base font-semibold text-gray-800 dark:text-foreground-primary">{item.title}</div>
+                      <div className="text-sm text-gray-500 dark:text-foreground-tertiary">{item.description}</div>
                     </div>
                     <Button
                       variant="secondary"
@@ -750,14 +752,14 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* 操作按钮 */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-border-primary">
           <Button
             variant="secondary"
             icon={<RotateCcw size={18} />}
             onClick={handleReset}
             disabled={isSaving}
           >
-            重置为默认配置
+            {t('settings.actions.resetToDefault')}
           </Button>
           <Button
             variant="primary"
@@ -765,7 +767,7 @@ export const Settings: React.FC = () => {
             onClick={handleSave}
             loading={isSaving}
           >
-            {isSaving ? '保存中...' : '保存设置'}
+            {isSaving ? t('settings.actions.saving') : t('settings.actions.save')}
           </Button>
         </div>
       </div>
@@ -776,14 +778,15 @@ export const Settings: React.FC = () => {
 // SettingsPage 组件 - 完整页面包装
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  
+  const { t } = useTranslation();
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-banana-50 to-yellow-50">
+    <div className="min-h-screen bg-gradient-to-br from-banana-50 dark:from-background-primary to-yellow-50 dark:to-background-primary">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <Card className="p-6 md:p-8">
           <div className="space-y-8">
             {/* 顶部标题 */}
-            <div className="flex items-center justify-between pb-6 border-b border-gray-200">
+            <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-border-primary">
               <div className="flex items-center">
                 <Button
                   variant="secondary"
@@ -791,12 +794,12 @@ export const SettingsPage: React.FC = () => {
                   onClick={() => navigate('/')}
                   className="mr-4"
                 >
-                  返回首页
+                  {t('nav.backToHome')}
                 </Button>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">系统设置</h1>
-                  <p className="text-sm text-gray-500 mt-1">
-                    配置应用的各项参数
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground-primary">{t('settings.title')}</h1>
+                  <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1">
+                    {t('settings.subtitle')}
                   </p>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Edit2, Trash2 } from 'lucide-react';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
 import { getImageUrl } from '@/api/client';
@@ -23,6 +24,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
   onDelete,
   isGenerating = false,
 }) => {
+  const { t } = useTranslation();
   const { confirm, ConfirmDialog } = useConfirm();
   const imageUrl = page.generated_image_path
     ? getImageUrl(page.generated_image_path, page.updated_at)
@@ -38,7 +40,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
       onClick={onClick}
     >
       {/* 缩略图 */}
-      <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2">
+      <div className="relative aspect-video bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden mb-2">
         {generating ? (
           <Skeleton className="w-full h-full" />
         ) : page.generated_image_path ? (
@@ -55,7 +57,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
                   e.stopPropagation();
                   onEdit();
                 }}
-                className="p-2 bg-white rounded-lg hover:bg-banana-50 transition-colors"
+                className="p-2 bg-white dark:bg-background-secondary rounded-lg hover:bg-banana-50 dark:hover:bg-background-hover transition-colors"
               >
                 <Edit2 size={18} />
               </button>
@@ -63,12 +65,12 @@ export const SlideCard: React.FC<SlideCardProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   confirm(
-                    '确定要删除这一页吗？',
+                    t('slideCard.confirmDeletePage'),
                     onDelete,
-                    { title: '确认删除', variant: 'danger' }
+                    { title: t('slideCard.confirmDeleteTitle'), variant: 'danger' }
                   );
                 }}
-                className="p-2 bg-white rounded-lg hover:bg-red-50 transition-colors"
+                className="p-2 bg-white dark:bg-background-secondary rounded-lg hover:bg-red-50 transition-colors"
               >
                 <Trash2 size={18} className="text-red-600" />
               </button>
@@ -78,7 +80,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
               <div className="text-3xl mb-1">🍌</div>
-              <div className="text-xs">未生成</div>
+              <div className="text-xs">{t('slideCard.notGenerated')}</div>
             </div>
           </div>
         )}
@@ -93,7 +95,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
       <div className="flex items-center gap-2">
         <span
           className={`text-sm font-medium ${
-            isSelected ? 'text-banana-600' : 'text-gray-700'
+            isSelected ? 'text-banana-600' : 'text-gray-700 dark:text-foreground-secondary'
           }`}
         >
           {index + 1}. {page.outline_content.title}

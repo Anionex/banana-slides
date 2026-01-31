@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, HelpModal } from '@/components/shared';
+import { useTranslation } from 'react-i18next';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown } from 'lucide-react';
+import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
+import { useTheme } from '@/hooks/useTheme';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
 type CreationType = 'idea' | 'outline' | 'description';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
@@ -22,6 +26,7 @@ export const Home: React.FC = () => {
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [isMaterialCenterOpen, setIsMaterialCenterOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
@@ -33,6 +38,7 @@ export const Home: React.FC = () => {
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
 
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
@@ -114,7 +120,7 @@ export const Home: React.FC = () => {
             await handleFileUpload(file);
           } else {
             console.log('File type not allowed');
-            show({ message: `不支持的文件类型: ${fileExt}`, type: 'info' });
+            show({ message: t('home.messages.unsupportedFileType', { type: fileExt }), type: 'info' });
           }
         }
       }
@@ -129,7 +135,7 @@ export const Home: React.FC = () => {
     setIsUploadingFile(true);
     try {
       // 显示上传中提示
-      show({ message: '正在上传图片...', type: 'info' });
+      show({ message: t('home.messages.uploadingImage'), type: 'info' });
       
       // 保存当前光标位置
       const cursorPosition = textareaRef.current?.selectionStart || content.length;
@@ -166,14 +172,14 @@ export const Home: React.FC = () => {
           }
         }, 0);
         
-        show({ message: '图片上传成功！已插入到光标位置', type: 'success' });
+        show({ message: t('home.messages.imageUploadSuccess'), type: 'success' });
       } else {
-        show({ message: '图片上传失败：未返回图片信息', type: 'error' });
+        show({ message: t('home.messages.imageUploadFailed'), type: 'error' });
       }
     } catch (error: any) {
-      console.error('图片上传失败:', error);
+      console.error('Image upload failed:', error);
       show({ 
-        message: `图片上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
+        message: `${t('home.messages.imageUploadFailed')}: ${error?.response?.data?.error?.message || error.message || t('common.unknownError')}`, 
         type: 'error' 
       });
     } finally {
@@ -190,7 +196,7 @@ export const Home: React.FC = () => {
     const maxSize = 200 * 1024 * 1024; // 200MB
     if (file.size > maxSize) {
       show({ 
-        message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
+        message: t('home.messages.fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }), 
         type: 'error' 
       });
       return;
@@ -199,7 +205,7 @@ export const Home: React.FC = () => {
     // 检查是否是PPT文件，提示建议使用PDF
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     if (fileExt === 'ppt' || fileExt === 'pptx') 
-      show({  message: '💡 提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果',    type: 'info' });
+      show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
     
     setIsUploadingFile(true);
     try {
@@ -208,7 +214,7 @@ export const Home: React.FC = () => {
       if (response?.data?.file) {
         const uploadedFile = response.data.file;
         setReferenceFiles(prev => [...prev, uploadedFile]);
-        show({ message: '文件上传成功', type: 'success' });
+        show({ message: t('home.messages.fileUploadSuccess'), type: 'success' });
         
         // 如果文件状态为 pending，自动触发解析
         if (uploadedFile.parse_status === 'pending') {
@@ -232,7 +238,7 @@ export const Home: React.FC = () => {
           }
         }
       } else {
-        show({ message: '文件上传失败：未返回文件信息', type: 'error' });
+        show({ message: t('home.messages.fileUploadFailed'), type: 'error' });
       }
     } catch (error: any) {
       console.error('文件上传失败:', error);
@@ -284,7 +290,7 @@ export const Home: React.FC = () => {
       });
       return [...updated, ...newFiles];
     });
-    show({ message: `已添加 ${selectedFiles.length} 个参考文件`, type: 'success' });
+    show({ message: t('home.messages.filesAdded', { count: selectedFiles.length }), type: 'success' });
   };
 
   // 获取当前已选择的文件ID列表，传递给选择器（使用 useMemo 避免每次渲染都重新计算）
@@ -305,7 +311,7 @@ export const Home: React.FC = () => {
       return newContent.trim();
     });
     
-    show({ message: '已移除图片', type: 'success' });
+    show({ message: t('home.messages.imageRemoved'), type: 'success' });
   };
 
   // 文件选择变化
@@ -324,21 +330,21 @@ export const Home: React.FC = () => {
   const tabConfig = {
     idea: {
       icon: <Sparkles size={20} />,
-      label: '一句话生成',
-      placeholder: '例如：生成一份关于 AI 发展史的演讲 PPT',
-      description: '输入你的想法，AI 将为你生成完整的 PPT',
+      label: t('home.tabs.idea'),
+      placeholder: t('home.placeholders.idea'),
+      description: t('home.tabDescriptions.idea'),
     },
     outline: {
       icon: <FileText size={20} />,
-      label: '从大纲生成',
-      placeholder: '粘贴你的 PPT 大纲...\n\n例如：\n第一部分：AI 的起源\n- 1950 年代的开端\n- 达特茅斯会议\n\n第二部分：发展历程\n...',
-      description: '已有大纲？直接粘贴即可快速生成，AI 将自动切分为结构化大纲',
+      label: t('home.tabs.outline'),
+      placeholder: t('home.placeholders.outline'),
+      description: t('home.tabDescriptions.outline'),
     },
     description: {
       icon: <FileEdit size={20} />,
-      label: '从描述生成',
-      placeholder: '粘贴你的完整页面描述...\n\n例如：\n第 1 页\n标题：人工智能的诞生\n内容：1950 年，图灵提出"图灵测试"...\n\n第 2 页\n标题：AI 的发展历程\n内容：1950年代：符号主义...\n...',
-      description: '已有完整描述？AI 将自动解析出大纲并切分为每页描述，直接生成图片',
+      label: t('home.tabs.description'),
+      placeholder: t('home.placeholders.description'),
+      description: t('home.tabDescriptions.description'),
     },
   };
 
@@ -372,18 +378,18 @@ export const Home: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!content.trim()) {
-      show({ message: '请输入内容', type: 'error' });
+      show({ message: t('home.messages.enterContent'), type: 'error' });
       return;
     }
 
     // 检查是否有正在解析的文件
-    const parsingFiles = referenceFiles.filter(f => 
+    const parsingFiles = referenceFiles.filter(f =>
       f.parse_status === 'pending' || f.parse_status === 'parsing'
     );
     if (parsingFiles.length > 0) {
-      show({ 
-        message: `还有 ${parsingFiles.length} 个参考文件正在解析中，请等待解析完成`, 
-        type: 'info' 
+      show({
+        message: t('home.messages.filesParsing', { count: parsingFiles.length }),
+        type: 'info'
       });
       return;
     }
@@ -393,7 +399,7 @@ export const Home: React.FC = () => {
         const historyResponse = await listProjects(1, 0);
         if ((historyResponse.data?.projects || []).length === 0) {
           show({
-            message: '建议先到设置页底部进行服务测试，避免后续功能异常',
+            message: t('home.messages.serviceTestTip'),
             type: 'info'
           });
         }
@@ -418,7 +424,7 @@ export const Home: React.FC = () => {
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
       if (!projectId) {
-        show({ message: '项目创建失败', type: 'error' });
+        show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
         return;
       }
       
@@ -477,16 +483,16 @@ export const Home: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50/30 to-pink-50/50 relative overflow-hidden">
-      {/* 背景装饰元素 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50/30 to-pink-50/50 dark:from-background-primary dark:via-background-primary dark:to-background-primary relative overflow-hidden">
+      {/* 背景装饰元素 - 仅在亮色模式显示 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none dark:hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-banana-500/10 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-yellow-400/5 rounded-full blur-3xl"></div>
       </div>
 
       {/* 导航栏 */}
-      <nav className="relative h-16 md:h-18 bg-white/40 backdrop-blur-2xl">
+      <nav className="relative z-50 h-16 md:h-18 bg-white/40 dark:bg-background-primary backdrop-blur-2xl dark:backdrop-blur-none dark:border-b dark:border-border-primary">
 
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -510,7 +516,7 @@ export const Home: React.FC = () => {
               onClick={handleOpenMaterialModal}
               className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden md:inline">素材生成</span>
+              <span className="hidden md:inline">{t('nav.materialGenerate')}</span>
             </Button>
             {/* 手机端：仅图标的素材生成按钮 */}
             <Button
@@ -519,7 +525,7 @@ export const Home: React.FC = () => {
               icon={<ImagePlus size={16} />}
               onClick={handleOpenMaterialModal}
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
-              title="素材生成"
+              title={t('nav.materialGenerate')}
             />
             {/* 桌面端：带文字的素材中心按钮 */}
             <Button
@@ -529,7 +535,7 @@ export const Home: React.FC = () => {
               onClick={() => setIsMaterialCenterOpen(true)}
               className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden md:inline">素材中心</span>
+              <span className="hidden md:inline">{t('nav.materialCenter')}</span>
             </Button>
             {/* 手机端：仅图标的素材中心按钮 */}
             <Button
@@ -538,16 +544,16 @@ export const Home: React.FC = () => {
               icon={<FolderOpen size={16} />}
               onClick={() => setIsMaterialCenterOpen(true)}
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
-              title="素材中心"
+              title={t('nav.materialCenter')}
             />
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate('/history')}
               className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden sm:inline">历史项目</span>
-              <span className="sm:hidden">历史</span>
+              <span className="hidden sm:inline">{t('nav.history')}</span>
+              <span className="sm:hidden">{t('nav.history')}</span>
             </Button>
             <Button
               variant="ghost"
@@ -556,8 +562,7 @@ export const Home: React.FC = () => {
               onClick={() => navigate('/settings')}
               className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
-              <span className="hidden md:inline">设置</span>
-              <span className="sm:hidden">设</span>
+              <span className="hidden md:inline">{t('nav.settings')}</span>
             </Button>
             <Button
               variant="ghost"
@@ -565,7 +570,7 @@ export const Home: React.FC = () => {
               onClick={() => setIsHelpModalOpen(true)}
               className="hidden md:inline-flex hover:bg-banana-50/50"
             >
-              帮助
+              {t('nav.help')}
             </Button>
             {/* 移动端帮助按钮 */}
             <Button
@@ -574,8 +579,63 @@ export const Home: React.FC = () => {
               icon={<HelpCircle size={16} />}
               onClick={() => setIsHelpModalOpen(true)}
               className="md:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
-              title="帮助"
+              title={t('nav.help')}
             />
+            {/* 分隔线 */}
+            <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
+            {/* 语言切换按钮 */}
+            <button
+              onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-gray-100 hover:bg-banana-100/60 dark:hover:bg-background-hover rounded-md transition-all"
+              title={t('settings.language.label')}
+            >
+              <Globe size={14} />
+              <span>{i18n.language?.startsWith('zh') ? 'EN' : '中'}</span>
+            </button>
+            {/* 主题切换按钮 */}
+            <div className="relative" ref={themeMenuRef}>
+              <button
+                onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+                className="flex items-center gap-1 p-1.5 text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-gray-100 hover:bg-banana-100/60 dark:hover:bg-background-hover rounded-md transition-all"
+                title={t('settings.theme.label')}
+              >
+                {theme === 'system' ? <Monitor size={16} /> : isDark ? <Moon size={16} /> : <Sun size={16} />}
+                <ChevronDown size={12} className={`transition-transform ${isThemeMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {/* 主题下拉菜单 */}
+              {isThemeMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsThemeMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary rounded-lg shadow-lg dark:shadow-none py-1 min-w-[120px]">
+                    <button
+                      onClick={() => { setTheme('light'); setIsThemeMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'light' ? 'text-banana' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                    >
+                      <Sun size={14} />
+                      <span>{t('settings.theme.light')}</span>
+                    </button>
+                    <button
+                      onClick={() => { setTheme('dark'); setIsThemeMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'dark' ? 'text-banana' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                    >
+                      <Moon size={14} />
+                      <span>{t('settings.theme.dark')}</span>
+                    </button>
+                    <button
+                      onClick={() => { setTheme('system'); setIsThemeMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${theme === 'system' ? 'text-banana' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                    >
+                      <Monitor size={14} />
+                      <span>{t('settings.theme.system')}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            {/* 分隔线 */}
+            <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
+            {/* GitHub 仓库卡片 - 最右侧 */}
+            <GithubRepoCard />
           </div>
         </div>
       </nav>
@@ -584,36 +644,36 @@ export const Home: React.FC = () => {
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
         {/* Hero 标题区 */}
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm rounded-full border border-banana-200/50 shadow-sm mb-4">
-            <span className="text-2xl animate-pulse"><Sparkles size={20} color="orange" /></span>
-            <span className="text-sm font-medium text-gray-700">基于 nano banana pro🍌 的原生 AI PPT 生成器</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 dark:bg-background-secondary backdrop-blur-sm rounded-full border border-banana-200/50 dark:border-border-primary shadow-sm dark:shadow-none mb-4">
+            <span className="text-2xl animate-pulse"><Sparkles size={20} className="text-orange-500 dark:text-banana" /></span>
+            <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('home.tagline')}</span>
           </div>
-          
+
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight">
-            <span className="bg-gradient-to-r from-yellow-600 via-orange-500 to-pink-500 bg-clip-text text-transparent" style={{
+            <span className="bg-gradient-to-r from-yellow-600 via-orange-500 to-pink-500 dark:from-banana-dark dark:via-banana dark:to-banana-light bg-clip-text text-transparent dark:italic" style={{
               backgroundSize: '200% auto',
               animation: 'gradient 3s ease infinite',
             }}>
-              蕉幻 · Banana Slides
+              {i18n.language?.startsWith('zh') ? `${t('home.title')} · Banana Slides` : 'Banana Slides'}
             </span>
           </h1>
-          
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto font-light">
-            Vibe your PPT like vibing code
+
+          <p className="text-lg md:text-xl text-gray-600 dark:text-foreground-secondary max-w-2xl mx-auto font-light">
+            {t('home.subtitle')}
           </p>
 
           {/* 特性标签 */}
           <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 pt-4">
             {[
-              { icon: <Sparkles size={14} className="text-yellow-600" />, label: '一句话生成 PPT' },
-              { icon: <FileEdit size={14} className="text-blue-500" />, label: '自然语言修改' },
-              { icon: <Search size={14} className="text-orange-500" />, label: '指定区域编辑' },
-              
-              { icon: <Paperclip size={14} className="text-green-600" />, label: '一键导出 PPTX/PDF' },
+              { icon: <Sparkles size={14} className="text-yellow-600 dark:text-banana" />, label: t('home.features.oneClick') },
+              { icon: <FileEdit size={14} className="text-blue-500 dark:text-blue-400" />, label: t('home.features.naturalEdit') },
+              { icon: <Search size={14} className="text-orange-500 dark:text-orange-400" />, label: t('home.features.regionEdit') },
+
+              { icon: <Paperclip size={14} className="text-green-600 dark:text-green-400" />, label: t('home.features.export') },
             ].map((feature, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 backdrop-blur-sm rounded-full text-xs md:text-sm text-gray-700 border border-gray-200/50 shadow-sm hover:shadow-md transition-all hover:scale-105 cursor-default"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 dark:bg-background-secondary backdrop-blur-sm rounded-full text-xs md:text-sm text-gray-700 dark:text-foreground-secondary border border-gray-200/50 dark:border-border-primary shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-border-hover transition-all hover:scale-105 cursor-default"
               >
                 {feature.icon}
                 {feature.label}
@@ -623,7 +683,7 @@ export const Home: React.FC = () => {
         </div>
 
         {/* 创建卡片 */}
-        <Card className="p-4 md:p-10 bg-white/90 backdrop-blur-xl shadow-2xl border-0 hover:shadow-3xl transition-all duration-300">
+        <Card className="p-4 md:p-10 bg-white/90 dark:bg-background-secondary backdrop-blur-xl dark:backdrop-blur-none shadow-2xl dark:shadow-none border-0 dark:border dark:border-border-primary hover:shadow-3xl dark:hover:shadow-none transition-all duration-300 dark:rounded-2xl">
           {/* 选项卡 */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-6 md:mb-8">
             {(Object.keys(tabConfig) as CreationType[]).map((type) => {
@@ -632,10 +692,10 @@ export const Home: React.FC = () => {
                 <button
                   key={type}
                   onClick={() => setActiveTab(type)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all text-sm md:text-base touch-manipulation ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 rounded-lg dark:rounded-xl font-medium transition-all text-sm md:text-base touch-manipulation ${
                     activeTab === type
-                      ? 'bg-gradient-to-r from-banana-500 to-banana-600 text-black shadow-yellow'
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-banana-50 active:bg-banana-100'
+                      ? 'bg-gradient-to-r from-banana-500 to-banana-600 dark:from-banana dark:to-banana text-black shadow-yellow dark:shadow-lg dark:shadow-banana/20'
+                      : 'bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover active:bg-banana-100'
                   }`}
                 >
                   <span className="scale-90 md:scale-100">{config.icon}</span>
@@ -648,8 +708,8 @@ export const Home: React.FC = () => {
           {/* 描述 */}
           <div className="relative">
             <p className="text-sm md:text-base mb-4 md:mb-6 leading-relaxed">
-              <span className="inline-flex items-center gap-2 text-gray-600">
-                <Lightbulb size={16} className="text-banana-600 flex-shrink-0" />
+              <span className="inline-flex items-center gap-2 text-gray-600 dark:text-foreground-tertiary">
+                <Lightbulb size={16} className="text-banana-600 dark:text-banana flex-shrink-0" />
                 <span className="font-semibold">
                   {tabConfig[activeTab].description}
                 </span>
@@ -659,7 +719,7 @@ export const Home: React.FC = () => {
 
           {/* 输入区 - 带按钮 */}
           <div className="relative mb-2 group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-banana-400 to-orange-400 rounded-lg opacity-0 group-hover:opacity-20 blur transition-opacity duration-300"></div>
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-banana-400 to-orange-400 rounded-lg opacity-0 group-hover:opacity-20 dark:group-hover:opacity-10 blur transition-opacity duration-300"></div>
             <Textarea
               ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
@@ -667,14 +727,14 @@ export const Home: React.FC = () => {
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               rows={activeTab === 'idea' ? 4 : 8}
-              className="relative pr-20 md:pr-28 pb-12 md:pb-14 text-sm md:text-base border-2 border-gray-200 focus:border-banana-400 transition-colors duration-200" // 为右下角按钮留空间
+              className="relative pr-20 md:pr-28 pb-12 md:pb-14 text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200" // 为右下角按钮留空间
             />
 
             {/* 左下角：上传文件按钮（回形针图标） */}
             <button
               type="button"
               onClick={handlePaperclipClick}
-              className="absolute left-2 md:left-3 bottom-2 md:bottom-3 z-10 p-1.5 md:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors active:scale-95 touch-manipulation"
+              className="absolute left-2 md:left-3 bottom-2 md:bottom-3 z-10 p-1.5 md:p-2 text-gray-400 dark:text-foreground-tertiary hover:text-gray-600 dark:hover:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors active:scale-95 touch-manipulation"
               title="选择参考文件"
             >
               <Paperclip size={18} className="md:w-5 md:h-5" />
@@ -687,14 +747,14 @@ export const Home: React.FC = () => {
                 onClick={handleSubmit}
                 loading={isGlobalLoading}
                 disabled={
-                  !content.trim() || 
+                  !content.trim() ||
                   referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                 }
-                className="shadow-sm text-xs md:text-sm px-3 md:px-4"
+                className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
               >
                 {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  ? '解析中...'
-                  : '下一步'}
+                  ? t('home.actions.parsing')
+                  : t('common.next')}
               </Button>
             </div>
           </div>
@@ -726,18 +786,18 @@ export const Home: React.FC = () => {
           />
 
           {/* 模板选择 */}
-          <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100">
+          <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100 dark:border-border-primary">
             <div className="flex items-center justify-between mb-3 md:mb-4">
               <div className="flex items-center gap-2">
-                <Palette size={18} className="text-orange-600 flex-shrink-0" />
-                <h3 className="text-base md:text-lg font-semibold text-gray-900">
-                  选择风格模板
+                <Palette size={18} className="text-orange-600 dark:text-banana flex-shrink-0" />
+                <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">
+                  {t('home.template.title')}
                 </h3>
               </div>
               {/* 无模板图模式开关 */}
               <label className="flex items-center gap-2 cursor-pointer group">
-                <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
-                  使用文字描述风格
+                <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                  {t('home.template.useTextStyle')}
                 </span>
                 <div className="relative">
                   <input
@@ -755,7 +815,7 @@ export const Home: React.FC = () => {
                     }}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana-500"></div>
+                  <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
                 </div>
               </label>
             </div>
@@ -764,51 +824,51 @@ export const Home: React.FC = () => {
             {useTemplateStyle ? (
               <div className="space-y-3">
                 <Textarea
-                  placeholder="描述您想要的 PPT 风格，例如：简约商务风格，使用蓝色和白色配色，字体清晰大方..."
+                  placeholder={t('home.template.stylePlaceholder')}
                   value={templateStyle}
                   onChange={(e) => setTemplateStyle(e.target.value)}
                   rows={3}
-                  className="text-sm border-2 border-gray-200 focus:border-banana-400 transition-colors duration-200"
+                  className="text-sm border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200"
                 />
-                
+
                 {/* 预设风格按钮 */}
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-600">
-                    快速选择预设风格：
+                  <p className="text-xs font-medium text-gray-600 dark:text-foreground-tertiary">
+                    {t('home.template.presetStyles')}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {PRESET_STYLES.map((preset) => (
                       <div key={preset.id} className="relative">
                         <button
                           type="button"
-                          onClick={() => setTemplateStyle(preset.description)}
+                          onClick={() => setTemplateStyle(t(preset.descriptionKey))}
                           onMouseEnter={() => setHoveredPresetId(preset.id)}
                           onMouseLeave={() => setHoveredPresetId(null)}
-                          className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 hover:border-banana-400 hover:bg-banana-50 transition-all duration-200 hover:shadow-sm"
+                          className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none"
                         >
-                          {preset.name}
+                          {t(preset.nameKey)}
                         </button>
                         
                         {/* 悬停时显示预览图片 */}
                         {hoveredPresetId === preset.id && preset.previewImage && (
                           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="bg-white rounded-lg shadow-2xl border-2 border-banana-400 p-2.5 w-72">
+                            <div className="bg-white dark:bg-background-secondary rounded-lg shadow-2xl dark:shadow-none border-2 border-banana-400 dark:border-banana p-2.5 w-72">
                               <img
                                 src={preset.previewImage}
-                                alt={preset.name}
+                                alt={t(preset.nameKey)}
                                 className="w-full h-40 object-cover rounded"
                                 onError={(e) => {
                                   // 如果图片加载失败，隐藏预览
                                   e.currentTarget.style.display = 'none';
                                 }}
                               />
-                              <p className="text-xs text-gray-600 mt-2 px-1 line-clamp-3">
-                                {preset.description}
+                              <p className="text-xs text-gray-600 dark:text-foreground-tertiary mt-2 px-1 line-clamp-3">
+                                {t(preset.descriptionKey)}
                               </p>
                             </div>
                             {/* 小三角形指示器 */}
                             <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                              <div className="w-3 h-3 bg-white border-r-2 border-b-2 border-banana-400 transform rotate-45"></div>
+                              <div className="w-3 h-3 bg-white dark:bg-background-secondary border-r-2 border-b-2 border-banana-400 dark:border-banana transform rotate-45"></div>
                             </div>
                           </div>
                         )}
@@ -817,8 +877,8 @@ export const Home: React.FC = () => {
                   </div>
                 </div>
                 
-                <p className="text-xs text-gray-500">
-                  💡 提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求
+                <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
+                  💡 {t('home.template.styleTip')}
                 </p>
               </div>
             ) : (
@@ -863,6 +923,8 @@ export const Home: React.FC = () => {
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
       />
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };

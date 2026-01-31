@@ -1,0 +1,813 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "delete": "删除",
+    "edit": "编辑",
+    "loading": "加载中...",
+    "retry": "重试",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "close": "关闭",
+    "search": "搜索",
+    "reset": "重置",
+    "submit": "提交",
+    "success": "成功",
+    "error": "错误",
+    "warning": "警告",
+    "info": "提示",
+    "yes": "是",
+    "no": "否",
+    "all": "全部",
+    "none": "无",
+    "selected": "已选择",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "noData": "暂无数据",
+    "unknownError": "未知错误",
+    "refresh": "刷新",
+    "upload": "上传",
+    "uploading": "上传中...",
+    "download": "下载",
+    "downloading": "打包中...",
+    "clearSelection": "清空选择",
+    "generating": "生成中...",
+    "completed": "已完成",
+    "failed": "失败",
+    "pending": "等待中...",
+    "add": "添加"
+  },
+  "nav": {
+    "home": "主页",
+    "history": "历史项目",
+    "settings": "设置",
+    "help": "帮助",
+    "backToHome": "返回首页",
+    "materialGenerate": "素材生成",
+    "materialCenter": "素材中心"
+  },
+  "home": {
+    "title": "蕉幻",
+    "subtitle": "Vibe your PPT like vibing code",
+    "tagline": "基于 nano banana pro🍌 的原生 AI PPT 生成器",
+    "features": {
+      "oneClick": "一句话生成 PPT",
+      "naturalEdit": "自然语言修改",
+      "regionEdit": "指定区域编辑",
+      "export": "一键导出 PPTX/PDF"
+    },
+    "tabs": {
+      "idea": "一句话生成",
+      "outline": "从大纲生成",
+      "description": "从描述生成"
+    },
+    "tabDescriptions": {
+      "idea": "输入你的想法，AI 将为你生成完整的 PPT",
+      "outline": "已有大纲？直接粘贴即可快速生成，AI 将自动切分为结构化大纲",
+      "description": "已有完整描述？AI 将自动解析出大纲并切分为每页描述，直接生成图片"
+    },
+    "placeholders": {
+      "idea": "例如：生成一份关于 AI 发展史的演讲 PPT",
+      "outline": "粘贴你的 PPT 大纲...",
+      "description": "粘贴你的完整页面描述..."
+    },
+    "template": {
+      "title": "选择风格模板",
+      "useTextStyle": "使用文字描述风格",
+      "stylePlaceholder": "描述您想要的 PPT 风格，例如：简约商务风格，使用蓝色和白色配色，字体清晰大方...",
+      "presetStyles": "快速选择预设风格：",
+      "styleTip": "提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求"
+    },
+    "actions": {
+      "selectFile": "选择参考文件",
+      "parsing": "解析中...",
+      "createProject": "创建新项目"
+    },
+    "messages": {
+      "enterContent": "请输入内容",
+      "filesParsing": "还有 {{count}} 个参考文件正在解析中，请等待解析完成",
+      "projectCreateFailed": "项目创建失败",
+      "uploadingImage": "正在上传图片...",
+      "imageUploadSuccess": "图片上传成功！已插入到光标位置",
+      "imageUploadFailed": "图片上传失败",
+      "fileUploadSuccess": "文件上传成功",
+      "fileUploadFailed": "文件上传失败",
+      "fileTooLarge": "文件过大：{{size}}MB，最大支持 200MB",
+      "unsupportedFileType": "不支持的文件类型: {{type}}",
+      "pptTip": "提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果",
+      "filesAdded": "已添加 {{count}} 个参考文件",
+      "imageRemoved": "已移除图片",
+      "serviceTestTip": "建议先到设置页底部进行服务测试，避免后续功能异常"
+    }
+  },
+  "history": {
+    "title": "历史项目",
+    "subtitle": "查看和管理你的所有项目",
+    "noProjects": "暂无历史项目",
+    "createFirst": "创建你的第一个项目开始使用吧",
+    "selectedCount": "已选择 {{count}} 项",
+    "cancelSelect": "取消选择",
+    "batchDelete": "批量删除",
+    "confirmDelete": "确定要删除项目「{{title}}」吗？此操作不可恢复。",
+    "confirmBatchDelete": "确定要删除选中的 {{count}} 个项目吗？此操作不可恢复。",
+    "deleteTitle": "确认删除",
+    "batchDeleteTitle": "确认批量删除",
+    "deleteSuccess": "成功删除 {{count}} 个项目",
+    "deleteCurrentProject": "已删除项目，包括当前打开的项目",
+    "deleteFailed": "删除项目失败",
+    "openFailed": "打开项目失败",
+    "loadFailed": "加载历史项目失败",
+    "titleEmpty": "项目名称不能为空",
+    "titleUpdated": "项目名称已更新",
+    "titleUpdateFailed": "更新项目名称失败",
+    "historyRecords": "历史记录"
+  },
+  "settings": {
+    "title": "系统设置",
+    "subtitle": "配置应用的各项参数",
+    "sections": {
+      "appearance": "外观设置",
+      "language": "界面语言",
+      "apiConfig": "大模型 API 配置",
+      "modelConfig": "模型配置",
+      "mineruConfig": "MinerU 配置",
+      "imageConfig": "图像生成配置",
+      "performanceConfig": "性能配置",
+      "outputLanguage": "输出语言设置",
+      "textReasoning": "文本推理模式",
+      "imageReasoning": "图像推理模式",
+      "baiduOcr": "百度 OCR 配置",
+      "serviceTest": "服务测试"
+    },
+    "theme": {
+      "label": "主题模式",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "language": {
+      "label": "界面语言",
+      "zh": "中文",
+      "en": "English"
+    },
+    "fields": {
+      "aiProviderFormat": "AI 提供商格式",
+      "aiProviderFormatDesc": "选择 API 请求格式，影响后端如何构造和发送请求。保存设置后生效。",
+      "openaiFormat": "OpenAI 格式",
+      "geminiFormat": "Gemini 格式",
+      "apiBaseUrl": "API Base URL",
+      "apiBaseUrlPlaceholder": "https://api.example.com",
+      "apiBaseUrlDesc": "设置大模型提供商 API 的基础 URL",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "输入新的 API Key",
+      "apiKeyDesc": "留空则保持当前设置不变，输入新值则更新",
+      "apiKeySet": "已设置（长度: {{length}}）",
+      "textModel": "文本大模型",
+      "textModelPlaceholder": "留空使用环境变量配置 (如: gemini-3-flash-preview)",
+      "textModelDesc": "用于生成大纲、描述等文本内容的模型名称",
+      "imageModel": "图像生成模型",
+      "imageModelPlaceholder": "留空使用环境变量配置 (如: imagen-3.0-generate-001)",
+      "imageModelDesc": "用于生成页面图片的模型名称",
+      "imageCaptionModel": "图片识别模型",
+      "imageCaptionModelPlaceholder": "留空使用环境变量配置 (如: gemini-3-flash-preview)",
+      "imageCaptionModelDesc": "用于识别参考文件中的图片并生成描述",
+      "mineruApiBase": "MinerU API Base",
+      "mineruApiBasePlaceholder": "留空使用环境变量配置 (如: https://mineru.net)",
+      "mineruApiBaseDesc": "MinerU 服务地址，用于解析参考文件",
+      "mineruToken": "MinerU Token",
+      "mineruTokenPlaceholder": "输入新的 MinerU Token",
+      "mineruTokenDesc": "留空则保持当前设置不变，输入新值则更新",
+      "imageResolution": "图像清晰度（某些OpenAI格式中转调整该值无效）",
+      "imageResolutionDesc": "更高的清晰度会生成更详细的图像，但需要更长时间",
+      "maxDescriptionWorkers": "描述生成最大并发数",
+      "maxDescriptionWorkersDesc": "同时生成描述的最大工作线程数 (1-20)，越大速度越快",
+      "maxImageWorkers": "图像生成最大并发数",
+      "maxImageWorkersDesc": "同时生成图像的最大工作线程数 (1-20)，越大速度越快",
+      "defaultOutputLanguage": "默认输出语言",
+      "defaultOutputLanguageDesc": "AI 生成内容时使用的默认语言",
+      "enableTextReasoning": "启用文本推理",
+      "enableTextReasoningDesc": "开启后，文本生成（大纲、描述等）会使用 extended thinking 进行深度推理",
+      "textThinkingBudget": "文本思考负载",
+      "textThinkingBudgetDesc": "文本推理的思考 token 预算 (1-8192)，数值越大推理越深入",
+      "enableImageReasoning": "启用图像推理",
+      "enableImageReasoningDesc": "开启后，图像生成会使用思考链模式，可能获得更好的构图效果",
+      "imageThinkingBudget": "图像思考负载",
+      "imageThinkingBudgetDesc": "图像推理的思考 token 预算 (1-8192)，数值越大推理越深入",
+      "baiduOcrApiKey": "百度 OCR API Key",
+      "baiduOcrApiKeyPlaceholder": "输入百度 OCR API Key",
+      "baiduOcrApiKeyDesc": "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变"
+    },
+    "apiKeyTip": "API 密匙获取可前往 {{link}}, 减小迁移成本",
+    "serviceTest": {
+      "title": "服务测试",
+      "description": "提前验证关键服务配置是否可用，避免使用期间异常。",
+      "tip": "提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。",
+      "startTest": "开始测试",
+      "testing": "测试中...",
+      "testTimeout": "测试超时，请重试",
+      "testFailed": "测试失败",
+      "tests": {
+        "baiduOcr": {
+          "title": "Baidu OCR 服务",
+          "description": "识别测试图片文字，验证 BAIDU_OCR_API_KEY 配置"
+        },
+        "textModel": {
+          "title": "文本生成模型",
+          "description": "发送短提示词，验证文本模型与 API 配置"
+        },
+        "captionModel": {
+          "title": "图片识别模型",
+          "description": "生成测试图片并请求模型输出描述"
+        },
+        "baiduInpaint": {
+          "title": "Baidu 图像修复",
+          "description": "使用测试图片执行修复，验证百度 inpaint 服务"
+        },
+        "imageModel": {
+          "title": "图像生成模型",
+          "description": "基于测试图片生成演示文稿背景图（1K, 可能需要 20-40 秒）"
+        },
+        "mineruPdf": {
+          "title": "MinerU 解析 PDF",
+          "description": "上传测试 PDF 并等待解析结果返回（可能需要 30-60 秒）"
+        }
+      },
+      "results": {
+        "recognizedText": "识别结果：{{text}}",
+        "modelReply": "模型回复：{{reply}}",
+        "captionDesc": "识别描述：{{caption}}",
+        "imageSize": "输出尺寸：{{width}}x{{height}}",
+        "parsePreview": "解析预览：{{preview}}"
+      }
+    },
+    "actions": {
+      "save": "保存设置",
+      "saving": "保存中...",
+      "resetToDefault": "重置为默认配置"
+    },
+    "messages": {
+      "loadFailed": "加载设置失败",
+      "saveSuccess": "设置保存成功",
+      "saveFailed": "保存设置失败",
+      "resetConfirm": "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
+      "resetTitle": "确认重置为默认配置",
+      "resetSuccess": "设置已重置",
+      "resetFailed": "重置设置失败",
+      "testServiceTip": "建议在本页底部进行服务测试，验证关键配置"
+    }
+  },
+  "outline": {
+    "title": "编辑大纲",
+    "pageCount": "共 {{count}} 页",
+    "addPage": "添加页面",
+    "generateDescriptions": "生成描述",
+    "generating": "生成中...",
+    "chapter": "章节",
+    "page": "第 {{num}} 页",
+    "titleLabel": "标题",
+    "keyPoints": "要点",
+    "keyPointsPlaceholder": "要点（每行一个）",
+    "addKeyPoint": "添加要点",
+    "deletePage": "删除页面",
+    "confirmDeletePage": "确定要删除这一页吗？",
+    "preview": "预览",
+    "clickToPreview": "点击左侧卡片查看详情",
+    "noPages": "还没有页面",
+    "noPagesHint": "点击「添加页面」手动创建，或「自动生成大纲」让 AI 帮你完成",
+    "parseOutline": "解析大纲",
+    "autoGenerate": "自动生成大纲",
+    "reParseOutline": "重新解析大纲",
+    "reGenerate": "重新生成大纲",
+    "export": "导出大纲",
+    "aiPlaceholder": "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
+    "aiPlaceholderShort": "例如：增加/删除页面... · Ctrl+Enter",
+    "contextLabels": {
+      "idea": "PPT构想",
+      "outline": "大纲",
+      "description": "描述"
+    },
+    "messages": {
+      "outlineEmpty": "大纲不能为空",
+      "generateSuccess": "描述生成完成",
+      "generateFailed": "生成描述失败",
+      "confirmRegenerate": "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
+      "confirmRegenerateTitle": "确认重新生成",
+      "refineSuccess": "大纲修改成功",
+      "refineFailed": "修改失败，请稍后重试",
+      "exportSuccess": "导出成功",
+      "loadingProject": "加载项目中...",
+      "generatingOutline": "生成大纲中..."
+    }
+  },
+  "detail": {
+    "title": "编辑页面描述",
+    "pageCount": "共 {{count}} 页",
+    "generateImages": "生成图片",
+    "generating": "生成中...",
+    "page": "第 {{num}} 页",
+    "titleLabel": "标题",
+    "description": "描述",
+    "batchGenerate": "批量生成描述",
+    "export": "导出描述",
+    "pagesCompleted": "页已完成",
+    "noPages": "还没有页面",
+    "noPagesHint": "请先返回大纲编辑页添加页面",
+    "backToOutline": "返回大纲编辑",
+    "aiPlaceholder": "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
+    "aiPlaceholderShort": "例如：让描述更详细... · Ctrl+Enter",
+    "messages": {
+      "generateSuccess": "生成成功",
+      "generateFailed": "生成失败",
+      "confirmRegenerate": "部分页面已有描述，重新生成将覆盖，确定继续吗？",
+      "confirmRegenerateTitle": "确认重新生成",
+      "confirmRegeneratePage": "该页面已有描述，重新生成将覆盖现有内容，确定继续吗？",
+      "refineSuccess": "页面描述修改成功",
+      "refineFailed": "修改失败，请稍后重试",
+      "exportSuccess": "导出成功",
+      "loadingProject": "加载项目中..."
+    }
+  },
+  "preview": {
+    "title": "预览",
+    "pageCount": "共 {{count}} 页",
+    "export": "导出",
+    "exportPptx": "导出为 PPTX",
+    "exportPdf": "导出为 PDF",
+    "exportEditablePptx": "导出可编辑 PPTX（Beta）",
+    "exportSelectedPages": "将导出选中的 {{count}} 页",
+    "regenerate": "重新生成",
+    "regenerating": "生成中...",
+    "editMode": "编辑模式",
+    "viewMode": "查看模式",
+    "page": "第 {{num}} 页",
+    "projectSettings": "项目设置",
+    "changeTemplate": "更换模板",
+    "refresh": "刷新",
+    "batchGenerate": "批量生成图片 ({{count}})",
+    "generateSelected": "生成选中页面 ({{count}})",
+    "multiSelect": "多选",
+    "cancelMultiSelect": "取消多选",
+    "pagesUnit": "页",
+    "noPages": "还没有页面",
+    "noPagesHint": "请先返回编辑页面添加内容",
+    "backToEdit": "返回编辑",
+    "generating": "正在生成中...",
+    "notGenerated": "尚未生成图片",
+    "generateThisPage": "生成此页",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "historyVersions": "历史版本",
+    "versions": "版本",
+    "version": "版本",
+    "current": "当前",
+    "editPage": "编辑页面",
+    "regionSelect": "区域选图",
+    "endRegionSelect": "结束区域选图",
+    "pageOutline": "页面大纲（可编辑）",
+    "pageDescription": "页面描述（可编辑）",
+    "enterTitle": "输入页面标题",
+    "pointsPerLine": "要点（每行一个）",
+    "enterPointsPerLine": "每行输入一个要点",
+    "enterDescription": "输入页面的详细描述内容",
+    "selectContextImages": "选择上下文图片（可选）",
+    "useTemplateImage": "使用模板图片",
+    "imagesInDescription": "描述中的图片",
+    "uploadImages": "上传图片",
+    "selectFromMaterials": "从素材库选择",
+    "upload": "上传",
+    "editPromptLabel": "输入修改指令(将自动添加页面描述)",
+    "editPromptPlaceholder": "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
+    "saveOutlineOnly": "仅保存大纲/描述",
+    "generateImage": "生成图片",
+    "templateModalDesc": "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
+    "uploadingTemplate": "正在上传模板...",
+    "resolution1KWarning": "1K分辨率警告",
+    "resolution1KWarningText": "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
+    "resolution1KWarningHint": "建议在「项目设置 → 全局设置」中切换到 2K 或 4K 分辨率以获得更清晰的效果。",
+    "dontShowAgain": "不再提示",
+    "generateAnyway": "仍然生成",
+    "messages": {
+      "exportSuccess": "导出成功",
+      "exportFailed": "导出失败",
+      "regenerateSuccess": "重新生成完成",
+      "regenerateFailed": "重新生成失败",
+      "loadingProject": "加载项目中...",
+      "processing": "处理中...",
+      "generatingBackgrounds": "正在生成干净背景...",
+      "creatingPdf": "正在创建PDF...",
+      "parsingContent": "正在解析内容...",
+      "creatingPptx": "正在创建可编辑PPTX...",
+      "complete": "完成！"
+    }
+  },
+  "components": {
+    "loading": {
+      "default": "加载中..."
+    },
+    "confirm": {
+      "title": "确认",
+      "confirm": "确定",
+      "cancel": "取消"
+    },
+    "toast": {
+      "success": "操作成功",
+      "error": "操作失败"
+    },
+    "fileUpload": {
+      "dragDrop": "拖拽文件到此处或点击上传",
+      "supportedFormats": "支持的格式：{{formats}}",
+      "maxSize": "最大文件大小：{{size}}MB"
+    },
+    "projectCard": {
+      "pages": "{{count}} 页",
+      "created": "创建于",
+      "updated": "更新于"
+    }
+  },
+  "help": {
+    "title": "蕉幻 · Banana Slides",
+    "quickStart": "快速开始",
+    "quickStartDesc": "完成基础配置，开启 AI 创作之旅",
+    "featuresIntro": "功能介绍",
+    "featuresIntroDesc": "探索如何使用 AI 快速创建精美 PPT",
+    "showcases": "结果案例",
+    "showcasesDesc": "以下是使用蕉幻生成的 PPT 案例展示",
+    "viewMoreCases": "查看更多使用案例",
+    "welcome": "欢迎使用蕉幻！",
+    "welcomeDesc": "在开始前，让我们先完成基础配置",
+    "step1Title": "配置 API Key",
+    "step1Desc": "前往设置页面，配置项目需要使用的API服务，包括：",
+    "step1Items": {
+      "apiConfig": "您的 AI 服务提供商的 API Base 和 API Key",
+      "modelConfig": "配置文本、图像生成模型(banana pro)和图像描述模型",
+      "mineruConfig": "若需要文件解析功能，请配置 MinerU Token",
+      "editableExport": "若需要可编辑导出功能，请配置MinerU TOKEN 和 Baidu API KEY"
+    },
+    "step2Title": "保存并测试",
+    "step2Desc": "配置完成后，务必点击「保存设置」按钮，然后在页面底部进行服务测试，确保各项服务正常工作。",
+    "step3Title": "开始创作",
+    "step3Desc": "配置成功后，返回首页即可开始使用 AI 生成精美的 PPT！",
+    "step4Title": "*问题反馈",
+    "step4Desc": "若使用过程中遇到问题，可在github issue提出",
+    "goToGithubIssue": "前往Github issue",
+    "goToSettings": "前往设置页面",
+    "tip": "提示",
+    "tipContent": "如果您还没有 API Key，可以前往对应服务商官网注册获取。配置完成后，建议先进行服务测试，避免后续使用出现问题。",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "guidePage": "引导页",
+    "showcaseTitles": {
+      "softwareDev": "软件开发最佳实践",
+      "deepseek": "DeepSeek-V3.2技术展示",
+      "prefabFood": "预制菜智能产线装备研发和产业化",
+      "moneyHistory": "钱的演变：从贝壳到纸币的旅程"
+    },
+    "features": {
+      "flexiblePaths": {
+        "title": "灵活多样的创作路径",
+        "description": "支持想法、大纲、页面描述三种起步方式，满足不同创作习惯。",
+        "details": [
+          "一句话生成：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述",
+          "自然语言编辑：支持以 Vibe 形式口头修改大纲或描述，AI 实时响应调整",
+          "大纲/描述模式：既可一键批量生成，也可手动调整细节"
+        ]
+      },
+      "materialParsing": {
+        "title": "强大的素材解析能力",
+        "description": "上传多种格式文件，自动解析内容，为生成提供丰富素材。",
+        "details": [
+          "多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容",
+          "智能提取：自动识别文本中的关键点、图片链接和图表信息",
+          "风格参考：支持上传参考图片或模板，定制 PPT 风格"
+        ]
+      },
+      "vibeEditing": {
+        "title": "「Vibe」式自然语言修改",
+        "description": "不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。",
+        "details": [
+          "局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）",
+          "整页优化：基于 nano banana pro🍌 生成高清、风格统一的页面"
+        ]
+      },
+      "easyExport": {
+        "title": "开箱即用的格式导出",
+        "description": "一键导出标准格式，直接演示无需调整。",
+        "details": [
+          "多格式支持：一键导出标准 PPTX 或 PDF 文件",
+          "完美适配：默认 16:9 比例，排版无需二次调整"
+        ]
+      }
+    }
+  },
+  "material": {
+    "title": "素材生成",
+    "centerTitle": "素材中心",
+    "selectTitle": "选择素材",
+    "saveToLibraryNote": "生成的素材会保存到素材库",
+    "generatedResult": "生成结果",
+    "generatedMaterial": "生成的素材",
+    "generatedPreview": "生成的素材会展示在这里",
+    "promptLabel": "提示词（原样发送给文生图模型）",
+    "promptPlaceholder": "例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页...",
+    "referenceImages": "参考图片（可选）",
+    "mainReference": "主参考图（可选）",
+    "extraReference": "额外参考图（可选，多张）",
+    "clickToUpload": "点击上传",
+    "selectFromLibrary": "从素材库选择",
+    "generateMaterial": "生成素材",
+    "totalMaterials": "共 {{count}} 个素材",
+    "noMaterials": "暂无素材",
+    "selectedCount": "已选择 {{count}} 个",
+    "allMaterials": "所有素材",
+    "unassociated": "未关联项目",
+    "currentProject": "当前项目",
+    "viewMoreProjects": "+ 查看更多项目...",
+    "uploadFile": "上传文件",
+    "previewMaterial": "预览素材",
+    "deleteMaterial": "删除素材",
+    "closePreview": "关闭预览",
+    "canUploadOrGenerate": "可以上传图片或通过素材生成功能创建素材",
+    "canUploadImages": "可以上传图片作为素材",
+    "messages": {
+      "enterPrompt": "请输入提示词",
+      "materialAdded": "已添加 {{count}} 个素材",
+      "loadMaterialFailed": "加载素材失败",
+      "unsupportedFormat": "不支持的图片格式",
+      "uploadSuccess": "素材上传成功",
+      "uploadFailed": "上传素材失败",
+      "cannotDelete": "无法删除：缺少素材ID",
+      "deleteSuccess": "素材已删除",
+      "deleteFailed": "删除素材失败",
+      "downloadSuccess": "下载成功",
+      "downloadFailed": "下载失败",
+      "batchDownloadSuccess": "已打包 {{count}} 个素材",
+      "batchDownloadFailed": "批量下载失败",
+      "selectDownload": "请先选择要下载的素材",
+      "selectAtLeastOne": "请至少选择一个素材",
+      "maxSelection": "最多只能选择 {{count}} 个素材",
+      "generateSuccess": "素材生成成功，已保存到历史素材库",
+      "generateSuccessGlobal": "素材生成成功，已保存到全局素材库",
+      "generateComplete": "素材生成完成，但未找到图片地址",
+      "generateFailed": "素材生成失败",
+      "generateTimeout": "素材生成超时，请稍后查看素材库",
+      "pollingFailed": "轮询任务状态失败，请稍后查看素材库",
+      "noTaskId": "素材生成失败：未返回任务ID",
+      "savedToLibrary": "素材已保存到模板库",
+      "selectedAsTemplate": "已从素材库选择作为模板"
+    }
+  },
+  "projectSettings": {
+    "title": "设置",
+    "projectConfig": "项目设置",
+    "exportConfig": "导出设置",
+    "globalConfig": "全局设置",
+    "projectConfigTitle": "项目级配置",
+    "projectConfigDesc": "这些设置仅应用于当前项目，不影响其他项目",
+    "globalConfigTitle": "全局设置",
+    "globalConfigDesc": "这些设置应用于所有项目",
+    "extraRequirements": "额外要求",
+    "extraRequirementsDesc": "在生成每个页面时，AI 会参考这些额外要求",
+    "extraRequirementsPlaceholder": "例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图...",
+    "saveExtraRequirements": "保存额外要求",
+    "styleDescription": "风格描述",
+    "styleDescriptionDesc": "描述您期望的 PPT 整体风格，AI 将根据描述生成相应风格的页面",
+    "styleDescriptionPlaceholder": "例如：简约商务风格，使用深蓝色和白色配色，字体清晰大方，布局整洁...",
+    "saveStyleDescription": "保存风格描述",
+    "styleTip": "风格描述会在生成图片时自动添加到提示词中。如果同时上传了模板图片，风格描述会作为补充说明。",
+    "editablePptxExport": "可编辑 PPTX 导出设置",
+    "editablePptxExportDesc": "配置「导出可编辑 PPTX」功能的处理方式。这些设置影响导出质量和API调用成本。",
+    "extractorMethod": "组件提取方法",
+    "extractorMethodDesc": "选择如何从PPT图片中提取文字、表格等可编辑组件",
+    "extractorHybrid": "混合提取（推荐）",
+    "extractorHybridDesc": "MinerU版面分析 + 百度高精度OCR，文字识别更精确",
+    "extractorMineru": "MinerU提取",
+    "extractorMineruDesc": "仅使用MinerU进行版面分析和文字识别",
+    "backgroundMethod": "背景图获取方法",
+    "backgroundMethodDesc": "选择如何生成干净的背景图（移除原图中的文字后用于PPT背景）",
+    "backgroundHybrid": "混合方式获取（推荐）",
+    "backgroundHybridDesc": "百度精确去除文字 + 生成式模型提升画质",
+    "backgroundGenerative": "生成式获取",
+    "backgroundGenerativeDesc": "使用生成式大模型（如Gemini）直接生成背景，背景质量高但有遗留元素的可能",
+    "backgroundBaidu": "百度抹除服务获取",
+    "backgroundBaiduDesc": "使用百度图像修复API，速度快但画质一般",
+    "usesAiModel": "使用文生图模型",
+    "costTip": "标有「使用文生图模型」的选项会调用AI图片生成API（如Gemini），每页会产生额外的API调用费用。如果需要控制成本，可选择「百度修复」方式。",
+    "errorHandling": "错误处理策略",
+    "errorHandlingDesc": "配置导出过程中遇到错误时的处理方式",
+    "allowPartialResult": "允许返回半成品",
+    "allowPartialResultDesc": "开启后，导出过程中遇到错误（如样式提取失败、文本渲染失败等）时会跳过错误继续导出，最终可能得到不完整的结果。关闭时，任何错误都会立即停止导出并提示具体原因。",
+    "allowPartialResultWarning": "开启此选项可能导致导出的 PPTX 文件中部分文字样式丢失、元素位置错误或内容缺失。建议仅在需要快速获取结果且可以接受质量损失时开启。",
+    "saveExportSettings": "保存导出设置"
+  },
+  "template": {
+    "myTemplates": "我的模板",
+    "presetTemplates": "预设模板",
+    "uploadTemplate": "上传模板",
+    "deleteTemplate": "删除模板",
+    "templateSelected": "已选择",
+    "saveToLibraryOnUpload": "上传模板时同时保存到我的模板库",
+    "selectFromMaterials": "从素材库选择",
+    "selectAsTemplate": "从素材库选择作为模板",
+    "cannotDeleteInUse": "当前使用中的模板不能删除，请先取消选择或切换",
+    "presets": {
+      "retroScroll": "复古卷轴",
+      "vectorIllustration": "矢量插画",
+      "glassEffect": "拟物玻璃",
+      "techBlue": "科技蓝",
+      "simpleBusiness": "简约商务",
+      "academicReport": "学术报告"
+    },
+    "messages": {
+      "uploadSuccess": "模板上传成功",
+      "uploadFailed": "模板上传失败",
+      "deleteSuccess": "模板已删除",
+      "deleteFailed": "删除模板失败"
+    }
+  },
+  "referenceFile": {
+    "title": "选择参考文件",
+    "totalFiles": "共 {{count}} 个文件",
+    "noFiles": "暂无文件",
+    "selectedCount": "已选择 {{count}} 个",
+    "allAttachments": "所有附件",
+    "unclassified": "未归类附件",
+    "currentProjectAttachments": "当前项目附件",
+    "uploadedFiles": "已上传的文件",
+    "uploadedImages": "已上传图片",
+    "refreshList": "刷新列表",
+    "imageLoadFailed": "图片加载失败",
+    "deleteThisMaterial": "删除此素材",
+    "parseStatus": {
+      "pending": "等待解析",
+      "parsing": "解析中...",
+      "completed": "解析完成",
+      "failed": "解析失败"
+    },
+    "reparse": "重新解析",
+    "removeFromProject": "从项目中移除",
+    "deleteFile": "删除文件",
+    "imageCaptionFailed": "⚠️ {{count}} 张图片未能生成描述",
+    "messages": {
+      "loadFailed": "加载参考文件列表失败",
+      "uploadSuccess": "成功上传 {{count}} 个文件",
+      "uploadFailed": "上传文件失败",
+      "cannotDelete": "无法删除：缺少文件ID",
+      "deleteSuccess": "文件删除成功",
+      "deleteFailed": "删除文件失败",
+      "selectAtLeastOne": "请至少选择一个文件",
+      "selectValid": "请选择有效的文件",
+      "maxSelection": "最多只能选择 {{count}} 个文件",
+      "parseTriggered": "已触发 {{count}} 个文件的解析，将在后台进行",
+      "parseFailed": "触发文件解析失败"
+    }
+  },
+  "status": {
+    "draft": "草稿",
+    "descriptionGenerated": "已生成描述",
+    "generating": "生成中",
+    "completed": "已完成",
+    "failed": "失败",
+    "unknown": "未知",
+    "notGeneratedDesc": "未生成描述",
+    "noDescription": "还没有生成描述",
+    "descGenerated": "描述已生成",
+    "notGeneratedImage": "未生成图片",
+    "waitingForImage": "描述已生成，等待生成图片",
+    "generatingImage": "正在生成图片",
+    "imageFailed": "图片生成失败",
+    "imageCompleted": "图片已生成",
+    "draftStage": "草稿阶段",
+    "allCompleted": "全部完成",
+    "statusUnknown": "状态未知"
+  },
+  "export": {
+    "tasks": "导出任务",
+    "inProgress": "{{count}} 进行中",
+    "clearHistory": "清除",
+    "exportPptx": "PPTX",
+    "exportPdf": "PDF",
+    "exportEditablePptx": "可编辑 PPTX",
+    "allPages": "全部",
+    "pageRange": "第{{start}}-{{end}}页",
+    "singlePage": "第{{num}}页",
+    "pagesCount": "{{count}}页",
+    "warnings": "{{count}} 条警告",
+    "clickToView": "点击查看",
+    "warningsTitle": "导出警告",
+    "warningsCount": "导出警告 ({{count}} 条)",
+    "detailInfo": "详细信息",
+    "styleExtractionFailed": "样式提取失败 ({{count}} 个)",
+    "textRenderFailed": "文本渲染失败 ({{count}} 个)",
+    "moreItems": "... 还有 {{count}} 条",
+    "exportFailed": "导出失败",
+    "preparing": "准备中...",
+    "settingsTip": "可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项"
+  },
+  "slideCard": {
+    "notGenerated": "未生成",
+    "confirmDeletePage": "确定要删除这一页吗？",
+    "confirmDeleteTitle": "确认删除"
+  },
+  "github": {
+    "viewRepo": "查看 GitHub 仓库"
+  },
+  "aiRefine": {
+    "ctrlEnterSubmit": "（Ctrl+Enter 提交）",
+    "history": "历史",
+    "viewHistory": "查看 {{count}} 条历史修改",
+    "previousRequirements": "之前的修改要求：",
+    "submitTooltip": "提交 (Ctrl+Enter)"
+  },
+  "presetStyles": {
+    "businessSimple": {
+      "name": "简约商务",
+      "description": "视觉描述：全局视觉语言应体现国际顶级咨询公司（如麦肯锡或波士顿咨询）的专业与稳重。整体风格追求极致的扁平化与秩序感，拒绝多余的装饰，强调信息的清晰传达。光照环境应为均匀的演播室漫射光，无明显的戏剧性阴影，确保画面干净透亮。\n\n配色与材质：背景色必须锁定为深沉、权威的「海军蓝」（Navy Blue, #0B1F3B），前景元素则使用纯白（ #FFFFFF）和微量的天蓝色（Sky Blue, #38BDF8）作为点缀；材质上避免复杂的纹理，采用哑光纸张质感或平滑的矢量色块。\n\n内容与排版：排版逻辑遵循严格的模块化网格系统。请生成清晰的几何分区，使用细线条或微弱的浅灰色色块（Light Gray, #E5E7EB）来划分内容区域。字体方面，应用粗壮有力的无衬线字体（如Helvetica或Roboto）作为标题，正文保持纤细清晰。图表元素应为扁平化的2D矢量图形，如简洁的柱状图或饼图，配色单一且克制。\n\n渲染要求：矢量插画风格，极高清晰度，无论是文字还是图形边缘都要锐利无锯齿，展现出严谨的商务美学，适合世界500强企业汇报场景。"
+    },
+    "techModern": {
+      "name": "现代科技",
+      "description": "视觉描述：全局视觉语言要融合赛博朋克与现代SaaS产品的未来感。整体氛围神秘、深邃且富有动感，仿佛置身于高科技的数据中心或虚拟空间。光照采用暗调环境下的自发光效果，模拟霓虹灯管和激光的辉光。\n\n配色与材质：背景色采用深邃的「午夜黑」（Midnight Black, #0B0F19），以衬托前景的亮度。主色调使用高饱和度的「电光蓝」（Electric Blue, #00A3FF）与「赛博紫」（Cyber Purple, #7C3AED）进行线性渐变，营造出流动的能量感。材质上大量运用半透明的玻璃、发光的网格线以及带有金属光泽的几何体。\n\n内容与排版：画面中应包含悬浮的3D几何元素（如立方体、四面体或芯片结构），这些元素应带有线框渲染（Wireframe）效果。排版布局倾向于不对称的动态平衡，使用具有科技感的等宽字体或现代无衬线体。背景中可以隐约添加电路板纹理、二进制代码流或点阵地图作为装饰，增加细节密度。\n\n渲染要求：Octane Render渲染风格，强调光线追踪、辉光（Bloom）效果和景深控制，呈现出精细的粒子特效和充满科技张力的视觉冲击力。"
+    },
+    "academicFormal": {
+      "name": "严谨学术",
+      "description": "视觉描述：全局视觉语言应模仿高质量印刷出版物或经典论文的排版风格，传达理性、客观和知识的厚重感。整体氛围安静、克制，没有任何干扰视线的炫光或过度设计。画面必须铺满全屏，严禁出现书本装订线、纸张边缘、卷角、阴影或任何形式的边框。背景不应该呈现三维立体，而应该以二维平面方式呈现。\n\n配色与材质：背景色严格限制为「米白色」（Off-white, #F8F7F2），模拟高级道林纸的质感。前景色仅使用纯黑（#000000）、深炭灰（Charcoal, #1F2937）和作为强调色的深红（Deep Red, #7F1D1D）或深蓝（Deep Blue, #1E3A8A）（这种强调色占比不超过5%）。材质完全呈现为高质量的纸质印刷效果，具有细腻的纸张纹理。\n\n内容与排版：排版必须遵循经典的版式设计原则，拥有宽阔的页边距。请使用带有衬线的字体（类似Times New Roman或Garamond）来体现传统与正式。视觉元素主要由精细的黑色线条框（Black, #000000）、标准的学术表格样式和黑白线稿插图（Black, #000000 / White, #FFFFFF）组成。布局上采用左右分栏或上下结构的严谨对齐方式。\n\n渲染要求：超高分辨率扫描件风格，强调字体的灰度抗锯齿效果和线条的锐度，画面如同精装学术期刊的内页，展现出绝对的专业性与权威性。不应该存在任何形式的页面边框，比如黑色边框或者阴影边线。"
+    },
+    "creativeFun": {
+      "name": "活泼创意",
+      "description": "视觉描述：全局视觉语言要像一个充满活力的初创公司Pitch Deck或儿童教育应用界面。整体氛围轻松、愉悦、充满想象力，打破常规的束缚。光照明亮且充满阳光感，色彩之间没有阴影，呈现彻底的扁平化。\n\n配色与材质：背景色使用高明度的「暖黄色」（Warm Yellow, #FFD54A）。配色方案极其大胆，混合使用鲜艳的「活力橙」（Vibrant Orange, #FF6A00）、「草绿」（Grass Green, #22C55E）和「天蓝」（Sky Blue, #38BDF8），形成孟菲斯（Memphis）风格的撞色效果。材质上模拟手绘涂鸦、剪纸或粗糙边缘的矢量插画。\n\n内容与排版：画面内容应包含手绘风格的插图元素，如涂鸦箭头、星星、波浪线和不规则的有机形状色块。排版上允许文字倾斜、重叠或跳跃，打破僵硬的网格。字体选用圆润可爱的圆体或手写体。请在角落放置一些拟人化的可爱物体或夸张的对话气泡。\n\n渲染要求：Dribbble热门插画风格，色彩鲜艳平涂，线条流畅且富有弹性，视觉上给人一种快乐、友好且极具亲和力的感觉。"
+    },
+    "minimalistClean": {
+      "name": "极简清爽",
+      "description": "视觉描述：全局视觉语言借鉴北欧设计（Scandinavian Design）和Kinfolk杂志的审美。整体氛围空灵、静谧，强调「少即是多」的哲学。光照采用极柔和的漫反射天光，阴影非常淡且边缘模糊，营造出空气感。\n\n配色与材质：背景色为极浅的「雾霾灰」（Haze Gray, #F5F5F7）。前景色仅使用中灰色（Mid Gray, #6B7280）和低饱和度的莫兰迪色系（如灰蓝（Morandi Gray Blue, #7A8FA6））作为微小的点缀。材质上体现细腻的哑光质感，偶尔出现一点点石膏（Plaster）的微纹理。\n\n内容与排版：构图的核心是「留白」（Negative Space），留白面积应占据画面的70%以上。排版极为克制，文字字号较小，行间距宽大，使用纤细优雅的非衬线字体。视觉锚点是简单的几何线条构成的图标，布局上追求绝对的平衡。\n\n渲染要求：极简主义摄影风格，高动态范围（HDR），画面极其干净，没有任何噪点，展现出一种画廊般的艺术陈列感。"
+    },
+    "luxuryPremium": {
+      "name": "高端奢华",
+      "description": "视觉描述：全局视觉语言要融合高端腕表广告或五星级酒店的品牌形象。整体氛围神秘、高贵、独一无二。光照采用戏剧性的伦勃朗光或聚光灯效果，重点照亮关键元素，其余部分隐没在黑暗中。\n\n配色与材质：背景色严格锁定为深沉的「曜石黑」（Obsidian Black, #0B0B0F）。前景色主要由「香槟金」（Champagne Gold, #F7E7CE）构成。材质上必须体现昂贵的触感，核心组合为：背景呈现哑光黑天鹅绒质感，前景装饰呈现拉丝金属质感。\n\n内容与排版：排版采用经典的居中对齐或对称布局，强调仪式感。字体必须使用高雅的衬线体（Serif），字间距适当加宽以体现尊贵。画面中可以加入细致的金色边框线条、Art Deco风格的装饰纹样。如果有3D物体，应呈现出珠宝般的抛光质感。\n\n渲染要求：电影级写实渲染，强调材质的物理属性（PBR），特别是金属的高光反射和丝绒的漫反射细节，画面呈现出奢侈品广告大片的高级质感。"
+    },
+    "natureFresh": {
+      "name": "自然清新",
+      "description": "视觉描述：全局视觉语言旨在唤起人们对大自然、环保和健康生活的向往，类似全食超市（Whole Foods）或Aesop的品牌视觉。整体氛围治愈、透气、有机。光照模拟清晨穿过树叶的斑驳阳光（丁达尔效应），温暖而柔和。\n\n配色与材质：背景色采用柔和的「米色」（Beige, #EAD9C6）。配色方案取自自然界，重点使用森林绿（Forest Green, #14532D）和大地棕（Earth Brown, #7A4E2D）。材质上强调天然纹理，如再生纸的颗粒感和植物叶片的脉络。\n\n内容与排版：画面中应融合真实的自然元素，主要是伸展的绿植叶片，这些元素可以作为背景装饰或前景框架。排版使用圆润亲和的字体。布局上可以稍微松散，模仿自然生长的形态。阴影处理要柔和自然，避免生硬的黑色投影。\n\n渲染要求：微距摄影风格结合3D渲染，强调植物表面的透光感（Subsurface Scattering）和自然材质的细腻纹理，画面清新淡雅，令人心旷神怡。"
+    },
+    "gradientVibrant": {
+      "name": "渐变活力",
+      "description": "视觉描述：全局视觉语言对标现代科技独角兽公司（如Stripe或Linear）的官网视觉，呈现一种极光般的流动美感。整体氛围梦幻、通透且富有呼吸感，避免刺眼的撞色，强调色彩之间的优雅融合。\n\n配色与材质：背景即前景，使用全屏的弥散渐变色。配色方案采用高雅且和谐的「全息色系」，以深邃的「宝石蓝」（Royal Blue, #2563EB）为基底，平滑过渡到「紫罗兰」（Violet, #7C3AED）和明亮的「洋红色」（Magenta, #DB2777）。颜色之间如水彩般晕染，没有生硬的边界。材质上锁定为「磨砂玻璃（Frosted Glass）」质感，让色彩看起来像是透过一层雾面屏透出来的，增加朦胧的高级感。插画使用有质感的半立体彩色设计。\n\n内容与排版：画面核心是缓慢流动的有机波浪形状，形态柔和自然。排版上使用醒目的粗体无衬线字（Bold Sans-serif），文字颜色为纯白（#FFFFFF），以确保在多彩背景上的绝对清晰度。界面元素采用「玻璃拟态」（Glassmorphism），即高透明度的白色圆角卡片，带有细腻的白色描边和背景模糊效果。\n\n渲染要求：C4D流体模拟渲染，强调「丝绸」般的顺滑光泽，配合轻微的噪点（Grain）增加质感，色彩饱满但不刺眼，展现出流光溢彩的现代数字美学。"
+    }
+  },
+  "filePreview": {
+    "title": "文件预览",
+    "loading": "加载文件内容中...",
+    "notParsed": "文件尚未解析完成，无法预览",
+    "loadFailed": "加载文件内容失败"
+  },
+  "imagePreview": {
+    "title": "图片预览",
+    "removeImage": "移除图片"
+  },
+  "slidePreview": {
+    "pageGenerating": "该页面正在生成中，请稍候...",
+    "generationStarted": "已开始生成图片，请稍候...",
+    "versionSwitched": "已切换到该版本",
+    "outlineSaved": "大纲和描述已保存",
+    "materialsAdded": "已添加 {{count}} 个素材",
+    "exportStarted": "导出任务已开始，可在导出任务面板查看进度",
+    "cannotRefresh": "无法刷新：缺少项目ID",
+    "refreshSuccess": "刷新成功",
+    "extraRequirementsSaved": "额外要求已保存",
+    "styleDescSaved": "风格描述已保存",
+    "exportSettingsSaved": "导出设置已保存",
+    "loadTemplateFailed": "加载模板失败",
+    "templateChanged": "模板更换成功"
+  },
+  "landing": {
+    "nav": {
+      "enter": "进入应用"
+    },
+    "hero": {
+      "badge": "新一代 AI 演示文稿生成器",
+      "title_start": "让创意",
+      "title_highlight": "瞬间落地",
+      "title_end": "无需繁琐排版",
+      "subtitle": "专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几秒钟。",
+      "cta_primary": "免费开始使用"
+    },
+    "features": {
+      "ai": {
+        "title": "AI驱动",
+        "desc": "一键将想法转化为专业的演示文稿，无需繁琐排版。"
+      },
+      "edit": {
+        "title": "自然编辑",
+        "desc": "像写文档一样编辑PPT，大纲模式与详情模式无缝切换。"
+      },
+      "visual": {
+        "title": "智能配图",
+        "desc": "自动根据内容匹配高质量图片，让演示更加生动。"
+      },
+      "export": {
+        "title": "极速导出",
+        "desc": "支持导出为 PPTX 格式，保留所有可编辑属性。"
+      }
+    }
+  }
+}

@@ -26,7 +26,7 @@ export const ContextualStatusBadge: React.FC<ContextualStatusBadgeProps> = ({
   const { status, label, description } = usePageStatus(page, context);
 
   const statusConfig = {
-    DRAFT: 'bg-gray-100 text-gray-600',
+    DRAFT: 'bg-gray-100 dark:bg-background-secondary text-gray-600 dark:text-foreground-tertiary',
     DESCRIPTION_GENERATED: 'bg-blue-100 text-blue-600',
     GENERATING: 'bg-orange-100 text-orange-600 animate-pulse',
     COMPLETED: 'bg-green-100 text-green-600',

@@ -1,0 +1,813 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "retry": "Retry",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close",
+    "search": "Search",
+    "reset": "Reset",
+    "submit": "Submit",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "yes": "Yes",
+    "no": "No",
+    "all": "All",
+    "none": "None",
+    "selected": "Selected",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "noData": "No data",
+    "unknownError": "Unknown error",
+    "refresh": "Refresh",
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "download": "Download",
+    "downloading": "Packaging...",
+    "clearSelection": "Clear Selection",
+    "generating": "Generating...",
+    "completed": "Completed",
+    "failed": "Failed",
+    "pending": "Pending...",
+    "add": "Add"
+  },
+  "nav": {
+    "home": "Home",
+    "history": "History",
+    "settings": "Settings",
+    "help": "Help",
+    "backToHome": "Back to Home",
+    "materialGenerate": "Generate Material",
+    "materialCenter": "Material Center"
+  },
+  "home": {
+    "title": "Banana Slides",
+    "subtitle": "Vibe your PPT like vibing code",
+    "tagline": "AI-native PPT generator powered by nano banana pro🍌",
+    "features": {
+      "oneClick": "One-click PPT generation",
+      "naturalEdit": "Natural language editing",
+      "regionEdit": "Region-specific editing",
+      "export": "Export to PPTX/PDF"
+    },
+    "tabs": {
+      "idea": "From Idea",
+      "outline": "From Outline",
+      "description": "From Description"
+    },
+    "tabDescriptions": {
+      "idea": "Enter your idea, AI will generate a complete PPT for you",
+      "outline": "Have an outline? Paste it directly for quick generation, AI will automatically split it into structured outline",
+      "description": "Have complete descriptions? AI will automatically parse the outline and split into page descriptions, then generate images directly"
+    },
+    "placeholders": {
+      "idea": "e.g., Generate a presentation about the history of AI",
+      "outline": "Paste your PPT outline...\n\ne.g.:\nPart 1: Origins of AI\n- The beginning in the 1950s\n- Dartmouth Conference\n\nPart 2: Development History\n...",
+      "description": "Paste your complete page descriptions...\n\ne.g.:\nPage 1\nTitle: The Birth of Artificial Intelligence\nContent: In 1950, Turing proposed the \"Turing Test\"...\n\nPage 2\nTitle: AI Development History\nContent: 1950s: Symbolism...\n..."
+    },
+    "template": {
+      "title": "Select Style Template",
+      "useTextStyle": "Use text description for style",
+      "stylePlaceholder": "Describe your desired PPT style, e.g., minimalist business style with blue and white colors, clear and elegant fonts...",
+      "presetStyles": "Quick select preset styles:",
+      "styleTip": "Tip: Click preset styles to quick fill, or customize style, colors, layout requirements"
+    },
+    "actions": {
+      "selectFile": "Select reference file",
+      "parsing": "Parsing...",
+      "createProject": "Create New Project"
+    },
+    "messages": {
+      "enterContent": "Please enter content",
+      "filesParsing": "{{count}} reference file(s) are still parsing, please wait",
+      "projectCreateFailed": "Failed to create project",
+      "uploadingImage": "Uploading image...",
+      "imageUploadSuccess": "Image uploaded! Inserted at cursor position",
+      "imageUploadFailed": "Failed to upload image",
+      "fileUploadSuccess": "File uploaded successfully",
+      "fileUploadFailed": "Failed to upload file",
+      "fileTooLarge": "File too large: {{size}}MB, maximum 200MB",
+      "unsupportedFileType": "Unsupported file type: {{type}}",
+      "pptTip": "Tip: It's recommended to convert PPT to PDF format for better parsing results",
+      "filesAdded": "Added {{count}} reference file(s)",
+      "imageRemoved": "Image removed",
+      "serviceTestTip": "It's recommended to test services in Settings page first to avoid issues"
+    }
+  },
+  "history": {
+    "title": "Project History",
+    "subtitle": "View and manage all your projects",
+    "noProjects": "No projects yet",
+    "createFirst": "Create your first project to get started",
+    "selectedCount": "{{count}} selected",
+    "cancelSelect": "Cancel Selection",
+    "batchDelete": "Batch Delete",
+    "confirmDelete": "Are you sure you want to delete project \"{{title}}\"? This action cannot be undone.",
+    "confirmBatchDelete": "Are you sure you want to delete {{count}} selected project(s)? This action cannot be undone.",
+    "deleteTitle": "Confirm Delete",
+    "batchDeleteTitle": "Confirm Batch Delete",
+    "deleteSuccess": "Successfully deleted {{count}} project(s)",
+    "deleteCurrentProject": "Deleted projects including the currently open one",
+    "deleteFailed": "Failed to delete project",
+    "openFailed": "Failed to open project",
+    "loadFailed": "Failed to load project history",
+    "titleEmpty": "Project name cannot be empty",
+    "titleUpdated": "Project name updated",
+    "titleUpdateFailed": "Failed to update project name",
+    "historyRecords": "History"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Configure application parameters",
+    "sections": {
+      "appearance": "Appearance",
+      "language": "Interface Language",
+      "apiConfig": "LLM API Configuration",
+      "modelConfig": "Model Configuration",
+      "mineruConfig": "MinerU Configuration",
+      "imageConfig": "Image Generation Configuration",
+      "performanceConfig": "Performance Configuration",
+      "outputLanguage": "Output Language Settings",
+      "textReasoning": "Text Reasoning Mode",
+      "imageReasoning": "Image Reasoning Mode",
+      "baiduOcr": "Baidu OCR Configuration",
+      "serviceTest": "Service Test"
+    },
+    "theme": {
+      "label": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "language": {
+      "label": "Interface Language",
+      "zh": "中文",
+      "en": "English"
+    },
+    "fields": {
+      "aiProviderFormat": "AI Provider Format",
+      "aiProviderFormatDesc": "Select API request format, affects how backend constructs and sends requests. Takes effect after saving.",
+      "openaiFormat": "OpenAI Format",
+      "geminiFormat": "Gemini Format",
+      "apiBaseUrl": "API Base URL",
+      "apiBaseUrlPlaceholder": "https://api.example.com",
+      "apiBaseUrlDesc": "Set the base URL for the LLM provider API",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "Enter new API Key",
+      "apiKeyDesc": "Leave empty to keep current setting, enter new value to update",
+      "apiKeySet": "Set (length: {{length}})",
+      "textModel": "Text Model",
+      "textModelPlaceholder": "Leave empty to use env config (e.g., gemini-3-flash-preview)",
+      "textModelDesc": "Model name for generating outlines, descriptions, etc.",
+      "imageModel": "Image Generation Model",
+      "imageModelPlaceholder": "Leave empty to use env config (e.g., imagen-3.0-generate-001)",
+      "imageModelDesc": "Model name for generating page images",
+      "imageCaptionModel": "Image Caption Model",
+      "imageCaptionModelPlaceholder": "Leave empty to use env config (e.g., gemini-3-flash-preview)",
+      "imageCaptionModelDesc": "Model for recognizing images in reference files and generating descriptions",
+      "mineruApiBase": "MinerU API Base",
+      "mineruApiBasePlaceholder": "Leave empty to use env config (e.g., https://mineru.net)",
+      "mineruApiBaseDesc": "MinerU service address for parsing reference files",
+      "mineruToken": "MinerU Token",
+      "mineruTokenPlaceholder": "Enter new MinerU Token",
+      "mineruTokenDesc": "Leave empty to keep current setting, enter new value to update",
+      "imageResolution": "Image Resolution (may not work with some OpenAI format proxies)",
+      "imageResolutionDesc": "Higher resolution generates more detailed images but takes longer",
+      "maxDescriptionWorkers": "Max Description Workers",
+      "maxDescriptionWorkersDesc": "Maximum concurrent workers for description generation (1-20), higher is faster",
+      "maxImageWorkers": "Max Image Workers",
+      "maxImageWorkersDesc": "Maximum concurrent workers for image generation (1-20), higher is faster",
+      "defaultOutputLanguage": "Default Output Language",
+      "defaultOutputLanguageDesc": "Default language for AI-generated content",
+      "enableTextReasoning": "Enable Text Reasoning",
+      "enableTextReasoningDesc": "When enabled, text generation uses extended thinking for deeper reasoning",
+      "textThinkingBudget": "Text Thinking Budget",
+      "textThinkingBudgetDesc": "Token budget for text reasoning (1-8192), higher values enable deeper reasoning",
+      "enableImageReasoning": "Enable Image Reasoning",
+      "enableImageReasoningDesc": "When enabled, image generation uses chain-of-thought mode for better composition",
+      "imageThinkingBudget": "Image Thinking Budget",
+      "imageThinkingBudgetDesc": "Token budget for image reasoning (1-8192), higher values enable deeper reasoning",
+      "baiduOcrApiKey": "Baidu OCR API Key",
+      "baiduOcrApiKeyPlaceholder": "Enter Baidu OCR API Key",
+      "baiduOcrApiKeyDesc": "For text recognition in editable PPTX export, leave empty to keep current setting"
+    },
+    "apiKeyTip": "Get API keys from {{link}} for easier migration",
+    "serviceTest": {
+      "title": "Service Test",
+      "description": "Verify key service configurations before use to avoid issues.",
+      "tip": "Tip: Image generation and MinerU tests may take 30-60 seconds, please be patient.",
+      "startTest": "Start Test",
+      "testing": "Testing...",
+      "testTimeout": "Test timeout, please retry",
+      "testFailed": "Test failed",
+      "tests": {
+        "baiduOcr": {
+          "title": "Baidu OCR Service",
+          "description": "Recognize text in test image, verify BAIDU_OCR_API_KEY configuration"
+        },
+        "textModel": {
+          "title": "Text Generation Model",
+          "description": "Send short prompt to verify text model and API configuration"
+        },
+        "captionModel": {
+          "title": "Image Caption Model",
+          "description": "Generate test image and request model to output description"
+        },
+        "baiduInpaint": {
+          "title": "Baidu Image Inpainting",
+          "description": "Use test image for inpainting, verify Baidu inpaint service"
+        },
+        "imageModel": {
+          "title": "Image Generation Model",
+          "description": "Generate presentation background from test image (1K, may take 20-40 seconds)"
+        },
+        "mineruPdf": {
+          "title": "MinerU PDF Parsing",
+          "description": "Upload test PDF and wait for parsing result (may take 30-60 seconds)"
+        }
+      },
+      "results": {
+        "recognizedText": "Recognized: {{text}}",
+        "modelReply": "Model reply: {{reply}}",
+        "captionDesc": "Caption: {{caption}}",
+        "imageSize": "Output size: {{width}}x{{height}}",
+        "parsePreview": "Parse preview: {{preview}}"
+      }
+    },
+    "actions": {
+      "save": "Save Settings",
+      "saving": "Saving...",
+      "resetToDefault": "Reset to Default"
+    },
+    "messages": {
+      "loadFailed": "Failed to load settings",
+      "saveSuccess": "Settings saved successfully",
+      "saveFailed": "Failed to save settings",
+      "resetConfirm": "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
+      "resetTitle": "Confirm Reset to Default",
+      "resetSuccess": "Settings reset successfully",
+      "resetFailed": "Failed to reset settings",
+      "testServiceTip": "It's recommended to test services at the bottom of this page to verify configurations"
+    }
+  },
+  "outline": {
+    "title": "Edit Outline",
+    "pageCount": "{{count}} pages",
+    "addPage": "Add Page",
+    "generateDescriptions": "Generate Descriptions",
+    "generating": "Generating...",
+    "chapter": "Chapter",
+    "page": "Page {{num}}",
+    "titleLabel": "Title",
+    "keyPoints": "Key Points",
+    "keyPointsPlaceholder": "Key points (one per line)",
+    "addKeyPoint": "Add Key Point",
+    "deletePage": "Delete Page",
+    "confirmDeletePage": "Are you sure you want to delete this page?",
+    "preview": "Preview",
+    "clickToPreview": "Click a card on the left to view details",
+    "noPages": "No pages yet",
+    "noPagesHint": "Click \"Add Page\" to create manually, or \"Auto Generate\" to let AI help you",
+    "parseOutline": "Parse Outline",
+    "autoGenerate": "Auto Generate Outline",
+    "reParseOutline": "Re-parse Outline",
+    "reGenerate": "Regenerate Outline",
+    "export": "Export Outline",
+    "aiPlaceholder": "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
+    "aiPlaceholderShort": "e.g., Add/delete pages... · Ctrl+Enter",
+    "contextLabels": {
+      "idea": "PPT Idea",
+      "outline": "Outline",
+      "description": "Description"
+    },
+    "messages": {
+      "outlineEmpty": "Outline cannot be empty",
+      "generateSuccess": "Descriptions generated successfully",
+      "generateFailed": "Failed to generate descriptions",
+      "confirmRegenerate": "Existing outline will be overwritten. Continue?",
+      "confirmRegenerateTitle": "Confirm Regenerate",
+      "refineSuccess": "Outline modified successfully",
+      "refineFailed": "Modification failed, please try again",
+      "exportSuccess": "Export successful",
+      "loadingProject": "Loading project...",
+      "generatingOutline": "Generating outline..."
+    }
+  },
+  "detail": {
+    "title": "Edit Descriptions",
+    "pageCount": "{{count}} pages",
+    "generateImages": "Generate Images",
+    "generating": "Generating...",
+    "page": "Page {{num}}",
+    "titleLabel": "Title",
+    "description": "Description",
+    "batchGenerate": "Batch Generate Descriptions",
+    "export": "Export Descriptions",
+    "pagesCompleted": "pages completed",
+    "noPages": "No pages yet",
+    "noPagesHint": "Please go back to outline editor to add pages first",
+    "backToOutline": "Back to Outline Editor",
+    "aiPlaceholder": "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
+    "aiPlaceholderShort": "e.g., Make descriptions more detailed... · Ctrl+Enter",
+    "messages": {
+      "generateSuccess": "Generated successfully",
+      "generateFailed": "Generation failed",
+      "confirmRegenerate": "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
+      "confirmRegenerateTitle": "Confirm Regenerate",
+      "confirmRegeneratePage": "This page already has a description. Regenerating will overwrite it. Continue?",
+      "refineSuccess": "Descriptions modified successfully",
+      "refineFailed": "Modification failed, please try again",
+      "exportSuccess": "Export successful",
+      "loadingProject": "Loading project..."
+    }
+  },
+  "preview": {
+    "title": "Preview",
+    "pageCount": "{{count}} pages",
+    "export": "Export",
+    "exportPptx": "Export as PPTX",
+    "exportPdf": "Export as PDF",
+    "exportEditablePptx": "Export Editable PPTX (Beta)",
+    "exportSelectedPages": "Will export {{count}} selected page(s)",
+    "regenerate": "Regenerate",
+    "regenerating": "Generating...",
+    "editMode": "Edit Mode",
+    "viewMode": "View Mode",
+    "page": "Page {{num}}",
+    "projectSettings": "Project Settings",
+    "changeTemplate": "Change Template",
+    "refresh": "Refresh",
+    "batchGenerate": "Batch Generate Images ({{count}})",
+    "generateSelected": "Generate Selected ({{count}})",
+    "multiSelect": "Multi-select",
+    "cancelMultiSelect": "Cancel Multi-select",
+    "pagesUnit": " pages",
+    "noPages": "No pages yet",
+    "noPagesHint": "Please go back to editor to add content first",
+    "backToEdit": "Back to Editor",
+    "generating": "Generating...",
+    "notGenerated": "Image not generated yet",
+    "generateThisPage": "Generate This Page",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "historyVersions": "History Versions",
+    "versions": "Versions",
+    "version": "Version",
+    "current": "Current",
+    "editPage": "Edit Page",
+    "regionSelect": "Region Select",
+    "endRegionSelect": "End Region Select",
+    "pageOutline": "Page Outline (Editable)",
+    "pageDescription": "Page Description (Editable)",
+    "enterTitle": "Enter page title",
+    "pointsPerLine": "Key Points (one per line)",
+    "enterPointsPerLine": "Enter one key point per line",
+    "enterDescription": "Enter detailed page description",
+    "selectContextImages": "Select Context Images (Optional)",
+    "useTemplateImage": "Use Template Image",
+    "imagesInDescription": "Images in Description",
+    "uploadImages": "Upload Images",
+    "selectFromMaterials": "Select from Materials",
+    "upload": "Upload",
+    "editPromptLabel": "Enter edit instructions (page description will be auto-added)",
+    "editPromptPlaceholder": "e.g., Remove elements in selected area, change background to blue, increase title font size, change text box style to dashed...",
+    "saveOutlineOnly": "Save Outline/Description Only",
+    "generateImage": "Generate Image",
+    "templateModalDesc": "Selecting a new template will apply to future PPT page generation (won't affect already generated pages). You can choose preset templates, existing templates, or upload a new one.",
+    "uploadingTemplate": "Uploading template...",
+    "resolution1KWarning": "1K Resolution Warning",
+    "resolution1KWarningText": "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
+    "resolution1KWarningHint": "It's recommended to switch to 2K or 4K resolution in \"Project Settings → Global Settings\" for clearer results.",
+    "dontShowAgain": "Don't show again",
+    "generateAnyway": "Generate Anyway",
+    "messages": {
+      "exportSuccess": "Export successful",
+      "exportFailed": "Export failed",
+      "regenerateSuccess": "Regeneration complete",
+      "regenerateFailed": "Failed to regenerate",
+      "loadingProject": "Loading project...",
+      "processing": "Processing...",
+      "generatingBackgrounds": "Generating clean backgrounds...",
+      "creatingPdf": "Creating PDF...",
+      "parsingContent": "Parsing content...",
+      "creatingPptx": "Creating editable PPTX...",
+      "complete": "Complete!"
+    }
+  },
+  "components": {
+    "loading": {
+      "default": "Loading..."
+    },
+    "confirm": {
+      "title": "Confirm",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "toast": {
+      "success": "Operation successful",
+      "error": "Operation failed"
+    },
+    "fileUpload": {
+      "dragDrop": "Drag and drop files here or click to upload",
+      "supportedFormats": "Supported formats: {{formats}}",
+      "maxSize": "Maximum file size: {{size}}MB"
+    },
+    "projectCard": {
+      "pages": "{{count}} pages",
+      "created": "Created",
+      "updated": "Updated"
+    }
+  },
+  "help": {
+    "title": "Banana Slides",
+    "quickStart": "Quick Start",
+    "quickStartDesc": "Complete basic configuration and start your AI creation journey",
+    "featuresIntro": "Features",
+    "featuresIntroDesc": "Explore how to use AI to quickly create beautiful PPT",
+    "showcases": "Showcases",
+    "showcasesDesc": "Here are PPT examples generated with Banana Slides",
+    "viewMoreCases": "View more examples",
+    "welcome": "Welcome to Banana Slides!",
+    "welcomeDesc": "Let's complete the basic configuration before you start",
+    "step1Title": "Configure API Key",
+    "step1Desc": "Go to settings page to configure the API services needed for the project, including:",
+    "step1Items": {
+      "apiConfig": "Your AI service provider's API Base and API Key",
+      "modelConfig": "Configure text, image generation model (banana pro) and image caption model",
+      "mineruConfig": "If you need file parsing, configure MinerU Token",
+      "editableExport": "If you need editable export, configure MinerU TOKEN and Baidu API KEY"
+    },
+    "step2Title": "Save and Test",
+    "step2Desc": "After configuration, be sure to click \"Save Settings\" button, then test services at the bottom of the page to ensure everything works properly.",
+    "step3Title": "Start Creating",
+    "step3Desc": "After successful configuration, return to home page to start using AI to generate beautiful PPT!",
+    "step4Title": "*Feedback",
+    "step4Desc": "If you encounter issues while using, please raise them on GitHub issues",
+    "goToGithubIssue": "Go to GitHub Issues",
+    "goToSettings": "Go to Settings",
+    "tip": "Tip",
+    "tipContent": "If you don't have an API Key yet, you can register on the corresponding service provider's website. After configuration, it's recommended to test services first to avoid issues later.",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "guidePage": "Guide",
+    "showcaseTitles": {
+      "softwareDev": "Software Development Best Practices",
+      "deepseek": "DeepSeek-V3.2 Technical Showcase",
+      "prefabFood": "Smart Production Line Equipment for Prefabricated Food",
+      "moneyHistory": "The Evolution of Money: From Shells to Paper Currency"
+    },
+    "features": {
+      "flexiblePaths": {
+        "title": "Flexible Creation Paths",
+        "description": "Support for ideas, outlines, and page descriptions as starting points to suit different creative habits.",
+        "details": [
+          "One-click generation: Enter a topic, AI automatically generates a well-structured outline and page-by-page content descriptions",
+          "Natural language editing: Support vibe-style oral modifications to outlines or descriptions, AI responds in real-time",
+          "Outline/Description mode: Both batch generation and manual fine-tuning are available"
+        ]
+      },
+      "materialParsing": {
+        "title": "Powerful Material Parsing",
+        "description": "Upload files in various formats, automatically parse content to provide rich materials for generation.",
+        "details": [
+          "Multi-format support: Upload PDF/Docx/MD/Txt files, automatic content parsing in the background",
+          "Smart extraction: Automatically identify key points, image links, and chart information in text",
+          "Style reference: Support uploading reference images or templates to customize PPT style"
+        ]
+      },
+      "vibeEditing": {
+        "title": "\"Vibe\" Style Natural Language Editing",
+        "description": "No longer limited to complex menu buttons, give editing instructions directly through natural language.",
+        "details": [
+          "Local repainting: Make verbal modifications to unsatisfied areas (e.g., \"Change this chart to a pie chart\")",
+          "Full page optimization: Generate HD, style-consistent pages based on nano banana pro🍌"
+        ]
+      },
+      "easyExport": {
+        "title": "Ready-to-Use Format Export",
+        "description": "One-click export to standard formats, ready for presentation without adjustment.",
+        "details": [
+          "Multi-format support: One-click export to standard PPTX or PDF files",
+          "Perfect adaptation: Default 16:9 ratio, no secondary layout adjustment needed"
+        ]
+      }
+    }
+  },
+  "material": {
+    "title": "Generate Material",
+    "centerTitle": "Material Center",
+    "selectTitle": "Select Material",
+    "saveToLibraryNote": "Generated materials will be saved to the library",
+    "generatedResult": "Generated Result",
+    "generatedMaterial": "Generated Material",
+    "generatedPreview": "Generated material will be displayed here",
+    "promptLabel": "Prompt (sent directly to image generation model)",
+    "promptPlaceholder": "e.g., Blue-purple gradient background with geometric shapes and tech-style lines, for a tech-themed title page...",
+    "referenceImages": "Reference Images (Optional)",
+    "mainReference": "Main Reference (Optional)",
+    "extraReference": "Extra References (Optional, multiple)",
+    "clickToUpload": "Click to upload",
+    "selectFromLibrary": "Select from Library",
+    "generateMaterial": "Generate Material",
+    "totalMaterials": "{{count}} materials",
+    "noMaterials": "No materials",
+    "selectedCount": "{{count}} selected",
+    "allMaterials": "All Materials",
+    "unassociated": "Unassociated",
+    "currentProject": "Current Project",
+    "viewMoreProjects": "+ View more projects...",
+    "uploadFile": "Upload File",
+    "previewMaterial": "Preview Material",
+    "deleteMaterial": "Delete Material",
+    "closePreview": "Close Preview",
+    "canUploadOrGenerate": "You can upload images or create materials using the generation feature",
+    "canUploadImages": "You can upload images as materials",
+    "messages": {
+      "enterPrompt": "Please enter a prompt",
+      "materialAdded": "Added {{count}} material(s)",
+      "loadMaterialFailed": "Failed to load materials",
+      "unsupportedFormat": "Unsupported image format",
+      "uploadSuccess": "Material uploaded successfully",
+      "uploadFailed": "Failed to upload material",
+      "cannotDelete": "Cannot delete: Missing material ID",
+      "deleteSuccess": "Material deleted",
+      "deleteFailed": "Failed to delete material",
+      "downloadSuccess": "Download successful",
+      "downloadFailed": "Download failed",
+      "batchDownloadSuccess": "Packaged {{count}} materials",
+      "batchDownloadFailed": "Batch download failed",
+      "selectDownload": "Please select materials to download first",
+      "selectAtLeastOne": "Please select at least one material",
+      "maxSelection": "Maximum {{count}} materials can be selected",
+      "generateSuccess": "Material generated successfully, saved to history library",
+      "generateSuccessGlobal": "Material generated successfully, saved to global library",
+      "generateComplete": "Material generation complete, but image URL not found",
+      "generateFailed": "Material generation failed",
+      "generateTimeout": "Material generation timeout, please check library later",
+      "pollingFailed": "Failed to poll task status, please check library later",
+      "noTaskId": "Material generation failed: No task ID returned",
+      "savedToLibrary": "Material saved to template library",
+      "selectedAsTemplate": "Selected from material library as template"
+    }
+  },
+  "projectSettings": {
+    "title": "Settings",
+    "projectConfig": "Project Settings",
+    "exportConfig": "Export Settings",
+    "globalConfig": "Global Settings",
+    "projectConfigTitle": "Project Configuration",
+    "projectConfigDesc": "These settings only apply to the current project and do not affect other projects",
+    "globalConfigTitle": "Global Settings",
+    "globalConfigDesc": "These settings apply to all projects",
+    "extraRequirements": "Extra Requirements",
+    "extraRequirementsDesc": "When generating each page, AI will refer to these extra requirements",
+    "extraRequirementsPlaceholder": "e.g., Use compact layout, display main outline title at top, include more PPT illustrations...",
+    "saveExtraRequirements": "Save Extra Requirements",
+    "styleDescription": "Style Description",
+    "styleDescriptionDesc": "Describe your expected overall PPT style, AI will generate pages accordingly",
+    "styleDescriptionPlaceholder": "e.g., Minimalist business style, using dark blue and white colors, clear and elegant fonts, clean layout...",
+    "saveStyleDescription": "Save Style Description",
+    "styleTip": "Style description will be automatically added to the prompt when generating images. If a template image is also uploaded, the style description will serve as supplementary information.",
+    "editablePptxExport": "Editable PPTX Export Settings",
+    "editablePptxExportDesc": "Configure how \"Export Editable PPTX\" feature works. These settings affect export quality and API call costs.",
+    "extractorMethod": "Component Extraction Method",
+    "extractorMethodDesc": "Choose how to extract editable components like text and tables from PPT images",
+    "extractorHybrid": "Hybrid Extraction (Recommended)",
+    "extractorHybridDesc": "MinerU layout analysis + Baidu high-precision OCR for more accurate text recognition",
+    "extractorMineru": "MinerU Extraction",
+    "extractorMineruDesc": "Use only MinerU for layout analysis and text recognition",
+    "backgroundMethod": "Background Image Acquisition Method",
+    "backgroundMethodDesc": "Choose how to generate clean background images (remove text from original image for PPT background)",
+    "backgroundHybrid": "Hybrid Method (Recommended)",
+    "backgroundHybridDesc": "Baidu precise text removal + generative model for image quality enhancement",
+    "backgroundGenerative": "Generative Method",
+    "backgroundGenerativeDesc": "Use generative AI model (e.g., Gemini) to directly generate background, high quality but may have residual elements",
+    "backgroundBaidu": "Baidu Inpainting Service",
+    "backgroundBaiduDesc": "Use Baidu image repair API, fast but average quality",
+    "usesAiModel": "Uses AI Image Model",
+    "costTip": "Options marked with \"Uses AI Image Model\" will call AI image generation API (e.g., Gemini), incurring additional API call costs per page. To control costs, consider using \"Baidu Inpainting\".",
+    "errorHandling": "Error Handling Strategy",
+    "errorHandlingDesc": "Configure how to handle errors during export",
+    "allowPartialResult": "Allow Partial Results",
+    "allowPartialResultDesc": "When enabled, if errors occur during export (e.g., style extraction failed, text rendering failed), they will be skipped and export will continue, potentially resulting in incomplete output. When disabled, any error will immediately stop export and show the specific reason.",
+    "allowPartialResultWarning": "Enabling this option may result in missing text styles, incorrect element positions, or missing content in the exported PPTX file. Only enable this when you need quick results and can accept quality loss.",
+    "saveExportSettings": "Save Export Settings"
+  },
+  "template": {
+    "myTemplates": "My Templates",
+    "presetTemplates": "Preset Templates",
+    "uploadTemplate": "Upload Template",
+    "deleteTemplate": "Delete Template",
+    "templateSelected": "Selected",
+    "saveToLibraryOnUpload": "Save to my template library when uploading",
+    "selectFromMaterials": "Select from Materials",
+    "selectAsTemplate": "Select from materials as template",
+    "cannotDeleteInUse": "Cannot delete template in use, please deselect or switch first",
+    "presets": {
+      "retroScroll": "Retro Scroll",
+      "vectorIllustration": "Vector Illustration",
+      "glassEffect": "Glass Effect",
+      "techBlue": "Tech Blue",
+      "simpleBusiness": "Simple Business",
+      "academicReport": "Academic Report"
+    },
+    "messages": {
+      "uploadSuccess": "Template uploaded successfully",
+      "uploadFailed": "Failed to upload template",
+      "deleteSuccess": "Template deleted",
+      "deleteFailed": "Failed to delete template"
+    }
+  },
+  "referenceFile": {
+    "title": "Select Reference File",
+    "totalFiles": "{{count}} files",
+    "noFiles": "No files",
+    "selectedCount": "{{count}} selected",
+    "allAttachments": "All Attachments",
+    "unclassified": "Unclassified",
+    "currentProjectAttachments": "Current Project Attachments",
+    "uploadedFiles": "Uploaded Files",
+    "uploadedImages": "Uploaded Images",
+    "refreshList": "Refresh List",
+    "imageLoadFailed": "Image load failed",
+    "deleteThisMaterial": "Delete this material",
+    "parseStatus": {
+      "pending": "Pending",
+      "parsing": "Parsing...",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "reparse": "Re-parse",
+    "removeFromProject": "Remove from Project",
+    "deleteFile": "Delete File",
+    "imageCaptionFailed": "⚠️ {{count}} image(s) failed to generate captions",
+    "messages": {
+      "loadFailed": "Failed to load reference file list",
+      "uploadSuccess": "Successfully uploaded {{count}} file(s)",
+      "uploadFailed": "Failed to upload file",
+      "cannotDelete": "Cannot delete: Missing file ID",
+      "deleteSuccess": "File deleted successfully",
+      "deleteFailed": "Failed to delete file",
+      "selectAtLeastOne": "Please select at least one file",
+      "selectValid": "Please select valid files",
+      "maxSelection": "Maximum {{count}} files can be selected",
+      "parseTriggered": "Triggered parsing for {{count}} file(s), will run in background",
+      "parseFailed": "Failed to trigger file parsing"
+    }
+  },
+  "status": {
+    "draft": "Draft",
+    "descriptionGenerated": "Description Generated",
+    "generating": "Generating",
+    "completed": "Completed",
+    "failed": "Failed",
+    "unknown": "Unknown",
+    "notGeneratedDesc": "No Description",
+    "noDescription": "Description not generated yet",
+    "descGenerated": "Description generated",
+    "notGeneratedImage": "No Image",
+    "waitingForImage": "Description generated, waiting for image",
+    "generatingImage": "Generating image",
+    "imageFailed": "Image generation failed",
+    "imageCompleted": "Image generated",
+    "draftStage": "Draft stage",
+    "allCompleted": "All completed",
+    "statusUnknown": "Status unknown"
+  },
+  "export": {
+    "tasks": "Export Tasks",
+    "inProgress": "{{count}} in progress",
+    "clearHistory": "Clear",
+    "exportPptx": "PPTX",
+    "exportPdf": "PDF",
+    "exportEditablePptx": "Editable PPTX",
+    "allPages": "All",
+    "pageRange": "Pages {{start}}-{{end}}",
+    "singlePage": "Page {{num}}",
+    "pagesCount": "{{count}} pages",
+    "warnings": "{{count}} warning(s)",
+    "clickToView": "Click to view",
+    "warningsTitle": "Export Warnings",
+    "warningsCount": "Export Warnings ({{count}})",
+    "detailInfo": "Details",
+    "styleExtractionFailed": "Style extraction failed ({{count}})",
+    "textRenderFailed": "Text render failed ({{count}})",
+    "moreItems": "... {{count}} more",
+    "exportFailed": "Export failed",
+    "preparing": "Preparing...",
+    "settingsTip": "You can adjust settings or enable \"Allow Partial Results\" in \"Project Settings → Export Settings\""
+  },
+  "slideCard": {
+    "notGenerated": "Not Generated",
+    "confirmDeletePage": "Are you sure you want to delete this page?",
+    "confirmDeleteTitle": "Confirm Delete"
+  },
+  "github": {
+    "viewRepo": "View GitHub Repository"
+  },
+  "aiRefine": {
+    "ctrlEnterSubmit": "(Ctrl+Enter to submit)",
+    "history": "History",
+    "viewHistory": "View {{count}} history modifications",
+    "previousRequirements": "Previous modification requests:",
+    "submitTooltip": "Submit (Ctrl+Enter)"
+  },
+  "presetStyles": {
+    "businessSimple": {
+      "name": "Simple Business",
+      "description": "Visual description: The global visual language should embody the professionalism and stability of top international consulting firms (such as McKinsey or Boston Consulting). The overall style pursues extreme flatness and sense of order, rejecting unnecessary decoration, emphasizing clear communication of information. The lighting environment should be uniform studio diffused light, without obvious dramatic shadows, ensuring a clean and bright picture.\n\nColor and material: The background color must be locked to the deep, authoritative \"Navy Blue\" (Navy Blue, #0B1F3B), while foreground elements use pure white (#FFFFFF) and a small amount of sky blue (Sky Blue, #38BDF8) as accents; avoid complex textures, use matte paper texture or smooth vector blocks.\n\nContent and layout: The layout logic follows a strict modular grid system. Generate clear geometric partitions, using thin lines or faint light gray blocks (Light Gray, #E5E7EB) to divide content areas. For fonts, apply bold sans-serif fonts (such as Helvetica or Roboto) for titles, keeping body text thin and clear. Chart elements should be flat 2D vector graphics, such as simple bar charts or pie charts, with single and restrained colors.\n\nRendering requirements: Vector illustration style, extremely high definition, whether text or graphic edges should be sharp without aliasing, showcasing rigorous business aesthetics, suitable for Fortune 500 company presentations."
+    },
+    "techModern": {
+      "name": "Modern Tech",
+      "description": "Visual description: The global visual language should blend cyberpunk with the futuristic sense of modern SaaS products. The overall atmosphere is mysterious, deep, and dynamic, as if in a high-tech data center or virtual space. Lighting uses self-illumination effects in a dark environment, simulating the glow of neon tubes and lasers.\n\nColor and material: The background color uses the deep \"Midnight Black\" (#0B0F19) to set off the brightness of the foreground. The main color uses high-saturation \"Electric Blue\" (#00A3FF) and \"Cyber Purple\" (#7C3AED) for linear gradients, creating a flowing energy feel. Materials extensively use semi-transparent glass, glowing grid lines, and geometric bodies with metallic sheen.\n\nContent and layout: The picture should contain floating 3D geometric elements (such as cubes, tetrahedrons, or chip structures), these elements should have wireframe rendering effects. Layout tends toward asymmetric dynamic balance, using tech-style monospace fonts or modern sans-serif fonts. The background can subtly add circuit board textures, binary code streams, or dot matrix maps as decoration, increasing detail density.\n\nRendering requirements: Octane Render style, emphasizing ray tracing, bloom effects, and depth of field control, presenting fine particle effects and visual impact full of technological tension."
+    },
+    "academicFormal": {
+      "name": "Formal Academic",
+      "description": "Visual description: The global visual language should imitate the layout style of high-quality print publications or classic papers, conveying rationality, objectivity, and the weight of knowledge. The overall atmosphere is quiet, restrained, without any glare or over-design that interferes with the line of sight. The picture must fill the full screen, no book binding lines, paper edges, curled corners, shadows, or any form of border. The background should not appear three-dimensional, but should be presented in a two-dimensional plane.\n\nColor and material: The background color is strictly limited to \"Off-white\" (#F8F7F2), simulating the texture of high-grade woodfree paper. Foreground colors only use pure black (#000000), charcoal gray (#1F2937), and deep red (#7F1D1D) or deep blue (#1E3A8A) as accent colors (this accent color should not exceed 5%). The material is completely presented as high-quality paper printing effect, with delicate paper texture.\n\nContent and layout: Layout must follow classic typographic design principles, with wide margins. Use serif fonts (similar to Times New Roman or Garamond) to embody tradition and formality. Visual elements mainly consist of fine black line boxes (#000000), standard academic table styles, and black and white line drawings (#000000 / #FFFFFF). Use left-right columns or top-bottom structure with strict alignment.\n\nRendering requirements: Ultra-high resolution scan style, emphasizing the grayscale anti-aliasing effect of fonts and the sharpness of lines, the picture is like the inner page of a hardcover academic journal, showing absolute professionalism and authority. No form of page border should exist, such as black borders or shadow lines."
+    },
+    "creativeFun": {
+      "name": "Creative Fun",
+      "description": "Visual description: The global visual language should be like a vibrant startup Pitch Deck or children's educational app interface. The overall atmosphere is relaxed, pleasant, full of imagination, breaking conventional constraints. Lighting is bright and full of sunshine, no shadows between colors, presenting thorough flatness.\n\nColor and material: The background color uses high-brightness \"Warm Yellow\" (#FFD54A). The color scheme is extremely bold, mixing vibrant \"Vibrant Orange\" (#FF6A00), \"Grass Green\" (#22C55E), and \"Sky Blue\" (#38BDF8), forming Memphis-style color collision effects. Materials simulate hand-drawn doodles, paper cutting, or rough-edged vector illustrations.\n\nContent and layout: The picture content should include hand-drawn style illustration elements, such as doodle arrows, stars, wavy lines, and irregular organic shape blocks. Layout allows text to tilt, overlap, or jump, breaking the rigid grid. Use rounded cute fonts or handwriting fonts. Place some anthropomorphized cute objects or exaggerated speech bubbles in the corners.\n\nRendering requirements: Dribbble popular illustration style, bright flat colors, smooth and elastic lines, visually giving a happy, friendly, and extremely approachable feeling."
+    },
+    "minimalistClean": {
+      "name": "Minimalist Clean",
+      "description": "Visual description: The global visual language draws from Scandinavian Design and Kinfolk magazine aesthetics. The overall atmosphere is ethereal and serene, emphasizing the philosophy of \"less is more\". Lighting uses extremely soft diffused skylight, shadows are very light with blurred edges, creating an airy feel.\n\nColor and material: The background color is the extremely light \"Haze Gray\" (#F5F5F7). Foreground colors only use mid-gray (#6B7280) and low-saturation Morandi colors (such as Morandi Gray Blue #7A8FA6) as tiny accents. Materials reflect fine matte texture, occasionally appearing a little plaster micro-texture.\n\nContent and layout: The core of the composition is \"Negative Space\", white space should occupy more than 70% of the picture. Layout is extremely restrained, text font size is small, line spacing is wide, using thin and elegant sans-serif fonts. Visual anchors are simple geometric line icons, layout pursues absolute balance.\n\nRendering requirements: Minimalist photography style, high dynamic range (HDR), the picture is extremely clean without any noise, showing a gallery-like art display feel."
+    },
+    "luxuryPremium": {
+      "name": "Luxury Premium",
+      "description": "Visual description: The global visual language should blend the brand image of high-end watch advertisements or five-star hotels. The overall atmosphere is mysterious, noble, and unique. Lighting uses dramatic Rembrandt light or spotlight effects, highlighting key elements, while the rest fades into darkness.\n\nColor and material: The background color is strictly locked to the deep \"Obsidian Black\" (#0B0B0F). The foreground color is mainly composed of \"Champagne Gold\" (#F7E7CE). Materials must reflect an expensive touch, the core combination being: background showing matte black velvet texture, foreground decorations showing brushed metal texture.\n\nContent and layout: Layout uses classic center alignment or symmetrical layout, emphasizing ceremonial feel. Fonts must use elegant serif fonts, with slightly widened letter spacing to reflect nobility. The picture can add delicate gold border lines, Art Deco style decorative patterns. If there are 3D objects, they should show a jewel-like polished texture.\n\nRendering requirements: Film-grade realistic rendering, emphasizing material physical properties (PBR), especially the highlight reflections of metal and the diffuse reflection details of velvet, the picture presents the premium quality of luxury advertising."
+    },
+    "natureFresh": {
+      "name": "Nature Fresh",
+      "description": "Visual description: The global visual language aims to evoke people's longing for nature, environmental protection, and healthy living, similar to the brand visuals of Whole Foods or Aesop. The overall atmosphere is healing, breathable, and organic. Lighting simulates the dappled sunlight through leaves in early morning (Tyndall effect), warm and soft.\n\nColor and material: The background color uses the soft \"Beige\" (#EAD9C6). The color scheme is taken from nature, focusing on Forest Green (#14532D) and Earth Brown (#7A4E2D). Materials emphasize natural textures, such as the graininess of recycled paper and the veins of plant leaves.\n\nContent and layout: The picture should integrate real natural elements, mainly extending green plant leaves, these elements can serve as background decoration or foreground frames. Layout uses rounded and friendly fonts. Layout can be slightly loose, imitating the form of natural growth. Shadow processing should be soft and natural, avoiding harsh black shadows.\n\nRendering requirements: Macro photography style combined with 3D rendering, emphasizing the subsurface scattering of plant surfaces and the delicate texture of natural materials, the picture is fresh and elegant, refreshing."
+    },
+    "gradientVibrant": {
+      "name": "Vibrant Gradient",
+      "description": "Visual description: The global visual language benchmarks the website visuals of modern tech unicorn companies (such as Stripe or Linear), presenting an aurora-like flowing beauty. The overall atmosphere is dreamy, transparent, and breathing, avoiding eye-catching color collision, emphasizing elegant fusion between colors.\n\nColor and material: Background is foreground, using full-screen diffused gradient colors. The color scheme uses elegant and harmonious \"holographic colors\", with deep \"Royal Blue\" (#2563EB) as the base, smoothly transitioning to \"Violet\" (#7C3AED) and bright \"Magenta\" (#DB2777). Colors blend like watercolors, without hard boundaries. Materials are locked to \"Frosted Glass\" texture, making colors look like they're coming through a frosted screen, adding a hazy premium feel. Illustrations use textured semi-3D colorful designs.\n\nContent and layout: The core of the picture is slowly flowing organic wave shapes, with soft and natural forms. Layout uses bold sans-serif fonts, text color is pure white (#FFFFFF), ensuring absolute clarity on the colorful background. Interface elements use \"Glassmorphism\", namely highly transparent white rounded cards with delicate white borders and background blur effects.\n\nRendering requirements: C4D fluid simulation rendering, emphasizing \"silk\" smooth luster, with slight grain added for texture, colors are saturated but not glaring, showcasing the modern digital aesthetics of flowing light and colors."
+    }
+  },
+  "filePreview": {
+    "title": "File Preview",
+    "loading": "Loading file content...",
+    "notParsed": "File not parsed yet, cannot preview",
+    "loadFailed": "Failed to load file content"
+  },
+  "imagePreview": {
+    "title": "Image Preview",
+    "removeImage": "Remove Image"
+  },
+  "slidePreview": {
+    "pageGenerating": "This page is currently generating, please wait...",
+    "generationStarted": "Image generation started, please wait...",
+    "versionSwitched": "Switched to this version",
+    "outlineSaved": "Outline and description saved",
+    "materialsAdded": "Added {{count}} material(s)",
+    "exportStarted": "Export task started, check progress in export tasks panel",
+    "cannotRefresh": "Cannot refresh: Missing project ID",
+    "refreshSuccess": "Refresh successful",
+    "extraRequirementsSaved": "Extra requirements saved",
+    "styleDescSaved": "Style description saved",
+    "exportSettingsSaved": "Export settings saved",
+    "loadTemplateFailed": "Failed to load template",
+    "templateChanged": "Template changed successfully"
+  },
+  "landing": {
+    "nav": {
+      "enter": "Enter App"
+    },
+    "hero": {
+      "badge": "Next Gen AI Presentation Generator",
+      "title_start": "Turn Ideas into",
+      "title_highlight": "Reality Instantly",
+      "title_end": "No Formatting Hassle",
+      "subtitle": "Focus on your content and ideas, leave the rest to Banana Slides. From outline to beautiful slides in seconds.",
+      "cta_primary": "Get Started for Free"
+    },
+    "features": {
+      "ai": {
+        "title": "AI Powered",
+        "desc": "Turn ideas into professional presentations with one click, no tedious formatting required."
+      },
+      "edit": {
+        "title": "Natural Editing",
+        "desc": "Edit PPT like a document, seamlessly switch between outline and detail modes."
+      },
+      "visual": {
+        "title": "Smart Visuals",
+        "desc": "Automatically match high-quality images based on content to make presentations more vivid."
+      },
+      "export": {
+        "title": "Fast Export",
+        "desc": "Support export to PPTX format, retaining all editable properties."
+      }
+    }
+  }
+}

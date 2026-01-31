@@ -33,29 +33,29 @@ export const Modal: React.FC<ModalProps> = ({
         className="fixed inset-0 bg-black/50 transition-opacity duration-200"
         onClick={onClose}
       />
-      
+
       {/* 对话框 */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div
           className={cn(
-            'relative bg-white rounded-panel shadow-xl w-full transition-all duration-200',
+            'relative bg-white dark:bg-background-secondary rounded-panel shadow-xl w-full transition-all duration-200',
             sizes[size]
           )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* 标题栏 */}
           {title && (
-            <div className="flex items-center justify-between px-8 py-6 bg-banana-50 rounded-t-panel">
-              <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
+            <div className="flex items-center justify-between px-8 py-6 bg-banana-50 dark:bg-background-hover rounded-t-panel">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-foreground-primary">{title}</h2>
               <button
                 onClick={onClose}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
           )}
-          
+
           {/* 内容 */}
           <div className="px-8 py-6">
             {children}
