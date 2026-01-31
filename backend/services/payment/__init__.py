@@ -5,7 +5,7 @@ Payment service package
 import os
 from typing import Optional
 
-from .base import PaymentProvider, PaymentResult, CreditPackage
+from .base import PaymentProvider, PaymentResult, CreditPackage, PaymentStatus
 from .xunhupay import XunhuPayProvider
 from .lemon_squeezy import LemonSqueezyProvider
 
@@ -96,6 +96,7 @@ def get_credit_package(package_id: str) -> Optional[CreditPackage]:
 __all__ = [
     'PaymentProvider',
     'PaymentResult',
+    'PaymentStatus',
     'CreditPackage',
     'XunhuPayProvider',
     'LemonSqueezyProvider',

@@ -16,8 +16,8 @@ from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
-revision = '013_add_user_system'
-down_revision = '012_add_export_allow_partial_to_projects'
+revision = '013'
+down_revision = '012'
 branch_labels = None
 depends_on = None
 
