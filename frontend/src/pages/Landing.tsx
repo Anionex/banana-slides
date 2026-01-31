@@ -109,7 +109,7 @@ export const Landing: React.FC = () => {
           </h1>
 
           <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed font-light">
-            {t('landing.hero.subtitle', '专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几秒钟。')}
+            {t('landing.hero.subtitle', '专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几分钟。')}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
