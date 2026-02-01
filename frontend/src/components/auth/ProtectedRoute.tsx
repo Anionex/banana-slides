@@ -14,8 +14,20 @@ export default function ProtectedRoute({
   children, 
   requireEmailVerified = false 
 }: ProtectedRouteProps) {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
   const location = useLocation();
+
+  // Still checking auth status - show loading
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-background-primary">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-banana-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-foreground-secondary">加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Not authenticated - redirect to login
   if (!isAuthenticated) {
