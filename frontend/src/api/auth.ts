@@ -212,19 +212,25 @@ export const logoutUser = () => {
 
 /**
  * Check if user is authenticated and refresh user data
+ * 每次都会验证 token，不信任 localStorage 中的 isAuthenticated
  */
 export const checkAuth = async (): Promise<boolean> => {
-  const { tokens, setUser, logout } = useAuthStore.getState();
+  const { tokens, login, logout } = useAuthStore.getState();
   
+  // 没有 token，直接登出
   if (!tokens?.access_token) {
+    logout();
     return false;
   }
   
   try {
+    // 验证 token 并获取用户信息
     const user = await authApi.getCurrentUser();
-    setUser(user);
+    // 验证成功，设置用户和认证状态
+    login(user, tokens);
     return true;
   } catch (error) {
+    // token 无效，清除所有状态
     logout();
     return false;
   }

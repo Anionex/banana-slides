@@ -94,10 +94,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'banana-slides-auth',
       storage: createJSONStorage(() => localStorage),
+      // 只持久化 tokens，不持久化 isAuthenticated
+      // 每次启动都需要验证 token 才能设置 isAuthenticated
       partialize: (state) => ({
-        user: state.user,
         tokens: state.tokens,
-        isAuthenticated: state.isAuthenticated,
       }),
     }
   )
