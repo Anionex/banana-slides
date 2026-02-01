@@ -7,6 +7,7 @@ import { OutlineEditor } from './pages/OutlineEditor';
 import { DetailEditor } from './pages/DetailEditor';
 import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
+import { PricingPage } from './pages/PricingPage';
 import { 
   LoginPage, 
   RegisterPage, 
@@ -79,6 +80,11 @@ function App() {
         <Route path="/settings" element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/pricing" element={
+          <ProtectedRoute>
+            <PricingPage />
           </ProtectedRoute>
         } />
         <Route path="/project/:projectId/outline" element={

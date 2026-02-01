@@ -24,6 +24,7 @@ from utils import (
     parse_page_ids_from_body, get_filtered_pages
 )
 from middlewares.auth import auth_required, get_current_user
+from services.credits_service import CreditsService, CreditOperation
 
 logger = logging.getLogger(__name__)
 
@@ -405,6 +406,11 @@ def generate_outline(project_id):
         if not project:
             return not_found('Project')
         
+        # Check and consume credits
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_OUTLINE)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+        
         # Get singleton AI service instance
         ai_service = get_ai_service()
         
@@ -476,6 +482,11 @@ def generate_outline(project_id):
         project.status = 'OUTLINE_GENERATED'
         project.updated_at = datetime.utcnow()
         
+        # Consume credits after successful generation
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_OUTLINE)
+        if not success:
+            logger.warning(f"Failed to consume credits: {err}")
+        
         db.session.commit()
         
         logger.info(f"大纲生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面")
@@ -519,6 +530,11 @@ def generate_from_description(project_id):
         
         if project.creation_type != 'descriptions':
             return bad_request("This endpoint is only for descriptions type projects")
+        
+        # Check credits for outline generation (description credits will be checked after knowing page count)
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_OUTLINE)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
         
         # Get description text and language
         data = request.get_json() or {}
@@ -594,6 +610,10 @@ def generate_from_description(project_id):
         project.status = 'DESCRIPTIONS_GENERATED'
         project.updated_at = datetime.utcnow()
         
+        # Consume credits: outline (5) + descriptions (2 * page_count)
+        CreditsService.consume_credits(user, CreditOperation.GENERATE_OUTLINE)
+        CreditsService.consume_credits(user, CreditOperation.GENERATE_DESCRIPTION, len(pages_list))
+        
         db.session.commit()
         
         logger.info(f"从描述生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面，已填充大纲和描述")
@@ -640,6 +660,16 @@ def generate_descriptions(project_id):
         
         if not pages:
             return bad_request("No pages found for project")
+        
+        # Check credits for description generation
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_DESCRIPTION, len(pages))
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+        
+        # Consume credits upfront (async task will run)
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_DESCRIPTION, len(pages))
+        if not success:
+            return error_response('CREDITS_ERROR', err, 500)
         
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
@@ -739,6 +769,11 @@ def generate_images(project_id):
         if not pages:
             return bad_request("No pages found for project")
         
+        # Check credits for image generation
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_IMAGE, len(pages))
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+        
         # 检查是否有模板图片或风格描述
         from services import FileService
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
@@ -749,6 +784,11 @@ def generate_images(project_id):
         
         if not ref_image_path and not project.template_style:
             return bad_request("请先上传模板图片或添加风格描述。")
+        
+        # Consume credits upfront (async task will run)
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE, len(pages))
+        if not success:
+            return error_response('CREDITS_ERROR', err, 500)
         
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
@@ -863,6 +903,11 @@ def refine_outline(project_id):
         
         if not project:
             return not_found('Project')
+        
+        # Check credits
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.REFINE_OUTLINE)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
         
         data = request.get_json()
         
@@ -985,6 +1030,9 @@ def refine_outline(project_id):
             project.status = 'OUTLINE_GENERATED'
         project.updated_at = datetime.utcnow()
         
+        # Consume credits after successful refinement
+        CreditsService.consume_credits(user, CreditOperation.REFINE_OUTLINE)
+        
         db.session.commit()
         
         logger.info(f"大纲修改完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面")
@@ -1019,6 +1067,11 @@ def refine_descriptions(project_id):
         
         if not project:
             return not_found('Project')
+        
+        # Check credits
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.REFINE_DESCRIPTION)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
         
         data = request.get_json()
         
@@ -1110,6 +1163,9 @@ def refine_descriptions(project_id):
         # Update project status
         project.status = 'DESCRIPTIONS_GENERATED'
         project.updated_at = datetime.utcnow()
+        
+        # Consume credits after successful refinement
+        CreditsService.consume_credits(user, CreditOperation.REFINE_DESCRIPTION)
         
         db.session.commit()
         

@@ -13,6 +13,7 @@ from utils import (
 )
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
+from services.credits_service import CreditsService, CreditOperation
 from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -229,6 +230,11 @@ def export_editable_pptx(project_id):
         if not project:
             return not_found('Project')
         
+        # Check credits for editable export
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.EXPORT_EDITABLE)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+        
         # Get parameters from request body
         data = request.get_json() or {}
         
@@ -243,6 +249,11 @@ def export_editable_pptx(project_id):
         has_images = any(page.generated_image_path for page in pages)
         if not has_images:
             return bad_request("No generated images found for project")
+        
+        # Consume credits upfront (async task will run)
+        success, err = CreditsService.consume_credits(user, CreditOperation.EXPORT_EDITABLE)
+        if not success:
+            return error_response('CREDITS_ERROR', err, 500)
         
         # Get parameters from request body
         data = request.get_json() or {}

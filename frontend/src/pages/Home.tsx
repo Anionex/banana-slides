@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
+import UserMenu from '@/components/auth/UserMenu';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -768,8 +769,12 @@ export const Home: React.FC = () => {
             </div>
             {/* 分隔线 */}
             <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
-            {/* GitHub 仓库卡片 - 最右侧 */}
+            {/* GitHub 仓库卡片 */}
             <GithubRepoCard />
+            {/* 分隔线 */}
+            <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
+            {/* 用户菜单 - 最右侧 */}
+            <UserMenu />
           </div>
         </div>
       </nav>
