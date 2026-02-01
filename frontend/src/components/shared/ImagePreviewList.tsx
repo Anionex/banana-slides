@@ -1,7 +1,16 @@
 import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { sharedI18n } from '@/i18n/sharedI18n';
+
+// ImagePreviewList 组件自包含翻译
+const imagePreviewI18n = {
+  zh: {
+    imagePreview: { title: "图片预览", removeImage: "移除图片", imageLoadFailed: "图片加载失败" }
+  },
+  en: {
+    imagePreview: { title: "Image Preview", removeImage: "Remove Image", imageLoadFailed: "Image load failed" }
+  }
+};
 
 interface ImagePreviewListProps {
   content: string;
@@ -38,7 +47,7 @@ export const ImagePreviewList: React.FC<ImagePreviewListProps> = ({
   onRemoveImage,
   className = ''
 }) => {
-  const t = useT(sharedI18n);
+  const t = useT(imagePreviewI18n);
   // 解析图片列表
   const images = useMemo(() => parseMarkdownImages(content), [content]);
 
@@ -76,7 +85,7 @@ export const ImagePreviewList: React.FC<ImagePreviewListProps> = ({
                   if (parent && !parent.querySelector('.error-placeholder')) {
                     const placeholder = document.createElement('div');
                     placeholder.className = 'error-placeholder w-full h-full flex items-center justify-center text-gray-400 text-xs text-center p-2';
-                    placeholder.textContent = t('referenceFile.imageLoadFailed');
+                    placeholder.textContent = t('imagePreview.imageLoadFailed');
                     parent.appendChild(placeholder);
                   }
                 }}
@@ -87,7 +96,7 @@ export const ImagePreviewList: React.FC<ImagePreviewListProps> = ({
                 <button
                   onClick={() => onRemoveImage(image.url)}
                   className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 active:scale-95"
-                  title={t('shared.imageRemoved')}
+                  title={t('imagePreview.removeImage')}
                 >
                   <X size={14} />
                 </button>

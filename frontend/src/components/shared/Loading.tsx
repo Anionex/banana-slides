@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils';
 
 interface ProgressData {
@@ -22,12 +23,15 @@ interface LoadingProps {
 
 export const Loading: React.FC<LoadingProps> = ({
   fullscreen = false,
-  message = '加载中...',
+  message,
   progress,
   onBackgroundClick,
-  backgroundButtonLabel = '在后台执行',
+  backgroundButtonLabel,
 }) => {
+  const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const defaultMessage = message || t('common.loading');
+  const defaultBackgroundLabel = backgroundButtonLabel || t('common.runInBackground');
   
   // 自动滚动到最新消息
   useEffect(() => {
@@ -56,7 +60,7 @@ export const Loading: React.FC<LoadingProps> = ({
       </div>
       
       {/* 消息 */}
-      <p className="text-lg text-gray-700 dark:text-foreground-secondary mb-4 text-center">{message}</p>
+      <p className="text-lg text-gray-700 dark:text-foreground-secondary mb-4 text-center">{defaultMessage}</p>
 
       {/* 进度条 */}
       {progress && (
@@ -108,7 +112,7 @@ export const Loading: React.FC<LoadingProps> = ({
             className="absolute top-4 left-4 flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:text-banana-600 bg-white/80 dark:bg-background-secondary/80 hover:bg-banana-50 dark:hover:bg-background-hover rounded-lg border border-gray-200 dark:border-border-primary shadow-sm transition-colors"
           >
             <ArrowLeft size={16} />
-            {backgroundButtonLabel}
+            {defaultBackgroundLabel}
           </button>
         )}
         {content}

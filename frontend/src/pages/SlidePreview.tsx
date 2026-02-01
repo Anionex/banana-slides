@@ -6,6 +6,16 @@ import { useT } from '@/hooks/useT';
 // 组件内翻译
 const previewI18n = {
   zh: {
+    home: { title: '蕉幻' },
+    nav: { home: '主页', materialGenerate: '素材生成' },
+    slidePreview: {
+      pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
+      versionSwitched: "已切换到该版本", outlineSaved: "大纲和描述已保存",
+      materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
+      cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
+      extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
+      exportSettingsSaved: "导出设置已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功"
+    },
     preview: {
       title: "预览", pageCount: "共 {{count}} 页", export: "导出",
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
@@ -43,9 +53,23 @@ const previewI18n = {
         generatingBackgrounds: "正在生成干净背景...", creatingPdf: "正在创建PDF...",
         parsingContent: "正在解析内容...", creatingPptx: "正在创建可编辑PPTX...", complete: "完成！"
       }
+    },
+    outline: {
+      titleLabel: "标题",
+      keyPoints: "要点"
     }
   },
   en: {
+    home: { title: 'Banana Slides' },
+    nav: { home: 'Home', materialGenerate: 'Generate Material' },
+    slidePreview: {
+      pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
+      versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
+      materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
+      cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
+      extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
+      exportSettingsSaved: "Export settings saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully"
+    },
     preview: {
       title: "Preview", pageCount: "{{count}} pages", export: "Export",
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
@@ -83,6 +107,10 @@ const previewI18n = {
         generatingBackgrounds: "Generating clean backgrounds...", creatingPdf: "Creating PDF...",
         parsingContent: "Parsing content...", creatingPptx: "Creating editable PPTX...", complete: "Complete!"
       }
+    },
+    outline: {
+      titleLabel: "Title",
+      keyPoints: "Key Points"
     }
   }
 };

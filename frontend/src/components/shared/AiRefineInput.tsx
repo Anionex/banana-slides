@@ -1,7 +1,24 @@
 import React, { useState, memo } from 'react';
 import { Sparkles, History, ChevronDown, ChevronUp, Send } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { sharedI18n } from '@/i18n/sharedI18n';
+
+// AiRefineInput 组件自包含翻译
+const aiRefineI18n = {
+  zh: {
+    aiRefine: {
+      ctrlEnterSubmit: "（Ctrl+Enter 提交）", history: "历史",
+      viewHistory: "查看 {{count}} 条历史修改", previousRequirements: "之前的修改要求：",
+      submitTooltip: "提交 (Ctrl+Enter)"
+    }
+  },
+  en: {
+    aiRefine: {
+      ctrlEnterSubmit: "(Ctrl+Enter to submit)", history: "History",
+      viewHistory: "View {{count}} previous edits", previousRequirements: "Previous edit requests:",
+      submitTooltip: "Submit (Ctrl+Enter)"
+    }
+  }
+};
 
 export interface AiRefineInputProps {
   /** 标题文字 */
@@ -26,7 +43,7 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
   className = '',
   onStatusChange,
 }) => {
-  const t = useT(sharedI18n);
+  const t = useT(aiRefineI18n);
   const [requirement, setRequirement] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [history, setHistory] = useState<string[]>([]);

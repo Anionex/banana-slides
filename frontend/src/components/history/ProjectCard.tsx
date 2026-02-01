@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, FileText, ChevronRight, Trash2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { sharedI18n } from '@/i18n/sharedI18n';
 import { Card } from '@/components/shared';
 import { getProjectTitle, getFirstPageImage, formatDate, getStatusText, getStatusColor } from '@/utils/projectUtils';
 import type { Project } from '@/types';
+
+// ProjectCard 组件自包含翻译
+const projectCardI18n = {
+  zh: {
+    projectCard: { pages: "{{count}} 页", page: "第 {{num}} 页" }
+  },
+  en: {
+    projectCard: { pages: "{{count}} pages", page: "Page {{num}}" }
+  }
+};
 
 export interface ProjectCardProps {
   project: Project;
@@ -35,7 +44,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onSaveEdit,
   isBatchMode,
 }) => {
-  const t = useT(sharedI18n);
+  const t = useT(projectCardI18n);
   // 检测屏幕尺寸，只在非手机端加载图片（必须在早期返回之前声明hooks）
   const [shouldLoadImage, setShouldLoadImage] = useState(false);
   
@@ -115,7 +124,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary flex-wrap">
             <span className="flex items-center gap-1">
               <FileText size={14} />
-              {t('components.projectCard.pages', { count: pageCount })}
+              {t('projectCard.pages', { count: pageCount })}
             </span>
             <span className="flex items-center gap-1">
               <Clock size={14} />
@@ -129,7 +138,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           {firstPageImage ? (
             <img
               src={firstPageImage}
-              alt={t('shared.page', { num: 1 })}
+              alt={t('projectCard.page', { num: 1 })}
               className="w-full h-full object-cover"
             />
           ) : (

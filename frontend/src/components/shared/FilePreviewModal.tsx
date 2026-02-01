@@ -1,8 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Markdown, Loading, useToast } from '@/components/shared';
 import { useT } from '@/hooks/useT';
-import { sharedI18n } from '@/i18n/sharedI18n';
 import { getReferenceFile, type ReferenceFile } from '@/api/endpoints';
+
+// FilePreviewModal 组件自包含翻译
+const filePreviewI18n = {
+  zh: {
+    filePreview: {
+      title: "文件预览", loading: "加载文件内容中...",
+      notParsed: "文件尚未解析完成，无法预览", loadFailed: "加载文件内容失败"
+    }
+  },
+  en: {
+    filePreview: {
+      title: "File Preview", loading: "Loading file content...",
+      notParsed: "File not yet parsed, cannot preview", loadFailed: "Failed to load file content"
+    }
+  }
+};
 
 interface FilePreviewModalProps {
   fileId: string | null;
@@ -13,7 +28,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   fileId,
   onClose,
 }) => {
-  const t = useT(sharedI18n);
+  const t = useT(filePreviewI18n);
   const [file, setFile] = useState<ReferenceFile | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

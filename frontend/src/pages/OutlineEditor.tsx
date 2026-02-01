@@ -6,6 +6,7 @@ import { useT } from '@/hooks/useT';
 // 组件内翻译
 const outlineI18n = {
   zh: {
+    home: { title: '蕉幻' },
     outline: {
       title: "编辑大纲", pageCount: "共 {{count}} 页", addPage: "添加页面",
       generateDescriptions: "生成描述", generating: "生成中...", chapter: "章节",
@@ -29,6 +30,7 @@ const outlineI18n = {
     }
   },
   en: {
+    home: { title: 'Banana Slides' },
     outline: {
       title: "Edit Outline", pageCount: "{{count}} pages", addPage: "Add Page",
       generateDescriptions: "Generate Descriptions", generating: "Generating...", chapter: "Chapter",

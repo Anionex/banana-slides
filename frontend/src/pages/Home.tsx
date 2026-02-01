@@ -15,6 +15,14 @@ type CreationType = 'idea' | 'outline' | 'description';
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
   zh: {
+    nav: {
+      materialGenerate: '素材生成', materialCenter: '素材中心',
+      history: '历史项目', settings: '设置', help: '帮助'
+    },
+    settings: {
+      language: { label: '界面语言' },
+      theme: { label: '主题模式', light: '浅色', dark: '深色', system: '跟随系统' }
+    },
     home: {
       title: '蕉幻',
       subtitle: 'Vibe your PPT like vibing code',
@@ -71,6 +79,14 @@ const homeI18n = {
     },
   },
   en: {
+    nav: {
+      materialGenerate: 'Generate Material', materialCenter: 'Material Center',
+      history: 'History', settings: 'Settings', help: 'Help'
+    },
+    settings: {
+      language: { label: 'Interface Language' },
+      theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' }
+    },
     home: {
       title: 'Banana Slides',
       subtitle: 'Vibe your PPT like vibing code',

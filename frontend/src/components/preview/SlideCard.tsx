@@ -1,10 +1,27 @@
 import React from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { sharedI18n } from '@/i18n/sharedI18n';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
 import { getImageUrl } from '@/api/client';
 import type { Page } from '@/types';
+
+// SlideCard 组件自包含翻译
+const slideCardI18n = {
+  zh: {
+    slideCard: {
+      notGenerated: "未生成",
+      confirmDeletePage: "确定要删除这一页吗？",
+      confirmDeleteTitle: "确认删除"
+    }
+  },
+  en: {
+    slideCard: {
+      notGenerated: "Not Generated",
+      confirmDeletePage: "Are you sure you want to delete this page?",
+      confirmDeleteTitle: "Confirm Delete"
+    }
+  }
+};
 
 interface SlideCardProps {
   page: Page;
@@ -25,7 +42,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
   onDelete,
   isGenerating = false,
 }) => {
-  const t = useT(sharedI18n);
+  const t = useT(slideCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
   const imageUrl = page.generated_image_path
     ? getImageUrl(page.generated_image_path, page.updated_at)

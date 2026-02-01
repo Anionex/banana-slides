@@ -1,4 +1,6 @@
 {
+  "_note": "This file ONLY contains truly common/generic translations (buttons, status words, etc). All component-specific translations should be self-contained within component files using useT hook. Do NOT add component-specific translations here.",
+  "_principle": "If a translation is only used by one component, it belongs IN that component, not here.",
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -37,15 +39,10 @@
     "completed": "Completed",
     "failed": "Failed",
     "pending": "Pending...",
-    "add": "Add"
-  },
-  "nav": {
-    "home": "Home",
-    "history": "History",
-    "settings": "Settings",
-    "help": "Help",
-    "backToHome": "Back to Home",
-    "materialGenerate": "Generate Material",
-    "materialCenter": "Material Center"
+    "add": "Add",
+    "runInBackground": "Run in Background",
+    "confirmDeleteTitle": "Confirm Delete",
+    "page": "Page {{num}}",
+    "saving": "Saving..."
   }
 }

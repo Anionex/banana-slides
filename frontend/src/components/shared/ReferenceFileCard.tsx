@@ -2,7 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
 import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
-import { referenceFileI18n } from '@/i18n/referenceFileI18n';
+
+// ReferenceFileCard 组件自包含翻译
+const referenceFileCardI18n = {
+  zh: {
+    referenceFile: {
+      parseStatus: { pending: "等待解析", parsing: "解析中...", completed: "解析完成", failed: "解析失败" },
+      reparse: "重新解析", removeFromProject: "从项目中移除", deleteFile: "删除文件",
+      imageCaptionFailed: "⚠️ {{count}} 张图片未能生成描述"
+    }
+  },
+  en: {
+    referenceFile: {
+      parseStatus: { pending: "Pending", parsing: "Parsing...", completed: "Completed", failed: "Failed" },
+      reparse: "Reparse", removeFromProject: "Remove from Project", deleteFile: "Delete File",
+      imageCaptionFailed: "⚠️ {{count}} images failed to generate captions"
+    }
+  }
+};
 
 export interface ReferenceFileCardProps {
   file: ReferenceFile;
@@ -19,7 +36,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   deleteMode = 'delete',
   onClick,
 }) => {
-  const t = useT(referenceFileI18n);
+  const t = useT(referenceFileCardI18n);
   const [file, setFile] = useState<ReferenceFile>(initialFile);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReparsing, setIsReparsing] = useState(false);

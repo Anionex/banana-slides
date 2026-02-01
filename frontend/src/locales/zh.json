@@ -1,4 +1,6 @@
 {
+  "_note": "此文件仅包含真正通用的翻译（按钮、状态词等）。所有组件特有的翻译应使用 useT hook 自包含在组件文件内。请勿在此添加组件特有的翻译。",
+  "_principle": "如果一个翻译只被一个组件使用，它就应该放在那个组件里，而不是这里。",
   "common": {
     "save": "保存",
     "cancel": "取消",
@@ -37,15 +39,10 @@
     "completed": "已完成",
     "failed": "失败",
     "pending": "等待中...",
-    "add": "添加"
-  },
-  "nav": {
-    "home": "主页",
-    "history": "历史项目",
-    "settings": "设置",
-    "help": "帮助",
-    "backToHome": "返回首页",
-    "materialGenerate": "素材生成",
-    "materialCenter": "素材中心"
+    "add": "添加",
+    "runInBackground": "在后台执行",
+    "confirmDeleteTitle": "确认删除",
+    "page": "第 {{num}} 页",
+    "saving": "保存中..."
   }
 }

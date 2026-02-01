@@ -2,8 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { ImageIcon, RefreshCw, Upload, Sparkles, X } from 'lucide-react';
 import { Button, useToast, Modal } from '@/components/shared';
 import { useT } from '@/hooks/useT';
-import { materialI18n } from '@/i18n/materialI18n';
 import { listMaterials, uploadMaterial, listProjects, deleteMaterial, type Material } from '@/api/endpoints';
+
+// MaterialSelector 组件自包含翻译
+const materialSelectorI18n = {
+  zh: {
+    material: {
+      selectTitle: "选择素材", totalMaterials: "共 {{count}} 个素材", noMaterials: "暂无素材",
+      selectedCount: "已选择 {{count}} 个", allMaterials: "所有素材", unassociated: "未关联项目",
+      currentProject: "当前项目", viewMoreProjects: "+ 查看更多项目...", uploadFile: "上传文件",
+      previewMaterial: "预览素材", deleteMaterial: "删除素材", closePreview: "关闭预览",
+      canUploadOrGenerate: "可以上传图片或通过素材生成功能创建素材",
+      messages: {
+        loadMaterialFailed: "加载素材失败", unsupportedFormat: "不支持的图片格式",
+        uploadSuccess: "素材上传成功", uploadFailed: "上传素材失败",
+        cannotDelete: "无法删除：缺少素材ID", deleteSuccess: "素材已删除", deleteFailed: "删除素材失败",
+        selectAtLeastOne: "请至少选择一个素材", maxSelection: "最多只能选择 {{count}} 个素材"
+      }
+    }
+  },
+  en: {
+    material: {
+      selectTitle: "Select Material", totalMaterials: "{{count}} materials", noMaterials: "No materials",
+      selectedCount: "{{count}} selected", allMaterials: "All Materials", unassociated: "Unassociated",
+      currentProject: "Current Project", viewMoreProjects: "+ View more projects...", uploadFile: "Upload File",
+      previewMaterial: "Preview Material", deleteMaterial: "Delete Material", closePreview: "Close Preview",
+      canUploadOrGenerate: "You can upload images or create materials through the material generator",
+      messages: {
+        loadMaterialFailed: "Failed to load materials", unsupportedFormat: "Unsupported image format",
+        uploadSuccess: "Material uploaded successfully", uploadFailed: "Failed to upload material",
+        cannotDelete: "Cannot delete: Missing material ID", deleteSuccess: "Material deleted", deleteFailed: "Failed to delete material",
+        selectAtLeastOne: "Please select at least one material", maxSelection: "Maximum {{count}} materials can be selected"
+      }
+    }
+  }
+};
 import type { Project } from '@/types';
 import { getImageUrl } from '@/api/client';
 import { MaterialGeneratorModal } from './MaterialGeneratorModal';
@@ -27,7 +60,7 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
   maxSelection,
   showSaveAsTemplateOption = false,
 }) => {
-  const t = useT(materialI18n);
+  const t = useT(materialSelectorI18n);
   const { show } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set());

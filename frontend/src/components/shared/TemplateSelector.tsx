@@ -1,8 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Button, useToast, MaterialSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
-import { templateI18n } from '@/i18n/templateI18n';
 import { getImageUrl } from '@/api/client';
+
+// Template 组件自包含翻译
+const templateI18n = {
+  zh: {
+    template: {
+      myTemplates: "我的模板", presetTemplates: "预设模板", uploadTemplate: "上传模板",
+      deleteTemplate: "删除模板", templateSelected: "已选择",
+      saveToLibraryOnUpload: "上传模板时同时保存到我的模板库",
+      selectFromMaterials: "从素材库选择", selectAsTemplate: "从素材库选择作为模板",
+      cannotDeleteInUse: "当前使用中的模板不能删除，请先取消选择或切换",
+      presets: {
+        retroScroll: "复古卷轴", vectorIllustration: "矢量插画", glassEffect: "拟物玻璃",
+        techBlue: "科技蓝", simpleBusiness: "简约商务", academicReport: "学术报告"
+      },
+      messages: { uploadSuccess: "模板上传成功", uploadFailed: "模板上传失败", deleteSuccess: "模板已删除", deleteFailed: "删除模板失败" }
+    },
+    material: { messages: { savedToLibrary: "素材已保存到模板库", selectedAsTemplate: "已从素材库选择作为模板", loadMaterialFailed: "加载素材失败" } }
+  },
+  en: {
+    template: {
+      myTemplates: "My Templates", presetTemplates: "Preset Templates", uploadTemplate: "Upload Template",
+      deleteTemplate: "Delete Template", templateSelected: "Selected",
+      saveToLibraryOnUpload: "Save to my template library when uploading",
+      selectFromMaterials: "Select from Materials", selectAsTemplate: "Select from materials as template",
+      cannotDeleteInUse: "Cannot delete template in use, please deselect or switch first",
+      presets: {
+        retroScroll: "Retro Scroll", vectorIllustration: "Vector Illustration", glassEffect: "Glass Effect",
+        techBlue: "Tech Blue", simpleBusiness: "Simple Business", academicReport: "Academic Report"
+      },
+      messages: { uploadSuccess: "Template uploaded successfully", uploadFailed: "Failed to upload template", deleteSuccess: "Template deleted", deleteFailed: "Failed to delete template" }
+    },
+    material: { messages: { savedToLibrary: "Material saved to template library", selectedAsTemplate: "Selected from library as template", loadMaterialFailed: "Failed to load materials" } }
+  }
+};
 import { listUserTemplates, uploadUserTemplate, deleteUserTemplate, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';

@@ -1,10 +1,27 @@
 import React, { useState } from 'react';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { sharedI18n } from '@/i18n/sharedI18n';
 import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
 import type { Page, DescriptionContent } from '@/types';
+
+// DescriptionCard 组件自包含翻译
+const descriptionCardI18n = {
+  zh: {
+    descriptionCard: {
+      page: "第 {{num}} 页", regenerate: "重新生成",
+      descriptionTitle: "编辑页面描述", description: "描述",
+      noDescription: "还没有生成描述"
+    }
+  },
+  en: {
+    descriptionCard: {
+      page: "Page {{num}}", regenerate: "Regenerate",
+      descriptionTitle: "Edit Descriptions", description: "Description",
+      noDescription: "No description generated yet"
+    }
+  }
+};
 
 export interface DescriptionCardProps {
   page: Page;
@@ -23,7 +40,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   isGenerating = false,
   isAiRefining = false,
 }) => {
-  const t = useT(sharedI18n);
+  const t = useT(descriptionCardI18n);
   // 从 description_content 提取文本内容
   const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
     if (!descContent) return '';
@@ -67,7 +84,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
         <div className="bg-banana-50 px-4 py-3 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900">{t('shared.page', { num: index + 1 })}</span>
+              <span className="font-semibold text-gray-900">{t('descriptionCard.page', { num: index + 1 })}</span>
               {page.part && (
                 <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
                   {page.part}
@@ -96,7 +113,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
           ) : (
             <div className="text-center py-8 text-gray-400">
               <div className="flex text-3xl mb-2 justify-center"><FileText className="text-gray-400" size={48} /></div>
-              <p className="text-sm">{t('status.noDescription')}</p>
+              <p className="text-sm">{t('descriptionCard.noDescription')}</p>
             </div>
           )}
         </div>
@@ -119,7 +136,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             onClick={onRegenerate}
             disabled={generating}
           >
-            {generating ? t('common.generating') : t('shared.regenerate')}
+            {generating ? t('common.generating') : t('descriptionCard.regenerate')}
           </Button>
         </div>
       </Card>
@@ -128,12 +145,12 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
       <Modal
         isOpen={isEditing}
         onClose={() => setIsEditing(false)}
-        title={t('shared.descriptionTitle')}
+        title={t('descriptionCard.descriptionTitle')}
         size="lg"
       >
         <div className="space-y-4">
           <Textarea
-            label={t('shared.description')}
+            label={t('descriptionCard.description')}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             rows={12}

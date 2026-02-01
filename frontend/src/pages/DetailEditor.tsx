@@ -6,6 +6,7 @@ import { useT } from '@/hooks/useT';
 // 组件内翻译
 const detailI18n = {
   zh: {
+    home: { title: '蕉幻' },
     detail: {
       title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
@@ -25,6 +26,7 @@ const detailI18n = {
     }
   },
   en: {
+    home: { title: 'Banana Slides' },
     detail: {
       title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",

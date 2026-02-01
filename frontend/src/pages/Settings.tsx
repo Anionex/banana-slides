@@ -6,6 +6,7 @@ import { useT } from '@/hooks/useT';
 // 组件内翻译
 const settingsI18n = {
   zh: {
+    nav: { backToHome: '返回首页' },
     settings: {
       title: "系统设置",
       subtitle: "配置应用的各项参数",
@@ -78,6 +79,7 @@ const settingsI18n = {
     }
   },
   en: {
+    nav: { backToHome: 'Back to Home' },
     settings: {
       title: "Settings",
       subtitle: "Configure application parameters",
