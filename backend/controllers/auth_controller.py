@@ -108,7 +108,8 @@ def login():
     Request body:
     {
         "email": "user@example.com",
-        "password": "password123"
+        "password": "password123",
+        "remember_me": false  // optional, default false
     }
     
     Returns:
@@ -118,7 +119,8 @@ def login():
             "access_token": "...",
             "refresh_token": "...",
             "token_type": "Bearer",
-            "expires_in": 3600
+            "expires_in": 3600,
+            "refresh_expires_in": 604800  // 7 days or 30 days if remember_me
         }
     }
     """
@@ -130,6 +132,7 @@ def login():
         
         email = data.get('email', '').strip()
         password = data.get('password', '')
+        remember_me = data.get('remember_me', False)
         
         if not email or not password:
             return bad_request("邮箱和密码不能为空")
@@ -140,10 +143,10 @@ def login():
         if error:
             return error_response('LOGIN_FAILED', error, 401)
         
-        # Generate tokens
-        tokens = AuthService.generate_tokens(user)
+        # Generate tokens (with longer expiry if remember_me)
+        tokens = AuthService.generate_tokens(user, remember_me=remember_me)
         
-        logger.info(f"User logged in: {user.id}")
+        logger.info(f"User logged in: {user.id} (remember_me={remember_me})")
         
         return success_response({
             'user': user.to_dict(),

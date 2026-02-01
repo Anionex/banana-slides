@@ -27,6 +27,7 @@ class AuthService:
     JWT_ALGORITHM = 'HS256'
     ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour
     REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 604800))  # 7 days
+    REFRESH_TOKEN_EXPIRES_REMEMBER = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES_REMEMBER', 2592000))  # 30 days
     
     # ==================== User Registration ====================
     
@@ -162,41 +163,46 @@ class AuthService:
         return jwt.encode(payload, cls.JWT_SECRET_KEY, algorithm=cls.JWT_ALGORITHM)
     
     @classmethod
-    def generate_refresh_token(cls, user: User) -> str:
+    def generate_refresh_token(cls, user: User, remember_me: bool = False) -> str:
         """
         Generate a JWT refresh token for a user.
         
         Args:
             user: User object
+            remember_me: If True, use longer expiration time (30 days)
             
         Returns:
             JWT token string
         """
         now = datetime.now(timezone.utc)
+        expires = cls.REFRESH_TOKEN_EXPIRES_REMEMBER if remember_me else cls.REFRESH_TOKEN_EXPIRES
         payload = {
             'sub': user.id,
             'type': 'refresh',
             'iat': now,
-            'exp': now + timedelta(seconds=cls.REFRESH_TOKEN_EXPIRES)
+            'exp': now + timedelta(seconds=expires)
         }
         return jwt.encode(payload, cls.JWT_SECRET_KEY, algorithm=cls.JWT_ALGORITHM)
     
     @classmethod
-    def generate_tokens(cls, user: User) -> Dict[str, Any]:
+    def generate_tokens(cls, user: User, remember_me: bool = False) -> Dict[str, Any]:
         """
         Generate both access and refresh tokens for a user.
         
         Args:
             user: User object
+            remember_me: If True, use longer refresh token expiration
             
         Returns:
             Dict with access_token, refresh_token, and expires_in
         """
+        refresh_expires = cls.REFRESH_TOKEN_EXPIRES_REMEMBER if remember_me else cls.REFRESH_TOKEN_EXPIRES
         return {
             'access_token': cls.generate_access_token(user),
-            'refresh_token': cls.generate_refresh_token(user),
+            'refresh_token': cls.generate_refresh_token(user, remember_me),
             'token_type': 'Bearer',
-            'expires_in': cls.ACCESS_TOKEN_EXPIRES
+            'expires_in': cls.ACCESS_TOKEN_EXPIRES,
+            'refresh_expires_in': refresh_expires,
         }
     
     @classmethod

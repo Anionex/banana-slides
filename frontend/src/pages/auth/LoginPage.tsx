@@ -52,6 +52,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -61,7 +62,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await loginUser(email, password);
+      await loginUser(email, password, rememberMe);
       navigate(from, { replace: true });
     } catch (err: any) {
       // 后端错误格式: { error: { code, message }, success: false }
@@ -133,8 +134,13 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center text-gray-600 dark:text-foreground-secondary">
-                <input type="checkbox" className="mr-2 rounded border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-banana-500 focus:ring-banana-500" />
+              <label className="flex items-center text-gray-600 dark:text-foreground-secondary cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="mr-2 rounded border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-banana-500 focus:ring-banana-500" 
+                />
                 {t('login.rememberMe')}
               </label>
               <Link to="/forgot-password" className="text-banana-600 dark:text-banana-400 hover:text-banana-700 dark:hover:text-banana-300 transition">

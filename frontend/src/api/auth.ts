@@ -18,6 +18,7 @@ interface LoginResponse {
   refresh_token: string;
   token_type: string;
   expires_in: number;
+  refresh_expires_in?: number;
 }
 
 interface RegisterResponse extends LoginResponse {
@@ -42,10 +43,11 @@ export const authApi = {
   /**
    * Login with email and password
    */
-  login: async (email: string, password: string): Promise<LoginResponse> => {
+  login: async (email: string, password: string, rememberMe: boolean = false): Promise<LoginResponse> => {
     const response = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/login', {
       email,
       password,
+      remember_me: rememberMe,
     });
     return response.data.data;
   },
@@ -178,14 +180,15 @@ export const setupAuthInterceptor = () => {
 /**
  * Login and store tokens
  */
-export const loginUser = async (email: string, password: string) => {
-  const data = await authApi.login(email, password);
+export const loginUser = async (email: string, password: string, rememberMe: boolean = false) => {
+  const data = await authApi.login(email, password, rememberMe);
   useAuthStore.getState().login(data.user, {
     access_token: data.access_token,
     refresh_token: data.refresh_token,
     token_type: data.token_type,
     expires_in: data.expires_in,
-  });
+    refresh_expires_in: data.refresh_expires_in,
+  }, rememberMe);
   return data.user;
 };
 
@@ -212,26 +215,29 @@ export const logoutUser = () => {
 
 /**
  * Check if user is authenticated and refresh user data
- * 每次都会验证 token，不信任 localStorage 中的 isAuthenticated
+ * 每次都会验证 token，不信任存储中的 isAuthenticated
  */
 export const checkAuth = async (): Promise<boolean> => {
-  const { tokens, login, logout } = useAuthStore.getState();
+  const store = useAuthStore.getState();
+  
+  // 首先从 storage 加载 tokens（支持 localStorage 和 sessionStorage）
+  const tokens = store.loadTokensFromStorage() || store.tokens;
   
   // 没有 token，直接登出
   if (!tokens?.access_token) {
-    logout();
+    store.logout();
     return false;
   }
   
   try {
     // 验证 token 并获取用户信息
     const user = await authApi.getCurrentUser();
-    // 验证成功，设置用户和认证状态
-    login(user, tokens);
+    // 验证成功，设置用户和认证状态（保持原有的 rememberMe 设置）
+    store.login(user, tokens, store.rememberMe);
     return true;
   } catch (error) {
     // token 无效，清除所有状态
-    logout();
+    store.logout();
     return false;
   }
 };
