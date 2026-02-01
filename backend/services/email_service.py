@@ -23,7 +23,7 @@ class EmailService:
     
     def __init__(self):
         self.api_key = os.getenv('RESEND_API_KEY', '')
-        self.from_email = os.getenv('EMAIL_FROM', 'noreply@banana-slides.com')
+        self.from_email = os.getenv('EMAIL_FROM', 'noreply@bananaslides.online')
         self.from_name = os.getenv('EMAIL_FROM_NAME', 'Banana Slides')
         
         if self.api_key and RESEND_AVAILABLE:

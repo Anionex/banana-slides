@@ -21,8 +21,15 @@ interface LoginResponse {
   refresh_expires_in?: number;
 }
 
-interface RegisterResponse extends LoginResponse {
+interface RegisterResponse {
+  user: User;
   message: string;
+  require_verification?: boolean;
+  // 只有开发模式跳过验证时才有 tokens
+  access_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  expires_in?: number;
 }
 
 // ==================== Auth API ====================
@@ -193,17 +200,27 @@ export const loginUser = async (email: string, password: string, rememberMe: boo
 };
 
 /**
- * Register and store tokens
+ * Register user
+ * 注意：生产模式下注册后不会自动登录，需要先验证邮箱
  */
 export const registerUser = async (email: string, password: string, username?: string) => {
   const data = await authApi.register(email, password, username);
-  useAuthStore.getState().login(data.user, {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    token_type: data.token_type,
-    expires_in: data.expires_in,
-  });
-  return { user: data.user, message: data.message };
+  
+  // 只有当返回了 tokens 时才自动登录（开发模式跳过验证时）
+  if (data.access_token && data.refresh_token) {
+    useAuthStore.getState().login(data.user, {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      token_type: data.token_type || 'Bearer',
+      expires_in: data.expires_in || 3600,
+    });
+  }
+  
+  return { 
+    user: data.user, 
+    message: data.message,
+    requireVerification: data.require_verification || false
+  };
 };
 
 /**

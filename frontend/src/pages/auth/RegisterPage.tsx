@@ -97,9 +97,20 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { message } = await registerUser(email, password, username || undefined);
-      // Show success message and redirect
-      navigate('/', { state: { message } });
+      const { message, requireVerification } = await registerUser(email, password, username || undefined);
+      
+      if (requireVerification) {
+        // 需要验证邮箱，跳转到提示页面
+        navigate('/login', { 
+          state: { 
+            message,
+            fromRegister: true 
+          } 
+        });
+      } else {
+        // 开发模式：直接进入主页
+        navigate('/', { state: { message } });
+      }
     } catch (err: any) {
       // 后端错误格式: { error: { code, message }, success: false }
       const errorData = err.response?.data;
