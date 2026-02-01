@@ -1,6 +1,10 @@
 """
-Task Manager - handles background tasks using ThreadPoolExecutor
-No need for Celery or Redis, uses in-memory task tracking
+Task Manager - handles background tasks using queue abstraction layer
+任务管理器 - 使用队列抽象层处理后台任务
+
+支持的后端（通过环境变量 TASK_QUEUE 配置）：
+- thread_pool: ThreadPoolExecutor（默认，无需 Redis）
+- celery: Celery 分布式队列（后期支持）
 """
 import logging
 import threading
@@ -14,54 +18,34 @@ from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 from pathlib import Path
 
+# 导入队列抽象层
+from services.queue import get_task_queue, TaskQueue
+
 logger = logging.getLogger(__name__)
 
 
 class TaskManager:
-    """Simple task manager using ThreadPoolExecutor"""
+    """
+    Task Manager - 兼容层
+    
+    使用队列抽象层，但保持原有 API 不变，确保向后兼容。
+    """
     
     def __init__(self, max_workers: int = 4):
-        """Initialize task manager"""
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.active_tasks = {}  # task_id -> Future
-        self.lock = threading.Lock()
+        """Initialize task manager using queue abstraction"""
+        self._queue: TaskQueue = get_task_queue(max_workers=max_workers)
     
     def submit_task(self, task_id: str, func: Callable, *args, **kwargs):
         """Submit a background task"""
-        future = self.executor.submit(func, task_id, *args, **kwargs)
-        
-        with self.lock:
-            self.active_tasks[task_id] = future
-        
-        # Add callback to clean up when done and log exceptions
-        future.add_done_callback(lambda f: self._task_done_callback(task_id, f))
-    
-    def _task_done_callback(self, task_id: str, future):
-        """Handle task completion and log any exceptions"""
-        try:
-            # Check if task raised an exception
-            exception = future.exception()
-            if exception:
-                logger.error(f"Task {task_id} failed with exception: {exception}", exc_info=exception)
-        except Exception as e:
-            logger.error(f"Error in task callback for {task_id}: {e}", exc_info=True)
-        finally:
-            self._cleanup_task(task_id)
-    
-    def _cleanup_task(self, task_id: str):
-        """Clean up completed task"""
-        with self.lock:
-            if task_id in self.active_tasks:
-                del self.active_tasks[task_id]
+        self._queue.submit_task(task_id, func, *args, **kwargs)
     
     def is_task_active(self, task_id: str) -> bool:
         """Check if task is still running"""
-        with self.lock:
-            return task_id in self.active_tasks
+        return self._queue.is_task_active(task_id)
     
     def shutdown(self):
         """Shutdown the executor"""
-        self.executor.shutdown(wait=True)
+        self._queue.shutdown(wait=True)
 
 
 # Global task manager instance
