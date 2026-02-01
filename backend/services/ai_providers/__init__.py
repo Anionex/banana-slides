@@ -81,7 +81,7 @@ def _get_config_value(key: str, default: str = None) -> str:
                 config_value = current_app.config.get(key)
                 # Return the value even if it's empty string (user explicitly set it)
                 if config_value is not None:
-                    logger.debug(f"[CONFIG] Using {key} from app.config")
+                    logger.info(f"[CONFIG] Using {key} from app.config (user settings)")
                     return str(config_value)
             else:
                 logger.debug(f"[CONFIG] Key {key} not found in app.config, checking env var")
@@ -91,7 +91,7 @@ def _get_config_value(key: str, default: str = None) -> str:
     # Fallback to environment variable or default
     env_value = os.getenv(key)
     if env_value is not None:
-        logger.debug(f"[CONFIG] Using {key} from environment")
+        logger.info(f"[CONFIG] Using {key} from environment variable")
         return env_value
     if default is not None:
         logger.debug(f"[CONFIG] Using {key} default: {default}")
