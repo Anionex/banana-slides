@@ -69,23 +69,30 @@ def register():
         # Generate tokens
         tokens = AuthService.generate_tokens(user)
         
-        # Send verification email
-        verification_url = f"{_get_frontend_url()}/verify-email?token={user.verification_token}"
-        email_sent = email_service.send_verification_email(
-            to=user.email,
-            username=user.username or user.email.split('@')[0],
-            verification_url=verification_url
-        )
+        # Send verification email (只有在非开发模式下才发送)
+        skip_verification = os.getenv('SKIP_EMAIL_VERIFICATION', 'false').lower() == 'true'
         
-        if not email_sent:
-            logger.warning(f"Failed to send verification email to {user.email}")
+        if not skip_verification and user.verification_token:
+            verification_url = f"{_get_frontend_url()}/verify-email?token={user.verification_token}"
+            email_sent = email_service.send_verification_email(
+                to=user.email,
+                username=user.username or user.email.split('@')[0],
+                verification_url=verification_url
+            )
+            
+            if not email_sent:
+                logger.warning(f"Failed to send verification email to {user.email}")
+            
+            message = '注册成功，请查收验证邮件'
+        else:
+            message = '注册成功'
         
         logger.info(f"User registered successfully: {user.id}")
         
         return success_response({
             'user': user.to_dict(),
             **tokens,
-            'message': '注册成功，请查收验证邮件'
+            'message': message
         }, status_code=201)
     
     except Exception as e:

@@ -58,8 +58,14 @@ class AuthService:
             return None, "该邮箱已被注册"
         
         try:
-            # Generate verification token
-            verification_token, verification_expires = generate_verification_token()
+            # 开发模式下跳过邮箱验证
+            skip_verification = os.getenv('SKIP_EMAIL_VERIFICATION', 'false').lower() == 'true'
+            
+            # Generate verification token (除非开发模式跳过)
+            verification_token = None
+            verification_expires = None
+            if not skip_verification:
+                verification_token, verification_expires = generate_verification_token()
             
             # Create user
             user = User(
@@ -68,7 +74,7 @@ class AuthService:
                 username=username,
                 verification_token=verification_token,
                 verification_token_expires=verification_expires,
-                email_verified=False,
+                email_verified=skip_verification,  # 开发模式下自动验证
                 subscription_plan='free',
                 ai_calls_reset_at=datetime.now(timezone.utc)
             )
@@ -76,7 +82,10 @@ class AuthService:
             db.session.add(user)
             db.session.commit()
             
-            logger.info(f"User registered: {user.id} ({email})")
+            if skip_verification:
+                logger.info(f"User registered (dev mode, auto-verified): {user.id} ({email})")
+            else:
+                logger.info(f"User registered: {user.id} ({email})")
             return user, None
             
         except Exception as e:
@@ -86,8 +95,11 @@ class AuthService:
     
     # ==================== User Login ====================
     
-    @staticmethod
-    def login(email: str, password: str) -> Tuple[Optional[User], Optional[str]]:
+    # 开发模式：跳过邮箱验证要求（生产环境必须设置为 False）
+    SKIP_EMAIL_VERIFICATION = os.getenv('SKIP_EMAIL_VERIFICATION', 'false').lower() == 'true'
+    
+    @classmethod
+    def login(cls, email: str, password: str) -> Tuple[Optional[User], Optional[str]]:
         """
         Authenticate a user with email and password.
         
@@ -113,6 +125,11 @@ class AuthService:
         if not user.is_active:
             logger.warning(f"Login failed: inactive account {email}")
             return None, "账户已被禁用"
+        
+        # 检查邮箱是否已验证（开发模式可跳过）
+        if not user.email_verified and not cls.SKIP_EMAIL_VERIFICATION:
+            logger.debug(f"Login failed: email not verified for {email}")
+            return None, "请先验证您的邮箱"
         
         # Update last login time
         user.last_login_at = datetime.now(timezone.utc)
