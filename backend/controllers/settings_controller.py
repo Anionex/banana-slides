@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import contextmanager
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from PIL import Image
 from models import db, Settings, Task
 from utils import success_response, error_response, bad_request
@@ -22,6 +22,26 @@ logger = logging.getLogger(__name__)
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
+
+
+def _get_current_user_settings() -> Settings:
+    """
+    获取当前请求用户的设置
+
+    优先使用中间件已加载的 g.user_settings，
+    如果没有则从请求头获取 X-User-Token 并查询数据库。
+    """
+    # 优先使用中间件已加载的设置
+    if hasattr(g, 'user_settings') and g.user_settings is not None:
+        return g.user_settings
+
+    # 从请求头获取 user_token
+    user_token = request.headers.get('X-User-Token')
+    if user_token:
+        return Settings.get_settings(user_token)
+
+    # 兼容模式：没有 user_token 时返回第一条记录
+    return Settings.get_settings()
 
 
 @contextmanager
@@ -121,7 +141,7 @@ def get_settings():
     GET /api/settings - Get application settings
     """
     try:
-        settings = Settings.get_settings()
+        settings = _get_current_user_settings()
         return success_response(settings.to_dict())
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
@@ -150,7 +170,7 @@ def update_settings():
         if not data:
             return bad_request("Request body is required")
 
-        settings = Settings.get_settings()
+        settings = _get_current_user_settings()
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -273,7 +293,7 @@ def reset_settings():
     POST /api/settings/reset - Reset settings to default values
     """
     try:
-        settings = Settings.get_settings()
+        settings = _get_current_user_settings()
 
         # Reset to default values from Config / .env
         # Priority logic:
@@ -345,7 +365,7 @@ def verify_api_key():
     """
     try:
         # 获取当前设置
-        settings = Settings.get_settings()
+        settings = _get_current_user_settings()
         if not settings:
             return success_response({
                 "available": False,

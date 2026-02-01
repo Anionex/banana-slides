@@ -141,9 +141,16 @@ def create_app():
         获取用户的输出语言偏好（从数据库 Settings 读取）
         返回: zh, ja, en, auto
         """
+        from flask import request, g
         from models import Settings
         try:
-            settings = Settings.get_settings()
+            # 优先使用中间件已加载的用户设置
+            if hasattr(g, 'user_settings') and g.user_settings is not None:
+                settings = g.user_settings
+            else:
+                # 从请求头获取 user_token
+                user_token = request.headers.get('X-User-Token')
+                settings = Settings.get_settings(user_token) if user_token else Settings.get_settings()
             return {'data': {'language': settings.output_language}}
         except SQLAlchemyError as db_error:
             logging.warning(f"Failed to load output language from settings: {db_error}")
