@@ -1275,13 +1275,13 @@ export const SlidePreview: React.FC = () => {
             >
               <span className="hidden sm:inline">
                 {isMultiSelectMode && selectedPageIds.size > 0 
-                  ? `导出 (${selectedPageIds.size})` 
-                  : '导出'}
+                  ? `${t('preview.export')} (${selectedPageIds.size})` 
+                  : t('preview.export')}
               </span>
               <span className="sm:hidden">
                 {isMultiSelectMode && selectedPageIds.size > 0 
                   ? `(${selectedPageIds.size})` 
-                  : '导出'}
+                  : t('preview.export')}
               </span>
             </Button>
             {showExportMenu && (
