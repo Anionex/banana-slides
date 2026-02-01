@@ -5,8 +5,71 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerUser } from '../../api/auth';
+import { Button } from '../../components/shared';
+import { useT } from '../../hooks/useT';
+
+// 组件内翻译
+const registerI18n = {
+  zh: {
+    register: {
+      title: '创建账号',
+      tagline: 'AI 驱动的 PPT 生成器',
+      email: '邮箱',
+      username: '用户名',
+      optional: '(可选)',
+      password: '密码',
+      confirmPassword: '确认密码',
+      required: '*',
+      terms: '我已阅读并同意',
+      termsLink: '服务条款',
+      and: '和',
+      privacyLink: '隐私政策',
+      submit: '创建账号',
+      submitting: '注册中...',
+      hasAccount: '已有账号？',
+      login: '立即登录',
+      passwordMismatch: '两次输入的密码不一致',
+      passwordTooShort: '密码长度不能少于8位',
+      registerFailed: '注册失败，请重试',
+      footer: '© 2026 Banana Slides. All rights reserved.',
+      emailPlaceholder: 'your@email.com',
+      usernamePlaceholder: '您的昵称',
+      passwordPlaceholder: '至少8位字符',
+      confirmPasswordPlaceholder: '再次输入密码',
+    },
+  },
+  en: {
+    register: {
+      title: 'Create Account',
+      tagline: 'AI-powered PPT Generator',
+      email: 'Email',
+      username: 'Username',
+      optional: '(Optional)',
+      password: 'Password',
+      confirmPassword: 'Confirm Password',
+      required: '*',
+      terms: 'I have read and agree to the',
+      termsLink: 'Terms of Service',
+      and: 'and',
+      privacyLink: 'Privacy Policy',
+      submit: 'Create Account',
+      submitting: 'Registering...',
+      hasAccount: 'Already have an account?',
+      login: 'Sign in',
+      passwordMismatch: 'Passwords do not match',
+      passwordTooShort: 'Password must be at least 8 characters',
+      registerFailed: 'Registration failed, please try again',
+      footer: '© 2026 Banana Slides. All rights reserved.',
+      emailPlaceholder: 'your@email.com',
+      usernamePlaceholder: 'Your nickname',
+      passwordPlaceholder: 'At least 8 characters',
+      confirmPasswordPlaceholder: 'Re-enter password',
+    },
+  },
+};
 
 export default function RegisterPage() {
+  const t = useT(registerI18n);
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -22,12 +85,12 @@ export default function RegisterPage() {
 
     // Validation
     if (password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+      setError(t('register.passwordMismatch'));
       return;
     }
 
     if (password.length < 8) {
-      setError('密码长度不能少于8位');
+      setError(t('register.passwordTooShort'));
       return;
     }
 
@@ -40,7 +103,7 @@ export default function RegisterPage() {
     } catch (err: any) {
       // 后端错误格式: { error: { code, message }, success: false }
       const errorData = err.response?.data;
-      const message = errorData?.error?.message || errorData?.message || '注册失败，请重试';
+      const message = errorData?.error?.message || errorData?.message || t('register.registerFailed');
       setError(message);
     } finally {
       setLoading(false);
@@ -48,31 +111,37 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-background-primary relative overflow-hidden py-12">
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-banana-100/40 to-transparent dark:from-banana-900/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"></div>
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-orange-100/40 to-transparent dark:from-orange-900/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
+      </div>
+
+      <div className="w-full max-w-md relative z-10 px-6">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 text-3xl font-bold text-white">
+          <Link to="/" className="inline-flex items-center gap-2 text-3xl font-bold text-gray-900 dark:text-white">
             <span className="text-4xl">🍌</span>
             <span>Banana Slides</span>
           </Link>
-          <p className="mt-2 text-purple-200/70">AI 驱动的 PPT 生成器</p>
+          <p className="mt-2 text-gray-600 dark:text-foreground-secondary">{t('register.tagline')}</p>
         </div>
 
         {/* Register Form */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/10">
-          <h2 className="text-2xl font-semibold text-white mb-6 text-center">创建账号</h2>
+        <div className="bg-white dark:bg-background-elevated rounded-2xl p-8 shadow-xl border border-gray-200 dark:border-border-primary">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-foreground-primary mb-6 text-center">{t('register.title')}</h2>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-sm">
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg text-red-700 dark:text-red-400 text-sm">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-purple-200 mb-1.5">
-                邮箱 <span className="text-red-400">*</span>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+                {t('register.email')} <span className="text-red-500">{t('register.required')}</span>
               </label>
               <input
                 id="email"
@@ -80,28 +149,28 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                placeholder="your@email.com"
+                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
+                placeholder={t('register.emailPlaceholder')}
               />
             </div>
 
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-purple-200 mb-1.5">
-                用户名 <span className="text-purple-200/50">(可选)</span>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+                {t('register.username')} <span className="text-gray-500 dark:text-foreground-tertiary">{t('register.optional')}</span>
               </label>
               <input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                placeholder="您的昵称"
+                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
+                placeholder={t('register.usernamePlaceholder')}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-purple-200 mb-1.5">
-                密码 <span className="text-red-400">*</span>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+                {t('register.password')} <span className="text-red-500">{t('register.required')}</span>
               </label>
               <input
                 id="password"
@@ -110,14 +179,14 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                placeholder="至少8位字符"
+                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
+                placeholder={t('register.passwordPlaceholder')}
               />
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-purple-200 mb-1.5">
-                确认密码 <span className="text-red-400">*</span>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+                {t('register.confirmPassword')} <span className="text-red-500">{t('register.required')}</span>
               </label>
               <input
                 id="confirmPassword"
@@ -125,8 +194,8 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                placeholder="再次输入密码"
+                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
+                placeholder={t('register.confirmPasswordPlaceholder')}
               />
             </div>
 
@@ -134,50 +203,42 @@ export default function RegisterPage() {
               <input
                 type="checkbox"
                 required
-                className="mt-0.5 mr-2 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500"
+                className="mt-0.5 mr-2 rounded border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-banana-500 focus:ring-banana-500"
               />
-              <span className="text-purple-200/70">
-                我已阅读并同意{' '}
-                <a href="/terms" className="text-purple-300 hover:text-purple-200">
-                  服务条款
+              <span className="text-gray-600 dark:text-foreground-secondary">
+                {t('register.terms')}{' '}
+                <a href="/terms" className="text-banana-600 dark:text-banana-400 hover:text-banana-700 dark:hover:text-banana-300">
+                  {t('register.termsLink')}
                 </a>{' '}
-                和{' '}
-                <a href="/privacy" className="text-purple-300 hover:text-purple-200">
-                  隐私政策
+                {t('register.and')}{' '}
+                <a href="/privacy" className="text-banana-600 dark:text-banana-400 hover:text-banana-700 dark:hover:text-banana-300">
+                  {t('register.privacyLink')}
                 </a>
               </span>
             </div>
 
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-500 hover:to-pink-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 mt-2"
+              loading={loading}
+              className="w-full mt-2"
+              size="lg"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  注册中...
-                </span>
-              ) : (
-                '创建账号'
-              )}
-            </button>
+              {loading ? t('register.submitting') : t('register.submit')}
+            </Button>
           </form>
 
-          <div className="mt-6 text-center text-purple-200/70">
-            已有账号？{' '}
-            <Link to="/login" className="text-purple-300 hover:text-purple-200 font-medium transition">
-              立即登录
+          <div className="mt-6 text-center text-gray-600 dark:text-foreground-secondary">
+            {t('register.hasAccount')}{' '}
+            <Link to="/login" className="text-banana-600 dark:text-banana-400 hover:text-banana-700 dark:hover:text-banana-300 font-medium transition">
+              {t('register.login')}
             </Link>
           </div>
         </div>
 
         {/* Footer */}
-        <p className="mt-8 text-center text-purple-200/50 text-sm">
-          © 2026 Banana Slides. All rights reserved.
+        <p className="mt-8 text-center text-gray-500 dark:text-foreground-tertiary text-sm">
+          {t('register.footer')}
         </p>
       </div>
     </div>
