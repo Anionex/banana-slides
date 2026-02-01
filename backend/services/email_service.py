@@ -117,17 +117,18 @@ class EmailService:
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 24px; font-weight: bold; color: #7C3AED; }}
-                .content {{ background: #f9fafb; border-radius: 8px; padding: 30px; }}
-                .button {{ display: inline-block; background: #7C3AED; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .logo {{ font-size: 24px; font-weight: bold; color: #1A1A1A; }}
+                .logo span {{ color: #FFC700; }}
+                .content {{ background: #FFF9E6; border-radius: 8px; padding: 30px; }}
+                .button {{ display: inline-block; background: #FFD700; color: #1A1A1A; padding: 12px 24px;
+                          text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }}
                 .footer {{ text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🍌 Banana Slides</div>
+                    <div class="logo"><span>🍌</span> Banana Slides</div>
                 </div>
                 <div class="content">
                     <h2>欢迎加入 Banana Slides！</h2>
@@ -181,17 +182,18 @@ class EmailService:
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 24px; font-weight: bold; color: #7C3AED; }}
-                .content {{ background: #f9fafb; border-radius: 8px; padding: 30px; }}
-                .button {{ display: inline-block; background: #7C3AED; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .logo {{ font-size: 24px; font-weight: bold; color: #1A1A1A; }}
+                .logo span {{ color: #FFC700; }}
+                .content {{ background: #FFF9E6; border-radius: 8px; padding: 30px; }}
+                .button {{ display: inline-block; background: #FFD700; color: #1A1A1A; padding: 12px 24px;
+                          text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }}
                 .footer {{ text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🍌 Banana Slides</div>
+                    <div class="logo"><span>🍌</span> Banana Slides</div>
                 </div>
                 <div class="content">
                     <h2>重置密码</h2>
@@ -249,16 +251,17 @@ class EmailService:
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 24px; font-weight: bold; color: #7C3AED; }}
-                .content {{ background: #f9fafb; border-radius: 8px; padding: 30px; }}
-                .highlight {{ background: #7C3AED; color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; }}
+                .logo {{ font-size: 24px; font-weight: bold; color: #1A1A1A; }}
+                .logo span {{ color: #FFC700; }}
+                .content {{ background: #FFF9E6; border-radius: 8px; padding: 30px; }}
+                .highlight {{ background: #FFD700; color: #1A1A1A; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; }}
                 .footer {{ text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🍌 Banana Slides</div>
+                    <div class="logo"><span>🍌</span> Banana Slides</div>
                 </div>
                 <div class="content">
                     <h2>购买成功！</h2>

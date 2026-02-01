@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Home } from './pages/Home';
 import { Landing } from './pages/Landing';
 import { History } from './pages/History';
@@ -21,6 +22,16 @@ import { useAuthStore } from './store/useAuthStore';
 import { useToast } from './components/shared';
 import { setupAuthInterceptor, checkAuth } from './api/auth';
 
+// App level i18n
+const appI18n = {
+  zh: {
+    siteTitle: '蕉幻 | AI 原生 PPT 生成器'
+  },
+  en: {
+    siteTitle: 'Banana Slides | AI-Native PPT Generator'
+  }
+};
+
 // Setup auth interceptor on app load
 setupAuthInterceptor();
 
@@ -28,6 +39,14 @@ function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
   const { isAuthenticated, setLoading } = useAuthStore();
   const { show, ToastContainer } = useToast();
+  const { i18n } = useTranslation();
+
+  // 设置浏览器标题和 HTML lang 属性（国际化）
+  useEffect(() => {
+    const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
+    document.title = appI18n[lang].siteTitle;
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  }, [i18n.language]);
 
   // Check auth status on app load
   useEffect(() => {
