@@ -43,7 +43,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             size={24}
             className={`flex-shrink-0 mt-0.5 ${variantStyles[variant]}`}
           />
-          <p className="text-gray-700 flex-1">{message}</p>
+          <p className="text-gray-700 dark:text-foreground-secondary flex-1">{message}</p>
         </div>
         <div className="flex justify-end gap-3 pt-4">
           <Button variant="ghost" onClick={onClose}>

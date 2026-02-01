@@ -447,7 +447,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // Helper: Selector for failed status badges (red background)
       const failedBadgeSelector = 'span.bg-red-100.text-red-600'
       // Helper: Selector for completed status badges (green background)
-      const completedBadgeSelector = 'span.bg-green-100.text-green-600'
+      const _completedBadgeSelector = 'span.bg-green-100.text-green-600'
       // Helper: Image selector for generated slide images
       // Generated images are stored at: /files/{project_id}/pages/{page_id}_v{version}.png
       // Template images are at: /files/{project_id}/template/template.png (excluded)

@@ -1,7 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
+import { useT } from '@/hooks/useT';
 import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
 import type { Page } from '@/types';
+
+// OutlineCard 组件自包含翻译
+const outlineCardI18n = {
+  zh: {
+    outlineCard: {
+      page: "第 {{num}} 页", chapter: "章节", titleLabel: "标题",
+      keyPointsPlaceholder: "要点（每行一个）", confirmDeletePage: "确定要删除这一页吗？",
+      confirmDeleteTitle: "确认删除"
+    }
+  },
+  en: {
+    outlineCard: {
+      page: "Page {{num}}", chapter: "Chapter", titleLabel: "Title",
+      keyPointsPlaceholder: "Key points (one per line)", confirmDeletePage: "Are you sure you want to delete this page?",
+      confirmDeleteTitle: "Confirm Delete"
+    }
+  }
+};
 
 interface OutlineCardProps {
   page: Page;
@@ -24,6 +43,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   dragHandleProps,
   isAiRefining = false,
 }) => {
+  const t = useT(outlineCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
@@ -79,8 +99,8 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
         <div className="flex-1 min-w-0">
           {/* 页码和章节 */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-semibold text-gray-900">
-              第 {index + 1} 页
+            <span className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">
+              {t('outlineCard.page', { num: index + 1 })}
             </span>
             {isEditing ? (
               <input
@@ -88,8 +108,8 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 value={editPart}
                 onChange={(e) => setEditPart(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className="text-xs px-2 py-0.5 w-24 border border-blue-300 bg-blue-50 text-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="章节"
+                className="text-xs px-2 py-0.5 w-24 border border-blue-300 bg-blue-50 dark:bg-blue-900/30 text-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder={t('outlineCard.chapter')}
               />
             ) : (
               page.part && (
@@ -107,40 +127,40 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
-                placeholder="标题"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
+                placeholder={t('outlineCard.titleLabel')}
               />
               <textarea
                 value={editPoints}
                 onChange={(e) => setEditPoints(e.target.value)}
                 rows={5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
-                placeholder="要点（每行一个）"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                placeholder={t('outlineCard.keyPointsPlaceholder')}
               />
               <div className="flex justify-end gap-2">
                 <button
                   onClick={handleCancel}
-                  className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
                 >
                   <X size={16} className="inline mr-1" />
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-3 py-1.5 text-sm bg-banana-500 text-black rounded-lg hover:bg-banana-600 transition-colors"
+                  className="px-3 py-1.5 text-sm bg-banana-500 text-black dark:text-white rounded-lg hover:bg-banana-600 transition-colors"
                 >
                   <Check size={16} className="inline mr-1" />
-                  保存
+                  {t('common.save')}
                 </button>
               </div>
             </div>
           ) : (
             /* 查看模式 */
             <div>
-              <h4 className="font-semibold text-gray-900 mb-2">
+              <h4 className="font-semibold text-gray-900 dark:text-foreground-primary mb-2">
                 {page.outline_content.title}
               </h4>
-              <div className="text-gray-600">
+              <div className="text-gray-600 dark:text-foreground-tertiary">
                 <Markdown>{page.outline_content.points.join('\n')}</Markdown>
               </div>
             </div>
@@ -155,7 +175,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 e.stopPropagation();
                 setIsEditing(true);
               }}
-              className="p-1.5 text-gray-500 hover:text-banana-600 hover:bg-banana-50 rounded transition-colors"
+              className="p-1.5 text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 hover:bg-banana-50 dark:hover:bg-background-hover rounded transition-colors"
             >
               <Edit2 size={16} />
             </button>
@@ -163,12 +183,12 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 confirm(
-                  '确定要删除这一页吗？',
+                  t('outlineCard.confirmDeletePage'),
                   onDelete,
-                  { title: '确认删除', variant: 'danger' }
+                  { title: t('outlineCard.confirmDeleteTitle'), variant: 'danger' }
                 );
               }}
-              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              className="p-1.5 text-gray-500 dark:text-foreground-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors"
             >
               <Trash2 size={16} />
             </button>
