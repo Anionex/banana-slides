@@ -71,6 +71,12 @@ def create_app():
     os.makedirs(upload_folder, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_folder
     
+    # 设置存储后端环境变量（用于抽象层初始化）
+    os.environ['UPLOAD_FOLDER'] = upload_folder
+    os.environ.setdefault('STORAGE_BACKEND', 'local')
+    os.environ.setdefault('TASK_QUEUE', 'thread')
+    os.environ.setdefault('TASK_QUEUE_WORKERS', '4')
+    
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
     if raw_cors.strip() == '*':

@@ -19,7 +19,7 @@ from utils.image_utils import check_image_resolution
 from pathlib import Path
 
 # 导入队列抽象层
-from services.queue import get_task_queue, TaskQueue
+from services.queue import get_queue, TaskQueue
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +33,16 @@ class TaskManager:
     
     def __init__(self, max_workers: int = 4):
         """Initialize task manager using queue abstraction"""
-        self._queue: TaskQueue = get_task_queue(max_workers=max_workers)
+        self._queue: TaskQueue = get_queue()
+        logger.info(f"TaskManager initialized with queue: {type(self._queue).__name__}")
     
     def submit_task(self, task_id: str, func: Callable, *args, **kwargs):
         """Submit a background task"""
-        self._queue.submit_task(task_id, func, *args, **kwargs)
+        self._queue.submit(task_id, func, *args, **kwargs)
     
     def is_task_active(self, task_id: str) -> bool:
         """Check if task is still running"""
-        return self._queue.is_task_active(task_id)
+        return self._queue.is_active(task_id)
     
     def shutdown(self):
         """Shutdown the executor"""
