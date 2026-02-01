@@ -187,11 +187,11 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 "failed": 0
             })
             db.session.commit()
-            
+
             # Generate descriptions in parallel
             completed = 0
             failed = 0
-            
+
             def generate_single_desc(page_id, page_outline, page_index):
                 """
                 Generate description for a single page
@@ -200,22 +200,20 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 # 关键修复：在子线程中也需要应用上下文
                 with app.app_context():
                     try:
-                        # Get singleton AI service instance
-                        from services.ai_service_manager import get_ai_service
-                        ai_service = get_ai_service()
-                        
+                        # 使用从请求上下文传入的 ai_service（已包含用户的 API key 配置）
+                        # 不要重新调用 get_ai_service()，因为子线程没有用户的请求上下文
                         desc_text = ai_service.generate_page_description(
                             project_context, outline, page_outline, page_index,
                             language=language
                         )
-                        
+
                         # Parse description into structured format
                         # This is a simplified version - you may want more sophisticated parsing
                         desc_content = {
                             "text": desc_text,
                             "generated_at": datetime.utcnow().isoformat()
                         }
-                        
+
                         return (page_id, desc_content, None)
                     except Exception as e:
                         import traceback
