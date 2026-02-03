@@ -14,6 +14,8 @@ interface ProjectState {
   pageGeneratingTasks: Record<string, string>;
   // 每个页面的描述生成状态 (pageId -> boolean)
   pageDescriptionGeneratingTasks: Record<string, boolean>;
+  // 警告消息
+  warningMessage: string | null;
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -64,17 +66,22 @@ const debouncedUpdatePage = debounce(
   async (projectId: string, pageId: string, data: any) => {
       try {
     const promises: Promise<any>[] = [];
-    
+
     // 如果更新的是 description_content，使用专门的端点
     if (data.description_content) {
       promises.push(api.updatePageDescription(projectId, pageId, data.description_content));
     }
-    
+
     // 如果更新的是 outline_content，使用专门的端点
     if (data.outline_content) {
       promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
     }
-    
+
+    // 如果更新的是 part 字段，使用通用端点
+    if ('part' in data) {
+      promises.push(api.updatePage(projectId, pageId, { part: data.part }));
+    }
+
     // 如果没有特定的内容更新，使用通用端点
     if (promises.length === 0) {
       await api.updatePage(projectId, pageId, data);
@@ -105,6 +112,7 @@ const debouncedUpdatePage = debounce(
   error: null,
   pageGeneratingTasks: {},
   pageDescriptionGeneratingTasks: {},
+  warningMessage: null,
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -318,7 +326,7 @@ const debouncedUpdatePage = debounce(
         outline_content: { title: '新页面', points: [] },
         order_index: currentProject.pages.length,
       };
-      
+
       const response = await api.addPage(currentProject.id, newPage);
       if (response.data) {
         await get().syncProject();
@@ -695,7 +703,7 @@ const debouncedUpdatePage = debounce(
       }
     }
 
-    set({ error: null });
+    set({ error: null, warningMessage: null });
     
     try {
       // 调用批量生成 API
@@ -758,7 +766,11 @@ const debouncedUpdatePage = debounce(
               delete newTasks[id];
             }
           });
-          set({ pageGeneratingTasks: newTasks });
+          
+          // 提取警告消息（如果有）
+          const warningMessage = task.progress?.warning_message || null;
+          
+          set({ pageGeneratingTasks: newTasks, warningMessage });
 
           // 刷新项目数据，并验证图片路径已更新
           // 使用重试机制确保数据同步完成
@@ -811,6 +823,11 @@ const debouncedUpdatePage = debounce(
           // 刷新项目数据以更新页面状态
           await get().syncProject();
         } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
+          // 检查警告消息
+          const newWarning = task.progress?.warning_message;
+          if (newWarning && get().warningMessage !== newWarning) {
+            set({ warningMessage: newWarning });
+          }
           // 继续轮询，同时同步项目数据以更新页面状态
           console.log(`[批量轮询] Task ${taskId} 处理中，同步项目数据...`);
           await get().syncProject();

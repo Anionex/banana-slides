@@ -40,7 +40,8 @@ const SortableCard: React.FC<{
   });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    // 只使用位移变换，不使用缩放，避免拖拽时元素被拉伸
+    transform: transform ? CSS.Translate.toString(transform) : undefined,
     transition,
   };
 

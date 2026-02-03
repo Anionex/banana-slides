@@ -377,6 +377,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
 
+# 可修改此变量来控制后端服务端口
 BACKEND_PORT=5000
 ...
 ```
