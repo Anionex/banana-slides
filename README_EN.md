@@ -249,6 +249,22 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 **Use the new editable export configuration method to obtain better editable export results**: You need to obtain an API KEY from the [Baidu AI Cloud Platform](https://console.bce.baidu.com/iam/#/iam/apikey/list) and fill it into the `BAIDU_OCR_API_KEY` field in the `.env` file (there is a generous free usage quota). See the instructions in https://github.com/Anionex/banana-slides/issues/121 for details.
 
+# LazyLLM format configuration (used when AI_PROVIDER_FORMAT=lazyllm)
+TEXT_MODEL_SOURCE=deepseek        # text model provider
+IMAGE_MODEL_SOURCE=doubao         # image-editing model provider
+IMAGE_CAPTION_MODEL_SOURCE=qwen   # image decription model provider
+
+# API Keys for different provider
+BANANA_DOUBAO_API_KEY=your-doubao-api-key            # doubao
+BANANA_DEEPSEEK_API_KEY=your-deepseek-api-key        # DeepSeek
+BANANA_QWEN_API_KEY=your-qwen-api-key                # qwen
+BANANA_GLM_API_KEY=your-glm-api-key                  # GLM
+BANANA_SILICONFLOW_API_KEY=your-siliconflow-api-key  # siliconflow
+BANANA_SENSENOVA_API_KEY=your-sensenova-api-key      # sensenova
+BANANA_MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
+...
+```
+
 
 <details>
   <summary>📒 Using Vertex AI (GCP Free Tier)</summary>
