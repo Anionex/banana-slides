@@ -38,7 +38,7 @@ const settingsI18n = {
         mineruApiBaseDesc: "MinerU 服务地址，用于解析参考文件",
         mineruToken: "MinerU Token", mineruTokenPlaceholder: "输入新的 MinerU Token",
         mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新",
-        imageResolution: "图像清晰度（某些OpenAI格式中转调整该值无效）",
+        imageResolution: "图像清晰度",
         imageResolutionDesc: "更高的清晰度会生成更详细的图像，但需要更长时间",
         maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "同时生成描述的最大工作线程数 (1-20)，越大速度越快",
         maxImageWorkers: "图像生成最大并发数", maxImageWorkersDesc: "同时生成图像的最大工作线程数 (1-20)，越大速度越快",
@@ -73,8 +73,7 @@ const settingsI18n = {
       messages: {
         loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
         resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
-        resetTitle: "确认重置为默认配置", resetSuccess: "设置已重置", resetFailed: "重置设置失败",
-        testServiceTip: "建议在本页底部进行服务测试，验证关键配置"
+        resetTitle: "确认重置为默认配置", resetSuccess: "设置已重置", resetFailed: "重置设置失败"
       }
     }
   },
@@ -146,8 +145,7 @@ const settingsI18n = {
       messages: {
         loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
         resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
-        resetTitle: "Confirm Reset to Default", resetSuccess: "Settings reset successfully", resetFailed: "Failed to reset settings",
-        testServiceTip: "It's recommended to test services at the bottom of this page to verify configurations"
+        resetTitle: "Confirm Reset to Default", resetSuccess: "Settings reset successfully", resetFailed: "Failed to reset settings"
       }
     }
   }
@@ -491,7 +489,6 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
-        show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         setFormData(prev => ({ ...prev, api_key: '', mineru_token: '', baidu_ocr_api_key: '' }));
       }
     } catch (error: any) {
