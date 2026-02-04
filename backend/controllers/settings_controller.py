@@ -24,6 +24,9 @@ settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
 
+# Fields that non-admin users can view and modify
+USER_EDITABLE_FIELDS = {'output_language', 'image_resolution', 'image_aspect_ratio'}
+
 
 @contextmanager
 def temporary_settings_override(settings_override: dict):
@@ -118,15 +121,23 @@ def temporary_settings_override(settings_override: dict):
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
 @auth_required
-@admin_required
 def get_settings():
     """
     GET /api/settings - Get user-specific application settings
+    Non-admin users only receive USER_EDITABLE_FIELDS.
     """
     try:
         user = get_current_user()
         settings = UserSettings.get_or_create_for_user(user.id)
-        return success_response(settings.to_dict())
+        settings_dict = settings.to_dict()
+
+        if not user.is_admin:
+            settings_dict = {
+                k: v for k, v in settings_dict.items()
+                if k in USER_EDITABLE_FIELDS
+            }
+
+        return success_response(settings_dict)
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
         return error_response(
@@ -138,10 +149,10 @@ def get_settings():
 
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
 @auth_required
-@admin_required
 def update_settings():
     """
     PUT /api/settings - Update user-specific application settings
+    Non-admin users can only update USER_EDITABLE_FIELDS; other fields are ignored.
 
     Request Body:
         {
@@ -156,6 +167,12 @@ def update_settings():
         data = request.get_json()
         if not data:
             return bad_request("Request body is required")
+
+        # Non-admin users: filter to only USER_EDITABLE_FIELDS
+        if not user.is_admin:
+            data = {k: v for k, v in data.items() if k in USER_EDITABLE_FIELDS}
+            if not data:
+                return bad_request("No editable fields provided")
 
         settings = UserSettings.get_or_create_for_user(user.id)
 
@@ -260,8 +277,14 @@ def update_settings():
         _sync_settings_to_config(settings)
 
         logger.info("Settings updated successfully")
+        response_dict = settings.to_dict()
+        if not user.is_admin:
+            response_dict = {
+                k: v for k, v in response_dict.items()
+                if k in USER_EDITABLE_FIELDS
+            }
         return success_response(
-            settings.to_dict(), "Settings updated successfully"
+            response_dict, "Settings updated successfully"
         )
 
     except Exception as e:

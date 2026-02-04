@@ -153,6 +153,7 @@ const settingsI18n = {
   }
 };
 import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
+import { useAuthStore } from '@/store/useAuthStore';
 import * as api from '@/api/endpoints';
 import type { OutputLanguage } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
@@ -178,6 +179,7 @@ interface SectionConfig {
   title: string;
   icon: React.ReactNode;
   fields: FieldConfig[];
+  adminOnly?: boolean;
 }
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -214,12 +216,14 @@ const initialFormData = {
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
   const t = useT(settingsI18n);
+  const { user } = useAuthStore();
   
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
     {
       title: t('settings.sections.apiConfig'),
       icon: <Key size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'ai_provider_format',
@@ -252,6 +256,7 @@ export const Settings: React.FC = () => {
     {
       title: t('settings.sections.modelConfig'),
       icon: <FileText size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'text_model',
@@ -279,6 +284,7 @@ export const Settings: React.FC = () => {
     {
       title: t('settings.sections.mineruConfig'),
       icon: <FileText size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'mineru_api_base',
@@ -318,6 +324,7 @@ export const Settings: React.FC = () => {
     {
       title: t('settings.sections.performanceConfig'),
       icon: <Zap size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'max_description_workers',
@@ -353,6 +360,7 @@ export const Settings: React.FC = () => {
     {
       title: t('settings.sections.textReasoning'),
       icon: <Brain size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'enable_text_reasoning',
@@ -373,6 +381,7 @@ export const Settings: React.FC = () => {
     {
       title: t('settings.sections.imageReasoning'),
       icon: <Brain size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'enable_image_reasoning',
@@ -393,6 +402,7 @@ export const Settings: React.FC = () => {
     {
       title: t('settings.sections.baiduOcr'),
       icon: <FileText size={20} />,
+      adminOnly: true,
       fields: [
         {
           key: 'baidu_ocr_api_key',
@@ -776,7 +786,9 @@ export const Settings: React.FC = () => {
       <div className="space-y-8">
         {/* 配置区块（配置驱动） */}
         <div className="space-y-8">
-          {settingsSections.map((section) => (
+          {settingsSections
+            .filter((section) => !section.adminOnly || user?.is_admin)
+            .map((section) => (
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                 {section.icon}
@@ -805,7 +817,8 @@ export const Settings: React.FC = () => {
           ))}
         </div>
 
-        {/* 服务测试区 */}
+        {/* 服务测试区 - 仅管理员可见 */}
+        {user?.is_admin && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-2 flex items-center">
             <FileText size={20} />
@@ -906,17 +919,22 @@ export const Settings: React.FC = () => {
             })}
           </div>
         </div>
+        )}
 
         {/* 操作按钮 */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-border-primary">
-          <Button
-            variant="secondary"
-            icon={<RotateCcw size={18} />}
-            onClick={handleReset}
-            disabled={isSaving}
-          >
-            {t('settings.actions.resetToDefault')}
-          </Button>
+          {user?.is_admin ? (
+            <Button
+              variant="secondary"
+              icon={<RotateCcw size={18} />}
+              onClick={handleReset}
+              disabled={isSaving}
+            >
+              {t('settings.actions.resetToDefault')}
+            </Button>
+          ) : (
+            <div />
+          )}
           <Button
             variant="primary"
             icon={<Save size={18} />}
