@@ -9,6 +9,7 @@ import { DetailEditor } from './pages/DetailEditor';
 import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { PricingPage } from './pages/PricingPage';
+import { CreditsHistory } from './pages/CreditsHistory';
 import { 
   LoginPage, 
   RegisterPage, 
@@ -106,6 +107,11 @@ function App() {
         <Route path="/pricing" element={
           <ProtectedRoute>
             <PricingPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/credits" element={
+          <ProtectedRoute>
+            <CreditsHistory />
           </ProtectedRoute>
         } />
         <Route path="/project/:projectId/outline" element={

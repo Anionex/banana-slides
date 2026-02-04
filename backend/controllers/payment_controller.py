@@ -38,12 +38,38 @@ def list_packages():
 def get_credits():
     """
     GET /api/payment/credits - Get current user's credits info
-    
+
     Returns:
         User's credits balance and usage
     """
     user = get_current_user()
     return success_response(CreditsService.get_user_credits_info(user))
+
+
+@payment_bp.route('/transactions', methods=['GET'])
+@auth_required
+def list_transactions():
+    """
+    GET /api/payment/transactions - Get current user's credit transaction history
+
+    Query params:
+        limit: int (default 20, max 100)
+        offset: int (default 0)
+
+    Returns:
+        Paginated list of credit transactions
+    """
+    user = get_current_user()
+    limit = min(int(request.args.get('limit', 20)), 100)
+    offset = max(int(request.args.get('offset', 0)), 0)
+
+    transactions, total = CreditsService.get_transactions(user, limit, offset)
+    return success_response({
+        'transactions': transactions,
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+    })
 
 
 @payment_bp.route('/estimate', methods=['POST'])

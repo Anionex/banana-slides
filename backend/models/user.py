@@ -56,6 +56,7 @@ class User(db.Model):
     materials = db.relationship('Material', back_populates='user', lazy='dynamic')
     user_templates = db.relationship('UserTemplate', back_populates='user', lazy='dynamic')
     settings = db.relationship('UserSettings', back_populates='user', uselist=False)
+    credit_transactions = db.relationship('CreditTransaction', back_populates='user', lazy='dynamic')
     
     def to_dict(self, include_sensitive: bool = False) -> dict:
         """

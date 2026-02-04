@@ -8,6 +8,7 @@ from typing import Optional, Tuple, Dict, Any
 from enum import Enum
 
 from models import db, User
+from models.credit_transaction import CreditTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +110,20 @@ class CreditsService:
         try:
             user.credits_balance -= cost
             user.credits_used_total += cost
+
+            transaction = CreditTransaction(
+                user_id=user.id,
+                operation=operation.value,
+                amount=-cost,
+                balance_after=user.credits_balance,
+                description=description,
+            )
+            db.session.add(transaction)
             db.session.commit()
-            
+
             logger.info(f"User {user.id} consumed {cost} credits for {operation.value}, balance: {user.credits_balance}")
             return True, None
-            
+
         except Exception as e:
             db.session.rollback()
             logger.error(f"Failed to consume credits for user {user.id}: {e}")
@@ -143,11 +153,20 @@ class CreditsService:
         
         try:
             user.credits_balance += amount
+
+            transaction = CreditTransaction(
+                user_id=user.id,
+                operation=operation.value,
+                amount=amount,
+                balance_after=user.credits_balance,
+                description=description,
+            )
+            db.session.add(transaction)
             db.session.commit()
-            
+
             logger.info(f"User {user.id} received {amount} credits ({operation.value}), balance: {user.credits_balance}")
             return True, None
-            
+
         except Exception as e:
             db.session.rollback()
             logger.error(f"Failed to add credits for user {user.id}: {e}")
@@ -209,3 +228,31 @@ class CreditsService:
         
         breakdown['total'] = total
         return breakdown
+
+    @staticmethod
+    def get_transactions(
+        user: User,
+        limit: int = 20,
+        offset: int = 0
+    ) -> Tuple[list, int]:
+        """
+        获取用户积分交易记录（分页，按时间倒序）
+
+        Args:
+            user: 用户对象
+            limit: 每页条数
+            offset: 偏移量
+
+        Returns:
+            Tuple of (transactions list[dict], total count)
+        """
+        query = CreditTransaction.query.filter_by(user_id=user.id)
+        total = query.count()
+        transactions = (
+            query
+            .order_by(CreditTransaction.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return [t.to_dict() for t in transactions], total

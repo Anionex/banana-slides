@@ -26,6 +26,7 @@ from .reference_file import ReferenceFile
 from .settings import Settings
 from .user_settings import UserSettings
 from .user import User
+from .credit_transaction import CreditTransaction
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction']
 

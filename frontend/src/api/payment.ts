@@ -43,6 +43,24 @@ export interface PaymentOrder {
   error_message?: string;
 }
 
+export interface CreditTransaction {
+  id: string;
+  user_id: string;
+  operation: string;
+  amount: number;
+  balance_after: number;
+  description: string | null;
+  project_id: string | null;
+  created_at: string;
+}
+
+export interface TransactionsResponse {
+  transactions: CreditTransaction[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 // ==================== Payment API ====================
 
 export const paymentApi = {
@@ -103,6 +121,16 @@ export const paymentApi = {
    */
   queryOrder: async (orderId: string): Promise<any> => {
     const response = await apiClient.get<ApiResponse<any>>(`/api/payment/order/${orderId}`);
+    return response.data.data;
+  },
+
+  /**
+   * Get credit transaction history (paginated)
+   */
+  getTransactions: async (limit = 20, offset = 0): Promise<TransactionsResponse> => {
+    const response = await apiClient.get<ApiResponse<TransactionsResponse>>(
+      `/api/payment/transactions?limit=${limit}&offset=${offset}`
+    );
     return response.data.data;
   },
 };
