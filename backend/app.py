@@ -26,6 +26,7 @@ from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
 from controllers.auth_controller import auth_bp
 from controllers.payment_controller import payment_bp
+from controllers.admin_controller import admin_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp
 
 
@@ -109,6 +110,7 @@ def create_app():
     # Register blueprints
     app.register_blueprint(auth_bp)  # Auth endpoints
     app.register_blueprint(payment_bp)  # Payment endpoints
+    app.register_blueprint(admin_bp)  # Admin dashboard endpoints
     app.register_blueprint(project_bp)
     app.register_blueprint(page_bp)
     app.register_blueprint(template_bp)

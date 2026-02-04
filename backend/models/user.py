@@ -36,6 +36,7 @@ class User(db.Model):
     
     # Account status
     is_active = db.Column(db.Boolean, default=True)
+    is_admin = db.Column(db.Boolean, default=False)
     email_verified = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100), nullable=True)
     verification_token_expires = db.Column(db.DateTime, nullable=True)
@@ -75,6 +76,7 @@ class User(db.Model):
             'projects_count': self.projects_count,
             'storage_used_mb': self.storage_used_mb,
             'is_active': self.is_active,
+            'is_admin': self.is_admin,
             'email_verified': self.email_verified,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,

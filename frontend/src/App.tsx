@@ -17,6 +17,8 @@ import {
   VerifyEmailPage 
 } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
+import { AdminRoute } from './components/admin';
+import { AdminDashboard, AdminUsers } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useToast } from './components/shared';
@@ -121,7 +123,19 @@ function App() {
             <SlidePreview />
           </ProtectedRoute>
         } />
-        
+
+        {/* Admin routes */}
+        <Route path="/admin" element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        } />
+        <Route path="/admin/users" element={
+          <AdminRoute>
+            <AdminUsers />
+          </AdminRoute>
+        } />
+
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

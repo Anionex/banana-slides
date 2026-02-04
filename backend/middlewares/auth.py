@@ -111,7 +111,7 @@ def email_verified_required(f):
     """
     Decorator that requires the user to have verified their email.
     Must be used after @auth_required.
-    
+
     Usage:
         @app.route('/api/premium-feature')
         @auth_required
@@ -122,13 +122,40 @@ def email_verified_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         user = get_current_user()
-        
+
         if not user:
             return error_response('UNAUTHORIZED', '请先登录', 401)
-        
+
         if not user.email_verified:
             return error_response('EMAIL_NOT_VERIFIED', '请先验证您的邮箱', 403)
-        
+
         return f(*args, **kwargs)
-    
+
+    return decorated
+
+
+def admin_required(f):
+    """
+    Decorator that requires the user to be an admin.
+    Must be used after @auth_required.
+
+    Usage:
+        @app.route('/api/admin/resource')
+        @auth_required
+        @admin_required
+        def admin_resource():
+            # ...
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user = get_current_user()
+
+        if not user:
+            return error_response('UNAUTHORIZED', '请先登录', 401)
+
+        if not user.is_admin:
+            return error_response('FORBIDDEN', '需要管理员权限', 403)
+
+        return f(*args, **kwargs)
+
     return decorated

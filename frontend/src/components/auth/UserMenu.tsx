@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Settings, CreditCard, LogOut, ChevronDown, User } from 'lucide-react';
+import { Settings, CreditCard, LogOut, ChevronDown, User, Shield } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { logoutUser } from '../../api/auth';
 
@@ -103,6 +103,16 @@ export default function UserMenu() {
 
             {/* Menu Items */}
             <div className="py-1">
+              {user.is_admin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+                >
+                  <Shield size={18} />
+                  <span>{t('nav.admin', '管理后台')}</span>
+                </Link>
+              )}
               <Link
                 to="/settings"
                 onClick={() => setIsOpen(false)}

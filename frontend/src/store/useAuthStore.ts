@@ -20,6 +20,7 @@ export interface User {
   projects_count: number;
   storage_used_mb: number;
   is_active: boolean;
+  is_admin?: boolean;
   email_verified: boolean;
   created_at: string;
   last_login_at?: string;
