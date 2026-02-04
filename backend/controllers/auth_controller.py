@@ -9,6 +9,7 @@ from services.auth_service import AuthService
 from services.email_service import email_service
 from middlewares.auth import auth_required, get_current_user
 from utils.response import success_response, error_response, bad_request
+from utils.rate_limiter import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def _get_frontend_url() -> str:
 
 
 @auth_bp.route('/register', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=3600)
 def register():
     """
     POST /api/auth/register - Register a new user
@@ -105,6 +107,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=900)
 def login():
     """
     POST /api/auth/login - User login
@@ -231,6 +234,7 @@ def get_current_user_info():
 
 
 @auth_bp.route('/verify-email', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=900)
 def verify_email():
     """
     POST /api/auth/verify-email - Verify email with code
@@ -288,6 +292,7 @@ def verify_email():
 
 
 @auth_bp.route('/resend-verification', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=600)
 def resend_verification():
     """
     POST /api/auth/resend-verification - Resend verification email
@@ -338,6 +343,7 @@ def resend_verification():
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=3600)
 def forgot_password():
     """
     POST /api/auth/forgot-password - Request password reset

@@ -318,16 +318,26 @@ class AuthService:
         if not user.verification_token:
             return None, "验证码无效"
 
+        # Check if too many failed attempts
+        if (user.verification_attempts or 0) >= 5:
+            return None, "验证码尝试次数过多，请重新获取验证码"
+
         if is_token_expired(user.verification_token_expires):
             return None, "验证码已过期，请重新发送"
 
         if user.verification_token != code:
+            try:
+                user.verification_attempts = (user.verification_attempts or 0) + 1
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
             return None, "验证码错误"
 
         try:
             user.email_verified = True
             user.verification_token = None
             user.verification_token_expires = None
+            user.verification_attempts = 0
             db.session.commit()
 
             logger.info(f"Email verified for user: {user.id}")
@@ -362,6 +372,7 @@ class AuthService:
             verification_token, verification_expires = generate_verification_code()
             user.verification_token = verification_token
             user.verification_token_expires = verification_expires
+            user.verification_attempts = 0
             db.session.commit()
             
             logger.info(f"Verification token regenerated for user: {user.id}")
