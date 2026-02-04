@@ -37,6 +37,15 @@ def _get_user_output_language(user_id: str) -> str:
     return settings.output_language or 'zh'
 
 
+def _get_user_image_settings(user_id: str) -> tuple:
+    """Get (image_resolution, image_aspect_ratio) from the current user's settings."""
+    settings = UserSettings.get_or_create_for_user(user_id)
+    return (
+        settings.image_resolution or '2K',
+        settings.image_aspect_ratio or '16:9',
+    )
+
+
 def _get_user_project(project_id: str, user_id: str):
     """
     Get a project that belongs to the specified user.
@@ -831,6 +840,9 @@ def generate_images(project_id):
         # Get app instance for background task
         app = current_app._get_current_object()
         
+        # Get user image settings
+        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -841,8 +853,8 @@ def generate_images(project_id):
             outline,
             use_template,
             max_workers,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            user_aspect_ratio,
+            user_resolution,
             app,
             combined_requirements if combined_requirements.strip() else None,
             language,

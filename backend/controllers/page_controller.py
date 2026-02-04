@@ -9,6 +9,7 @@ from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
 from middlewares.auth import auth_required, get_current_user
+from services.credits_service import CreditsService, CreditOperation
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -25,6 +26,15 @@ def _get_user_output_language(user_id: str) -> str:
     """Get the output_language from the current user's settings."""
     settings = UserSettings.get_or_create_for_user(user_id)
     return settings.output_language or 'zh'
+
+
+def _get_user_image_settings(user_id: str) -> tuple:
+    """Get (image_resolution, image_aspect_ratio) from the current user's settings."""
+    settings = UserSettings.get_or_create_for_user(user_id)
+    return (
+        settings.image_resolution or '2K',
+        settings.image_aspect_ratio or '16:9',
+    )
 
 
 def _get_user_project(project_id: str, user_id: str):
@@ -298,16 +308,21 @@ def generate_page_description(project_id, page_id):
         data = request.get_json() or {}
         force_regenerate = data.get('force_regenerate', False)
         language = data.get('language', _get_user_output_language(user.id))
-        
+
         # Check if already generated
         if page.get_description_content() and not force_regenerate:
             return bad_request("Description already exists. Set force_regenerate=true to regenerate")
-        
+
+        # Check credits
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_DESCRIPTION)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+
         # Get outline content
         outline_content = page.get_outline_content()
         if not outline_content:
             return bad_request("Page must have outline content first")
-        
+
         # Reconstruct full outline
         all_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         outline = []
@@ -349,9 +364,14 @@ def generate_page_description(project_id, page_id):
         page.set_description_content(desc_content)
         page.status = 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
-        
+
+        # Consume credits after successful generation
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_DESCRIPTION)
+        if not success:
+            return error_response('CREDITS_ERROR', err, 500)
+
         db.session.commit()
-        
+
         return success_response(page.to_dict())
     
     except Exception as e:
@@ -387,11 +407,16 @@ def generate_page_image(project_id, page_id):
         use_template = data.get('use_template', True)
         force_regenerate = data.get('force_regenerate', False)
         language = data.get('language', _get_user_output_language(user.id))
-        
+
         # Check if already generated
         if page.generated_image_path and not force_regenerate:
             return bad_request("Image already exists. Set force_regenerate=true to regenerate")
-        
+
+        # Check credits
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_IMAGE)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+
         # Get description content
         desc_content = page.get_description_content()
         if not desc_content:
@@ -493,6 +518,11 @@ def generate_page_image(project_id, page_id):
             style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
             combined_requirements = combined_requirements + style_requirement
         
+        # Consume credits upfront (async task will run)
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE)
+        if not success:
+            return error_response('CREDITS_ERROR', err, 500)
+
         # Create async task for image generation
         task = Task(
             project_id=project_id,
@@ -510,6 +540,9 @@ def generate_page_image(project_id, page_id):
         # Get app instance for background task
         app = current_app._get_current_object()
         
+        # Get user image settings
+        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -520,8 +553,8 @@ def generate_page_image(project_id, page_id):
             file_service,
             outline,
             use_template,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            user_aspect_ratio,
+            user_resolution,
             app,
             combined_requirements if combined_requirements.strip() else None,
             language
@@ -575,7 +608,12 @@ def edit_page_image(project_id, page_id):
         
         if not page.generated_image_path:
             return bad_request("Page must have generated image first")
-        
+
+        # Check credits
+        has_credits, required = CreditsService.check_credits(user, CreditOperation.EDIT_IMAGE)
+        if not has_credits:
+            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+
         # Initialize services
         ai_service = get_ai_service()
         
@@ -669,6 +707,11 @@ def edit_page_image(project_id, page_id):
                     shutil.rmtree(temp_dir)
                 raise e
         
+        # Consume credits upfront (async task will run)
+        success, err = CreditsService.consume_credits(user, CreditOperation.EDIT_IMAGE)
+        if not success:
+            return error_response('CREDITS_ERROR', err, 500)
+
         # Create async task for image editing
         task = Task(
             project_id=project_id,
@@ -686,6 +729,9 @@ def edit_page_image(project_id, page_id):
         # Get app instance for background task
         app = current_app._get_current_object()
         
+        # Get user image settings
+        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -695,8 +741,8 @@ def edit_page_image(project_id, page_id):
             data['edit_instruction'],
             ai_service,
             file_service,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            user_aspect_ratio,
+            user_resolution,
             original_description,
             additional_ref_images if additional_ref_images else None,
             str(temp_dir) if temp_dir else None,

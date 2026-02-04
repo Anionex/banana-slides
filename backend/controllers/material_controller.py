@@ -2,7 +2,7 @@
 Material Controller - handles standalone material image generation
 """
 from flask import Blueprint, request, current_app, send_file
-from models import db, Project, Material, Task
+from models import db, Project, Material, Task, UserSettings
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService
 from services.ai_service_manager import get_ai_service
@@ -22,6 +22,15 @@ material_bp = Blueprint('materials', __name__, url_prefix='/api/projects')
 material_global_bp = Blueprint('materials_global', __name__, url_prefix='/api/materials')
 
 ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+
+
+def _get_user_image_settings(user_id: str) -> tuple:
+    """Get (image_resolution, image_aspect_ratio) from the current user's settings."""
+    settings = UserSettings.get_or_create_for_user(user_id)
+    return (
+        settings.image_resolution or '2K',
+        settings.image_aspect_ratio or '16:9',
+    )
 
 
 def _get_user_project(project_id: str, user_id: str):
@@ -249,6 +258,9 @@ def generate_material_image(project_id):
             # Get app instance for background task
             app = current_app._get_current_object()
 
+            # Get user image settings
+            user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
+
             # Submit background task
             task_manager.submit_task(
                 task.id,
@@ -259,8 +271,8 @@ def generate_material_image(project_id):
                 file_service,
                 ref_path_str,
                 additional_ref_images if additional_ref_images else None,
-                current_app.config['DEFAULT_ASPECT_RATIO'],
-                current_app.config['DEFAULT_RESOLUTION'],
+                user_aspect_ratio,
+                user_resolution,
                 temp_dir_str,
                 app
             )
