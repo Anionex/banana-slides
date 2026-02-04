@@ -17,7 +17,7 @@ _project_root = Path(__file__).parent.parent
 _env_file = _project_root / '.env'
 load_dotenv(dotenv_path=_env_file, override=True)
 
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from models import db
 from config import Config
@@ -135,16 +135,24 @@ def create_app():
     @app.route('/api/output-language', methods=['GET'])
     def get_output_language():
         """
-        获取用户的输出语言偏好（从数据库 Settings 读取）
+        获取用户的输出语言偏好（从用户个人设置读取）
         返回: zh, ja, en, auto
         """
-        from models import Settings
+        from models import UserSettings
+        from services.auth_service import AuthService
         try:
-            settings = Settings.get_settings()
-            return {'data': {'language': settings.output_language}}
-        except SQLAlchemyError as db_error:
-            logging.warning(f"Failed to load output language from settings: {db_error}")
-            return {'data': {'language': Config.OUTPUT_LANGUAGE}}  # 默认中文
+            # Manually extract and verify token (no @auth_required decorator here)
+            auth_header = request.headers.get('Authorization', '')
+            token = auth_header[7:] if auth_header.startswith('Bearer ') else auth_header
+            if token:
+                user = AuthService.verify_access_token(token)
+                if user and user.is_active:
+                    user_settings = UserSettings.get_or_create_for_user(user.id)
+                    return {'data': {'language': user_settings.output_language or 'zh'}}
+            return {'data': {'language': Config.OUTPUT_LANGUAGE}}
+        except Exception as e:
+            logging.warning(f"Failed to load output language from user settings: {e}")
+            return {'data': {'language': Config.OUTPUT_LANGUAGE}}
 
     # Root endpoint
     @app.route('/')
