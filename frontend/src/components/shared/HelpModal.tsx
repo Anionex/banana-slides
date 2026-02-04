@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { useT } from '@/hooks/useT';
+import { useAuthStore } from '@/store/useAuthStore';
 
 const helpI18n = {
   zh: {
@@ -79,6 +80,7 @@ const featureIcons = [
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   const t = useT(helpI18n);
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [currentPage, setCurrentPage] = useState(0);
   const [currentShowcase, setCurrentShowcase] = useState(0);
   const [expandedFeature, setExpandedFeature] = useState<number | null>(null);
@@ -107,7 +109,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
   const handleGoToSettings = () => {
     onClose();
-    navigate('/settings');
+    navigate('/admin/settings');
   };
 
   const renderGuidePage = () => (
@@ -187,15 +189,17 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         </a>
       </div>
 
-      <div className="flex justify-center pt-2">
-        <Button
-          onClick={handleGoToSettings}
-          className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg"
-          icon={<Settings size={18} />}
-        >
-          {t('help.goToSettings')}
-        </Button>
-      </div>
+      {user?.is_admin && (
+        <div className="flex justify-center pt-2">
+          <Button
+            onClick={handleGoToSettings}
+            className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg"
+            icon={<Settings size={18} />}
+          >
+            {t('help.goToSettings')}
+          </Button>
+        </div>
+      )}
 
       <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
         <p className="text-xs text-blue-800">
