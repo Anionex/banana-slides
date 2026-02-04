@@ -15,6 +15,7 @@ from utils.security import (
     generate_password_reset_token,
     is_token_expired
 )
+from utils.validators import is_disposable_email
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,11 @@ class AuthService:
         email = email.lower().strip()
         if not email or '@' not in email:
             return None, "邮箱格式不正确"
-        
+
+        # Block disposable/temporary email services
+        if is_disposable_email(email):
+            return None, "不支持使用临时邮箱注册，请使用常规邮箱"
+
         # Validate password
         if len(password) < 8:
             return None, "密码长度不能少于8位"
