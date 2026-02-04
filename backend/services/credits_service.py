@@ -84,32 +84,47 @@ class CreditsService:
     
     @staticmethod
     def consume_credits(
-        user: User, 
-        operation: CreditOperation, 
+        user: User,
+        operation: CreditOperation,
         quantity: int = 1,
         description: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """
-        消耗用户积分
-        
+        消耗用户积分（原子操作，防止并发超扣）
+
+        使用 SQL 级别的 UPDATE ... WHERE credits_balance >= cost 保证原子性，
+        避免并发请求通过 ORM 内存值绕过余额检查。
+
         Args:
             user: 用户对象
             operation: 操作类型
             quantity: 数量
             description: 操作描述（可选）
-            
+
         Returns:
             Tuple of (success, error_message)
         """
         cost = CreditsService.get_cost(operation, quantity)
-        
-        if user.credits_balance < cost:
-            logger.warning(f"User {user.id} has insufficient credits: {user.credits_balance} < {cost}")
-            return False, f"积分不足，需要 {cost} 积分，当前余额 {user.credits_balance}"
-        
+
         try:
-            user.credits_balance -= cost
-            user.credits_used_total += cost
+            # 原子扣减：只有余额充足时才更新，防止并发超扣
+            result = db.session.execute(
+                db.update(User)
+                .where(User.id == user.id, User.credits_balance >= cost)
+                .values(
+                    credits_balance=User.credits_balance - cost,
+                    credits_used_total=User.credits_used_total + cost,
+                )
+            )
+
+            if result.rowcount == 0:
+                # 余额不足（或并发请求已消耗），刷新 ORM 对象获取最新余额
+                db.session.refresh(user)
+                logger.warning(f"User {user.id} has insufficient credits: {user.credits_balance} < {cost}")
+                return False, f"积分不足，需要 {cost} 积分，当前余额 {user.credits_balance}"
+
+            # 刷新 ORM 对象，使其与数据库保持一致
+            db.session.refresh(user)
 
             transaction = CreditTransaction(
                 user_id=user.id,
@@ -128,7 +143,74 @@ class CreditsService:
             db.session.rollback()
             logger.error(f"Failed to consume credits for user {user.id}: {e}")
             return False, "积分扣除失败，请稍后重试"
-    
+
+    @staticmethod
+    def refund_credits(
+        user_id: str,
+        operation: CreditOperation,
+        quantity: int = 1,
+        description: Optional[str] = None
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        退还用户积分（任务失败时调用）
+
+        使用 SQL 级别原子操作退还，创建 REFUND 交易记录。
+
+        Args:
+            user_id: 用户ID（异步任务中可能没有 ORM 对象）
+            operation: 原始操作类型（用于计算退还金额）
+            quantity: 数量
+            description: 退还原因描述
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        refund_amount = CreditsService.get_cost(operation, quantity)
+        if refund_amount <= 0:
+            return True, None
+
+        try:
+            # 原子退还
+            db.session.execute(
+                db.update(User)
+                .where(User.id == user_id)
+                .values(
+                    credits_balance=User.credits_balance + refund_amount,
+                )
+            )
+
+            # 查询最新余额用于交易记录
+            user = User.query.get(user_id)
+            if not user:
+                db.session.rollback()
+                return False, "用户不存在"
+
+            db.session.refresh(user)
+
+            auto_desc = f"任务失败退还 - {operation.value}"
+            if quantity > 1:
+                auto_desc += f" x{quantity}"
+            if description:
+                auto_desc = f"{auto_desc}: {description}"
+
+            transaction = CreditTransaction(
+                user_id=user_id,
+                operation=CreditOperation.REFUND.value,
+                amount=refund_amount,
+                balance_after=user.credits_balance,
+                description=auto_desc,
+            )
+            db.session.add(transaction)
+            db.session.commit()
+
+            logger.info(f"Refunded {refund_amount} credits to user {user_id} for failed {operation.value}, balance: {user.credits_balance}")
+            return True, None
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to refund credits for user {user_id}: {e}")
+            return False, "积分退还失败"
+
     @staticmethod
     def add_credits(
         user: User,

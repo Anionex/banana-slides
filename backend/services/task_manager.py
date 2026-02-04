@@ -17,6 +17,7 @@ from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 from pathlib import Path
+from services.credits_service import CreditsService, CreditOperation
 
 # 导入队列抽象层
 from services.queue import get_queue, TaskQueue
@@ -122,10 +123,11 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
     return image_path, next_version
 
 
-def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
-                               project_context, outline: List[Dict], 
+def generate_descriptions_task(task_id: str, project_id: str, ai_service,
+                               project_context, outline: List[Dict],
                                max_workers: int = 5, app=None,
-                               language: str = None):
+                               language: str = None,
+                               user_id: str = None):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
@@ -251,7 +253,13 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
                 logger.info(f"Task {task_id} COMPLETED - {completed} pages generated, {failed} failed")
-            
+
+            # Refund credits for failed pages
+            if failed > 0 and user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.GENERATE_DESCRIPTION, quantity=failed,
+                    description=f"批量生成描述部分失败 ({failed}/{completed + failed})")
+
             # Update project status
             from models import Project
             project = Project.query.get(project_id)
@@ -259,7 +267,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 project.status = 'DESCRIPTIONS_GENERATED'
                 db.session.commit()
                 logger.info(f"Project {project_id} status updated to DESCRIPTIONS_GENERATED")
-        
+
         except Exception as e:
             # Mark task as failed
             task = Task.query.get(task_id)
@@ -268,15 +276,22 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
+            # Refund all credits on total failure
+            if user_id:
+                total_pages = len(Page.query.filter_by(project_id=project_id).all())
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.GENERATE_DESCRIPTION, quantity=total_pages,
+                    description=str(e)[:200])
 
 
 def generate_images_task(task_id: str, project_id: str, ai_service, file_service,
-                        outline: List[Dict], use_template: bool = True, 
+                        outline: List[Dict], use_template: bool = True,
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
                         language: str = None,
-                        page_ids: list = None):
+                        page_ids: list = None,
+                        user_id: str = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
@@ -475,7 +490,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 project.status = 'COMPLETED'
                 db.session.commit()
                 logger.info(f"Project {project_id} status updated to COMPLETED")
-        
+
+            # Refund credits for failed pages
+            if failed > 0 and user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.GENERATE_IMAGE, quantity=failed,
+                    description=f"批量生成图片部分失败 ({failed}/{completed + failed})")
+
         except Exception as e:
             # Mark task as failed
             task = Task.query.get(task_id)
@@ -484,14 +505,21 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
+            # Refund all credits on total failure
+            if user_id:
+                total_pages = len(get_filtered_pages(project_id, page_ids))
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.GENERATE_IMAGE, quantity=total_pages,
+                    description=str(e)[:200])
 
 
-def generate_single_page_image_task(task_id: str, project_id: str, page_id: str, 
+def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                                     ai_service, file_service, outline: List[Dict],
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
                                     extra_requirements: str = None,
-                                    language: str = None):
+                                    language: str = None,
+                                    user_id: str = None):
     """
     Background task for generating a single page image
     
@@ -610,13 +638,20 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 page.status = 'FAILED'
                 db.session.commit()
 
+            # Refund credits
+            if user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.GENERATE_IMAGE,
+                    description=str(e)[:200])
+
 
 def edit_page_image_task(task_id: str, project_id: str, page_id: str,
                          edit_instruction: str, ai_service, file_service,
                          aspect_ratio: str = "16:9", resolution: str = "2K",
                          original_description: str = None,
                          additional_ref_images: List[str] = None,
-                         temp_dir: str = None, app=None):
+                         temp_dir: str = None, app=None,
+                         user_id: str = None):
     """
     Background task for editing a page image
     
@@ -717,6 +752,12 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
                 page.status = 'FAILED'
                 db.session.commit()
 
+            # Refund credits
+            if user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.EDIT_IMAGE,
+                    description=str(e)[:200])
+
 
 def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                                  ai_service, file_service,
@@ -724,7 +765,8 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                                  additional_ref_images: List[str] = None,
                                  aspect_ratio: str = "16:9",
                                  resolution: str = "2K",
-                                 temp_dir: str = None, app=None):
+                                 temp_dir: str = None, app=None,
+                                 user_id: str = None):
     """
     Background task for generating a material image
     复用核心的generate_image逻辑，但保存到Material表而不是Page表
@@ -805,7 +847,13 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
-        
+
+            # Refund credits
+            if user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.GENERATE_MATERIAL,
+                    description=str(e)[:200])
+
         finally:
             # Clean up temp directory
             if temp_dir:
@@ -816,8 +864,8 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
 
 
 def export_editable_pptx_with_recursive_analysis_task(
-    task_id: str, 
-    project_id: str, 
+    task_id: str,
+    project_id: str,
     filename: str,
     file_service,
     page_ids: list = None,
@@ -825,7 +873,8 @@ def export_editable_pptx_with_recursive_analysis_task(
     max_workers: int = 4,
     export_extractor_method: str = 'hybrid',
     export_inpaint_method: str = 'hybrid',
-    app=None
+    app=None,
+    user_id: str = None
 ):
     """
     使用递归图片可编辑化分析导出可编辑PPTX的后台任务
@@ -1056,11 +1105,17 @@ def export_editable_pptx_with_recursive_analysis_task(
                 })
                 db.session.commit()
 
+            # Refund credits
+            if user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.EXPORT_EDITABLE,
+                    description=f"导出失败: {e.message[:200]}")
+
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
             logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
-            
+
             # 标记任务失败
             task = Task.query.get(task_id)
             if task:
@@ -1068,3 +1123,9 @@ def export_editable_pptx_with_recursive_analysis_task(
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
+
+            # Refund credits
+            if user_id:
+                CreditsService.refund_credits(
+                    user_id, CreditOperation.EXPORT_EDITABLE,
+                    description=str(e)[:200])

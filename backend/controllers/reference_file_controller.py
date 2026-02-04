@@ -369,16 +369,11 @@ def trigger_file_parse(file_id):
                 'message': 'File is already being parsed'
             })
         
-        # Check credits for file parsing (only for new parses)
+        # Consume credits upfront (atomic, only for new parses)
         if reference_file.parse_status != 'completed':
-            has_credits, required = CreditsService.check_credits(user, CreditOperation.PARSE_FILE)
-            if not has_credits:
-                return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
-            
-            # Consume credits upfront
             success, err = CreditsService.consume_credits(user, CreditOperation.PARSE_FILE)
             if not success:
-                return error_response('CREDITS_ERROR', err, 500)
+                return error_response('INSUFFICIENT_CREDITS', err, 402)
         
         # 如果解析完成或失败，可以重新解析
         if reference_file.parse_status in ['completed', 'failed']:

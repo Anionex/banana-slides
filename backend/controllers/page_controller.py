@@ -313,10 +313,10 @@ def generate_page_description(project_id, page_id):
         if page.get_description_content() and not force_regenerate:
             return bad_request("Description already exists. Set force_regenerate=true to regenerate")
 
-        # Check credits
-        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_DESCRIPTION)
-        if not has_credits:
-            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
+        # Consume credits upfront (atomic, prevents concurrent over-spending)
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_DESCRIPTION)
+        if not success:
+            return error_response('INSUFFICIENT_CREDITS', err, 402)
 
         # Get outline content
         outline_content = page.get_outline_content()
@@ -365,21 +365,16 @@ def generate_page_description(project_id, page_id):
         page.status = 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
 
-        # Consume credits after successful generation
-        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_DESCRIPTION)
-        if not success:
-            return error_response('CREDITS_ERROR', err, 500)
-
         db.session.commit()
 
         return success_response(page.to_dict())
-    
+
     except Exception as e:
         db.session.rollback()
+        # Refund credits on failure
+        CreditsService.refund_credits(user.id, CreditOperation.GENERATE_DESCRIPTION,
+                                      description=str(e)[:200])
         return error_response('AI_SERVICE_ERROR', str(e), 503)
-
-
-@page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
 @auth_required
 def generate_page_image(project_id, page_id):
     """
@@ -411,11 +406,6 @@ def generate_page_image(project_id, page_id):
         # Check if already generated
         if page.generated_image_path and not force_regenerate:
             return bad_request("Image already exists. Set force_regenerate=true to regenerate")
-
-        # Check credits
-        has_credits, required = CreditsService.check_credits(user, CreditOperation.GENERATE_IMAGE)
-        if not has_credits:
-            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
 
         # Get description content
         desc_content = page.get_description_content()
@@ -521,7 +511,7 @@ def generate_page_image(project_id, page_id):
         # Consume credits upfront (async task will run)
         success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE)
         if not success:
-            return error_response('CREDITS_ERROR', err, 500)
+            return error_response('INSUFFICIENT_CREDITS', err, 402)
 
         # Create async task for image generation
         task = Task(
@@ -557,7 +547,8 @@ def generate_page_image(project_id, page_id):
             user_resolution,
             app,
             combined_requirements if combined_requirements.strip() else None,
-            language
+            language,
+            user_id=user.id
         )
         
         # Return task_id immediately
@@ -608,11 +599,6 @@ def edit_page_image(project_id, page_id):
         
         if not page.generated_image_path:
             return bad_request("Page must have generated image first")
-
-        # Check credits
-        has_credits, required = CreditsService.check_credits(user, CreditOperation.EDIT_IMAGE)
-        if not has_credits:
-            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
 
         # Initialize services
         ai_service = get_ai_service()
@@ -710,7 +696,7 @@ def edit_page_image(project_id, page_id):
         # Consume credits upfront (async task will run)
         success, err = CreditsService.consume_credits(user, CreditOperation.EDIT_IMAGE)
         if not success:
-            return error_response('CREDITS_ERROR', err, 500)
+            return error_response('INSUFFICIENT_CREDITS', err, 402)
 
         # Create async task for image editing
         task = Task(
@@ -746,7 +732,8 @@ def edit_page_image(project_id, page_id):
             original_description,
             additional_ref_images if additional_ref_images else None,
             str(temp_dir) if temp_dir else None,
-            app
+            app,
+            user_id=user.id
         )
         
         # Return task_id immediately

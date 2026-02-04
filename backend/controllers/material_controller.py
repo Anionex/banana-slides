@@ -8,6 +8,7 @@ from services import FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
 from middlewares.auth import auth_required, get_current_user
+from services.credits_service import CreditsService, CreditOperation
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from typing import Optional
@@ -222,6 +223,15 @@ def generate_material_image(project_id):
 
         try:
             ref_path = None
+
+            # Consume credits upfront (atomic)
+            success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_MATERIAL)
+            if not success:
+                # Clean up temp dir if credit check fails
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir)
+                return error_response('INSUFFICIENT_CREDITS', err, 402)
+
             # Save main reference image to temp directory if provided
             if ref_file and ref_file.filename:
                 ref_filename = secure_filename(ref_file.filename or 'ref.png')
@@ -274,7 +284,8 @@ def generate_material_image(project_id):
                 user_aspect_ratio,
                 user_resolution,
                 temp_dir_str,
-                app
+                app,
+                user_id=user.id
             )
 
             # Return task_id immediately (不再清理temp_dir，由后台任务清理)

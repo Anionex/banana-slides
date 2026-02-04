@@ -46,6 +46,7 @@ const materialGeneratorI18n = {
 };
 import { Skeleton } from './Loading';
 import { generateMaterialImage, getTaskStatus } from '@/api/endpoints';
+import { refreshCredits } from '@/api/auth';
 import { getImageUrl } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import type { Task } from '@/types';
@@ -214,6 +215,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
       const targetProjectId = projectId || 'none';
       const resp = await generateMaterialImage(targetProjectId, prompt.trim(), refImage as File, extraImages);
       const taskId = resp.data?.task_id;
+      refreshCredits();
       
       if (taskId) {
         await pollMaterialTask(taskId);

@@ -50,6 +50,7 @@ import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal,
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions } from '@/api/endpoints';
+import { refreshCredits } from '@/api/auth';
 import { exportDescriptionsToMarkdown } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
@@ -150,6 +151,7 @@ export const DetailEditor: React.FC = () => {
     try {
       const response = await refineDescriptions(projectId, requirement, previousRequirements);
       await syncProject(projectId);
+      refreshCredits();
       show({ 
         message: response.data?.message || t('detail.messages.refineSuccess'), 
         type: 'success' 

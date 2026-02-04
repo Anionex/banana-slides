@@ -229,12 +229,7 @@ def export_editable_pptx(project_id):
         
         if not project:
             return not_found('Project')
-        
-        # Check credits for editable export
-        has_credits, required = CreditsService.check_credits(user, CreditOperation.EXPORT_EDITABLE)
-        if not has_credits:
-            return error_response('INSUFFICIENT_CREDITS', f'积分不足，需要 {required} 积分，当前余额 {user.credits_balance}', 402)
-        
+
         # Get parameters from request body
         data = request.get_json() or {}
         
@@ -250,10 +245,10 @@ def export_editable_pptx(project_id):
         if not has_images:
             return bad_request("No generated images found for project")
         
-        # Consume credits upfront (async task will run)
+        # Consume credits upfront (atomic, async task will run)
         success, err = CreditsService.consume_credits(user, CreditOperation.EXPORT_EDITABLE)
         if not success:
-            return error_response('CREDITS_ERROR', err, 500)
+            return error_response('INSUFFICIENT_CREDITS', err, 402)
         
         # Get parameters from request body
         data = request.get_json() or {}
@@ -311,7 +306,8 @@ def export_editable_pptx(project_id):
             max_workers=max_workers,
             export_extractor_method=export_extractor_method,
             export_inpaint_method=export_inpaint_method,
-            app=app
+            app=app,
+            user_id=user.id
         )
         
         logger.info(f"Submitted recursive export task {task.id} to task manager")

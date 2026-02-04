@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
+import { refreshCredits } from '@/api/auth';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 
 interface ProjectState {
@@ -161,6 +162,7 @@ const debouncedUpdatePage = debounce(
         try {
           await api.generateFromDescription(projectId, content);
           console.log('[初始化项目] 从描述生成大纲和页面描述完成');
+          refreshCredits();
         } catch (error) {
           console.error('[初始化项目] 从描述生成失败:', error);
           // 继续执行，让用户可以手动操作
@@ -356,6 +358,9 @@ const debouncedUpdatePage = debounce(
     try {
       const response = await apiCall();
       console.log('[异步任务] API响应:', response);
+
+      // Refresh credits (most async tasks consume credits upfront)
+      refreshCredits();
       
       // task_id 在 response.data 中
       const taskId = response.data?.task_id;
@@ -476,9 +481,10 @@ const debouncedUpdatePage = debounce(
     try {
       const response = await api.generateOutline(currentProject.id!);
       console.log('[生成大纲] API响应:', response);
-      
+
       // 刷新项目数据，确保获取最新的大纲页面
       await get().syncProject();
+      refreshCredits();
       
       // 再次确认数据已更新
       const { currentProject: updatedProject } = get();
@@ -501,9 +507,10 @@ const debouncedUpdatePage = debounce(
     try {
       const response = await api.generateFromDescription(currentProject.id!);
       console.log('[从描述生成] API响应:', response);
-      
+
       // 刷新项目数据，确保获取最新的大纲和描述
       await get().syncProject();
+      refreshCredits();
       
       // 再次确认数据已更新
       const { currentProject: updatedProject } = get();
@@ -545,6 +552,9 @@ const debouncedUpdatePage = debounce(
       
       const response = await api.generateDescriptions(projectId);
       const taskId = response.data?.task_id;
+
+      // Credits consumed upfront, refresh balance
+      refreshCredits();
       
       if (!taskId) {
         throw new Error('未收到任务ID');
@@ -654,6 +664,9 @@ const debouncedUpdatePage = debounce(
       // 传递 force_regenerate=true 以允许重新生成已有描述
       const response = await api.generatePageDescription(currentProject.id, pageId, true);
 
+      // Refresh credits after successful generation
+      refreshCredits();
+
       // 使用 API 返回的页面数据直接更新 store（避免额外的同步请求）
       if (response.data) {
         const updatedPageData = response.data;
@@ -709,6 +722,9 @@ const debouncedUpdatePage = debounce(
       // 调用批量生成 API
       const response = await api.generateImages(currentProject.id, undefined, pageIds);
       const taskId = response.data?.task_id;
+
+      // Credits consumed upfront, refresh balance
+      refreshCredits();
       
       if (taskId) {
         console.log(`[批量生成] 收到 task_id: ${taskId}，标记 ${targetPageIds.length} 个页面为生成中`);
@@ -878,6 +894,9 @@ const debouncedUpdatePage = debounce(
     try {
       const response = await api.editPageImage(currentProject.id, pageId, editPrompt, contextImages);
       const taskId = response.data?.task_id;
+
+      // Credits consumed upfront, refresh balance
+      refreshCredits();
       
       if (taskId) {
         // 记录该页面的任务ID

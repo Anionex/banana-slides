@@ -75,6 +75,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal,
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineOutline } from '@/api/endpoints';
+import { refreshCredits } from '@/api/auth';
 import { exportOutlineToMarkdown } from '@/utils/projectUtils';
 import type { Page } from '@/types';
 
@@ -191,6 +192,7 @@ export const OutlineEditor: React.FC = () => {
     try {
       const response = await refineOutline(projectId, requirement, previousRequirements);
       await syncProject(projectId);
+      refreshCredits();
       show({ 
         message: response.data?.message || t('outline.messages.refineSuccess'), 
         type: 'success' 

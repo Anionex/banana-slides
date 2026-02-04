@@ -234,6 +234,21 @@ export const logoutUser = () => {
 };
 
 /**
+ * Refresh user's credit balance from the server
+ * 从服务器刷新用户积分余额（轻量级，仅获取积分信息）
+ */
+export const refreshCredits = async (): Promise<void> => {
+  try {
+    const response = await apiClient.get<{ success: boolean; data: { balance: number; used_total: number } }>('/api/payment/credits');
+    const { balance, used_total } = response.data.data;
+    useAuthStore.getState().updateCredits(balance, used_total);
+  } catch (error) {
+    // Silent fail - credit refresh is best-effort
+    console.warn('Failed to refresh credits:', error);
+  }
+};
+
+/**
  * Check if user is authenticated and refresh user data
  * 每次都会验证 token，不信任存储中的 isAuthenticated
  */
