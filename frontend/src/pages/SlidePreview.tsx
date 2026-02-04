@@ -257,6 +257,11 @@ export const SlidePreview: React.FC = () => {
     return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
   }, [currentProject?.pages]);
 
+  // All pages with IDs (for multi-select, which can select ungenerated slides too)
+  const allPagesWithIds = useMemo(() => {
+    return currentProject?.pages.filter(p => p.id) || [];
+  }, [currentProject?.pages]);
+
   // 加载项目数据 & 用户模板
   useEffect(() => {
     if (projectId && (!currentProject || currentProject.id !== projectId)) {
@@ -873,7 +878,7 @@ export const SlidePreview: React.FC = () => {
   };
 
   const selectAllPages = () => {
-    const allPageIds = pagesWithImages.map(p => p.id!);
+    const allPageIds = allPagesWithIds.map(p => p.id!);
     setSelectedPageIds(new Set(allPageIds));
   };
 
@@ -1351,10 +1356,10 @@ export const SlidePreview: React.FC = () => {
               {isMultiSelectMode && (
                 <>
                   <button
-                    onClick={selectedPageIds.size === pagesWithImages.length ? deselectAllPages : selectAllPages}
+                    onClick={selectedPageIds.size === allPagesWithIds.length ? deselectAllPages : selectAllPages}
                     className="text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 transition-colors"
                   >
-                    {selectedPageIds.size === pagesWithImages.length ? t('common.deselectAll') : t('common.selectAll')}
+                    {selectedPageIds.size === allPagesWithIds.length ? t('common.deselectAll') : t('common.selectAll')}
                   </button>
                   {selectedPageIds.size > 0 && (
                     <span className="text-banana-600 font-medium">
@@ -1371,7 +1376,7 @@ export const SlidePreview: React.FC = () => {
                   <div className="md:hidden relative">
                     <button
                       onClick={() => {
-                        if (isMultiSelectMode && page.id && page.generated_image_path) {
+                        if (isMultiSelectMode && page.id) {
                           togglePageSelection(page.id);
                         } else {
                           setSelectedIndex(index);
@@ -1396,7 +1401,7 @@ export const SlidePreview: React.FC = () => {
                       )}
                     </button>
                     {/* 多选复选框（移动端） */}
-                    {isMultiSelectMode && page.id && page.generated_image_path && (
+                    {isMultiSelectMode && page.id && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1415,7 +1420,7 @@ export const SlidePreview: React.FC = () => {
                   {/* 桌面端：完整卡片 */}
                   <div className="hidden md:block relative">
                     {/* 多选复选框（桌面端） */}
-                    {isMultiSelectMode && page.id && page.generated_image_path && (
+                    {isMultiSelectMode && page.id && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1435,7 +1440,7 @@ export const SlidePreview: React.FC = () => {
                       index={index}
                       isSelected={selectedIndex === index}
                       onClick={() => {
-                        if (isMultiSelectMode && page.id && page.generated_image_path) {
+                        if (isMultiSelectMode && page.id) {
                           togglePageSelection(page.id);
                         } else {
                           setSelectedIndex(index);
