@@ -11,7 +11,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
 
-from models import db, Project, Page, Task, ReferenceFile
+from models import db, Project, Page, Task, ReferenceFile, UserSettings
 from services import ProjectContext
 from services.ai_service_manager import get_ai_service
 from services.task_manager import (
@@ -29,6 +29,12 @@ from services.credits_service import CreditsService, CreditOperation
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
+
+
+def _get_user_output_language(user_id: str) -> str:
+    """Get the output_language from the current user's settings."""
+    settings = UserSettings.get_or_create_for_user(user_id)
+    return settings.output_language or 'zh'
 
 
 def _get_user_project(project_id: str, user_id: str):
@@ -416,7 +422,7 @@ def generate_outline(project_id):
         
         # Get request data and language parameter
         data = request.get_json() or {}
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -539,7 +545,7 @@ def generate_from_description(project_id):
         # Get description text and language
         data = request.get_json() or {}
         description_text = data.get('description_text') or project.description_text
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         if not description_text:
             return bad_request("description_text is required")
@@ -677,7 +683,7 @@ def generate_descriptions(project_id):
         data = request.get_json() or {}
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Create task
         task = Task(
@@ -796,7 +802,7 @@ def generate_images(project_id):
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Create task
         task = Task(
@@ -946,7 +952,7 @@ def refine_outline(project_id):
         
         # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Refine outline
         logger.info(f"开始修改大纲: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
@@ -1125,7 +1131,7 @@ def refine_descriptions(project_id):
         
         # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Refine descriptions
         logger.info(f"开始修改页面描述: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")

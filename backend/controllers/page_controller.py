@@ -3,7 +3,7 @@ Page Controller - handles page-related endpoints
 """
 import logging
 from flask import Blueprint, request, current_app
-from models import db, Project, Page, PageImageVersion, Task
+from models import db, Project, Page, PageImageVersion, Task, UserSettings
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
@@ -19,6 +19,12 @@ import json
 logger = logging.getLogger(__name__)
 
 page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
+
+
+def _get_user_output_language(user_id: str) -> str:
+    """Get the output_language from the current user's settings."""
+    settings = UserSettings.get_or_create_for_user(user_id)
+    return settings.output_language or 'zh'
 
 
 def _get_user_project(project_id: str, user_id: str):
@@ -291,7 +297,7 @@ def generate_page_description(project_id, page_id):
         
         data = request.get_json() or {}
         force_regenerate = data.get('force_regenerate', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Check if already generated
         if page.get_description_content() and not force_regenerate:
@@ -380,7 +386,7 @@ def generate_page_image(project_id, page_id):
         data = request.get_json() or {}
         use_template = data.get('use_template', True)
         force_regenerate = data.get('force_regenerate', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', _get_user_output_language(user.id))
         
         # Check if already generated
         if page.generated_image_path and not force_regenerate:
