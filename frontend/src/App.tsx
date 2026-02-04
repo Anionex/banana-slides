@@ -98,10 +98,10 @@ function App() {
             <History />
           </ProtectedRoute>
         } />
-        <Route path="/settings" element={
-          <ProtectedRoute>
+        <Route path="/admin/settings" element={
+          <AdminRoute>
             <SettingsPage />
-          </ProtectedRoute>
+          </AdminRoute>
         } />
         <Route path="/pricing" element={
           <ProtectedRoute>

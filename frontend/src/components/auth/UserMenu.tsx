@@ -113,14 +113,16 @@ export default function UserMenu() {
                   <span>{t('nav.admin', '管理后台')}</span>
                 </Link>
               )}
-              <Link
-                to="/settings"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
-              >
-                <Settings size={18} />
-                <span>{t('nav.settings', '设置')}</span>
-              </Link>
+              {user.is_admin && (
+                <Link
+                  to="/admin/settings"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+                >
+                  <Settings size={18} />
+                  <span>{t('nav.settings', '设置')}</span>
+                </Link>
+              )}
               <Link
                 to="/pricing"
                 onClick={() => setIsOpen(false)}

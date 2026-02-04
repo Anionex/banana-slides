@@ -16,7 +16,7 @@ from services.file_parser_service import FileParserService
 from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_accurate_ocr_provider
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.task_manager import task_manager
-from middlewares.auth import auth_required, get_current_user
+from middlewares.auth import auth_required, admin_required, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,7 @@ def temporary_settings_override(settings_override: dict):
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
 @auth_required
+@admin_required
 def get_settings():
     """
     GET /api/settings - Get user-specific application settings
@@ -137,6 +138,7 @@ def get_settings():
 
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
 @auth_required
+@admin_required
 def update_settings():
     """
     PUT /api/settings - Update user-specific application settings
@@ -274,6 +276,7 @@ def update_settings():
 
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
 @auth_required
+@admin_required
 def reset_settings():
     """
     POST /api/settings/reset - Reset user settings to default values
@@ -338,6 +341,7 @@ def reset_settings():
 
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
 @auth_required
+@admin_required
 def verify_api_key():
     """
     POST /api/settings/verify - 验证API key是否可用
@@ -790,6 +794,7 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
 
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
 @auth_required
+@admin_required
 def run_settings_test(test_name: str):
     """
     POST /api/settings/tests/<test_name> - 启动异步服务测试
@@ -854,6 +859,7 @@ def run_settings_test(test_name: str):
 
 @settings_bp.route("/tests/<task_id>/status", methods=["GET"], strict_slashes=False)
 @auth_required
+@admin_required
 def get_test_status(task_id: str):
     """
     GET /api/settings/tests/<task_id>/status - 查询测试任务状态
