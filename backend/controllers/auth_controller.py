@@ -79,23 +79,23 @@ def register():
                 'message': '注册成功'
             }, status_code=201)
         
-        # 生产模式：发送验证邮件，不返回 tokens
-        verification_url = f"{_get_frontend_url()}/verify-email?token={user.verification_token}"
-        email_sent = email_service.send_verification_email(
+        # 生产模式：发送验证码邮件，不返回 tokens
+        email_sent = email_service.send_verification_code_email(
             to=user.email,
             username=user.username or user.email.split('@')[0],
-            verification_url=verification_url
+            code=user.verification_token
         )
-        
+
         if not email_sent:
             logger.warning(f"Failed to send verification email to {user.email}")
-        
+
         logger.info(f"User registered successfully: {user.id}")
-        
+
         # 不返回 tokens，要求用户先验证邮箱
         return success_response({
             'user': user.to_dict(),
-            'message': '注册成功，请查收验证邮件并点击链接验证后登录',
+            'email': user.email,
+            'message': '注册成功，请查收验证码邮件',
             'require_verification': True
         }, status_code=201)
     
@@ -233,40 +233,55 @@ def get_current_user_info():
 @auth_bp.route('/verify-email', methods=['POST'])
 def verify_email():
     """
-    POST /api/auth/verify-email - Verify email with token
-    
+    POST /api/auth/verify-email - Verify email with code
+
     Request body:
     {
-        "token": "verification_token"
+        "email": "user@example.com",
+        "code": "123456"
     }
-    
+
     Returns:
     {
         "data": {
-            "message": "邮箱验证成功"
+            "message": "邮箱验证成功",
+            "user": {...},
+            "access_token": "...",
+            "refresh_token": "..."
         }
     }
     """
     try:
         data = request.get_json()
-        
+
         if not data:
             return bad_request("请求体不能为空")
-        
-        token = data.get('token', '')
-        
-        if not token:
-            return bad_request("验证令牌不能为空")
-        
-        user, error = AuthService.verify_email(token)
-        
+
+        email = data.get('email', '').strip()
+        code = data.get('code', '').strip()
+
+        if not email:
+            return bad_request("邮箱不能为空")
+
+        if not code:
+            return bad_request("验证码不能为空")
+
+        user, error = AuthService.verify_email(email, code)
+
         if error:
             return error_response('VERIFICATION_FAILED', error, 400)
-        
+
         logger.info(f"Email verified for user: {user.id}")
-        
-        return success_response({'message': '邮箱验证成功'})
-    
+
+        # 验证成功后返回 tokens，用户可直接登录
+        tokens = AuthService.generate_tokens(user)
+
+        return success_response({
+            'message': '邮箱验证成功',
+            'user': user.to_dict(),
+            **tokens,
+        })
+
     except Exception as e:
         logger.error(f"Email verification error: {e}", exc_info=True)
         return error_response('SERVER_ERROR', '验证失败，请稍后重试', 500)
@@ -305,18 +320,17 @@ def resend_verification():
         if error:
             return error_response('RESEND_FAILED', error, 400)
         
-        # Send verification email
-        verification_url = f"{_get_frontend_url()}/verify-email?token={user.verification_token}"
-        email_sent = email_service.send_verification_email(
+        # Send verification code email
+        email_sent = email_service.send_verification_code_email(
             to=user.email,
             username=user.username or user.email.split('@')[0],
-            verification_url=verification_url
+            code=user.verification_token
         )
-        
+
         if not email_sent:
             logger.warning(f"Failed to send verification email to {user.email}")
-        
-        return success_response({'message': '验证邮件已发送'})
+
+        return success_response({'message': '验证码已发送'})
     
     except Exception as e:
         logger.error(f"Resend verification error: {e}", exc_info=True)

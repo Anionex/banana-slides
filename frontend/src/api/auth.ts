@@ -24,6 +24,7 @@ interface LoginResponse {
 interface RegisterResponse {
   user: User;
   message: string;
+  email?: string;
   require_verification?: boolean;
   // 只有开发模式跳过验证时才有 tokens
   access_token?: string;
@@ -78,10 +79,11 @@ export const authApi = {
   },
 
   /**
-   * Verify email with token
+   * Verify email with code
    */
-  verifyEmail: async (token: string): Promise<void> => {
-    await apiClient.post('/api/auth/verify-email', { token });
+  verifyEmail: async (email: string, code: string): Promise<LoginResponse> => {
+    const response = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/verify-email', { email, code });
+    return response.data.data;
   },
 
   /**
@@ -216,9 +218,10 @@ export const registerUser = async (email: string, password: string, username?: s
     });
   }
   
-  return { 
-    user: data.user, 
+  return {
+    user: data.user,
     message: data.message,
+    email: data.email || data.user.email,
     requireVerification: data.require_verification || false
   };
 };

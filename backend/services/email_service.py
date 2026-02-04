@@ -92,6 +92,70 @@ class EmailService:
             logger.error(f"Failed to send email to {to}: {e}")
             return False
     
+    def send_verification_code_email(
+        self,
+        to: str,
+        username: str,
+        code: str,
+    ) -> bool:
+        """
+        发送邮箱验证码邮件
+
+        Args:
+            to: 收件人邮箱
+            username: 用户名
+            code: 6位数字验证码
+        """
+        subject = "您的 Banana Slides 验证码"
+
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .logo {{ font-size: 24px; font-weight: bold; color: #1A1A1A; }}
+                .logo span {{ color: #FFC700; }}
+                .content {{ background: #FFF9E6; border-radius: 8px; padding: 30px; }}
+                .code-box {{ background: #FFD700; color: #1A1A1A; padding: 20px; border-radius: 8px;
+                            text-align: center; margin: 20px 0; }}
+                .code {{ font-size: 36px; font-weight: bold; letter-spacing: 8px; font-family: monospace; }}
+                .footer {{ text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo"><span>🍌</span> Banana Slides</div>
+                </div>
+                <div class="content">
+                    <h2>欢迎加入 Banana Slides！</h2>
+                    <p>您好 {username or '用户'}，</p>
+                    <p>感谢您注册 Banana Slides。请使用以下验证码完成邮箱验证：</p>
+                    <div class="code-box">
+                        <div class="code">{code}</div>
+                    </div>
+                    <p>此验证码 10 分钟内有效。</p>
+                    <p>如果您没有注册 Banana Slides，请忽略此邮件。</p>
+                </div>
+                <div class="footer">
+                    <p>© 2026 Banana Slides. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return self.send_email(
+            to=to,
+            subject=subject,
+            html=html,
+            tags=[{'name': 'type', 'value': 'verification_code'}]
+        )
+
     def send_verification_email(
         self,
         to: str,

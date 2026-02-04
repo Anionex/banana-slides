@@ -9,9 +9,9 @@ from typing import Optional, Tuple, Dict, Any
 
 from models import db, User
 from utils.security import (
-    hash_password, 
-    verify_password, 
-    generate_verification_token,
+    hash_password,
+    verify_password,
+    generate_verification_code,
     generate_password_reset_token,
     is_token_expired
 )
@@ -62,11 +62,11 @@ class AuthService:
             # 开发模式下跳过邮箱验证
             skip_verification = os.getenv('SKIP_EMAIL_VERIFICATION', 'false').lower() == 'true'
             
-            # Generate verification token (除非开发模式跳过)
+            # Generate verification code (除非开发模式跳过)
             verification_token = None
             verification_expires = None
             if not skip_verification:
-                verification_token, verification_expires = generate_verification_token()
+                verification_token, verification_expires = generate_verification_code()
             
             # Create user
             user = User(
@@ -295,36 +295,44 @@ class AuthService:
     # ==================== Email Verification ====================
     
     @staticmethod
-    def verify_email(token: str) -> Tuple[Optional[User], Optional[str]]:
+    def verify_email(email: str, code: str) -> Tuple[Optional[User], Optional[str]]:
         """
-        Verify a user's email using the verification token.
-        
+        Verify a user's email using email + verification code.
+
         Args:
-            token: Verification token from email
-            
+            email: User's email address
+            code: 6-digit verification code
+
         Returns:
             Tuple of (User, error_message)
         """
-        user = User.query.filter_by(verification_token=token).first()
-        
+        email = email.lower().strip()
+        user = User.query.filter_by(email=email).first()
+
         if not user:
-            return None, "验证链接无效"
-        
-        if is_token_expired(user.verification_token_expires):
-            return None, "验证链接已过期，请重新发送"
-        
+            return None, "验证码无效"
+
         if user.email_verified:
             return user, None  # Already verified, return success
-        
+
+        if not user.verification_token:
+            return None, "验证码无效"
+
+        if is_token_expired(user.verification_token_expires):
+            return None, "验证码已过期，请重新发送"
+
+        if user.verification_token != code:
+            return None, "验证码错误"
+
         try:
             user.email_verified = True
             user.verification_token = None
             user.verification_token_expires = None
             db.session.commit()
-            
+
             logger.info(f"Email verified for user: {user.id}")
             return user, None
-            
+
         except Exception as e:
             db.session.rollback()
             logger.error(f"Email verification failed: {e}")
@@ -351,7 +359,7 @@ class AuthService:
             return None, "邮箱已验证"
         
         try:
-            verification_token, verification_expires = generate_verification_token()
+            verification_token, verification_expires = generate_verification_code()
             user.verification_token = verification_token
             user.verification_token_expires = verification_expires
             db.session.commit()

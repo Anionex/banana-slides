@@ -2,8 +2,8 @@
  * Register Page
  * 注册页面
  */
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { registerUser, authApi } from '../../api/auth';
 import { Button } from '../../components/shared';
 import { useT } from '../../hooks/useT';
@@ -24,16 +24,13 @@ const registerI18n = {
       termsLink: '服务条款',
       and: '和',
       privacyLink: '隐私政策',
-      submit: '发送验证链接',
+      submit: '发送验证码',
       submitting: '发送中...',
-      resendIn: '秒后可重新发送',
       hasAccount: '已有账号？',
       login: '立即登录',
       passwordMismatch: '两次输入的密码不一致',
       passwordTooShort: '密码长度不能少于8位',
       registerFailed: '注册失败，请重试',
-      emailSent: '验证邮件已发送，请查收邮箱并点击链接验证',
-      emailResent: '验证邮件已重新发送',
       footer: '© 2026 Banana Slides. All rights reserved.',
       emailPlaceholder: 'your@email.com',
       usernamePlaceholder: '您的昵称',
@@ -55,16 +52,13 @@ const registerI18n = {
       termsLink: 'Terms of Service',
       and: 'and',
       privacyLink: 'Privacy Policy',
-      submit: 'Send Verification Link',
+      submit: 'Send Verification Code',
       submitting: 'Sending...',
-      resendIn: 's to resend',
       hasAccount: 'Already have an account?',
       login: 'Sign in',
       passwordMismatch: 'Passwords do not match',
       passwordTooShort: 'Password must be at least 8 characters',
       registerFailed: 'Registration failed, please try again',
-      emailSent: 'Verification email sent. Please check your inbox and click the link.',
-      emailResent: 'Verification email resent',
       footer: '© 2026 Banana Slides. All rights reserved.',
       emailPlaceholder: 'your@email.com',
       usernamePlaceholder: 'Your nickname',
@@ -74,32 +68,20 @@ const registerI18n = {
   },
 };
 
-const COOLDOWN_SECONDS = 30;
-
 export default function RegisterPage() {
   const t = useT(registerI18n);
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-
-  // 倒计时逻辑
-  useEffect(() => {
-    if (cooldown > 0) {
-      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [cooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
 
     // Validation
     if (password !== confirmPassword) {
@@ -115,12 +97,11 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { message, requireVerification } = await registerUser(email, password, username || undefined);
-      
+      const { email: userEmail, requireVerification } = await registerUser(email, password, username || undefined);
+
       if (requireVerification) {
-        // 验证邮件已发送，显示成功消息并开始倒计时
-        setSuccess(t('register.emailSent'));
-        setCooldown(COOLDOWN_SECONDS);
+        // 跳转到验证码输入页面
+        navigate('/verify-email', { state: { email: userEmail || email } });
       } else {
         // 开发模式：直接刷新页面进入主页
         window.location.href = '/';
@@ -135,8 +116,8 @@ export default function RegisterPage() {
       if (errorCode === 'REGISTRATION_FAILED' && errorMessage.includes('已被注册')) {
         try {
           await authApi.resendVerification(email);
-          setSuccess(t('register.emailResent'));
-          setCooldown(COOLDOWN_SECONDS);
+          // 跳转到验证码输入页面
+          navigate('/verify-email', { state: { email } });
         } catch (resendErr: any) {
           // 如果邮箱已验证，提示用户去登录
           const resendError = resendErr.response?.data?.error?.message;
@@ -154,7 +135,7 @@ export default function RegisterPage() {
     }
   };
 
-  const isDisabled = loading || cooldown > 0;
+  const isDisabled = loading;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-background-primary relative overflow-hidden py-12">
@@ -177,12 +158,6 @@ export default function RegisterPage() {
         {/* Register Form */}
         <div className="bg-white dark:bg-background-elevated rounded-2xl p-8 shadow-xl border border-gray-200 dark:border-border-primary">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-foreground-primary mb-6 text-center">{t('register.title')}</h2>
-
-          {success && (
-            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30 rounded-lg text-green-700 dark:text-green-400 text-sm">
-              {success}
-            </div>
-          )}
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg text-red-700 dark:text-red-400 text-sm">
@@ -276,12 +251,7 @@ export default function RegisterPage() {
               className="w-full mt-2"
               size="lg"
             >
-              {loading 
-                ? t('register.submitting') 
-                : cooldown > 0 
-                  ? `${cooldown}${t('register.resendIn')}`
-                  : t('register.submit')
-              }
+              {loading ? t('register.submitting') : t('register.submit')}
             </Button>
           </form>
 

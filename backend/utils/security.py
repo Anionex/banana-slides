@@ -63,10 +63,27 @@ def generate_token(length: int = 32) -> str:
     return secrets.token_hex(length)
 
 
+def generate_verification_code(length: int = 6, expires_minutes: int = 10) -> Tuple[str, datetime]:
+    """
+    Generate a numeric verification code with expiration time.
+    Reusable for email/phone verification.
+
+    Args:
+        length: Number of digits (default 6)
+        expires_minutes: Expiration time in minutes (default 10)
+
+    Returns:
+        Tuple of (code, expires_at)
+    """
+    code = ''.join([str(secrets.randbelow(10)) for _ in range(length)])
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    return code, expires_at
+
+
 def generate_verification_token() -> Tuple[str, datetime]:
     """
     Generate an email verification token with expiration time.
-    
+
     Returns:
         Tuple of (token, expires_at)
     """
