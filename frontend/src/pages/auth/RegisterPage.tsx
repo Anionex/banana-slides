@@ -2,11 +2,12 @@
  * Register Page
  * 注册页面
  */
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { registerUser, authApi } from '../../api/auth';
 import { Button } from '../../components/shared';
 import { useT } from '../../hooks/useT';
+import * as api from '../../api/endpoints';
 
 // 组件内翻译
 const registerI18n = {
@@ -19,6 +20,10 @@ const registerI18n = {
       optional: '(可选)',
       password: '密码',
       confirmPassword: '确认密码',
+      invitationCode: '邀请码',
+      invitationCodePlaceholder: '输入邀请码（可选）',
+      invitationValid: '有效邀请码，注册后双方各得 {{bonus}} 积分',
+      invitationInvalid: '邀请码无效',
       required: '*',
       terms: '我已阅读并同意',
       termsLink: '服务条款',
@@ -47,6 +52,10 @@ const registerI18n = {
       optional: '(Optional)',
       password: 'Password',
       confirmPassword: 'Confirm Password',
+      invitationCode: 'Invitation Code',
+      invitationCodePlaceholder: 'Enter invitation code (optional)',
+      invitationValid: 'Valid code! Both parties get {{bonus}} credits',
+      invitationInvalid: 'Invalid invitation code',
       required: '*',
       terms: 'I have read and agree to the',
       termsLink: 'Terms of Service',
@@ -71,13 +80,38 @@ const registerI18n = {
 export default function RegisterPage() {
   const t = useT(registerI18n);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [invitationCode, setInvitationCode] = useState(searchParams.get('invite') || '');
+  const [invitationStatus, setInvitationStatus] = useState<{ valid: boolean; bonus?: number; message?: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Validate invitation code when it changes
+  useEffect(() => {
+    const validateCode = async () => {
+      if (!invitationCode || invitationCode.length < 6) {
+        setInvitationStatus(null);
+        return;
+      }
+
+      try {
+        const res = await api.validateInvitationCode(invitationCode);
+        if (res.data) {
+          setInvitationStatus(res.data);
+        }
+      } catch {
+        setInvitationStatus({ valid: false, message: t('register.invitationInvalid') });
+      }
+    };
+
+    const timer = setTimeout(validateCode, 500);
+    return () => clearTimeout(timer);
+  }, [invitationCode, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +131,12 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { email: userEmail, requireVerification } = await registerUser(email, password, username || undefined);
+      const { email: userEmail, requireVerification } = await registerUser(
+        email,
+        password,
+        username || undefined,
+        invitationCode || undefined
+      );
 
       if (requireVerification) {
         // 跳转到验证码输入页面
@@ -224,6 +263,28 @@ export default function RegisterPage() {
                 className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
                 placeholder={t('register.confirmPasswordPlaceholder')}
               />
+            </div>
+
+            {/* Invitation Code (optional) */}
+            <div>
+              <label htmlFor="invitationCode" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+                {t('register.invitationCode')} <span className="text-gray-500 dark:text-foreground-tertiary">{t('register.optional')}</span>
+              </label>
+              <input
+                id="invitationCode"
+                type="text"
+                value={invitationCode}
+                onChange={(e) => setInvitationCode(e.target.value)}
+                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
+                placeholder={t('register.invitationCodePlaceholder')}
+              />
+              {invitationStatus && (
+                <p className={`mt-1.5 text-sm ${invitationStatus.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {invitationStatus.valid
+                    ? t('register.invitationValid', { bonus: invitationStatus.bonus })
+                    : invitationStatus.message || t('register.invitationInvalid')}
+                </p>
+              )}
             </div>
 
             <div className="flex items-start text-sm pt-2">

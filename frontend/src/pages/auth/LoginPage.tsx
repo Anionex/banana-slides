@@ -48,7 +48,7 @@ export default function LoginPage() {
   const t = useT(loginI18n);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as any)?.from?.pathname || '/app';
   const registerMessage = (location.state as any)?.message;
 
   const [email, setEmail] = useState('');
