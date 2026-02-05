@@ -608,18 +608,6 @@ export const Home: React.FC = () => {
     }
 
     try {
-      try {
-        const historyResponse = await listProjects(1, 0);
-        if ((historyResponse.data?.projects || []).length === 0) {
-          show({
-            message: t('home.messages.serviceTestTip'),
-            type: 'info'
-          });
-        }
-      } catch (error) {
-        console.warn('检查历史项目失败，跳过提示:', error);
-      }
-
       // 如果有模板ID但没有File，按需加载
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
