@@ -245,9 +245,10 @@ def export_editable_pptx(project_id):
         has_images = any(page.generated_image_path for page in pages)
         if not has_images:
             return bad_request("No generated images found for project")
-        
-        # Consume credits upfront (atomic, async task will run)
-        success, err = CreditsService.consume_credits(user, CreditOperation.EXPORT_EDITABLE)
+
+        # Consume credits upfront - charge per page
+        pages_count = len(pages)
+        success, err = CreditsService.consume_credits(user, CreditOperation.EXPORT_EDITABLE, pages_count)
         if not success:
             return error_response('INSUFFICIENT_CREDITS', err, 402)
         
