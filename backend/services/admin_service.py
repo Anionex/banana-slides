@@ -2,6 +2,7 @@
 Admin service - business logic for the admin dashboard
 """
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -126,7 +127,7 @@ class AdminService:
         }
 
     @staticmethod
-    def adjust_user_credits(user_id, amount, reason=''):
+    def adjust_user_credits(user_id, amount, reason='', admin_id=None):
         """Adjust a user's credit balance. amount can be positive or negative."""
         user = User.query.get(user_id)
         if not user:
@@ -137,6 +138,20 @@ class AdminService:
             return None, 'Insufficient credits, balance cannot go below 0'
 
         user.credits_balance = new_balance
+
+        # Create transaction record for auditing
+        description = f"Admin adjustment: {reason}" if reason else "Admin adjustment"
+        if admin_id:
+            description = f"[by {admin_id[:8]}] {description}"
+
+        transaction = CreditTransaction(
+            user_id=user_id,
+            operation='ADMIN_ADJUST',
+            amount=amount,
+            balance_after=new_balance,
+            description=description,
+        )
+        db.session.add(transaction)
         db.session.commit()
 
         logger.info(
@@ -168,12 +183,13 @@ class AdminService:
         return user.to_dict(), None
 
     @staticmethod
-    def change_user_subscription(user_id, plan, expires_at=None):
+    def change_user_subscription(user_id, plan, expires_at=None, admin_id=None):
         """Change a user's subscription plan and optional expiry."""
         user = User.query.get(user_id)
         if not user:
             return None, 'User not found'
 
+        old_plan = user.subscription_plan or 'free'
         user.subscription_plan = plan
         if expires_at:
             user.subscription_expires_at = datetime.fromisoformat(
@@ -182,6 +198,24 @@ class AdminService:
         else:
             user.subscription_expires_at = None
 
+        # Create a zero-amount order for auditing
+        order = PaymentOrder(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            package_id='plan_change',
+            package_name=f'Plan: {old_plan} → {plan}',
+            credits=0,
+            bonus_credits=0,
+            total_credits=0,
+            amount=0,
+            currency='CNY',
+            payment_provider='admin',
+            payment_type=f'by {admin_id[:8]}' if admin_id else 'admin',
+            status='paid',
+            created_at=datetime.now(timezone.utc),
+            paid_at=datetime.now(timezone.utc),
+        )
+        db.session.add(order)
         db.session.commit()
 
         logger.info(

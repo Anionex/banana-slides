@@ -18,6 +18,17 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_string(value: str) -> str:
+    """
+    Sanitize string to ensure it only contains ASCII characters.
+    Removes leading/trailing whitespace and non-ASCII characters.
+    """
+    if not value:
+        return value
+    # Strip whitespace and encode/decode to remove non-ASCII
+    return value.strip().encode('ascii', 'ignore').decode('ascii')
+
+
 class GenAIImageProvider(ImageProvider):
     """Image generation using Google GenAI SDK (supports both AI Studio and Vertex AI)"""
 
@@ -42,6 +53,13 @@ class GenAIImageProvider(ImageProvider):
             location: GCP region (for Vertex AI mode, default: us-central1)
         """
         timeout_ms = int(get_config().GENAI_TIMEOUT * 1000)
+
+        # Sanitize string parameters to avoid ASCII encoding errors
+        api_key = _sanitize_string(api_key) if api_key else None
+        api_base = _sanitize_string(api_base) if api_base else None
+        model = _sanitize_string(model) if model else "gemini-3-pro-image-preview"
+        project_id = _sanitize_string(project_id) if project_id else None
+        location = _sanitize_string(location) if location else None
 
         if vertexai:
             # Vertex AI mode - uses service account credentials from GOOGLE_APPLICATION_CREDENTIALS

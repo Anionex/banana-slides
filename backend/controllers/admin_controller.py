@@ -125,7 +125,8 @@ def adjust_credits(user_id):
     if amount is None or not isinstance(amount, int):
         return error_response('INVALID_REQUEST', 'amount (integer) is required')
 
-    user_data, err = AdminService.adjust_user_credits(user_id, amount, reason)
+    admin = get_current_user()
+    user_data, err = AdminService.adjust_user_credits(user_id, amount, reason, admin.id)
     if err:
         return error_response('INVALID_REQUEST', err, 400)
     return success_response(user_data)
@@ -165,9 +166,10 @@ def change_subscription(user_id):
             'subscription_plan must be one of: free, pro, enterprise',
         )
 
+    admin = get_current_user()
     expires_at = body.get('subscription_expires_at')
     user_data, err = AdminService.change_user_subscription(
-        user_id, plan, expires_at
+        user_id, plan, expires_at, admin.id
     )
     if err:
         return error_response('INVALID_REQUEST', err, 400)
