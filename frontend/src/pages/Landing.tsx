@@ -18,6 +18,15 @@ const landingI18n = {
         subtitle: "专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几分钟。",
         cta_primary: "免费开始使用"
       }
+    },
+    help: {
+      showcaseTitles: { softwareDev: "软件开发最佳实践", deepseek: "DeepSeek-V3.2技术展示", prefabFood: "预制菜智能产线装备研发和产业化", moneyHistory: "钱的演变：从贝壳到纸币的旅程" },
+      features: {
+        flexiblePaths: { title: "灵活多样的创作路径", description: "支持想法、大纲、页面描述三种起步方式，满足不同创作习惯。", details: ["一句话生成：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述", "自然语言编辑：支持以 Vibe 形式口头修改大纲或描述，AI 实时响应调整", "大纲/描述模式：既可一键批量生成，也可手动调整细节"] },
+        materialParsing: { title: "强大的素材解析能力", description: "上传多种格式文件，自动解析内容，为生成提供丰富素材。", details: ["多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容", "智能提取：自动识别文本中的关键点、图片链接和图表信息", "风格参考：支持上传参考图片或模板，定制 PPT 风格"] },
+        vibeEditing: { title: "「Vibe」式自然语言修改", description: "不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。", details: ["局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）", "整页优化：基于 nano banana pro 生成高清、风格统一的页面"] },
+        easyExport: { title: "开箱即用的格式导出", description: "一键导出标准格式，直接演示无需调整。", details: ["多格式支持：一键导出标准 PPTX 或 PDF 文件", "完美适配：默认 16:9 比例，排版无需二次调整"] }
+      }
     }
   },
   en: {
@@ -30,6 +39,15 @@ const landingI18n = {
         title_end: "No Formatting Hassle",
         subtitle: "Focus on your content and ideas, leave the rest to Banana Slides. From outline to beautiful slides in seconds.",
         cta_primary: "Get Started for Free"
+      }
+    },
+    help: {
+      showcaseTitles: { softwareDev: "Software Development Best Practices", deepseek: "DeepSeek-V3.2 Technical Showcase", prefabFood: "Prefab Food Intelligent Production Line R&D", moneyHistory: "The Evolution of Money: From Shells to Paper" },
+      features: {
+        flexiblePaths: { title: "Flexible Creation Paths", description: "Support idea, outline, page description three starting ways to meet different creative habits.", details: ["One-sentence generation: Enter a topic, AI automatically generates a well-structured outline and page-by-page content descriptions", "Natural language editing: Support verbal modification of outline or description in Vibe form, AI responds in real-time", "Outline/description mode: Both one-click batch generation and manual detail adjustment"] },
+        materialParsing: { title: "Powerful Material Parsing", description: "Upload multiple format files, automatically parse content to provide rich materials for generation.", details: ["Multi-format support: Upload PDF/Docx/MD/Txt files, backend automatically parses content", "Smart extraction: Automatically identify key points, image links and chart information in text", "Style reference: Support uploading reference images or templates to customize PPT style"] },
+        vibeEditing: { title: "\"Vibe\" Style Natural Language Editing", description: "No longer limited by complex menu buttons, directly issue modification commands through natural language.", details: ["Partial redraw: Make verbal modifications to unsatisfying areas (e.g., \"Change this chart to a pie chart\")", "Full page optimization: Generate HD, style-consistent pages based on nano banana pro"] },
+        easyExport: { title: "Ready-to-Use Format Export", description: "One-click export to standard formats, present directly without adjustments.", details: ["Multi-format support: One-click export to standard PPTX or PDF files", "Perfect fit: Default 16:9 ratio, no secondary layout adjustments needed"] }
       }
     }
   }
@@ -64,22 +82,26 @@ export const Landing: React.FC = () => {
     {
       key: 'flexiblePaths',
       icon: <Sparkles size={24} className="text-yellow-600 dark:text-banana" />,
-      bg: "bg-yellow-50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/20"
+      bg: "bg-yellow-50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/20",
+      image: "https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba"
     },
     {
       key: 'materialParsing',
       icon: <FileText size={24} className="text-blue-600 dark:text-blue-400" />,
-      bg: "bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20"
+      bg: "bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20",
+      image: "https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936"
     },
     {
       key: 'vibeEditing',
       icon: <MessageSquare size={24} className="text-green-600 dark:text-green-400" />,
-      bg: "bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20"
+      bg: "bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20",
+      image: "https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3"
     },
     {
       key: 'easyExport',
       icon: <Download size={24} className="text-purple-600 dark:text-purple-400" />,
-      bg: "bg-purple-50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/20"
+      bg: "bg-purple-50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/20",
+      image: "https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984"
     }
   ];
 
@@ -261,17 +283,12 @@ export const Landing: React.FC = () => {
 
                 {/* 视觉区域 */}
                 <div className="flex-1 w-full max-w-lg lg:max-w-none">
-                  <div className={`aspect-square rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 ${feature.bg} bg-opacity-30 dark:bg-opacity-10 backdrop-blur-sm flex items-center justify-center relative group hover:scale-[1.02] transition-transform duration-500`}>
-                    {/* 装饰背景 */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent dark:from-white/5 dark:to-transparent" />
-                    
-                    {/* 中心图标/内容 */}
-                    <div className="relative z-10 transform transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3">
-                      {React.cloneElement(feature.icon as React.ReactElement, { size: 120, strokeWidth: 1.5 })}
-                    </div>
-
-                    {/* 装饰元素 */}
-                    <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-current opacity-10 rounded-full blur-2xl animate-pulse" style={{ color: feature.icon.props.className.includes('yellow') ? '#EAB308' : feature.icon.props.className.includes('blue') ? '#3B82F6' : feature.icon.props.className.includes('green') ? '#22C55E' : '#A855F7' }} />
+                  <div className={`aspect-video rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 relative group hover:scale-[1.02] transition-transform duration-500`}>
+                    <img
+                      src={feature.image}
+                      alt={t(`help.features.${feature.key}.title`)}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </div>
               </div>
