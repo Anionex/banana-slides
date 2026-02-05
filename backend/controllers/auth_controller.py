@@ -26,14 +26,15 @@ def _get_frontend_url() -> str:
 def register():
     """
     POST /api/auth/register - Register a new user
-    
+
     Request body:
     {
         "email": "user@example.com",
         "password": "password123",
-        "username": "optional_username"
+        "username": "optional_username",
+        "invitation_code": "optional_invitation_code"
     }
-    
+
     Returns:
     {
         "data": {
@@ -48,23 +49,24 @@ def register():
     """
     try:
         data = request.get_json()
-        
+
         if not data:
             return bad_request("请求体不能为空")
-        
+
         email = data.get('email', '').strip()
         password = data.get('password', '')
         username = data.get('username', '').strip() or None
-        
+        invitation_code = data.get('invitation_code', '').strip() or None
+
         if not email:
             return bad_request("邮箱不能为空")
-        
+
         if not password:
             return bad_request("密码不能为空")
-        
-        # Register user
-        user, error = AuthService.register(email, password, username)
-        
+
+        # Register user with optional invitation code
+        user, error = AuthService.register(email, password, username, invitation_code)
+
         if error:
             return error_response('REGISTRATION_FAILED', error, 400)
         

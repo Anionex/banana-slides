@@ -32,17 +32,18 @@ class AuthService:
     REFRESH_TOKEN_EXPIRES_REMEMBER = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES_REMEMBER', 2592000))  # 30 days
     
     # ==================== User Registration ====================
-    
+
     @staticmethod
-    def register(email: str, password: str, username: Optional[str] = None) -> Tuple[Optional[User], Optional[str]]:
+    def register(email: str, password: str, username: Optional[str] = None, invitation_code: Optional[str] = None) -> Tuple[Optional[User], Optional[str]]:
         """
         Register a new user.
-        
+
         Args:
             email: User's email address
             password: Plain text password
             username: Optional username
-            
+            invitation_code: Optional invitation code for referral bonus
+
         Returns:
             Tuple of (User, error_message). User is None if registration failed.
         """
@@ -58,22 +59,39 @@ class AuthService:
         # Validate password
         if len(password) < 8:
             return None, "密码长度不能少于8位"
-        
+
         # Check if email already exists
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
             return None, "该邮箱已被注册"
-        
+
+        # Validate invitation code if provided
+        invitation = None
+        if invitation_code:
+            from models import InvitationCode
+            invitation = InvitationCode.get_by_code(invitation_code)
+            if not invitation or not invitation.is_valid():
+                return None, "邀请码无效或已被使用"
+
         try:
             # 开发模式下跳过邮箱验证
             skip_verification = os.getenv('SKIP_EMAIL_VERIFICATION', 'false').lower() == 'true'
-            
+
             # Generate verification code (除非开发模式跳过)
             verification_token = None
             verification_expires = None
             if not skip_verification:
                 verification_token, verification_expires = generate_verification_code()
-            
+
+            # Get registration bonus from SystemConfig
+            registration_bonus = 50  # Default
+            try:
+                from models import SystemConfig
+                config = SystemConfig.get_instance()
+                registration_bonus = config.registration_bonus
+            except Exception as e:
+                logger.warning(f"Failed to get registration bonus from SystemConfig: {e}")
+
             # Create user
             user = User(
                 email=email,
@@ -83,18 +101,75 @@ class AuthService:
                 verification_token_expires=verification_expires,
                 email_verified=skip_verification,  # 开发模式下自动验证
                 subscription_plan='free',
+                credits_balance=registration_bonus,  # 注册奖励积分
                 ai_calls_reset_at=datetime.now(timezone.utc)
             )
-            
+
             db.session.add(user)
+            db.session.flush()  # 获取 user.id
+
+            # Record registration bonus transaction
+            if registration_bonus > 0:
+                from models.credit_transaction import CreditTransaction
+                from services.credits_service import CreditOperation
+                transaction = CreditTransaction(
+                    user_id=user.id,
+                    operation=CreditOperation.REGISTRATION.value,
+                    amount=registration_bonus,
+                    balance_after=user.credits_balance,
+                    description="注册奖励"
+                )
+                db.session.add(transaction)
+
+            # Process invitation code if valid
+            if invitation:
+                invitation_bonus = 50  # Default
+                try:
+                    from models import SystemConfig
+                    config = SystemConfig.get_instance()
+                    invitation_bonus = config.invitation_bonus
+                except Exception as e:
+                    logger.warning(f"Failed to get invitation bonus from SystemConfig: {e}")
+
+                # Mark invitation as used
+                invitation.use(user.id)
+
+                # Give bonus to invitee (new user)
+                if invitation_bonus > 0:
+                    user.credits_balance += invitation_bonus
+                    from models.credit_transaction import CreditTransaction
+                    from services.credits_service import CreditOperation
+                    invitee_transaction = CreditTransaction(
+                        user_id=user.id,
+                        operation=CreditOperation.INVITATION.value,
+                        amount=invitation_bonus,
+                        balance_after=user.credits_balance,
+                        description=f"使用邀请码 {invitation.code} 注册奖励"
+                    )
+                    db.session.add(invitee_transaction)
+
+                    # Give bonus to inviter
+                    inviter = User.query.get(invitation.inviter_id)
+                    if inviter:
+                        inviter.credits_balance += invitation_bonus
+                        inviter_transaction = CreditTransaction(
+                            user_id=inviter.id,
+                            operation=CreditOperation.INVITATION.value,
+                            amount=invitation_bonus,
+                            balance_after=inviter.credits_balance,
+                            description=f"邀请码 {invitation.code} 被 {email} 使用"
+                        )
+                        db.session.add(inviter_transaction)
+                        logger.info(f"Invitation bonus granted: inviter={inviter.id}, invitee={user.id}, bonus={invitation_bonus}")
+
             db.session.commit()
-            
+
             if skip_verification:
-                logger.info(f"User registered (dev mode, auto-verified): {user.id} ({email})")
+                logger.info(f"User registered (dev mode, auto-verified): {user.id} ({email}), credits: {user.credits_balance}")
             else:
-                logger.info(f"User registered: {user.id} ({email})")
+                logger.info(f"User registered: {user.id} ({email}), credits: {user.credits_balance}")
             return user, None
-            
+
         except IntegrityError as e:
             db.session.rollback()
             logger.warning(f"Registration failed for {email}: duplicate email (race condition)")
