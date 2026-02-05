@@ -103,9 +103,10 @@ export function generateId(): string {
  */
 export function normalizeErrorMessage(errorMessage: string | null | undefined): string {
   if (!errorMessage) return '操作失败';
-  
+
   const message = errorMessage.toLowerCase();
-  
+
+  // Handle specific error messages
   if (message.includes('no template image found')) {
     return '当前项目还没有模板，请先点击页面工具栏的"更换模板"按钮，选择或上传一张模板图片后再生成。';
   } else if (message.includes('page must have description content')) {
@@ -113,7 +114,28 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   } else if (message.includes('image already exists')) {
     return '该页面已经有图片，如需重新生成，请在生成时选择"重新生成"或稍后重试。';
   }
-  
+
+  // Handle HTTP error codes
+  if (message.includes('503') || message.includes('service unavailable')) {
+    return 'AI 服务暂时不可用，请稍后重试。如果问题持续，请检查设置页的 API 配置。';
+  } else if (message.includes('500') || message.includes('internal server error')) {
+    return '服务器内部错误，请稍后重试。';
+  } else if (message.includes('502') || message.includes('bad gateway')) {
+    return '网关错误，请稍后重试。';
+  } else if (message.includes('504') || message.includes('gateway timeout')) {
+    return '请求超时，请稍后重试。';
+  } else if (message.includes('429') || message.includes('too many requests')) {
+    return '请求过于频繁，请稍后重试。';
+  } else if (message.includes('401') || message.includes('unauthorized')) {
+    return '认证失败，请检查 API 密钥配置。';
+  } else if (message.includes('403') || message.includes('forbidden')) {
+    return '访问被拒绝，请检查 API 权限配置。';
+  } else if (message.includes('network error') || message.includes('econnrefused')) {
+    return '网络连接失败，请检查网络或后端服务是否正常运行。';
+  } else if (message.includes('timeout')) {
+    return '请求超时，请稍后重试。';
+  }
+
   return errorMessage;
 }
 
