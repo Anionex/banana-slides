@@ -2,6 +2,7 @@
 Payment Controller - handles payment and credits endpoints
 支付控制器 - 处理支付和积分相关接口
 """
+import os
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -129,13 +130,19 @@ def create_order():
     package = get_credit_package(package_id)
     if not package:
         return bad_request(f"Invalid package_id: {package_id}")
-    
+
     payment_type = data.get('payment_type', 'wechat')
-    
+
     # Get base URL for callbacks
-    base_url = request.url_root.rstrip('/')
+    # 优先使用 FRONTEND_URL（生产环境），否则用请求来源
+    frontend_url = os.getenv('FRONTEND_URL', '').rstrip('/')
+    if frontend_url and frontend_url.startswith('http'):
+        base_url = frontend_url
+    else:
+        base_url = request.url_root.rstrip('/')
+
     notify_url = f"{base_url}/api/payment/webhook"
-    return_url = data.get('return_url', f"{base_url}/payment/success")
+    return_url = data.get('return_url', f"{base_url}/profile/credits")
     
     # Get client IP
     client_ip = request.remote_addr
