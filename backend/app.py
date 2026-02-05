@@ -27,6 +27,8 @@ from controllers.settings_controller import settings_bp
 from controllers.auth_controller import auth_bp
 from controllers.payment_controller import payment_bp
 from controllers.admin_controller import admin_bp
+from controllers.invitation_controller import invitation_bp
+from controllers.admin_config_controller import admin_config_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp
 
 
@@ -121,6 +123,8 @@ def create_app():
     app.register_blueprint(material_global_bp)
     app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
     app.register_blueprint(settings_bp)
+    app.register_blueprint(invitation_bp)  # Invitation code endpoints
+    app.register_blueprint(admin_config_bp)  # Admin system config endpoints
 
     with app.app_context():
         # Load settings from database and sync to app.config
