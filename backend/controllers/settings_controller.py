@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from flask import Blueprint, request, current_app
 from PIL import Image
-from models import db, Settings, UserSettings, Task
+from models import db, Settings, UserSettings, Task, SystemConfig
 from utils import success_response, error_response, bad_request
 from config import Config, PROJECT_ROOT
 from services.ai_service import AIService
@@ -24,7 +24,35 @@ settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
 
-# Fields that non-admin users can view and modify
+# 所有可能的设置字段（用于验证）
+ALL_SETTINGS_FIELDS = {
+    'ai_provider_format', 'api_base_url', 'api_key',
+    'text_model', 'image_model', 'image_caption_model',
+    'mineru_api_base', 'mineru_token',
+    'image_resolution', 'image_aspect_ratio',
+    'max_description_workers', 'max_image_workers',
+    'output_language',
+    'enable_text_reasoning', 'text_thinking_budget',
+    'enable_image_reasoning', 'image_thinking_budget',
+    'baidu_ocr_api_key'
+}
+
+# 敏感字段（不应泄露给用户请求）
+SENSITIVE_FIELDS = {'api_key', 'mineru_token', 'baidu_ocr_api_key'}
+
+
+def get_user_editable_fields():
+    """动态获取用户可编辑字段"""
+    try:
+        config = SystemConfig.get_instance()
+        return set(config.get_user_editable_fields())
+    except Exception as e:
+        logger.warning(f"Failed to get user editable fields from SystemConfig: {e}")
+        # 回退到默认值
+        return {'output_language', 'image_resolution', 'image_aspect_ratio'}
+
+
+# 保持向后兼容的静态变量（实际使用动态获取）
 USER_EDITABLE_FIELDS = {'output_language', 'image_resolution', 'image_aspect_ratio'}
 
 
@@ -124,7 +152,7 @@ def temporary_settings_override(settings_override: dict):
 def get_settings():
     """
     GET /api/settings - Get user-specific application settings
-    Non-admin users only receive USER_EDITABLE_FIELDS.
+    Non-admin users only receive fields allowed by SystemConfig.user_editable_fields.
     """
     try:
         user = get_current_user()
@@ -132,9 +160,10 @@ def get_settings():
         settings_dict = settings.to_dict()
 
         if not user.is_admin:
+            user_fields = get_user_editable_fields()
             settings_dict = {
                 k: v for k, v in settings_dict.items()
-                if k in USER_EDITABLE_FIELDS
+                if k in user_fields
             }
 
         return success_response(settings_dict)
@@ -152,7 +181,7 @@ def get_settings():
 def update_settings():
     """
     PUT /api/settings - Update user-specific application settings
-    Non-admin users can only update USER_EDITABLE_FIELDS; other fields are ignored.
+    Non-admin users can only update fields allowed by SystemConfig.user_editable_fields.
 
     Request Body:
         {
@@ -168,9 +197,10 @@ def update_settings():
         if not data:
             return bad_request("Request body is required")
 
-        # Non-admin users: filter to only USER_EDITABLE_FIELDS
+        # Non-admin users: filter to only user editable fields
         if not user.is_admin:
-            data = {k: v for k, v in data.items() if k in USER_EDITABLE_FIELDS}
+            user_fields = get_user_editable_fields()
+            data = {k: v for k, v in data.items() if k in user_fields}
             if not data:
                 return bad_request("No editable fields provided")
 
@@ -279,9 +309,10 @@ def update_settings():
         logger.info("Settings updated successfully")
         response_dict = settings.to_dict()
         if not user.is_admin:
+            user_fields = get_user_editable_fields()
             response_dict = {
                 k: v for k, v in response_dict.items()
-                if k in USER_EDITABLE_FIELDS
+                if k in user_fields
             }
         return success_response(
             response_dict, "Settings updated successfully"
