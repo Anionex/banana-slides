@@ -389,7 +389,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <a
-            href="https://github.com/Anionex/banana-slides"
+            href="https://bananaslides.online"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
