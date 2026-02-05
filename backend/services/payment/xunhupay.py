@@ -41,16 +41,16 @@ class XunhuPayProvider(PaymentProvider):
         """
         生成签名
         签名规则：按参数名ASCII码排序，拼接成 key=value&key=value 格式，
-        最后拼接 &appsecret=xxx，然后 MD5
+        最后直接拼接 appsecret（不带前缀），然后 MD5
         """
-        # 过滤空值和 sign 字段
-        filtered = {k: v for k, v in params.items() if v and k != 'sign'}
+        # 过滤空值和 sign/hash 字段
+        filtered = {k: v for k, v in params.items() if v and k not in ('sign', 'hash')}
         # 按 key 排序
         sorted_params = sorted(filtered.items(), key=lambda x: x[0])
         # 拼接
         query_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
-        # 加上 appsecret
-        sign_str = f"{query_string}&appsecret={self.app_secret}"
+        # 直接拼接 appsecret（虎皮椒要求不带 &appsecret= 前缀）
+        sign_str = f"{query_string}{self.app_secret}"
         # MD5
         return hashlib.md5(sign_str.encode('utf-8')).hexdigest()
     

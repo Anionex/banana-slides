@@ -187,13 +187,14 @@ def create_order():
 def payment_webhook():
     """
     POST /api/payment/webhook - Handle payment webhook callbacks
-    
+
     This endpoint is called by the payment provider when payment status changes.
     """
     try:
-        # Get raw payload
-        payload = request.get_json() or request.form.to_dict()
-        
+        # Get raw payload - try JSON first, fall back to form data
+        # 虎皮椒使用 form-encoded data, Lemon Squeezy 使用 JSON
+        payload = request.get_json(silent=True) or request.form.to_dict()
+
         if not payload:
             logger.warning("Empty webhook payload received")
             return 'OK', 200
