@@ -247,10 +247,11 @@ const debouncedUpdatePage = debounce(
       }
       
       // 如果项目不存在，清除localStorage并重置当前项目
+      // 不显示错误toast，因为这通常是自动同步时发现的过期项目ID
       if (shouldClearStorage) {
         console.warn('[syncProject] 项目不存在，清除localStorage');
         localStorage.removeItem('currentProjectId');
-        set({ currentProject: null, error: normalizeErrorMessage(errorMessage) });
+        set({ currentProject: null });
       } else {
         set({ error: normalizeErrorMessage(errorMessage) });
       }
