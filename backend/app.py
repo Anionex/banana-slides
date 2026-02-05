@@ -125,6 +125,8 @@ def create_app():
     with app.app_context():
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
+        # Create default admin if no admin exists
+        _create_default_admin_if_needed()
 
     # Health check endpoint
     @app.route('/health')
@@ -255,6 +257,60 @@ def _load_settings_to_config(app):
 
     except Exception as e:
         logging.warning(f"Could not load settings from database: {e}")
+
+
+def _create_default_admin_if_needed():
+    """Create default admin user if no admin exists and env vars are configured"""
+    from models import User
+    from utils.security import hash_password
+    import uuid
+
+    try:
+        # Check if any admin exists
+        admin_exists = db.session.query(User).filter_by(is_admin=True).first() is not None
+
+        if admin_exists:
+            logging.debug("Admin user already exists, skipping default admin creation")
+            return
+
+        # Get default admin credentials from environment
+        admin_email = os.getenv('DEFAULT_ADMIN_EMAIL')
+        admin_password = os.getenv('DEFAULT_ADMIN_PASSWORD')
+
+        if not admin_email or not admin_password:
+            logging.info("DEFAULT_ADMIN_EMAIL or DEFAULT_ADMIN_PASSWORD not set, skipping default admin creation")
+            return
+
+        # Check if email is already registered (as non-admin)
+        existing_user = db.session.query(User).filter_by(email=admin_email).first()
+        if existing_user:
+            # Promote existing user to admin
+            existing_user.is_admin = True
+            db.session.commit()
+            logging.info(f"Promoted existing user {admin_email} to admin")
+            return
+
+        # Create new admin user
+        password_hash = hash_password(admin_password)
+
+        admin_user = User(
+            id=str(uuid.uuid4()),
+            email=admin_email,
+            password_hash=password_hash,
+            username='Admin',
+            is_active=True,
+            is_admin=True,
+            email_verified=True,  # Skip email verification for default admin
+            credits_balance=9999,  # Give admin plenty of credits
+        )
+
+        db.session.add(admin_user)
+        db.session.commit()
+
+        logging.info(f"Created default admin user: {admin_email}")
+
+    except Exception as e:
+        logging.error(f"Failed to create default admin: {e}")
 
 
 # Create app instance
