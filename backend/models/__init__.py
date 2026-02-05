@@ -28,6 +28,8 @@ from .user_settings import UserSettings
 from .user import User
 from .credit_transaction import CreditTransaction
 from .payment_order import PaymentOrder
+from .system_config import SystemConfig
+from .invitation_code import InvitationCode
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction', 'PaymentOrder']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction', 'PaymentOrder', 'SystemConfig', 'InvitationCode']
 
