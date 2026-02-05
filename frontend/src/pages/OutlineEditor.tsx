@@ -169,8 +169,10 @@ export const OutlineEditor: React.FC = () => {
           try {
             await generateOutline();
             // generateOutline 内部已经调用了 syncProject，这里不需要再次调用
-          } catch (error) {
+          } catch (error: any) {
             console.error('生成大纲失败:', error);
+            const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
+            show({ message, type: 'error' });
           }
         },
         { title: t('outline.messages.confirmRegenerateTitle'), variant: 'warning' }
@@ -181,8 +183,10 @@ export const OutlineEditor: React.FC = () => {
     try {
       await generateOutline();
       // generateOutline 内部已经调用了 syncProject，这里不需要再次调用
-    } catch (error) {
+    } catch (error: any) {
       console.error('生成大纲失败:', error);
+      const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
+      show({ message, type: 'error' });
     }
   };
 

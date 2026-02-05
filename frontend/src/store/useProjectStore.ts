@@ -491,7 +491,8 @@ const debouncedUpdatePage = debounce(
       console.log('[生成大纲] 刷新后的项目:', updatedProject?.pages.length, '个页面');
     } catch (error: any) {
       console.error('[生成大纲] 错误:', error);
-      set({ error: error.message || '生成大纲失败' });
+      const message = error.friendlyMessage || error.message || '生成大纲失败';
+      set({ error: message });
       throw error;
     } finally {
       set({ isGlobalLoading: false });

@@ -175,7 +175,13 @@ export const setupAuthInterceptor = () => {
 
       // Handle insufficient credits error
       if (error.response?.status === 402) {
-        // Could show a modal or redirect to payment page
+        // Enhance error with user-friendly message for components to display
+        const lang = document.documentElement.lang?.startsWith('zh') ? 'zh' :
+                    (localStorage.getItem('i18nextLng')?.startsWith('zh') ? 'zh' : 'en');
+        error.friendlyMessage = lang === 'zh'
+          ? '积分不足，请前往充值'
+          : 'Insufficient credits. Please purchase more.';
+        error.showPricingLink = true;
         console.warn('Insufficient credits');
       }
 
