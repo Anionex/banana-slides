@@ -1,0 +1,44 @@
+# docker-compose.saas.yml - SaaS 生产环境配置
+# 前端: 3001, 后端: 5001
+
+services:
+  backend:
+    image: ${DOCKERHUB_USERNAME:-anoinex}/banana-slides-backend:saas
+    container_name: banana-slides-backend-saas
+    ports:
+      - "5001:5000"
+    env_file:
+      - .env
+    volumes:
+      # 持久化数据库
+      - ./data/instance:/app/backend/instance
+      # 持久化上传文件
+      - ./data/uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - banana-saas-network
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME:-anoinex}/banana-slides-frontend:saas
+    container_name: banana-slides-frontend-saas
+    ports:
+      - "3001:80"
+    environment:
+      # nginx 会代理 /api 到后端
+      - BACKEND_URL=http://backend:5000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - banana-saas-network
+
+networks:
+  banana-saas-network:
+    driver: bridge
