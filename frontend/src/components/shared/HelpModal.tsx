@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check } from 'lucide-react';
+import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from './Modal';
 import { Button } from './Button';
@@ -8,46 +8,48 @@ import { useT } from '@/hooks/useT';
 const helpI18n = {
   zh: {
     help: {
-      title: "蕉幻 · Banana Slides", quickStart: "快速开始", quickStartDesc: "完成基础配置，开启 AI 创作之旅",
+      title: "蕉幻 · Banana Slides", quickStart: "快速开始", quickStartDesc: "三步开启 AI 创作之旅",
       featuresIntro: "功能介绍", featuresIntroDesc: "探索如何使用 AI 快速创建精美 PPT",
       showcases: "结果案例", showcasesDesc: "以下是使用蕉幻生成的 PPT 案例展示", viewMoreCases: "查看更多使用案例",
-      welcome: "欢迎使用蕉幻！", welcomeDesc: "在开始前，让我们先完成基础配置",
-      step1Title: "配置 API Key", step1Desc: "前往设置页面，配置项目需要使用的API服务，包括：",
-      step1Items: { apiConfig: "您的 AI 服务提供商的 API Base 和 API Key", modelConfig: "配置文本、图像生成模型(banana pro)和图像描述模型", mineruConfig: "若需要文件解析功能，请配置 MinerU Token", editableExport: "若需要可编辑导出功能，请配置MinerU TOKEN 和 Baidu API KEY" },
-      step2Title: "保存并测试", step2Desc: "配置完成后，务必点击「保存设置」按钮，然后在页面底部进行服务测试，确保各项服务正常工作。",
-      step3Title: "开始创作", step3Desc: "配置成功后，返回首页即可开始使用 AI 生成精美的 PPT！",
-      step4Title: "*问题反馈", step4Desc: "若使用过程中遇到问题，可在github issue提出",
-      goToGithubIssue: "前往Github issue", goToSettings: "前往设置页面",
-      tip: "提示", tipContent: "如果您还没有 API Key，可以前往对应服务商官网注册获取。配置完成后，建议先进行服务测试，避免后续使用出现问题。",
+      welcome: "欢迎使用蕉幻！", welcomeDesc: "无需配置，注册即可使用",
+      step1Title: "注册登录", step1Desc: "创建您的账户，开始使用蕉幻：",
+      step1Items: { register: "点击右上角「登录」按钮进行注册", verify: "验证邮箱后即可登录使用", freeCredits: "新用户注册即赠送免费积分体验" },
+      step2Title: "获取积分", step2Desc: "积分用于生成 PPT，可通过以下方式获取：",
+      step2Items: { freeCredits: "新用户赠送免费体验积分", purchase: "在「用户中心」购买积分包", usage: "生成大纲、页面描述、图片会消耗积分" },
+      step3Title: "开始创作", step3Desc: "输入您的想法，让 AI 帮您生成精美 PPT！支持一句话生成、上传素材参考、自然语言编辑等多种方式。",
+      step4Title: "问题反馈", step4Desc: "使用中遇到问题？欢迎联系我们",
+      contactEmail: "联系邮箱", goToProfile: "前往用户中心",
+      tip: "提示", tipContent: "新用户注册后会获得免费积分，可以先体验产品功能。如需更多积分，可在用户中心购买。",
       prevPage: "上一页", nextPage: "下一页", guidePage: "引导页",
       showcaseTitles: { softwareDev: "软件开发最佳实践", deepseek: "DeepSeek-V3.2技术展示", prefabFood: "预制菜智能产线装备研发和产业化", moneyHistory: "钱的演变：从贝壳到纸币的旅程" },
       features: {
         flexiblePaths: { title: "灵活多样的创作路径", description: "支持想法、大纲、页面描述三种起步方式，满足不同创作习惯。", details: ["一句话生成：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述", "自然语言编辑：支持以 Vibe 形式口头修改大纲或描述，AI 实时响应调整", "大纲/描述模式：既可一键批量生成，也可手动调整细节"] },
         materialParsing: { title: "强大的素材解析能力", description: "上传多种格式文件，自动解析内容，为生成提供丰富素材。", details: ["多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容", "智能提取：自动识别文本中的关键点、图片链接和图表信息", "风格参考：支持上传参考图片或模板，定制 PPT 风格"] },
-        vibeEditing: { title: "「Vibe」式自然语言修改", description: "不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。", details: ["局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）", "整页优化：基于 nano banana pro🍌 生成高清、风格统一的页面"] },
+        vibeEditing: { title: "「Vibe」式自然语言修改", description: "不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。", details: ["局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）", "整页优化：基于 nano banana pro 生成高清、风格统一的页面"] },
         easyExport: { title: "开箱即用的格式导出", description: "一键导出标准格式，直接演示无需调整。", details: ["多格式支持：一键导出标准 PPTX 或 PDF 文件", "完美适配：默认 16:9 比例，排版无需二次调整"] }
       }
     }
   },
   en: {
     help: {
-      title: "Banana Slides", quickStart: "Quick Start", quickStartDesc: "Complete basic configuration and start your AI creation journey",
+      title: "Banana Slides", quickStart: "Quick Start", quickStartDesc: "Start your AI creation journey in 3 steps",
       featuresIntro: "Features", featuresIntroDesc: "Explore how to use AI to quickly create beautiful PPT",
       showcases: "Showcases", showcasesDesc: "Here are PPT examples generated with Banana Slides", viewMoreCases: "View more examples",
-      welcome: "Welcome to Banana Slides!", welcomeDesc: "Let's complete the basic configuration before you start",
-      step1Title: "Configure API Key", step1Desc: "Go to settings page to configure the API services needed for the project, including:",
-      step1Items: { apiConfig: "Your AI service provider's API Base and API Key", modelConfig: "Configure text, image generation model (banana pro) and image caption model", mineruConfig: "If you need file parsing, configure MinerU Token", editableExport: "If you need editable export, configure MinerU TOKEN and Baidu API KEY" },
-      step2Title: "Save and Test", step2Desc: "After configuration, be sure to click \"Save Settings\" button, then test services at the bottom of the page to ensure everything works properly.",
-      step3Title: "Start Creating", step3Desc: "After successful configuration, return to home page to start using AI to generate beautiful PPT!",
-      step4Title: "*Feedback", step4Desc: "If you encounter issues while using, please raise them on GitHub issues",
-      goToGithubIssue: "Go to GitHub Issues", goToSettings: "Go to Settings",
-      tip: "Tip", tipContent: "If you don't have an API Key yet, you can register on the corresponding service provider's website. After configuration, it's recommended to test services first to avoid issues later.",
+      welcome: "Welcome to Banana Slides!", welcomeDesc: "No configuration needed, register and start creating",
+      step1Title: "Register & Login", step1Desc: "Create your account to start using Banana Slides:",
+      step1Items: { register: "Click the \"Login\" button at the top right to register", verify: "Verify your email and you're ready to go", freeCredits: "New users receive free credits to try out" },
+      step2Title: "Get Credits", step2Desc: "Credits are used to generate PPTs, you can get them by:",
+      step2Items: { freeCredits: "Free credits for new users", purchase: "Purchase credit packs in \"Profile\"", usage: "Generating outlines, descriptions, and images consumes credits" },
+      step3Title: "Start Creating", step3Desc: "Enter your idea and let AI generate beautiful PPTs for you! Supports one-line generation, uploading reference materials, natural language editing and more.",
+      step4Title: "Feedback", step4Desc: "Having issues? Feel free to contact us",
+      contactEmail: "Contact Email", goToProfile: "Go to Profile",
+      tip: "Tip", tipContent: "New users receive free credits after registration to try out the product. If you need more credits, you can purchase them in Profile.",
       prevPage: "Previous", nextPage: "Next", guidePage: "Guide",
       showcaseTitles: { softwareDev: "Software Development Best Practices", deepseek: "DeepSeek-V3.2 Technical Showcase", prefabFood: "Prefab Food Intelligent Production Line R&D", moneyHistory: "The Evolution of Money: From Shells to Paper" },
       features: {
         flexiblePaths: { title: "Flexible Creation Paths", description: "Support idea, outline, and page description as starting points to meet different creative habits.", details: ["One-line generation: Enter a topic, AI automatically generates a clear outline and page-by-page content description", "Natural language editing: Support Vibe-style verbal modification of outlines or descriptions, AI responds in real-time", "Outline/Description mode: Either batch generate with one click, or manually adjust details"] },
         materialParsing: { title: "Powerful Material Parsing", description: "Upload multiple format files, automatically parse content to provide rich materials for generation.", details: ["Multi-format support: Upload PDF/Docx/MD/Txt files, backend automatically parses content", "Smart extraction: Automatically identify key points, image links and chart information in text", "Style reference: Support uploading reference images or templates to customize PPT style"] },
-        vibeEditing: { title: "\"Vibe\" Style Natural Language Editing", description: "No longer limited by complex menu buttons, directly issue modification commands through natural language.", details: ["Partial redraw: Make verbal modifications to unsatisfying areas (e.g., \"Change this chart to a pie chart\")", "Full page optimization: Generate HD, style-consistent pages based on nano banana pro🍌"] },
+        vibeEditing: { title: "\"Vibe\" Style Natural Language Editing", description: "No longer limited by complex menu buttons, directly issue modification commands through natural language.", details: ["Partial redraw: Make verbal modifications to unsatisfying areas (e.g., \"Change this chart to a pie chart\")", "Full page optimization: Generate HD, style-consistent pages based on nano banana pro"] },
         easyExport: { title: "Ready-to-Use Format Export", description: "One-click export to standard formats, present directly without adjustments.", details: ["Multi-format support: One-click export to standard PPTX or PDF files", "Perfect fit: Default 16:9 ratio, no secondary layout adjustments needed"] }
       }
     }
@@ -105,9 +107,9 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleGoToSettings = () => {
+  const handleGoToProfile = () => {
     onClose();
-    navigate('/settings');
+    navigate('/profile');
   };
 
   const renderGuidePage = () => (
@@ -135,10 +137,9 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               {t('help.step1Desc')}
             </p>
             <ul className="text-sm text-gray-600 dark:text-foreground-tertiary space-y-1 pl-4">
-              <li>• {t('help.step1Items.apiConfig')}</li>
-              <li>• {t('help.step1Items.modelConfig')}</li>
-              <li>• {t('help.step1Items.mineruConfig')}</li>
-              <li>• {t('help.step1Items.editableExport')}</li>
+              <li>• {t('help.step1Items.register')}</li>
+              <li>• {t('help.step1Items.verify')}</li>
+              <li>• {t('help.step1Items.freeCredits')}</li>
             </ul>
           </div>
         </div>
@@ -152,6 +153,11 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
               {t('help.step2Desc')}
             </p>
+            <ul className="text-sm text-gray-600 dark:text-foreground-tertiary space-y-1 pl-4">
+              <li>• {t('help.step2Items.freeCredits')}</li>
+              <li>• {t('help.step2Items.purchase')}</li>
+              <li>• {t('help.step2Items.usage')}</li>
+            </ul>
           </div>
         </div>
 
@@ -169,37 +175,31 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
       </div>
 
       <div className="flex gap-4 p-4 bg-white dark:bg-background-secondary rounded-xl border border-gray-200 dark:border-border-primary">
-        <div className="flex-shrink-0 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center font-bold">
-          4
+        <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+          ?
         </div>
         <div className="flex-1 space-y-2">
           <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.step4Title')}</h4>
           <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('help.step4Desc')}</p>
+          <p className="text-sm text-banana-600">
+            {t('help.contactEmail')}: support@bananaslides.online
+          </p>
         </div>
-        <a
-          href="https://github.com/Anionex/banana-slides/issues"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-banana-600 hover:text-banana-700 font-medium"
-        >
-          <ExternalLink size={14} />
-          {t('help.goToGithubIssue')}
-        </a>
       </div>
 
       <div className="flex justify-center pt-2">
         <Button
-          onClick={handleGoToSettings}
+          onClick={handleGoToProfile}
           className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg"
-          icon={<Settings size={18} />}
+          icon={<Sparkles size={18} />}
         >
-          {t('help.goToSettings')}
+          {t('help.goToProfile')}
         </Button>
       </div>
 
       <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-        <p className="text-xs text-blue-800">
-          💡 <strong>{t('help.tip')}</strong>：{t('help.tipContent')}
+        <p className="text-xs text-blue-800 dark:text-blue-200">
+          <strong>{t('help.tip')}</strong>: {t('help.tipContent')}
         </p>
       </div>
     </div>
@@ -395,7 +395,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             className="text-sm text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
           >
             <ExternalLink size={14} />
-            GitHub
+            bananaslides.online
           </a>
 
           <div className="flex items-center gap-2">
