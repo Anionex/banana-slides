@@ -1,9 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, MessageSquare, Download, ChevronRight, Github, ChevronLeft } from 'lucide-react';
 import { Button, Footer } from '@/components/shared';
 import { useT } from '@/hooks/useT';
+
+// Scroll reveal hook
+function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
+  options: { threshold?: number; rootMargin?: string } = {}
+): [React.RefObject<T | null>, boolean] {
+  const { threshold = 0.15, rootMargin = '0px 0px -100px 0px' } = options;
+  const ref = useRef<T | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(element);
+        }
+      },
+      { threshold, rootMargin }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [threshold, rootMargin]);
+
+  return [ref, isVisible];
+}
 
 // 组件内翻译
 const landingI18n = {
@@ -63,6 +92,109 @@ const showcaseKeys = [
   { image: 'https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7', titleKey: 'prefabFood' },
   { image: 'https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1', titleKey: 'moneyHistory' },
 ];
+
+// Feature section with scroll animations
+interface FeatureSectionProps {
+  feature: {
+    key: string;
+    icon: React.ReactNode;
+    bg: string;
+    image: string;
+  };
+  idx: number;
+  t: (key: string) => string;
+  getDetails: (key: string) => string[];
+}
+
+const FeatureSection: React.FC<FeatureSectionProps> = ({ feature, idx, t, getDetails }) => {
+  const [sectionRef, isVisible] = useScrollReveal<HTMLElement>({ threshold: 0.1 });
+  const isReversed = idx % 2 === 1;
+
+  return (
+    <section
+      ref={sectionRef}
+      className={`min-h-[80vh] flex items-center py-24 overflow-hidden ${
+        idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-white dark:bg-transparent'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-6 w-full">
+        <div className={`flex flex-col lg:flex-row items-center gap-12 lg:gap-24 ${
+          isReversed ? 'lg:flex-row-reverse' : ''
+        }`}>
+          {/* 文本区域 - 从侧边滑入 */}
+          <div
+            className={`flex-1 space-y-6 transition-all duration-1000 ease-out ${
+              isVisible
+                ? 'opacity-100 translate-x-0'
+                : `opacity-0 ${isReversed ? 'translate-x-20' : '-translate-x-20'}`
+            }`}
+          >
+            <div
+              className={`inline-flex p-3 rounded-2xl ${feature.bg} shadow-sm transition-all duration-700 delay-100 ${
+                isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+              }`}
+            >
+              {feature.icon}
+            </div>
+            <h2
+              className={`text-3xl md:text-4xl font-bold text-gray-900 dark:text-white transition-all duration-700 delay-200 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+            >
+              {t(`help.features.${feature.key}.title`)}
+            </h2>
+            <p
+              className={`text-lg text-gray-600 dark:text-gray-300 leading-relaxed transition-all duration-700 delay-300 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+            >
+              {t(`help.features.${feature.key}.description`)}
+            </p>
+
+            {/* 详情列表 - 依次出现 */}
+            <ul className="space-y-4 pt-4">
+              {getDetails(feature.key).map((detail: string, i: number) => (
+                <li
+                  key={i}
+                  className={`flex items-start gap-3 transition-all duration-500 ${
+                    isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
+                  }`}
+                  style={{ transitionDelay: isVisible ? `${400 + i * 100}ms` : '0ms' }}
+                >
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-banana-500 shrink-0" />
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">{detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* 视觉区域 - 放大进入 + 从另一侧滑入 */}
+          <div
+            className={`flex-1 w-full max-w-lg lg:max-w-none transition-all duration-1000 ease-out ${
+              isVisible
+                ? 'opacity-100 translate-x-0 scale-100'
+                : `opacity-0 ${isReversed ? '-translate-x-20' : 'translate-x-20'} scale-95`
+            }`}
+          >
+            <div className="aspect-video rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 relative group hover:scale-[1.02] transition-transform duration-500">
+              <img
+                src={feature.image}
+                alt={t(`help.features.${feature.key}.title`)}
+                className={`w-full h-full object-cover transition-transform duration-1000 ${
+                  isVisible ? 'scale-100' : 'scale-110'
+                }`}
+              />
+              {/* 图片上的渐变遮罩 */}
+              <div className={`absolute inset-0 bg-gradient-to-t from-black/20 to-transparent transition-opacity duration-700 ${
+                isVisible ? 'opacity-0' : 'opacity-100'
+              }`} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -255,52 +387,13 @@ export const Landing: React.FC = () => {
       {/* 特性区域 */}
       <div className="relative z-10 bg-white dark:bg-black/20">
         {features.map((feature, idx) => (
-          <section 
-            key={idx} 
-            className={`min-h-[80vh] flex items-center py-24 ${
-              idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-white dark:bg-transparent'
-            }`}
-          >
-            <div className="max-w-7xl mx-auto px-6 w-full">
-              <div className={`flex flex-col lg:flex-row items-center gap-12 lg:gap-24 ${
-                idx % 2 === 1 ? 'lg:flex-row-reverse' : ''
-              }`}>
-                {/* 文本区域 */}
-                <div className="flex-1 space-y-6">
-                  <div className={`inline-flex p-3 rounded-2xl ${feature.bg} shadow-sm`}>
-                    {feature.icon}
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-                    {t(`help.features.${feature.key}.title`)}
-                  </h2>
-                  <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-                    {t(`help.features.${feature.key}.description`)}
-                  </p>
-                  
-                  {/* 详情列表 */}
-                  <ul className="space-y-4 pt-4">
-                    {getDetails(feature.key).map((detail: string, i: number) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-banana-500 shrink-0" />
-                        <span className="text-gray-600 dark:text-gray-400 font-medium">{detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* 视觉区域 */}
-                <div className="flex-1 w-full max-w-lg lg:max-w-none">
-                  <div className={`aspect-video rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 relative group hover:scale-[1.02] transition-transform duration-500`}>
-                    <img
-                      src={feature.image}
-                      alt={t(`help.features.${feature.key}.title`)}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+          <FeatureSection
+            key={idx}
+            feature={feature}
+            idx={idx}
+            t={t}
+            getDetails={getDetails}
+          />
         ))}
       </div>
 
