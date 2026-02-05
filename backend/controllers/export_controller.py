@@ -79,9 +79,9 @@ def export_pptx(project_id):
             return bad_request("No generated images found for project")
         
         # Determine export directory and filename
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        exports_dir = file_service._get_exports_dir(project_id)
-        
+        exports_dir = file_service.get_absolute_path(file_service._get_exports_dir(project_id))
+        os.makedirs(exports_dir, exist_ok=True)
+
         # Get filename from query params or use default
         filename = request.args.get('filename', f'presentation_{project_id}.pptx')
         if not filename.endswith('.pptx'):
@@ -156,7 +156,8 @@ def export_pdf(project_id):
             return bad_request("No generated images found for project")
         
         # Determine export directory and filename
-        exports_dir = file_service._get_exports_dir(project_id)
+        exports_dir = file_service.get_absolute_path(file_service._get_exports_dir(project_id))
+        os.makedirs(exports_dir, exist_ok=True)
 
         # Get filename from query params or use default
         filename = request.args.get('filename', f'presentation_{project_id}.pdf')
