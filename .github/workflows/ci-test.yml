@@ -178,14 +178,21 @@ jobs:
           # Use generic script to automatically handle all environment variable replacements
           chmod +x scripts/setup-env-from-secrets.sh
           ./scripts/setup-env-from-secrets.sh
-          
+
           # E2E tests use Gemini format (full flow testing)
           # Update .env to use Gemini format for E2E tests
           sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
           echo "E2E tests will use Gemini format"
+
+          # Add SaaS-specific environment variables for Docker containers
+          echo "" >> .env
+          echo "# SaaS CI environment" >> .env
+          echo "SKIP_EMAIL_VERIFICATION=true" >> .env
+          echo "JWT_SECRET_KEY=test-jwt-secret-key-for-ci" >> .env
+
           # Only show non-sensitive config, never print API keys
           grep "^AI_PROVIDER_FORMAT=" .env
-          
+
           # Security: Ensure API keys are not in logs
           # Remove any lines that might contain sensitive data from .env before displaying
           echo "Environment configured (API keys hidden for security)"
