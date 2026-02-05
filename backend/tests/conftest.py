@@ -20,6 +20,8 @@ os.environ['TESTING'] = 'true'
 os.environ['USE_MOCK_AI'] = 'true'  # 标记使用mock AI服务
 os.environ['GOOGLE_API_KEY'] = os.environ.get('GOOGLE_API_KEY', 'mock-api-key-for-testing')
 os.environ['FLASK_ENV'] = 'testing'
+os.environ['SKIP_EMAIL_VERIFICATION'] = 'true'  # 跳过邮箱验证
+os.environ['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'test-jwt-secret-key')
 
 
 @pytest.fixture(scope='session')
@@ -77,6 +79,86 @@ def client(app):
 
 
 @pytest.fixture(scope='function')
+def auth_headers(client):
+    """
+    创建已认证的请求头（包含Bearer token）
+
+    用法:
+        def test_something(client, auth_headers):
+            response = client.get('/api/projects', headers=auth_headers)
+    """
+    # 注册用户
+    register_response = client.post('/api/auth/register', json={
+        'email': 'testuser@example.com',
+        'password': 'testpassword123',
+        'username': 'testuser'
+    })
+
+    # dev mode下直接返回token
+    if register_response.status_code == 201:
+        data = register_response.get_json()
+        if 'access_token' in data.get('data', {}):
+            token = data['data']['access_token']
+            return {'Authorization': f'Bearer {token}'}
+
+    # 如果注册没返回token，尝试登录
+    login_response = client.post('/api/auth/login', json={
+        'email': 'testuser@example.com',
+        'password': 'testpassword123'
+    })
+
+    if login_response.status_code == 200:
+        token = login_response.get_json()['data']['access_token']
+        return {'Authorization': f'Bearer {token}'}
+
+    # 失败时返回空headers，测试应该会失败
+    return {}
+
+
+@pytest.fixture(scope='function')
+def authenticated_client(client, auth_headers):
+    """
+    返回一个带有认证功能的测试客户端wrapper
+
+    用法:
+        def test_something(authenticated_client):
+            response = authenticated_client.get('/api/projects')
+    """
+    class AuthenticatedTestClient:
+        def __init__(self, client, headers):
+            self._client = client
+            self._headers = headers
+
+        def _merge_headers(self, kwargs):
+            headers = kwargs.pop('headers', {})
+            headers.update(self._headers)
+            kwargs['headers'] = headers
+            return kwargs
+
+        def get(self, *args, **kwargs):
+            kwargs = self._merge_headers(kwargs)
+            return self._client.get(*args, **kwargs)
+
+        def post(self, *args, **kwargs):
+            kwargs = self._merge_headers(kwargs)
+            return self._client.post(*args, **kwargs)
+
+        def put(self, *args, **kwargs):
+            kwargs = self._merge_headers(kwargs)
+            return self._client.put(*args, **kwargs)
+
+        def delete(self, *args, **kwargs):
+            kwargs = self._merge_headers(kwargs)
+            return self._client.delete(*args, **kwargs)
+
+        def patch(self, *args, **kwargs):
+            kwargs = self._merge_headers(kwargs)
+            return self._client.patch(*args, **kwargs)
+
+    return AuthenticatedTestClient(client, auth_headers)
+
+
+@pytest.fixture(scope='function')
 def db_session(app):
     """创建数据库会话"""
     with app.app_context():
@@ -88,9 +170,9 @@ def db_session(app):
 
 
 @pytest.fixture
-def sample_project(client):
-    """创建示例项目"""
-    response = client.post('/api/projects', 
+def sample_project(authenticated_client):
+    """创建示例项目（需要认证）"""
+    response = authenticated_client.post('/api/projects',
         json={
             'creation_type': 'idea',
             'idea_prompt': '测试PPT生成'

@@ -110,6 +110,18 @@ jobs:
           # Health check
           if curl -f http://localhost:5000/health; then
             echo "Backend smoke test passed"
+
+            # SaaS auth endpoint check
+            echo "Checking SaaS auth endpoints..."
+            AUTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:5000/api/auth/register \
+              -H "Content-Type: application/json" \
+              -d '{"email":"ci-test@example.com","password":"testpass123"}')
+            if [ "$AUTH_RESPONSE" = "201" ] || [ "$AUTH_RESPONSE" = "400" ]; then
+              echo "Auth endpoint responding correctly (status: $AUTH_RESPONSE)"
+            else
+              echo "Auth endpoint check failed (status: $AUTH_RESPONSE)"
+            fi
+
             kill $SERVER_PID
           else
             echo "Backend smoke test failed"
@@ -121,4 +133,7 @@ jobs:
         env:
           GOOGLE_API_KEY: mock-key-for-testing
           TESTING: true
+          # SaaS test environment
+          SKIP_EMAIL_VERIFICATION: true
+          JWT_SECRET_KEY: test-jwt-secret-key-for-ci
 

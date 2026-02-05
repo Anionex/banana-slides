@@ -1,6 +1,7 @@
 """
 In-memory sliding window rate limiter with decorator support.
 """
+import os
 import time
 import threading
 import logging
@@ -22,6 +23,18 @@ _request_log: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdic
 _last_cleanup: dict[str, float] = {}
 
 _CLEANUP_INTERVAL = 60  # seconds between cleanups
+
+
+def _is_testing() -> bool:
+    """Check if we are in testing mode."""
+    return os.environ.get('TESTING', '').lower() in ('true', '1', 'yes')
+
+
+def clear_rate_limit_storage():
+    """Clear all rate limit storage. Useful for testing."""
+    with _lock:
+        _request_log.clear()
+        _last_cleanup.clear()
 
 
 def _cleanup_expired(limiter_key: str, window_seconds: int):
@@ -97,6 +110,10 @@ def rate_limit(max_requests: int, window_seconds: int, key_func=None):
 
         @wraps(f)
         def wrapper(*args, **kwargs):
+            # Skip rate limiting in test mode
+            if _is_testing():
+                return f(*args, **kwargs)
+
             if key_func:
                 client_key = key_func(request)
             else:

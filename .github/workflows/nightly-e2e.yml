@@ -71,6 +71,11 @@ jobs:
           MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
           IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
           OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
+          # SaaS environment variables
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY || 'test-jwt-secret-key-for-ci' }}
+          SKIP_EMAIL_VERIFICATION: true
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'mock-resend-api-key' }}
+          FRONTEND_URL: http://localhost:3000
       
       - name: Build Docker images
         run: |

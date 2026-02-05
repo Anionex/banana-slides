@@ -59,6 +59,10 @@ jobs:
           cd backend
           uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term
         continue-on-error: false
+        env:
+          # SaaS test environment
+          SKIP_EMAIL_VERIFICATION: true
+          JWT_SECRET_KEY: test-jwt-secret-key-for-ci
       
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
@@ -100,6 +104,9 @@ jobs:
           TESTING: true
           SKIP_SERVICE_TESTS: true
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY || 'mock-api-key-for-testing' }}
+          # SaaS test environment
+          SKIP_EMAIL_VERIFICATION: true
+          JWT_SECRET_KEY: test-jwt-secret-key-for-ci
 
   # ================================
   # Frontend Tests
@@ -202,6 +209,11 @@ jobs:
           MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
           IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
           OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
+          # SaaS environment variables
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY || 'test-jwt-secret-key-for-ci' }}
+          SKIP_EMAIL_VERIFICATION: true
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'mock-resend-api-key' }}
+          FRONTEND_URL: http://localhost:3000
       
       - name: Build Docker images
         run: |
