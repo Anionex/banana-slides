@@ -179,10 +179,39 @@ fi
 # 8. API functionality tests
 log_info "Step 8/10: API functionality tests..."
 
+# 8.0 Register and login to get auth token
+log_info "  8.0 Registering test user..."
+TEST_EMAIL="docker-test-$(date +%s)@example.com"
+TEST_PASSWORD="testpassword123"
+
+register_response=$(curl -s -X POST http://localhost:5000/api/auth/register \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"username\":\"dockertest\"}")
+
+# Try to get token from register response (dev mode returns token directly)
+AUTH_TOKEN=$(echo "$register_response" | jq -r '.data.access_token // empty')
+
+if [ -z "$AUTH_TOKEN" ]; then
+    # If register didn't return token, try login
+    log_info "  Logging in..."
+    login_response=$(curl -s -X POST http://localhost:5000/api/auth/login \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}")
+    AUTH_TOKEN=$(echo "$login_response" | jq -r '.data.access_token // empty')
+fi
+
+if [ -z "$AUTH_TOKEN" ]; then
+    log_error "  Failed to get auth token"
+    echo "    Register response: $register_response"
+    exit 1
+fi
+log_success "  Authentication successful"
+
 # 8.1 Create project
 log_info "  8.1 Creating project..."
 create_response=$(curl -s -X POST http://localhost:5000/api/projects \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
     -d '{"creation_type":"idea","idea_prompt":"Docker test project"}')
 
 if echo "$create_response" | jq -e '.success == true' > /dev/null 2>&1; then
@@ -196,7 +225,7 @@ fi
 
 # 8.2 Get project
 log_info "  8.2 Getting project details..."
-get_response=$(curl -s http://localhost:5000/api/projects/$project_id)
+get_response=$(curl -s -H "Authorization: Bearer $AUTH_TOKEN" http://localhost:5000/api/projects/$project_id)
 if echo "$get_response" | grep -q '"success":true'; then
     log_success "  Project retrieved successfully"
 else
@@ -208,6 +237,7 @@ fi
 if [ -f "template_g.png" ]; then
     log_info "  8.3 Uploading template file..."
     upload_response=$(curl -s -X POST http://localhost:5000/api/projects/$project_id/template \
+        -H "Authorization: Bearer $AUTH_TOKEN" \
         -F "template_image=@template_g.png")
     
     if echo "$upload_response" | grep -q '"success":true'; then
@@ -221,7 +251,7 @@ fi
 
 # 8.4 Delete project (cleanup)
 log_info "  8.4 Deleting test project..."
-delete_response=$(curl -s -X DELETE http://localhost:5000/api/projects/$project_id)
+delete_response=$(curl -s -X DELETE -H "Authorization: Bearer $AUTH_TOKEN" http://localhost:5000/api/projects/$project_id)
 if echo "$delete_response" | grep -q '"success":true'; then
     log_success "  Project deleted successfully"
 else
@@ -236,6 +266,7 @@ log_info "Step 9/10: Data persistence test..."
 # Create a project
 create_response=$(curl -s -X POST http://localhost:5000/api/projects \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
     -d '{"creation_type":"idea","idea_prompt":"Persistence test"}')
 persist_project_id=$(echo "$create_response" | jq -r '.data.project_id')
 
@@ -252,8 +283,15 @@ for i in {1..30}; do
     sleep 1
 done
 
+# Need to re-login after restart since server may have new session
+log_info "  Re-authenticating after restart..."
+login_response=$(curl -s -X POST http://localhost:5000/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}")
+AUTH_TOKEN=$(echo "$login_response" | jq -r '.data.access_token // empty')
+
 # Check if project still exists
-persist_check=$(curl -s http://localhost:5000/api/projects/$persist_project_id)
+persist_check=$(curl -s -H "Authorization: Bearer $AUTH_TOKEN" http://localhost:5000/api/projects/$persist_project_id)
 if echo "$persist_check" | grep -q '"success":true'; then
     log_success "Data persistence test passed"
 else
@@ -262,7 +300,7 @@ else
 fi
 
 # Cleanup test data
-curl -s -X DELETE http://localhost:5000/api/projects/$persist_project_id >/dev/null
+curl -s -X DELETE -H "Authorization: Bearer $AUTH_TOKEN" http://localhost:5000/api/projects/$persist_project_id >/dev/null
 
 # 10. Log check
 log_info "Step 10/10: Checking container logs for errors..."
