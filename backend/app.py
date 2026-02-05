@@ -284,4 +284,4 @@ if __name__ == '__main__':
     )
     
     # Using absolute paths for database, so WSL path issues should not occur
-    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=true)
+    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=True)
