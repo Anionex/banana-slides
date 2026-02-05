@@ -20,7 +20,7 @@ import {
 } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
-import { AdminDashboard, AdminUsers } from './pages/admin';
+import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useToast } from './components/shared';
@@ -145,6 +145,16 @@ function App() {
         <Route path="/admin/users" element={
           <AdminRoute>
             <AdminUsers />
+          </AdminRoute>
+        } />
+        <Route path="/admin/transactions" element={
+          <AdminRoute>
+            <AdminTransactions />
+          </AdminRoute>
+        } />
+        <Route path="/admin/orders" element={
+          <AdminRoute>
+            <AdminOrders />
           </AdminRoute>
         } />
 

@@ -27,6 +27,7 @@ from .settings import Settings
 from .user_settings import UserSettings
 from .user import User
 from .credit_transaction import CreditTransaction
+from .payment_order import PaymentOrder
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction', 'PaymentOrder']
 

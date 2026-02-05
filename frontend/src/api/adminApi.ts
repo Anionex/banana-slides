@@ -39,3 +39,31 @@ export const changeUserSubscription = (
     subscription_plan: subscriptionPlan,
     subscription_expires_at: subscriptionExpiresAt,
   });
+
+// --- Transactions (Audit) ---
+
+export interface AdminTransactionsParams {
+  limit?: number;
+  offset?: number;
+  user_id?: string;
+  operation?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
+export const getAdminTransactions = (params: AdminTransactionsParams = {}) =>
+  apiClient.get('/api/admin/transactions', { params });
+
+// --- Orders (Audit) ---
+
+export interface AdminOrdersParams {
+  limit?: number;
+  offset?: number;
+  user_id?: string;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
+export const getAdminOrders = (params: AdminOrdersParams = {}) =>
+  apiClient.get('/api/admin/orders', { params });

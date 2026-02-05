@@ -3,14 +3,16 @@ Payment Controller - handles payment and credits endpoints
 支付控制器 - 处理支付和积分相关接口
 """
 import logging
+import uuid
+from datetime import datetime, timezone
 from flask import Blueprint, request, current_app
-from models import db, User
+from models import db, User, PaymentOrder
 from utils import success_response, error_response, bad_request, not_found
 from middlewares.auth import auth_required, get_current_user
 from services.credits_service import CreditsService, CreditOperation
 from services.payment import (
-    get_payment_provider, 
-    get_credit_package, 
+    get_payment_provider,
+    get_credit_package,
     CREDIT_PACKAGES,
     PaymentStatus
 )
@@ -148,8 +150,28 @@ def create_order():
             client_ip=client_ip,
             payment_type=payment_type if hasattr(provider.create_order, 'payment_type') else None
         )
-        
+
         if result.success:
+            # Save order to database for auditing
+            order = PaymentOrder(
+                id=result.order_id or str(uuid.uuid4()),
+                user_id=user.id,
+                package_id=package.id,
+                package_name=package.name,
+                credits=package.credits,
+                bonus_credits=package.bonus_credits,
+                total_credits=package.total_credits,
+                amount=package.price_cny,
+                currency='CNY',
+                payment_provider=provider.provider_name,
+                payment_type=payment_type,
+                external_order_id=result.external_order_id,
+                status='pending',
+                created_at=datetime.now(timezone.utc),
+            )
+            db.session.add(order)
+            db.session.commit()
+
             logger.info(f"Payment order created: {result.order_id} for user {user.id}")
             return success_response(result.to_dict())
         else:
@@ -195,22 +217,33 @@ def payment_webhook():
             # Process successful payment
             user_id = order_info.get('user_id')
             package_id = order_info.get('package_id')
-            
+            order_id = order_info.get('order_id')
+
             if user_id and package_id:
                 user = User.query.get(user_id)
                 package = get_credit_package(package_id)
-                
+
                 if user and package:
                     # Add credits to user
                     success, error = CreditsService.add_credits(
                         user=user,
                         amount=package.total_credits,
                         operation=CreditOperation.PURCHASE,
-                        description=f"Purchase {package.name} ({order_info.get('order_id')})"
+                        description=f"Purchase {package.name} ({order_id})"
                     )
-                    
+
                     if success:
                         logger.info(f"Credits added for user {user_id}: {package.total_credits} ({package.name})")
+
+                        # Update order status in database
+                        if order_id:
+                            db_order = PaymentOrder.query.get(order_id)
+                            if db_order:
+                                db_order.status = 'paid'
+                                db_order.paid_at = datetime.now(timezone.utc)
+                                db_order.external_order_id = order_info.get('external_order_id') or db_order.external_order_id
+                                db.session.commit()
+                                logger.info(f"Order {order_id} marked as paid")
                     else:
                         logger.error(f"Failed to add credits: {error}")
                 else:

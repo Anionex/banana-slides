@@ -3,9 +3,12 @@ Admin service - business logic for the admin dashboard
 """
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from models import db
 from models.user import User
+from models.credit_transaction import CreditTransaction
+from models.payment_order import PaymentOrder
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -187,3 +190,137 @@ class AdminService:
         )
 
         return user.to_dict(), None
+
+    @staticmethod
+    def get_all_transactions(
+        limit: int = 50,
+        offset: int = 0,
+        user_id: Optional[str] = None,
+        operation: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ):
+        """
+        Get all credit transactions for auditing with optional filters.
+
+        Args:
+            limit: Max number of records to return
+            offset: Number of records to skip
+            user_id: Filter by specific user ID
+            operation: Filter by operation type
+            start_date: Filter by start date (ISO format)
+            end_date: Filter by end date (ISO format)
+
+        Returns:
+            Dict with transactions list, total count, and pagination info
+        """
+        query = CreditTransaction.query
+
+        if user_id:
+            query = query.filter(CreditTransaction.user_id == user_id)
+
+        if operation:
+            query = query.filter(CreditTransaction.operation == operation)
+
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                query = query.filter(CreditTransaction.created_at >= start_dt)
+            except ValueError:
+                pass
+
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                query = query.filter(CreditTransaction.created_at <= end_dt)
+            except ValueError:
+                pass
+
+        total = query.count()
+        transactions = (
+            query.order_by(CreditTransaction.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        # Include user info in each transaction
+        result = []
+        for tx in transactions:
+            tx_dict = tx.to_dict()
+            if tx.user:
+                tx_dict['user'] = {
+                    'id': tx.user.id,
+                    'email': tx.user.email,
+                    'username': tx.user.username,
+                }
+            result.append(tx_dict)
+
+        return {
+            'transactions': result,
+            'total': total,
+            'limit': limit,
+            'offset': offset,
+            'has_more': offset + limit < total,
+        }
+
+    @staticmethod
+    def get_all_orders(
+        limit: int = 50,
+        offset: int = 0,
+        user_id: Optional[str] = None,
+        status: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ):
+        """
+        Get all payment orders for auditing with optional filters.
+
+        Args:
+            limit: Max number of records to return
+            offset: Number of records to skip
+            user_id: Filter by specific user ID
+            status: Filter by order status
+            start_date: Filter by start date (ISO format)
+            end_date: Filter by end date (ISO format)
+
+        Returns:
+            Dict with orders list, total count, and pagination info
+        """
+        query = PaymentOrder.query
+
+        if user_id:
+            query = query.filter(PaymentOrder.user_id == user_id)
+
+        if status:
+            query = query.filter(PaymentOrder.status == status)
+
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                query = query.filter(PaymentOrder.created_at >= start_dt)
+            except ValueError:
+                pass
+
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                query = query.filter(PaymentOrder.created_at <= end_dt)
+            except ValueError:
+                pass
+
+        total = query.count()
+        orders = (
+            query.order_by(PaymentOrder.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        return {
+            'orders': [order.to_dict(include_user=True) for order in orders],
+            'total': total,
+            'limit': limit,
+            'offset': offset,
+            'has_more': offset + limit < total,
+        }

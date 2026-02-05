@@ -14,6 +14,8 @@ const i18n = {
     title: '管理后台',
     backHome: '返回首页',
     manageUsers: '管理用户',
+    auditTransactions: '积分明细',
+    auditOrders: '订单审计',
     totalUsers: '总用户数',
     activeUsers: '活跃用户',
     verifiedUsers: '已验证用户',
@@ -29,6 +31,8 @@ const i18n = {
     title: 'Admin Dashboard',
     backHome: 'Back to Home',
     manageUsers: 'Manage Users',
+    auditTransactions: 'Transactions',
+    auditOrders: 'Orders',
     totalUsers: 'Total Users',
     activeUsers: 'Active Users',
     verifiedUsers: 'Verified Users',
@@ -120,6 +124,18 @@ export default function AdminDashboard() {
             className="px-4 py-2 bg-banana-500 text-white rounded-lg hover:bg-banana-600 text-sm font-medium"
           >
             {t('manageUsers')}
+          </Link>
+          <Link
+            to="/admin/transactions"
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium"
+          >
+            {t('auditTransactions')}
+          </Link>
+          <Link
+            to="/admin/orders"
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium"
+          >
+            {t('auditOrders')}
           </Link>
           <Link
             to="/"

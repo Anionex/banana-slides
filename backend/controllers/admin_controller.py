@@ -53,6 +53,66 @@ def list_users():
     return success_response(data)
 
 
+@admin_bp.route('/transactions', methods=['GET'])
+@auth_required
+@admin_required
+def list_all_transactions():
+    """
+    Get all credit transactions for auditing.
+
+    Query params:
+        limit: int (default 50, max 200)
+        offset: int (default 0)
+        user_id: filter by user ID
+        operation: filter by operation type
+        start_date: filter by start date (ISO format)
+        end_date: filter by end date (ISO format)
+    """
+    limit = min(request.args.get('limit', 50, type=int), 200)
+    offset = max(request.args.get('offset', 0, type=int), 0)
+    user_id = request.args.get('user_id', '').strip() or None
+    operation = request.args.get('operation', '').strip() or None
+    start_date = request.args.get('start_date', '').strip() or None
+    end_date = request.args.get('end_date', '').strip() or None
+
+    data = AdminService.get_all_transactions(
+        limit=limit, offset=offset,
+        user_id=user_id, operation=operation,
+        start_date=start_date, end_date=end_date,
+    )
+    return success_response(data)
+
+
+@admin_bp.route('/orders', methods=['GET'])
+@auth_required
+@admin_required
+def list_all_orders():
+    """
+    Get all payment orders for auditing.
+
+    Query params:
+        limit: int (default 50, max 200)
+        offset: int (default 0)
+        user_id: filter by user ID
+        status: filter by order status (pending/paid/failed/refunded/cancelled)
+        start_date: filter by start date (ISO format)
+        end_date: filter by end date (ISO format)
+    """
+    limit = min(request.args.get('limit', 50, type=int), 200)
+    offset = max(request.args.get('offset', 0, type=int), 0)
+    user_id = request.args.get('user_id', '').strip() or None
+    status = request.args.get('status', '').strip() or None
+    start_date = request.args.get('start_date', '').strip() or None
+    end_date = request.args.get('end_date', '').strip() or None
+
+    data = AdminService.get_all_orders(
+        limit=limit, offset=offset,
+        user_id=user_id, status=status,
+        start_date=start_date, end_date=end_date,
+    )
+    return success_response(data)
+
+
 @admin_bp.route('/users/<user_id>/credits', methods=['POST'])
 @auth_required
 @admin_required
