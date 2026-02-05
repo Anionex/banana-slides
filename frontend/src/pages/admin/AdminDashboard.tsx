@@ -16,6 +16,7 @@ const i18n = {
     manageUsers: '管理用户',
     auditTransactions: '积分明细',
     auditOrders: '订单审计',
+    systemConfig: '系统配置',
     totalUsers: '总用户数',
     activeUsers: '活跃用户',
     verifiedUsers: '已验证用户',
@@ -33,6 +34,7 @@ const i18n = {
     manageUsers: 'Manage Users',
     auditTransactions: 'Transactions',
     auditOrders: 'Orders',
+    systemConfig: 'System Config',
     totalUsers: 'Total Users',
     activeUsers: 'Active Users',
     verifiedUsers: 'Verified Users',
@@ -138,7 +140,13 @@ export default function AdminDashboard() {
             {t('auditOrders')}
           </Link>
           <Link
-            to="/"
+            to="/admin/config"
+            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm font-medium"
+          >
+            {t('systemConfig')}
+          </Link>
+          <Link
+            to="/app"
             className="text-sm text-gray-500 hover:text-gray-700 dark:text-foreground-secondary dark:hover:text-foreground-primary"
           >
             {t('backHome')}
