@@ -6,6 +6,7 @@ import logging
 import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
+from sqlalchemy.exc import IntegrityError
 
 from models import db, User
 from utils.security import (
@@ -94,6 +95,10 @@ class AuthService:
                 logger.info(f"User registered: {user.id} ({email})")
             return user, None
             
+        except IntegrityError as e:
+            db.session.rollback()
+            logger.warning(f"Registration failed for {email}: duplicate email (race condition)")
+            return None, "该邮箱已被注册"
         except Exception as e:
             db.session.rollback()
             logger.error(f"Registration failed for {email}: {e}")
