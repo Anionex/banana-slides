@@ -108,12 +108,24 @@ export const paymentApi = {
     paymentType: 'wechat' | 'alipay' = 'wechat',
     returnUrl?: string
   ): Promise<PaymentOrder> => {
-    const response = await apiClient.post<ApiResponse<PaymentOrder>>('/api/payment/create-order', {
-      package_id: packageId,
-      payment_type: paymentType,
-      return_url: returnUrl,
-    });
-    return response.data.data;
+    try {
+      const response = await apiClient.post<ApiResponse<PaymentOrder>>('/api/payment/create-order', {
+        package_id: packageId,
+        payment_type: paymentType,
+        return_url: returnUrl,
+      });
+      return response.data.data;
+    } catch (error: any) {
+      // Extract error message from backend response if available
+      const errorMessage = error.response?.data?.error?.message
+        || error.response?.data?.message
+        || error.message
+        || '创建订单失败';
+      return {
+        success: false,
+        error_message: errorMessage,
+      };
+    }
   },
 
   /**
