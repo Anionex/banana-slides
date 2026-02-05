@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies (with test extras)
         run: |
           uv sync --extra test
+        env:
+          # Use official PyPI instead of Chinese mirror in CI
+          UV_INDEX_URL: https://pypi.org/simple
       
       - name: Run unit tests
         run: |

@@ -36,6 +36,8 @@ jobs:
           # Check code format
           uv run black --check . || echo "Code format suggestion: run black ."
         continue-on-error: true
+        env:
+          UV_INDEX_URL: https://pypi.org/simple
       
       # Frontend checks
       - name: Setup Node.js
@@ -89,24 +91,26 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-      
+        env:
+          UV_INDEX_URL: https://pypi.org/simple
+
       - name: Start backend and test
         run: |
           cd backend
           # Start in background
           uv run python app.py &
           SERVER_PID=$!
-          
+
           # Wait for startup
           echo "Waiting for backend to start..."
           sleep 10
-          
+
           # Check if process is still running
           if ! kill -0 $SERVER_PID 2>/dev/null; then
             echo "Backend process has exited"
             exit 1
           fi
-          
+
           # Health check
           if curl -f http://localhost:5000/health; then
             echo "Backend smoke test passed"
@@ -136,4 +140,5 @@ jobs:
           # SaaS test environment
           SKIP_EMAIL_VERIFICATION: true
           JWT_SECRET_KEY: test-jwt-secret-key-for-ci
+          UV_INDEX_URL: https://pypi.org/simple
 

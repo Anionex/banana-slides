@@ -45,6 +45,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
+        env:
+          UV_INDEX_URL: https://pypi.org/simple
 
       - name: Translate README
         env:
@@ -53,6 +55,7 @@ jobs:
           GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
           AI_PROVIDER_FORMAT: gemini
           TEXT_MODEL: gemini-3-flash-preview
+          UV_INDEX_URL: https://pypi.org/simple
         run: |
           echo "开始增量翻译 README.md（仅翻译修改的部分）..."
           uv run python scripts/translate_readme_incremental.py
