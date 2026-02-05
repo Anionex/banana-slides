@@ -27,7 +27,7 @@ class TestCreditsService:
 
             # 5页图片生成
             cost = CreditsService.get_cost(CreditOperation.GENERATE_IMAGE, 5)
-            assert cost == 50  # 10 * 5 = 50
+            assert cost == 40  # 8 * 5 = 40
 
     def test_check_credits_sufficient(self, app, client):
         """测试积分充足检查"""
@@ -223,8 +223,8 @@ class TestCreditsService:
             assert 'descriptions' in estimate
             assert 'images' in estimate
             assert 'total' in estimate
-            # 5 + 2*5 + 10*5 = 5 + 10 + 50 = 65
-            assert estimate['total'] == 65
+            # 5 + 1*5 + 8*5 = 5 + 5 + 40 = 50
+            assert estimate['total'] == 50
 
     def test_estimate_project_cost_outline_only(self, app):
         """测试仅大纲的积分估算"""
