@@ -8,14 +8,12 @@ import { useTranslation } from 'react-i18next';
 import { Settings, CreditCard, LogOut, ChevronDown, User, Shield, List, Lock } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { logoutUser } from '../../api/auth';
-import ChangePasswordModal from './ChangePasswordModal';
 
 export default function UserMenu() {
   const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -47,7 +45,7 @@ export default function UserMenu() {
     );
   }
 
-  const initials = user.username 
+  const initials = user.username
     ? user.username.slice(0, 2).toUpperCase()
     : user.email.slice(0, 2).toUpperCase();
 
@@ -79,8 +77,8 @@ export default function UserMenu() {
               {initials}
             </div>
           )}
-          <ChevronDown 
-            size={14} 
+          <ChevronDown
+            size={14}
             className={`text-gray-500 dark:text-foreground-tertiary transition-transform ${isOpen ? 'rotate-180' : ''}`}
           />
         </button>
@@ -123,16 +121,14 @@ export default function UserMenu() {
                 <Settings size={18} />
                 <span>{t('nav.settings', '设置')}</span>
               </Link>
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  setShowChangePassword(true);
-                }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+              <Link
+                to="/change-password"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <Lock size={18} />
                 <span>{t('auth.changePassword.menuItem', '修改密码')}</span>
-              </button>
+              </Link>
               <Link
                 to="/credits"
                 onClick={() => setIsOpen(false)}
@@ -164,12 +160,6 @@ export default function UserMenu() {
           </div>
         </>
       )}
-
-      {/* Change Password Modal */}
-      <ChangePasswordModal
-        isOpen={showChangePassword}
-        onClose={() => setShowChangePassword(false)}
-      />
     </div>
   );
 }

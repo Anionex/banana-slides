@@ -10,12 +10,13 @@ import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { PricingPage } from './pages/PricingPage';
 import { CreditsHistory } from './pages/CreditsHistory';
-import { 
-  LoginPage, 
-  RegisterPage, 
-  ForgotPasswordPage, 
-  ResetPasswordPage, 
-  VerifyEmailPage 
+import {
+  LoginPage,
+  RegisterPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  VerifyEmailPage,
+  ChangePasswordPage
 } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
@@ -112,6 +113,11 @@ function App() {
         <Route path="/credits" element={
           <ProtectedRoute>
             <CreditsHistory />
+          </ProtectedRoute>
+        } />
+        <Route path="/change-password" element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
           </ProtectedRoute>
         } />
         <Route path="/project/:projectId/outline" element={
