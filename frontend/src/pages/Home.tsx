@@ -869,7 +869,7 @@ export const Home: React.FC = () => {
               type="button"
               onClick={handlePaperclipClick}
               className="absolute left-2 md:left-3 bottom-2 md:bottom-3 z-10 p-1.5 md:p-2 text-gray-400 dark:text-foreground-tertiary hover:text-gray-600 dark:hover:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors active:scale-95 touch-manipulation"
-              title="选择参考文件"
+              title={t('home.actions.selectFile')}
             >
               <Paperclip size={18} className="md:w-5 md:h-5" />
             </button>
