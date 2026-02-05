@@ -39,11 +39,12 @@ export const authApi = {
   /**
    * Register a new user
    */
-  register: async (email: string, password: string, username?: string): Promise<RegisterResponse> => {
+  register: async (email: string, password: string, username?: string, invitationCode?: string): Promise<RegisterResponse> => {
     const response = await apiClient.post<ApiResponse<RegisterResponse>>('/api/auth/register', {
       email,
       password,
       username,
+      invitation_code: invitationCode,
     });
     return response.data.data;
   },
@@ -211,9 +212,9 @@ export const loginUser = async (email: string, password: string, rememberMe: boo
  * Register user
  * 注意：生产模式下注册后不会自动登录，需要先验证邮箱
  */
-export const registerUser = async (email: string, password: string, username?: string) => {
-  const data = await authApi.register(email, password, username);
-  
+export const registerUser = async (email: string, password: string, username?: string, invitationCode?: string) => {
+  const data = await authApi.register(email, password, username, invitationCode);
+
   // 只有当返回了 tokens 时才自动登录（开发模式跳过验证时）
   if (data.access_token && data.refresh_token) {
     useAuthStore.getState().login(data.user, {
@@ -223,7 +224,7 @@ export const registerUser = async (email: string, password: string, username?: s
       expires_in: data.expires_in || 3600,
     });
   }
-  
+
   return {
     user: data.user,
     message: data.message,

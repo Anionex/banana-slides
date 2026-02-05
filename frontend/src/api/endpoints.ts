@@ -961,3 +961,97 @@ export const getTestStatus = async (taskId: string): Promise<ApiResponse<{
   const response = await apiClient.get<ApiResponse<any>>(`/api/settings/tests/${taskId}/status`);
   return response.data;
 };
+
+// ===== 邀请码 API =====
+
+/**
+ * 获取用户的邀请码列表
+ */
+export const getInvitationCodes = async (): Promise<ApiResponse<{
+  codes: any[];
+  max_codes: number;
+  invitation_bonus: number;
+  enable_invitation: boolean;
+}>> => {
+  const response = await apiClient.get<ApiResponse<any>>('/api/invitation/codes');
+  return response.data;
+};
+
+/**
+ * 创建新的邀请码
+ */
+export const createInvitationCode = async (): Promise<ApiResponse<any>> => {
+  const response = await apiClient.post<ApiResponse<any>>('/api/invitation/codes');
+  return response.data;
+};
+
+/**
+ * 删除邀请码
+ */
+export const deleteInvitationCode = async (codeId: string): Promise<ApiResponse<any>> => {
+  const response = await apiClient.delete<ApiResponse<any>>(`/api/invitation/codes/${codeId}`);
+  return response.data;
+};
+
+/**
+ * 验证邀请码是否有效
+ */
+export const validateInvitationCode = async (code: string): Promise<ApiResponse<{
+  valid: boolean;
+  bonus?: number;
+  message: string;
+}>> => {
+  const response = await apiClient.get<ApiResponse<any>>(`/api/invitation/validate/${code}`);
+  return response.data;
+};
+
+/**
+ * 获取邀请统计
+ */
+export const getInvitationStats = async (): Promise<ApiResponse<{
+  invited_count: number;
+  total_bonus_earned: number;
+  bonus_per_invite: number;
+}>> => {
+  const response = await apiClient.get<ApiResponse<any>>('/api/invitation/stats');
+  return response.data;
+};
+
+// ===== 系统配置 API (管理员) =====
+
+/**
+ * 获取系统配置
+ */
+export const getSystemConfig = async (): Promise<ApiResponse<any>> => {
+  const response = await apiClient.get<ApiResponse<any>>('/api/admin/config');
+  return response.data;
+};
+
+/**
+ * 更新系统配置
+ */
+export const updateSystemConfig = async (config: any): Promise<ApiResponse<any>> => {
+  const response = await apiClient.put<ApiResponse<any>>('/api/admin/config', config);
+  return response.data;
+};
+
+/**
+ * 获取用户策略配置
+ */
+export const getUserPolicy = async (): Promise<ApiResponse<{
+  all_fields: any[];
+  editable_fields: string[];
+}>> => {
+  const response = await apiClient.get<ApiResponse<any>>('/api/admin/config/user-policy');
+  return response.data;
+};
+
+/**
+ * 更新用户策略
+ */
+export const updateUserPolicy = async (editableFields: string[]): Promise<ApiResponse<any>> => {
+  const response = await apiClient.put<ApiResponse<any>>('/api/admin/config/user-policy', {
+    editable_fields: editableFields
+  });
+  return response.data;
+};
