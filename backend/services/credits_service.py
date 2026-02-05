@@ -25,44 +25,71 @@ class CreditOperation(Enum):
     REFINE_DESCRIPTION = "refine_description"       # 修改描述
     PARSE_FILE = "parse_file"                       # 解析参考文件
     EXPORT_EDITABLE = "export_editable"             # 导出可编辑PPTX
-    
+
     # 充值类
     PURCHASE = "purchase"                           # 购买积分
     BONUS = "bonus"                                 # 赠送积分
     REFUND = "refund"                               # 退款
+    INVITATION = "invitation"                       # 邀请奖励
+    REGISTRATION = "registration"                   # 注册奖励
 
 
-# 积分消耗配置
-# 可以根据业务需求调整
-CREDIT_COSTS: Dict[CreditOperation, int] = {
+# 默认积分消耗配置（如果 SystemConfig 不可用时的回退值）
+DEFAULT_CREDIT_COSTS: Dict[CreditOperation, int] = {
     CreditOperation.GENERATE_OUTLINE: 5,
-    CreditOperation.GENERATE_DESCRIPTION: 2,        # 每页
-    CreditOperation.GENERATE_IMAGE: 10,             # 每页
+    CreditOperation.GENERATE_DESCRIPTION: 1,        # 每页
+    CreditOperation.GENERATE_IMAGE: 8,              # 每页
     CreditOperation.EDIT_IMAGE: 8,
     CreditOperation.GENERATE_MATERIAL: 10,
-    CreditOperation.REFINE_OUTLINE: 3,
-    CreditOperation.REFINE_DESCRIPTION: 3,
+    CreditOperation.REFINE_OUTLINE: 2,
+    CreditOperation.REFINE_DESCRIPTION: 1,
     CreditOperation.PARSE_FILE: 5,
-    CreditOperation.EXPORT_EDITABLE: 20,            # 每次导出
+    CreditOperation.EXPORT_EDITABLE: 15,            # 每页
 }
+
+
+def get_credit_costs() -> Dict[CreditOperation, int]:
+    """从 SystemConfig 获取积分消耗配置"""
+    try:
+        from models import SystemConfig
+        config = SystemConfig.get_instance()
+        return {
+            CreditOperation.GENERATE_OUTLINE: config.cost_generate_outline,
+            CreditOperation.GENERATE_DESCRIPTION: config.cost_generate_description,
+            CreditOperation.GENERATE_IMAGE: config.cost_generate_image,
+            CreditOperation.EDIT_IMAGE: config.cost_edit_image,
+            CreditOperation.GENERATE_MATERIAL: config.cost_generate_material,
+            CreditOperation.REFINE_OUTLINE: config.cost_refine_outline,
+            CreditOperation.REFINE_DESCRIPTION: config.cost_refine_description,
+            CreditOperation.PARSE_FILE: config.cost_parse_file,
+            CreditOperation.EXPORT_EDITABLE: config.cost_export_editable,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to load credit costs from SystemConfig, using defaults: {e}")
+        return DEFAULT_CREDIT_COSTS
+
+
+# 保持向后兼容的常量（但实际使用时应调用 get_credit_costs()）
+CREDIT_COSTS = DEFAULT_CREDIT_COSTS
 
 
 class CreditsService:
     """积分服务"""
-    
+
     @staticmethod
     def get_cost(operation: CreditOperation, quantity: int = 1) -> int:
         """
         获取操作的积分消耗
-        
+
         Args:
             operation: 操作类型
             quantity: 数量（如页数）
-            
+
         Returns:
             总积分消耗
         """
-        base_cost = CREDIT_COSTS.get(operation, 0)
+        costs = get_credit_costs()
+        base_cost = costs.get(operation, 0)
         return base_cost * quantity
     
     @staticmethod
