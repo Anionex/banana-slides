@@ -81,10 +81,10 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:saas
 
             # 停止旧容器
-            docker compose -f docker-compose.saas.yml down || true
+            docker compose -p banana-saas -f docker-compose.saas.yml down || true
 
             # 启动新容器
-            docker compose -f docker-compose.saas.yml up -d
+            docker compose -p banana-saas -f docker-compose.saas.yml up -d
 
             # 清理旧镜像
             docker image prune -f
