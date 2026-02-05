@@ -70,6 +70,13 @@ export const Landing: React.FC = () => {
   const t = useT(landingI18n);
   const [currentShowcase, setCurrentShowcase] = useState(0);
 
+  // Get current language translations for direct array access
+  const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
+  const currentLang = landingI18n[lang] || landingI18n['zh'];
+  const getDetails = (featureKey: string): string[] => {
+    return (currentLang.help?.features as any)?.[featureKey]?.details || [];
+  };
+
   // Auto-rotate showcase
   useEffect(() => {
     const timer = setInterval(() => {
@@ -272,7 +279,7 @@ export const Landing: React.FC = () => {
                   
                   {/* 详情列表 */}
                   <ul className="space-y-4 pt-4">
-                    {(t(`help.features.${feature.key}.details`, { returnObjects: true }) as string[])?.map((detail: string, i: number) => (
+                    {getDetails(feature.key).map((detail: string, i: number) => (
                       <li key={i} className="flex items-start gap-3">
                         <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-banana-500 shrink-0" />
                         <span className="text-gray-600 dark:text-gray-400 font-medium">{detail}</span>
