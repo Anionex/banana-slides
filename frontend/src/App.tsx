@@ -10,6 +10,7 @@ import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { PricingPage } from './pages/PricingPage';
 import { CreditsHistory } from './pages/CreditsHistory';
+import { InvitationPage } from './pages/InvitationPage';
 import {
   LoginPage,
   RegisterPage,
@@ -20,7 +21,7 @@ import {
 } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
-import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders } from './pages/admin';
+import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useToast } from './components/shared';
@@ -82,15 +83,16 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/landing" element={<Landing />} />
-        
+
         {/* Protected routes */}
-        <Route path="/" element={
+        <Route path="/app" element={
           <ProtectedRoute>
             <Home />
           </ProtectedRoute>
@@ -113,6 +115,11 @@ function App() {
         <Route path="/credits" element={
           <ProtectedRoute>
             <CreditsHistory />
+          </ProtectedRoute>
+        } />
+        <Route path="/invitation" element={
+          <ProtectedRoute>
+            <InvitationPage />
           </ProtectedRoute>
         } />
         <Route path="/change-password" element={
@@ -155,6 +162,11 @@ function App() {
         <Route path="/admin/orders" element={
           <AdminRoute>
             <AdminOrders />
+          </AdminRoute>
+        } />
+        <Route path="/admin/config" element={
+          <AdminRoute>
+            <AdminConfig />
           </AdminRoute>
         } />
 

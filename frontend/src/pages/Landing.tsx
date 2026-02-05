@@ -106,10 +106,10 @@ export const Landing: React.FC = () => {
           >
             {i18n.language?.startsWith('zh') ? 'EN' : '中'}
           </button>
-          <Button 
-            variant="primary" 
+          <Button
+            variant="primary"
             size="sm"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
             className="shadow-lg shadow-banana-500/20 hover:shadow-banana-500/30 transition-all"
           >
             {t('landing.nav.enter')}
@@ -148,7 +148,7 @@ export const Landing: React.FC = () => {
             <Button
               size="lg"
               className="w-full sm:w-auto text-base px-8 py-6 rounded-full shadow-xl shadow-banana-500/20 hover:shadow-banana-500/30 hover:-translate-y-1 transition-all duration-300 font-bold"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/app')}
               icon={<ChevronRight size={20} />}
             >
               {t('landing.hero.cta_primary')}
