@@ -4,15 +4,42 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { Settings, CreditCard, LogOut, ChevronDown, User, Shield, List, Lock, Users } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { logoutUser } from '../../api/auth';
+import { useT } from '../../hooks/useT';
+
+const userMenuI18n = {
+  zh: {
+    auth: {
+      login: '登录',
+      logout: '退出登录',
+      credits: '积分余额',
+      creditsHistory: '积分明细',
+      buyCredits: '购买积分',
+      invitation: '邀请好友',
+      changePassword: { menuItem: '修改密码' },
+    },
+    nav: { settings: '设置', admin: '管理后台' },
+  },
+  en: {
+    auth: {
+      login: 'Login',
+      logout: 'Logout',
+      credits: 'Credits',
+      creditsHistory: 'Credits History',
+      buyCredits: 'Buy Credits',
+      invitation: 'Invite Friends',
+      changePassword: { menuItem: 'Change Password' },
+    },
+    nav: { settings: 'Settings', admin: 'Admin' },
+  },
+};
 
 export default function UserMenu() {
   const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const t = useT(userMenuI18n);
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +67,7 @@ export default function UserMenu() {
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-banana-500 to-orange-500 rounded-lg hover:from-banana-600 hover:to-orange-600 shadow-sm hover:shadow-md transition-all"
       >
         <User size={16} />
-        <span>{t('auth.login', '登录')}</span>
+        <span>{t('auth.login')}</span>
       </Link>
     );
   }
@@ -97,7 +124,7 @@ export default function UserMenu() {
 
             {/* Credits (mobile) */}
             <div className="sm:hidden px-4 py-3 border-b border-gray-100 dark:border-border-primary flex items-center justify-between">
-              <span className="text-gray-600 dark:text-foreground-secondary">{t('auth.credits', '积分余额')}</span>
+              <span className="text-gray-600 dark:text-foreground-secondary">{t('auth.credits')}</span>
               <span className="text-amber-600 dark:text-amber-400 font-medium">{user.credits_balance}</span>
             </div>
 
@@ -110,7 +137,7 @@ export default function UserMenu() {
                   className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
                 >
                   <Shield size={18} />
-                  <span>{t('nav.admin', '管理后台')}</span>
+                  <span>{t('nav.admin')}</span>
                 </Link>
               )}
               <Link
@@ -119,7 +146,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <Settings size={18} />
-                <span>{t('nav.settings', '设置')}</span>
+                <span>{t('nav.settings')}</span>
               </Link>
               <Link
                 to="/change-password"
@@ -127,7 +154,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <Lock size={18} />
-                <span>{t('auth.changePassword.menuItem', '修改密码')}</span>
+                <span>{t('auth.changePassword.menuItem')}</span>
               </Link>
               <Link
                 to="/credits"
@@ -135,7 +162,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <List size={18} />
-                <span>{t('auth.creditsHistory', '积分明细')}</span>
+                <span>{t('auth.creditsHistory')}</span>
               </Link>
               <Link
                 to="/invitation"
@@ -143,7 +170,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <Users size={18} />
-                <span>{t('auth.invitation', '邀请好友')}</span>
+                <span>{t('auth.invitation')}</span>
               </Link>
               <Link
                 to="/pricing"
@@ -151,7 +178,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <CreditCard size={18} />
-                <span>{t('auth.buyCredits', '购买积分')}</span>
+                <span>{t('auth.buyCredits')}</span>
               </Link>
             </div>
 
@@ -162,7 +189,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 w-full px-4 py-2.5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
               >
                 <LogOut size={18} />
-                <span>{t('auth.logout', '退出登录')}</span>
+                <span>{t('auth.logout')}</span>
               </button>
             </div>
           </div>
