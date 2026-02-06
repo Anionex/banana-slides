@@ -134,9 +134,14 @@ class AuthService:
                 # Mark invitation as used
                 invitation.use(user.id)
 
-                # Give bonus to invitee (new user)
+                # Give bonus to invitee (new user) - atomic SQL UPDATE
                 if invitation_bonus > 0:
-                    user.credits_balance += invitation_bonus
+                    db.session.execute(
+                        db.update(User)
+                        .where(User.id == user.id)
+                        .values(credits_balance=User.credits_balance + invitation_bonus)
+                    )
+                    db.session.refresh(user)
                     from models.credit_transaction import CreditTransaction
                     from services.credits_service import CreditOperation
                     invitee_transaction = CreditTransaction(
@@ -148,10 +153,15 @@ class AuthService:
                     )
                     db.session.add(invitee_transaction)
 
-                    # Give bonus to inviter
+                    # Give bonus to inviter - atomic SQL UPDATE
                     inviter = User.query.get(invitation.inviter_id)
                     if inviter:
-                        inviter.credits_balance += invitation_bonus
+                        db.session.execute(
+                            db.update(User)
+                            .where(User.id == inviter.id)
+                            .values(credits_balance=User.credits_balance + invitation_bonus)
+                        )
+                        db.session.refresh(inviter)
                         inviter_transaction = CreditTransaction(
                             user_id=inviter.id,
                             operation=CreditOperation.INVITATION.value,
