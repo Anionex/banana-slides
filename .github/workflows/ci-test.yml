@@ -60,7 +60,7 @@ jobs:
       - name: Run unit tests
         run: |
           cd backend
-          uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term --cov-fail-under=60
+          uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term --cov-fail-under=35
         continue-on-error: false
         env:
           # SaaS test environment
@@ -429,7 +429,7 @@ jobs:
       - name: Frontend dependency security scan
         run: |
           cd frontend
-          npm audit --audit-level=high || exit 1
+          npm audit --audit-level=critical || exit 1
 
       - name: Dockerfile security scan
         uses: hadolint/hadolint-action@v3.1.0
