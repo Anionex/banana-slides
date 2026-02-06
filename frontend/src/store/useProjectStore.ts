@@ -396,11 +396,12 @@ const debouncedUpdatePage = debounce(
       console.warn('[轮询] 没有当前项目，停止轮询');
       return;
     }
+    const projectId = currentProject.id!;
 
     const poll = async () => {
       try {
         console.log(`[轮询] 查询任务状态: ${taskId}`);
-        const response = await api.getTaskStatus(currentProject.id!, taskId);
+        const response = await api.getTaskStatus(projectId, taskId);
         const task = response.data;
         
         if (!task) {
@@ -754,10 +755,11 @@ const debouncedUpdatePage = debounce(
       console.warn('[批量轮询] 没有当前项目，停止轮询');
       return;
     }
+    const projectId = currentProject.id!;
 
     const poll = async () => {
       try {
-        const response = await api.getTaskStatus(currentProject.id!, taskId);
+        const response = await api.getTaskStatus(projectId, taskId);
         const task = response.data;
         
         if (!task) {
