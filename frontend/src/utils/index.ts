@@ -82,7 +82,9 @@ export function downloadFile(blob: Blob, filename: string) {
  */
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleString('zh-CN', {
+  const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh-CN';
+  const locale = lang.startsWith('zh') ? 'zh-CN' : 'en-US';
+  return date.toLocaleString(locale, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
