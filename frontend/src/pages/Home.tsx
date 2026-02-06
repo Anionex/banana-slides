@@ -74,13 +74,17 @@ const homeI18n = {
       },
       tabDescriptions: {
         idea: '输入你的想法，AI 将为你生成完整的 PPT',
-        outline: '已有大纲？直接粘贴即可快速生成，AI 将自动切分为结构化大纲',
-        description: '已有完整描述？AI 将自动解析出大纲并切分为每页描述，直接生成图片',
+        outline: '已有大纲？直接粘贴，AI 将自动切分为结构化大纲',
+        description: '已有完整描述？AI 将自动解析并直接生成图片，跳过大纲步骤',
       },
       placeholders: {
         idea: '例如：生成一份关于 AI 发展史的演讲 PPT',
         outline: '粘贴你的 PPT 大纲...',
         description: '粘贴你的完整页面描述...',
+      },
+      examples: {
+        outline: '格式示例：\n\n第一页：AI 的起源\n- 1956年达特茅斯会议\n- 早期研究者的愿景\n\n第二页：机器学习的发展\n- 从规则驱动到数据驱动\n- 经典算法介绍\n\n第三页：未来展望\n- 趋势与挑战\n\n支持标题+要点的形式，也可以只写标题。AI 会自动切分为结构化大纲。',
+        description: '格式示例：\n\n第一页：AI 的起源\n介绍人工智能概念的诞生，从1956年达特茅斯会议讲起。页面采用左文右图布局，左侧展示时间线，右侧配一张复古风格的计算机插画。\n\n第二页：机器学习的发展\n讲解从规则驱动到数据驱动的转变。使用深蓝色背景，中央放置算法对比图表，底部列出关键里程碑。\n\n每页可包含内容描述、排版布局、视觉风格等，用空行分隔各页。',
       },
       template: {
         title: '选择风格模板',
@@ -172,13 +176,17 @@ const homeI18n = {
       },
       tabDescriptions: {
         idea: 'Enter your idea, AI will generate a complete PPT for you',
-        outline: 'Have an outline? Paste it directly, AI will split it into structured outline',
-        description: 'Have descriptions? AI will parse and generate images directly',
+        outline: 'Have an outline? Paste it directly, AI will split it into a structured outline',
+        description: 'Have detailed descriptions? AI will parse and generate images directly, skipping the outline step',
       },
       placeholders: {
         idea: 'e.g., Generate a presentation about the history of AI',
         outline: 'Paste your PPT outline...',
         description: 'Paste your complete page descriptions...',
+      },
+      examples: {
+        outline: 'Format example:\n\nSlide 1: The Origins of AI\n- 1956 Dartmouth Conference\n- Vision of early researchers\n\nSlide 2: The Rise of Machine Learning\n- From rule-based to data-driven\n- Classic algorithms overview\n\nSlide 3: Future Outlook\n- Trends and challenges\n\nTitles with bullet points, or titles only. AI will split it into a structured outline.',
+        description: 'Format example:\n\nSlide 1: The Origins of AI\nIntroduce the birth of AI, starting from the 1956 Dartmouth Conference. Use a left-text right-image layout with a timeline on the left and a retro-style computer illustration on the right.\n\nSlide 2: The Rise of Machine Learning\nExplain the shift from rule-based to data-driven approaches. Dark blue background, algorithm comparison chart in the center, key milestones at the bottom.\n\nEach slide can include content, layout, and visual style. Separate slides with blank lines.',
       },
       template: {
         title: 'Select Style Template',
@@ -535,18 +543,21 @@ export const Home: React.FC = () => {
       label: t('home.tabs.idea'),
       placeholder: t('home.placeholders.idea'),
       description: t('home.tabDescriptions.idea'),
+      example: null as string | null,
     },
     outline: {
       icon: <FileText size={20} />,
       label: t('home.tabs.outline'),
       placeholder: t('home.placeholders.outline'),
       description: t('home.tabDescriptions.outline'),
+      example: t('home.examples.outline'),
     },
     description: {
       icon: <FileEdit size={20} />,
       label: t('home.tabs.description'),
       placeholder: t('home.placeholders.description'),
       description: t('home.tabDescriptions.description'),
+      example: t('home.examples.description'),
     },
   };
 
@@ -915,6 +926,15 @@ export const Home: React.FC = () => {
                 <span className="font-semibold">
                   {tabConfig[activeTab].description}
                 </span>
+                {tabConfig[activeTab].example && (
+                  <span className="relative group/tip inline-flex">
+                    <HelpCircle size={15} className="text-gray-400 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana cursor-help transition-colors" />
+                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/tip:block z-50 w-72 md:w-80 p-3 bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary rounded-lg shadow-xl dark:shadow-none text-xs text-gray-700 dark:text-foreground-secondary whitespace-pre-line leading-relaxed">
+                      {tabConfig[activeTab].example}
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full -mt-px w-2 h-2 bg-white dark:bg-background-elevated border-r border-b border-gray-200 dark:border-border-primary rotate-45" />
+                    </span>
+                  </span>
+                )}
               </span>
             </p>
           </div>
