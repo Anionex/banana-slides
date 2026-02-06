@@ -317,7 +317,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
-            pages_data = ai_service.flatten_outline(outline)
+            all_pages_data = ai_service.flatten_outline(outline)
+
+            # Build mapping from order_index to page_data so filtered pages
+            # get matched to the correct outline entry (not just first N)
+            pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
             
             # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
             # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
@@ -434,8 +438,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(generate_single_image, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
+                    executor.submit(
+                        generate_single_image, page.id,
+                        pages_data_by_index.get(page.order_index, {}), i
+                    )
+                    for i, page in enumerate(pages, 1)
                 ]
                 
                 # Process results as they complete
