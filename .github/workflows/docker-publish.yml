@@ -10,6 +10,9 @@ on:
       - completed
     branches:
       - main
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 concurrency:
@@ -62,7 +65,9 @@ jobs:
           images: ${{ env.BACKEND_IMAGE }}
           tags: |
             type=ref,event=branch
-            type=sha
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Extract metadata for frontend
@@ -72,7 +77,9 @@ jobs:
           images: ${{ env.FRONTEND_IMAGE }}
           tags: |
             type=ref,event=branch
-            type=sha
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push backend image

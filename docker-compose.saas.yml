@@ -3,7 +3,7 @@
 
 services:
   backend:
-    image: ${DOCKERHUB_USERNAME:-anoinex}/banana-slides-backend:saas
+    image: ghcr.io/anionex/banana-slides-saas-backend:${DEPLOY_TAG:-saas}
     container_name: banana-slides-backend-saas
     ports:
       - "5001:5000"
@@ -25,7 +25,7 @@ services:
       - banana-saas-network
 
   frontend:
-    image: ${DOCKERHUB_USERNAME:-anoinex}/banana-slides-frontend:saas
+    image: ghcr.io/anionex/banana-slides-saas-frontend:${DEPLOY_TAG:-saas}
     container_name: banana-slides-frontend-saas
     ports:
       - "3001:80"

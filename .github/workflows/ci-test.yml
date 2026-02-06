@@ -60,7 +60,7 @@ jobs:
       - name: Run unit tests
         run: |
           cd backend
-          uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term
+          uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term --cov-fail-under=60
         continue-on-error: false
         env:
           # SaaS test environment
@@ -425,18 +425,16 @@ jobs:
           uv pip install safety
           uv run safety check --json || echo "Security vulnerabilities found (warning)"
         continue-on-error: true
-      
+
       - name: Frontend dependency security scan
         run: |
           cd frontend
-          npm audit --audit-level=moderate || echo "Security vulnerabilities found (warning)"
-        continue-on-error: true
-      
+          npm audit --audit-level=high || exit 1
+
       - name: Dockerfile security scan
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: backend/Dockerfile
-        continue-on-error: true
 
   # ================================
   # Test Summary
@@ -459,7 +457,7 @@ jobs:
           echo "  ✅ Backend integration tests: ${{ needs.backend-integration-test.result }}"
           echo "  ✅ Frontend tests: ${{ needs.frontend-test.result }}"
           echo "  ✅ Docker environment tests: ${{ needs.docker-test.result }}"
-          echo "  ℹ️  Security scan: ${{ needs.security-scan.result }}"
+          echo "  ✅ Security scan: ${{ needs.security-scan.result }}"
           echo ""
           echo "Note: E2E tests are part of docker-test job"
           echo "      They run only if GOOGLE_API_KEY is configured"
@@ -470,17 +468,19 @@ jobs:
           needs.backend-unit-test.result != 'success' ||
           needs.backend-integration-test.result != 'success' ||
           needs.frontend-test.result != 'success' ||
-          needs.docker-test.result != 'success'
+          needs.docker-test.result != 'success' ||
+          needs.security-scan.result == 'failure'
         run: |
           echo "Some tests failed, please check the logs"
           exit 1
-      
+
       - name: All tests passed
         if: |
           needs.backend-unit-test.result == 'success' &&
           needs.backend-integration-test.result == 'success' &&
           needs.frontend-test.result == 'success' &&
-          needs.docker-test.result == 'success'
+          needs.docker-test.result == 'success' &&
+          needs.security-scan.result != 'failure'
         run: |
           echo "All tests passed! Ready to merge"
 

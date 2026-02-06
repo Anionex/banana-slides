@@ -1,0 +1,111 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["Build and Push to GHCR (Private)"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (e.g. sha-6416ed6, main, latest)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/anionex/banana-slides-saas-backend
+  FRONTEND_IMAGE: ghcr.io/anionex/banana-slides-saas-frontend
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+
+    steps:
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            # Use SHA tag from the triggering workflow
+            SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+            echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to staging via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
+            TAG="${{ steps.tag.outputs.tag }}"
+            cd "$DEPLOY_PATH"
+
+            # Login to GHCR
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+
+            # Pull images with specific tag
+            docker pull ${{ env.BACKEND_IMAGE }}:${TAG}
+            docker pull ${{ env.FRONTEND_IMAGE }}:${TAG}
+
+            # Deploy staging
+            DEPLOY_TAG=${TAG} docker compose -p banana-staging -f docker-compose.staging.yml down || true
+            DEPLOY_TAG=${TAG} docker compose -p banana-staging -f docker-compose.staging.yml up -d
+
+            echo "Staging deployed with tag: ${TAG}"
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            echo "Waiting for staging services to start..."
+            sleep 15
+
+            # Backend health check
+            for i in $(seq 1 10); do
+              if curl -sf http://localhost:5002/health > /dev/null 2>&1; then
+                echo "Backend health check passed"
+                break
+              fi
+              if [ $i -eq 10 ]; then
+                echo "ERROR: Backend health check failed after 10 attempts"
+                docker compose -p banana-staging -f ${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}/docker-compose.staging.yml logs backend
+                exit 1
+              fi
+              sleep 5
+            done
+
+            # Frontend health check
+            HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' http://localhost:3002 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Frontend health check passed (HTTP ${HTTP_CODE})"
+            else
+              echo "ERROR: Frontend returned HTTP ${HTTP_CODE}"
+              exit 1
+            fi
+
+            echo "Staging deployment verified successfully!"
+
+      - name: Summary
+        run: |
+          echo "## Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** \`${{ steps.tag.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend:** http://${{ secrets.SERVER_HOST }}:5002" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** http://${{ secrets.SERVER_HOST }}:3002" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Health checks passed." >> $GITHUB_STEP_SUMMARY

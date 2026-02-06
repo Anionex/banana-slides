@@ -1,0 +1,236 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (e.g. sha-6416ed6, v0.4.0). Must exist in GHCR.'
+        required: true
+        type: string
+      skip_staging_check:
+        description: 'Skip staging health check (emergency deploy)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/anionex/banana-slides-saas-backend
+  FRONTEND_IMAGE: ghcr.io/anionex/banana-slides-saas-frontend
+
+jobs:
+  pre-deploy-checks:
+    name: Pre-deploy Checks
+    runs-on: ubuntu-latest
+
+    outputs:
+      previous_tag: ${{ steps.current.outputs.tag }}
+
+    steps:
+      - name: Verify staging is healthy
+        if: ${{ github.event.inputs.skip_staging_check != 'true' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            if ! curl -sf http://localhost:5002/health > /dev/null 2>&1; then
+              echo "ERROR: Staging backend is not healthy. Deploy the tag to staging first."
+              exit 1
+            fi
+            echo "Staging is healthy, proceeding with production deploy."
+
+      - name: Record current production version
+        id: current
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
+            if [ -f "$DEPLOY_PATH/.last-production-tag" ]; then
+              PREV_TAG=$(cat "$DEPLOY_PATH/.last-production-tag")
+              echo "Previous production tag: $PREV_TAG"
+              echo "tag=$PREV_TAG" >> "$DEPLOY_PATH/.rollback-tag"
+            else
+              echo "No previous production tag found"
+              echo "tag=" >> "$DEPLOY_PATH/.rollback-tag"
+            fi
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks]
+
+    steps:
+      - name: Backup database and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
+            TAG="${{ github.event.inputs.image_tag }}"
+            cd "$DEPLOY_PATH"
+
+            # --- Step 1: Backup database ---
+            DB_PATH="$DEPLOY_PATH/data/instance/banana_slides.db"
+            if [ -f "$DB_PATH" ]; then
+              mkdir -p "$DEPLOY_PATH/backups"
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP="$DEPLOY_PATH/backups/production_pre_deploy_${TIMESTAMP}.db"
+              sqlite3 "$DB_PATH" ".backup '$BACKUP'"
+              echo "Database backed up to: $BACKUP"
+            fi
+
+            # --- Step 2: Login and pull images ---
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+            docker pull ${{ env.BACKEND_IMAGE }}:${TAG}
+            docker pull ${{ env.FRONTEND_IMAGE }}:${TAG}
+
+            # --- Step 3: Stop old containers and start new ones ---
+            DEPLOY_TAG=${TAG} docker compose -p banana-saas -f docker-compose.saas.yml down || true
+            DEPLOY_TAG=${TAG} docker compose -p banana-saas -f docker-compose.saas.yml up -d
+
+            echo "Production deployed with tag: ${TAG}"
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            echo "Waiting for production services to start..."
+            sleep 15
+
+            # Backend health check
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:5001/health > /dev/null 2>&1; then
+                echo "Backend health check passed"
+                break
+              fi
+              if [ $i -eq 12 ]; then
+                echo "ERROR: Backend health check failed after 12 attempts"
+                docker compose -p banana-saas -f ${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}/docker-compose.saas.yml logs backend
+                exit 1
+              fi
+              sleep 5
+            done
+
+            # Frontend health check
+            HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' http://localhost:3001 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Frontend health check passed (HTTP ${HTTP_CODE})"
+            else
+              echo "ERROR: Frontend returned HTTP ${HTTP_CODE}"
+              exit 1
+            fi
+
+      - name: Smoke test
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            # API root responds
+            API_CODE=$(curl -so /dev/null -w '%{http_code}' http://localhost:5001/health 2>/dev/null)
+            echo "API /health: HTTP $API_CODE"
+
+            # Auth endpoint responds (not 5xx)
+            AUTH_CODE=$(curl -so /dev/null -w '%{http_code}' -X POST http://localhost:5001/api/auth/login \
+              -H 'Content-Type: application/json' -d '{}' 2>/dev/null)
+            echo "Auth /api/auth/login: HTTP $AUTH_CODE"
+            if [ "$AUTH_CODE" -ge 500 ]; then
+              echo "ERROR: Auth endpoint returned 5xx"
+              exit 1
+            fi
+
+            echo "Smoke tests passed!"
+
+      - name: Record deployed version
+        if: success()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
+            echo "${{ github.event.inputs.image_tag }}" > "$DEPLOY_PATH/.last-production-tag"
+            echo "Recorded production tag: ${{ github.event.inputs.image_tag }}"
+
+            # Clean up dangling images only (keep tagged ones for rollback)
+            docker image prune -f --filter "dangling=true"
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks, deploy]
+    if: failure() && needs.pre-deploy-checks.result == 'success'
+
+    steps:
+      - name: Rollback to previous version
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
+            cd "$DEPLOY_PATH"
+
+            PREV_TAG=""
+            if [ -f "$DEPLOY_PATH/.rollback-tag" ]; then
+              PREV_TAG=$(grep 'tag=' "$DEPLOY_PATH/.rollback-tag" | cut -d= -f2)
+            fi
+
+            if [ -z "$PREV_TAG" ]; then
+              echo "WARNING: No previous tag to rollback to. Manual intervention required."
+              exit 1
+            fi
+
+            echo "Rolling back to tag: $PREV_TAG"
+
+            # Login to GHCR
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+
+            # Pull previous images
+            docker pull ${{ env.BACKEND_IMAGE }}:${PREV_TAG} || true
+            docker pull ${{ env.FRONTEND_IMAGE }}:${PREV_TAG} || true
+
+            # Restart with previous tag
+            DEPLOY_TAG=${PREV_TAG} docker compose -p banana-saas -f docker-compose.saas.yml down || true
+            DEPLOY_TAG=${PREV_TAG} docker compose -p banana-saas -f docker-compose.saas.yml up -d
+
+            # Wait and verify
+            sleep 15
+            if curl -sf http://localhost:5001/health > /dev/null 2>&1; then
+              echo "Rollback successful! Running on tag: $PREV_TAG"
+              echo "$PREV_TAG" > "$DEPLOY_PATH/.last-production-tag"
+            else
+              echo "ERROR: Rollback failed! Manual intervention required."
+              exit 1
+            fi
+
+            # Cleanup temp file
+            rm -f "$DEPLOY_PATH/.rollback-tag"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## ROLLBACK TRIGGERED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Production deploy of \`${{ github.event.inputs.image_tag }}\` failed." >> $GITHUB_STEP_SUMMARY
+          echo "Automatic rollback was attempted." >> $GITHUB_STEP_SUMMARY

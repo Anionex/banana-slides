@@ -1,0 +1,41 @@
+# docker-compose.staging.yml - SaaS Staging 环境配置
+# 前端: 3002, 后端: 5002（与生产 3001/5001 不冲突）
+
+services:
+  backend:
+    image: ghcr.io/anionex/banana-slides-saas-backend:${DEPLOY_TAG:-latest}
+    container_name: banana-slides-backend-staging
+    ports:
+      - "5002:5000"
+    env_file:
+      - .env.staging
+    volumes:
+      - ./data-staging/instance:/app/backend/instance
+      - ./data-staging/uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - banana-staging-network
+
+  frontend:
+    image: ghcr.io/anionex/banana-slides-saas-frontend:${DEPLOY_TAG:-latest}
+    container_name: banana-slides-frontend-staging
+    ports:
+      - "3002:80"
+    environment:
+      - BACKEND_URL=http://backend:5000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - banana-staging-network
+
+networks:
+  banana-staging-network:
+    driver: bridge
