@@ -98,7 +98,7 @@ const homeI18n = {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
         projectCreateFailed: '项目创建失败',
-        uploadingImage: '正在上传图片...',
+        uploadingImage: '正在上传图片并识别内容...',
         imageUploadSuccess: '图片上传成功！已插入到光标位置',
         imageUploadFailed: '图片上传失败',
         fileUploadSuccess: '文件上传成功',
@@ -196,7 +196,7 @@ const homeI18n = {
         enterContent: 'Please enter content',
         filesParsing: '{{count}} reference file(s) are still parsing, please wait',
         projectCreateFailed: 'Failed to create project',
-        uploadingImage: 'Uploading image...',
+        uploadingImage: 'Uploading and recognizing image...',
         imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
         imageUploadFailed: 'Failed to upload image',
         fileUploadSuccess: 'File uploaded successfully',
@@ -342,14 +342,15 @@ export const Home: React.FC = () => {
       // 保存当前光标位置
       const cursorPosition = textareaRef.current?.selectionStart || content.length;
       
-      // 上传图片到素材库（全局素材）
-      const response = await uploadMaterial(file, null);
-      
+      // 上传图片到素材库（全局素材），同时请求 AI 生成描述
+      const response = await uploadMaterial(file, null, true);
+
       if (response?.data?.url) {
         const imageUrl = response.data.url;
-        
+        const caption = response.data.caption || 'image';
+
         // 生成markdown图片链接
-        const markdownImage = `![image](${imageUrl})`;
+        const markdownImage = `![${caption}](${imageUrl})`;
         
         // 在光标位置插入图片链接
         setContent(prev => {

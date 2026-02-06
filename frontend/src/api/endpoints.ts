@@ -554,8 +554,9 @@ export const listMaterials = async (
  */
 export const uploadMaterial = async (
   file: File,
-  projectId?: string | null
-): Promise<ApiResponse<Material>> => {
+  projectId?: string | null,
+  generateCaption?: boolean
+): Promise<ApiResponse<Material & { caption?: string }>> => {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -568,7 +569,11 @@ export const uploadMaterial = async (
     url = `/api/projects/${projectId}/materials/upload`;
   }
 
-  const response = await apiClient.post<ApiResponse<Material>>(url, formData);
+  if (generateCaption) {
+    url += (url.includes('?') ? '&' : '?') + 'generate_caption=true';
+  }
+
+  const response = await apiClient.post<ApiResponse<Material & { caption?: string }>>(url, formData);
   return response.data;
 };
 
