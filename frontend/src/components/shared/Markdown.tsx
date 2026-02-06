@@ -2,7 +2,10 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface MarkdownProps {
   children: string;
@@ -13,8 +16,8 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        rehypePlugins={[rehypeRaw]}
+        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+        rehypePlugins={[rehypeRaw, rehypeKatex]}
         components={{
         // 自定义渲染规则
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -27,9 +30,9 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
           </a>
         ),
         img: ({ src, alt }) => (
-          <img 
-            src={src} 
-            alt={alt || ''} 
+          <img
+            src={src}
+            alt={alt || ''}
             className="max-w-full h-auto rounded-lg my-2"
             loading="lazy"
           />
@@ -77,4 +80,3 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
     </div>
   );
 };
-
