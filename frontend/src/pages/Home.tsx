@@ -87,6 +87,40 @@ const homeI18n = {
       language: { label: 'Interface Language' },
       theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' }
     },
+    presetStyles: {
+      businessSimple: {
+        name: 'Business Simple',
+        description: 'Clean business style with blue and white tones, neat layout, ideal for business reports and corporate presentations',
+      },
+      techModern: {
+        name: 'Tech Modern',
+        description: 'Modern tech style with dark background and bright accents, geometric elements and gradients, ideal for tech products and technical sharing',
+      },
+      academicFormal: {
+        name: 'Academic Formal',
+        description: 'Formal academic style with classic colors, clear hierarchy and chart layout, ideal for academic reports and thesis defense',
+      },
+      creativeFun: {
+        name: 'Creative Fun',
+        description: 'Creative and fun style with vibrant colors, hand-drawn elements and cartoon illustrations, ideal for creative showcases and education',
+      },
+      minimalistClean: {
+        name: 'Minimalist Clean',
+        description: 'Minimalist clean style with ample whitespace, soft tones and simple lines, content-focused, ideal for artistic and lifestyle topics',
+      },
+      luxuryPremium: {
+        name: 'Luxury Premium',
+        description: 'Luxury premium style with gold and dark colors, refined textures and high-end feel, ideal for brand launches and premium events',
+      },
+      natureFresh: {
+        name: 'Nature Fresh',
+        description: 'Nature fresh style with green and earth tones, natural elements and organic shapes, ideal for environmental and health topics',
+      },
+      gradientVibrant: {
+        name: 'Gradient Vibrant',
+        description: 'Vibrant gradient style with bold gradient colors and dynamic elements, high visual impact, ideal for trendy and youthful topics',
+      },
+    },
     home: {
       title: 'Banana Slides',
       subtitle: 'Vibe your PPT like vibing code',
