@@ -23,7 +23,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[]) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -120,11 +120,11 @@ const debouncedUpdatePage = debounce(
   setError: (error) => set({ error }),
 
   // 初始化项目
-  initializeProject: async (type, content, templateImage, templateStyle) => {
+  initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds) => {
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
-      
+
       if (type === 'idea') {
         request.idea_prompt = content;
       } else if (type === 'outline') {
@@ -132,21 +132,33 @@ const debouncedUpdatePage = debounce(
       } else if (type === 'description') {
         request.description_text = content;
       }
-      
+
       // 添加风格描述（如果有）
       if (templateStyle && templateStyle.trim()) {
         request.template_style = templateStyle.trim();
       }
-      
+
       // 1. 创建项目
       const response = await api.createProject(request);
       const projectId = response.data?.project_id;
-      
+
       if (!projectId) {
         throw new Error('项目创建失败：未返回项目ID');
       }
-      
-      // 2. 如果有模板图片，上传模板
+
+      // 2. 关联参考文件到项目（在生成之前，确保 AI 能读取参考文件）
+      if (referenceFileIds && referenceFileIds.length > 0) {
+        try {
+          await Promise.all(
+            referenceFileIds.map(fileId => api.associateFileToProject(fileId, projectId))
+          );
+          console.log(`[初始化项目] 已关联 ${referenceFileIds.length} 个参考文件`);
+        } catch (error) {
+          console.warn('[初始化项目] 关联参考文件失败:', error);
+        }
+      }
+
+      // 3. 如果有模板图片，上传模板
       if (templateImage) {
         try {
           await api.uploadTemplate(projectId, templateImage);
@@ -155,8 +167,8 @@ const debouncedUpdatePage = debounce(
           // 模板上传失败不影响项目创建，继续执行
         }
       }
-      
-      // 3. 如果是 description 类型，自动生成大纲和页面描述
+
+      // 4. 如果是 description 类型，自动生成大纲和页面描述
       if (type === 'description') {
         try {
           await api.generateFromDescription(projectId, content);
@@ -166,11 +178,11 @@ const debouncedUpdatePage = debounce(
           // 继续执行，让用户可以手动操作
         }
       }
-      
-      // 4. 获取完整项目信息
+
+      // 5. 获取完整项目信息
       const projectResponse = await api.getProject(projectId);
       const project = normalizeProject(projectResponse.data);
-      
+
       if (project) {
         set({ currentProject: project });
         // 保存到 localStorage

@@ -620,8 +620,13 @@ export const Home: React.FC = () => {
       
       // 传递风格描述（只要有内容就传递，不管开关状态）
       const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
-      
-      await initializeProject(activeTab, content, templateFile || undefined, styleDesc);
+
+      // 传递参考文件ID列表，确保 AI 生成时能读取参考文件内容
+      const refFileIds = referenceFiles
+        .filter(f => f.parse_status === 'completed')
+        .map(f => f.id);
+
+      await initializeProject(activeTab, content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined);
       
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
@@ -630,25 +635,22 @@ export const Home: React.FC = () => {
         return;
       }
       
-      // 关联参考文件到项目
+      // 关联未完成解析的参考文件（已完成的在 initializeProject 中关联）
       if (referenceFiles.length > 0) {
-        console.log(`Associating ${referenceFiles.length} reference files to project ${projectId}:`, referenceFiles);
-        try {
-          // 批量更新文件的 project_id
-          const results = await Promise.all(
-            referenceFiles.map(async file => {
-              const response = await associateFileToProject(file.id, projectId);
-              console.log(`Associated file ${file.id}:`, response);
-              return response;
-            })
-          );
-          console.log('Reference files associated successfully:', results);
-        } catch (error) {
-          console.error('Failed to associate reference files:', error);
-          // 不影响主流程，继续执行
+        const unassociatedFiles = referenceFiles.filter(f => f.parse_status !== 'completed');
+        if (unassociatedFiles.length > 0) {
+          console.log(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
+          try {
+            await Promise.all(
+              unassociatedFiles.map(async file => {
+                const response = await associateFileToProject(file.id, projectId);
+                return response;
+              })
+            );
+          } catch (error) {
+            console.error('Failed to associate reference files:', error);
+          }
         }
-      } else {
-        console.log('No reference files to associate');
       }
       
       // 关联图片素材到项目（解析content中的markdown图片链接）
