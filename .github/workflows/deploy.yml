@@ -1,10 +1,7 @@
 name: Deploy to Production
 
-# 触发条件：推送到 main 分支或手动触发
+# 触发条件：仅手动触发
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       skip_build:
