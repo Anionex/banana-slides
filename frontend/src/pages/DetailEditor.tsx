@@ -326,6 +326,7 @@ export const DetailEditor: React.FC = () => {
                     key={pageId}
                     page={page}
                     index={index}
+                    projectId={currentProject.id}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => handleRegeneratePage(pageId)}
                     isGenerating={pageId ? !!pageDescriptionGeneratingTasks[pageId] : false}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
+import { uploadMaterial } from '@/api/endpoints';
 import type { Page, DescriptionContent } from '@/types';
 
 // DescriptionCard 组件自包含翻译
@@ -11,14 +12,22 @@ const descriptionCardI18n = {
     descriptionCard: {
       page: "第 {{num}} 页", regenerate: "重新生成",
       descriptionTitle: "编辑页面描述", description: "描述",
-      noDescription: "还没有生成描述"
+      noDescription: "还没有生成描述",
+      uploadingImage: "正在上传图片...",
+      imageUploadSuccess: "图片已插入",
+      imageUploadFailed: "图片上传失败",
+      pasteImageHint: "支持粘贴图片"
     }
   },
   en: {
     descriptionCard: {
       page: "Page {{num}}", regenerate: "Regenerate",
       descriptionTitle: "Edit Descriptions", description: "Description",
-      noDescription: "No description generated yet"
+      noDescription: "No description generated yet",
+      uploadingImage: "Uploading image...",
+      imageUploadSuccess: "Image inserted",
+      imageUploadFailed: "Image upload failed",
+      pasteImageHint: "Paste images supported"
     }
   }
 };
@@ -26,6 +35,7 @@ const descriptionCardI18n = {
 export interface DescriptionCardProps {
   page: Page;
   index: number;
+  projectId?: string;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
   isGenerating?: boolean;
@@ -35,6 +45,7 @@ export interface DescriptionCardProps {
 export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   page,
   index,
+  projectId,
   onUpdate,
   onRegenerate,
   isGenerating = false,
@@ -53,10 +64,12 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   };
 
   const text = getDescriptionText(page.description_content);
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
-  
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   // 使用专门的描述生成状态 hook，不受图片生成状态影响
   const generating = useDescriptionGeneratingState(isGenerating, isAiRefining);
 
@@ -75,6 +88,49 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
       } as DescriptionContent,
     });
     setIsEditing(false);
+  };
+
+  // 处理编辑框中的图片粘贴
+  const handleEditPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (!file || isUploadingImage) return;
+
+        e.preventDefault();
+        setIsUploadingImage(true);
+
+        try {
+          // 保存光标位置
+          const cursorPos = editTextareaRef.current?.selectionStart || editContent.length;
+
+          // 上传图片到素材库
+          const response = await uploadMaterial(file, projectId || null);
+
+          if (response?.data?.url) {
+            const markdownImage = `![image](${response.data.url})`;
+
+            // 在光标位置插入图片链接
+            setEditContent(prev => {
+              const before = prev.slice(0, cursorPos);
+              const after = prev.slice(cursorPos);
+              const prefix = before && !before.endsWith('\n') ? '\n' : '';
+              const suffix = after && !after.startsWith('\n') ? '\n' : '';
+              return before + prefix + markdownImage + suffix + after;
+            });
+          }
+        } catch (error) {
+          console.error('Image upload failed in description editor:', error);
+        } finally {
+          setIsUploadingImage(false);
+        }
+        return;
+      }
+    }
   };
 
   return (
@@ -149,12 +205,22 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
         size="lg"
       >
         <div className="space-y-4">
-          <Textarea
-            label={t('descriptionCard.description')}
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            rows={12}
-          />
+          <div className="relative">
+            <Textarea
+              ref={editTextareaRef}
+              label={t('descriptionCard.description')}
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onPaste={handleEditPaste}
+              rows={12}
+              placeholder={t('descriptionCard.pasteImageHint')}
+            />
+            {isUploadingImage && (
+              <div className="absolute inset-0 bg-white/60 dark:bg-black/40 flex items-center justify-center rounded-lg">
+                <span className="text-sm text-gray-600 dark:text-gray-300">{t('descriptionCard.uploadingImage')}</span>
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setIsEditing(false)}>
               {t('common.cancel')}
@@ -168,4 +234,3 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
     </>
   );
 };
-
