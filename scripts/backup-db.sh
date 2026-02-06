@@ -13,10 +13,10 @@ BACKUP_DIR="${DEPLOY_PATH}/backups"
 MAX_BACKUPS=30
 
 if [ "$ENV" = "staging" ]; then
-    DB_PATH="${DEPLOY_PATH}/data-staging/instance/banana_slides.db"
+    DB_PATH="${DEPLOY_PATH}/data-staging/instance/database.db"
     PREFIX="staging"
 else
-    DB_PATH="${DEPLOY_PATH}/data/instance/banana_slides.db"
+    DB_PATH="${DEPLOY_PATH}/data/instance/database.db"
     PREFIX="production"
 fi
 
