@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
 
@@ -17,6 +17,15 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const sizes = {
@@ -44,7 +53,7 @@ export const Modal: React.FC<ModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* 标题栏 */}
-          {title && (
+          {title ? (
             <div className="flex items-center justify-between px-8 py-6 bg-banana-50 dark:bg-background-hover rounded-t-panel">
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-foreground-primary">{title}</h2>
               <button
@@ -54,6 +63,13 @@ export const Modal: React.FC<ModalProps> = ({
                 <X size={24} />
               </button>
             </div>
+          ) : (
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 z-10 text-gray-400 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              <X size={20} />
+            </button>
           )}
 
           {/* 内容 */}
