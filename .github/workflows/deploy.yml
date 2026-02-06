@@ -15,8 +15,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/banana-slides-saas-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/banana-slides-saas-frontend
+  BACKEND_IMAGE: ghcr.io/anionex/banana-slides-saas-backend
+  FRONTEND_IMAGE: ghcr.io/anionex/banana-slides-saas-frontend
 
 jobs:
   build:

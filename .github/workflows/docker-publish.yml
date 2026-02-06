@@ -18,9 +18,9 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  # 镜像名称使用小写
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/banana-slides-saas-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/banana-slides-saas-frontend
+  # 镜像名称必须全小写
+  BACKEND_IMAGE: ghcr.io/anionex/banana-slides-saas-backend
+  FRONTEND_IMAGE: ghcr.io/anionex/banana-slides-saas-frontend
 
 jobs:
   build-and-push:
