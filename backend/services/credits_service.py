@@ -261,7 +261,13 @@ class CreditsService:
             return False, "积分数量必须大于0"
         
         try:
-            user.credits_balance += amount
+            # 原子增加：使用 SQL 级别 UPDATE 防止并发覆盖
+            db.session.execute(
+                db.update(User)
+                .where(User.id == user.id)
+                .values(credits_balance=User.credits_balance + amount)
+            )
+            db.session.refresh(user)
 
             transaction = CreditTransaction(
                 user_id=user.id,
