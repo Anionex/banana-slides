@@ -564,6 +564,7 @@ const debouncedUpdatePage = debounce(
       }
       
       // 启动轮询任务状态和定期同步项目数据
+      let pollErrors = 0;
       const pollAndSync = async () => {
         try {
           // 轮询任务状态
@@ -623,6 +624,17 @@ const debouncedUpdatePage = debounce(
           }
         } catch (error: any) {
           console.error('[生成描述] 轮询错误:', error);
+          pollErrors++;
+          if (pollErrors >= 10) {
+            console.error('[生成描述] 轮询错误次数过多，停止轮询');
+            set({
+              pageDescriptionGeneratingTasks: {},
+              taskProgress: null,
+              activeTaskId: null,
+              error: normalizeErrorMessage(error.message || '生成描述失败：轮询超时')
+            });
+            return;
+          }
           // 即使轮询出错，也继续尝试同步项目数据
           await get().syncProject();
           setTimeout(pollAndSync, 2000);
