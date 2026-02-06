@@ -1158,7 +1158,7 @@ export const SlidePreview: React.FC = () => {
             variant="ghost"
             size="sm"
             icon={<Home size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
             className="hidden sm:inline-flex flex-shrink-0"
             >
               <span className="hidden md:inline">{t('nav.home')}</span>

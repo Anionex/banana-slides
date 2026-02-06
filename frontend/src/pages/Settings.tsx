@@ -962,7 +962,7 @@ export const SettingsPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   icon={<Home size={18} />}
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/app')}
                   className="mr-4"
                 >
                   {t('nav.backToHome')}

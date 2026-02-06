@@ -194,7 +194,7 @@ export const PricingPage: React.FC = () => {
       <nav className="sticky top-0 z-50 h-16 bg-white/80 dark:bg-background-primary backdrop-blur-xl border-b border-gray-200/50 dark:border-border-primary">
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
             className="flex items-center gap-2 text-gray-600 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white transition-colors"
           >
             <ArrowLeft size={20} />

@@ -334,7 +334,7 @@ export const History: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<Home size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/app')}
               className="text-xs md:text-sm"
             >
               {t('nav.home')}
@@ -416,7 +416,7 @@ export const History: React.FC = () => {
             <p className="text-gray-500 dark:text-foreground-tertiary mb-6">
               {t('history.createFirst')}
             </p>
-            <Button variant="primary" onClick={() => navigate('/')}>
+            <Button variant="primary" onClick={() => navigate('/app')}>
               {t('home.actions.createProject')}
             </Button>
           </Card>

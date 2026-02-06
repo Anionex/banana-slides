@@ -157,7 +157,7 @@ export const CreditsHistory: React.FC = () => {
             variant="ghost"
             size="sm"
             icon={<Home size={16} />}
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
           >
             {t('nav.home')}
           </Button>

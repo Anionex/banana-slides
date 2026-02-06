@@ -243,7 +243,7 @@ export const OutlineEditor: React.FC = () => {
                 if (fromHistory) {
                   navigate('/history');
                 } else {
-                  navigate('/');
+                  navigate('/app');
                 }
               }}
               className="flex-shrink-0"
