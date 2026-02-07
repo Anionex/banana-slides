@@ -710,6 +710,18 @@ export const SlidePreview: React.FC = () => {
     }));
   };
 
+  // Manage object URLs for uploaded files to prevent memory leaks
+  const uploadedFileUrls = useRef<string[]>([]);
+  useEffect(() => {
+    uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
+    uploadedFileUrls.current = selectedContextImages.uploadedFiles.map(file => URL.createObjectURL(file));
+  }, [selectedContextImages.uploadedFiles]);
+  useEffect(() => {
+    return () => {
+      uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   const handleSelectMaterials = async (materials: Material[]) => {
     try {
       // 将选中的素材转换为File对象并添加到上传列表
@@ -1877,7 +1889,7 @@ export const SlidePreview: React.FC = () => {
                 {selectedContextImages.uploadedFiles.map((file, idx) => (
                   <div key={idx} className="relative group">
                     <img
-                      src={URL.createObjectURL(file)}
+                      src={uploadedFileUrls.current[idx] || ''}
                       alt={`Uploaded ${idx + 1}`}
                       className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />

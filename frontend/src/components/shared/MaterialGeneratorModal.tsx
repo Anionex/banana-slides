@@ -125,6 +125,29 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
     }
   };
 
+  // Manage object URLs to prevent memory leaks
+  const refImageUrl = useRef<string | null>(null);
+  const extraImageUrls = useRef<string[]>([]);
+
+  useEffect(() => {
+    // Revoke previous URL
+    if (refImageUrl.current) URL.revokeObjectURL(refImageUrl.current);
+    refImageUrl.current = refImage ? URL.createObjectURL(refImage) : null;
+  }, [refImage]);
+
+  useEffect(() => {
+    // Revoke all previous URLs
+    extraImageUrls.current.forEach(url => URL.revokeObjectURL(url));
+    extraImageUrls.current = extraImages.map(file => URL.createObjectURL(file));
+  }, [extraImages]);
+
+  useEffect(() => {
+    return () => {
+      if (refImageUrl.current) URL.revokeObjectURL(refImageUrl.current);
+      extraImageUrls.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -293,7 +316,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                 {refImage ? (
                   <>
                     <img
-                      src={URL.createObjectURL(refImage)}
+                      src={refImageUrl.current || ''}
                       alt={t('material.mainReference')}
                       className="w-full h-full object-cover"
                     />
@@ -330,7 +353,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                 {extraImages.map((file, idx) => (
                   <div key={idx} className="relative group">
                     <img
-                      src={URL.createObjectURL(file)}
+                      src={extraImageUrls.current[idx] || ''}
                       alt={`extra-${idx + 1}`}
                       className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />
