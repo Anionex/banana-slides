@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { uploadMaterial } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
 
@@ -49,10 +49,11 @@ export const useImagePaste = ({
 }: UseImagePasteOptions) => {
   const t = useT(imagePasteI18n);
   const [isUploading, setIsUploading] = useState(false);
+  const uploadCount = useRef(0);
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
-    if (!items || isUploading) return;
+    if (!items) return;
 
     const imageFiles: File[] = [];
     const unsupportedTypes: string[] = [];
@@ -85,8 +86,8 @@ export const useImagePaste = ({
 
     if (imageFiles.length === 0) return;
 
+    uploadCount.current++;
     setIsUploading(true);
-    const cursorPos = textareaRef.current?.selectionStart ?? content.length;
 
     try {
       const results = await Promise.allSettled(
@@ -108,11 +109,9 @@ export const useImagePaste = ({
       if (markdownParts.length > 0) {
         const markdownInsert = markdownParts.join('\n');
         setContent(prev => {
-          const before = prev.slice(0, cursorPos);
-          const after = prev.slice(cursorPos);
-          const prefix = before && !before.endsWith('\n') ? '\n' : '';
-          const suffix = after && !after.startsWith('\n') ? '\n' : '';
-          return before + prefix + markdownInsert + suffix + after;
+          // Append to end — avoids stale cursor position issues with concurrent pastes
+          const prefix = prev && !prev.endsWith('\n') ? '\n' : '';
+          return prev + prefix + markdownInsert + '\n';
         });
       }
 
@@ -138,9 +137,12 @@ export const useImagePaste = ({
       console.error('Image paste upload failed:', error);
       showToast({ message: t('imagePaste.uploadFailed'), type: 'error' });
     } finally {
-      setIsUploading(false);
+      uploadCount.current--;
+      if (uploadCount.current === 0) {
+        setIsUploading(false);
+      }
     }
-  }, [isUploading, projectId, generateCaption, content, textareaRef, setContent, showToast, t]);
+  }, [projectId, generateCaption, content, textareaRef, setContent, showToast, t]);
 
   return { handlePaste, isUploading };
 };
