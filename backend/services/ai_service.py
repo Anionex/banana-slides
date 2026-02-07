@@ -504,6 +504,16 @@ class AIService:
                                 logger.debug(f"Loaded MinerU image from local path: {local_path}")
                             else:
                                 logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
+                        elif ref_img.startswith('/files/'):
+                            # 通用 /files/ 路径（materials、项目文件等），转换为文件系统路径
+                            upload_folder = os.environ.get('UPLOAD_FOLDER', '')
+                            relative_path = ref_img[len('/files/'):]
+                            local_path = os.path.join(upload_folder, relative_path)
+                            if os.path.exists(local_path):
+                                ref_images.append(Image.open(local_path))
+                                logger.debug(f"Loaded image from local path: {local_path}")
+                            else:
+                                logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
                         else:
                             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
             
