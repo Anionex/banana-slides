@@ -22,7 +22,7 @@ uv run pytest tests/integration/test_full_workflow.py -v
 ### 2. Real Service 测试（需要运行服务）
 **文件**: `test_api_full_flow.py`
 
-这些测试使用 `requests` 库直接调用 HTTP 端点，需要真实的后端服务运行。
+这些测试使用 `httpx` 库直接调用 HTTP 端点，需要真实的后端服务运行。
 
 **特点**：
 - ⏱️ 较慢（需要真实 HTTP 请求）
@@ -90,7 +90,7 @@ GOOGLE_API_KEY: <real-api-key-from-secrets>
 | `unit` | 单元测试 | 测试单个函数或方法 |
 | `integration` | 集成测试 | 测试多个组件交互 |
 | `slow` | 慢速测试 | 需要 AI API 调用的测试 |
-| `requires_service` | 需要运行服务 | 使用 requests 调用 HTTP 端点 |
+| `requires_service` | 需要运行服务 | 使用 httpx 调用 HTTP 端点 |
 | `mock` | 使用 mock | 不调用真实外部服务 |
 | `docker` | Docker 环境测试 | 需要 Docker 环境 |
 
@@ -163,7 +163,7 @@ pytest tests/integration -v -m "not requires_service"
    @pytest.mark.integration
    @pytest.mark.requires_service
    def test_real_api_call(self):
-       response = requests.post('http://localhost:5000/api/projects', ...)
+       response = httpx.post('http://localhost:5000/api/projects', ...)
    ```
 
 3. **环境检查**:
@@ -174,4 +174,3 @@ pytest tests/integration -v -m "not requires_service"
 
 **更新日期**: 2025-12-22  
 **维护者**: Banana Slides Team
-
