@@ -108,11 +108,12 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
           // 保存光标位置
           const cursorPos = editTextareaRef.current?.selectionStart || editContent.length;
 
-          // 上传图片到素材库
-          const response = await uploadMaterial(file, projectId || null);
+          // 上传图片到素材库，并请求 AI 生成描述
+          const response = await uploadMaterial(file, projectId || null, true);
 
           if (response?.data?.url) {
-            const markdownImage = `![image](${response.data.url})`;
+            const caption = response.data.caption || 'image';
+            const markdownImage = `![${caption}](${response.data.url})`;
 
             // 在光标位置插入图片链接
             setEditContent(prev => {
