@@ -84,6 +84,7 @@ const SortableCard: React.FC<{
   page: Page;
   index: number;
   projectId?: string;
+  showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onUpdate: (data: Partial<Page>) => void;
   onDelete: () => void;
   onClick: () => void;
@@ -422,6 +423,7 @@ export const OutlineEditor: React.FC = () => {
                         page={page}
                         index={index}
                         projectId={projectId}
+                        showToast={show}
                         onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
                         onDelete={() => page.id && deletePageById(page.id)}
                         onClick={() => setSelectedPageId(page.id || null)}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
-import { Card, useConfirm, useToast, Markdown, ShimmerOverlay } from '@/components/shared';
+import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
 import type { Page } from '@/types';
 
 // OutlineCard 组件自包含翻译
@@ -29,6 +29,7 @@ interface OutlineCardProps {
   page: Page;
   index: number;
   projectId?: string;
+  showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onUpdate: (data: Partial<Page>) => void;
   onDelete: () => void;
   onClick: () => void;
@@ -41,6 +42,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   page,
   index,
   projectId,
+  showToast,
   onUpdate,
   onDelete,
   onClick,
@@ -50,7 +52,6 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
 }) => {
   const t = useT(outlineCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
-  const { show, ToastContainer } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
   const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
@@ -62,7 +63,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
     textareaRef: editPointsRef,
     content: editPoints,
     setContent: setEditPoints,
-    showToast: show,
+    showToast: showToast,
   });
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
@@ -156,8 +157,11 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                   placeholder={t('outlineCard.keyPointsPlaceholder')}
                 />
                 {isUploading && (
-                  <div className="absolute inset-0 bg-white/60 dark:bg-black/40 flex items-center justify-center rounded-lg">
-                    <span className="text-sm text-gray-600 dark:text-gray-300">{t('outlineCard.uploadingImage')}</span>
+                  <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full">
+                      <div className="w-4 h-4 border-2 border-banana-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm font-medium text-banana-700 dark:text-banana-300">{t('outlineCard.uploadingImage')}</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -220,7 +224,6 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
         )}
       </div>
       {ConfirmDialog}
-      <ToastContainer />
     </Card>
   );
 };

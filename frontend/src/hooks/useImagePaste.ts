@@ -10,7 +10,6 @@ const ALLOWED_IMAGE_TYPES = [
 const imagePasteI18n = {
   zh: {
     imagePaste: {
-      uploading: '正在上传图片...',
       uploadSuccess: '{{count}} 张图片已插入',
       uploadSuccessSingle: '图片已插入',
       uploadFailed: '图片上传失败',
@@ -20,7 +19,6 @@ const imagePasteI18n = {
   },
   en: {
     imagePaste: {
-      uploading: 'Uploading images...',
       uploadSuccess: '{{count}} images inserted',
       uploadSuccessSingle: 'Image inserted',
       uploadFailed: 'Image upload failed',
@@ -37,6 +35,8 @@ interface UseImagePasteOptions {
   setContent: (updater: (prev: string) => string) => void;
   generateCaption?: boolean;
   showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
+  /** Whether to warn about non-image file types. Set to false when the caller handles non-image files separately (e.g. Home page handles documents). Default: true */
+  warnUnsupportedTypes?: boolean;
 }
 
 export const useImagePaste = ({
@@ -46,6 +46,7 @@ export const useImagePaste = ({
   setContent,
   generateCaption = true,
   showToast,
+  warnUnsupportedTypes = true,
 }: UseImagePasteOptions) => {
   const t = useT(imagePasteI18n);
   const [isUploading, setIsUploading] = useState(false);
@@ -67,24 +68,25 @@ export const useImagePaste = ({
 
       if (ALLOWED_IMAGE_TYPES.includes(item.type)) {
         imageFiles.push(file);
-      } else {
+      } else if (warnUnsupportedTypes) {
         const ext = file.name.split('.').pop() || item.type;
         unsupportedTypes.push(ext);
       }
     }
 
-    if (imageFiles.length === 0 && unsupportedTypes.length === 0) return;
-
-    e.preventDefault();
-
-    if (unsupportedTypes.length > 0) {
-      showToast({
-        message: t('imagePaste.unsupportedType', { types: unsupportedTypes.join(', ') }),
-        type: 'warning',
-      });
+    // Only warn about unsupported types if there are no valid images
+    // (when there ARE images we handle them; non-image items are just ignored)
+    if (imageFiles.length === 0) {
+      if (unsupportedTypes.length > 0) {
+        showToast({
+          message: t('imagePaste.unsupportedType', { types: unsupportedTypes.join(', ') }),
+          type: 'warning',
+        });
+      }
+      return;
     }
 
-    if (imageFiles.length === 0) return;
+    e.preventDefault();
 
     uploadCount.current++;
     setIsUploading(true);
@@ -109,7 +111,6 @@ export const useImagePaste = ({
       if (markdownParts.length > 0) {
         const markdownInsert = markdownParts.join('\n');
         setContent(prev => {
-          // Append to end — avoids stale cursor position issues with concurrent pastes
           const prefix = prev && !prev.endsWith('\n') ? '\n' : '';
           return prev + prefix + markdownInsert + '\n';
         });
@@ -142,7 +143,7 @@ export const useImagePaste = ({
         setIsUploading(false);
       }
     }
-  }, [projectId, generateCaption, content, textareaRef, setContent, showToast, t]);
+  }, [projectId, generateCaption, warnUnsupportedTypes, content, textareaRef, setContent, showToast, t]);
 
   return { handlePaste, isUploading };
 };

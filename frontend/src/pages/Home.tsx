@@ -5,9 +5,10 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import UserMenu from '@/components/auth/UserMenu';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, listProjects } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
+import { useImagePaste } from '@/hooks/useImagePaste';
 import { useT } from '@/hooks/useT';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
@@ -288,114 +289,62 @@ export const Home: React.FC = () => {
     setIsMaterialModalOpen(true);
   };
 
-  // 检测粘贴事件，自动上传文件和图片
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    console.log('Paste event triggered');
-    const items = e.clipboardData?.items;
-    if (!items) {
-      console.log('No clipboard items');
-      return;
-    }
+  // 图片粘贴使用统一 hook（批量支持，不对非图片文件发出警告，由下方 handlePaste 处理文档）
+  const { handlePaste: handleImagePaste, isUploading: isUploadingImage } = useImagePaste({
+    projectId: null,
+    textareaRef,
+    content,
+    setContent,
+    showToast: show,
+    warnUnsupportedTypes: false,
+  });
 
-    console.log('Clipboard items:', items.length);
-    
-    // 检查是否有文件或图片
+  // 检测粘贴事件，图片走 hook，文档走独立逻辑
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    // 分类：图片 vs 文档 vs 不支持
+    let hasImages = false;
+    const docFiles: File[] = [];
+    const unsupportedExts: string[] = [];
+
+    const allowedDocExtensions = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
+
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      console.log(`Item ${i}:`, { kind: item.kind, type: item.type });
-      
-      if (item.kind === 'file') {
-        const file = item.getAsFile();
-        console.log('Got file:', file);
-        
-        if (file) {
-          console.log('File details:', { name: file.name, type: file.type, size: file.size });
-          
-          // 检查是否是图片
-          if (file.type.startsWith('image/')) {
-            console.log('Image detected, uploading...');
-            e.preventDefault(); // 阻止默认粘贴行为
-            await handleImageUpload(file);
-            return;
-          }
-          
-          // 检查文件类型（参考文件）
-          const allowedExtensions = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
-          const fileExt = file.name.split('.').pop()?.toLowerCase();
-          
-          console.log('File extension:', fileExt);
-          
-          if (fileExt && allowedExtensions.includes(fileExt)) {
-            console.log('File type allowed, uploading...');
-            e.preventDefault(); // 阻止默认粘贴行为
-            await handleFileUpload(file);
-          } else {
-            console.log('File type not allowed');
-            show({ message: t('home.messages.unsupportedFileType', { type: fileExt || '' }), type: 'info' });
-          }
+      if (item.kind !== 'file') continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+
+      if (file.type.startsWith('image/')) {
+        hasImages = true;
+      } else {
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        if (fileExt && allowedDocExtensions.includes(fileExt)) {
+          docFiles.push(file);
+        } else {
+          unsupportedExts.push(fileExt || file.type);
         }
       }
     }
-  };
 
-  // 上传图片
-  // 在 Home 页面，图片始终上传为全局素材（不关联项目），因为此时还没有项目
-  const handleImageUpload = async (file: File) => {
-    if (isUploadingFile) return;
+    // 图片交给 hook 处理（批量上传）
+    if (hasImages) {
+      handleImagePaste(e);
+    }
 
-    setIsUploadingFile(true);
-    try {
-      // 显示上传中提示
-      show({ message: t('home.messages.uploadingImage'), type: 'info' });
-      
-      // 保存当前光标位置
-      const cursorPosition = textareaRef.current?.selectionStart || content.length;
-      
-      // 上传图片到素材库（全局素材），同时请求 AI 生成描述
-      const response = await uploadMaterial(file, null, true);
-
-      if (response?.data?.url) {
-        const imageUrl = response.data.url;
-        const caption = response.data.caption || 'image';
-
-        // 生成markdown图片链接
-        const markdownImage = `![${caption}](${imageUrl})`;
-        
-        // 在光标位置插入图片链接
-        setContent(prev => {
-          const before = prev.slice(0, cursorPosition);
-          const after = prev.slice(cursorPosition);
-          
-          // 如果光标前有内容且不以换行结尾，添加换行
-          const prefix = before && !before.endsWith('\n') ? '\n' : '';
-          // 如果光标后有内容且不以换行开头，添加换行
-          const suffix = after && !after.startsWith('\n') ? '\n' : '';
-          
-          return before + prefix + markdownImage + suffix + after;
-        });
-        
-        // 恢复光标位置（移动到插入内容之后）
-        setTimeout(() => {
-          if (textareaRef.current) {
-            const newPosition = cursorPosition + (content.slice(0, cursorPosition) && !content.slice(0, cursorPosition).endsWith('\n') ? 1 : 0) + markdownImage.length;
-            textareaRef.current.selectionStart = newPosition;
-            textareaRef.current.selectionEnd = newPosition;
-            textareaRef.current.focus();
-          }
-        }, 0);
-        
-        show({ message: t('home.messages.imageUploadSuccess'), type: 'success' });
-      } else {
-        show({ message: t('home.messages.imageUploadFailed'), type: 'error' });
+    // 文档文件逐个上传
+    if (docFiles.length > 0) {
+      if (!hasImages) e.preventDefault();
+      for (const file of docFiles) {
+        await handleFileUpload(file);
       }
-    } catch (error: any) {
-      console.error('Image upload failed:', error);
-      show({ 
-        message: `${t('home.messages.imageUploadFailed')}: ${error?.response?.data?.error?.message || error.message || t('common.unknownError')}`, 
-        type: 'error' 
-      });
-    } finally {
-      setIsUploadingFile(false);
+    }
+
+    // 不支持的文件类型提示
+    if (unsupportedExts.length > 0 && !hasImages && docFiles.length === 0) {
+      show({ message: t('home.messages.unsupportedFileType', { type: unsupportedExts.join(', ') }), type: 'info' });
     }
   };
 
@@ -947,6 +896,14 @@ export const Home: React.FC = () => {
               rows={activeTab === 'idea' ? 4 : 8}
               className="relative pr-20 md:pr-28 pb-12 md:pb-14 text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200" // 为右下角按钮留空间
             />
+            {isUploadingImage && (
+              <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-20">
+                <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full">
+                  <div className="w-4 h-4 border-2 border-banana-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium text-banana-700 dark:text-banana-300">{t('home.messages.uploadingImage')}</span>
+                </div>
+              </div>
+            )}
 
             {/* 左下角：上传文件按钮（回形针图标） */}
             <button

@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
-import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown, useToast } from '@/components/shared';
+import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
 import type { Page, DescriptionContent } from '@/types';
 
@@ -32,6 +32,7 @@ export interface DescriptionCardProps {
   page: Page;
   index: number;
   projectId?: string;
+  showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
   isGenerating?: boolean;
@@ -42,13 +43,13 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   page,
   index,
   projectId,
+  showToast,
   onUpdate,
   onRegenerate,
   isGenerating = false,
   isAiRefining = false,
 }) => {
   const t = useT(descriptionCardI18n);
-  const { show, ToastContainer } = useToast();
   // 从 description_content 提取文本内容
   const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
     if (!descContent) return '';
@@ -71,7 +72,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
     textareaRef: editTextareaRef,
     content: editContent,
     setContent: setEditContent,
-    showToast: show,
+    showToast: showToast,
   });
 
   // 使用专门的描述生成状态 hook，不受图片生成状态影响
@@ -177,8 +178,11 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
               placeholder={t('descriptionCard.pasteImageHint')}
             />
             {isUploading && (
-              <div className="absolute inset-0 bg-white/60 dark:bg-black/40 flex items-center justify-center rounded-lg">
-                <span className="text-sm text-gray-600 dark:text-gray-300">{t('descriptionCard.uploadingImage')}</span>
+              <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
+                <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full">
+                  <div className="w-4 h-4 border-2 border-banana-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium text-banana-700 dark:text-banana-300">{t('descriptionCard.uploadingImage')}</span>
+                </div>
               </div>
             )}
           </div>
@@ -192,8 +196,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
           </div>
         </div>
       </Modal>
-
-      <ToastContainer />
     </>
   );
 };

@@ -46,6 +46,7 @@ describe('DescriptionCard', () => {
     page: mockPage,
     index: 0,
     projectId: 'proj-1',
+    showToast: vi.fn(),
     onUpdate: vi.fn(),
     onRegenerate: vi.fn(),
   }
