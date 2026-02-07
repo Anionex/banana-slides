@@ -28,11 +28,19 @@ ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
 
 def _generate_image_caption(filepath: str) -> str:
     """Generate AI caption for an uploaded image. Returns empty string on failure."""
+    if filepath.lower().endswith('.svg'):
+        return ""
     try:
         from PIL import Image
 
         image = Image.open(filepath)
-        prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
+        image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+
+        output_lang = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
+        if output_lang == 'en':
+            prompt = "Please provide a short description of the main content of this image. Return only the description text without any other explanation."
+        else:
+            prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
 
         provider_format = (current_app.config.get('AI_PROVIDER_FORMAT') or 'gemini').lower()
         caption_model = current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
@@ -49,7 +57,9 @@ def _generate_image_caption(filepath: str) -> str:
 
             buffered = io.BytesIO()
             if image.mode in ('RGBA', 'LA', 'P'):
-                image = image.convert('RGB')
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+                image = background
             image.save(buffered, format="JPEG", quality=95)
             base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
