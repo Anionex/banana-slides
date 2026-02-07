@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
+import { useImagePaste } from '@/hooks/useImagePaste';
+import { Card, useConfirm, useToast, Markdown, ShimmerOverlay } from '@/components/shared';
 import type { Page } from '@/types';
 
 // OutlineCard 组件自包含翻译
@@ -9,15 +10,17 @@ const outlineCardI18n = {
   zh: {
     outlineCard: {
       page: "第 {{num}} 页", chapter: "章节", titleLabel: "标题",
-      keyPointsPlaceholder: "要点（每行一个）", confirmDeletePage: "确定要删除这一页吗？",
-      confirmDeleteTitle: "确认删除"
+      keyPointsPlaceholder: "要点（每行一个，支持粘贴图片）", confirmDeletePage: "确定要删除这一页吗？",
+      confirmDeleteTitle: "确认删除",
+      uploadingImage: "正在上传图片..."
     }
   },
   en: {
     outlineCard: {
       page: "Page {{num}}", chapter: "Chapter", titleLabel: "Title",
-      keyPointsPlaceholder: "Key points (one per line)", confirmDeletePage: "Are you sure you want to delete this page?",
-      confirmDeleteTitle: "Confirm Delete"
+      keyPointsPlaceholder: "Key points (one per line, paste images supported)", confirmDeletePage: "Are you sure you want to delete this page?",
+      confirmDeleteTitle: "Confirm Delete",
+      uploadingImage: "Uploading image..."
     }
   }
 };
@@ -25,6 +28,7 @@ const outlineCardI18n = {
 interface OutlineCardProps {
   page: Page;
   index: number;
+  projectId?: string;
   onUpdate: (data: Partial<Page>) => void;
   onDelete: () => void;
   onClick: () => void;
@@ -36,6 +40,7 @@ interface OutlineCardProps {
 export const OutlineCard: React.FC<OutlineCardProps> = ({
   page,
   index,
+  projectId,
   onUpdate,
   onDelete,
   onClick,
@@ -45,10 +50,20 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
 }) => {
   const t = useT(outlineCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
+  const { show, ToastContainer } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
   const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
   const [editPart, setEditPart] = useState(page.part || '');
+  const editPointsRef = useRef<HTMLTextAreaElement>(null);
+
+  const { handlePaste, isUploading } = useImagePaste({
+    projectId,
+    textareaRef: editPointsRef,
+    content: editPoints,
+    setContent: setEditPoints,
+    showToast: show,
+  });
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {
@@ -85,10 +100,10 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
       onClick={!isEditing ? onClick : undefined}
     >
       <ShimmerOverlay show={isAiRefining} />
-      
+
       <div className="flex items-start gap-3 relative z-10">
         {/* 拖拽手柄 */}
-        <div 
+        <div
           {...dragHandleProps}
           className="flex-shrink-0 cursor-move text-gray-400 hover:text-gray-600 pt-1"
         >
@@ -130,13 +145,22 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
                 placeholder={t('outlineCard.titleLabel')}
               />
-              <textarea
-                value={editPoints}
-                onChange={(e) => setEditPoints(e.target.value)}
-                rows={5}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
-                placeholder={t('outlineCard.keyPointsPlaceholder')}
-              />
+              <div className="relative">
+                <textarea
+                  ref={editPointsRef}
+                  value={editPoints}
+                  onChange={(e) => setEditPoints(e.target.value)}
+                  onPaste={handlePaste}
+                  rows={5}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                  placeholder={t('outlineCard.keyPointsPlaceholder')}
+                />
+                {isUploading && (
+                  <div className="absolute inset-0 bg-white/60 dark:bg-black/40 flex items-center justify-center rounded-lg">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">{t('outlineCard.uploadingImage')}</span>
+                  </div>
+                )}
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={handleCancel}
@@ -196,7 +220,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
         )}
       </div>
       {ConfirmDialog}
+      <ToastContainer />
     </Card>
   );
 };
-

@@ -83,6 +83,7 @@ import type { Page } from '@/types';
 const SortableCard: React.FC<{
   page: Page;
   index: number;
+  projectId?: string;
   onUpdate: (data: Partial<Page>) => void;
   onDelete: () => void;
   onClick: () => void;
@@ -420,6 +421,7 @@ export const OutlineEditor: React.FC = () => {
                         key={page.id || `page-${index}`}
                         page={page}
                         index={index}
+                        projectId={projectId}
                         onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
                         onDelete={() => page.id && deletePageById(page.id)}
                         onClick={() => setSelectedPageId(page.id || null)}
