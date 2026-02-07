@@ -3,6 +3,7 @@ Backend configuration file
 """
 import os
 import sys
+import secrets
 from datetime import timedelta
 
 # 基础配置 - 使用更可靠的路径计算方式
@@ -14,7 +15,7 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 # Flask配置
 class Config:
     """Base configuration"""
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+    SECRET_KEY = os.getenv('SECRET_KEY') or secrets.token_hex(32)
     
     # 数据库配置
     # Use absolute path to avoid WSL path issues

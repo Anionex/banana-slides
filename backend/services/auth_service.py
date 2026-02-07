@@ -3,6 +3,7 @@ Authentication service for user management, JWT tokens, and email verification
 """
 import os
 import logging
+import secrets
 import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
@@ -25,7 +26,7 @@ class AuthService:
     """Service for authentication and user management"""
     
     # JWT Configuration
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') or secrets.token_hex(32)
     JWT_ALGORITHM = 'HS256'
     ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour
     REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 604800))  # 7 days
