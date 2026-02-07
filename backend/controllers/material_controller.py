@@ -213,10 +213,10 @@ def _save_material_file(file, target_project_id: Optional[str], user_id: str):
 
     file_service = FileService(current_app.config['UPLOAD_FOLDER'])
     if target_project_id:
-        materials_dir = file_service._get_materials_dir(target_project_id)
+        materials_dir = file_service.upload_folder / file_service._get_materials_dir(target_project_id)
     else:
         materials_dir = file_service.upload_folder / "materials"
-        materials_dir.mkdir(exist_ok=True, parents=True)
+    materials_dir.mkdir(exist_ok=True, parents=True)
 
     timestamp = int(time.time() * 1000)
     base_name = Path(filename).stem
