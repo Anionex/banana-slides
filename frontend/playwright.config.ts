@@ -45,6 +45,9 @@ export default defineConfig({
     // 追踪设置
     trace: 'retain-on-failure',
     
+    // 浏览器语言设置（E2E测试使用中文，匹配选择器）
+    locale: 'zh-CN',
+
     // 超时设置
     actionTimeout: 15000,
     navigationTimeout: 30000,
