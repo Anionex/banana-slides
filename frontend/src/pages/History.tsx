@@ -31,6 +31,7 @@ const historyI18n = {
       deleteTitle: '确认删除',
       batchDeleteTitle: '确认批量删除',
       deleteSuccess: '成功删除 {{count}} 个项目',
+      deletePartial: '成功删除 {{success}} 个项目，{{fail}} 个删除失败',
       deleteCurrentProject: '已删除项目，包括当前打开的项目',
       deleteFailed: '删除项目失败',
       openFailed: '打开项目失败',
@@ -57,6 +58,7 @@ const historyI18n = {
       deleteTitle: 'Confirm Delete',
       batchDeleteTitle: 'Confirm Batch Delete',
       deleteSuccess: 'Successfully deleted {{count}} project(s)',
+      deletePartial: 'Deleted {{success}} project(s), {{fail}} failed',
       deleteCurrentProject: 'Deleted projects including the currently open one',
       deleteFailed: 'Failed to delete project',
       openFailed: 'Failed to open project',
@@ -179,35 +181,51 @@ export const History: React.FC = () => {
     let deletedCurrentProject = false;
 
     try {
-      // 批量删除
-      const deletePromises = projectIds.map(projectId => api.deleteProject(projectId));
-      await Promise.all(deletePromises);
+      // 批量删除 - 使用 allSettled 处理部分失败
+      const results = await Promise.allSettled(
+        projectIds.map(projectId => api.deleteProject(projectId))
+      );
+
+      const successIds = projectIds.filter((_, i) => results[i].status === 'fulfilled');
+      const failCount = results.filter(r => r.status === 'rejected').length;
 
       // 检查是否删除了当前项目
-      if (currentProjectId && projectIds.includes(currentProjectId)) {
+      if (currentProjectId && successIds.includes(currentProjectId)) {
         localStorage.removeItem('currentProjectId');
         setCurrentProject(null);
         deletedCurrentProject = true;
       }
 
-      // 从列表中移除已删除的项目
-      setProjects(prev => prev.filter(p => {
-        const id = p.id || p.project_id;
-        return id && !projectIds.includes(id);
-      }));
+      // 从列表中移除已成功删除的项目
+      if (successIds.length > 0) {
+        setProjects(prev => prev.filter(p => {
+          const id = p.id || p.project_id;
+          return id && !successIds.includes(id);
+        }));
+      }
 
       // 清空选择
       setSelectedProjects(new Set());
 
-      if (deletedCurrentProject) {
+      if (failCount > 0 && successIds.length > 0) {
+        show({
+          message: t('history.deletePartial', { success: successIds.length, fail: failCount }),
+          type: 'warning'
+        });
+      } else if (deletedCurrentProject) {
         show({
           message: t('history.deleteCurrentProject'),
           type: 'info'
         });
+      } else if (successIds.length > 0) {
+        show({
+          message: t('history.deleteSuccess', { count: successIds.length }),
+          type: 'success'
+        });
       } else {
         show({
-          message: t('history.deleteSuccess', { count: projectIds.length }),
-          type: 'success'
+          message: t('history.deleteFailed'),
+          type: 'error'
         });
       }
     } catch (err: any) {
