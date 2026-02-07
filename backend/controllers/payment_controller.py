@@ -204,19 +204,18 @@ def payment_webhook():
 
         if not payload:
             logger.warning("Empty webhook payload received")
-            return 'OK', 200
-        
+            return 'Bad Request', 400
+
         # Get signature from header (for Lemon Squeezy)
         signature = request.headers.get('X-Signature')
-        
+
         # Try to determine provider and process
         provider = get_payment_provider()
-        
+
         # Verify webhook signature
         if not provider.verify_webhook(payload, signature):
             logger.warning(f"Webhook signature verification failed for {provider.provider_name}")
-            # Still return 200 to avoid retries, but log the issue
-            return 'OK', 200
+            return 'Forbidden', 403
         
         # Parse webhook data
         order_info = provider.parse_webhook(payload)
@@ -263,8 +262,7 @@ def payment_webhook():
         
     except Exception as e:
         logger.error(f"Webhook processing error: {e}", exc_info=True)
-        # Return 200 to prevent retries
-        return 'OK', 200
+        return 'Internal Server Error', 500
 
 
 @payment_bp.route('/order/<order_id>', methods=['GET'])
