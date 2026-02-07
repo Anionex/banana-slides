@@ -1,15 +1,9 @@
 name: Build and Push to GHCR (Private)
 
-# 推送到 GitHub Container Registry (私有镜像)
-# 私有仓库的镜像自动继承仓库的可见性（私有）
+# Manual trigger and version tags only.
+# For push-to-main builds, the CI/CD Pipeline workflow handles this.
 
 on:
-  workflow_run:
-    workflows: ["Full Test Suite"]
-    types:
-      - completed
-    branches:
-      - main
   push:
     tags:
       - 'v*'
@@ -29,9 +23,6 @@ jobs:
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
 
     permissions:
       contents: read

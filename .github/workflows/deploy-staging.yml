@@ -1,12 +1,7 @@
-name: Deploy to Staging
+name: Deploy to Staging (Manual)
 
+# Manual deploy only. For push-to-main deploys, the CI/CD Pipeline workflow handles this.
 on:
-  workflow_run:
-    workflows: ["Build and Push to GHCR (Private)"]
-    types:
-      - completed
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       image_tag:
@@ -23,21 +18,12 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
 
     steps:
       - name: Determine image tag
         id: tag
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
-          else
-            # Use SHA tag from the triggering workflow
-            SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
-            echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          fi
+          echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
 
       - name: Deploy to staging via SSH
         uses: appleboy/ssh-action@v1.0.3
