@@ -120,7 +120,7 @@ describe('DescriptionCard', () => {
 
     // Wait for upload to complete
     await waitFor(() => {
-      expect(mockUploadMaterial).toHaveBeenCalledWith(file, 'proj-1')
+      expect(mockUploadMaterial).toHaveBeenCalledWith(file, 'proj-1', true)
     })
 
     // The textarea value should contain the markdown image link after state update
@@ -190,7 +190,7 @@ describe('DescriptionCard', () => {
     })
 
     await waitFor(() => {
-      expect(mockUploadMaterial).toHaveBeenCalledWith(file, 'proj-42')
+      expect(mockUploadMaterial).toHaveBeenCalledWith(file, 'proj-42', true)
     })
   })
 
@@ -217,7 +217,7 @@ describe('DescriptionCard', () => {
     })
 
     await waitFor(() => {
-      expect(mockUploadMaterial).toHaveBeenCalledWith(file, null)
+      expect(mockUploadMaterial).toHaveBeenCalledWith(file, null, true)
     })
   })
 })
