@@ -44,7 +44,7 @@ class User(db.Model):
     verification_attempts = db.Column(db.Integer, default=0)
 
     # Password reset
-    password_reset_token = db.Column(db.String(100), nullable=True)
+    password_reset_token = db.Column(db.String(100), nullable=True, index=True)
     password_reset_expires = db.Column(db.DateTime, nullable=True)
     
     # Timestamps
