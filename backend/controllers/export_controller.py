@@ -6,6 +6,7 @@ import os
 import io
 
 from flask import Blueprint, request, current_app
+from werkzeug.utils import secure_filename
 from models import db, Project, Page, Task
 from utils import (
     error_response, not_found, bad_request, success_response,
@@ -71,7 +72,7 @@ def export_pptx(project_id):
         os.makedirs(exports_dir, exist_ok=True)
 
         # Get filename from query params or use default
-        filename = request.args.get('filename', f'presentation_{project_id}.pptx')
+        filename = secure_filename(request.args.get('filename', f'presentation_{project_id}.pptx'))
         if not filename.endswith('.pptx'):
             filename += '.pptx'
 
@@ -146,7 +147,7 @@ def export_pdf(project_id):
         os.makedirs(exports_dir, exist_ok=True)
 
         # Get filename from query params or use default
-        filename = request.args.get('filename', f'presentation_{project_id}.pdf')
+        filename = secure_filename(request.args.get('filename', f'presentation_{project_id}.pdf'))
         if not filename.endswith('.pdf'):
             filename += '.pdf'
 
