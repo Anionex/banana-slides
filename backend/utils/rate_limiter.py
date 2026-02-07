@@ -80,11 +80,12 @@ def _is_rate_limited(limiter_key: str, client_key: str, max_requests: int, windo
 
 
 def _get_client_ip() -> str:
-    """Get the client IP address, respecting proxy headers."""
-    # Trust X-Forwarded-For if present (first IP in the chain)
-    forwarded_for = request.headers.get('X-Forwarded-For')
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
+    """Get the client IP address, using proxy headers only when configured."""
+    # Only trust X-Forwarded-For when TRUSTED_PROXY is explicitly set
+    if os.getenv('TRUSTED_PROXY'):
+        forwarded_for = request.headers.get('X-Forwarded-For')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
     return request.remote_addr or '127.0.0.1'
 
 
