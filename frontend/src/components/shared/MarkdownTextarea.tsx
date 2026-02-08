@@ -410,6 +410,21 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
     e.clipboardData.setData('text/plain', markdown);
   }, []);
 
+  const handleCut = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const fragment = range.cloneContents();
+    const tempDiv = document.createElement('div');
+    tempDiv.appendChild(fragment);
+    const markdown = serializeDOM(tempDiv);
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', markdown);
+    // Delete the selected content after copying
+    range.deleteContents();
+    emitChange();
+  }, [emitChange]);
+
   const handleClick = useCallback(() => {
     if (editorRef.current) clearChipSelection(editorRef.current);
     setEditingChip(null);
@@ -517,7 +532,7 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
             onInput={handleInput}
             onPaste={handlePaste}
             onCopy={handleCopy}
-            onCut={handleCopy}
+            onCut={handleCut}
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             onDragEnter={handleDragEnter}
