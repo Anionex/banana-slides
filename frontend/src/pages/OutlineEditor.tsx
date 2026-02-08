@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -135,7 +135,7 @@ export const OutlineEditor: React.FC = () => {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
-  const [isInputCollapsed, setIsInputCollapsed] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
 
@@ -424,28 +424,34 @@ export const OutlineEditor: React.FC = () => {
       </div>
 
       {/* 主内容区 */}
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
-        {/* 左侧：可编辑文本抽屉 */}
+      <main className="flex-1 flex flex-col md:flex-row gap-3 md:gap-6 p-3 md:p-6 overflow-y-auto min-h-0 relative">
+        {/* 左侧：可编辑文本区域（可收起） */}
         <div
-          className={`flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out border-r border-gray-200 dark:border-border-primary hidden md:flex flex-col ${
-            isInputCollapsed ? 'w-0 border-r-0' : 'w-[320px] lg:w-[360px] xl:w-[400px]'
-          }`}
+          className="flex-shrink-0 transition-[width] duration-300 ease-in-out hidden md:block"
+          style={{ width: isPanelOpen ? undefined : 0 }}
         >
-          <div className="h-full flex flex-col bg-white dark:bg-background-secondary min-w-[320px] lg:min-w-[360px] xl:min-w-[400px]">
-            <div className="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-border-secondary flex-shrink-0">
-              {currentProject.creation_type === 'idea'
-                ? <Sparkle size={14} className="text-banana-500 flex-shrink-0" />
-                : <FileText size={14} className="text-banana-500 flex-shrink-0" />}
-              <span className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{inputLabel}</span>
-              <button
-                type="button"
-                onClick={() => setIsInputCollapsed(true)}
-                className="ml-auto p-1 text-gray-400 hover:text-gray-600 dark:hover:text-foreground-secondary rounded hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
-              >
-                <ChevronLeft size={14} />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
+          <div
+            className="w-[320px] lg:w-[360px] xl:w-[400px] transition-[opacity,transform] duration-300 ease-in-out md:sticky md:top-0"
+            style={{
+              opacity: isPanelOpen ? 1 : 0,
+              transform: isPanelOpen ? 'translateX(0)' : 'translateX(-16px)',
+              pointerEvents: isPanelOpen ? 'auto' : 'none',
+            }}
+          >
+            <div className="bg-white dark:bg-background-secondary rounded-card shadow-md border border-gray-100 dark:border-border-primary overflow-hidden">
+              <div className="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-border-secondary">
+                {currentProject.creation_type === 'idea'
+                  ? <Sparkle size={14} className="text-banana-500 flex-shrink-0" />
+                  : <FileText size={14} className="text-banana-500 flex-shrink-0" />}
+                <span className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{inputLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsPanelOpen(false)}
+                  className="ml-auto p-1 text-gray-400 hover:text-gray-600 dark:hover:text-foreground-secondary rounded hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
+                >
+                  <PanelLeftClose size={14} />
+                </button>
+              </div>
               <MarkdownTextarea
                 ref={textareaRef}
                 value={inputText}
@@ -453,61 +459,48 @@ export const OutlineEditor: React.FC = () => {
                 onPaste={handleImagePaste}
                 onFiles={handleImageFiles}
                 placeholder={inputPlaceholder}
-                rows={20}
-                className="border-0 rounded-none shadow-none h-full"
+                rows={12}
+                className="border-0 rounded-none shadow-none"
               />
             </div>
           </div>
         </div>
 
-        {/* 移动端：折叠卡片 */}
-        <div className="md:hidden p-3 pb-0">
+        {/* 收起时的把手 - 绝对定位贴左边缘 */}
+        {!isPanelOpen && (
+          <button
+            type="button"
+            onClick={() => setIsPanelOpen(true)}
+            className="hidden md:flex absolute left-0 top-6 z-10 items-center justify-center w-6 h-14 bg-white dark:bg-background-secondary border border-l-0 border-gray-200 dark:border-border-primary rounded-r-lg shadow-md text-gray-400 hover:text-banana-500 hover:border-banana-300 dark:hover:border-banana-500/40 hover:shadow-lg transition-all"
+          >
+            <PanelLeftOpen size={14} />
+          </button>
+        )}
+
+        {/* 移动端：始终显示卡片 */}
+        <div className="md:hidden w-full flex-shrink-0">
           <div className="bg-white dark:bg-background-secondary rounded-card shadow-md border border-gray-100 dark:border-border-primary overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setIsInputCollapsed(!isInputCollapsed)}
-              className="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-background-hover transition-colors cursor-pointer"
-            >
-              {isInputCollapsed
-                ? <ChevronRight size={14} className="text-gray-400 flex-shrink-0" />
-                : <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
+            <div className="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-border-secondary">
               {currentProject.creation_type === 'idea'
                 ? <Sparkle size={14} className="text-banana-500 flex-shrink-0" />
                 : <FileText size={14} className="text-banana-500 flex-shrink-0" />}
               <span className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{inputLabel}</span>
-            </button>
-            {!isInputCollapsed && (
-              <div className="border-t border-gray-100 dark:border-border-secondary">
-                <MarkdownTextarea
-                  ref={textareaRef}
-                  value={inputText}
-                  onChange={handleInputChange}
-                  onPaste={handleImagePaste}
-                  onFiles={handleImageFiles}
-                  placeholder={inputPlaceholder}
-                  rows={6}
-                  className="border-0 rounded-none shadow-none"
-                />
-              </div>
-            )}
+            </div>
+            <MarkdownTextarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleInputChange}
+              onPaste={handleImagePaste}
+              onFiles={handleImageFiles}
+              placeholder={inputPlaceholder}
+              rows={6}
+              className="border-0 rounded-none shadow-none"
+            />
           </div>
         </div>
 
         {/* 右侧：大纲列表 */}
-        <div className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0 relative">
-          {/* 展开抽屉按钮（收起时显示） */}
-          {isInputCollapsed && (
-            <button
-              type="button"
-              onClick={() => setIsInputCollapsed(false)}
-              className="hidden md:flex absolute left-0 top-4 z-10 items-center gap-1 pl-1 pr-2 py-1.5 bg-white dark:bg-background-secondary border border-l-0 border-gray-200 dark:border-border-primary rounded-r-lg shadow-sm text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:shadow-md transition-all text-xs"
-            >
-              <ChevronRight size={12} />
-              {currentProject.creation_type === 'idea'
-                ? <Sparkle size={12} className="text-banana-500" />
-                : <FileText size={12} className="text-banana-500" />}
-            </button>
-          )}
+        <div className="flex-1 min-w-0">
           {currentProject.pages.length === 0 ? (
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4">
