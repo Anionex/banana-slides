@@ -404,10 +404,11 @@ def delete_project(project_id):
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
-    
+
     For 'idea' type: Generate outline from idea_prompt
     For 'outline' type: Parse outline_text into structured format
-    
+    For 'descriptions' type: Extract outline structure from description_text
+
     Request body (optional):
     {
         "idea_prompt": "...",  # for idea type
@@ -452,8 +453,12 @@ def generate_outline(project_id):
             project_context = ProjectContext(project, reference_files_content)
             outline = ai_service.parse_outline_text(project_context, language=language)
         elif project.creation_type == 'descriptions':
-            # 从描述生成：这个类型应该使用专门的端点
-            return bad_request("Use /generate/from-description endpoint for descriptions type")
+            # 从描述生成：从 description_text 提取大纲结构（仅大纲，不含页面描述）
+            if not project.description_text:
+                return bad_request("description_text is required for descriptions type project")
+
+            project_context = ProjectContext(project, reference_files_content)
+            outline = ai_service.parse_description_to_outline(project_context, language=language)
         else:
             # 一句话生成：从idea生成大纲
             idea_prompt = data.get('idea_prompt') or project.idea_prompt
