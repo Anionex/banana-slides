@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
+import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
 import type { Page } from '@/types';
 
 // OutlineCard 组件自包含翻译
@@ -56,12 +57,8 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
   const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
   const [editPart, setEditPart] = useState(page.part || '');
-  const editPointsRef = useRef<HTMLTextAreaElement>(null);
-
-  const { handlePaste, isUploading } = useImagePaste({
+  const { handlePaste, handleFiles, isUploading } = useImagePaste({
     projectId,
-    textareaRef: editPointsRef,
-    content: editPoints,
     setContent: setEditPoints,
     showToast: showToast,
   });
@@ -146,24 +143,15 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
                 placeholder={t('outlineCard.titleLabel')}
               />
-              <div className="relative">
-                <textarea
-                  ref={editPointsRef}
+              <div>
+                <MarkdownTextarea
                   value={editPoints}
-                  onChange={(e) => setEditPoints(e.target.value)}
+                  onChange={setEditPoints}
                   onPaste={handlePaste}
+                  onFiles={handleFiles}
                   rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
                   placeholder={t('outlineCard.keyPointsPlaceholder')}
                 />
-                {isUploading && (
-                  <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full">
-                      <div className="w-4 h-4 border-2 border-banana-500 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-sm font-medium text-banana-700 dark:text-banana-300">{t('outlineCard.uploadingImage')}</span>
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="flex justify-end gap-2">
                 <button
@@ -175,7 +163,8 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-3 py-1.5 text-sm bg-banana-500 text-black dark:text-white rounded-lg hover:bg-banana-600 transition-colors"
+                  disabled={isUploading}
+                  className="px-3 py-1.5 text-sm bg-banana-500 text-black dark:text-white rounded-lg hover:bg-banana-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Check size={16} className="inline mr-1" />
                   {t('common.save')}

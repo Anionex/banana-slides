@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
-import { Card, ContextualStatusBadge, Button, Modal, Textarea, Skeleton, Markdown } from '@/components/shared';
+import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
+import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
 import type { Page, DescriptionContent } from '@/types';
 
@@ -65,12 +66,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const { handlePaste, isUploading } = useImagePaste({
+  const { handlePaste, handleFiles, isUploading } = useImagePaste({
     projectId,
-    textareaRef: editTextareaRef,
-    content: editContent,
     setContent: setEditContent,
     showToast: showToast,
   });
@@ -167,30 +164,20 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
         size="lg"
       >
         <div className="space-y-4">
-          <div className="relative">
-            <Textarea
-              ref={editTextareaRef}
-              label={t('descriptionCard.description')}
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              onPaste={handlePaste}
-              rows={12}
-              placeholder={t('descriptionCard.pasteImageHint')}
-            />
-            {isUploading && (
-              <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
-                <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full">
-                  <div className="w-4 h-4 border-2 border-banana-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm font-medium text-banana-700 dark:text-banana-300">{t('descriptionCard.uploadingImage')}</span>
-                </div>
-              </div>
-            )}
-          </div>
+          <MarkdownTextarea
+            label={t('descriptionCard.description')}
+            value={editContent}
+            onChange={setEditContent}
+            onPaste={handlePaste}
+            onFiles={handleFiles}
+            rows={12}
+            placeholder={t('descriptionCard.pasteImageHint')}
+          />
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setIsEditing(false)}>
               {t('common.cancel')}
             </Button>
-            <Button variant="primary" onClick={handleSave}>
+            <Button variant="primary" onClick={handleSave} disabled={isUploading}>
               {t('common.save')}
             </Button>
           </div>

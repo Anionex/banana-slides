@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
+import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
+import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
 import UserMenu from '@/components/auth/UserMenu';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
@@ -249,7 +250,6 @@ export const Home: React.FC = () => {
   const [templateStyle, setTemplateStyle] = useState('');
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
   // 检查是否有当前项目 & 加载用户模板
@@ -290,17 +290,15 @@ export const Home: React.FC = () => {
   };
 
   // 图片粘贴使用统一 hook（批量支持，不对非图片文件发出警告，由下方 handlePaste 处理文档）
-  const { handlePaste: handleImagePaste, isUploading: isUploadingImage } = useImagePaste({
+  const { handlePaste: handleImagePaste, handleFiles: handleImageFiles, isUploading: isUploadingImage } = useImagePaste({
     projectId: null,
-    textareaRef,
-    content,
     setContent,
     showToast: show,
     warnUnsupportedTypes: false,
   });
 
   // 检测粘贴事件，图片走 hook，文档走独立逻辑
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -458,22 +456,6 @@ export const Home: React.FC = () => {
   const selectedFileIds = useMemo(() => {
     return referenceFiles.map(f => f.id);
   }, [referenceFiles]);
-
-  // 从编辑框内容中移除指定的图片markdown链接
-  const handleRemoveImage = (imageUrl: string) => {
-    setContent(prev => {
-      // 移除所有匹配该URL的markdown图片链接
-      const imageRegex = new RegExp(`!\\[[^\\]]*\\]\\(${imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g');
-      let newContent = prev.replace(imageRegex, '');
-      
-      // 清理多余的空行（最多保留一个空行）
-      newContent = newContent.replace(/\n{3,}/g, '\n\n');
-      
-      return newContent.trim();
-    });
-    
-    show({ message: t('home.messages.imageRemoved'), type: 'success' });
-  };
 
   // 文件选择变化
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -884,54 +866,44 @@ export const Home: React.FC = () => {
             </p>
           </div>
 
-          {/* 输入区 - 带按钮 */}
-          <div className="relative mb-2 group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-banana-400 to-orange-400 rounded-lg opacity-0 group-hover:opacity-20 dark:group-hover:opacity-10 blur transition-opacity duration-300"></div>
-            <Textarea
-              ref={textareaRef}
+          {/* 输入区 - 带工具栏 */}
+          <div className="mb-2">
+            <MarkdownTextarea
               placeholder={tabConfig[activeTab].placeholder}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={setContent}
               onPaste={handlePaste}
+              onFiles={handleImageFiles}
               rows={activeTab === 'idea' ? 4 : 8}
-              className="relative pr-20 md:pr-28 pb-12 md:pb-14 text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200" // 为右下角按钮留空间
+              className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
+              toolbarLeft={
+                <button
+                  type="button"
+                  onClick={handlePaperclipClick}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors active:scale-95 touch-manipulation"
+                  title={t('home.actions.selectFile')}
+                >
+                  <Paperclip size={18} />
+                </button>
+              }
+              toolbarRight={
+                <Button
+                  size="sm"
+                  onClick={handleSubmit}
+                  loading={isGlobalLoading}
+                  disabled={
+                    !content.trim() ||
+                    isUploadingImage ||
+                    referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                  }
+                  className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
+                >
+                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                    ? t('home.actions.parsing')
+                    : t('common.next')}
+                </Button>
+              }
             />
-            {isUploadingImage && (
-              <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-20">
-                <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full">
-                  <div className="w-4 h-4 border-2 border-banana-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm font-medium text-banana-700 dark:text-banana-300">{t('home.messages.uploadingImage')}</span>
-                </div>
-              </div>
-            )}
-
-            {/* 左下角：上传文件按钮（回形针图标） */}
-            <button
-              type="button"
-              onClick={handlePaperclipClick}
-              className="absolute left-2 md:left-3 bottom-2 md:bottom-3 z-10 p-1.5 md:p-2 text-gray-400 dark:text-foreground-tertiary hover:text-gray-600 dark:hover:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors active:scale-95 touch-manipulation"
-              title={t('home.actions.selectFile')}
-            >
-              <Paperclip size={18} className="md:w-5 md:h-5" />
-            </button>
-
-            {/* 右下角：开始生成按钮 */}
-            <div className="absolute right-2 md:right-3 bottom-2 md:bottom-3 z-10">
-              <Button
-                size="sm"
-                onClick={handleSubmit}
-                loading={isGlobalLoading}
-                disabled={
-                  !content.trim() ||
-                  referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                }
-                className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
-              >
-                {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  ? t('home.actions.parsing')
-                  : t('common.next')}
-              </Button>
-            </div>
           </div>
 
           {/* 隐藏的文件输入 */}
@@ -942,13 +914,6 @@ export const Home: React.FC = () => {
             accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md"
             onChange={handleFileSelect}
             className="hidden"
-          />
-
-          {/* 图片预览列表 */}
-          <ImagePreviewList
-            content={content}
-            onRemoveImage={handleRemoveImage}
-            className="mb-4"
           />
 
           <ReferenceFileList

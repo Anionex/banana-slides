@@ -7,6 +7,15 @@ const ALLOWED_IMAGE_TYPES = [
   'image/webp', 'image/bmp', 'image/svg+xml',
 ];
 
+const UPLOADING_PREFIX = 'uploading:';
+
+/** Check if a URL is an uploading placeholder */
+export const isUploadingUrl = (url: string) => url.startsWith(UPLOADING_PREFIX);
+
+/** Extract the blob preview URL from an uploading placeholder */
+export const getUploadingPreviewUrl = (url: string) =>
+  isUploadingUrl(url) ? url.slice(UPLOADING_PREFIX.length) : url;
+
 const imagePasteI18n = {
   zh: {
     imagePaste: {
@@ -30,19 +39,15 @@ const imagePasteI18n = {
 
 interface UseImagePasteOptions {
   projectId?: string | null;
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-  content: string;
   setContent: (updater: (prev: string) => string) => void;
   generateCaption?: boolean;
   showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
-  /** Whether to warn about non-image file types. Set to false when the caller handles non-image files separately (e.g. Home page handles documents). Default: true */
+  /** Whether to warn about non-image file types. Default: true */
   warnUnsupportedTypes?: boolean;
 }
 
 export const useImagePaste = ({
   projectId,
-  textareaRef,
-  content,
   setContent,
   generateCaption = true,
   showToast,
@@ -50,9 +55,86 @@ export const useImagePaste = ({
 }: UseImagePasteOptions) => {
   const t = useT(imagePasteI18n);
   const [isUploading, setIsUploading] = useState(false);
-  const uploadCount = useRef(0);
+  const pendingCount = useRef(0);
 
-  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  /** Core: upload image files with placeholder insertion */
+  const handleFiles = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter(f => ALLOWED_IMAGE_TYPES.includes(f.type));
+
+    if (imageFiles.length === 0) {
+      if (warnUnsupportedTypes && files.length > 0) {
+        const types = files.map(f => f.name.split('.').pop() || f.type);
+        showToast({
+          message: t('imagePaste.unsupportedType', { types: types.join(', ') }),
+          type: 'warning',
+        });
+      }
+      return;
+    }
+
+    const placeholders = imageFiles.map(file => {
+      const blobUrl = URL.createObjectURL(file);
+      const placeholderUrl = `${UPLOADING_PREFIX}${blobUrl}`;
+      const name = file.name.replace(/\.[^.]+$/, '') || 'image';
+      return { file, blobUrl, markdown: `![${name}](${placeholderUrl})` };
+    });
+
+    // Insert placeholders immediately
+    const placeholderInsert = placeholders.map(p => p.markdown).join('\n');
+    setContent(prev => {
+      const prefix = prev && !prev.endsWith('\n') ? '\n' : '';
+      return prev + prefix + placeholderInsert + '\n';
+    });
+
+    pendingCount.current += placeholders.length;
+    setIsUploading(true);
+
+    const results = await Promise.allSettled(
+      placeholders.map(async ({ file, blobUrl, markdown }) => {
+        try {
+          const response = await uploadMaterial(file, projectId ?? null, generateCaption);
+          const realUrl = response?.data?.url;
+          const caption = response?.data?.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
+          if (!realUrl) throw new Error('No URL in response');
+
+          setContent(prev => prev.replace(markdown, `![${caption}](${realUrl})`));
+          return { success: true };
+        } catch {
+          setContent(prev => prev.replace(markdown + '\n', '').replace(markdown, ''));
+          return { success: false };
+        } finally {
+          URL.revokeObjectURL(blobUrl);
+          pendingCount.current--;
+          if (pendingCount.current === 0) setIsUploading(false);
+        }
+      })
+    );
+
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failedCount = placeholders.length - successCount;
+
+    if (failedCount === 0 && successCount > 0) {
+      showToast({
+        message: successCount === 1
+          ? t('imagePaste.uploadSuccessSingle')
+          : t('imagePaste.uploadSuccess', { count: String(successCount) }),
+        type: 'success',
+      });
+    } else if (failedCount > 0 && successCount > 0) {
+      showToast({
+        message: t('imagePaste.partialSuccess', {
+          success: String(successCount),
+          failed: String(failedCount),
+        }),
+        type: 'warning',
+      });
+    } else if (failedCount > 0 && successCount === 0) {
+      showToast({ message: t('imagePaste.uploadFailed'), type: 'error' });
+    }
+  }, [projectId, generateCaption, warnUnsupportedTypes, setContent, showToast, t]);
+
+  /** Handle clipboard paste event */
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -62,20 +144,16 @@ export const useImagePaste = ({
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.kind !== 'file') continue;
-
       const file = item.getAsFile();
       if (!file) continue;
 
       if (ALLOWED_IMAGE_TYPES.includes(item.type)) {
         imageFiles.push(file);
       } else if (warnUnsupportedTypes) {
-        const ext = file.name.split('.').pop() || item.type;
-        unsupportedTypes.push(ext);
+        unsupportedTypes.push(file.name.split('.').pop() || item.type);
       }
     }
 
-    // Only warn about unsupported types if there are no valid images
-    // (when there ARE images we handle them; non-image items are just ignored)
     if (imageFiles.length === 0) {
       if (unsupportedTypes.length > 0) {
         showToast({
@@ -87,63 +165,8 @@ export const useImagePaste = ({
     }
 
     e.preventDefault();
+    await handleFiles(imageFiles);
+  }, [handleFiles, warnUnsupportedTypes, showToast, t]);
 
-    uploadCount.current++;
-    setIsUploading(true);
-
-    try {
-      const results = await Promise.allSettled(
-        imageFiles.map(file => uploadMaterial(file, projectId ?? null, generateCaption))
-      );
-
-      const markdownParts: string[] = [];
-      let failedCount = 0;
-
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value?.data?.url) {
-          const caption = result.value.data.caption || 'image';
-          markdownParts.push(`![${caption}](${result.value.data.url})`);
-        } else {
-          failedCount++;
-        }
-      }
-
-      if (markdownParts.length > 0) {
-        const markdownInsert = markdownParts.join('\n');
-        setContent(prev => {
-          const prefix = prev && !prev.endsWith('\n') ? '\n' : '';
-          return prev + prefix + markdownInsert + '\n';
-        });
-      }
-
-      if (failedCount === 0 && markdownParts.length > 0) {
-        showToast({
-          message: markdownParts.length === 1
-            ? t('imagePaste.uploadSuccessSingle')
-            : t('imagePaste.uploadSuccess', { count: String(markdownParts.length) }),
-          type: 'success',
-        });
-      } else if (failedCount > 0 && markdownParts.length > 0) {
-        showToast({
-          message: t('imagePaste.partialSuccess', {
-            success: String(markdownParts.length),
-            failed: String(failedCount),
-          }),
-          type: 'warning',
-        });
-      } else {
-        showToast({ message: t('imagePaste.uploadFailed'), type: 'error' });
-      }
-    } catch (error) {
-      console.error('Image paste upload failed:', error);
-      showToast({ message: t('imagePaste.uploadFailed'), type: 'error' });
-    } finally {
-      uploadCount.current--;
-      if (uploadCount.current === 0) {
-        setIsUploading(false);
-      }
-    }
-  }, [projectId, generateCaption, warnUnsupportedTypes, content, textareaRef, setContent, showToast, t]);
-
-  return { handlePaste, isUploading };
+  return { handlePaste, handleFiles, isUploading };
 };

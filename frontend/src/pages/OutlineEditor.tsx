@@ -71,7 +71,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal } from '@/components/shared';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineOutline } from '@/api/endpoints';
@@ -384,14 +384,6 @@ export const OutlineEditor: React.FC = () => {
                 {t('common.save')}
               </Button>
             </div>
-
-            {/* 项目资源列表（文件和图片） */}
-            <ProjectResourcesList
-              projectId={projectId || null}
-              onFileClick={setPreviewFileId}
-              showFiles={true}
-              showImages={true}
-            />
 
             {/* 大纲卡片列表 */}
             {currentProject.pages.length === 0 ? (
