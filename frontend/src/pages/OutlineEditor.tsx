@@ -189,7 +189,7 @@ export const OutlineEditor: React.FC = () => {
     textareaRef.current?.insertAtCursor(markdown);
   }, []);
 
-  const { handlePaste: handleImagePaste, handleFiles: handleImageFiles, isUploading: isUploadingImage } = useImagePaste({
+  const { handlePaste: handleImagePaste, handleFiles: handleImageFiles, isUploading: _isUploadingImage } = useImagePaste({
     projectId: projectId || null,
     setContent: setInputText,
     showToast: show,
