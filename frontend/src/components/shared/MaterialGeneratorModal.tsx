@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, ImagePlus, Upload, X, FolderOpen } from 'lucide-react';
+import { Image as ImageIcon, ImagePlus, Upload, X, FolderOpen, Info } from 'lucide-react';
 import { Modal } from './Modal';
 import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
@@ -261,28 +261,46 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={t('material.title')} size="lg">
-      <blockquote className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('material.saveToLibraryNote')}</blockquote>
-      <div className="space-y-4">
-        <div className="bg-gray-50 dark:bg-background-primary rounded-lg border border-gray-200 dark:border-border-primary p-4">
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-foreground-secondary mb-2">{t('material.generatedResult')}</h4>
-          {isGenerating ? (
-            <div className="aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-border-primary">
-              <Skeleton className="w-full h-full" />
-            </div>
-          ) : previewUrl ? (
-            <div className="aspect-video bg-white dark:bg-background-secondary rounded-lg overflow-hidden border border-gray-200 dark:border-border-primary flex items-center justify-center">
-              <img
-                src={previewUrl}
-                alt={t('material.generatedMaterial')}
-                className="w-full h-full object-contain"
-              />
-            </div>
-          ) : (
-            <div className="aspect-video bg-gray-100 dark:bg-background-secondary rounded-lg flex flex-col items-center justify-center text-gray-400 text-sm">
-              <div className="text-3xl mb-2">🎨</div>
-              <div>{t('material.generatedPreview')}</div>
-            </div>
-          )}
+      {/* 顶部提示信息 */}
+      <div className="mb-5 px-4 py-3 rounded-xl bg-gradient-to-r from-banana-50/80 to-amber-50/80 dark:from-banana-900/20 dark:to-amber-900/20 border border-banana-200/50 dark:border-banana-700/30 backdrop-blur-sm">
+        <p className="text-sm text-banana-800 dark:text-banana-200 flex items-center gap-2">
+          <Info size={16} className="flex-shrink-0" />
+          {t('material.saveToLibraryNote')}
+        </p>
+      </div>
+      <div className="space-y-5">
+        {/* 生成结果预览卡片 - 使用现代渐变和光晕效果 */}
+        <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-gray-50/80 via-white/80 to-gray-50/80 dark:from-gray-900/40 dark:via-gray-800/40 dark:to-gray-900/40 backdrop-blur-xl shadow-lg">
+          {/* 内部光晕 */}
+          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+            <div className="absolute -top-20 -left-20 w-40 h-40 bg-banana-400/10 dark:bg-banana-400/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-purple-400/10 dark:bg-purple-400/5 rounded-full blur-3xl" />
+          </div>
+
+          <div className="relative">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+              <span className="w-1 h-4 bg-gradient-to-b from-banana-400 to-banana-500 rounded-full" />
+              {t('material.generatedResult')}
+            </h4>
+            {isGenerating ? (
+              <div className="aspect-video rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner">
+                <Skeleton className="w-full h-full" />
+              </div>
+            ) : previewUrl ? (
+              <div className="aspect-video bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
+                <img
+                  src={previewUrl}
+                  alt={t('material.generatedMaterial')}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="aspect-video bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm">
+                <ImageIcon size={48} className="mb-3 animate-pulse opacity-50" />
+                <div className="font-medium">{t('material.generatedPreview')}</div>
+              </div>
+            )}
+          </div>
         </div>
 
         <Textarea
@@ -296,94 +314,108 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           rows={3}
         />
 
-        <div className="bg-gray-50 dark:bg-background-primary rounded-lg border border-gray-200 dark:border-border-primary p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-foreground-secondary">
-              <ImagePlus size={16} className="text-gray-500 dark:text-foreground-tertiary" />
-              <span className="font-medium">{t('material.referenceImages')}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<FolderOpen size={16} />}
-              onClick={() => setIsMaterialSelectorOpen(true)}
-            >
-              {t('material.selectFromLibrary')}
-            </Button>
+        {/* 参考图片上传区域 - 现代渐变设计 */}
+        <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-indigo-50/30 via-white/80 to-purple-50/30 dark:from-indigo-950/20 dark:via-gray-800/40 dark:to-purple-950/20 backdrop-blur-xl shadow-lg">
+          {/* 内部光晕 */}
+          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+            <div className="absolute top-0 left-1/4 w-32 h-32 bg-indigo-400/10 dark:bg-indigo-400/5 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-purple-400/10 dark:bg-purple-400/5 rounded-full blur-3xl" />
           </div>
-          <div className="flex flex-wrap gap-4">
-            <div className="space-y-2">
-              <div className="text-xs text-gray-600 dark:text-foreground-tertiary">{t('material.mainReference')}</div>
-              <label className="w-40 h-28 border-2 border-dashed border-gray-300 dark:border-border-primary rounded flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 transition-colors bg-white dark:bg-background-secondary relative group">
-                {refImage ? (
-                  <>
-                    <img
-                      src={refImageUrl.current || ''}
-                      alt={t('material.mainReference')}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setRefImage(null);
-                      }}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
-                    >
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon size={24} className="text-gray-400 mb-1" />
-                    <span className="text-xs text-gray-500 dark:text-foreground-tertiary">{t('material.clickToUpload')}</span>
-                  </>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleRefImageChange}
-                />
-              </label>
+
+          <div className="relative space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200 font-medium">
+                <ImagePlus size={18} className="text-indigo-500 dark:text-indigo-400" />
+                <span>{t('material.referenceImages')}</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<FolderOpen size={16} />}
+                onClick={() => setIsMaterialSelectorOpen(true)}
+                className="hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30"
+              >
+                {t('material.selectFromLibrary')}
+              </Button>
             </div>
 
-            <div className="flex-1 space-y-2 min-w-[180px]">
-              <div className="text-xs text-gray-600 dark:text-foreground-tertiary">{t('material.extraReference')}</div>
-              <div className="flex flex-wrap gap-2">
-                {extraImages.map((file, idx) => (
-                  <div key={idx} className="relative group">
-                    <img
-                      src={extraImageUrls.current[idx] || ''}
-                      alt={`extra-${idx + 1}`}
-                      className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-border-primary"
-                    />
-                    <button
-                      onClick={() => removeExtraImage(idx)}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-                <label className="w-20 h-20 border-2 border-dashed border-gray-300 dark:border-border-primary rounded flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 transition-colors bg-white dark:bg-background-secondary">
-                  <Upload size={18} className="text-gray-400 mb-1" />
-                  <span className="text-[11px] text-gray-500 dark:text-foreground-tertiary">{t('common.add')}</span>
+            <div className="flex flex-wrap gap-4">
+              {/* 主参考图 */}
+              <div className="space-y-2">
+                <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.mainReference')}</div>
+                <label className="w-40 h-28 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm relative group shadow-sm hover:shadow-md">
+                  {refImage ? (
+                    <>
+                      <img
+                        src={refImageUrl.current || ''}
+                        alt={t('material.mainReference')}
+                        className="w-full h-full object-cover rounded-xl"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setRefImage(null);
+                        }}
+                        className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110 active:scale-95 z-10"
+                      >
+                        <X size={14} strokeWidth={2.5} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon size={28} className="text-indigo-400 dark:text-indigo-500 mb-1.5 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.clickToUpload')}</span>
+                    </>
+                  )}
                   <input
                     type="file"
                     accept="image/*"
-                    multiple
                     className="hidden"
-                    onChange={handleExtraImagesChange}
+                    onChange={handleRefImageChange}
                   />
                 </label>
+              </div>
+
+              {/* 额外参考图 */}
+              <div className="flex-1 space-y-2 min-w-[180px]">
+                <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.extraReference')}</div>
+                <div className="flex flex-wrap gap-2">
+                  {extraImages.map((file, idx) => (
+                    <div key={idx} className="relative group">
+                      <img
+                        src={extraImageUrls.current[idx] || ''}
+                        alt={`extra-${idx + 1}`}
+                        className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200/50 dark:border-indigo-500/30 shadow-sm group-hover:shadow-md transition-all duration-200"
+                      />
+                      <button
+                        onClick={() => removeExtraImage(idx)}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110 active:scale-95"
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="w-20 h-20 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm group shadow-sm hover:shadow-md">
+                    <Upload size={20} className="text-indigo-400 dark:text-indigo-500 mb-1 group-hover:scale-110 transition-transform duration-200" />
+                    <span className="text-[10px] text-gray-600 dark:text-gray-400 font-medium">{t('common.add')}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleExtraImagesChange}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        {/* 底部按钮区域 */}
+        <div className="flex justify-end gap-3 pt-3">
           <Button variant="ghost" onClick={handleClose} disabled={isGenerating}>
             {t('common.close')}
           </Button>
@@ -391,6 +423,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
             variant="primary"
             onClick={handleGenerate}
             disabled={isGenerating || isCompleted || !prompt.trim()}
+            className="shadow-lg shadow-banana-500/20 hover:shadow-xl hover:shadow-banana-500/30 transition-all duration-200"
           >
             {isGenerating ? t('common.generating') : isCompleted ? t('common.completed') : t('material.generateMaterial')}
           </Button>
