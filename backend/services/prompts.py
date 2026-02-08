@@ -496,9 +496,11 @@ Each element should be a string containing the page description in the following
 - [要点2]
 ...
 
+其他页面素材（如果有排版、风格、素材等细节）
+
 Example output format:
 [
-    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"...",
+    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"\\n- 奠定了AI的理论基础\\n\\n其他页面素材：\\n排版：标题居中，大字号\\n风格：科技感蓝色背景",
     "页面标题：AI 的发展历程\\n页面文字：\\n- 1950年代：符号主义...",
     ...
 ]
@@ -506,7 +508,8 @@ Example output format:
 Important rules:
 - Split the description text according to the outline structure
 - Each page description should match the corresponding page in the outline
-- Preserve all important content from the original text
+- Preserve all important content from the original text, including layout details (排版细节), style requirements (风格要求), material specifications (素材说明), and any other design requirements
+- If the user described layout, style, or materials for a page, include them in the "其他页面素材" section
 - Keep the format consistent with the example above
 - If a page in the outline doesn't have a clear description in the text, create a reasonable description based on the outline
 
