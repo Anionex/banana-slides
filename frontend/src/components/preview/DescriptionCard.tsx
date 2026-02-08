@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
 import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
@@ -66,11 +65,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
-  const { handlePaste, handleFiles, isUploading } = useImagePaste({
-    projectId,
-    setContent: setEditContent,
-    showToast: showToast,
-  });
 
   // 使用专门的描述生成状态 hook，不受图片生成状态影响
   const generating = useDescriptionGeneratingState(isGenerating, isAiRefining);
@@ -168,8 +162,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             label={t('descriptionCard.description')}
             value={editContent}
             onChange={setEditContent}
-            onPaste={handlePaste}
-            onFiles={handleFiles}
+            projectId={projectId}
             rows={12}
             placeholder={t('descriptionCard.pasteImageHint')}
           />
@@ -177,7 +170,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             <Button variant="ghost" onClick={() => setIsEditing(false)}>
               {t('common.cancel')}
             </Button>
-            <Button variant="primary" onClick={handleSave} disabled={isUploading}>
+            <Button variant="primary" onClick={handleSave}>
               {t('common.save')}
             </Button>
           </div>

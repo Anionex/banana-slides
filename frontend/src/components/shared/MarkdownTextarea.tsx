@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { cn } from '@/utils';
 import { useT } from '@/hooks/useT';
 import { isUploadingUrl, getUploadingPreviewUrl } from '@/hooks/useImagePaste';
+import { uploadMaterial } from '@/api/endpoints';
 
 const markdownTextareaI18n = {
   zh: {
@@ -34,6 +35,10 @@ interface MarkdownTextareaProps {
   onPaste?: (e: React.ClipboardEvent<HTMLDivElement>) => void;
   /** Called when files are dropped or selected via upload button */
   onFiles?: (files: File[]) => void;
+  /** Upload handler for images pasted/dropped in the editor. If provided, images will be inserted at cursor. */
+  onImageUpload?: (file: File) => Promise<{ url: string; caption?: string }>;
+  /** Project ID for associating uploads */
+  projectId?: string | null;
   placeholder?: string;
   label?: string;
   error?: string;
@@ -231,6 +236,8 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
   onChange,
   onPaste,
   onFiles,
+  onImageUpload,
+  projectId,
   placeholder,
   label,
   error,
@@ -389,14 +396,85 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
     emitChange();
   }, [emitChange]);
 
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    // Check if clipboard contains images and we have an upload handler
+    const items = e.clipboardData?.items;
+    if (items && (onImageUpload || projectId !== undefined)) {
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+
+      // If we found images, handle upload at cursor position
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+
+        // Create placeholders with unique blob URLs and insert at cursor
+        const placeholders = imageFiles.map(file => {
+          const blobUrl = URL.createObjectURL(file);
+          const name = file.name.replace(/\.[^.]+$/, '') || 'image';
+          const markdown = `![${name}](uploading:${blobUrl})`;
+          return { file, blobUrl, markdown };
+        });
+
+        // Insert all placeholders at cursor position
+        const placeholderText = placeholders.map(p => p.markdown).join('\n') + '\n';
+        document.execCommand('insertText', false, placeholderText);
+        emitChange();
+
+        // Upload each image and replace placeholder
+        for (const { file, blobUrl, markdown } of placeholders) {
+          try {
+            let url: string;
+            let caption: string;
+
+            if (onImageUpload) {
+              const result = await onImageUpload(file);
+              url = result.url;
+              caption = result.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
+            } else {
+              // Use default upload API
+              const response = await uploadMaterial(file, projectId ?? null, true);
+              url = response?.data?.url;
+              caption = response?.data?.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
+              if (!url) throw new Error('No URL in response');
+            }
+
+            // Replace placeholder with real image
+            const newMarkdown = `![${caption}](${url})`;
+            if (editorRef.current) {
+              const currentMarkdown = serializeDOM(editorRef.current);
+              const updated = currentMarkdown.replace(markdown, newMarkdown);
+              onChange(updated);
+            }
+          } catch (error) {
+            console.error('Image upload failed:', error);
+            // Remove failed placeholder
+            if (editorRef.current) {
+              const currentMarkdown = serializeDOM(editorRef.current);
+              const updated = currentMarkdown.replace(markdown + '\n', '').replace(markdown, '');
+              onChange(updated);
+            }
+          } finally {
+            URL.revokeObjectURL(blobUrl);
+          }
+        }
+        return;
+      }
+    }
+
+    // No images or no upload handler - delegate to external onPaste or handle as text
     onPaste?.(e);
     if (!e.defaultPrevented) {
       e.preventDefault();
       const text = e.clipboardData.getData('text/plain');
       document.execCommand('insertText', false, text);
     }
-  }, [onPaste]);
+  }, [onPaste, onImageUpload, projectId, emitChange, onChange]);
 
   const handleCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection();

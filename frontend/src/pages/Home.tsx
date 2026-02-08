@@ -9,7 +9,6 @@ import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateS
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
-import { useImagePaste } from '@/hooks/useImagePaste';
 import { useT } from '@/hooks/useT';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
@@ -289,21 +288,12 @@ export const Home: React.FC = () => {
     setIsMaterialModalOpen(true);
   };
 
-  // 图片粘贴使用统一 hook（批量支持，不对非图片文件发出警告，由下方 handlePaste 处理文档）
-  const { handlePaste: handleImagePaste, handleFiles: handleImageFiles, isUploading: isUploadingImage } = useImagePaste({
-    projectId: null,
-    setContent,
-    showToast: show,
-    warnUnsupportedTypes: false,
-  });
-
-  // 检测粘贴事件，图片走 hook，文档走独立逻辑
+  // 检测粘贴事件，处理文档文件（图片由 MarkdownTextarea 自己处理）
   const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
-    // 分类：图片 vs 文档 vs 不支持
-    let hasImages = false;
+    // 查找文档文件（图片已由 MarkdownTextarea 处理）
     const docFiles: File[] = [];
     const unsupportedExts: string[] = [];
 
@@ -315,33 +305,27 @@ export const Home: React.FC = () => {
       const file = item.getAsFile();
       if (!file) continue;
 
-      if (file.type.startsWith('image/')) {
-        hasImages = true;
-      } else {
-        const fileExt = file.name.split('.').pop()?.toLowerCase();
-        if (fileExt && allowedDocExtensions.includes(fileExt)) {
-          docFiles.push(file);
-        } else {
-          unsupportedExts.push(fileExt || file.type);
-        }
-      }
-    }
+      // Skip images - they're handled by MarkdownTextarea
+      if (file.type.startsWith('image/')) continue;
 
-    // 图片交给 hook 处理（批量上传）
-    if (hasImages) {
-      handleImagePaste(e);
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (fileExt && allowedDocExtensions.includes(fileExt)) {
+        docFiles.push(file);
+      } else {
+        unsupportedExts.push(fileExt || file.type);
+      }
     }
 
     // 文档文件逐个上传
     if (docFiles.length > 0) {
-      if (!hasImages) e.preventDefault();
+      e.preventDefault();
       for (const file of docFiles) {
         await handleFileUpload(file);
       }
     }
 
     // 不支持的文件类型提示
-    if (unsupportedExts.length > 0 && !hasImages && docFiles.length === 0) {
+    if (unsupportedExts.length > 0 && docFiles.length === 0) {
       show({ message: t('home.messages.unsupportedFileType', { type: unsupportedExts.join(', ') }), type: 'info' });
     }
   };
@@ -872,8 +856,7 @@ export const Home: React.FC = () => {
               placeholder={tabConfig[activeTab].placeholder}
               value={content}
               onChange={setContent}
-              onPaste={handlePaste}
-              onFiles={handleImageFiles}
+              projectId={null}
               rows={activeTab === 'idea' ? 4 : 8}
               className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
               toolbarLeft={
@@ -893,7 +876,6 @@ export const Home: React.FC = () => {
                   loading={isGlobalLoading}
                   disabled={
                     !content.trim() ||
-                    isUploadingImage ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
                   className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"

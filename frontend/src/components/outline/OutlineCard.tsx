@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
 import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
 import type { Page } from '@/types';
@@ -57,11 +56,6 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
   const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
   const [editPart, setEditPart] = useState(page.part || '');
-  const { handlePaste, handleFiles, isUploading } = useImagePaste({
-    projectId,
-    setContent: setEditPoints,
-    showToast: showToast,
-  });
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {
@@ -147,8 +141,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 <MarkdownTextarea
                   value={editPoints}
                   onChange={setEditPoints}
-                  onPaste={handlePaste}
-                  onFiles={handleFiles}
+                  projectId={projectId}
                   rows={5}
                   placeholder={t('outlineCard.keyPointsPlaceholder')}
                 />
