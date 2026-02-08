@@ -129,12 +129,12 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 value={editPart}
                 onChange={(e) => setEditPart(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className="text-xs px-2 py-0.5 w-24 border border-blue-300 bg-blue-50 dark:bg-blue-900/30 text-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-xs px-2 py-0.5 w-24 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder={t('outlineCard.chapter')}
               />
             ) : (
               page.part && (
-                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
                   {page.part}
                 </span>
               )
@@ -148,7 +148,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
                 placeholder={t('outlineCard.titleLabel')}
               />
               <div>

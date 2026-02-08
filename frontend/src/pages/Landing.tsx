@@ -334,7 +334,7 @@ export const Landing: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
               </div>
-              <div className="flex-1 text-center text-xs text-gray-400 font-mono">
+              <div className="flex-1 text-center text-xs text-gray-400 dark:text-gray-500 font-mono">
                 {t(`help.showcaseTitles.${showcaseKeys[currentShowcase].titleKey}`)}
               </div>
             </div>

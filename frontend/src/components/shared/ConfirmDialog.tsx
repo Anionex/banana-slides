@@ -30,9 +30,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   const variantStyles = {
-    danger: 'text-red-600',
-    warning: 'text-yellow-600',
-    info: 'text-blue-600',
+    danger: 'text-red-600 dark:text-red-400',
+    warning: 'text-yellow-600 dark:text-yellow-400',
+    info: 'text-blue-600 dark:text-blue-400',
   };
 
   return (

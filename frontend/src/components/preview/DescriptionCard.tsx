@@ -104,12 +104,12 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
     <>
       <Card className="p-0 overflow-hidden flex flex-col">
         {/* 标题栏 */}
-        <div className="bg-banana-50 px-4 py-3 border-b border-gray-100">
+        <div className="bg-banana-50 dark:bg-background-hover px-4 py-3 border-b border-gray-100 dark:border-border-primary">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900">{t('descriptionCard.page', { num: index + 1 })}</span>
+              <span className="font-semibold text-gray-900 dark:text-foreground-primary">{t('descriptionCard.page', { num: index + 1 })}</span>
               {page.part && (
-                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
                   {page.part}
                 </span>
               )}
@@ -125,24 +125,24 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-3/4" />
-              <div className="text-center py-4 text-gray-500 text-sm">
+              <div className="text-center py-4 text-gray-500 dark:text-foreground-tertiary text-sm">
                 {t('common.generating')}
               </div>
             </div>
           ) : text ? (
-            <div className="text-sm text-gray-700">
+            <div className="text-sm text-gray-700 dark:text-foreground-secondary">
               <Markdown>{text}</Markdown>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-400">
-              <div className="flex text-3xl mb-2 justify-center"><FileText className="text-gray-400" size={48} /></div>
+            <div className="text-center py-8 text-gray-400 dark:text-foreground-tertiary">
+              <div className="flex text-3xl mb-2 justify-center"><FileText className="text-gray-400 dark:text-foreground-tertiary" size={48} /></div>
               <p className="text-sm">{t('descriptionCard.noDescription')}</p>
             </div>
           )}
         </div>
 
         {/* 操作栏 */}
-        <div className="border-t border-gray-100 px-4 py-3 flex justify-end gap-2 mt-auto">
+        <div className="border-t border-gray-100 dark:border-border-primary px-4 py-3 flex justify-end gap-2 mt-auto">
           <Button
             variant="ghost"
             size="sm"

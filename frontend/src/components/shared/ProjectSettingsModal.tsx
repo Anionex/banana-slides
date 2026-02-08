@@ -241,8 +241,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       {isSavingTemplateStyle ? t('shared.saving') : t('projectSettings.saveStyleDescription')}
                     </Button>
                   </div>
-                  <div className="bg-blue-100 rounded-md p-3">
-                    <p className="text-xs text-blue-900">
+                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-md p-3">
+                    <p className="text-xs text-blue-900 dark:text-blue-300">
                       💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
                     </p>
                   </div>
@@ -291,7 +291,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-orange-50 rounded-lg p-6 space-y-4">
+                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-6 space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.backgroundMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -320,7 +320,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-gray-900 dark:text-foreground-primary">{t(option.labelKey)}</span>
                             {option.usesAI && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                                 <Sparkles size={12} />
                                 {t('projectSettings.usesAiModel')}
                               </span>
@@ -331,15 +331,15 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </label>
                     ))}
                   </div>
-                  <div className="bg-amber-100 rounded-md p-3 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-amber-700 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-900">
+                  <div className="bg-amber-100 dark:bg-amber-900/20 rounded-md p-3 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-amber-700 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-900 dark:text-amber-300">
                       <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-red-50 rounded-lg p-6 space-y-4">
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.errorHandling')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -360,9 +360,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </div>
                     </div>
                   </label>
-                  <div className="bg-red-100 rounded-md p-3 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-red-700 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-900">
+                  <div className="bg-red-100 dark:bg-red-900/20 rounded-md p-3 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-red-700 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-900 dark:text-red-300">
                       <strong>{t('common.warning')}：</strong>{t('projectSettings.allowPartialResultWarning')}
                     </p>
                   </div>
