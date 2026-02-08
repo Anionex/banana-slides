@@ -6,26 +6,18 @@ import { downloadFile } from './index';
  * 获取项目标题
  */
 export const getProjectTitle = (project: Project): string => {
-  // 如果有 idea_prompt，优先使用
-  if (project.idea_prompt) {
-    return project.idea_prompt;
-  }
-  
-  // 如果没有 idea_prompt，尝试从第一个页面获取标题
+  // 从第一个页面的大纲标题获取项目名称
   if (project.pages && project.pages.length > 0) {
-    // 按 order_index 排序，找到第一个页面
-    const sortedPages = [...project.pages].sort((a, b) => 
+    const sortedPages = [...project.pages].sort((a, b) =>
       (a.order_index || 0) - (b.order_index || 0)
     );
     const firstPage = sortedPages[0];
-    
-    // 如果第一个页面有 outline_content 和 title，使用它
+
     if (firstPage?.outline_content?.title) {
       return firstPage.outline_content.title;
     }
   }
-  
-  // 默认返回未命名项目
+
   return '未命名项目';
 };
 
