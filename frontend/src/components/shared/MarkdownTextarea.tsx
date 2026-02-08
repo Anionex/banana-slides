@@ -319,63 +319,69 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
     onChange(markdown);
   }, [onChange]);
 
+  // Shared function to insert content (text + chips) at cursor position
+  const insertContentAtCursor = useCallback((text: string) => {
+    if (!editorRef.current) return;
+
+    // Parse the text to find image markdown and insert chips directly
+    const segments = parseSegments(text);
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) {
+      // Fallback: just insert as text
+      document.execCommand('insertText', false, text);
+      emitChange();
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+
+    // Insert segments in order
+    for (const segment of segments) {
+      if (segment.type === 'text') {
+        // Insert text nodes, handling newlines
+        const lines = segment.content.split('\n');
+        lines.forEach((line, i) => {
+          if (i > 0) {
+            range.insertNode(document.createElement('br'));
+            range.collapse(false);
+          }
+          if (line) {
+            const textNode = document.createTextNode(line);
+            range.insertNode(textNode);
+            range.setStartAfter(textNode);
+            range.collapse(true);
+          }
+        });
+      } else {
+        // Insert chip element directly
+        const chip = document.createElement('span');
+        chip.contentEditable = 'false';
+        applyChipContent(chip, segment, chipTooltipsRef.current);
+        range.insertNode(chip);
+        range.setStartAfter(chip);
+        range.collapse(true);
+      }
+    }
+
+    // Update selection to after inserted content
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    emitChange();
+  }, [emitChange]);
+
   // Expose insertAtCursor method via ref for external use (e.g., useImagePaste)
   useImperativeHandle(ref, () => ({
     insertAtCursor: (text: string) => {
       if (!editorRef.current) return;
       editorRef.current.focus();
-
-      // Parse the text to find image markdown and insert chips directly
-      const segments = parseSegments(text);
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) {
-        // Fallback: just insert as text
-        document.execCommand('insertText', false, text);
-        emitChange();
-        return;
-      }
-
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-
-      // Insert segments in order
-      for (const segment of segments) {
-        if (segment.type === 'text') {
-          // Insert text nodes, handling newlines
-          const lines = segment.content.split('\n');
-          lines.forEach((line, i) => {
-            if (i > 0) {
-              range.insertNode(document.createElement('br'));
-              range.collapse(false);
-            }
-            if (line) {
-              const textNode = document.createTextNode(line);
-              range.insertNode(textNode);
-              range.setStartAfter(textNode);
-              range.collapse(true);
-            }
-          });
-        } else {
-          // Insert chip element directly
-          const chip = document.createElement('span');
-          chip.contentEditable = 'false';
-          applyChipContent(chip, segment, chipTooltipsRef.current);
-          range.insertNode(chip);
-          range.setStartAfter(chip);
-          range.collapse(true);
-        }
-      }
-
-      // Update selection to after inserted content
-      sel.removeAllRanges();
-      sel.addRange(range);
-
-      emitChange();
+      insertContentAtCursor(text);
     },
     focus: () => {
       editorRef.current?.focus();
     },
-  }), [emitChange]);
+  }), [insertContentAtCursor]);
 
   // --- Chip editing ---
   const startEditChip = useCallback((chip: HTMLElement) => {
@@ -460,9 +466,10 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
     if (!e.defaultPrevented) {
       e.preventDefault();
       const text = e.clipboardData.getData('text/plain');
-      document.execCommand('insertText', false, text);
+      // Use insertContentAtCursor to properly handle markdown images as chips
+      insertContentAtCursor(text);
     }
-  }, [onPaste]);
+  }, [onPaste, insertContentAtCursor]);
 
   const handleCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
