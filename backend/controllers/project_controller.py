@@ -320,7 +320,15 @@ def update_project(project_id):
         # Update idea_prompt if provided
         if 'idea_prompt' in data:
             project.idea_prompt = data['idea_prompt']
-        
+
+        # Update outline_text if provided
+        if 'outline_text' in data:
+            project.outline_text = data['outline_text']
+
+        # Update description_text if provided
+        if 'description_text' in data:
+            project.description_text = data['description_text']
+
         # Update extra_requirements if provided
         if 'extra_requirements' in data:
             project.extra_requirements = data['extra_requirements']
