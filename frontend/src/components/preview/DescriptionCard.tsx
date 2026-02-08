@@ -15,7 +15,7 @@ const descriptionCardI18n = {
       descriptionTitle: "编辑页面描述", description: "描述",
       noDescription: "还没有生成描述",
       uploadingImage: "正在上传图片...",
-      pasteImageHint: "支持粘贴图片"
+      descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片"
     }
   },
   en: {
@@ -24,7 +24,7 @@ const descriptionCardI18n = {
       descriptionTitle: "Edit Descriptions", description: "Description",
       noDescription: "No description generated yet",
       uploadingImage: "Uploading image...",
-      pasteImageHint: "Paste images supported"
+      descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images"
     }
   }
 };
@@ -180,7 +180,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
             onPaste={handlePaste}
             onFiles={handleFiles}
             rows={12}
-            placeholder={t('descriptionCard.pasteImageHint')}
+            placeholder={t('descriptionCard.descriptionPlaceholder')}
           />
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setIsEditing(false)}>
