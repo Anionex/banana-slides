@@ -25,6 +25,7 @@ const outlineI18n = {
       messages: {
         outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
         confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
+        confirmRegenerateWithImages: "重新生成大纲将删除所有页面，已生成的描述和图片都会丢失，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中..."
@@ -51,6 +52,7 @@ const outlineI18n = {
       messages: {
         outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
         confirmRegenerate: "Existing outline will be overwritten. Continue?",
+        confirmRegenerateWithImages: "Regenerating the outline will delete all pages. Generated descriptions and images will be lost. Continue?",
         confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
         loadingProject: "Loading project...", generatingOutline: "Generating outline..."
@@ -239,8 +241,12 @@ export const OutlineEditor: React.FC = () => {
     if (!currentProject) return;
 
     if (currentProject.pages.length > 0) {
+      const hasImages = currentProject.pages.some(p => p.generated_image_path);
+      const confirmMessage = hasImages
+        ? t('outline.messages.confirmRegenerateWithImages')
+        : t('outline.messages.confirmRegenerate');
       confirm(
-        t('outline.messages.confirmRegenerate'),
+        confirmMessage,
         async () => {
           try {
             await generateOutline();
