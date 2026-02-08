@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
-import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
+import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import UserMenu from '@/components/auth/UserMenu';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
+import { useImagePaste } from '@/hooks/useImagePaste';
 import { useT } from '@/hooks/useT';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
@@ -288,12 +289,29 @@ export const Home: React.FC = () => {
     setIsMaterialModalOpen(true);
   };
 
-  // 检测粘贴事件，处理文档文件（图片由 MarkdownTextarea 自己处理）
+  const textareaRef = useRef<MarkdownTextareaRef>(null);
+
+  // Callback to insert at cursor position in the textarea
+  const insertAtCursor = useCallback((markdown: string) => {
+    textareaRef.current?.insertAtCursor(markdown);
+  }, []);
+
+  // 图片粘贴使用统一 hook（批量支持，不对非图片文件发出警告，由下方 handlePaste 处理文档）
+  const { handlePaste: handleImagePaste, handleFiles: handleImageFiles, isUploading: isUploadingImage } = useImagePaste({
+    projectId: null,
+    setContent,
+    showToast: show,
+    warnUnsupportedTypes: false,
+    insertAtCursor,
+  });
+
+  // 检测粘贴事件，图片走 hook，文档走独立逻辑
   const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
-    // 查找文档文件（图片已由 MarkdownTextarea 处理）
+    // 分类：图片 vs 文档 vs 不支持
+    let hasImages = false;
     const docFiles: File[] = [];
     const unsupportedExts: string[] = [];
 
@@ -305,27 +323,33 @@ export const Home: React.FC = () => {
       const file = item.getAsFile();
       if (!file) continue;
 
-      // Skip images - they're handled by MarkdownTextarea
-      if (file.type.startsWith('image/')) continue;
-
-      const fileExt = file.name.split('.').pop()?.toLowerCase();
-      if (fileExt && allowedDocExtensions.includes(fileExt)) {
-        docFiles.push(file);
+      if (file.type.startsWith('image/')) {
+        hasImages = true;
       } else {
-        unsupportedExts.push(fileExt || file.type);
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        if (fileExt && allowedDocExtensions.includes(fileExt)) {
+          docFiles.push(file);
+        } else {
+          unsupportedExts.push(fileExt || file.type);
+        }
       }
+    }
+
+    // 图片交给 hook 处理（批量上传）
+    if (hasImages) {
+      handleImagePaste(e);
     }
 
     // 文档文件逐个上传
     if (docFiles.length > 0) {
-      e.preventDefault();
+      if (!hasImages) e.preventDefault();
       for (const file of docFiles) {
         await handleFileUpload(file);
       }
     }
 
     // 不支持的文件类型提示
-    if (unsupportedExts.length > 0 && docFiles.length === 0) {
+    if (unsupportedExts.length > 0 && !hasImages && docFiles.length === 0) {
       show({ message: t('home.messages.unsupportedFileType', { type: unsupportedExts.join(', ') }), type: 'info' });
     }
   };
@@ -853,10 +877,12 @@ export const Home: React.FC = () => {
           {/* 输入区 - 带工具栏 */}
           <div className="mb-2">
             <MarkdownTextarea
+              ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
               value={content}
               onChange={setContent}
-              projectId={null}
+              onPaste={handlePaste}
+              onFiles={handleImageFiles}
               rows={activeTab === 'idea' ? 4 : 8}
               className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
               toolbarLeft={
@@ -876,6 +902,7 @@ export const Home: React.FC = () => {
                   loading={isGlobalLoading}
                   disabled={
                     !content.trim() ||
+                    isUploadingImage ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
                   className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"

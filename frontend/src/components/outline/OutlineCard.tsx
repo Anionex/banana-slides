@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
-import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
+import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import type { Page } from '@/types';
 
 // OutlineCard 组件自包含翻译
@@ -56,6 +57,19 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   const [editTitle, setEditTitle] = useState(page.outline_content.title);
   const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
   const [editPart, setEditPart] = useState(page.part || '');
+  const textareaRef = useRef<MarkdownTextareaRef>(null);
+
+  // Callback to insert at cursor position in the textarea
+  const insertAtCursor = useCallback((markdown: string) => {
+    textareaRef.current?.insertAtCursor(markdown);
+  }, []);
+
+  const { handlePaste, handleFiles, isUploading } = useImagePaste({
+    projectId,
+    setContent: setEditPoints,
+    showToast: showToast,
+    insertAtCursor,
+  });
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {
@@ -139,9 +153,11 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
               />
               <div>
                 <MarkdownTextarea
+                  ref={textareaRef}
                   value={editPoints}
                   onChange={setEditPoints}
-                  projectId={projectId}
+                  onPaste={handlePaste}
+                  onFiles={handleFiles}
                   rows={5}
                   placeholder={t('outlineCard.keyPointsPlaceholder')}
                 />

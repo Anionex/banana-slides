@@ -16,6 +16,14 @@ export const isUploadingUrl = (url: string) => url.startsWith(UPLOADING_PREFIX);
 export const getUploadingPreviewUrl = (url: string) =>
   isUploadingUrl(url) ? url.slice(UPLOADING_PREFIX.length) : url;
 
+/** Generate a placeholder markdown for a file (exported for MarkdownTextarea) */
+export const generatePlaceholder = (file: File): { blobUrl: string; markdown: string } => {
+  const blobUrl = URL.createObjectURL(file);
+  const placeholderUrl = `${UPLOADING_PREFIX}${blobUrl}`;
+  const name = file.name.replace(/\.[^.]+$/, '') || 'image';
+  return { blobUrl, markdown: `![${name}](${placeholderUrl})` };
+};
+
 const imagePasteI18n = {
   zh: {
     imagePaste: {
@@ -44,6 +52,8 @@ interface UseImagePasteOptions {
   showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   /** Whether to warn about non-image file types. Default: true */
   warnUnsupportedTypes?: boolean;
+  /** If provided, use this to insert placeholder at cursor position instead of appending to end */
+  insertAtCursor?: (markdown: string) => void;
 }
 
 export const useImagePaste = ({
@@ -52,6 +62,7 @@ export const useImagePaste = ({
   generateCaption = true,
   showToast,
   warnUnsupportedTypes = true,
+  insertAtCursor,
 }: UseImagePasteOptions) => {
   const t = useT(imagePasteI18n);
   const [isUploading, setIsUploading] = useState(false);
@@ -73,18 +84,26 @@ export const useImagePaste = ({
     }
 
     const placeholders = imageFiles.map(file => {
-      const blobUrl = URL.createObjectURL(file);
-      const placeholderUrl = `${UPLOADING_PREFIX}${blobUrl}`;
-      const name = file.name.replace(/\.[^.]+$/, '') || 'image';
-      return { file, blobUrl, markdown: `![${name}](${placeholderUrl})` };
+      const { blobUrl, markdown } = generatePlaceholder(file);
+      return { file, blobUrl, markdown };
     });
 
-    // Insert placeholders immediately
+    // Insert placeholders - use insertAtCursor if provided, otherwise append to end
     const placeholderInsert = placeholders.map(p => p.markdown).join('\n');
-    setContent(prev => {
-      const prefix = prev && !prev.endsWith('\n') ? '\n' : '';
-      return prev + prefix + placeholderInsert + '\n';
-    });
+    if (insertAtCursor) {
+      insertAtCursor(placeholderInsert + '\n');
+    } else {
+      setContent(prev => {
+        // Check if placeholders already exist (in case MarkdownTextarea inserted them)
+        const newPlaceholders = placeholders.filter(p => !prev.includes(p.markdown));
+        if (newPlaceholders.length === 0) {
+          return prev; // All placeholders already exist, skip insertion
+        }
+        const insert = newPlaceholders.map(p => p.markdown).join('\n');
+        const prefix = prev && !prev.endsWith('\n') ? '\n' : '';
+        return prev + prefix + insert + '\n';
+      });
+    }
 
     pendingCount.current += placeholders.length;
     setIsUploading(true);
@@ -131,7 +150,7 @@ export const useImagePaste = ({
     } else if (failedCount > 0 && successCount === 0) {
       showToast({ message: t('imagePaste.uploadFailed'), type: 'error' });
     }
-  }, [projectId, generateCaption, warnUnsupportedTypes, setContent, showToast, t]);
+  }, [projectId, generateCaption, warnUnsupportedTypes, setContent, insertAtCursor, showToast, t]);
 
   /** Handle clipboard paste event */
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLElement>) => {

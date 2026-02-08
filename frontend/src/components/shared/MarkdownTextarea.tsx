@@ -1,8 +1,7 @@
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { cn } from '@/utils';
 import { useT } from '@/hooks/useT';
 import { isUploadingUrl, getUploadingPreviewUrl } from '@/hooks/useImagePaste';
-import { uploadMaterial } from '@/api/endpoints';
 
 const markdownTextareaI18n = {
   zh: {
@@ -35,10 +34,6 @@ interface MarkdownTextareaProps {
   onPaste?: (e: React.ClipboardEvent<HTMLDivElement>) => void;
   /** Called when files are dropped or selected via upload button */
   onFiles?: (files: File[]) => void;
-  /** Upload handler for images pasted/dropped in the editor. If provided, images will be inserted at cursor. */
-  onImageUpload?: (file: File) => Promise<{ url: string; caption?: string }>;
-  /** Project ID for associating uploads */
-  projectId?: string | null;
   placeholder?: string;
   label?: string;
   error?: string;
@@ -52,6 +47,14 @@ interface MarkdownTextareaProps {
   toolbarRight?: React.ReactNode;
   /** Show compact image preview strip. Default: true */
   showImagePreview?: boolean;
+}
+
+/** Ref handle for MarkdownTextarea */
+export interface MarkdownTextareaRef {
+  /** Insert text at the current cursor position */
+  insertAtCursor: (text: string) => void;
+  /** Focus the editor */
+  focus: () => void;
 }
 
 function escapeHtml(text: string) {
@@ -231,13 +234,11 @@ function selectChip(chip: HTMLElement) {
   chip.classList.add(CHIP_SELECTED_CLASS, 'ring-2', 'ring-red-400', 'bg-red-50', 'dark:bg-red-900/30');
 }
 
-export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
+export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextareaProps>(({
   value,
   onChange,
   onPaste,
   onFiles,
-  onImageUpload,
-  projectId,
   placeholder,
   label,
   error,
@@ -247,7 +248,7 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
   toolbarLeft,
   toolbarRight,
   showImagePreview = true,
-}) => {
+}, ref) => {
   const t = useT(markdownTextareaI18n);
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -275,7 +276,7 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
       buildDOM(editorRef.current, parseSegments(value), chipTooltipsRef.current);
       lastValueRef.current = value;
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync from external value changes — incremental patch when possible
   useEffect(() => {
@@ -317,6 +318,64 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
     lastValueRef.current = markdown;
     onChange(markdown);
   }, [onChange]);
+
+  // Expose insertAtCursor method via ref for external use (e.g., useImagePaste)
+  useImperativeHandle(ref, () => ({
+    insertAtCursor: (text: string) => {
+      if (!editorRef.current) return;
+      editorRef.current.focus();
+
+      // Parse the text to find image markdown and insert chips directly
+      const segments = parseSegments(text);
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) {
+        // Fallback: just insert as text
+        document.execCommand('insertText', false, text);
+        emitChange();
+        return;
+      }
+
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+
+      // Insert segments in order
+      for (const segment of segments) {
+        if (segment.type === 'text') {
+          // Insert text nodes, handling newlines
+          const lines = segment.content.split('\n');
+          lines.forEach((line, i) => {
+            if (i > 0) {
+              range.insertNode(document.createElement('br'));
+              range.collapse(false);
+            }
+            if (line) {
+              const textNode = document.createTextNode(line);
+              range.insertNode(textNode);
+              range.setStartAfter(textNode);
+              range.collapse(true);
+            }
+          });
+        } else {
+          // Insert chip element directly
+          const chip = document.createElement('span');
+          chip.contentEditable = 'false';
+          applyChipContent(chip, segment, chipTooltipsRef.current);
+          range.insertNode(chip);
+          range.setStartAfter(chip);
+          range.collapse(true);
+        }
+      }
+
+      // Update selection to after inserted content
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      emitChange();
+    },
+    focus: () => {
+      editorRef.current?.focus();
+    },
+  }), [emitChange]);
 
   // --- Chip editing ---
   const startEditChip = useCallback((chip: HTMLElement) => {
@@ -396,85 +455,14 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
     emitChange();
   }, [emitChange]);
 
-  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLDivElement>) => {
-    // Check if clipboard contains images and we have an upload handler
-    const items = e.clipboardData?.items;
-    if (items && (onImageUpload || projectId !== undefined)) {
-      const imageFiles: File[] = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === 'file' && item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) imageFiles.push(file);
-        }
-      }
-
-      // If we found images, handle upload at cursor position
-      if (imageFiles.length > 0) {
-        e.preventDefault();
-
-        // Create placeholders with unique blob URLs and insert at cursor
-        const placeholders = imageFiles.map(file => {
-          const blobUrl = URL.createObjectURL(file);
-          const name = file.name.replace(/\.[^.]+$/, '') || 'image';
-          const markdown = `![${name}](uploading:${blobUrl})`;
-          return { file, blobUrl, markdown };
-        });
-
-        // Insert all placeholders at cursor position
-        const placeholderText = placeholders.map(p => p.markdown).join('\n') + '\n';
-        document.execCommand('insertText', false, placeholderText);
-        emitChange();
-
-        // Upload each image and replace placeholder
-        for (const { file, blobUrl, markdown } of placeholders) {
-          try {
-            let url: string;
-            let caption: string;
-
-            if (onImageUpload) {
-              const result = await onImageUpload(file);
-              url = result.url;
-              caption = result.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
-            } else {
-              // Use default upload API
-              const response = await uploadMaterial(file, projectId ?? null, true);
-              url = response?.data?.url;
-              caption = response?.data?.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
-              if (!url) throw new Error('No URL in response');
-            }
-
-            // Replace placeholder with real image
-            const newMarkdown = `![${caption}](${url})`;
-            if (editorRef.current) {
-              const currentMarkdown = serializeDOM(editorRef.current);
-              const updated = currentMarkdown.replace(markdown, newMarkdown);
-              onChange(updated);
-            }
-          } catch (error) {
-            console.error('Image upload failed:', error);
-            // Remove failed placeholder
-            if (editorRef.current) {
-              const currentMarkdown = serializeDOM(editorRef.current);
-              const updated = currentMarkdown.replace(markdown + '\n', '').replace(markdown, '');
-              onChange(updated);
-            }
-          } finally {
-            URL.revokeObjectURL(blobUrl);
-          }
-        }
-        return;
-      }
-    }
-
-    // No images or no upload handler - delegate to external onPaste or handle as text
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     onPaste?.(e);
     if (!e.defaultPrevented) {
       e.preventDefault();
       const text = e.clipboardData.getData('text/plain');
       document.execCommand('insertText', false, text);
     }
-  }, [onPaste, onImageUpload, projectId, emitChange, onChange]);
+  }, [onPaste]);
 
   const handleCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
@@ -753,4 +741,7 @@ export const MarkdownTextarea: React.FC<MarkdownTextareaProps> = ({
       )}
     </div>
   );
-};
+});
+
+// Add display name for better debugging
+MarkdownTextarea.displayName = 'MarkdownTextarea';
