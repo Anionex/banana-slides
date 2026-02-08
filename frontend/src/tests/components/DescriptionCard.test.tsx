@@ -14,8 +14,8 @@ vi.mock('@/api/endpoints', () => ({
 }))
 
 // Mock MarkdownTextarea as a plain textarea so getByDisplayValue works
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 vi.mock('@/components/shared/MarkdownTextarea', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react')
   return {
     MarkdownTextarea: React.forwardRef(
