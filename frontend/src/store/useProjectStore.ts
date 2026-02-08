@@ -91,10 +91,8 @@ const debouncedUpdatePage = debounce(
       await Promise.all(promises);
     }
         
-        // API调用成功后，同步项目状态以更新updated_at
-        // 这样可以确保历史记录页面显示最新的更新时间
-        const { syncProject } = get();
-        await syncProject(projectId);
+        // 不再调用 syncProject，避免替换整个 currentProject 导致所有卡片闪烁重渲染
+      // updated_at 会在用户导航到历史页面时自然同步
       } catch (error: any) {
         console.error('保存页面失败:', error);
         // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志

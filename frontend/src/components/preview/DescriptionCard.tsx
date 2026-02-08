@@ -40,7 +40,7 @@ export interface DescriptionCardProps {
   isAiRefining?: boolean;
 }
 
-export const DescriptionCard: React.FC<DescriptionCardProps> = ({
+export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   page,
   index,
   projectId,
@@ -194,4 +194,4 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
       </Modal>
     </>
   );
-};
+});
