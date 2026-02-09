@@ -85,4 +85,38 @@ After`}</Markdown>
     const katexElements = container.querySelectorAll('.katex')
     expect(katexElements.length).toBeGreaterThan(0)
   })
+
+  it('renders inline LaTeX with \\(...\\) delimiters', () => {
+    const { container } = render(
+      <Markdown>{`The formula \\(E = mc^2\\) is famous`}</Markdown>
+    )
+    const katexElements = container.querySelectorAll('.katex')
+    expect(katexElements.length).toBeGreaterThan(0)
+  })
+
+  it('renders block LaTeX with \\[...\\] delimiters', () => {
+    const { container } = render(
+      <Markdown>{`Before
+
+\\[x^2 + y^2 = z^2\\]
+
+After`}</Markdown>
+    )
+    const katexElements = container.querySelectorAll('.katex')
+    expect(katexElements.length).toBeGreaterThan(0)
+  })
+
+  it('renders mixed delimiter formats', () => {
+    const { container } = render(
+      <Markdown>{`Inline $a^2$ and \\(b^2\\) with block:
+
+$$c^2$$
+
+and
+
+\\[d^2\\]`}</Markdown>
+    )
+    const katexElements = container.querySelectorAll('.katex')
+    expect(katexElements.length).toBe(4)
+  })
 })
