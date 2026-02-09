@@ -904,11 +904,13 @@ class ExportService:
                     image=image_path,
                     text_content=text_content
                 )
-                # 只要 style 不为 None 就算成功（黑色也是有效颜色）
-                if style:
+                # Check for real success: style must exist and not be an error result
+                # (CaptionModelTextAttributeExtractor returns TextStyleResult(confidence=0.0, metadata={'error':...}) on failure)
+                is_error = style and style.confidence == 0.0 and style.metadata.get('error')
+                if style and not is_error:
                     return element_id, style, None
                 else:
-                    error_msg = "样式提取返回空"
+                    error_msg = style.metadata.get('error', '样式提取返回空') if (style and style.metadata) else "样式提取返回空"
                     if fail_fast:
                         raise ExportError(
                             message=f"文本样式提取失败: {error_msg}",
