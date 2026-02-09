@@ -13,7 +13,9 @@ const outlineCardI18n = {
       page: "第 {{num}} 页", chapter: "章节", titleLabel: "标题",
       keyPointsPlaceholder: "要点（每行一个，支持粘贴图片）", confirmDeletePage: "确定要删除这一页吗？",
       confirmDeleteTitle: "确认删除",
-      uploadingImage: "正在上传图片..."
+      uploadingImage: "正在上传图片...",
+      coverPage: "封面",
+      coverPageTooltip: "第一页为封面页，通常包含标题和副标题"
     }
   },
   en: {
@@ -21,7 +23,9 @@ const outlineCardI18n = {
       page: "Page {{num}}", chapter: "Chapter", titleLabel: "Title",
       keyPointsPlaceholder: "Key points (one per line, paste images supported)", confirmDeletePage: "Are you sure you want to delete this page?",
       confirmDeleteTitle: "Confirm Delete",
-      uploadingImage: "Uploading image..."
+      uploadingImage: "Uploading image...",
+      coverPage: "Cover",
+      coverPageTooltip: "This is the cover page, usually containing the title and subtitle"
     }
   }
 };
@@ -123,6 +127,14 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
             <span className="text-sm font-semibold text-gray-900 dark:text-foreground-primary">
               {t('outlineCard.page', { num: index + 1 })}
             </span>
+            {index === 0 && !isEditing && (
+              <span
+                className="text-xs px-1.5 py-0.5 bg-banana-100 dark:bg-banana-900/30 text-banana-700 dark:text-banana-400 rounded"
+                title={t('outlineCard.coverPageTooltip')}
+              >
+                {t('outlineCard.coverPage')}
+              </span>
+            )}
             {isEditing ? (
               <input
                 type="text"

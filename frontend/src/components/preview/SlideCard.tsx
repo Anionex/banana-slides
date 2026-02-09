@@ -11,14 +11,18 @@ const slideCardI18n = {
     slideCard: {
       notGenerated: "未生成",
       confirmDeletePage: "确定要删除这一页吗？",
-      confirmDeleteTitle: "确认删除"
+      confirmDeleteTitle: "确认删除",
+      coverPage: "封面",
+      coverPageTooltip: "第一页为封面页，通常包含标题和副标题"
     }
   },
   en: {
     slideCard: {
       notGenerated: "Not Generated",
       confirmDeletePage: "Are you sure you want to delete this page?",
-      confirmDeleteTitle: "Confirm Delete"
+      confirmDeleteTitle: "Confirm Delete",
+      coverPage: "Cover",
+      coverPageTooltip: "This is the cover page, usually containing the title and subtitle"
     }
   }
 };
@@ -118,6 +122,14 @@ export const SlideCard: React.FC<SlideCardProps> = ({
         >
           {index + 1}. {page.outline_content.title}
         </span>
+        {index === 0 && (
+          <span
+            className="text-xs px-1.5 py-0.5 bg-banana-100 dark:bg-banana-900/30 text-banana-700 dark:text-banana-400 rounded flex-shrink-0"
+            title={t('slideCard.coverPageTooltip')}
+          >
+            {t('slideCard.coverPage')}
+          </span>
+        )}
       </div>
       {ConfirmDialog}
     </div>

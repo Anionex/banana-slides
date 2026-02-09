@@ -15,7 +15,9 @@ const descriptionCardI18n = {
       descriptionTitle: "编辑页面描述", description: "描述",
       noDescription: "还没有生成描述",
       uploadingImage: "正在上传图片...",
-      descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片"
+      descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片",
+      coverPage: "封面",
+      coverPageTooltip: "第一页为封面页，通常包含标题和副标题"
     }
   },
   en: {
@@ -24,7 +26,9 @@ const descriptionCardI18n = {
       descriptionTitle: "Edit Descriptions", description: "Description",
       noDescription: "No description generated yet",
       uploadingImage: "Uploading image...",
-      descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images"
+      descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images",
+      coverPage: "Cover",
+      coverPageTooltip: "This is the cover page, usually containing the title and subtitle"
     }
   }
 };
@@ -108,6 +112,14 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-900 dark:text-foreground-primary">{t('descriptionCard.page', { num: index + 1 })}</span>
+              {index === 0 && (
+                <span
+                  className="text-xs px-1.5 py-0.5 bg-banana-100 dark:bg-banana-900/30 text-banana-700 dark:text-banana-400 rounded"
+                  title={t('descriptionCard.coverPageTooltip')}
+                >
+                  {t('descriptionCard.coverPage')}
+                </span>
+              )}
               {page.part && (
                 <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
                   {page.part}
