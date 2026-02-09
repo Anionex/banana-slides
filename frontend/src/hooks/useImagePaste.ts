@@ -32,6 +32,7 @@ const imagePasteI18n = {
       uploadFailed: '图片上传失败',
       partialSuccess: '{{success}} 张上传成功，{{failed}} 张失败',
       unsupportedType: '不支持的文件类型：{{types}}',
+      captionFailed: '图片描述识别失败，已使用文件名替代',
     }
   },
   en: {
@@ -41,6 +42,7 @@ const imagePasteI18n = {
       uploadFailed: 'Image upload failed',
       partialSuccess: '{{success}} uploaded, {{failed}} failed',
       unsupportedType: 'Unsupported file type: {{types}}',
+      captionFailed: 'Image caption recognition failed, using filename instead',
     }
   }
 };
@@ -116,8 +118,11 @@ export const useImagePaste = ({
           const caption = response?.data?.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
           if (!realUrl) throw new Error('No URL in response');
 
+          // Track whether caption generation was requested but failed
+          const captionFailed = generateCaption && !response?.data?.caption;
+
           setContent(prev => prev.replace(markdown, `![${caption}](${realUrl})`));
-          return { success: true };
+          return { success: true, captionFailed };
         } catch {
           setContent(prev => prev.replace(markdown + '\n', '').replace(markdown, ''));
           return { success: false };
@@ -149,6 +154,14 @@ export const useImagePaste = ({
       });
     } else if (failedCount > 0 && successCount === 0) {
       showToast({ message: t('imagePaste.uploadFailed'), type: 'error' });
+    }
+
+    // Warn about caption generation failures (separate from upload success/failure)
+    const captionFailedCount = results.filter(
+      r => r.status === 'fulfilled' && r.value.captionFailed
+    ).length;
+    if (captionFailedCount > 0) {
+      showToast({ message: t('imagePaste.captionFailed'), type: 'warning' });
     }
   }, [projectId, generateCaption, warnUnsupportedTypes, setContent, insertAtCursor, showToast, t]);
 
