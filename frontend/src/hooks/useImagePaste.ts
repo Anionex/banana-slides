@@ -16,11 +16,16 @@ export const isUploadingUrl = (url: string) => url.startsWith(UPLOADING_PREFIX);
 export const getUploadingPreviewUrl = (url: string) =>
   isUploadingUrl(url) ? url.slice(UPLOADING_PREFIX.length) : url;
 
+/** Escape markdown special characters in alt text to prevent injection */
+const escapeMarkdown = (text: string): string => {
+  return text.replace(/[[\]()]/g, '\\$&');
+};
+
 /** Generate a placeholder markdown for a file (exported for MarkdownTextarea) */
 export const generatePlaceholder = (file: File): { blobUrl: string; markdown: string } => {
   const blobUrl = URL.createObjectURL(file);
   const placeholderUrl = `${UPLOADING_PREFIX}${blobUrl}`;
-  const name = file.name.replace(/\.[^.]+$/, '') || 'image';
+  const name = escapeMarkdown(file.name.replace(/\.[^.]+$/, '') || 'image');
   return { blobUrl, markdown: `![${name}](${placeholderUrl})` };
 };
 
@@ -115,7 +120,8 @@ export const useImagePaste = ({
         try {
           const response = await uploadMaterial(file, projectId ?? null, generateCaption);
           const realUrl = response?.data?.url;
-          const caption = response?.data?.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
+          const rawCaption = response?.data?.caption || file.name.replace(/\.[^.]+$/, '') || 'image';
+          const caption = escapeMarkdown(rawCaption);
           if (!realUrl) throw new Error('No URL in response');
 
           // Track whether caption generation was requested but failed

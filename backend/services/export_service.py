@@ -910,7 +910,7 @@ class ExportService:
                 if style and not is_error:
                     return element_id, style, None
                 else:
-                    error_msg = style.metadata.get('error', '样式提取返回空') if (style and style.metadata) else "样式提取返回空"
+                    error_msg = style.metadata.get('error', '样式提取返回空') if style else "样式提取返回空"
                     if fail_fast:
                         raise ExportError(
                             message=f"文本样式提取失败: {error_msg}",
