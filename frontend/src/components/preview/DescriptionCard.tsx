@@ -17,7 +17,7 @@ const descriptionCardI18n = {
       uploadingImage: "正在上传图片...",
       descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片",
       coverPage: "封面",
-      coverPageTooltip: "第一页为封面页，通常包含标题和副标题"
+      coverPageTooltip: "第一页为封面页，默认保持简洁风格"
     }
   },
   en: {
@@ -28,7 +28,7 @@ const descriptionCardI18n = {
       uploadingImage: "Uploading image...",
       descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images",
       coverPage: "Cover",
-      coverPageTooltip: "This is the cover page, usually containing the title and subtitle"
+      coverPageTooltip: "This is the cover page, default to keep simple style"
     }
   }
 };
