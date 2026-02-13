@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils';
 
 interface ProgressData {
@@ -22,12 +23,15 @@ interface LoadingProps {
 
 export const Loading: React.FC<LoadingProps> = ({
   fullscreen = false,
-  message = '加载中...',
+  message,
   progress,
   onBackgroundClick,
-  backgroundButtonLabel = '在后台执行',
+  backgroundButtonLabel,
 }) => {
+  const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const defaultMessage = message || t('common.loading');
+  const defaultBackgroundLabel = backgroundButtonLabel || t('common.runInBackground');
   
   // 自动滚动到最新消息
   useEffect(() => {
@@ -56,15 +60,15 @@ export const Loading: React.FC<LoadingProps> = ({
       </div>
       
       {/* 消息 */}
-      <p className="text-lg text-gray-700 mb-4 text-center">{message}</p>
-      
+      <p className="text-lg text-gray-700 dark:text-foreground-secondary mb-4 text-center">{defaultMessage}</p>
+
       {/* 进度条 */}
       {progress && (
         <div className="w-full">
-          <div className="flex justify-end text-sm text-gray-600 mb-2">
+          <div className="flex justify-end text-sm text-gray-600 dark:text-foreground-tertiary mb-2">
             <span className="font-medium">{percent}%</span>
           </div>
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-200 dark:bg-background-hover rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-banana-500 to-banana-600 transition-all duration-300"
               style={{ width: `${percent}%` }}
@@ -72,19 +76,19 @@ export const Loading: React.FC<LoadingProps> = ({
           </div>
         </div>
       )}
-      
+
       {/* 滚动消息日志 */}
       {hasMessages && (
         <div className="w-full mt-4">
-          <div className="bg-banana-50 border border-banana-200 rounded-lg p-3 h-32 overflow-y-auto text-xs">
+          <div className="bg-banana-50 dark:bg-background-secondary border border-banana-200 dark:border-border-primary rounded-lg p-3 h-32 overflow-y-auto text-xs">
             {progress.messages!.map((msg, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className={cn(
                   "py-0.5",
-                  index === progress.messages!.length - 1 
-                    ? "text-banana-700 font-medium" 
-                    : "text-gray-500"
+                  index === progress.messages!.length - 1
+                    ? "text-banana-700 dark:text-banana-400 font-medium"
+                    : "text-gray-500 dark:text-foreground-tertiary"
                 )}
               >
                 <span className="text-banana-400 mr-2">›</span>
@@ -100,15 +104,15 @@ export const Loading: React.FC<LoadingProps> = ({
 
   if (fullscreen) {
     return (
-      <div className="fixed inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white/90 dark:bg-background-primary/90 backdrop-blur-sm flex items-center justify-center z-50">
         {/* Background button - top left corner */}
         {onBackgroundClick && (
           <button
             onClick={onBackgroundClick}
-            className="absolute top-4 left-4 flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-banana-600 bg-white/80 hover:bg-banana-50 rounded-lg border border-gray-200 shadow-sm transition-colors"
+            className="absolute top-4 left-4 flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:text-banana-600 bg-white/80 dark:bg-background-secondary/80 hover:bg-banana-50 dark:hover:bg-background-hover rounded-lg border border-gray-200 dark:border-border-primary shadow-sm transition-colors"
           >
             <ArrowLeft size={16} />
-            {backgroundButtonLabel}
+            {defaultBackgroundLabel}
           </button>
         )}
         {content}
@@ -124,7 +128,7 @@ export const Skeleton: React.FC<{ className?: string }> = ({ className }) => {
   return (
     <div
       className={cn(
-        'animate-shimmer bg-gradient-to-r from-gray-200 via-banana-50 to-gray-200',
+        'animate-shimmer bg-gradient-to-r from-gray-200 dark:from-background-hover via-banana-50 dark:via-background-elevated to-gray-200 dark:to-background-hover',
         'bg-[length:200%_100%]',
         className
       )}

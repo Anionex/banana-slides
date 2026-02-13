@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ReferenceFileCard, useToast } from '@/components/shared';
+import { useT } from '@/hooks/useT';
 import { listProjectReferenceFiles, type ReferenceFile } from '@/api/endpoints';
+
+// ReferenceFileList 组件自包含翻译
+const referenceFileListI18n = {
+  zh: { referenceFile: { uploadedFiles: "已上传的文件", messages: { loadFailed: "加载参考文件列表失败" } } },
+  en: { referenceFile: { uploadedFiles: "Uploaded Files", messages: { loadFailed: "Failed to load reference file list" } } }
+};
 
 interface ReferenceFileListProps {
   // 两种模式：1. 从 API 加载（传入 projectId） 2. 直接显示（传入 files）
@@ -21,12 +28,15 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
   onFileStatusChange,
   onFileDelete,
   deleteMode = 'remove',
-  title = '已上传的文件',
+  title,
   className = 'mb-6',
 }) => {
+  const t = useT(referenceFileListI18n);
   const [internalFiles, setInternalFiles] = useState<ReferenceFile[]>([]);
   const { show } = useToast();
   const showRef = useRef(show);
+  
+  const displayTitle = title ?? t('referenceFile.uploadedFiles');
 
   // 如果传入了 files，使用外部文件列表；否则从 API 加载
   const isExternalMode = externalFiles !== undefined;
@@ -52,9 +62,9 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
           setInternalFiles(response.data.files);
         }
       } catch (error: any) {
-        console.error('加载文件列表失败:', error);
+        console.error('Load file list failed:', error);
         showRef.current({
-          message: error?.response?.data?.error?.message || error.message || '加载文件列表失败',
+          message: error?.response?.data?.error?.message || error.message || t('referenceFile.messages.loadFailed'),
           type: 'error',
         });
       }
@@ -86,7 +96,7 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
 
   return (
     <div className={className}>
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">{title}</h3>
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-foreground-secondary mb-3">{displayTitle}</h3>
       <div className="space-y-2">
         {files.map(file => (
           <ReferenceFileCard

@@ -27,19 +27,17 @@ class BaiduInpaintingProvider:
     - 使用背景内容智能填充
     - 快速响应，适合批量处理
     """
-    
-    def __init__(self, api_key: str, api_secret: Optional[str] = None):
+
+    def __init__(self, api_key: str):
         """
         初始化百度图像修复 Provider
-        
+
         Args:
             api_key: 百度API Key（BCEv3格式：bce-v3/ALTAK-...）或Access Token
-            api_secret: 可选，如果提供则用于BCEv3签名
         """
         self.api_key = api_key
-        self.api_secret = api_secret
         self.api_url = "https://aip.baidubce.com/rest/2.0/image-process/v1/inpainting"
-        
+
         if api_key.startswith('bce-v3/'):
             logger.info("✅ 初始化百度图像修复 Provider (使用BCEv3 API Key)")
         else:
@@ -224,30 +222,35 @@ class BaiduInpaintingProvider:
 
 
 def create_baidu_inpainting_provider(
-    api_key: Optional[str] = None,
-    api_secret: Optional[str] = None
+    api_key: Optional[str] = None
 ) -> Optional[BaiduInpaintingProvider]:
     """
     创建百度图像修复 Provider 实例
-    
+
     Args:
-        api_key: 百度API Key，如果不提供则从 config.py 读取
-        api_secret: 百度API Secret（可选），如果不提供则从 config.py 读取
-        
+        api_key: 百度API Key，如果不提供则从Flask config或环境变量读取
+
     Returns:
         BaiduInpaintingProvider实例，如果api_key不可用则返回None
     """
+    import os
     from config import Config
-    
+
     if not api_key:
-        api_key = Config.BAIDU_OCR_API_KEY
-    
-    if not api_secret:
-        api_secret = Config.BAIDU_OCR_API_SECRET
-    
+        # 优先从 Flask config 读取（数据库设置），然后从 Config，最后从环境变量
+        try:
+            from flask import current_app
+            api_key = current_app.config.get('BAIDU_OCR_API_KEY')
+        except RuntimeError:
+            pass  # 不在 Flask 上下文中
+        if not api_key:
+            api_key = Config.BAIDU_OCR_API_KEY
+        if not api_key:
+            api_key = os.getenv('BAIDU_OCR_API_KEY')
+
     if not api_key:
         logger.warning("⚠️ 未配置百度API Key (BAIDU_OCR_API_KEY), 跳过百度图像修复")
         return None
-    
-    return BaiduInpaintingProvider(api_key, api_secret)
+
+    return BaiduInpaintingProvider(api_key)
 

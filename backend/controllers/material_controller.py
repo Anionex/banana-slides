@@ -15,12 +15,87 @@ import shutil
 import time
 import zipfile
 import io
+import base64
+import logging
 
+logger = logging.getLogger(__name__)
 
 material_bp = Blueprint('materials', __name__, url_prefix='/api/projects')
 material_global_bp = Blueprint('materials_global', __name__, url_prefix='/api/materials')
 
 ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+
+
+def _generate_image_caption(filepath: str) -> str:
+    """Generate AI caption for an uploaded image. Returns empty string on failure."""
+    if filepath.lower().endswith('.svg'):
+        return ""
+    try:
+        from PIL import Image
+
+        image = Image.open(filepath)
+        image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+
+        output_lang = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
+        if output_lang == 'en':
+            prompt = "Please provide a short description of the main content of this image. Return only the description text without any other explanation."
+        else:
+            prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
+
+        provider_format = (current_app.config.get('AI_PROVIDER_FORMAT') or 'gemini').lower()
+        caption_model = current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
+
+        if provider_format == 'openai':
+            from openai import OpenAI
+            api_key = current_app.config.get('OPENAI_API_KEY', '')
+            if not api_key:
+                return ""
+            client = OpenAI(
+                api_key=api_key,
+                base_url=current_app.config.get('OPENAI_API_BASE') or None
+            )
+
+            buffered = io.BytesIO()
+            if image.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+                image = background
+            image.save(buffered, format="JPEG", quality=95)
+            base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+            response = client.chat.completions.create(
+                model=caption_model,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }],
+                temperature=0.3
+            )
+            return response.choices[0].message.content.strip()
+        else:
+            # Gemini (default)
+            from google import genai
+            from google.genai import types
+            api_key = current_app.config.get('GOOGLE_API_KEY', '')
+            if not api_key:
+                return ""
+            api_base = current_app.config.get('GOOGLE_API_BASE', '')
+            client = genai.Client(
+                http_options=types.HttpOptions(base_url=api_base) if api_base else None,
+                api_key=api_key
+            )
+            result = client.models.generate_content(
+                model=caption_model,
+                contents=[image, prompt],
+                config=types.GenerateContentConfig(temperature=0.3)
+            )
+            return result.text.strip()
+    except Exception as e:
+        logger.warning(f"Failed to generate caption for {filepath}: {e}")
+        return ""
 
 
 def _build_material_query(filter_project_id: str):
@@ -70,8 +145,18 @@ def _handle_material_upload(default_project_id: Optional[str] = None):
         if error:
             return error
 
-        return success_response(material.to_dict(), status_code=201)
-    
+        result = material.to_dict()
+
+        # Generate AI caption if requested
+        generate_caption = request.args.get('generate_caption', '').lower() in ('true', '1', 'yes')
+        if generate_caption:
+            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+            filepath = file_service.get_absolute_path(material.relative_path)
+            caption = _generate_image_caption(filepath)
+            result['caption'] = caption
+
+        return success_response(result, status_code=201)
+
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
@@ -108,10 +193,10 @@ def _save_material_file(file, target_project_id: Optional[str]):
 
     file_service = FileService(current_app.config['UPLOAD_FOLDER'])
     if target_project_id:
-        materials_dir = file_service._get_materials_dir(target_project_id)
+        materials_dir = file_service.upload_folder / file_service._get_materials_dir(target_project_id)
     else:
         materials_dir = file_service.upload_folder / "materials"
-        materials_dir.mkdir(exist_ok=True, parents=True)
+    materials_dir.mkdir(exist_ok=True, parents=True)
 
     timestamp = int(time.time() * 1000)
     base_name = Path(filename).stem

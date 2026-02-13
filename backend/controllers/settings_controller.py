@@ -616,10 +616,9 @@ def _get_test_image_path() -> Path:
 def _get_baidu_credentials():
     """获取百度 API 凭证"""
     api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
-    api_secret = current_app.config.get("BAIDU_OCR_API_SECRET") or Config.BAIDU_OCR_API_SECRET
     if not api_key:
         raise ValueError("未配置 BAIDU_OCR_API_KEY")
-    return api_key, api_secret
+    return api_key
 
 
 def _create_file_parser():
@@ -639,8 +638,8 @@ def _create_file_parser():
 # 测试函数 - 每个测试一个独立函数
 def _test_baidu_ocr():
     """测试百度 OCR 服务"""
-    api_key, api_secret = _get_baidu_credentials()
-    provider = create_baidu_accurate_ocr_provider(api_key, api_secret)
+    api_key = _get_baidu_credentials()
+    provider = create_baidu_accurate_ocr_provider(api_key)
     if not provider:
         raise ValueError("百度 OCR Provider 初始化失败")
 
@@ -695,8 +694,8 @@ def _test_caption_model():
 
 def _test_baidu_inpaint():
     """测试百度图像修复"""
-    api_key, api_secret = _get_baidu_credentials()
-    provider = create_baidu_inpainting_provider(api_key, api_secret)
+    api_key = _get_baidu_credentials()
+    provider = create_baidu_inpainting_provider(api_key)
     if not provider:
         raise ValueError("百度图像修复 Provider 初始化失败")
 
@@ -874,8 +873,42 @@ def run_settings_test(test_name: str):
         }
     """
     try:
-        # 获取请求体中的测试设置覆盖（如果有）
-        test_settings = request.get_json() or {}
+        # 从数据库加载已保存的全局设置作为基础
+        global_settings = Settings.get_settings()
+
+        # 构建基础测试设置（使用数据库中已保存的值）
+        test_settings = {}
+        if global_settings.api_key:
+            test_settings["api_key"] = global_settings.api_key
+        if global_settings.api_base_url:
+            test_settings["api_base_url"] = global_settings.api_base_url
+        if global_settings.ai_provider_format:
+            test_settings["ai_provider_format"] = global_settings.ai_provider_format
+        if global_settings.text_model:
+            test_settings["text_model"] = global_settings.text_model
+        if global_settings.image_model:
+            test_settings["image_model"] = global_settings.image_model
+        if global_settings.image_caption_model:
+            test_settings["image_caption_model"] = global_settings.image_caption_model
+        if global_settings.mineru_api_base:
+            test_settings["mineru_api_base"] = global_settings.mineru_api_base
+        if global_settings.mineru_token:
+            test_settings["mineru_token"] = global_settings.mineru_token
+        if global_settings.baidu_ocr_api_key:
+            test_settings["baidu_ocr_api_key"] = global_settings.baidu_ocr_api_key
+        if global_settings.image_resolution:
+            test_settings["image_resolution"] = global_settings.image_resolution
+        # 推理模式设置
+        test_settings["enable_text_reasoning"] = global_settings.enable_text_reasoning
+        test_settings["text_thinking_budget"] = global_settings.text_thinking_budget
+        test_settings["enable_image_reasoning"] = global_settings.enable_image_reasoning
+        test_settings["image_thinking_budget"] = global_settings.image_thinking_budget
+
+        # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
+        override_settings = request.get_json() or {}
+        if override_settings:
+            logger.info(f"Applying test setting overrides: {list(override_settings.keys())}")
+            test_settings.update(override_settings)
 
         # 创建任务记录（使用特殊的 project_id='settings-test'）
         task = Task(

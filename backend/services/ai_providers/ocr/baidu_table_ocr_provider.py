@@ -18,19 +18,17 @@ logger = logging.getLogger(__name__)
 
 class BaiduTableOCRProvider:
     """百度表格OCR Provider - 支持BCEv3签名认证"""
-    
-    def __init__(self, api_key: str, api_secret: Optional[str] = None):
+
+    def __init__(self, api_key: str):
         """
         初始化百度表格OCR Provider
-        
+
         Args:
             api_key: 百度API Key（BCEv3格式：bce-v3/ALTAK-...）或Access Token
-            api_secret: 可选，如果提供则用于BCEv3签名
         """
         self.api_key = api_key
-        self.api_secret = api_secret
         self.api_url = "https://aip.baidubce.com/rest/2.0/ocr/v1/table"
-        
+
         if api_key.startswith('bce-v3/'):
             logger.info("✅ 初始化百度表格OCR Provider (使用BCEv3 API Key)")
         else:
@@ -254,30 +252,32 @@ class BaiduTableOCRProvider:
 
 
 def create_baidu_table_ocr_provider(
-    api_key: Optional[str] = None,
-    api_secret: Optional[str] = None
+    api_key: Optional[str] = None
 ) -> Optional[BaiduTableOCRProvider]:
     """
     创建百度表格OCR Provider实例
-    
+
     Args:
-        api_key: 百度API Key（BCEv3格式或Access Token），如果不提供则从环境变量读取
-        api_secret: 百度API Secret（可选），如果不提供则从环境变量读取
-        
+        api_key: 百度API Key（BCEv3格式或Access Token），如果不提供则从Flask config或环境变量读取
+
     Returns:
         BaiduTableOCRProvider实例，如果api_key不可用则返回None
     """
     import os
-    
+
     if not api_key:
-        api_key = os.getenv('BAIDU_OCR_API_KEY')
-    
-    if not api_secret:
-        api_secret = os.getenv('BAIDU_OCR_API_SECRET')
-    
+        # 优先从 Flask config 读取（数据库设置），然后从环境变量读取
+        try:
+            from flask import current_app
+            api_key = current_app.config.get('BAIDU_OCR_API_KEY')
+        except RuntimeError:
+            pass  # 不在 Flask 上下文中
+        if not api_key:
+            api_key = os.getenv('BAIDU_OCR_API_KEY')
+
     if not api_key:
         logger.warning("⚠️ 未配置百度OCR API Key, 跳过百度表格识别")
         return None
-    
-    return BaiduTableOCRProvider(api_key, api_secret)
+
+    return BaiduTableOCRProvider(api_key)
 

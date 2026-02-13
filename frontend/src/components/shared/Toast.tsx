@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/utils';
 
 interface ToastProps {
   message: string;
-  type?: 'success' | 'error' | 'info';
+  type?: 'success' | 'error' | 'info' | 'warning';
   onClose: () => void;
   duration?: number;
 }
@@ -26,12 +26,14 @@ export const Toast: React.FC<ToastProps> = ({
     success: <CheckCircle size={20} />,
     error: <AlertCircle size={20} />,
     info: <Info size={20} />,
+    warning: <AlertTriangle size={20} />,
   };
 
   const styles = {
     success: 'bg-green-500 text-white',
     error: 'bg-red-500 text-white',
-    info: 'bg-gray-900 text-white',
+    info: 'bg-gray-900 dark:bg-background-hover text-white',
+    warning: 'bg-amber-500 text-white',
   };
 
   return (

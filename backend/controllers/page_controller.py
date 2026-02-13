@@ -83,29 +83,70 @@ def delete_page(project_id, page_id):
     """
     try:
         page = Page.query.get(page_id)
-        
+
         if not page or page.project_id != project_id:
             return not_found('Page')
-        
+
         # Delete page image if exists
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_page_image(project_id, page_id)
-        
+
         # Delete page
         db.session.delete(page)
-        
+
         # Update project
         project = Project.query.get(project_id)
         if project:
             project.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
         return success_response(message="Page deleted successfully")
-    
+
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
+
+
+@page_bp.route('/<project_id>/pages/<page_id>', methods=['PUT'])
+def update_page(project_id, page_id):
+    """
+    PUT /api/projects/{project_id}/pages/{page_id} - Update page fields
+
+    Request body:
+    {
+        "part": "章节名"
+    }
+    """
+    try:
+        page = Page.query.get(page_id)
+
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        data = request.get_json()
+
+        if not data:
+            return bad_request("Request body is required")
+
+        # Update part field if provided
+        if 'part' in data:
+            page.part = data['part']
+
+        page.updated_at = datetime.utcnow()
+
+        # Update project
+        if page.project:
+            page.project.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return success_response(page.to_dict())
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to update page {page_id}: {e}")
+        return error_response('SERVER_ERROR', 'An internal server error occurred', 500)
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])

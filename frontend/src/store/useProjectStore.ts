@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Task } from '@/types';
+import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 
@@ -14,6 +14,8 @@ interface ProjectState {
   pageGeneratingTasks: Record<string, string>;
   // 每个页面的描述生成状态 (pageId -> boolean)
   pageDescriptionGeneratingTasks: Record<string, boolean>;
+  // 警告消息
+  warningMessage: string | null;
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -21,7 +23,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[]) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -64,17 +66,22 @@ const debouncedUpdatePage = debounce(
   async (projectId: string, pageId: string, data: any) => {
       try {
     const promises: Promise<any>[] = [];
-    
+
     // 如果更新的是 description_content，使用专门的端点
     if (data.description_content) {
       promises.push(api.updatePageDescription(projectId, pageId, data.description_content));
     }
-    
+
     // 如果更新的是 outline_content，使用专门的端点
     if (data.outline_content) {
       promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
     }
-    
+
+    // 如果更新的是 part 字段，使用通用端点
+    if ('part' in data) {
+      promises.push(api.updatePage(projectId, pageId, { part: data.part }));
+    }
+
     // 如果没有特定的内容更新，使用通用端点
     if (promises.length === 0) {
       await api.updatePage(projectId, pageId, data);
@@ -105,6 +112,7 @@ const debouncedUpdatePage = debounce(
   error: null,
   pageGeneratingTasks: {},
   pageDescriptionGeneratingTasks: {},
+  warningMessage: null,
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -112,11 +120,11 @@ const debouncedUpdatePage = debounce(
   setError: (error) => set({ error }),
 
   // 初始化项目
-  initializeProject: async (type, content, templateImage, templateStyle) => {
+  initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds) => {
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
-      
+
       if (type === 'idea') {
         request.idea_prompt = content;
       } else if (type === 'outline') {
@@ -124,21 +132,33 @@ const debouncedUpdatePage = debounce(
       } else if (type === 'description') {
         request.description_text = content;
       }
-      
+
       // 添加风格描述（如果有）
       if (templateStyle && templateStyle.trim()) {
         request.template_style = templateStyle.trim();
       }
-      
+
       // 1. 创建项目
       const response = await api.createProject(request);
       const projectId = response.data?.project_id;
-      
+
       if (!projectId) {
         throw new Error('项目创建失败：未返回项目ID');
       }
-      
-      // 2. 如果有模板图片，上传模板
+
+      // 2. 关联参考文件到项目（在生成之前，确保 AI 能读取参考文件）
+      if (referenceFileIds && referenceFileIds.length > 0) {
+        try {
+          await Promise.all(
+            referenceFileIds.map(fileId => api.associateFileToProject(fileId, projectId))
+          );
+          console.log(`[初始化项目] 已关联 ${referenceFileIds.length} 个参考文件`);
+        } catch (error) {
+          console.warn('[初始化项目] 关联参考文件失败:', error);
+        }
+      }
+
+      // 3. 如果有模板图片，上传模板
       if (templateImage) {
         try {
           await api.uploadTemplate(projectId, templateImage);
@@ -147,8 +167,8 @@ const debouncedUpdatePage = debounce(
           // 模板上传失败不影响项目创建，继续执行
         }
       }
-      
-      // 3. 如果是 description 类型，自动生成大纲和页面描述
+
+      // 4. 如果是 description 类型，自动生成大纲和页面描述
       if (type === 'description') {
         try {
           await api.generateFromDescription(projectId, content);
@@ -158,11 +178,11 @@ const debouncedUpdatePage = debounce(
           // 继续执行，让用户可以手动操作
         }
       }
-      
-      // 4. 获取完整项目信息
+
+      // 5. 获取完整项目信息
       const projectResponse = await api.getProject(projectId);
       const project = normalizeProject(projectResponse.data);
-      
+
       if (project) {
         set({ currentProject: project });
         // 保存到 localStorage
@@ -239,10 +259,11 @@ const debouncedUpdatePage = debounce(
       }
       
       // 如果项目不存在，清除localStorage并重置当前项目
+      // 不显示错误toast，因为这通常是自动同步时发现的过期项目ID
       if (shouldClearStorage) {
         console.warn('[syncProject] 项目不存在，清除localStorage');
         localStorage.removeItem('currentProjectId');
-        set({ currentProject: null, error: normalizeErrorMessage(errorMessage) });
+        set({ currentProject: null });
       } else {
         set({ error: normalizeErrorMessage(errorMessage) });
       }
@@ -318,7 +339,7 @@ const debouncedUpdatePage = debounce(
         outline_content: { title: '新页面', points: [] },
         order_index: currentProject.pages.length,
       };
-      
+
       const response = await api.addPage(currentProject.id, newPage);
       if (response.data) {
         await get().syncProject();
@@ -376,11 +397,12 @@ const debouncedUpdatePage = debounce(
       console.warn('[轮询] 没有当前项目，停止轮询');
       return;
     }
+    const projectId = currentProject.id!;
 
     const poll = async () => {
       try {
         console.log(`[轮询] 查询任务状态: ${taskId}`);
-        const response = await api.getTaskStatus(currentProject.id!, taskId);
+        const response = await api.getTaskStatus(projectId, taskId);
         const task = response.data;
         
         if (!task) {
@@ -477,7 +499,12 @@ const debouncedUpdatePage = debounce(
       console.log('[生成大纲] 刷新后的项目:', updatedProject?.pages.length, '个页面');
     } catch (error: any) {
       console.error('[生成大纲] 错误:', error);
-      set({ error: error.message || '生成大纲失败' });
+      const message =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        error.message ||
+        '生成大纲失败';
+      set({ error: normalizeErrorMessage(message) });
       throw error;
     } finally {
       set({ isGlobalLoading: false });
@@ -543,6 +570,7 @@ const debouncedUpdatePage = debounce(
       }
       
       // 启动轮询任务状态和定期同步项目数据
+      let pollErrors = 0;
       const pollAndSync = async () => {
         try {
           // 轮询任务状态
@@ -602,6 +630,17 @@ const debouncedUpdatePage = debounce(
           }
         } catch (error: any) {
           console.error('[生成描述] 轮询错误:', error);
+          pollErrors++;
+          if (pollErrors >= 10) {
+            console.error('[生成描述] 轮询错误次数过多，停止轮询');
+            set({
+              pageDescriptionGeneratingTasks: {},
+              taskProgress: null,
+              activeTaskId: null,
+              error: normalizeErrorMessage(error.message || '生成描述失败：轮询超时')
+            });
+            return;
+          }
           // 即使轮询出错，也继续尝试同步项目数据
           await get().syncProject();
           setTimeout(pollAndSync, 2000);
@@ -695,7 +734,7 @@ const debouncedUpdatePage = debounce(
       }
     }
 
-    set({ error: null });
+    set({ error: null, warningMessage: null });
     
     try {
       // 调用批量生成 API
@@ -734,10 +773,11 @@ const debouncedUpdatePage = debounce(
       console.warn('[批量轮询] 没有当前项目，停止轮询');
       return;
     }
+    const projectId = currentProject.id!;
 
     const poll = async () => {
       try {
-        const response = await api.getTaskStatus(currentProject.id!, taskId);
+        const response = await api.getTaskStatus(projectId, taskId);
         const task = response.data;
         
         if (!task) {
@@ -758,7 +798,11 @@ const debouncedUpdatePage = debounce(
               delete newTasks[id];
             }
           });
-          set({ pageGeneratingTasks: newTasks });
+          
+          // 提取警告消息（如果有）
+          const warningMessage = task.progress?.warning_message || null;
+          
+          set({ pageGeneratingTasks: newTasks, warningMessage });
 
           // 刷新项目数据，并验证图片路径已更新
           // 使用重试机制确保数据同步完成
@@ -811,6 +855,11 @@ const debouncedUpdatePage = debounce(
           // 刷新项目数据以更新页面状态
           await get().syncProject();
         } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
+          // 检查警告消息
+          const newWarning = task.progress?.warning_message;
+          if (newWarning && get().warningMessage !== newWarning) {
+            set({ warningMessage: newWarning });
+          }
           // 继续轮询，同时同步项目数据以更新页面状态
           console.log(`[批量轮询] Task ${taskId} 处理中，同步项目数据...`);
           await get().syncProject();

@@ -1,6 +1,119 @@
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useT } from '@/hooks/useT';
+
+// 组件内翻译
+const previewI18n = {
+  zh: {
+    home: { title: '蕉幻' },
+    nav: { home: '主页', materialGenerate: '素材生成' },
+    slidePreview: {
+      pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
+      versionSwitched: "已切换到该版本", outlineSaved: "大纲和描述已保存",
+      materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
+      cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
+      extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
+      exportSettingsSaved: "导出设置已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功"
+    },
+    preview: {
+      title: "预览", pageCount: "共 {{count}} 页", export: "导出",
+      exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
+      exportEditablePptx: "导出可编辑 PPTX（Beta）",
+      exportSelectedPages: "将导出选中的 {{count}} 页",
+      regenerate: "重新生成", regenerating: "生成中...",
+      editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
+      projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
+      batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
+      multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
+      noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
+      generating: "正在生成中...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
+      prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
+      versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
+      regionSelect: "区域选图", endRegionSelect: "结束区域选图",
+      pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）",
+      enterTitle: "输入页面标题", pointsPerLine: "要点（每行一个）",
+      enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容",
+      selectContextImages: "选择上下文图片（可选）", useTemplateImage: "使用模板图片",
+      imagesInDescription: "描述中的图片", uploadImages: "上传图片",
+      selectFromMaterials: "从素材库选择", upload: "上传",
+      editPromptLabel: "输入修改指令(将自动添加页面描述)",
+      editPromptPlaceholder: "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
+      saveOutlineOnly: "仅保存大纲/描述", generateImage: "生成图片",
+      templateModalDesc: "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
+      uploadingTemplate: "正在上传模板...",
+      resolution1KWarning: "1K分辨率警告",
+      resolution1KWarningText: "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
+      resolution1KWarningHint: "建议在「项目设置 → 全局设置」中切换到 2K 或 4K 分辨率以获得更清晰的效果。",
+      dontShowAgain: "不再提示", generateAnyway: "仍然生成",
+      messages: {
+        exportSuccess: "导出成功", exportFailed: "导出失败",
+        regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
+        loadingProject: "加载项目中...", processing: "处理中...",
+        generatingBackgrounds: "正在生成干净背景...", creatingPdf: "正在创建PDF...",
+        parsingContent: "正在解析内容...", creatingPptx: "正在创建可编辑PPTX...", complete: "完成！"
+      }
+    },
+    outline: {
+      titleLabel: "标题",
+      keyPoints: "要点"
+    }
+  },
+  en: {
+    home: { title: 'Banana Slides' },
+    nav: { home: 'Home', materialGenerate: 'Generate Material' },
+    slidePreview: {
+      pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
+      versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
+      materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
+      cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
+      extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
+      exportSettingsSaved: "Export settings saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully"
+    },
+    preview: {
+      title: "Preview", pageCount: "{{count}} pages", export: "Export",
+      exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
+      exportEditablePptx: "Export Editable PPTX (Beta)",
+      exportSelectedPages: "Will export {{count}} selected page(s)",
+      regenerate: "Regenerate", regenerating: "Generating...",
+      editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
+      projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
+      batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
+      multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
+      noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
+      generating: "Generating...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
+      prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
+      versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
+      regionSelect: "Region Select", endRegionSelect: "End Region Select",
+      pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)",
+      enterTitle: "Enter page title", pointsPerLine: "Key Points (one per line)",
+      enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description",
+      selectContextImages: "Select Context Images (Optional)", useTemplateImage: "Use Template Image",
+      imagesInDescription: "Images in Description", uploadImages: "Upload Images",
+      selectFromMaterials: "Select from Materials", upload: "Upload",
+      editPromptLabel: "Enter edit instructions (page description will be auto-added)",
+      editPromptPlaceholder: "e.g., Remove elements in selected area, change background to blue, increase title font size, change text box style to dashed...",
+      saveOutlineOnly: "Save Outline/Description Only", generateImage: "Generate Image",
+      templateModalDesc: "Selecting a new template will apply to future PPT page generation (won't affect already generated pages). You can choose preset templates, existing templates, or upload a new one.",
+      uploadingTemplate: "Uploading template...",
+      resolution1KWarning: "1K Resolution Warning",
+      resolution1KWarningText: "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
+      resolution1KWarningHint: "It's recommended to switch to 2K or 4K resolution in \"Project Settings → Global Settings\" for clearer results.",
+      dontShowAgain: "Don't show again", generateAnyway: "Generate Anyway",
+      messages: {
+        exportSuccess: "Export successful", exportFailed: "Export failed",
+        regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
+        loadingProject: "Loading project...", processing: "Processing...",
+        generatingBackgrounds: "Generating clean backgrounds...", creatingPdf: "Creating PDF...",
+        parsingContent: "Parsing content...", creatingPptx: "Creating editable PPTX...", complete: "Complete!"
+      }
+    },
+    outline: {
+      titleLabel: "Title",
+      keyPoints: "Key Points"
+    }
+  }
+};
 import {
   Home,
   ArrowLeft,
@@ -32,13 +145,14 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const t = useT(previewI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
@@ -51,6 +165,7 @@ export const SlidePreview: React.FC = () => {
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
+    warningMessage,
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
@@ -110,7 +225,14 @@ export const SlidePreview: React.FC = () => {
   const [exportInpaintMethod, setExportInpaintMethod] = useState<ExportInpaintMethod>(
     (currentProject?.export_inpaint_method as ExportInpaintMethod) || 'hybrid'
   );
+  const [exportAllowPartial, setExportAllowPartial] = useState<boolean>(
+    currentProject?.export_allow_partial || false
+  );
   const [isSavingExportSettings, setIsSavingExportSettings] = useState(false);
+  // 1K分辨率警告对话框状态
+  const [show1KWarningDialog, setShow1KWarningDialog] = useState(false);
+  const [skip1KWarningChecked, setSkip1KWarningChecked] = useState(false);
+  const [pending1KAction, setPending1KAction] = useState<(() => Promise<void>) | null>(null);
   // 每页编辑参数缓存（前端会话内缓存，便于重复执行）
   const [editContextByPage, setEditContextByPage] = useState<Record<string, {
     prompt: string;
@@ -150,11 +272,25 @@ export const SlidePreview: React.FC = () => {
           setUserTemplates(response.data.templates);
         }
       } catch (error) {
-        console.error('加载用户模板失败:', error);
+        console.error('Failed to load user templates:', error);
       }
     };
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
+
+  // 监听警告消息
+  const lastWarningRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (warningMessage) {
+      if (warningMessage !== lastWarningRef.current) {
+        lastWarningRef.current = warningMessage;
+        show({ message: warningMessage, type: 'warning', duration: 6000 });
+      }
+    } else {
+      // warningMessage 被清空时重置 ref，以便下次能再次显示
+      lastWarningRef.current = null;
+    }
+  }, [warningMessage, show]);
 
   // 当项目加载后，初始化额外要求和风格描述
   // 只在项目首次加载或项目ID变化时初始化，避免覆盖用户正在输入的内容
@@ -170,6 +306,7 @@ export const SlidePreview: React.FC = () => {
         // 初始化导出设置
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
+        setExportAllowPartial(currentProject.export_allow_partial || false);
         lastProjectId.current = currentProject.id || null;
         isEditingRequirements.current = false;
         isEditingTemplateStyle.current = false;
@@ -216,23 +353,142 @@ export const SlidePreview: React.FC = () => {
     loadVersions();
   }, [currentProject, selectedIndex, projectId]);
 
-  const handleGenerateAll = async () => {
-    const pageIds = getSelectedPageIdsForExport();
-    const isPartialGenerate = isMultiSelectMode && selectedPageIds.size > 0;
-    
-    // 检查要生成的页面中是否有已有图片的
-    const pagesToGenerate = isPartialGenerate
-      ? currentProject?.pages.filter(p => p.id && selectedPageIds.has(p.id))
-      : currentProject?.pages;
-    const hasImages = pagesToGenerate?.some((p) => p.generated_image_path);
-    
-    const executeGenerate = async () => {
-      try {
-        await generateImages(pageIds);
-      } catch (error: any) {
-        console.error('批量生成错误:', error);
-        console.error('错误响应:', error?.response?.data);
+  // 检查是否需要显示1K分辨率警告
+  const checkResolutionAndExecute = useCallback(async (action: () => Promise<void>) => {
+    // 检查 localStorage 中是否已跳过警告
+    const skipWarning = localStorage.getItem('skip1KResolutionWarning') === 'true';
+    if (skipWarning) {
+      await action();
+      return;
+    }
 
+    try {
+      const response = await getSettings();
+      const resolution = response.data?.image_resolution;
+
+      // 如果是1K分辨率，显示警告对话框
+      if (resolution === '1K') {
+        setPending1KAction(() => action);
+        setSkip1KWarningChecked(false);
+        setShow1KWarningDialog(true);
+      } else {
+        // 不是1K分辨率，直接执行
+        await action();
+      }
+    } catch (error) {
+      console.error('获取设置失败:', error);
+      // 获取设置失败时，直接执行（不阻塞用户）
+      await action();
+    }
+  }, []);
+
+  // 确认1K分辨率警告后执行
+  const handleConfirm1KWarning = useCallback(async () => {
+    // 如果勾选了"不再提示"，保存到 localStorage
+    if (skip1KWarningChecked) {
+      localStorage.setItem('skip1KResolutionWarning', 'true');
+    }
+
+    setShow1KWarningDialog(false);
+
+    // 执行待处理的操作
+    if (pending1KAction) {
+      await pending1KAction();
+      setPending1KAction(null);
+    }
+  }, [skip1KWarningChecked, pending1KAction]);
+
+  // 取消1K分辨率警告
+  const handleCancel1KWarning = useCallback(() => {
+    setShow1KWarningDialog(false);
+    setPending1KAction(null);
+  }, []);
+
+  const handleGenerateAll = async () => {
+    // 先检查分辨率，如果是1K则显示警告
+    await checkResolutionAndExecute(async () => {
+      const pageIds = getSelectedPageIdsForExport();
+      const isPartialGenerate = isMultiSelectMode && selectedPageIds.size > 0;
+
+      // 检查要生成的页面中是否有已有图片的
+      const pagesToGenerate = isPartialGenerate
+        ? currentProject?.pages.filter(p => p.id && selectedPageIds.has(p.id))
+        : currentProject?.pages;
+      const hasImages = pagesToGenerate?.some((p) => p.generated_image_path);
+
+      const executeGenerate = async () => {
+        try {
+          await generateImages(pageIds);
+        } catch (error: any) {
+          console.error('批量生成错误:', error);
+          console.error('错误响应:', error?.response?.data);
+
+          // 提取后端返回的更具体错误信息
+          let errorMessage = '生成失败';
+          const respData = error?.response?.data;
+
+          if (respData) {
+            if (respData.error?.message) {
+              errorMessage = respData.error.message;
+            } else if (respData.message) {
+              errorMessage = respData.message;
+            } else if (respData.error) {
+              errorMessage =
+                typeof respData.error === 'string'
+                  ? respData.error
+                  : respData.error.message || errorMessage;
+            }
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          console.log('提取的错误消息:', errorMessage);
+
+          // 使用统一的错误消息规范化函数
+          errorMessage = normalizeErrorMessage(errorMessage);
+
+          console.log('规范化后的错误消息:', errorMessage);
+
+          show({
+            message: errorMessage,
+            type: 'error',
+          });
+        }
+      };
+
+      if (hasImages) {
+        const message = isPartialGenerate
+          ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
+          : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
+        confirm(
+          message,
+          executeGenerate,
+          { title: '确认重新生成', variant: 'warning' }
+        );
+      } else {
+        await executeGenerate();
+      }
+    });
+  };
+
+  const handleRegeneratePage = useCallback(async () => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page.id) return;
+
+    // 如果该页面正在生成，不重复提交
+    if (pageGeneratingTasks[page.id]) {
+      show({ message: t('slidePreview.pageGenerating'), type: 'info' });
+      return;
+    }
+
+    // 先检查分辨率，如果是1K则显示警告
+    await checkResolutionAndExecute(async () => {
+      try {
+        // 使用统一的 generateImages，传入单个页面 ID
+        await generateImages([page.id!]);
+        show({ message: t('slidePreview.generationStarted'), type: 'success' });
+      } catch (error: any) {
         // 提取后端返回的更具体错误信息
         let errorMessage = '生成失败';
         const respData = error?.response?.data;
@@ -252,78 +508,16 @@ export const SlidePreview: React.FC = () => {
           errorMessage = error.message;
         }
 
-        console.log('提取的错误消息:', errorMessage);
-
         // 使用统一的错误消息规范化函数
         errorMessage = normalizeErrorMessage(errorMessage);
-
-        console.log('规范化后的错误消息:', errorMessage);
 
         show({
           message: errorMessage,
           type: 'error',
         });
       }
-    };
-    
-    if (hasImages) {
-      const message = isPartialGenerate
-        ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
-        : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
-      confirm(
-        message,
-        executeGenerate,
-        { title: '确认重新生成', variant: 'warning' }
-      );
-    } else {
-      await executeGenerate();
-    }
-  };
-
-  const handleRegeneratePage = useCallback(async () => {
-    if (!currentProject) return;
-    const page = currentProject.pages[selectedIndex];
-    if (!page.id) return;
-    
-    // 如果该页面正在生成，不重复提交
-    if (pageGeneratingTasks[page.id]) {
-      show({ message: '该页面正在生成中，请稍候...', type: 'info' });
-      return;
-    }
-    
-    try {
-      // 使用统一的 generateImages，传入单个页面 ID
-      await generateImages([page.id]);
-      show({ message: '已开始生成图片，请稍候...', type: 'success' });
-    } catch (error: any) {
-      // 提取后端返回的更具体错误信息
-      let errorMessage = '生成失败';
-      const respData = error?.response?.data;
-
-      if (respData) {
-        if (respData.error?.message) {
-          errorMessage = respData.error.message;
-        } else if (respData.message) {
-          errorMessage = respData.message;
-        } else if (respData.error) {
-          errorMessage =
-            typeof respData.error === 'string'
-              ? respData.error
-              : respData.error.message || errorMessage;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      // 使用统一的错误消息规范化函数
-      errorMessage = normalizeErrorMessage(errorMessage);
-
-      show({
-        message: errorMessage,
-        type: 'error',
-      });
-    }
-  }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show]);
+    });
+  }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show, checkResolutionAndExecute]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -332,7 +526,7 @@ export const SlidePreview: React.FC = () => {
       await setCurrentImageVersion(projectId, selectedPage.id, versionId);
       await syncProject(projectId);
       setShowVersionMenu(false);
-      show({ message: '已切换到该版本', type: 'success' });
+      show({ message: t('slidePreview.versionSwitched'), type: 'success' });
     } catch (error: any) {
       show({ 
         message: `切换失败: ${error.message || '未知错误'}`, 
@@ -459,7 +653,7 @@ export const SlidePreview: React.FC = () => {
     // 如果有修改，保存更新
     if (Object.keys(updates).length > 0) {
       updatePageLocal(page.id, updates);
-      show({ message: '大纲和描述已保存', type: 'success' });
+      show({ message: t('slidePreview.outlineSaved'), type: 'success' });
     }
   }, [currentProject, selectedIndex, editOutlineTitle, editOutlinePoints, editDescription, updatePageLocal, show]);
 
@@ -516,6 +710,18 @@ export const SlidePreview: React.FC = () => {
     }));
   };
 
+  // Manage object URLs for uploaded files to prevent memory leaks
+  const uploadedFileUrls = useRef<string[]>([]);
+  useEffect(() => {
+    uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
+    uploadedFileUrls.current = selectedContextImages.uploadedFiles.map(file => URL.createObjectURL(file));
+  }, [selectedContextImages.uploadedFiles]);
+  useEffect(() => {
+    return () => {
+      uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   const handleSelectMaterials = async (materials: Material[]) => {
     try {
       // 将选中的素材转换为File对象并添加到上传列表
@@ -526,7 +732,7 @@ export const SlidePreview: React.FC = () => {
         ...prev,
         uploadedFiles: [...prev.uploadedFiles, ...files],
       }));
-      show({ message: `已添加 ${materials.length} 个素材`, type: 'success' });
+      show({ message: t('slidePreview.materialsAdded', { count: materials.length }), type: 'success' });
     } catch (error: any) {
       console.error('加载素材失败:', error);
       show({
@@ -742,7 +948,7 @@ export const SlidePreview: React.FC = () => {
           pageIds: pageIds,
         });
         
-        show({ message: '导出任务已开始，可在导出任务面板查看进度', type: 'success' });
+        show({ message: t('slidePreview.exportStarted'), type: 'success' });
         
         const response = await apiExportEditablePPTX(projectId, undefined, pageIds);
         const taskId = response.data?.task_id;
@@ -773,21 +979,21 @@ export const SlidePreview: React.FC = () => {
         errorMessage: normalizeErrorMessage(error.message || '导出失败'),
         pageIds: pageIds,
       });
-      show({ message: normalizeErrorMessage(error.message || '导出失败'), type: 'error' });
+      show({ message: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')), type: 'error' });
     }
   };
 
   const handleRefresh = useCallback(async () => {
     const targetProjectId = projectId || currentProject?.id;
     if (!targetProjectId) {
-      show({ message: '无法刷新：缺少项目ID', type: 'error' });
+      show({ message: t('slidePreview.cannotRefresh'), type: 'error' });
       return;
     }
 
     setIsRefreshing(true);
     try {
       await syncProject(targetProjectId);
-      show({ message: '刷新成功', type: 'success' });
+      show({ message: t('slidePreview.refreshSuccess'), type: 'success' });
     } catch (error: any) {
       show({ 
         message: error.message || '刷新失败，请稍后重试', 
@@ -808,7 +1014,7 @@ export const SlidePreview: React.FC = () => {
       isEditingRequirements.current = false;
       // 更新本地项目状态
       await syncProject(projectId);
-      show({ message: '额外要求已保存', type: 'success' });
+      show({ message: t('slidePreview.extraRequirementsSaved'), type: 'success' });
     } catch (error: any) {
       show({ 
         message: `保存失败: ${error.message || '未知错误'}`, 
@@ -829,7 +1035,7 @@ export const SlidePreview: React.FC = () => {
       isEditingTemplateStyle.current = false;
       // 更新本地项目状态
       await syncProject(projectId);
-      show({ message: '风格描述已保存', type: 'success' });
+      show({ message: t('slidePreview.styleDescSaved'), type: 'success' });
     } catch (error: any) {
       show({ 
         message: `保存失败: ${error.message || '未知错误'}`, 
@@ -842,25 +1048,26 @@ export const SlidePreview: React.FC = () => {
 
   const handleSaveExportSettings = useCallback(async () => {
     if (!currentProject || !projectId) return;
-    
+
     setIsSavingExportSettings(true);
     try {
-      await updateProject(projectId, { 
+      await updateProject(projectId, {
         export_extractor_method: exportExtractorMethod,
-        export_inpaint_method: exportInpaintMethod 
+        export_inpaint_method: exportInpaintMethod,
+        export_allow_partial: exportAllowPartial
       });
       // 更新本地项目状态
       await syncProject(projectId);
-      show({ message: '导出设置已保存', type: 'success' });
+      show({ message: t('slidePreview.exportSettingsSaved'), type: 'success' });
     } catch (error: any) {
-      show({ 
-        message: `保存失败: ${error.message || '未知错误'}`, 
-        type: 'error' 
+      show({
+        message: `保存失败: ${error.message || '未知错误'}`,
+        type: 'error'
       });
     } finally {
       setIsSavingExportSettings(false);
     }
-  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, syncProject, show]);
+  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, syncProject, show]);
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
@@ -870,7 +1077,7 @@ export const SlidePreview: React.FC = () => {
     if (templateId && !file) {
       file = await getTemplateFile(templateId, userTemplates);
       if (!file) {
-        show({ message: '加载模板失败', type: 'error' });
+        show({ message: t('slidePreview.loadTemplateFailed'), type: 'error' });
         return;
       }
     }
@@ -885,7 +1092,7 @@ export const SlidePreview: React.FC = () => {
       await uploadTemplate(projectId, file);
       await syncProject(projectId);
       setIsTemplateModalOpen(false);
-      show({ message: '模板更换成功', type: 'success' });
+      show({ message: t('slidePreview.templateChanged'), type: 'success' });
       
       // 更新选择状态
       if (templateId) {
@@ -909,22 +1116,22 @@ export const SlidePreview: React.FC = () => {
   };
 
   if (!currentProject) {
-    return <Loading fullscreen message="加载项目中..." />;
+    return <Loading fullscreen message={t('preview.messages.loadingProject')} />;
   }
 
   if (isGlobalLoading) {
     // 根据任务进度显示不同的消息
-    let loadingMessage = "处理中...";
+    let loadingMessage = t('preview.messages.processing');
     if (taskProgress && typeof taskProgress === 'object') {
       const progressData = taskProgress as any;
       if (progressData.current_step) {
         // 使用后端提供的当前步骤信息
         const stepMap: Record<string, string> = {
-          'Generating clean backgrounds': '正在生成干净背景...',
-          'Creating PDF': '正在创建PDF...',
-          'Parsing with MinerU': '正在解析内容...',
-          'Creating editable PPTX': '正在创建可编辑PPTX...',
-          'Complete': '完成！'
+          'Generating clean backgrounds': t('preview.messages.generatingBackgrounds'),
+          'Creating PDF': t('preview.messages.creatingPdf'),
+          'Parsing with MinerU': t('preview.messages.parsingContent'),
+          'Creating editable PPTX': t('preview.messages.creatingPptx'),
+          'Complete': t('preview.messages.complete')
         };
         loadingMessage = stepMap[progressData.current_step] || progressData.current_step;
       }
@@ -950,9 +1157,9 @@ export const SlidePreview: React.FC = () => {
   );
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
       {/* 顶栏 */}
-      <header className="h-14 md:h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-3 md:px-6 flex-shrink-0">
+      <header className="h-14 md:h-16 bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-200 dark:border-border-primary flex items-center justify-between px-3 md:px-6 flex-shrink-0">
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <Button
             variant="ghost"
@@ -960,78 +1167,78 @@ export const SlidePreview: React.FC = () => {
             icon={<Home size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => navigate('/')}
             className="hidden sm:inline-flex flex-shrink-0"
-          >
-            <span className="hidden md:inline">主页</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => {
-              if (fromHistory) {
-                navigate('/history');
-              } else {
-                navigate(`/project/${projectId}/detail`);
-              }
-            }}
-            className="flex-shrink-0"
-          >
-            <span className="hidden sm:inline">返回</span>
-          </Button>
-          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-            <span className="text-xl md:text-2xl">🍌</span>
-            <span className="text-base md:text-xl font-bold truncate">蕉幻</span>
-          </div>
-          <span className="text-gray-400 hidden md:inline">|</span>
-          <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">预览</span>
+            >
+              <span className="hidden md:inline">{t('nav.home')}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => {
+                if (fromHistory) {
+                  navigate('/history');
+                } else {
+                  navigate(`/project/${projectId}/detail`);
+                }
+              }}
+              className="flex-shrink-0"
+            >
+              <span className="hidden sm:inline">{t('common.back')}</span>
+            </Button>
+            <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+              <span className="text-xl md:text-2xl">🍌</span>
+              <span className="text-base md:text-xl font-bold truncate">{t('home.title')}</span>
+            </div>
+            <span className="text-gray-400 hidden md:inline">|</span>
+            <span className="text-sm md:text-lg font-semibold truncate hidden sm:inline">{t('preview.title')}</span>
         </div>
         <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => setIsProjectSettingsOpen(true)}
-            className="hidden lg:inline-flex"
-          >
-            <span className="hidden xl:inline">项目设置</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => setIsTemplateModalOpen(true)}
-            className="hidden lg:inline-flex"
-          >
-            <span className="hidden xl:inline">更换模板</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<ImagePlus size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => setIsMaterialModalOpen(true)}
-            className="hidden lg:inline-flex"
-          >
-            <span className="hidden xl:inline">素材生成</span>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => navigate(`/project/${projectId}/detail`)}
-            className="hidden sm:inline-flex"
-          >
-            <span className="hidden md:inline">上一步</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RefreshCw size={16} className={`md:w-[18px] md:h-[18px] ${isRefreshing ? 'animate-spin' : ''}`} />}
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="hidden md:inline-flex"
-          >
-            <span className="hidden lg:inline">刷新</span>
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => setIsProjectSettingsOpen(true)}
+              className="hidden lg:inline-flex"
+            >
+              <span className="hidden xl:inline">{t('preview.projectSettings')}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => setIsTemplateModalOpen(true)}
+              className="hidden lg:inline-flex"
+            >
+              <span className="hidden xl:inline">{t('preview.changeTemplate')}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ImagePlus size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => setIsMaterialModalOpen(true)}
+              className="hidden lg:inline-flex"
+            >
+              <span className="hidden xl:inline">{t('nav.materialGenerate')}</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => navigate(`/project/${projectId}/detail`)}
+              className="hidden sm:inline-flex"
+            >
+              <span className="hidden md:inline">{t('common.previous')}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<RefreshCw size={16} className={`md:w-[18px] md:h-[18px] ${isRefreshing ? 'animate-spin' : ''}`} />}
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="hidden md:inline-flex"
+            >
+              <span className="hidden lg:inline">{t('preview.refresh')}</span>
+            </Button>
           
           {/* 导出任务按钮 */}
           {exportTasks.filter(t => t.projectId === projectId).length > 0 && (
@@ -1080,39 +1287,39 @@ export const SlidePreview: React.FC = () => {
             >
               <span className="hidden sm:inline">
                 {isMultiSelectMode && selectedPageIds.size > 0 
-                  ? `导出 (${selectedPageIds.size})` 
-                  : '导出'}
+                  ? `${t('preview.export')} (${selectedPageIds.size})` 
+                  : t('preview.export')}
               </span>
               <span className="sm:hidden">
                 {isMultiSelectMode && selectedPageIds.size > 0 
                   ? `(${selectedPageIds.size})` 
-                  : '导出'}
+                  : t('preview.export')}
               </span>
             </Button>
             {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-10">
                 {isMultiSelectMode && selectedPageIds.size > 0 && (
-                  <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
-                    将导出选中的 {selectedPageIds.size} 页
+                  <div className="px-4 py-2 text-xs text-gray-500 dark:text-foreground-tertiary border-b border-gray-100 dark:border-border-primary">
+                    {t('preview.exportSelectedPages', { count: selectedPageIds.size })}
                   </div>
                 )}
                 <button
                   onClick={() => handleExport('pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
                 >
-                  导出为 PPTX
+                  {t('preview.exportPptx')}
                 </button>
                 <button
                   onClick={() => handleExport('editable-pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
                 >
-                  导出可编辑 PPTX（Beta）
+                  {t('preview.exportEditablePptx')}
                 </button>
                 <button
                   onClick={() => handleExport('pdf')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
                 >
-                  导出为 PDF
+                  {t('preview.exportPdf')}
                 </button>
               </div>
             )}
@@ -1123,8 +1330,8 @@ export const SlidePreview: React.FC = () => {
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-w-0 min-h-0">
         {/* 左侧：缩略图列表 */}
-        <aside className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col flex-shrink-0">
-          <div className="p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 md:space-y-3">
+        <aside className="w-full md:w-80 bg-white dark:bg-background-secondary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex flex-col flex-shrink-0">
+          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-border-primary flex-shrink-0 space-y-2 md:space-y-3">
             <Button
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
@@ -1133,8 +1340,8 @@ export const SlidePreview: React.FC = () => {
               disabled={isMultiSelectMode && selectedPageIds.size === 0}
             >
               {isMultiSelectMode && selectedPageIds.size > 0
-                ? `生成选中页面 (${selectedPageIds.size})`
-                : `批量生成图片 (${currentProject.pages.length})`}
+                ? t('preview.generateSelected', { count: selectedPageIds.size })
+                : t('preview.batchGenerate', { count: currentProject.pages.length })}
             </Button>
           </div>
           
@@ -1147,23 +1354,23 @@ export const SlidePreview: React.FC = () => {
                 className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
                   isMultiSelectMode 
                     ? 'bg-banana-100 text-banana-700 hover:bg-banana-200' 
-                    : 'text-gray-500 hover:bg-gray-100'
+                    : 'text-gray-500 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover'
                 }`}
               >
                 {isMultiSelectMode ? <CheckSquare size={14} /> : <Square size={14} />}
-                <span>{isMultiSelectMode ? '取消多选' : '多选'}</span>
+                <span>{isMultiSelectMode ? t('preview.cancelMultiSelect') : t('preview.multiSelect')}</span>
               </button>
               {isMultiSelectMode && (
                 <>
                   <button
                     onClick={selectedPageIds.size === pagesWithImages.length ? deselectAllPages : selectAllPages}
-                    className="text-gray-500 hover:text-banana-600 transition-colors"
+                    className="text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 transition-colors"
                   >
-                    {selectedPageIds.size === pagesWithImages.length ? '取消全选' : '全选'}
+                    {selectedPageIds.size === pagesWithImages.length ? t('common.deselectAll') : t('common.selectAll')}
                   </button>
                   {selectedPageIds.size > 0 && (
                     <span className="text-banana-600 font-medium">
-                      ({selectedPageIds.size}页)
+                      ({selectedPageIds.size}{t('preview.pagesUnit')})
                     </span>
                   )}
                 </>
@@ -1185,7 +1392,7 @@ export const SlidePreview: React.FC = () => {
                       className={`w-20 h-14 rounded border-2 transition-all ${
                         selectedIndex === index
                           ? 'border-banana-500 shadow-md'
-                          : 'border-gray-200'
+                          : 'border-gray-200 dark:border-border-primary'
                       } ${isMultiSelectMode && page.id && selectedPageIds.has(page.id) ? 'ring-2 ring-banana-400' : ''}`}
                     >
                       {page.generated_image_path ? (
@@ -1195,7 +1402,7 @@ export const SlidePreview: React.FC = () => {
                           className="w-full h-full object-cover rounded"
                         />
                       ) : (
-                        <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">
+                        <div className="w-full h-full bg-gray-100 dark:bg-background-secondary rounded flex items-center justify-center text-xs text-gray-400">
                           {index + 1}
                         </div>
                       )}
@@ -1210,7 +1417,7 @@ export const SlidePreview: React.FC = () => {
                         className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
                           selectedPageIds.has(page.id)
                             ? 'bg-banana-500 text-white'
-                            : 'bg-white border-2 border-gray-300'
+                            : 'bg-white dark:bg-background-secondary border-2 border-gray-300 dark:border-border-primary'
                         }`}
                       >
                         {selectedPageIds.has(page.id) && <Check size={12} />}
@@ -1229,7 +1436,7 @@ export const SlidePreview: React.FC = () => {
                         className={`absolute top-2 left-2 z-10 w-6 h-6 rounded flex items-center justify-center transition-all ${
                           selectedPageIds.has(page.id)
                             ? 'bg-banana-500 text-white shadow-md'
-                            : 'bg-white/90 border-2 border-gray-300 hover:border-banana-400'
+                            : 'bg-white/90 border-2 border-gray-300 dark:border-border-primary hover:border-banana-400'
                         }`}
                       >
                         {selectedPageIds.has(page.id) && <Check size={14} />}
@@ -1261,23 +1468,23 @@ export const SlidePreview: React.FC = () => {
         </aside>
 
         {/* 右侧：大图预览 */}
-        <main className="flex-1 flex flex-col bg-gradient-to-br from-banana-50 via-white to-gray-50 min-w-0 overflow-hidden">
+        <main className="flex-1 flex flex-col bg-gradient-to-br from-banana-50 dark:from-background-primary via-white dark:via-background-primary to-gray-50 dark:to-background-primary min-w-0 overflow-hidden">
           {currentProject.pages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center overflow-y-auto">
               <div className="text-center">
                 <div className="text-4xl md:text-6xl mb-4">📊</div>
-                <h3 className="text-lg md:text-xl font-semibold text-gray-700 mb-2">
-                  还没有页面
+                <h3 className="text-lg md:text-xl font-semibold text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('preview.noPages')}
                 </h3>
-                <p className="text-sm md:text-base text-gray-500 mb-6">
-                  请先返回编辑页面添加内容
+                <p className="text-sm md:text-base text-gray-500 dark:text-foreground-tertiary mb-6">
+                  {t('preview.noPagesHint')}
                 </p>
                 <Button
                   variant="primary"
                   onClick={() => navigate(`/project/${projectId}/outline`)}
                   className="text-sm md:text-base"
                 >
-                  返回编辑
+                  {t('preview.backToEdit')}
                 </Button>
               </div>
             </div>
@@ -1286,7 +1493,7 @@ export const SlidePreview: React.FC = () => {
               {/* 预览区 */}
               <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
-                  <div className="relative aspect-video bg-white rounded-lg shadow-xl overflow-hidden touch-manipulation">
+                  <div className="relative aspect-video bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation">
                     {selectedPage?.generated_image_path ? (
                       <img
                         src={imageUrl}
@@ -1295,15 +1502,15 @@ export const SlidePreview: React.FC = () => {
                         draggable={false}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-background-secondary">
                         <div className="text-center">
                           <div className="text-6xl mb-4">🍌</div>
-                          <p className="text-gray-500 mb-4">
+                          <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
                             {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                              ? '正在生成中...'
+                              ? t('preview.generating')
                               : selectedPage?.status === 'GENERATING'
-                              ? '正在生成中...'
-                              : '尚未生成图片'}
+                              ? t('preview.generating')
+                              : t('preview.notGenerated')}
                           </p>
                           {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) && 
                            selectedPage?.status !== 'GENERATING' && (
@@ -1311,7 +1518,7 @@ export const SlidePreview: React.FC = () => {
                               variant="primary"
                               onClick={handleRegeneratePage}
                             >
-                              生成此页
+                              {t('preview.generateThisPage')}
                             </Button>
                           )}
                         </div>
@@ -1322,7 +1529,7 @@ export const SlidePreview: React.FC = () => {
               </div>
 
               {/* 控制栏 */}
-              <div className="bg-white border-t border-gray-200 px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+              <div className="bg-white dark:bg-background-secondary border-t border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-5xl mx-auto">
                   {/* 导航 */}
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
@@ -1334,10 +1541,10 @@ export const SlidePreview: React.FC = () => {
                       disabled={selectedIndex === 0}
                       className="text-xs md:text-sm"
                     >
-                      <span className="hidden sm:inline">上一页</span>
-                      <span className="sm:hidden">上一页</span>
+                      <span className="hidden sm:inline">{t('preview.prevPage')}</span>
+                      <span className="sm:hidden">{t('preview.prevPage')}</span>
                     </Button>
-                    <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 whitespace-nowrap">
+                    <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap">
                       {selectedIndex + 1} / {currentProject.pages.length}
                     </span>
                     <Button
@@ -1352,8 +1559,8 @@ export const SlidePreview: React.FC = () => {
                       disabled={selectedIndex === currentProject.pages.length - 1}
                       className="text-xs md:text-sm"
                     >
-                      <span className="hidden sm:inline">下一页</span>
-                      <span className="sm:hidden">下一页</span>
+                      <span className="hidden sm:inline">{t('preview.nextPage')}</span>
+                      <span className="sm:hidden">{t('preview.nextPage')}</span>
                     </Button>
                   </div>
 
@@ -1395,26 +1602,26 @@ export const SlidePreview: React.FC = () => {
                           onClick={() => setShowVersionMenu(!showVersionMenu)}
                           className="text-xs md:text-sm"
                         >
-                          <span className="hidden md:inline">历史版本 ({imageVersions.length})</span>
-                          <span className="md:hidden">版本</span>
+                          <span className="hidden md:inline">{t('preview.historyVersions')} ({imageVersions.length})</span>
+                          <span className="md:hidden">{t('preview.versions')}</span>
                         </Button>
                         {showVersionMenu && (
-                          <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20 max-h-96 overflow-y-auto">
+                          <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto">
                             {imageVersions.map((version) => (
                               <button
                                 key={version.version_id}
                                 onClick={() => handleSwitchVersion(version.version_id)}
-                                className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 transition-colors flex items-center justify-between text-xs md:text-sm ${
-                                  version.is_current ? 'bg-banana-50' : ''
+                                className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors flex items-center justify-between text-xs md:text-sm ${
+                                  version.is_current ? 'bg-banana-50 dark:bg-background-secondary' : ''
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
                                   <span>
-                                    版本 {version.version_number}
+                                    {t('preview.version')} {version.version_number}
                                   </span>
                                   {version.is_current && (
                                     <span className="text-xs text-banana-600 font-medium">
-                                      (当前)
+                                      ({t('preview.current')})
                                     </span>
                                   )}
                                 </div>
@@ -1441,7 +1648,7 @@ export const SlidePreview: React.FC = () => {
                       disabled={!selectedPage?.generated_image_path}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
-                      编辑
+                      {t('common.edit')}
                     </Button>
                     <Button
                       variant="ghost"
@@ -1451,8 +1658,8 @@ export const SlidePreview: React.FC = () => {
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                        ? '生成中...'
-                        : '重新生成'}
+                        ? t('preview.regenerating')
+                        : t('preview.regenerate')}
                     </Button>
                   </div>
                 </div>
@@ -1466,13 +1673,13 @@ export const SlidePreview: React.FC = () => {
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title="编辑页面"
+        title={t('preview.editPage')}
         size="lg"
       >
         <div className="space-y-4">
           {/* 图片（支持矩形区域选择） */}
           <div
-            className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative"
+            className="aspect-video bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative"
             onMouseDown={handleSelectionMouseDown}
             onMouseMove={handleSelectionMouseMove}
             onMouseUp={handleSelectionMouseUp}
@@ -1492,10 +1699,10 @@ export const SlidePreview: React.FC = () => {
                     setSelectionRect(null);
                     setIsSelectingRegion(false);
                   }}
-                  className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 text-[10px] text-gray-700 hover:bg-banana-50 shadow-sm flex items-center gap-1"
+                  className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 text-[10px] text-gray-700 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-background-hover shadow-sm dark:shadow-background-primary/30 flex items-center gap-1"
                 >
                   <Sparkles size={12} />
-                  <span>{isRegionSelectionMode ? '结束区域选图' : '区域选图'}</span>
+                  <span>{isRegionSelectionMode ? t('preview.endRegionSelect') : t('preview.regionSelect')}</span>
                 </button>
 
                 <img
@@ -1522,38 +1729,38 @@ export const SlidePreview: React.FC = () => {
           </div>
 
           {/* 大纲内容 - 可编辑 */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200">
+          <div className="bg-gray-50 dark:bg-background-primary rounded-lg border border-gray-200 dark:border-border-primary">
             <button
               onClick={() => setIsOutlineExpanded(!isOutlineExpanded)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
             >
-              <h4 className="text-sm font-semibold text-gray-700">页面大纲（可编辑）</h4>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-foreground-secondary">{t('preview.pageOutline')}</h4>
               {isOutlineExpanded ? (
-                <ChevronUp size={18} className="text-gray-500" />
+                <ChevronUp size={18} className="text-gray-500 dark:text-foreground-tertiary" />
               ) : (
-                <ChevronDown size={18} className="text-gray-500" />
+                <ChevronDown size={18} className="text-gray-500 dark:text-foreground-tertiary" />
               )}
             </button>
             {isOutlineExpanded && (
               <div className="px-4 pb-4 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">标题</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1">{t('outline.titleLabel')}</label>
                   <input
                     type="text"
                     value={editOutlineTitle}
                     onChange={(e) => setEditOutlineTitle(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
-                    placeholder="输入页面标题"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500"
+                    placeholder={t('preview.enterTitle')}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">要点（每行一个）</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1">{t('preview.pointsPerLine')}</label>
                   <textarea
                     value={editOutlinePoints}
                     onChange={(e) => setEditOutlinePoints(e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
-                    placeholder="每行输入一个要点"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                    placeholder={t('preview.enterPointsPerLine')}
                   />
                 </div>
               </div>
@@ -1561,16 +1768,16 @@ export const SlidePreview: React.FC = () => {
           </div>
 
           {/* 描述内容 - 可编辑 */}
-          <div className="bg-blue-50 rounded-lg border border-blue-200">
+          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
             <button
               onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
             >
-              <h4 className="text-sm font-semibold text-gray-700">页面描述（可编辑）</h4>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-foreground-secondary">{t('preview.pageDescription')}</h4>
               {isDescriptionExpanded ? (
-                <ChevronUp size={18} className="text-gray-500" />
+                <ChevronUp size={18} className="text-gray-500 dark:text-foreground-tertiary" />
               ) : (
-                <ChevronDown size={18} className="text-gray-500" />
+                <ChevronDown size={18} className="text-gray-500 dark:text-foreground-tertiary" />
               )}
             </button>
             {isDescriptionExpanded && (
@@ -1579,16 +1786,16 @@ export const SlidePreview: React.FC = () => {
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={8}
-                  className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
-                  placeholder="输入页面的详细描述内容"
+                  className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-700 bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                  placeholder={t('preview.enterDescription')}
                 />
               </div>
             )}
           </div>
 
           {/* 上下文图片选择 */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">选择上下文图片（可选）</h4>
+          <div className="bg-gray-50 dark:bg-background-primary rounded-lg border border-gray-200 dark:border-border-primary p-4 space-y-4">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-foreground-secondary mb-3">{t('preview.selectContextImages')}</h4>
             
             {/* Template图片选择 */}
             {currentProject?.template_image_path && (
@@ -1606,13 +1813,13 @@ export const SlidePreview: React.FC = () => {
                   className="w-4 h-4 text-banana-600 rounded focus:ring-banana-500"
                 />
                 <label htmlFor="use-template" className="flex items-center gap-2 cursor-pointer">
-                  <ImageIcon size={16} className="text-gray-500" />
-                  <span className="text-sm text-gray-700">使用模板图片</span>
+                  <ImageIcon size={16} className="text-gray-500 dark:text-foreground-tertiary" />
+                  <span className="text-sm text-gray-700 dark:text-foreground-secondary">{t('preview.useTemplateImage')}</span>
                   {currentProject.template_image_path && (
                     <img
                       src={getImageUrl(currentProject.template_image_path, currentProject.updated_at)}
                       alt="Template"
-                      className="w-16 h-10 object-cover rounded border border-gray-300"
+                      className="w-16 h-10 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />
                   )}
                 </label>
@@ -1624,18 +1831,18 @@ export const SlidePreview: React.FC = () => {
               const descImageUrls = extractImageUrlsFromDescription(selectedPage.description_content);
               return descImageUrls.length > 0 ? (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">描述中的图片：</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('preview.imagesInDescription')}:</label>
                   <div className="grid grid-cols-3 gap-2">
                     {descImageUrls.map((url, idx) => (
                       <div key={idx} className="relative group">
                         <img
                           src={url}
                           alt={`Desc image ${idx + 1}`}
-                          className="w-full h-20 object-cover rounded border-2 border-gray-300 cursor-pointer transition-all"
+                          className="w-full h-20 object-cover rounded border-2 border-gray-300 dark:border-border-primary cursor-pointer transition-all"
                           style={{
                             borderColor: selectedContextImages.descImageUrls.includes(url)
-                              ? '#f59e0b'
-                              : '#d1d5db',
+                              ? 'var(--banana-yellow)'
+                              : 'var(--border-primary)',
                           }}
                           onClick={() => {
                             setSelectedContextImages((prev) => {
@@ -1666,7 +1873,7 @@ export const SlidePreview: React.FC = () => {
             {/* 上传图片 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">上传图片：</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('preview.uploadImages')}:</label>
                 {projectId && (
                   <Button
                     variant="ghost"
@@ -1674,7 +1881,7 @@ export const SlidePreview: React.FC = () => {
                     icon={<ImagePlus size={16} />}
                     onClick={() => setIsMaterialSelectorOpen(true)}
                   >
-                    从素材库选择
+                    {t('preview.selectFromMaterials')}
                   </Button>
                 )}
               </div>
@@ -1682,9 +1889,9 @@ export const SlidePreview: React.FC = () => {
                 {selectedContextImages.uploadedFiles.map((file, idx) => (
                   <div key={idx} className="relative group">
                     <img
-                      src={URL.createObjectURL(file)}
+                      src={uploadedFileUrls.current[idx] || ''}
                       alt={`Uploaded ${idx + 1}`}
-                      className="w-20 h-20 object-cover rounded border border-gray-300"
+                      className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />
                     <button
                       onClick={() => removeUploadedFile(idx)}
@@ -1694,9 +1901,9 @@ export const SlidePreview: React.FC = () => {
                     </button>
                   </div>
                 ))}
-                <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 transition-colors">
+                <label className="w-20 h-20 border-2 border-dashed border-gray-300 dark:border-border-primary rounded flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 transition-colors">
                   <Upload size={20} className="text-gray-400 mb-1" />
-                  <span className="text-xs text-gray-500">上传</span>
+                  <span className="text-xs text-gray-500 dark:text-foreground-tertiary">{t('preview.upload')}</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -1711,8 +1918,8 @@ export const SlidePreview: React.FC = () => {
 
           {/* 编辑框 */}
           <Textarea
-            label="输入修改指令(将自动添加页面描述)"
-            placeholder="例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线..."
+            label={t('preview.editPromptLabel')}
+            placeholder={t('preview.editPromptPlaceholder')}
             value={editPrompt}
             onChange={(e) => setEditPrompt(e.target.value)}
             rows={4}
@@ -1725,18 +1932,18 @@ export const SlidePreview: React.FC = () => {
                 setIsEditModalOpen(false);
               }}
             >
-              仅保存大纲/描述
+              {t('preview.saveOutlineOnly')}
             </Button>
             <div className="flex gap-3">
               <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
-                取消
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="primary"
                 onClick={handleSubmitEdit}
                 disabled={!editPrompt.trim()}
               >
-                生成图片
+                {t('preview.generateImage')}
               </Button>
             </div>
           </div>
@@ -1749,12 +1956,12 @@ export const SlidePreview: React.FC = () => {
       <Modal
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}
-        title="更换模板"
+        title={t('preview.changeTemplate')}
         size="lg"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 mb-4">
-            选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。
+          <p className="text-sm text-gray-600 dark:text-foreground-tertiary mb-4">
+            {t('preview.templateModalDesc')}
           </p>
           <TemplateSelector
             onSelect={handleTemplateSelect}
@@ -1764,8 +1971,8 @@ export const SlidePreview: React.FC = () => {
             projectId={projectId || null}
           />
           {isUploadingTemplate && (
-            <div className="text-center py-2 text-sm text-gray-500">
-              正在上传模板...
+            <div className="text-center py-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+              {t('preview.uploadingTemplate')}
             </div>
           )}
           <div className="flex justify-end gap-3 pt-4 border-t">
@@ -1774,7 +1981,7 @@ export const SlidePreview: React.FC = () => {
               onClick={() => setIsTemplateModalOpen(false)}
               disabled={isUploadingTemplate}
             >
-              关闭
+              {t('common.close')}
             </Button>
           </div>
         </div>
@@ -1816,14 +2023,57 @@ export const SlidePreview: React.FC = () => {
             // 导出设置
             exportExtractorMethod={exportExtractorMethod}
             exportInpaintMethod={exportInpaintMethod}
+            exportAllowPartial={exportAllowPartial}
             onExportExtractorMethodChange={setExportExtractorMethod}
             onExportInpaintMethodChange={setExportInpaintMethod}
+            onExportAllowPartialChange={setExportAllowPartial}
             onSaveExportSettings={handleSaveExportSettings}
             isSavingExportSettings={isSavingExportSettings}
           />
         </>
       )}
-      
+
+      {/* 1K分辨率警告对话框 */}
+      <Modal
+        isOpen={show1KWarningDialog}
+        onClose={handleCancel1KWarning}
+        title={t('preview.resolution1KWarning')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="text-2xl">⚠️</div>
+            <div className="flex-1">
+              <p className="text-sm text-amber-800">
+                {t('preview.resolution1KWarningText')}
+              </p>
+              <p className="text-sm text-amber-700 mt-2">
+                {t('preview.resolution1KWarningHint')}
+              </p>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skip1KWarningChecked}
+              onChange={(e) => setSkip1KWarningChecked(e.target.checked)}
+              className="w-4 h-4 text-banana-600 rounded focus:ring-banana-500"
+            />
+            <span className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('preview.dontShowAgain')}</span>
+          </label>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={handleCancel1KWarning}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="primary" onClick={handleConfirm1KWarning}>
+              {t('preview.generateAnyway')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };

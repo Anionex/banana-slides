@@ -5,11 +5,13 @@ No need for Celery or Redis, uses in-memory task tracking
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, List, Dict, Any
+from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy import func
+from PIL import Image
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
+from utils.image_utils import check_image_resolution
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -315,7 +317,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
-            pages_data = ai_service.flatten_outline(outline)
+            all_pages_data = ai_service.flatten_outline(outline)
+
+            # Build mapping from order_index to page_data so filtered pages
+            # get matched to the correct outline entry (not just first N)
+            pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
             
             # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
             # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
@@ -331,6 +337,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Generate images in parallel
             completed = 0
             failed = 0
+            resolution_mismatched = 0  # Count of resolution mismatches
             
             def generate_single_image(page_id, page_data, page_index):
                 """
@@ -408,31 +415,42 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not image:
                             raise ValueError("Failed to generate image")
                         
+                        # Check resolution for all providers
+                        actual_res, is_match = check_image_resolution(image, resolution)
+                        if not is_match:
+                            logger.warning(f"Resolution mismatch for page {page_index}: requested {resolution}, got {actual_res}")
+                        
                         # 优化：直接在子线程中计算版本号并保存到最终位置
                         # 每个页面独立，使用数据库事务保证版本号原子性，避免临时文件
                         image_path, next_version = save_image_with_version(
                             image, project_id, page_id, file_service, page_obj=page_obj
                         )
                         
-                        return (page_id, image_path, None)
+                        return (page_id, image_path, None, not is_match)
                         
                     except Exception as e:
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e))
+                        return (page_id, None, str(e), None)
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(generate_single_image, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
+                    executor.submit(
+                        generate_single_image, page.id,
+                        pages_data_by_index.get(page.order_index, {}), i
+                    )
+                    for i, page in enumerate(pages, 1)
                 ]
                 
                 # Process results as they complete
                 for future in as_completed(futures):
-                    page_id, image_path, error = future.result()
+                    page_id, image_path, error, is_mismatched = future.result()
+                    
+                    if is_mismatched:
+                        resolution_mismatched += 1
                     
                     db.session.expire_all()
                     
@@ -452,7 +470,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                     # Update task progress
                     task = Task.query.get(task_id)
                     if task:
-                        task.update_progress(completed=completed, failed=failed)
+                        progress = task.get_progress()
+                        progress['completed'] = completed
+                        progress['failed'] = failed
+                        # 第一次检测到不匹配时设置警告
+                        if resolution_mismatched > 0 and 'warning_message' not in progress:
+                            progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
+                        task.set_progress(progress)
                         db.session.commit()
                         logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
             
@@ -461,6 +485,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             if task:
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
+                if resolution_mismatched > 0:
+                    logger.warning(f"Task {task_id} has {resolution_mismatched} resolution mismatches")
                 db.session.commit()
                 logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
             
@@ -856,16 +882,25 @@ def export_editable_pptx_with_recursive_analysis_task(
         from datetime import datetime
         from PIL import Image
         from models import Project
-        from services.export_service import ExportService
-        
+        from services.export_service import ExportService, ExportError
+
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
-        
+
         try:
             # Get project
             project = Project.query.get(project_id)
             if not project:
                 raise ValueError(f'Project {project_id} not found')
-            
+
+            # 读取项目的导出设置：是否允许返回半成品
+            export_allow_partial = project.export_allow_partial or False
+            fail_fast = not export_allow_partial
+            logger.info(f"导出设置: export_allow_partial={export_allow_partial}, fail_fast={fail_fast}")
+
+            # IMPORTANT: Expire cached objects to ensure fresh data from database
+            # This prevents reading stale generated_image_path after page regeneration
+            db.session.expire_all()
+
             # Get pages (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             if not pages:
@@ -960,9 +995,9 @@ def export_editable_pptx_with_recursive_analysis_task(
             progress_callback("准备", "文字属性提取器已初始化", 5)
             
             # Step 3: 调用导出方法（使用项目的导出设置）
-            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method})...")
+            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, fail_fast={fail_fast})...")
             progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
-            
+
             _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
                 image_paths=image_paths,
                 output_file=output_path,
@@ -973,7 +1008,8 @@ def export_editable_pptx_with_recursive_analysis_task(
                 text_attribute_extractor=text_attribute_extractor,
                 progress_callback=progress_callback,
                 export_extractor_method=export_extractor_method,
-                export_inpaint_method=export_inpaint_method
+                export_inpaint_method=export_inpaint_method,
+                fail_fast=fail_fast
             )
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
@@ -1011,7 +1047,37 @@ def export_editable_pptx_with_recursive_analysis_task(
                 })
                 db.session.commit()
                 logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
-        
+
+        except ExportError as e:
+            # 导出错误（fail_fast 模式下的详细错误）
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"✗ 任务 {task_id} 导出失败: {e.message}")
+            logger.error(f"错误类型: {e.error_type}, 详情: {e.details}")
+
+            # 标记任务失败，包含详细错误信息
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                # 构建详细的错误消息
+                error_message = f"{e.message}"
+                if e.help_text:
+                    error_message += f"\n\n💡 {e.help_text}"
+                task.error_message = error_message
+                task.completed_at = datetime.utcnow()
+                # 在 progress 中保存详细错误信息
+                task.set_progress({
+                    "total": 100,
+                    "completed": 0,
+                    "failed": 1,
+                    "current_step": "导出失败",
+                    "percent": 0,
+                    "error_type": e.error_type,
+                    "error_details": e.details,
+                    "help_text": e.help_text
+                })
+                db.session.commit()
+
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
