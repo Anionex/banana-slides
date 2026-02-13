@@ -40,7 +40,7 @@ _COMMON_IMAGE_ASPECT_RATIOS = {
     "5:4",
 }
 
-_ASPECT_RATIO_PATTERN = re.compile(r"^\d+:\d+$")
+_ASPECT_RATIO_PATTERN = re.compile(r"^[1-9]\d{0,4}:[1-9]\d{0,4}$")
 _ASPECT_RATIO_MIN = 0.2
 _ASPECT_RATIO_MAX = 5.0
 
