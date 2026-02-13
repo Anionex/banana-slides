@@ -16,7 +16,7 @@ Note:
 """
 
 import pytest
-import requests
+import httpx
 import time
 import os
 import io
@@ -45,9 +45,9 @@ def wait_for_project_status(project_id: str, expected_status: str, timeout: int 
     
     while time.time() - start_time < timeout:
         try:
-            response = requests.get(f"{BASE_URL}/api/projects/{project_id}", timeout=10)
+            response = httpx.get(f"{BASE_URL}/api/projects/{project_id}", timeout=10)
             
-            if not response.ok:
+            if not response.is_success:
                 consecutive_errors += 1
                 if consecutive_errors >= max_consecutive_errors:
                     raise Exception(f"Failed to get project status after {max_consecutive_errors} consecutive errors")
@@ -97,12 +97,12 @@ def wait_for_task_completion(project_id: str, task_id: str, timeout: int = 120):
     
     while time.time() - start_time < timeout:
         try:
-            response = requests.get(
+            response = httpx.get(
                 f"{BASE_URL}/api/projects/{project_id}/tasks/{task_id}",
                 timeout=10
             )
             
-            if not response.ok:
+            if not response.is_success:
                 consecutive_errors += 1
                 if consecutive_errors >= max_consecutive_errors:
                     raise Exception(f"Failed to get task status after {max_consecutive_errors} consecutive errors")
@@ -155,7 +155,7 @@ def project_id():
     # Cleanup
     for pid in created_project_ids:
         try:
-            requests.delete(f"{BASE_URL}/api/projects/{pid}", timeout=10)
+            httpx.delete(f"{BASE_URL}/api/projects/{pid}", timeout=10)
             print(f"✓ Cleaned up project: {pid}")
         except Exception as e:
             print(f"Failed to cleanup project {pid}: {e}")
@@ -183,7 +183,7 @@ class TestAPIFullFlow:
         
         # Step 1: Create project
         print('📝 Step 1: Creating project...')
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/api/projects",
             json={
                 'creation_type': 'idea',
@@ -209,7 +209,7 @@ class TestAPIFullFlow:
         template_img.save(img_bytes, format='PNG')
         img_bytes.seek(0)
         
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/api/projects/{pid}/template",
             files={'template_image': ('template.png', img_bytes, 'image/png')},
             timeout=30
@@ -222,7 +222,7 @@ class TestAPIFullFlow:
         
         # Step 2: Generate outline
         print('📋 Step 2: Triggering outline generation...')
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/api/projects/{pid}/generate/outline",
             json={},
             timeout=30
@@ -238,7 +238,7 @@ class TestAPIFullFlow:
         wait_for_project_status(pid, 'OUTLINE_GENERATED', timeout=API_TIMEOUT)
         
         # Verify pages were created
-        response = requests.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
+        response = httpx.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         data = response.json()
         pages = data['data']['pages']
         
@@ -248,7 +248,7 @@ class TestAPIFullFlow:
         
         # Step 4: Generate descriptions
         print('✍️  Step 4: Starting to generate page descriptions...')
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/api/projects/{pid}/generate/descriptions",
             json={},
             timeout=30
@@ -268,7 +268,7 @@ class TestAPIFullFlow:
         
         # Step 5: Generate images
         print('🎨 Step 5: Starting to generate page images...')
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/api/projects/{pid}/generate/images",
             json={
                 'use_template': True,  # Use the uploaded template
@@ -291,7 +291,7 @@ class TestAPIFullFlow:
         print('✓ All page images generated\n')
         
         # Verify all pages have images
-        response = requests.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
+        response = httpx.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         data = response.json()
         pages = data['data'].get('pages', [])
         
@@ -305,7 +305,7 @@ class TestAPIFullFlow:
         
         # Step 6: Export PPT
         print('📦 Step 6: Exporting PPT file...')
-        response = requests.get(
+        response = httpx.get(
             f"{BASE_URL}/api/projects/{pid}/export/pptx?filename=integration-test.pptx",
             timeout=60
         )
@@ -321,7 +321,7 @@ class TestAPIFullFlow:
         # Step 7: Verify PPT can be downloaded
         print('📥 Step 7: Verifying PPT file can be downloaded...')
         download_url = data['data']['download_url']
-        response = requests.get(f"{BASE_URL}{download_url}", timeout=30)
+        response = httpx.get(f"{BASE_URL}{download_url}", timeout=30)
         
         assert response.status_code == 200
         
@@ -355,7 +355,7 @@ class TestAPIFullFlow:
         print('\n🏃 Quick API flow test (skip AI generation)\n')
         
         # Create project
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/api/projects",
             json={
                 'creation_type': 'idea',
@@ -370,19 +370,18 @@ class TestAPIFullFlow:
         print(f"✓ Project created: {pid}")
         
         # Get project info
-        response = requests.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
+        response = httpx.get(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         assert response.status_code == 200
         print('✓ Project query successful')
         
         # List all projects
-        response = requests.get(f"{BASE_URL}/api/projects", timeout=10)
+        response = httpx.get(f"{BASE_URL}/api/projects", timeout=10)
         assert response.status_code == 200
         data = response.json()
         assert 'projects' in data['data']
         print(f"✓ Project list query successful, total {len(data['data']['projects'])} projects")
         
         # Delete project
-        response = requests.delete(f"{BASE_URL}/api/projects/{pid}", timeout=10)
+        response = httpx.delete(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         assert response.status_code == 200
         print('✓ Project deleted successfully\n')
-
