@@ -83,29 +83,70 @@ def delete_page(project_id, page_id):
     """
     try:
         page = Page.query.get(page_id)
-        
+
         if not page or page.project_id != project_id:
             return not_found('Page')
-        
+
         # Delete page image if exists
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_page_image(project_id, page_id)
-        
+
         # Delete page
         db.session.delete(page)
-        
+
         # Update project
         project = Project.query.get(project_id)
         if project:
             project.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
         return success_response(message="Page deleted successfully")
-    
+
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
+
+
+@page_bp.route('/<project_id>/pages/<page_id>', methods=['PUT'])
+def update_page(project_id, page_id):
+    """
+    PUT /api/projects/{project_id}/pages/{page_id} - Update page fields
+
+    Request body:
+    {
+        "part": "章节名"
+    }
+    """
+    try:
+        page = Page.query.get(page_id)
+
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        data = request.get_json()
+
+        if not data:
+            return bad_request("Request body is required")
+
+        # Update part field if provided
+        if 'part' in data:
+            page.part = data['part']
+
+        page.updated_at = datetime.utcnow()
+
+        # Update project
+        if page.project:
+            page.project.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return success_response(page.to_dict())
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to update page {page_id}: {e}")
+        return error_response('SERVER_ERROR', 'An internal server error occurred', 500)
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])
@@ -430,7 +471,7 @@ def generate_page_image(project_id, page_id):
             file_service,
             outline,
             use_template,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
+            project.image_aspect_ratio,
             current_app.config['DEFAULT_RESOLUTION'],
             app,
             combined_requirements if combined_requirements.strip() else None,
@@ -602,7 +643,7 @@ def edit_page_image(project_id, page_id):
             data['edit_instruction'],
             ai_service,
             file_service,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
+            project.image_aspect_ratio,
             current_app.config['DEFAULT_RESOLUTION'],
             original_description,
             additional_ref_images if additional_ref_images else None,
@@ -683,7 +724,125 @@ def set_current_image_version(project_id, page_id, version_id):
         db.session.commit()
         
         return success_response(page.to_dict(include_versions=True))
-    
+
     except Exception as e:
         db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@page_bp.route('/<project_id>/pages/<page_id>/regenerate-renovation', methods=['POST'])
+def regenerate_renovation_page(project_id, page_id):
+    """
+    POST /api/projects/{project_id}/pages/{page_id}/regenerate-renovation
+
+    Re-parse the original PDF page and regenerate outline + description for PPT renovation projects.
+    This re-runs the renovation pipeline for a single page.
+    """
+    try:
+        page = Page.query.get(page_id)
+
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        # Verify this is a renovation project
+        if project.creation_type != 'ppt_renovation':
+            return bad_request("This endpoint is only for PPT renovation projects")
+
+        data = request.get_json() or {}
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        keep_layout = data.get('keep_layout', False)
+
+        # Find the split PDF for this page
+        project_dir = Path(current_app.config['UPLOAD_FOLDER']) / project_id
+        split_dir = project_dir / "split_pages"
+        page_pdf_path = split_dir / f"page_{page.order_index + 1}.pdf"
+
+        if not page_pdf_path.exists():
+            return bad_request(f"Split PDF not found for page {page.order_index + 1}")
+
+        # Initialize services
+        ai_service = get_ai_service()
+        from services.file_parser_service import FileParserService
+        file_parser_service = FileParserService(
+            mineru_api_base=current_app.config.get('MINERU_API_BASE', ''),
+            mineru_token=current_app.config.get('MINERU_TOKEN', ''),
+            google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+            ai_provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+            openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+            openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
+            image_caption_model=current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview'),
+            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', ''),
+            upload_folder=current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        )
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+        # Step 1: Parse page PDF → markdown
+        logger.info(f"Regenerating renovation page {page.order_index + 1}: parsing PDF...")
+        filename = f"page_{page.order_index + 1}.pdf"
+        _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(
+            str(page_pdf_path), filename
+        )
+
+        if error_msg:
+            logger.warning(f"Page {page.order_index + 1} parse warning: {error_msg}")
+
+        md_text = md_text or ''
+
+        # Supplement with header/footer from layout.json
+        if extract_id:
+            hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
+            if hf_text:
+                md_text = hf_text + '\n\n' + md_text
+
+        if not md_text.strip():
+            return error_response('PARSE_ERROR', f"Failed to extract content from page {page.order_index + 1}", 400)
+
+        # Step 2: AI extract structured content
+        logger.info(f"Regenerating renovation page {page.order_index + 1}: extracting content...")
+        content = ai_service.extract_page_content(md_text, language=language)
+
+        # Step 3: Optional layout caption
+        if keep_layout:
+            try:
+                image_path = None
+                if page.cached_image_path:
+                    image_path = file_service.get_absolute_path(page.cached_image_path)
+                elif page.generated_image_path:
+                    image_path = file_service.get_absolute_path(page.generated_image_path)
+                if image_path and Path(image_path).exists():
+                    caption = ai_service.generate_layout_caption(image_path)
+                    if caption:
+                        content['description'] = content.get('description', '') + f"\n\n{caption}"
+            except Exception as e:
+                logger.error(f"Layout caption failed for page {page.order_index + 1}: {e}")
+
+        # Step 4: Update page in database
+        title = content.get('title', f'Page {page.order_index + 1}')
+        points = content.get('points', [])
+        description = content.get('description', '')
+
+        page.set_outline_content({
+            'title': title,
+            'points': points
+        })
+        page.set_description_content({
+            "text": description,
+            "generated_at": datetime.utcnow().isoformat()
+        })
+        page.status = 'DESCRIPTION_GENERATED'
+        page.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        logger.info(f"Regenerated renovation page {page.order_index + 1} successfully")
+
+        return success_response(page.to_dict())
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to regenerate renovation page: {e}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)

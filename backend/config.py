@@ -45,7 +45,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
-    # AI Provider 格式配置: "gemini" (Google GenAI SDK), "openai" (OpenAI SDK), "vertex" (Vertex AI)
+    # AI Provider 格式配置: "gemini" (Google GenAI SDK), "openai" (OpenAI SDK), "vertex" (Vertex AI), "lazyllm" (Lazyllm Framework)
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
     # Vertex AI 专用配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
@@ -61,6 +61,11 @@ class Config:
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '300.0'))  # 增加到 5 分钟（生成清洁背景图需要很长时间）
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
+
+    # Lazyllm 格式专用配置（当 AI_PROVIDER_FORMAT=lazyllm 时使用）
+    TEXT_MODEL_SOURCE = os.getenv('TEXT_MODEL_SOURCE', 'deepseek')                   # 文本生成模型厂商
+    IMAGE_MODEL_SOURCE = os.getenv('IMAGE_MODEL_SOURCE', 'doubao')                   # 图片生成模型厂商
+    IMAGE_CAPTION_MODEL_SOURCE = os.getenv('IMAGE_CAPTION_MODEL_SOURCE', 'doubao')   # 图片识别模型厂商
     
     # AI 模型配置
     TEXT_MODEL = os.getenv('TEXT_MODEL', 'gemini-3-flash-preview')
@@ -101,10 +106,9 @@ class Config:
     # 可选值: 'volcengine' (火山引擎), 'gemini' (Google Gemini)
     # 注意: 可编辑PPTX导出功能使用 ImageEditabilityService，其中 HybridInpaintProvider 会结合百度重绘和生成式质量增强
     INPAINTING_PROVIDER = os.getenv('INPAINTING_PROVIDER', 'gemini')  # 默认使用 Gemini
-    
+
     # 百度 API 配置（用于 OCR 和图像修复）
     BAIDU_OCR_API_KEY = os.getenv('BAIDU_OCR_API_KEY', '')
-    BAIDU_OCR_API_SECRET = os.getenv('BAIDU_OCR_API_SECRET', '')
 
 
 class DevelopmentConfig(Config):

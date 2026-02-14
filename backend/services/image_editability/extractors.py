@@ -40,19 +40,27 @@ class ExtractionContext:
 
 class ExtractionResult:
     """提取结果"""
-    
+
     def __init__(
         self,
         elements: List[Dict[str, Any]],
-        context: Optional[ExtractionContext] = None
+        context: Optional[ExtractionContext] = None,
+        error: Optional[str] = None
     ):
         """
         Args:
             elements: 提取的元素列表
             context: 提取上下文（用于后续递归处理）
+            error: 提取过程中的错误信息（如果有）
         """
         self.elements = elements
         self.context = context or ExtractionContext()
+        self.error = error
+
+    @property
+    def has_error(self) -> bool:
+        """是否有错误"""
+        return self.error is not None
 
 
 class ElementExtractor(ABC):
@@ -139,40 +147,41 @@ class MinerUElementExtractor(ElementExtractor):
     ) -> ExtractionResult:
         """
         从图像中提取元素（自动处理PDF转换和MinerU解析）
-        
+
         支持的kwargs:
         - depth: int, 递归深度（用于日志）
         """
         depth = kwargs.get('depth', 0)
-        
+
         # 获取图片尺寸
         img = Image.open(image_path)
         image_size = img.size  # (width, height)
-        
+
         # 1. 检查缓存
         cached_dir = self._find_cache(image_path)
         if cached_dir:
             logger.info(f"{'  ' * depth}使用MinerU缓存")
             mineru_result_dir = cached_dir
+            parse_error = None
         else:
             # 2. 解析图片
-            mineru_result_dir = self._parse_image(image_path, depth)
+            mineru_result_dir, parse_error = self._parse_image(image_path, depth)
             if not mineru_result_dir:
-                return ExtractionResult(elements=[])
-        
+                return ExtractionResult(elements=[], error=parse_error)
+
         # 3. 提取元素
         elements = self._extract_from_result(
             mineru_result_dir=mineru_result_dir,
             target_image_size=image_size,
             depth=depth
         )
-        
+
         # 4. 返回结果（带上下文）
         context = ExtractionContext(
             result_dir=mineru_result_dir,
             metadata={'source': 'mineru', 'image_size': image_size}
         )
-        
+
         return ExtractionResult(elements=elements, context=context)
     
     def _find_cache(self, image_path: str) -> Optional[str]:
@@ -196,33 +205,38 @@ class MinerUElementExtractor(ElementExtractor):
             logger.debug(f"查找缓存失败: {e}")
             return None
     
-    def _parse_image(self, image_path: str, depth: int) -> Optional[str]:
-        """解析图片，返回MinerU结果目录"""
+    def _parse_image(self, image_path: str, depth: int) -> Tuple[Optional[str], Optional[str]]:
+        """解析图片，返回MinerU结果目录和错误信息
+
+        Returns:
+            Tuple of (result_dir, error_message)
+        """
         from services.export_service import ExportService
-        
+
         # 转换为PDF
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
             pdf_path = tmp_pdf.name
-        
+
         try:
             ExportService.create_pdf_from_images([image_path], output_file=pdf_path)
-            
+
             # 调用MinerU解析
             image_id = str(uuid.uuid4())[:8]
             batch_id, markdown_content, extract_id, error_message, failed_image_count = \
                 self._parser_service.parse_file(pdf_path, f"image_{image_id}.pdf")
-            
+
             if error_message or not extract_id:
                 logger.error(f"{'  ' * depth}MinerU解析失败: {error_message}")
-                return None
-            
+                return None, error_message or "MinerU解析失败，未返回extract_id"
+
             mineru_result_dir = (self._upload_folder / 'mineru_files' / extract_id).resolve()
             if not mineru_result_dir.exists():
-                logger.error(f"{'  ' * depth}MinerU结果目录不存在")
-                return None
-            
-            return str(mineru_result_dir)
-        
+                err = f"MinerU结果目录不存在: {mineru_result_dir}"
+                logger.error(f"{'  ' * depth}{err}")
+                return None, err
+
+            return str(mineru_result_dir), None
+
         finally:
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
@@ -521,10 +535,12 @@ class BaiduOCRElementExtractor(ElementExtractor):
                 })
             
             logger.info(f"{'  ' * depth}百度OCR提取了 {len(elements)} 个单元格元素")
-        
+
         except Exception as e:
-            logger.error(f"{'  ' * depth}百度OCR识别失败: {e}", exc_info=True)
-        
+            error_msg = f"百度OCR识别失败: {e}"
+            logger.error(f"{'  ' * depth}{error_msg}", exc_info=True)
+            return ExtractionResult(elements=elements, error=error_msg)
+
         # 百度OCR不需要result_dir（表格单元格不会有子元素）
         return ExtractionResult(elements=elements)
     
@@ -747,11 +763,11 @@ class BaiduAccurateOCRElementExtractor(ElementExtractor):
             )
             
             return ExtractionResult(elements=elements, context=context)
-        
+
         except Exception as e:
-            logger.error(f"{'  ' * depth}百度高精度OCR识别失败: {e}", exc_info=True)
-        
-        return ExtractionResult(elements=elements)
+            error_msg = f"百度高精度OCR识别失败: {e}"
+            logger.error(f"{'  ' * depth}{error_msg}", exc_info=True)
+            return ExtractionResult(elements=elements, error=error_msg)
 
 
 class ExtractorRegistry:

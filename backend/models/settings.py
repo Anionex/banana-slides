@@ -1,4 +1,5 @@
 """Settings model"""
+import json
 from datetime import datetime, timezone
 from . import db
 
@@ -34,6 +35,12 @@ class Settings(db.Model):
     
     # 百度 OCR 配置
     baidu_ocr_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
+
+    # LazyLLM 配置
+    text_model_source = db.Column(db.String(50), nullable=True)           # lazyllm 文本模型厂商 (qwen, doubao, deepseek, ...)
+    image_model_source = db.Column(db.String(50), nullable=True)          # lazyllm 图片模型厂商
+    image_caption_model_source = db.Column(db.String(50), nullable=True)  # lazyllm 图片识别模型厂商
+    lazyllm_api_keys = db.Column(db.Text, nullable=True)                  # JSON: {"qwen": "key1", "doubao": "key2", ...}
     
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -60,9 +67,32 @@ class Settings(db.Model):
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
             'baidu_ocr_api_key_length': len(self.baidu_ocr_api_key) if self.baidu_ocr_api_key else 0,
+            'text_model_source': self.text_model_source,
+            'image_model_source': self.image_model_source,
+            'image_caption_model_source': self.image_caption_model_source,
+            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
+
+    def _get_lazyllm_api_keys_info(self):
+        """Return vendor names and key lengths (no plaintext) for frontend display."""
+        if not self.lazyllm_api_keys:
+            return {}
+        try:
+            keys = json.loads(self.lazyllm_api_keys)
+            return {vendor: len(key) for vendor, key in keys.items() if key}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def get_lazyllm_api_keys_dict(self):
+        """Parse lazyllm_api_keys JSON into a dict."""
+        if not self.lazyllm_api_keys:
+            return {}
+        try:
+            return json.loads(self.lazyllm_api_keys)
+        except (json.JSONDecodeError, TypeError):
+            return {}
 
     @staticmethod
     def get_settings():
@@ -81,6 +111,9 @@ class Settings(db.Model):
             if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
                 default_api_base = Config.OPENAI_API_BASE or None
                 default_api_key = Config.OPENAI_API_KEY or None
+            elif (Config.AI_PROVIDER_FORMAT or '').lower() == 'lazyllm':
+                default_api_base = None
+                default_api_key = None
             else:
                 # 默认为 gemini（Google）
                 default_api_base = Config.GOOGLE_API_BASE or None
@@ -101,6 +134,9 @@ class Settings(db.Model):
                 image_caption_model=Config.IMAGE_CAPTION_MODEL,
                 output_language='zh',  # 默认中文
                 baidu_ocr_api_key=Config.BAIDU_OCR_API_KEY or None,
+                text_model_source=getattr(Config, 'TEXT_MODEL_SOURCE', None),
+                image_model_source=getattr(Config, 'IMAGE_MODEL_SOURCE', None),
+                image_caption_model_source=getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
             )
             settings.id = 1
             db.session.add(settings)

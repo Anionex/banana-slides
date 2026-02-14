@@ -338,8 +338,6 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 <reference_information>
 整个PPT的大纲为：
 {outline_text}
-
-当前位于章节：{current_section}
 </reference_information>
 
 
@@ -496,9 +494,11 @@ Each element should be a string containing the page description in the following
 - [要点2]
 ...
 
+其他页面素材（如果有排版、风格、素材等细节）
+
 Example output format:
 [
-    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"...",
+    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"\\n- 奠定了AI的理论基础\\n\\n其他页面素材：\\n排版：标题居中，大字号\\n风格：科技感蓝色背景",
     "页面标题：AI 的发展历程\\n页面文字：\\n- 1950年代：符号主义...",
     ...
 ]
@@ -506,7 +506,8 @@ Example output format:
 Important rules:
 - Split the description text according to the outline structure
 - Each page description should match the corresponding page in the outline
-- Preserve all important content from the original text
+- Preserve all important content from the original text, including layout details (排版细节), style requirements (风格要求), material specifications (素材说明), and any other design requirements
+- If the user described layout, style, or materials for a page, include them in the "其他页面素材" section
 - Keep the format consistent with the example above
 - If a page in the outline doesn't have a clear description in the text, create a reasonable description based on the outline
 
@@ -926,4 +927,112 @@ def get_quality_enhancement_prompt(inpainted_regions: list = None) -> str:
 # 你是一位专业的图像修复专家。请你修复上传的图像，去除其中的涂抹痕迹，消除所有的模糊、噪点、伪影，输出处理后的高清图像，其他区域保持和原图**完全相同**，颜色、布局、线条、装饰需要完全一致.
 # {regions_info}
 # """
+    return prompt
+
+
+def get_ppt_page_content_extraction_prompt(markdown_text: str, language: str = None) -> str:
+    """
+    从 fileparser 解析出的 markdown 文本中提取页面内容（title, points, description）
+
+    Args:
+        markdown_text: 单页 PDF 解析出的 markdown 文本
+        language: 输出语言
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = f"""\
+You are a helpful assistant that extracts structured PPT page content from parsed document text.
+
+The following markdown text was extracted from a single PPT slide:
+
+<slide_content>
+{markdown_text}
+</slide_content>
+
+Your task is to extract the following structured information from this slide:
+
+1. **title**: The main title/heading of the slide
+2. **points**: A list of key bullet points or content items on the slide
+3. **description**: A complete page description suitable for regenerating this slide, following this format:
+
+页面标题：[title]
+
+页面文字：
+- [point 1]
+- [point 2]
+...
+
+其他页面素材（如果有图表、表格、公式等描述，保留原文中的markdown图片完整形式）
+
+Rules:
+- Extract the title faithfully from the first heading in the markdown. Do NOT invent or rephrase it
+- Points must be extracted verbatim from the slide content, in their original order
+- In the description, 页面标题 and 页面文字 must be copied verbatim from the original text (punctuation may be normalized, but wording must be identical)
+- The description should capture ALL content on the slide including text, data, and visual element descriptions
+- If there are tables, charts, or formulas, describe them in the description under "其他页面素材"
+- Preserve the original language of the content
+
+Return a JSON object with exactly these three fields: "title", "points" (array of strings), "description" (string).
+Return only the JSON, no other text.
+{get_language_instruction(language)}
+"""
+    logger.debug(f"[get_ppt_page_content_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_layout_caption_prompt() -> str:
+    """
+    描述 PPT 页面的排版布局（给 caption model 用）
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = """\
+You are a professional PPT layout analyst. Describe the visual layout and composition of this PPT slide image in detail.
+
+Focus on:
+1. **Overall layout**: How elements are arranged (e.g., title at top, content in two columns, image on the right)
+2. **Text placement**: Where text blocks are positioned, their relative sizes, alignment
+3. **Visual elements**: Position and size of images, charts, icons, decorative elements
+4. **Spacing and proportions**: How space is distributed between elements
+
+Output a concise layout description in Chinese that can be used to recreate a similar layout. Format:
+
+排版布局：
+- 整体结构：[描述]
+- 标题位置：[描述]
+- 内容区域：[描述]
+- 视觉元素：[描述]
+
+Only describe the layout and spatial arrangement. Do not describe colors, text content, or style.
+"""
+    logger.debug(f"[get_layout_caption_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_style_extraction_prompt() -> str:
+    """
+    从图片中提取风格描述（通用，可复用于所有创建模式）
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = """\
+You are a professional PPT design analyst. Analyze this image and extract a detailed style description that can be used to generate PPT slides with a similar visual style.
+
+Focus on:
+1. **Color palette**: Primary colors, secondary colors, accent colors, background colors
+2. **Typography style**: Font style impression (serif/sans-serif, weight, size hierarchy)
+3. **Design elements**: Decorative patterns, shapes, icons style, borders, shadows
+4. **Overall mood**: Professional, playful, minimalist, corporate, creative, etc.
+5. **Layout tendencies**: How content is typically arranged, spacing preferences
+
+Output a concise style description in Chinese that can be directly used as a style prompt for PPT generation. Write it as a single paragraph, not a list. Example:
+
+"采用深蓝色渐变背景，搭配白色和金色文字。整体风格简约商务，使用无衬线字体，标题加粗突出。页面装饰以几何线条和半透明色块为主，配色统一协调。内容区域留白充足，视觉层次分明。"
+
+Only output the style description text, no other content.
+"""
+    logger.debug(f"[get_style_extraction_prompt] Final prompt:\n{prompt}")
     return prompt

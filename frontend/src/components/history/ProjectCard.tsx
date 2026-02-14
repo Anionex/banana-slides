@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, FileText, ChevronRight, Trash2 } from 'lucide-react';
+import { useT } from '@/hooks/useT';
 import { Card } from '@/components/shared';
 import { getProjectTitle, getFirstPageImage, formatDate, getStatusText, getStatusColor } from '@/utils/projectUtils';
 import type { Project } from '@/types';
+
+// ProjectCard 组件自包含翻译
+const projectCardI18n = {
+  zh: {
+    projectCard: { pages: "{{count}} 页", page: "第 {{num}} 页" }
+  },
+  en: {
+    projectCard: { pages: "{{count}} pages", page: "Page {{num}}" }
+  }
+};
 
 export interface ProjectCardProps {
   project: Project;
@@ -33,6 +44,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onSaveEdit,
   isBatchMode,
 }) => {
+  const t = useT(projectCardI18n);
   // 检测屏幕尺寸，只在非手机端加载图片（必须在早期返回之前声明hooks）
   const [shouldLoadImage, setShouldLoadImage] = useState(false);
   
@@ -62,8 +74,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     <Card
       className={`p-3 md:p-6 transition-all ${
         isSelected 
-          ? 'border-2 border-banana-500 bg-banana-50' 
-          : 'hover:shadow-lg border border-gray-200'
+          ? 'border-2 border-banana-500 bg-banana-50 dark:bg-background-secondary' 
+          : 'hover:shadow-lg border border-gray-200 dark:border-border-primary'
       } ${isBatchMode ? 'cursor-default' : 'cursor-pointer'}`}
       onClick={() => onSelect(project)}
     >
@@ -74,7 +86,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             type="checkbox"
             checked={isSelected}
             onChange={() => onToggleSelect(projectId)}
-            className="w-4 h-4 text-banana-600 border-gray-300 rounded focus:ring-banana-500 cursor-pointer"
+            className="w-4 h-4 text-banana-600 border-gray-300 dark:border-border-primary rounded focus:ring-banana-500 cursor-pointer"
           />
         </div>
         
@@ -89,18 +101,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                 onKeyDown={(e) => onTitleKeyDown(e, projectId)}
                 onBlur={() => onSaveEdit(projectId)}
                 autoFocus
-                className="text-base md:text-lg font-semibold text-gray-900 px-2 py-1 border border-banana-500 rounded focus:outline-none focus:ring-2 focus:ring-banana-500 flex-1 min-w-0"
+                className="text-base md:text-lg font-semibold text-gray-900 dark:text-foreground-primary px-2 py-1 border border-banana-500 rounded focus:outline-none focus:ring-2 focus:ring-banana-500 flex-1 min-w-0"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
               <h3 
-                className={`text-base md:text-lg font-semibold text-gray-900 truncate flex-1 min-w-0 ${
+                className={`text-base md:text-lg font-semibold text-gray-900 dark:text-foreground-primary truncate flex-1 min-w-0 ${
                   isBatchMode 
                     ? 'cursor-default' 
                     : 'cursor-pointer hover:text-banana-600 transition-colors'
                 }`}
                 onClick={(e) => onStartEdit(e, project)}
-                title={isBatchMode ? undefined : "点击编辑名称"}
+                title={isBatchMode ? undefined : t('common.edit')}
               >
                 {title}
               </h3>
@@ -109,10 +121,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               {statusText}
             </span>
           </div>
-          <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-500 flex-wrap">
+          <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary flex-wrap">
             <span className="flex items-center gap-1">
               <FileText size={14} />
-              {pageCount} 页
+              {t('projectCard.pages', { count: pageCount })}
             </span>
             <span className="flex items-center gap-1">
               <Clock size={14} />
@@ -122,11 +134,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
         
         {/* 右侧：图片预览 */}
-        <div className="hidden sm:block w-40 h-24 md:w-64 md:h-36 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+        <div className="hidden sm:block w-40 h-24 md:w-64 md:h-36 rounded-lg overflow-hidden bg-gray-100 dark:bg-background-secondary border border-gray-200 dark:border-border-primary flex-shrink-0">
           {firstPageImage ? (
             <img
               src={firstPageImage}
-              alt="第一页预览"
+              alt={t('projectCard.page', { num: 1 })}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -141,7 +153,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <button
             onClick={(e) => onDelete(e, project)}
             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="删除项目"
+            title={t('common.delete')}
           >
             <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
           </button>

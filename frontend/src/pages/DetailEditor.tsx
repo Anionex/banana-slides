@@ -1,15 +1,73 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, FileText, Sparkles, Download } from 'lucide-react';
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ProjectResourcesList } from '@/components/shared';
+import { useT } from '@/hooks/useT';
+
+// 组件内翻译
+const detailI18n = {
+  zh: {
+    home: { title: '蕉幻' },
+    detail: {
+      title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
+      generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
+      description: "描述", batchGenerate: "批量生成描述", export: "导出描述",
+      pagesCompleted: "页已完成", noPages: "还没有页面",
+      noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
+      aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
+      aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
+      renovationProcessing: "正在解析页面内容...",
+      renovationProgress: "{{completed}}/{{total}} 页",
+      renovationFailed: "PDF 解析失败，请返回重试",
+      renovationPollFailed: "与服务器通信失败，请检查网络后刷新页面重试",
+      messages: {
+        generateSuccess: "生成成功", generateFailed: "生成失败",
+        confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
+        confirmRegenerateTitle: "确认重新生成",
+        confirmRegeneratePage: "该页面已有描述，重新生成将覆盖现有内容，确定继续吗？",
+        confirmRenovationRegenerate: "您现在是 PPT 翻新模式，重新生成会依照原 PPT 相同页码页面，重新解析并生成该页的大纲和描述，覆盖已有内容。确定要继续吗？",
+        confirmRenovationRegenerateTitle: "重新解析此页",
+        refineSuccess: "页面描述修改成功", refineFailed: "修改失败，请稍后重试",
+        exportSuccess: "导出成功", loadingProject: "加载项目中..."
+      }
+    }
+  },
+  en: {
+    home: { title: 'Banana Slides' },
+    detail: {
+      title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
+      generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
+      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions",
+      pagesCompleted: "pages completed", noPages: "No pages yet",
+      noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
+      aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
+      aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
+      renovationProcessing: "Parsing page content...",
+      renovationProgress: "{{completed}}/{{total}} pages",
+      renovationFailed: "PDF parsing failed, please go back and retry",
+      renovationPollFailed: "Lost connection to server. Please check your network and refresh the page.",
+      messages: {
+        generateSuccess: "Generated successfully", generateFailed: "Generation failed",
+        confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
+        confirmRegenerateTitle: "Confirm Regenerate",
+        confirmRegeneratePage: "This page already has a description. Regenerating will overwrite it. Continue?",
+        confirmRenovationRegenerate: "You are in PPT renovation mode. Regenerating will re-parse the original PDF page and regenerate the outline and description, overwriting existing content. Continue?",
+        confirmRenovationRegenerateTitle: "Re-parse This Page",
+        refineSuccess: "Descriptions modified successfully", refineFailed: "Modification failed, please try again",
+        exportSuccess: "Export successful", loadingProject: "Loading project..."
+      }
+    }
+  }
+};
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus } from '@/api/endpoints';
 import { exportDescriptionsToMarkdown } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const t = useT(detailI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
@@ -18,12 +76,80 @@ export const DetailEditor: React.FC = () => {
     updatePageLocal,
     generateDescriptions,
     generatePageDescription,
+    regenerateRenovationPage,
     pageDescriptionGeneratingTasks,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
   const [isAiRefining, setIsAiRefining] = React.useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
+  const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
+
+  // PPT 翻新：异步任务轮询
+  useEffect(() => {
+    if (!projectId) return;
+    const taskId = localStorage.getItem('renovationTaskId');
+    if (!taskId) return;
+
+    setIsRenovationProcessing(true);
+    let cancelled = false;
+    let pollFailCount = 0;
+
+    const poll = async () => {
+      try {
+        const response = await getTaskStatus(projectId, taskId);
+        if (cancelled) return;
+        const task = response.data;
+        if (!task) return;
+        pollFailCount = 0; // reset on success
+
+        if (task.progress) {
+          setRenovationProgress({
+            total: task.progress.total || 0,
+            completed: task.progress.completed || 0,
+          });
+        }
+
+        // Sync project to get latest page data (incremental updates)
+        await syncProject(projectId);
+
+        if (task.status === 'COMPLETED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          await syncProject(projectId);
+          return;
+        }
+
+        if (task.status === 'FAILED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: task.error_message || t('detail.renovationFailed'), type: 'error' });
+          return;
+        }
+
+        // Still processing — poll again
+        setTimeout(poll, 2000);
+      } catch (err) {
+        if (cancelled) return;
+        pollFailCount++;
+        console.error('Renovation task poll error:', err);
+        if (pollFailCount >= 5) {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: t('detail.renovationPollFailed'), type: 'error' });
+          return;
+        }
+        setTimeout(poll, 3000);
+      }
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   // 加载项目数据
   useEffect(() => {
@@ -52,9 +178,9 @@ export const DetailEditor: React.FC = () => {
     
     if (hasDescriptions) {
       confirm(
-        '部分页面已有描述，重新生成将覆盖，确定继续吗？',
+        t('detail.messages.confirmRegenerate'),
         executeGenerate,
-        { title: '确认重新生成', variant: 'warning' }
+        { title: t('detail.messages.confirmRegenerateTitle'), variant: 'warning' }
       );
     } else {
       await executeGenerate();
@@ -63,38 +189,44 @@ export const DetailEditor: React.FC = () => {
 
   const handleRegeneratePage = async (pageId: string) => {
     if (!currentProject) return;
-    
+
     const page = currentProject.pages.find((p) => p.id === pageId);
     if (!page) return;
-    
-    // 如果已有描述，询问是否覆盖
-    if (page.description_content) {
+
+    // 判断是否是 PPT 翻新模式
+    const isRenovation = currentProject.creation_type === 'ppt_renovation';
+
+    const executeRegenerate = async () => {
+      try {
+        if (isRenovation) {
+          await regenerateRenovationPage(pageId);
+        } else {
+          await generatePageDescription(pageId);
+        }
+        show({ message: t('detail.messages.generateSuccess'), type: 'success' });
+      } catch (error: any) {
+        show({
+          message: `${t('detail.messages.generateFailed')}: ${error.message || t('common.unknownError')}`,
+          type: 'error'
+        });
+      }
+    };
+
+    // PPT 翻新模式 或 已有描述时，需要确认
+    if (isRenovation) {
       confirm(
-        '该页面已有描述，重新生成将覆盖现有内容，确定继续吗？',
-        async () => {
-          try {
-            await generatePageDescription(pageId);
-            show({ message: '生成成功', type: 'success' });
-          } catch (error: any) {
-            show({ 
-              message: `生成失败: ${error.message || '未知错误'}`, 
-              type: 'error' 
-            });
-          }
-        },
-        { title: '确认重新生成', variant: 'warning' }
+        t('detail.messages.confirmRenovationRegenerate'),
+        executeRegenerate,
+        { title: t('detail.messages.confirmRenovationRegenerateTitle'), variant: 'warning' }
       );
-      return;
-    }
-    
-    try {
-      await generatePageDescription(pageId);
-      show({ message: '生成成功', type: 'success' });
-    } catch (error: any) {
-      show({ 
-        message: `生成失败: ${error.message || '未知错误'}`, 
-        type: 'error' 
-      });
+    } else if (page.description_content) {
+      confirm(
+        t('detail.messages.confirmRegeneratePage'),
+        executeRegenerate,
+        { title: t('detail.messages.confirmRegenerateTitle'), variant: 'warning' }
+      );
+    } else {
+      await executeRegenerate();
     }
   };
 
@@ -105,28 +237,28 @@ export const DetailEditor: React.FC = () => {
       const response = await refineDescriptions(projectId, requirement, previousRequirements);
       await syncProject(projectId);
       show({ 
-        message: response.data?.message || '页面描述修改成功', 
+        message: response.data?.message || t('detail.messages.refineSuccess'), 
         type: 'success' 
       });
     } catch (error: any) {
       console.error('修改页面描述失败:', error);
       const errorMessage = error?.response?.data?.error?.message 
         || error?.message 
-        || '修改失败，请稍后重试';
+        || t('detail.messages.refineFailed');
       show({ message: errorMessage, type: 'error' });
       throw error; // 抛出错误让组件知道失败了
     }
-  }, [currentProject, projectId, syncProject, show]);
+  }, [currentProject, projectId, syncProject, show, t]);
 
   // 导出页面描述为 Markdown 文件
   const handleExportDescriptions = useCallback(() => {
     if (!currentProject) return;
     exportDescriptionsToMarkdown(currentProject);
-    show({ message: '导出成功', type: 'success' });
-  }, [currentProject, show]);
+    show({ message: t('detail.messages.exportSuccess'), type: 'success' });
+  }, [currentProject, show, t]);
 
   if (!currentProject) {
-    return <Loading fullscreen message="加载项目中..." />;
+    return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
   }
 
   const hasAllDescriptions = currentProject.pages.every(
@@ -134,9 +266,9 @@ export const DetailEditor: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-background-primary flex flex-col">
       {/* 顶栏 */}
-      <header className="bg-white shadow-sm border-b border-gray-200 px-3 md:px-6 py-2 md:py-3 flex-shrink-0">
+      <header className="bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-2 md:py-3 flex-shrink-0">
         <div className="flex items-center justify-between gap-2 md:gap-4">
           {/* 左侧：Logo 和标题 */}
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
@@ -151,30 +283,31 @@ export const DetailEditor: React.FC = () => {
                   navigate(`/project/${projectId}/outline`);
                 }
               }}
+              disabled={isRenovationProcessing}
               className="flex-shrink-0"
             >
-              <span className="hidden sm:inline">返回</span>
+              <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
               <span className="text-xl md:text-2xl">🍌</span>
-              <span className="text-base md:text-xl font-bold">蕉幻</span>
+              <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
-            <span className="text-sm md:text-lg font-semibold hidden lg:inline">编辑页面描述</span>
+            <span className="text-sm md:text-lg font-semibold hidden lg:inline">{t('detail.title')}</span>
           </div>
           
           {/* 中间：AI 修改输入框 */}
           <div className="flex-1 max-w-xl mx-auto hidden md:block md:-translate-x-3 pr-10">
             <AiRefineInput
               title=""
-              placeholder="例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交"
+              placeholder={t('detail.aiPlaceholder')}
               onSubmit={handleAiRefineDescriptions}
-              disabled={false}
+              disabled={isRenovationProcessing}
               className="!p-0 !bg-transparent !border-0"
               onStatusChange={setIsAiRefining}
             />
           </div>
-          
+
           {/* 右侧：操作按钮 */}
           <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
             <Button
@@ -182,30 +315,31 @@ export const DetailEditor: React.FC = () => {
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/outline`)}
+              disabled={isRenovationProcessing}
               className="hidden md:inline-flex"
             >
-              <span className="hidden lg:inline">上一步</span>
+              <span className="hidden lg:inline">{t('common.previous')}</span>
             </Button>
             <Button
               variant="primary"
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/preview`)}
-              disabled={!hasAllDescriptions}
+              disabled={!hasAllDescriptions || isRenovationProcessing}
               className="text-xs md:text-sm"
             >
-              <span className="hidden sm:inline">生成图片</span>
+              <span className="hidden sm:inline">{t('detail.generateImages')}</span>
             </Button>
           </div>
         </div>
         
         {/* 移动端：AI 输入框 */}
         <div className="mt-2 md:hidden">
-          <AiRefineInput
+            <AiRefineInput
             title=""
-            placeholder="例如：让描述更详细... · Ctrl+Enter"
+            placeholder={t('detail.aiPlaceholderShort')}
             onSubmit={handleAiRefineDescriptions}
-            disabled={false}
+            disabled={isRenovationProcessing}
             className="!p-0 !bg-transparent !border-0"
             onStatusChange={setIsAiRefining}
           />
@@ -213,7 +347,35 @@ export const DetailEditor: React.FC = () => {
       </header>
 
       {/* 操作栏 */}
-      <div className="bg-white border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+        {isRenovationProcessing ? (
+          <div className="max-w-xl mx-auto">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
+                {t('detail.renovationProcessing')}
+              </span>
+              {renovationProgress && renovationProgress.total > 0 && (
+                <span className="text-sm font-medium text-banana-600 dark:text-banana">
+                  {t('detail.renovationProgress', { completed: String(renovationProgress.completed), total: String(renovationProgress.total) })}
+                </span>
+              )}
+            </div>
+            <div className="w-full h-2.5 bg-gray-200 dark:bg-background-hover rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-banana-400 to-banana-500 rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: renovationProgress && renovationProgress.total > 0
+                    ? `${Math.round((renovationProgress.completed / renovationProgress.total) * 100)}%`
+                    : '0%',
+                  animation: !renovationProgress || renovationProgress.total === 0
+                    ? 'pulse 1.5s ease-in-out infinite'
+                    : undefined,
+                  minWidth: !renovationProgress || renovationProgress.completed === 0 ? '10%' : undefined,
+                }}
+              />
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-1">
             <Button
@@ -222,7 +384,7 @@ export const DetailEditor: React.FC = () => {
               onClick={handleGenerateAll}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
-              批量生成描述
+              {t('detail.batchGenerate')}
             </Button>
             <Button
               variant="secondary"
@@ -231,60 +393,83 @@ export const DetailEditor: React.FC = () => {
               disabled={!currentProject.pages.some(p => p.description_content)}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
-              导出描述
+              {t('detail.export')}
             </Button>
-            <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
+            <span className="text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}
-              {currentProject.pages.length} 页已完成
+              {currentProject.pages.length} {t('detail.pagesCompleted')}
             </span>
           </div>
         </div>
+        )}
       </div>
 
       {/* 主内容区 */}
       <main className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-7xl mx-auto">
-          {/* 项目资源列表（文件和图片） */}
-          <ProjectResourcesList
-            projectId={projectId || null}
+          <ReferenceFileList
+            projectId={projectId}
             onFileClick={setPreviewFileId}
-            showFiles={true}
-            showImages={true}
+            className="mb-4"
           />
-          
-          {currentProject.pages.length === 0 ? (
+          {currentProject.pages.length === 0 && !isRenovationProcessing ? (
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4"><FileText size={48} className="text-gray-300" /></div>
-              <h3 className="text-lg md:text-xl font-semibold text-gray-700 mb-2">
-                还没有页面
+              <h3 className="text-lg md:text-xl font-semibold text-gray-700 dark:text-foreground-secondary mb-2">
+                {t('detail.noPages')}
               </h3>
-              <p className="text-sm md:text-base text-gray-500 mb-6">
-                请先返回大纲编辑页添加页面
+              <p className="text-sm md:text-base text-gray-500 dark:text-foreground-tertiary mb-6">
+                {t('detail.noPagesHint')}
               </p>
               <Button
                 variant="primary"
                 onClick={() => navigate(`/project/${projectId}/outline`)}
                 className="text-sm md:text-base"
               >
-                返回大纲编辑
+                {t('detail.backToOutline')}
               </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-              {currentProject.pages.map((page, index) => {
+              {isRenovationProcessing && currentProject.pages.length === 0 ? (
+                /* Placeholder skeleton cards while renovation creates pages */
+                Array.from({ length: renovationProgress?.total || 6 }).map((_, index) => (
+                  <DescriptionCard
+                    key={`skeleton-${index}`}
+                    page={{ id: `skeleton-${index}`, title: '', sort_order: index } as any}
+                    index={index}
+                    projectId={currentProject.id}
+                    showToast={show}
+                    onUpdate={() => {}}
+                    onRegenerate={() => {}}
+                    isGenerating={true}
+                    isAiRefining={false}
+                  />
+                ))
+              ) : (
+                currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
+                // Show skeleton only if page has no description content yet
+                const hasDescription = page.description_content && (
+                  (typeof page.description_content === 'string' && page.description_content.trim()) ||
+                  (typeof page.description_content === 'object' && page.description_content.text?.trim())
+                );
+                const pageIsGenerating = isRenovationProcessing && !hasDescription;
                 return (
                   <DescriptionCard
                     key={pageId}
                     page={page}
                     index={index}
+                    projectId={currentProject.id}
+                    showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => handleRegeneratePage(pageId)}
-                    isGenerating={pageId ? !!pageDescriptionGeneratingTasks[pageId] : false}
+                    isGenerating={pageIsGenerating || (pageId ? !!pageDescriptionGeneratingTasks[pageId] : false)}
                     isAiRefining={isAiRefining}
                   />
                 );
-              })}
+              })
+              )}
             </div>
           )}
         </div>

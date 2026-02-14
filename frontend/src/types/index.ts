@@ -71,6 +71,8 @@ export interface Project {
   // 导出设置
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法
+  export_allow_partial?: boolean; // 是否允许返回半成品（导出出错时继续而非停止）
+  image_aspect_ratio?: string; // 画面比例（如 16:9, 4:3）
   status: ProjectStatus;
   pages: Page[];
   created_at: string;
@@ -106,6 +108,7 @@ export interface CreateProjectRequest {
   description_text?: string;
   template_image?: File;
   template_style?: string;
+  image_aspect_ratio?: string;
 }
 
 // API响应
@@ -120,7 +123,7 @@ export interface ApiResponse<T = any> {
 // 设置
 export interface Settings {
   id: number;
-  ai_provider_format: 'openai' | 'gemini';
+  ai_provider_format: 'openai' | 'gemini' | 'lazyllm';
   api_base_url?: string;
   api_key_length: number;
   image_resolution: string;
@@ -139,8 +142,12 @@ export interface Settings {
   enable_image_reasoning: boolean;
   image_thinking_budget: number;
   baidu_ocr_api_key_length: number;
+  // LazyLLM 配置
+  text_model_source?: string;
+  image_model_source?: string;
+  image_caption_model_source?: string;
+  lazyllm_api_keys_info?: Record<string, number>;  // {vendor: key_length}
   created_at?: string;
   updated_at?: string;
 }
-
 

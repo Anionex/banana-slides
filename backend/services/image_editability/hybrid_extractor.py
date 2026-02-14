@@ -226,43 +226,67 @@ class HybridElementExtractor(ElementExtractor):
         
         mineru_result = None
         baidu_result = None
-        
+        mineru_error = None
+        baidu_error = None
+
         def run_mineru():
             return self._mineru_extractor.extract(image_path, element_type, **kwargs)
-        
+
         def run_baidu_ocr():
             return self._baidu_ocr_extractor.extract(image_path, element_type, **kwargs)
-        
+
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_mineru = executor.submit(run_mineru)
             future_baidu = executor.submit(run_baidu_ocr)
-            
+
             # 等待两个任务完成
             for future in as_completed([future_mineru, future_baidu]):
                 try:
                     if future == future_mineru:
                         mineru_result = future.result()
-                        logger.info(f"{indent}  ✅ MinerU识别到 {len(mineru_result.elements)} 个元素")
+                        # 检查结果是否带有错误
+                        if mineru_result.has_error:
+                            mineru_error = mineru_result.error
+                            logger.error(f"{indent}  ❌ MinerU提取错误: {mineru_error}")
+                        else:
+                            logger.info(f"{indent}  ✅ MinerU识别到 {len(mineru_result.elements)} 个元素")
                     else:
                         baidu_result = future.result()
-                        logger.info(f"{indent}  ✅ 百度OCR识别到 {len(baidu_result.elements)} 个元素")
+                        if baidu_result.has_error:
+                            baidu_error = baidu_result.error
+                            logger.error(f"{indent}  ❌ 百度OCR提取错误: {baidu_error}")
+                        else:
+                            logger.info(f"{indent}  ✅ 百度OCR识别到 {len(baidu_result.elements)} 个元素")
                 except Exception as e:
-                    logger.error(f"{indent}  ❌ 提取失败: {e}")
-        
-        # 确保两个结果都存在
+                    if future == future_mineru:
+                        mineru_error = str(e)
+                        logger.error(f"{indent}  ❌ MinerU提取失败: {e}")
+                    else:
+                        baidu_error = str(e)
+                        logger.error(f"{indent}  ❌ 百度OCR提取失败: {e}")
+
+        # 确保两个结果都存在（即使有错误也创建空结果以便继续合并）
         if mineru_result is None:
-            mineru_result = ExtractionResult(elements=[])
+            mineru_result = ExtractionResult(elements=[], error=mineru_error)
         if baidu_result is None:
-            baidu_result = ExtractionResult(elements=[])
+            baidu_result = ExtractionResult(elements=[], error=baidu_error)
         
         mineru_elements = mineru_result.elements
         baidu_elements = baidu_result.elements
-        
+
         # 2. 合并结果
         logger.info(f"{indent}🔧 Step 2: 合并结果...")
         merged_elements = self._merge_results(mineru_elements, baidu_elements, depth)
         logger.info(f"{indent}  合并后共 {len(merged_elements)} 个元素")
-        
+
+        # 合并错误信息
+        errors = []
+        if mineru_result.has_error:
+            errors.append(f"MinerU: {mineru_result.error}")
+        if baidu_result.has_error:
+            errors.append(f"百度OCR: {baidu_result.error}")
+        combined_error = "; ".join(errors) if errors else None
+
         # 合并上下文
         context = ExtractionContext(
             result_dir=mineru_result.context.result_dir,
@@ -271,11 +295,13 @@ class HybridElementExtractor(ElementExtractor):
                 'mineru_count': len(mineru_elements),
                 'baidu_count': len(baidu_elements),
                 'merged_count': len(merged_elements),
+                'mineru_error': mineru_result.error,
+                'baidu_error': baidu_result.error,
                 **mineru_result.context.metadata
             }
         )
-        
-        return ExtractionResult(elements=merged_elements, context=context)
+
+        return ExtractionResult(elements=merged_elements, context=context, error=combined_error)
     
     def _merge_results(
         self,

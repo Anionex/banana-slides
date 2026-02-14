@@ -30,9 +30,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   const variantStyles = {
-    danger: 'text-red-600',
-    warning: 'text-yellow-600',
-    info: 'text-blue-600',
+    danger: 'text-red-600 dark:text-red-400',
+    warning: 'text-yellow-600 dark:text-yellow-400',
+    info: 'text-blue-600 dark:text-blue-400',
   };
 
   return (
@@ -43,7 +43,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             size={24}
             className={`flex-shrink-0 mt-0.5 ${variantStyles[variant]}`}
           />
-          <p className="text-gray-700 flex-1">{message}</p>
+          <p className="text-gray-700 dark:text-foreground-secondary flex-1">{message}</p>
         </div>
         <div className="flex justify-end gap-3 pt-4">
           <Button variant="ghost" onClick={onClose}>

@@ -21,9 +21,18 @@ dependencies = [
     "alembic>=1.13.0",
     "flask-migrate>=4.0.0",
     "img2pdf>=0.5.1",
+    "lazyllm>=0.7.3",
+    "volcengine-python-sdk[ark]>=5.0.9",
+    "PyPDF2>=3.0.0",
+    "PyMuPDF>=1.24.0",
 ]
 
 [project.optional-dependencies]
+lazyllm = [
+    "lazyllm",
+    "dashscope",
+    "zhipuai",
+]
 test = [
     "pytest>=7.4.0",
     "pytest-mock>=3.12.0",
@@ -32,6 +41,11 @@ test = [
     "httpx>=0.25.0",
     "flake8>=6.1.0",
     "black>=23.0.0",
+]
+sdk = [
+    "dashscope",
+    "volcengine-python-sdk",
+    
 ]
 
 [tool.uv]

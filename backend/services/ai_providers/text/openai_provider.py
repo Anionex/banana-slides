@@ -3,7 +3,7 @@ OpenAI SDK implementation for text generation
 """
 import logging
 from openai import OpenAI
-from .base import TextProvider
+from .base import TextProvider, strip_think_tags
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -46,4 +46,4 @@ class OpenAITextProvider(TextProvider):
                 {"role": "user", "content": prompt}
             ]
         )
-        return response.choices[0].message.content
+        return strip_think_tags(response.choices[0].message.content)
