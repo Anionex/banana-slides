@@ -397,139 +397,162 @@ class AIService:
         result = "\n".join(text_parts)
         return dedent(result)
     
-    def generate_image_prompt(self, outline: List[Dict], page: Dict, 
-                            page_desc: str, page_index: int, 
-                            has_material_images: bool = False,
+    def generate_image_prompt(self, outline: List[Dict], page: Dict,
+                            page_desc: str, page_index: int,
                             extra_requirements: Optional[str] = None,
                             language='zh',
-                            has_template: bool = True) -> str:
+                            has_template: bool = True,
+                            ref_image_path: Optional[str] = None,
+                            additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                            ) -> list:
         """
-        Generate image generation prompt for a page
-        Based on demo.py gen_prompts()
-        
+        Generate image generation prompt for a page (interleaved text + images)
+
         Args:
             outline: Complete outline
             page: Page outline data
             page_desc: Page description text
             page_index: Page number (1-indexed)
-            has_material_images: 是否有素材图片（从项目描述中提取的图片）
             extra_requirements: Optional extra requirements to apply to all pages
             language: Output language
             has_template: 是否有模板图片（False表示无模板图模式）
-        
+            ref_image_path: 模板参考图片路径
+            additional_ref_images: 素材图片列表（路径、URL 或 PIL Image）
+
         Returns:
-            Image generation prompt
+            list[str | Image] — 可直接作为模型 contents 使用
         """
         outline_text = self.generate_outline_text(outline)
-        
+
         # Determine current section
         if 'part' in page:
             current_section = page['part']
         else:
             current_section = f"{page.get('title', 'Untitled')}"
-        
+
         # 在传给文生图模型之前，移除 Markdown 图片链接
         # 图片本身已经通过 additional_ref_images 传递，只保留文字描述
         cleaned_page_desc = self.remove_markdown_images(page_desc)
-        
-        prompt = get_image_generation_prompt(
+
+        # 加载图片
+        template_image = self._load_ref_image(ref_image_path)
+        material_images = self._load_additional_images(additional_ref_images)
+
+        contents = get_image_generation_prompt(
             page_desc=cleaned_page_desc,
             outline_text=outline_text,
             current_section=current_section,
-            has_material_images=has_material_images,
             extra_requirements=extra_requirements,
             language=language,
             has_template=has_template,
-            page_index=page_index
+            page_index=page_index,
+            template_image=template_image,
+            material_images=material_images if material_images else None,
         )
-        
-        return prompt
-    
-    def generate_image(self, prompt: str, ref_image_path: Optional[str] = None, 
+
+        return contents
+
+    def _load_ref_image(self, ref_image_path: Optional[str]) -> Optional[Image.Image]:
+        """加载主参考图片（模板图）"""
+        if not ref_image_path:
+            return None
+        if not os.path.exists(ref_image_path):
+            raise FileNotFoundError(f"Reference image not found: {ref_image_path}")
+        return Image.open(ref_image_path)
+
+    def _load_additional_images(self, additional_ref_images: Optional[List[Union[str, Image.Image]]]) -> List[Image.Image]:
+        """加载额外参考图片列表（素材图）"""
+        if not additional_ref_images:
+            return []
+
+        loaded = []
+        for ref_img in additional_ref_images:
+            if isinstance(ref_img, Image.Image):
+                loaded.append(ref_img)
+            elif isinstance(ref_img, str):
+                img = self._load_image_from_ref(ref_img)
+                if img:
+                    loaded.append(img)
+        return loaded
+
+    def _load_image_from_ref(self, ref_img: str) -> Optional[Image.Image]:
+        """从路径或 URL 加载单张图片"""
+        if os.path.exists(ref_img):
+            return Image.open(ref_img)
+        elif ref_img.startswith('http://') or ref_img.startswith('https://'):
+            downloaded_img = self.download_image_from_url(ref_img)
+            if not downloaded_img:
+                logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
+            return downloaded_img
+        elif ref_img.startswith('/files/mineru/'):
+            local_path = self._convert_mineru_path_to_local(ref_img)
+            if local_path and os.path.exists(local_path):
+                logger.debug(f"Loaded MinerU image from local path: {local_path}")
+                return Image.open(local_path)
+            else:
+                logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
+                return None
+        elif ref_img.startswith('/files/'):
+            upload_folder = os.environ.get('UPLOAD_FOLDER', '')
+            relative_path = ref_img[len('/files/'):].lstrip('/')
+            local_path = os.path.abspath(os.path.join(upload_folder, relative_path))
+            if not local_path.startswith(os.path.abspath(upload_folder)):
+                logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
+                return None
+            elif os.path.exists(local_path):
+                logger.debug(f"Loaded image from local path: {local_path}")
+                return Image.open(local_path)
+            else:
+                logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
+                return None
+        else:
+            logger.warning(f"Invalid image reference: {ref_img}, skipping...")
+            return None
+
+    def generate_image(self, prompt, ref_image_path: Optional[str] = None,
                       aspect_ratio: str = "16:9", resolution: str = "2K",
                       additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
         """
         Generate image using configured image provider
-        Based on gemini_genai.py gen_image()
-        
+
         Args:
-            prompt: Image generation prompt
-            ref_image_path: Path to reference image (optional). If None, will generate based on prompt only.
+            prompt: str (legacy) 或 list[str | Image] (interleaved contents)
+            ref_image_path: Path to reference image (仅 str prompt 时使用)
             aspect_ratio: Image aspect ratio
             resolution: Image resolution (note: OpenAI format only supports 1K)
-            additional_ref_images: 额外的参考图片列表，可以是本地路径、URL 或 PIL Image 对象
-        
+            additional_ref_images: 额外的参考图片列表（仅 str prompt 时使用）
+
         Returns:
             PIL Image object or None if failed
-        
-        Raises:
-            Exception with detailed error message if generation fails
         """
         try:
-            logger.debug(f"Reference image: {ref_image_path}")
-            if additional_ref_images:
-                logger.debug(f"Additional reference images: {len(additional_ref_images)}")
-            logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
+            if isinstance(prompt, list):
+                # 新路径：prompt 已经是交错的 contents 列表
+                contents = prompt
+                num_images = sum(1 for p in contents if not isinstance(p, str))
+                logger.debug(f"Using interleaved contents: {len(contents)} parts, {num_images} images")
+                logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
+            else:
+                # Legacy 路径：str prompt + 分开的图片参数
+                logger.debug(f"Legacy mode - Reference image: {ref_image_path}")
+                if additional_ref_images:
+                    logger.debug(f"Additional reference images: {len(additional_ref_images)}")
+                logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
 
-            # 构建参考图片列表
-            ref_images = []
-            
-            # 添加主参考图片（如果提供了路径）
-            if ref_image_path:
-                if not os.path.exists(ref_image_path):
-                    raise FileNotFoundError(f"Reference image not found: {ref_image_path}")
-                main_ref_image = Image.open(ref_image_path)
-                ref_images.append(main_ref_image)
-            
-            # 添加额外的参考图片
-            if additional_ref_images:
-                for ref_img in additional_ref_images:
-                    if isinstance(ref_img, Image.Image):
-                        # 已经是 PIL Image 对象
-                        ref_images.append(ref_img)
-                    elif isinstance(ref_img, str):
-                        # 可能是本地路径或 URL
-                        if os.path.exists(ref_img):
-                            # 本地路径
-                            ref_images.append(Image.open(ref_img))
-                        elif ref_img.startswith('http://') or ref_img.startswith('https://'):
-                            # URL，需要下载
-                            downloaded_img = self.download_image_from_url(ref_img)
-                            if downloaded_img:
-                                ref_images.append(downloaded_img)
-                            else:
-                                logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
-                        elif ref_img.startswith('/files/mineru/'):
-                            # MinerU 本地文件路径，需要转换为文件系统路径（支持前缀匹配）
-                            local_path = self._convert_mineru_path_to_local(ref_img)
-                            if local_path and os.path.exists(local_path):
-                                ref_images.append(Image.open(local_path))
-                                logger.debug(f"Loaded MinerU image from local path: {local_path}")
-                            else:
-                                logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
-                        elif ref_img.startswith('/files/'):
-                            # 通用 /files/ 路径（materials、项目文件等），转换为文件系统路径
-                            upload_folder = os.environ.get('UPLOAD_FOLDER', '')
-                            relative_path = ref_img[len('/files/'):].lstrip('/')
-                            local_path = os.path.abspath(os.path.join(upload_folder, relative_path))
-                            if not local_path.startswith(os.path.abspath(upload_folder)):
-                                logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
-                            elif os.path.exists(local_path):
-                                ref_images.append(Image.open(local_path))
-                                logger.debug(f"Loaded image from local path: {local_path}")
-                            else:
-                                logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
-                        else:
-                            logger.warning(f"Invalid image reference: {ref_img}, skipping...")
-            
-            logger.debug(f"Calling image provider for generation with {len(ref_images)} reference images...")
+                # 构建 contents 列表（旧模式：图片在前，文本在后）
+                contents = []
+                if ref_image_path:
+                    img = self._load_ref_image(ref_image_path)
+                    if img:
+                        contents.append(img)
+                loaded_additional = self._load_additional_images(additional_ref_images)
+                contents.extend(loaded_additional)
+                contents.append(prompt)
+
             logger.debug(f"Enable image reasoning/thinking: {self.enable_image_reasoning}, budget: {self._get_image_thinking_budget()}")
-            
-            # 使用 image_provider 生成图片
-            # 根据 enable_image_reasoning 配置控制图像生成的思考模式
+
             return self.image_provider.generate_image(
-                prompt=prompt,
-                ref_images=ref_images if ref_images else None,
+                contents=contents,
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
                 enable_thinking=self.enable_image_reasoning,

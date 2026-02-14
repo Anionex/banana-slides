@@ -1,15 +1,102 @@
 """
 AI Service Prompts - 集中管理所有 AI 服务的 prompt 模板
 """
+import re
 import json
 import logging
 from textwrap import dedent
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import List, Dict, Optional, Union, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from services.ai_service import ProjectContext
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# expand_prompt: 将带占位符的文本模板展开为图文交错的 contents 列表
+# ---------------------------------------------------------------------------
+
+def expand_prompt(template: str, images: Dict[str, Any]) -> List[Union[str, Any]]:
+    """
+    将带占位符的 prompt 模板展开为 list[str | Image]。
+
+    占位符语法: ``[[name:label text]]``
+    - *name* 对应 ``images`` dict 的 key
+    - *label text* 是图片前面的说明文字（会作为独立 str 片段输出）
+    - 值非空 → 输出 ``label text`` + 图片对象（列表则展开所有图片）
+    - 值为 None / 空列表 → 整个 ``[[...]]`` 连同 label 一起移除
+
+    最终合并相邻字符串片段，清理因移除占位符产生的多余空行。
+
+    Args:
+        template: 带 ``[[name:label]]`` 占位符的文本
+        images: ``{name: Image | List[Image] | None}``
+
+    Returns:
+        ``list[str | Image]`` — 可直接作为 Gemini contents 使用
+    """
+    # 匹配 [[name:label text]]
+    pattern = re.compile(r'\[\[(\w+):(.*?)\]\]')
+
+    parts: List[Union[str, Any]] = []
+    last_end = 0
+
+    for m in pattern.finditer(template):
+        name = m.group(1)
+        label = m.group(2).strip()
+        value = images.get(name)
+
+        # 文本片段（占位符之前的部分）
+        text_before = template[last_end:m.start()]
+
+        has_value = value is not None and (not isinstance(value, list) or len(value) > 0)
+
+        if has_value:
+            # 保留前面的文本
+            if text_before:
+                parts.append(text_before)
+            # 输出 label + 图片
+            if label:
+                parts.append(label + "\n")
+            if isinstance(value, list):
+                parts.extend(value)
+            else:
+                parts.append(value)
+        else:
+            # 值为空 → 移除占位符，但保留前面的文本（去掉尾部空行）
+            if text_before:
+                parts.append(text_before.rstrip('\n'))
+
+        last_end = m.end()
+
+    # 剩余文本
+    remaining = template[last_end:]
+    if remaining:
+        parts.append(remaining)
+
+    # 合并相邻字符串 & 清理多余空行
+    merged: List[Union[str, Any]] = []
+    for part in parts:
+        if isinstance(part, str):
+            if merged and isinstance(merged[-1], str):
+                merged[-1] += part
+            else:
+                merged.append(part)
+        else:
+            merged.append(part)
+
+    # 清理字符串片段中的多余空行（3个以上连续换行 → 2个）
+    result: List[Union[str, Any]] = []
+    for part in merged:
+        if isinstance(part, str):
+            cleaned = re.sub(r'\n{3,}', '\n\n', part).strip()
+            if cleaned:
+                result.append(cleaned)
+        else:
+            result.append(part)
+
+    return result
 
 
 # 语言配置映射
@@ -287,48 +374,55 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     return final_prompt
 
 
-def get_image_generation_prompt(page_desc: str, outline_text: str, 
+def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 current_section: str,
-                                has_material_images: bool = False,
                                 extra_requirements: str = None,
                                 language: str = None,
                                 has_template: bool = True,
-                                page_index: int = 1) -> str:
+                                page_index: int = 1,
+                                template_image=None,
+                                material_images: Optional[list] = None,
+                                ) -> List[Union[str, Any]]:
     """
-    生成图片生成 prompt
-    
+    生成图片生成 prompt（图文交错列表）
+
     Args:
         page_desc: 页面描述文本
         outline_text: 大纲文本
         current_section: 当前章节
-        has_material_images: 是否有素材图片
         extra_requirements: 额外的要求（可能包含风格描述）
         language: 输出语言
         has_template: 是否有模板图片（False表示无模板图模式）
-        
+        page_index: 页码（1-indexed）
+        template_image: 模板参考图片（PIL Image），可选
+        material_images: 素材图片列表（PIL Image），可选
+
     Returns:
-        格式化后的 prompt 字符串
+        list[str | Image] — 可直接作为模型 contents 使用
     """
-    # 如果有素材图片，在 prompt 中明确告知 AI
-    material_images_note = ""
-    if has_material_images:
-        material_images_note = (
-            "\n\n提示：" + ("除了模板参考图片（用于风格参考）外，还提供了额外的素材图片。" if has_template else "用户提供了额外的素材图片。") +
-            "这些素材图片是可供挑选和使用的元素，你可以从这些素材图片中选择合适的图片、图标、图表或其他视觉元素"
-            "直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材图片中的元素。"
-        )
-    
+    has_material = material_images and len(material_images) > 0
+
     # 添加额外要求到提示词
     extra_req_text = ""
     if extra_requirements and extra_requirements.strip():
         extra_req_text = f"\n\n额外要求（请务必遵循）：\n{extra_requirements}\n"
 
-    # 根据是否有模板生成不同的设计指南内容（保持原prompt要点顺序）
+    # 根据是否有模板生成不同的设计指南内容
     template_style_guideline = "- 配色和设计语言和模板图片严格相似。" if has_template else "- 严格按照风格描述进行设计。"
     forbidden_template_text_guidline = "- 只参考风格设计，禁止出现模板中的文字。\n" if has_template else ""
 
+    # 素材图片使用说明
+    material_usage_note = ""
+    if has_material:
+        material_usage_note = (
+            "\n这些素材图片是可供挑选和使用的元素，你可以从中选择合适的图片、图标、图表或其他视觉元素"
+            "直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材。"
+        )
+
+    cover_note = "**注意：当前页面为ppt的封面页，请你采用专业的封面设计美学技巧，务必凸显出页面标题，分清主次，确保一下就能抓住观众的注意力。**" if page_index == 1 else ""
+
     # 该处参考了@歸藏的A工具箱
-    prompt = (f"""\
+    template = f"""\
 你是一位专家级UI UX演示设计师，专注于生成设计良好的PPT页面。
 当前PPT页面的页面描述如下:
 <page_description>
@@ -340,6 +434,10 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 {outline_text}
 </reference_information>
 
+[[template_image:以下是模板参考图片（用于风格参考）：]]
+
+[[material_images:以下是素材图片：]]
+{material_usage_note}
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
@@ -349,13 +447,19 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 {forbidden_template_text_guidline}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
 </design_guidelines>
 {get_ppt_language_instruction(language)}
-{material_images_note}{extra_req_text}
+{extra_req_text}
+{cover_note}
+"""
 
-{"**注意：当前页面为ppt的封面页，请你采用专业的封面设计美学技巧，务必凸显出页面标题，分清主次，确保一下就能抓住观众的注意力。**" if page_index == 1 else ""}
-""")
-    
-    logger.debug(f"[get_image_generation_prompt] Final prompt:\n{prompt}")
-    return prompt
+    result = expand_prompt(template, {
+        'template_image': template_image,
+        'material_images': material_images,
+    })
+
+    logger.debug(f"[get_image_generation_prompt] Expanded to {len(result)} parts "
+                 f"({sum(1 for p in result if isinstance(p, str))} text, "
+                 f"{sum(1 for p in result if not isinstance(p, str))} images)")
+    return result
 
 
 def get_image_edit_prompt(edit_instruction: str, original_description: str = None) -> str:

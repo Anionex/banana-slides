@@ -73,8 +73,7 @@ class GenAIImageProvider(ImageProvider):
     )
     def generate_image(
         self,
-        prompt: str,
-        ref_images: Optional[List[Image.Image]] = None,
+        contents: List,
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = True,
@@ -82,31 +81,20 @@ class GenAIImageProvider(ImageProvider):
     ) -> Optional[Image.Image]:
         """
         Generate image using Google GenAI SDK
-        
+
         Args:
-            prompt: The image generation prompt
-            ref_images: Optional list of reference images
+            contents: Interleaved list of text strings and PIL Image objects
             aspect_ratio: Image aspect ratio
             resolution: Image resolution (supports "1K", "2K", "4K")
             enable_thinking: If True, enable thinking chain mode (may generate multiple images)
             thinking_budget: Thinking budget for the model
-            
+
         Returns:
             Generated PIL Image object, or None if failed
         """
         try:
-            # Build contents list with prompt and reference images
-            contents = []
-            
-            # Add reference images first (if any)
-            if ref_images:
-                for ref_img in ref_images:
-                    contents.append(ref_img)
-            
-            # Add text prompt
-            contents.append(prompt)
-            
-            logger.debug(f"Calling GenAI API for image generation with {len(ref_images) if ref_images else 0} reference images...")
+            num_images = sum(1 for c in contents if not isinstance(c, str))
+            logger.debug(f"Calling GenAI API for image generation with {num_images} reference images...")
             logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}, enable_thinking: {enable_thinking}")
             
             # Build config

@@ -379,38 +379,36 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         
                         # 从当前页面的描述内容中提取图片 URL
                         page_additional_ref_images = []
-                        has_material_images = False
-                        
+
                         # 从描述文本中提取图片
                         if desc_text:
                             image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
                             if image_urls:
                                 logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                                 page_additional_ref_images = image_urls
-                                has_material_images = True
-                        
+
                         # 在子线程中动态获取模板路径，确保使用最新模板
                         page_ref_image_path = None
                         if use_template:
                             page_ref_image_path = file_service.get_template_path(project_id)
                             # 注意：如果有风格描述，即使没有模板图片也允许生成
                             # 这个检查已经在 controller 层完成，这里不再检查
-                        
-                        # Generate image prompt
-                        prompt = ai_service.generate_image_prompt(
+
+                        # Generate interleaved contents (text + images)
+                        contents = ai_service.generate_image_prompt(
                             outline, page_data, desc_text, page_index,
-                            has_material_images=has_material_images,
                             extra_requirements=extra_requirements,
                             language=language,
-                            has_template=use_template
+                            has_template=use_template,
+                            ref_image_path=page_ref_image_path,
+                            additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
-                        
+
                         # Generate image
                         logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
                         image = ai_service.generate_image(
-                            prompt, page_ref_image_path, aspect_ratio, resolution,
-                            additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
+                            contents, aspect_ratio=aspect_ratio, resolution=resolution
                         )
                         logger.info(f"✅ Image generated successfully for page {page_index}")
                         
@@ -559,40 +557,38 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             
             # 从描述文本中提取图片 URL
             additional_ref_images = []
-            has_material_images = False
-            
+
             if desc_text:
                 image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
                 if image_urls:
                     logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
                     additional_ref_images = image_urls
-                    has_material_images = True
-            
+
             # Get template path if use_template
             ref_image_path = None
             if use_template:
                 ref_image_path = file_service.get_template_path(project_id)
                 # 注意：如果有风格描述，即使没有模板图片也允许生成
                 # 这个检查已经在 controller 层完成，这里不再检查
-            
-            # Generate image prompt
+
+            # Generate interleaved contents (text + images)
             page_data = page.get_outline_content() or {}
             if page.part:
                 page_data['part'] = page.part
-            
-            prompt = ai_service.generate_image_prompt(
+
+            contents = ai_service.generate_image_prompt(
                 outline, page_data, desc_text, page.order_index + 1,
-                has_material_images=has_material_images,
                 extra_requirements=extra_requirements,
                 language=language,
-                has_template=use_template
+                has_template=use_template,
+                ref_image_path=ref_image_path,
+                additional_ref_images=additional_ref_images if additional_ref_images else None
             )
-            
+
             # Generate image
             logger.info(f"🎨 Generating image for page {page_id}...")
             image = ai_service.generate_image(
-                prompt, ref_image_path, aspect_ratio, resolution,
-                additional_ref_images=additional_ref_images if additional_ref_images else None
+                contents, aspect_ratio=aspect_ratio, resolution=resolution
             )
             
             if not image:

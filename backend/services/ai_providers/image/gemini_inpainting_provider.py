@@ -166,8 +166,7 @@ class GeminiInpaintingProvider:
             logger.info("🌐 调用 GenAI Provider 进行 inpainting（仅传标注图）...")
             
             result_image = self.genai_provider.generate_image(
-                prompt=prompt,
-                ref_images=[full_page_image, marked_image],  
+                contents=[full_page_image, marked_image, prompt],
                 aspect_ratio="16:9",
                 resolution="1K"
             )

@@ -107,8 +107,7 @@ class OpenAIImageProvider(ImageProvider):
 
     def generate_image(
         self,
-        prompt: str,
-        ref_images: Optional[List[Image.Image]] = None,
+        contents: List,
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = False,
@@ -116,45 +115,35 @@ class OpenAIImageProvider(ImageProvider):
     ) -> Optional[Image.Image]:
         """
         Generate image using OpenAI SDK
-        
-        Supports resolution control via extra_body parameters for compatible providers.
-        Note: Not all providers support 2K/4K resolution - some may return 1K regardless.
-        Note: enable_thinking and thinking_budget are ignored (OpenAI format doesn't support thinking mode)
-        
-        The provider will:
-        1. Try to use extra_body parameters (API易/AvalAI style) for resolution control
-        2. Use system message for aspect_ratio as fallback
-        
+
         Args:
-            prompt: The image generation prompt
-            ref_images: Optional list of reference images
+            contents: Interleaved list of text strings and PIL Image objects
             aspect_ratio: Image aspect ratio
             resolution: Image resolution ("1K", "2K", "4K") - support depends on provider
             enable_thinking: Ignored, kept for interface compatibility
             thinking_budget: Ignored, kept for interface compatibility
-            
+
         Returns:
             Generated PIL Image object, or None if failed
         """
         try:
-            # Build message content
+            # Build message content from interleaved contents
             content = []
-            
-            # Add reference images first (if any)
-            if ref_images:
-                for ref_img in ref_images:
-                    base64_image = self._encode_image_to_base64(ref_img)
+            for part in contents:
+                if isinstance(part, str):
+                    content.append({"type": "text", "text": part})
+                else:
+                    # PIL Image object
+                    base64_image = self._encode_image_to_base64(part)
                     content.append({
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{base64_image}"
                         }
                     })
-            
-            # Add text prompt
-            content.append({"type": "text", "text": prompt})
-            
-            logger.debug(f"Calling OpenAI API for image generation with {len(ref_images) if ref_images else 0} reference images...")
+
+            num_images = sum(1 for c in contents if not isinstance(c, str))
+            logger.debug(f"Calling OpenAI API for image generation with {num_images} reference images...")
             logger.debug(f"Config - aspect_ratio: {aspect_ratio}, resolution: {resolution}")
             
             # Build extra_body with resolution parameters for compatible providers
