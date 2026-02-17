@@ -421,6 +421,7 @@ export const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
+  const [editableFields, setEditableFields] = useState<string[] | null>(null);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
 
   useEffect(() => {
@@ -433,6 +434,9 @@ export const Settings: React.FC = () => {
       const response = await api.getSettings();
       if (response.data) {
         setSettings(response.data);
+        if (response.data._editable_fields) {
+          setEditableFields(response.data._editable_fields);
+        }
         setFormData({
           ai_provider_format: response.data.ai_provider_format || 'gemini',
           api_base_url: response.data.api_base_url || '',
@@ -784,7 +788,15 @@ export const Settings: React.FC = () => {
         {/* 配置区块（配置驱动） */}
         <div className="space-y-8">
           {settingsSections
-            .filter((section) => !section.adminOnly || user?.is_admin)
+            .map((section) => {
+              const visibleFields = user?.is_admin
+                ? section.fields
+                : editableFields
+                  ? section.fields.filter((f) => editableFields.includes(f.key))
+                  : section.adminOnly ? [] : section.fields;
+              return { ...section, fields: visibleFields };
+            })
+            .filter((section) => section.fields.length > 0)
             .map((section) => (
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">

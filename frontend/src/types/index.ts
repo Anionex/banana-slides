@@ -140,6 +140,7 @@ export interface Settings {
   enable_image_reasoning: boolean;
   image_thinking_budget: number;
   baidu_ocr_api_key_length: number;
+  _editable_fields?: string[];
   created_at?: string;
   updated_at?: string;
 }

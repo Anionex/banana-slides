@@ -165,6 +165,7 @@ def get_settings():
                 k: v for k, v in settings_dict.items()
                 if k in user_fields
             }
+            settings_dict['_editable_fields'] = list(user_fields)
 
         return success_response(settings_dict)
     except Exception as e:
