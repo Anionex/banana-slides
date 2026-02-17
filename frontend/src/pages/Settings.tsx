@@ -807,7 +807,7 @@ export const Settings: React.FC = () => {
     }
 
     // text, password, number 类型
-    const placeholder = field.sensitiveField && settings && field.lengthKey
+    const placeholder = field.sensitiveField && settings && field.lengthKey && (settings[field.lengthKey] as number) > 0
       ? t('settings.fields.apiKeySet', { length: settings[field.lengthKey] as string | number })
       : field.placeholder || '';
 
