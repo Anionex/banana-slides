@@ -127,38 +127,31 @@ def _smart_merge_pages(project_id, pages_data):
     old_by_title = {}
     for p in old_pages:
         outline = p.get_outline_content()
-        if outline and outline.get('title') and outline['title'] not in old_by_title:
-            old_by_title[outline['title']] = p
+        title = (outline.get('title') or '').strip() if outline else ''
+        if title and title not in old_by_title:
+            old_by_title[title] = p
 
     matched_ids = set()
     pages_list = []
 
     for i, page_data in enumerate(pages_data):
-        title = page_data.get('title')
+        title = (page_data.get('title') or '').strip()
         old_page = old_by_title.get(title) if title else None
 
         if old_page and old_page.id not in matched_ids:
             matched_ids.add(old_page.id)
-            old_page.order_index = i
-            old_page.part = page_data.get('part')
-            old_page.set_outline_content({
-                'title': title,
-                'points': page_data.get('points', [])
-            })
-            pages_list.append(old_page)
+            page = old_page
         else:
-            page = Page(
-                project_id=project_id,
-                order_index=i,
-                part=page_data.get('part'),
-                status='DRAFT'
-            )
-            page.set_outline_content({
-                'title': title,
-                'points': page_data.get('points', [])
-            })
+            page = Page(project_id=project_id, status='DRAFT')
             db.session.add(page)
-            pages_list.append(page)
+
+        page.order_index = i
+        page.part = page_data.get('part')
+        page.set_outline_content({
+            'title': page_data.get('title'),
+            'points': page_data.get('points', [])
+        })
+        pages_list.append(page)
 
     for p in old_pages:
         if p.id not in matched_ids:

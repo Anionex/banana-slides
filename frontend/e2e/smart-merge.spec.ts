@@ -105,13 +105,8 @@ test.describe('Smart Page Merge (Mocked)', () => {
       await route.fulfill({ status: 200, contentType: 'image/png', body: pixel })
     })
 
-    // Navigate to outline editor
+    // Navigate to outline editor and wait for initial pages
     await page.goto(`${BASE}/project/${PROJECT_ID}/outline`)
-    await page.waitForTimeout(1000)
-
-    // Verify initial pages are displayed
-    const cards = page.locator('[class*="outline"], [class*="card"], [data-testid*="page"]')
-    // Page A and Page B should be visible
     await expect(page.getByText('Page A')).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('Page B')).toBeVisible({ timeout: 5000 })
 
@@ -119,15 +114,17 @@ test.describe('Smart Page Merge (Mocked)', () => {
     const refineInput = page.locator('input[placeholder*="修改"], textarea[placeholder*="修改"], input[placeholder*="要求"], textarea[placeholder*="要求"]')
     if (await refineInput.count() > 0) {
       await refineInput.first().fill('删除Page B，增加Page C')
-      // Submit refine (press Enter or click button)
-      await refineInput.first().press('Enter')
-      await page.waitForTimeout(1500)
 
-      // After refine: Page A should still be visible, Page B gone, Page C added
+      // Submit and wait for the refine API response
+      const refinePromise = page.waitForResponse(
+        (r) => r.url().includes('/refine/outline') && r.status() === 200
+      )
+      await refineInput.first().press('Enter')
+      await refinePromise
+
+      // After refine: Page A preserved, Page B gone, Page C added
       await expect(page.getByText('Page A')).toBeVisible({ timeout: 5000 })
       await expect(page.getByText('Page C')).toBeVisible({ timeout: 5000 })
-
-      // Verify refine was called
       expect(refineCallCount).toBeGreaterThan(0)
     }
   })
