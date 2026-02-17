@@ -121,31 +121,23 @@ test.describe('Settings backfill - Mock tests', () => {
 
 test.describe('Settings backfill - Integration tests', () => {
   test('GET /api/settings should return backfilled env values', async ({ request }) => {
-    // First reset to ensure env values are populated
+    // Reset then clear text_model — backend converts empty string to NULL in DB
     await request.post(`${BASE_URL}/api/settings/reset`)
-
-    // Now clear a field by saving null values
     await request.put(`${BASE_URL}/api/settings`, {
       data: { text_model: '' },
     })
 
-    // Verify the field was cleared
-    let resp = await request.get(`${BASE_URL}/api/settings`)
-    let data = (await resp.json()).data
-    const clearedModel = data.text_model
+    // GET triggers backfill: NULL fields get re-populated from env Config
+    const resp = await request.get(`${BASE_URL}/api/settings`)
+    expect(resp.ok()).toBeTruthy()
+    const data = (await resp.json()).data
 
-    // The backfill should re-populate it on next GET if Config has a value
-    // (This depends on the env having TEXT_MODEL set)
-    // If TEXT_MODEL is set in env, after clearing and re-fetching, it should be backfilled
-    resp = await request.get(`${BASE_URL}/api/settings`)
-    data = (await resp.json()).data
-
-    // api_key_length should reflect env config (if GOOGLE_API_KEY is set)
-    // We just verify the endpoint returns successfully with expected structure
+    // text_model should be backfilled from env (non-empty if TEXT_MODEL is set)
+    expect(data.text_model).not.toBe('')
+    expect(data.text_model).not.toBeNull()
     expect(data).toHaveProperty('api_key_length')
-    expect(data).toHaveProperty('text_model')
-    expect(data).toHaveProperty('image_model')
     expect(typeof data.api_key_length).toBe('number')
+    expect(data).toHaveProperty('image_model')
   })
 
   test('Settings page should load and display values from backend', async ({ page }) => {

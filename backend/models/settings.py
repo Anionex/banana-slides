@@ -148,7 +148,7 @@ class Settings(db.Model):
             # 回填：仅当数据库字段为 None 时才用 Config 默认值填充
             dirty = False
             for attr, default in defaults.items():
-                if getattr(settings, attr) is None and default:
+                if getattr(settings, attr) is None and default is not None:
                     setattr(settings, attr, default)
                     dirty = True
             if dirty:
