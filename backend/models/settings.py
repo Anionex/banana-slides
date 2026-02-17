@@ -124,7 +124,7 @@ class Settings(db.Model):
             'mineru_api_base': Config.MINERU_API_BASE,
             'mineru_token': Config.MINERU_TOKEN,
             'image_caption_model': Config.IMAGE_CAPTION_MODEL,
-            'output_language': 'zh',
+            'output_language': Config.OUTPUT_LANGUAGE,
             'baidu_ocr_api_key': Config.BAIDU_OCR_API_KEY or None,
             'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
             'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
