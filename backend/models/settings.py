@@ -99,10 +99,57 @@ class Settings(db.Model):
         """
         Get or create the single settings instance.
 
-        - 首次创建时，用 Config（也就是 .env）里的值初始化，作为“系统默认值”
+        - 首次创建时，用 Config（也就是 .env）里的值初始化，作为"系统默认值"
+        - 已有记录时，用 Config 值回填仍为 None 的字段（应对新增列或后配置 env 的场景）
         - 之后所有读写都只走数据库，env 只影响初始化/重置逻辑
         """
         settings = Settings.query.first()
+        if settings:
+            # 回填：仅当数据库字段为 None 时才用 Config 默认值填充
+            from config import Config
+
+            if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
+                default_api_base = Config.OPENAI_API_BASE or None
+                default_api_key = Config.OPENAI_API_KEY or None
+            elif (Config.AI_PROVIDER_FORMAT or '').lower() == 'lazyllm':
+                default_api_base = None
+                default_api_key = None
+            else:
+                default_api_base = Config.GOOGLE_API_BASE or None
+                default_api_key = Config.GOOGLE_API_KEY or None
+
+            backfill = {
+                'api_base_url': default_api_base,
+                'api_key': default_api_key,
+                'text_model': Config.TEXT_MODEL,
+                'image_model': Config.IMAGE_MODEL,
+                'mineru_api_base': Config.MINERU_API_BASE,
+                'mineru_token': Config.MINERU_TOKEN,
+                'image_caption_model': Config.IMAGE_CAPTION_MODEL,
+                'baidu_ocr_api_key': Config.BAIDU_OCR_API_KEY or None,
+                'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
+                'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
+                'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
+            }
+            dirty = False
+            for attr, default in backfill.items():
+                if getattr(settings, attr) is None and default:
+                    setattr(settings, attr, default)
+                    dirty = True
+
+            # lazyllm_api_keys 特殊处理
+            if not settings.lazyllm_api_keys:
+                from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
+                env_keys = collect_env_lazyllm_api_keys()
+                if env_keys:
+                    settings.lazyllm_api_keys = env_keys
+                    dirty = True
+
+            if dirty:
+                db.session.commit()
+
+            return settings
+
         if not settings:
             # 延迟导入，避免循环依赖
             from config import Config
