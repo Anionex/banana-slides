@@ -1106,6 +1106,8 @@ export const SettingsPage: React.FC = () => {
       {showTop && (
         <button
           data-testid="back-to-top-button"
+          aria-label="Back to top"
+          title="Back to top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-6 right-6 p-3 rounded-full bg-banana-500 text-white shadow-lg hover:bg-banana-600 transition-all z-50"
         >
