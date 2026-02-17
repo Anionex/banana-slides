@@ -95,6 +95,44 @@ class Settings(db.Model):
             return {}
 
     @staticmethod
+    def _get_config_defaults():
+        """Return a dict of default values from Config/env for settings fields."""
+        from config import Config
+        from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
+
+        provider = (Config.AI_PROVIDER_FORMAT or '').lower()
+        if provider == 'openai':
+            api_base = Config.OPENAI_API_BASE or None
+            api_key = Config.OPENAI_API_KEY or None
+        elif provider == 'lazyllm':
+            api_base = None
+            api_key = None
+        else:
+            api_base = Config.GOOGLE_API_BASE or None
+            api_key = Config.GOOGLE_API_KEY or None
+
+        return {
+            'ai_provider_format': Config.AI_PROVIDER_FORMAT,
+            'api_base_url': api_base,
+            'api_key': api_key,
+            'image_resolution': Config.DEFAULT_RESOLUTION,
+            'image_aspect_ratio': Config.DEFAULT_ASPECT_RATIO,
+            'max_description_workers': Config.MAX_DESCRIPTION_WORKERS,
+            'max_image_workers': Config.MAX_IMAGE_WORKERS,
+            'text_model': Config.TEXT_MODEL,
+            'image_model': Config.IMAGE_MODEL,
+            'mineru_api_base': Config.MINERU_API_BASE,
+            'mineru_token': Config.MINERU_TOKEN,
+            'image_caption_model': Config.IMAGE_CAPTION_MODEL,
+            'output_language': 'zh',
+            'baidu_ocr_api_key': Config.BAIDU_OCR_API_KEY or None,
+            'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
+            'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
+            'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
+            'lazyllm_api_keys': collect_env_lazyllm_api_keys(),
+        }
+
+    @staticmethod
     def get_settings():
         """
         Get or create the single settings instance.
@@ -103,94 +141,24 @@ class Settings(db.Model):
         - 已有记录时，用 Config 值回填仍为 None 的字段（应对新增列或后配置 env 的场景）
         - 之后所有读写都只走数据库，env 只影响初始化/重置逻辑
         """
+        defaults = Settings._get_config_defaults()
         settings = Settings.query.first()
+
         if settings:
             # 回填：仅当数据库字段为 None 时才用 Config 默认值填充
-            from config import Config
-
-            if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
-                default_api_base = Config.OPENAI_API_BASE or None
-                default_api_key = Config.OPENAI_API_KEY or None
-            elif (Config.AI_PROVIDER_FORMAT or '').lower() == 'lazyllm':
-                default_api_base = None
-                default_api_key = None
-            else:
-                default_api_base = Config.GOOGLE_API_BASE or None
-                default_api_key = Config.GOOGLE_API_KEY or None
-
-            backfill = {
-                'api_base_url': default_api_base,
-                'api_key': default_api_key,
-                'text_model': Config.TEXT_MODEL,
-                'image_model': Config.IMAGE_MODEL,
-                'mineru_api_base': Config.MINERU_API_BASE,
-                'mineru_token': Config.MINERU_TOKEN,
-                'image_caption_model': Config.IMAGE_CAPTION_MODEL,
-                'baidu_ocr_api_key': Config.BAIDU_OCR_API_KEY or None,
-                'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
-                'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
-                'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
-            }
             dirty = False
-            for attr, default in backfill.items():
+            for attr, default in defaults.items():
                 if getattr(settings, attr) is None and default:
                     setattr(settings, attr, default)
                     dirty = True
-
-            # lazyllm_api_keys 特殊处理
-            if not settings.lazyllm_api_keys:
-                from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
-                env_keys = collect_env_lazyllm_api_keys()
-                if env_keys:
-                    settings.lazyllm_api_keys = env_keys
-                    dirty = True
-
             if dirty:
                 db.session.commit()
-
             return settings
 
-        if not settings:
-            # 延迟导入，避免循环依赖
-            from config import Config
-
-            # 根据 AI_PROVIDER_FORMAT 选择默认 Provider 的 env 配置
-            if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
-                default_api_base = Config.OPENAI_API_BASE or None
-                default_api_key = Config.OPENAI_API_KEY or None
-            elif (Config.AI_PROVIDER_FORMAT or '').lower() == 'lazyllm':
-                default_api_base = None
-                default_api_key = None
-            else:
-                # 默认为 gemini（Google）
-                default_api_base = Config.GOOGLE_API_BASE or None
-                default_api_key = Config.GOOGLE_API_KEY or None
-
-            from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
-
-            settings = Settings(
-                ai_provider_format=Config.AI_PROVIDER_FORMAT,
-                api_base_url=default_api_base,
-                api_key=default_api_key,
-                image_resolution=Config.DEFAULT_RESOLUTION,
-                image_aspect_ratio=Config.DEFAULT_ASPECT_RATIO,
-                max_description_workers=Config.MAX_DESCRIPTION_WORKERS,
-                max_image_workers=Config.MAX_IMAGE_WORKERS,
-                text_model=Config.TEXT_MODEL,
-                image_model=Config.IMAGE_MODEL,
-                mineru_api_base=Config.MINERU_API_BASE,
-                mineru_token=Config.MINERU_TOKEN,
-                image_caption_model=Config.IMAGE_CAPTION_MODEL,
-                output_language='zh',  # 默认中文
-                baidu_ocr_api_key=Config.BAIDU_OCR_API_KEY or None,
-                text_model_source=getattr(Config, 'TEXT_MODEL_SOURCE', None),
-                image_model_source=getattr(Config, 'IMAGE_MODEL_SOURCE', None),
-                image_caption_model_source=getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
-                lazyllm_api_keys=collect_env_lazyllm_api_keys(),
-            )
-            settings.id = 1
-            db.session.add(settings)
-            db.session.commit()
+        settings = Settings(**defaults)
+        settings.id = 1
+        db.session.add(settings)
+        db.session.commit()
         return settings
 
     def __repr__(self):
