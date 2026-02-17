@@ -18,7 +18,7 @@ test.describe('Settings page back-to-top button', () => {
     await page.waitForLoadState('networkidle')
 
     // Button should not be visible initially
-    const btn = page.locator('button:has(svg.lucide-arrow-up)')
+    const btn = page.getByTestId('back-to-top-button')
     await expect(btn).not.toBeVisible()
 
     // Scroll down

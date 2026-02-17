@@ -1060,14 +1060,16 @@ export const Settings: React.FC = () => {
 };
 
 // SettingsPage 组件 - 完整页面包装
+const SCROLL_SHOW_THRESHOLD = 300;
+
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const t = useT(settingsI18n);
   const [showTop, setShowTop] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 300);
-    window.addEventListener('scroll', onScroll);
+    const onScroll = () => setShowTop(window.scrollY > SCROLL_SHOW_THRESHOLD);
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
@@ -1103,6 +1105,7 @@ export const SettingsPage: React.FC = () => {
 
       {showTop && (
         <button
+          data-testid="back-to-top-button"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-6 right-6 p-3 rounded-full bg-banana-500 text-white shadow-lg hover:bg-banana-600 transition-all z-50"
         >
