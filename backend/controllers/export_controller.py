@@ -4,6 +4,8 @@ Export Controller - handles file export endpoints
 import logging
 import os
 import io
+import shutil
+import zipfile
 
 from flask import Blueprint, request, current_app
 from werkzeug.utils import secure_filename
@@ -167,6 +169,68 @@ def export_pdf(project_id):
             message="Export PDF task created"
         )
     
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@export_bp.route('/<project_id>/export/images', methods=['GET'])
+def export_images(project_id):
+    """
+    GET /api/projects/{project_id}/export/images?page_ids=id1,id2,id3 - Export images
+
+    Single image: copies to exports dir and returns download URL.
+    Multiple images: creates a ZIP archive and returns download URL.
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        selected_page_ids = parse_page_ids_from_query(request)
+        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+        if not pages:
+            return bad_request("No pages found for project")
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+        image_paths = []
+        for page in pages:
+            if page.generated_image_path:
+                abs_path = file_service.get_absolute_path(page.generated_image_path)
+                if os.path.exists(abs_path):
+                    image_paths.append(abs_path)
+
+        if not image_paths:
+            return bad_request("No generated images found for project")
+
+        exports_dir = file_service._get_exports_dir(project_id)
+
+        if len(image_paths) == 1:
+            # Single image: copy to exports dir
+            ext = os.path.splitext(image_paths[0])[1] or '.png'
+            filename = f'slide_{project_id}{ext}'
+            output_path = os.path.join(exports_dir, filename)
+            shutil.copy2(image_paths[0], output_path)
+        else:
+            # Multiple images: create ZIP
+            filename = f'slides_{project_id}.zip'
+            output_path = os.path.join(exports_dir, filename)
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for i, path in enumerate(image_paths, 1):
+                    ext = os.path.splitext(path)[1] or '.png'
+                    zf.write(path, f'slide_{i:03d}{ext}')
+
+        download_path = f"/files/{project_id}/exports/{filename}"
+        base_url = request.url_root.rstrip("/")
+
+        return success_response(
+            data={
+                "download_url": download_path,
+                "download_url_absolute": f"{base_url}{download_path}",
+            },
+            message="Export images completed"
+        )
+
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 

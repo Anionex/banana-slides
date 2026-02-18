@@ -468,6 +468,20 @@ export const exportPDF = async (
 };
 
 /**
+ * 导出为图片（单张直接下载，多张打包ZIP）
+ */
+export const exportImages = async (
+  projectId: string,
+  pageIds?: string[]
+): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const url = `/api/projects/${projectId}/export/images${buildPageIdsQuery(pageIds)}`;
+  const response = await apiClient.get<
+    ApiResponse<{ download_url: string; download_url_absolute?: string }>
+  >(url);
+  return response.data;
+};
+
+/**
  * 导出为可编辑PPTX（异步任务）
  * @param projectId 项目ID
  * @param filename 可选的文件名
