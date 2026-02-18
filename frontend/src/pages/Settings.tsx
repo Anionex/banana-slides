@@ -626,7 +626,10 @@ export const Settings: React.FC = () => {
       // 只传递用户已填写的非空值
       if (formData.api_key) testSettings.api_key = formData.api_key;
       if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
-      if (formData.ai_provider_format) testSettings.ai_provider_format = formData.ai_provider_format;
+      if (formData.ai_provider_format) {
+        testSettings.ai_provider_format = isLazyllmVendor(formData.ai_provider_format)
+          ? 'lazyllm' : formData.ai_provider_format;
+      }
       if (formData.text_model) testSettings.text_model = formData.text_model;
       if (formData.image_model) testSettings.image_model = formData.image_model;
       if (formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
