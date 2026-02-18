@@ -278,14 +278,17 @@ const initialFormData = {
   image_caption_api_base_url: '',
 };
 
+const isLazyllmVendor = (vendor: string) =>
+  LAZYLLM_VENDOR_SET.has(vendor) && vendor !== 'openai';
+
 // When backend returns "lazyllm", infer specific vendor from configured keys
 const resolveLazyllmVendor = (format: string, keysInfo?: Record<string, number>): string => {
   if (format !== 'lazyllm') return format;
   if (keysInfo) {
-    const vendor = LAZYLLM_SOURCES.find(s => s.value !== 'openai' && keysInfo[s.value]);
+    const vendor = LAZYLLM_SOURCES.find(s => isLazyllmVendor(s.value) && keysInfo[s.value]);
     if (vendor) return vendor.value;
   }
-  return LAZYLLM_SOURCES.find(s => s.value !== 'openai')?.value || 'deepseek';
+  return LAZYLLM_SOURCES.find(s => isLazyllmVendor(s.value))?.value || 'deepseek';
 };
 
 const GlobalVendorKeyInput: React.FC<{
@@ -316,6 +319,36 @@ const GlobalVendorKeyInput: React.FC<{
     </div>
   );
 };
+
+const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
+  ai_provider_format: resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info),
+  api_base_url: data.api_base_url || '',
+  api_key: '',
+  image_resolution: data.image_resolution || '2K',
+  max_description_workers: data.max_description_workers || 5,
+  max_image_workers: data.max_image_workers || 8,
+  text_model: data.text_model || '',
+  image_model: data.image_model || '',
+  mineru_api_base: data.mineru_api_base || '',
+  mineru_token: '',
+  image_caption_model: data.image_caption_model || '',
+  output_language: data.output_language || 'zh',
+  enable_text_reasoning: data.enable_text_reasoning || false,
+  text_thinking_budget: data.text_thinking_budget || 1024,
+  enable_image_reasoning: data.enable_image_reasoning || false,
+  image_thinking_budget: data.image_thinking_budget || 1024,
+  baidu_ocr_api_key: '',
+  text_model_source: data.text_model_source || '',
+  image_model_source: data.image_model_source || '',
+  image_caption_model_source: data.image_caption_model_source || '',
+  lazyllm_api_keys: {},
+  text_api_key: '',
+  text_api_base_url: data.text_api_base_url || '',
+  image_api_key: '',
+  image_api_base_url: data.image_api_base_url || '',
+  image_caption_api_key: '',
+  image_caption_api_base_url: data.image_caption_api_base_url || '',
+});
 
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
@@ -473,36 +506,7 @@ export const Settings: React.FC = () => {
       const response = await api.getSettings();
       if (response.data) {
         setSettings(response.data);
-        setFormData({
-          ai_provider_format: resolveLazyllmVendor(response.data.ai_provider_format || 'gemini', response.data.lazyllm_api_keys_info),
-          api_base_url: response.data.api_base_url || '',
-          api_key: '',
-          image_resolution: response.data.image_resolution || '2K',
-          max_description_workers: response.data.max_description_workers || 5,
-          max_image_workers: response.data.max_image_workers || 8,
-          text_model: response.data.text_model || '',
-          image_model: response.data.image_model || '',
-          mineru_api_base: response.data.mineru_api_base || '',
-          mineru_token: '',
-          image_caption_model: response.data.image_caption_model || '',
-          output_language: response.data.output_language || 'zh',
-          enable_text_reasoning: response.data.enable_text_reasoning || false,
-          text_thinking_budget: response.data.text_thinking_budget || 1024,
-          enable_image_reasoning: response.data.enable_image_reasoning || false,
-          image_thinking_budget: response.data.image_thinking_budget || 1024,
-          baidu_ocr_api_key: '',
-          text_model_source: response.data.text_model_source || '',
-          image_model_source: response.data.image_model_source || '',
-          image_caption_model_source: response.data.image_caption_model_source || '',
-          lazyllm_api_keys: {},
-          // Per-model API credentials (sensitive fields start empty)
-          text_api_key: '',
-          text_api_base_url: response.data.text_api_base_url || '',
-          image_api_key: '',
-          image_api_base_url: response.data.image_api_base_url || '',
-          image_caption_api_key: '',
-          image_caption_api_base_url: response.data.image_caption_api_base_url || '',
-        });
+        setFormData(formDataFromSettings(response.data));
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -526,7 +530,7 @@ export const Settings: React.FC = () => {
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
         // Map vendor name to backend format
-        ai_provider_format: ((LAZYLLM_VENDOR_SET.has(otherData.ai_provider_format) && otherData.ai_provider_format !== 'openai')
+        ai_provider_format: (isLazyllmVendor(otherData.ai_provider_format)
           ? 'lazyllm' : otherData.ai_provider_format) as 'openai' | 'gemini' | 'lazyllm',
       };
 
@@ -579,35 +583,7 @@ export const Settings: React.FC = () => {
           const response = await api.resetSettings();
           if (response.data) {
             setSettings(response.data);
-            setFormData({
-              ai_provider_format: resolveLazyllmVendor(response.data.ai_provider_format || 'gemini', response.data.lazyllm_api_keys_info),
-              api_base_url: response.data.api_base_url || '',
-              api_key: '',
-              image_resolution: response.data.image_resolution || '2K',
-              max_description_workers: response.data.max_description_workers || 5,
-              max_image_workers: response.data.max_image_workers || 8,
-              text_model: response.data.text_model || '',
-              image_model: response.data.image_model || '',
-              mineru_api_base: response.data.mineru_api_base || '',
-              mineru_token: '',
-              image_caption_model: response.data.image_caption_model || '',
-              output_language: response.data.output_language || 'zh',
-              enable_text_reasoning: response.data.enable_text_reasoning || false,
-              text_thinking_budget: response.data.text_thinking_budget || 1024,
-              enable_image_reasoning: response.data.enable_image_reasoning || false,
-              image_thinking_budget: response.data.image_thinking_budget || 1024,
-              baidu_ocr_api_key: '',
-              text_model_source: response.data.text_model_source || '',
-              image_model_source: response.data.image_model_source || '',
-              image_caption_model_source: response.data.image_caption_model_source || '',
-              lazyllm_api_keys: {},
-              text_api_key: '',
-              text_api_base_url: response.data.text_api_base_url || '',
-              image_api_key: '',
-              image_api_base_url: response.data.image_api_base_url || '',
-              image_caption_api_key: '',
-              image_caption_api_base_url: response.data.image_caption_api_base_url || '',
-            });
+            setFormData(formDataFromSettings(response.data));
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });
           }
         } catch (error: any) {
@@ -906,7 +882,7 @@ export const Settings: React.FC = () => {
   const renderModelConfigGroup = (item: typeof modelConfigItems[0]) => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
-    const isLazyllmVendor = sourceValue && LAZYLLM_VENDOR_SET.has(sourceValue) && sourceValue !== 'openai';
+    const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
 
@@ -976,7 +952,7 @@ export const Settings: React.FC = () => {
         )}
 
         {/* LazyLLM 厂商：显示厂商 API Key */}
-        {isLazyllmVendor && (() => {
+        {isLazyllm && (() => {
           const vendorLabel = LAZYLLM_SOURCES.find(s => s.value === sourceValue)?.label || sourceValue.toUpperCase();
           const keyLength = settings?.lazyllm_api_keys_info?.[sourceValue] || 0;
           const placeholder = keyLength > 0
@@ -1073,7 +1049,7 @@ export const Settings: React.FC = () => {
             )}
 
             {/* LazyLLM 厂商: 厂商 API Key */}
-            {LAZYLLM_VENDOR_SET.has(formData.ai_provider_format) && formData.ai_provider_format !== 'openai' && (
+            {isLazyllmVendor(formData.ai_provider_format) && (
               <GlobalVendorKeyInput vendor={formData.ai_provider_format} formData={formData} setFormData={setFormData} settings={settings} t={t} />
             )}
           </div>

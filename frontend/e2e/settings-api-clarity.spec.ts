@@ -25,8 +25,6 @@ test('global API config section shows provider dropdown instead of buttons', asy
 
 test('per-model provider placeholder references global config', async ({ page }) => {
   // Per-model dropdowns should say "全局配置" not "默认配置"
-  const modelSelects = page.locator('select');
-  // Find an option with "全局" text
   const globalOption = page.locator('option', { hasText: '全局配置' });
   await expect(globalOption.first()).toBeAttached();
 });
