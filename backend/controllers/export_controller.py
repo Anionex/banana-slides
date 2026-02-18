@@ -78,7 +78,7 @@ def export_pptx(project_id):
         output_path = os.path.join(exports_dir, filename)
 
         # Generate PPTX file on disk
-        ExportService.create_pptx_from_images(image_paths, output_file=output_path)
+        ExportService.create_pptx_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
 
         # Build download URLs
         download_path = f"/files/{project_id}/exports/{filename}"
@@ -152,7 +152,7 @@ def export_pdf(project_id):
         output_path = os.path.join(exports_dir, filename)
 
         # Generate PDF file on disk
-        ExportService.create_pdf_from_images(image_paths, output_file=output_path)
+        ExportService.create_pdf_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
 
         # Build download URLs
         download_path = f"/files/{project_id}/exports/{filename}"
