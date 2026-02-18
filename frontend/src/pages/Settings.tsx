@@ -246,7 +246,7 @@ const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 
 // 初始表单数据
 const initialFormData = {
-  ai_provider_format: 'gemini' as 'openai' | 'gemini' | 'lazyllm',
+  ai_provider_format: 'gemini' as string,
   api_base_url: '',
   api_key: '',
   text_model: '',
@@ -276,6 +276,16 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+};
+
+// When backend returns "lazyllm", infer specific vendor from configured keys
+const resolveLazyllmVendor = (format: string, keysInfo?: Record<string, number>): string => {
+  if (format !== 'lazyllm') return format;
+  if (keysInfo) {
+    const vendor = LAZYLLM_SOURCES.find(s => s.value !== 'openai' && keysInfo[s.value]);
+    if (vendor) return vendor.value;
+  }
+  return LAZYLLM_SOURCES.find(s => s.value !== 'openai')?.value || 'deepseek';
 };
 
 const GlobalVendorKeyInput: React.FC<{
@@ -464,7 +474,7 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData({
-          ai_provider_format: response.data.ai_provider_format || 'gemini',
+          ai_provider_format: resolveLazyllmVendor(response.data.ai_provider_format || 'gemini', response.data.lazyllm_api_keys_info),
           api_base_url: response.data.api_base_url || '',
           api_key: '',
           image_resolution: response.data.image_resolution || '2K',
@@ -516,8 +526,8 @@ export const Settings: React.FC = () => {
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
         // Map vendor name to backend format
-        ai_provider_format: (LAZYLLM_VENDOR_SET.has(otherData.ai_provider_format) && otherData.ai_provider_format !== 'openai')
-          ? 'lazyllm' : otherData.ai_provider_format,
+        ai_provider_format: ((LAZYLLM_VENDOR_SET.has(otherData.ai_provider_format) && otherData.ai_provider_format !== 'openai')
+          ? 'lazyllm' : otherData.ai_provider_format) as 'openai' | 'gemini' | 'lazyllm',
       };
 
       // Only send sensitive fields if user entered a new value
@@ -570,7 +580,7 @@ export const Settings: React.FC = () => {
           if (response.data) {
             setSettings(response.data);
             setFormData({
-              ai_provider_format: response.data.ai_provider_format || 'gemini',
+              ai_provider_format: resolveLazyllmVendor(response.data.ai_provider_format || 'gemini', response.data.lazyllm_api_keys_info),
               api_base_url: response.data.api_base_url || '',
               api_key: '',
               image_resolution: response.data.image_resolution || '2K',
