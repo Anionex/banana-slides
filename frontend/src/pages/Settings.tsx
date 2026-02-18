@@ -11,7 +11,8 @@ const settingsI18n = {
       title: "系统设置",
       subtitle: "配置应用的各项参数",
       sections: {
-        appearance: "外观设置", language: "界面语言", apiConfig: "默认 API 配置",
+        appearance: "外观设置", language: "界面语言", apiConfig: "全局 API 配置",
+        apiConfigDesc: "所有模型默认使用此配置；下方可为单个模型指定独立的提供商和凭证",
         modelConfig: "模型配置", mineruConfig: "MinerU 配置", imageConfig: "图像生成配置",
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
@@ -57,9 +58,9 @@ const settingsI18n = {
         vendorApiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
         vendorApiKeySet: "已设置（长度: {{length}}）",
         selectPlaceholder: "-- 请选择 --",
-        modelProvider: "提供商", modelProviderDesc: "为此模型选择独立的提供商，不选则使用默认配置",
-        modelProviderPlaceholder: "-- 使用默认配置 --",
-        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "留空使用默认 Base URL",
+        modelProvider: "提供商", modelProviderDesc: "为此模型选择独立的提供商，不选则使用上方全局配置",
+        modelProviderPlaceholder: "-- 使用全局配置 --",
+        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "留空使用全局 Base URL",
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
@@ -98,7 +99,8 @@ const settingsI18n = {
       title: "Settings",
       subtitle: "Configure application parameters",
       sections: {
-        appearance: "Appearance", language: "Interface Language", apiConfig: "Default API Configuration",
+        appearance: "Appearance", language: "Interface Language", apiConfig: "Global API Configuration",
+        apiConfigDesc: "Used by all models by default; override per model below if needed",
         modelConfig: "Model Configuration", mineruConfig: "MinerU Configuration", imageConfig: "Image Generation Configuration",
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
@@ -144,9 +146,9 @@ const settingsI18n = {
         vendorApiKeyDesc: "Leave empty to keep current setting, enter new value to update",
         vendorApiKeySet: "Set (length: {{length}})",
         selectPlaceholder: "-- Select --",
-        modelProvider: "Provider", modelProviderDesc: "Select an independent provider for this model, leave empty to use default",
-        modelProviderPlaceholder: "-- Use default config --",
-        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "Leave empty to use default Base URL",
+        modelProvider: "Provider", modelProviderDesc: "Select an independent provider for this model, leave empty to use global config",
+        modelProviderPlaceholder: "-- Use global config --",
+        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "Leave empty to use global Base URL",
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
@@ -290,40 +292,7 @@ export const Settings: React.FC = () => {
 
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
-    {
-      title: t('settings.sections.apiConfig'),
-      icon: <Key size={20} />,
-      fields: [
-        {
-          key: 'ai_provider_format',
-          label: t('settings.fields.aiProviderFormat'),
-          type: 'buttons',
-          description: t('settings.fields.aiProviderFormatDesc'),
-          options: [
-            { value: 'openai', label: t('settings.fields.openaiFormat') },
-            { value: 'gemini', label: t('settings.fields.geminiFormat') },
-            { value: 'lazyllm', label: t('settings.fields.lazyllmFormat') },
-          ],
-        },
-        {
-          key: 'api_base_url' as keyof typeof initialFormData,
-          label: t('settings.fields.apiBaseUrl'),
-          type: 'text' as FieldType,
-          placeholder: t('settings.fields.apiBaseUrlPlaceholder'),
-          description: t('settings.fields.apiBaseUrlDesc'),
-        },
-        {
-          key: 'api_key' as keyof typeof initialFormData,
-          label: t('settings.fields.apiKey'),
-          type: 'password' as FieldType,
-          placeholder: t('settings.fields.apiKeyPlaceholder'),
-          sensitiveField: true,
-          lengthKey: 'api_key_length' as keyof SettingsType,
-          description: t('settings.fields.apiKeyDesc'),
-        },
-      ],
-    },
-    // Model config section is rendered separately (renderModelConfigSection) to support per-model provider UI
+    // Global API config & Model config are rendered separately above
     {
       title: t('settings.sections.mineruConfig'),
       icon: <FileText size={20} />,
@@ -517,6 +486,9 @@ export const Settings: React.FC = () => {
       } = formData;
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
+        // Map vendor name to backend format
+        ai_provider_format: LAZYLLM_VENDOR_SET.has(otherData.ai_provider_format)
+          ? 'lazyllm' : otherData.ai_provider_format,
       };
 
       // Only send sensitive fields if user entered a new value
@@ -1008,48 +980,120 @@ export const Settings: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <div className="space-y-8">
-        {/* 配置区块（配置驱动） */}
-        <div className="space-y-8">
-          {settingsSections.map((section, sectionIdx) => (
-            <React.Fragment key={section.title}>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
-                  {section.icon}
-                  <span className="ml-2">{section.title}</span>
-                </h2>
-                <div className="space-y-4">
-                  {section.fields.map((field) => renderField(field))}
-                  {section.title === t('settings.sections.apiConfig') && (
-                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-                      <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-                        {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[0]}
-                        <a
-                          href="https://aihubmix.com/?aff=17EC"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline font-medium"
-                        >
-                          AIHubmix
-                        </a>
-                        {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[1]}
-                      </p>
-                    </div>
-                  )}
+        {/* 全局 API 配置区块 */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
+            <Key size={20} />
+            <span className="ml-2">{t('settings.sections.apiConfig')}</span>
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.sections.apiConfigDesc')}</p>
+          <div className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-3">
+            {/* 提供商下拉 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                {t('settings.fields.aiProviderFormat')}
+              </label>
+              <select
+                value={formData.ai_provider_format}
+                onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
+                className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+              >
+                {ALL_PROVIDER_SOURCES.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
+            </div>
+
+            {/* Gemini/OpenAI: API Base URL + API Key */}
+            {API_KEY_PROVIDERS.has(formData.ai_provider_format) && (
+              <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+                <Input
+                  label={t('settings.fields.apiBaseUrl')}
+                  type="text"
+                  placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
+                  value={formData.api_base_url}
+                  onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
+                />
+                <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
+                <div>
+                  <Input
+                    label={t('settings.fields.apiKey')}
+                    type="password"
+                    placeholder={
+                      settings && (settings.api_key_length as number) > 0
+                        ? t('settings.fields.apiKeySet', { length: settings.api_key_length })
+                        : t('settings.fields.apiKeyPlaceholder')
+                    }
+                    value={formData.api_key}
+                    onChange={(e) => handleFieldChange('api_key', e.target.value)}
+                  />
+                  <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiKeyDesc')}</p>
                 </div>
               </div>
-              {/* 模型配置区块 - 紧跟在 API 配置区块后面 */}
-              {sectionIdx === 0 && (
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
-                    <FileText size={20} />
-                    <span className="ml-2">{t('settings.sections.modelConfig')}</span>
-                  </h2>
-                  <div className="space-y-4">
-                    {modelConfigItems.map(renderModelConfigGroup)}
-                  </div>
+            )}
+
+            {/* LazyLLM 厂商: 厂商 API Key */}
+            {LAZYLLM_VENDOR_SET.has(formData.ai_provider_format) && formData.ai_provider_format !== 'openai' && (() => {
+              const vendor = formData.ai_provider_format;
+              const vendorLabel = LAZYLLM_SOURCES.find(s => s.value === vendor)?.label || vendor.toUpperCase();
+              const keyLength = settings?.lazyllm_api_keys_info?.[vendor] || 0;
+              const placeholder = keyLength > 0
+                ? t('settings.fields.vendorApiKeySet', { length: keyLength })
+                : t('settings.fields.vendorApiKeyPlaceholder', { vendor: vendorLabel });
+              return (
+                <div className="pl-3 border-l-2 border-amber-300 dark:border-amber-600">
+                  <Input
+                    label={t('settings.fields.vendorApiKey', { vendor: vendorLabel })}
+                    type="password"
+                    placeholder={placeholder}
+                    value={formData.lazyllm_api_keys[vendor] || ''}
+                    onChange={(e) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        lazyllm_api_keys: { ...prev.lazyllm_api_keys, [vendor]: e.target.value }
+                      }));
+                    }}
+                  />
+                  <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.vendorApiKeyDesc')}</p>
                 </div>
-              )}
-            </React.Fragment>
+              );
+            })()}
+          </div>
+
+          {/* AIHubmix 提示 */}
+          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+            <p className="text-sm text-gray-700 dark:text-foreground-secondary">
+              {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[0]}
+              <a href="https://aihubmix.com/?aff=17EC" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">AIHubmix</a>
+              {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[1]}
+            </p>
+          </div>
+        </div>
+
+        {/* 模型配置区块 */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
+            <FileText size={20} />
+            <span className="ml-2">{t('settings.sections.modelConfig')}</span>
+          </h2>
+          <div className="space-y-4">
+            {modelConfigItems.map(renderModelConfigGroup)}
+          </div>
+        </div>
+
+        {/* 其余配置区块（配置驱动） */}
+        <div className="space-y-8">
+          {settingsSections.map((section) => (
+            <div key={section.title}>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
+                {section.icon}
+                <span className="ml-2">{section.title}</span>
+              </h2>
+              <div className="space-y-4">
+                {section.fields.map((field) => renderField(field))}
+              </div>
+            </div>
           ))}
         </div>
 
