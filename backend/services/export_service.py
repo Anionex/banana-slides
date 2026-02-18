@@ -173,6 +173,8 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
     """Return (width, height) in inches for a given aspect ratio string."""
     try:
         w, h = (float(x) for x in aspect_ratio.split(':'))
+        if w <= 0 or h <= 0:
+            raise ValueError
     except (ValueError, AttributeError):
         w, h = 16.0, 9.0
     if w >= h:
@@ -312,6 +314,7 @@ class ExportService:
             PDF file as bytes if output_file is None, otherwise None
         """
         images = []
+        page_w, page_h = _get_page_size_inches(aspect_ratio)
 
         # Load all images
         for image_path in image_paths:
@@ -324,6 +327,9 @@ class ExportService:
             # Convert to RGB if necessary (PDF requires RGB)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
+
+            # Set DPI so PDF page matches target dimensions
+            img.info['dpi'] = (img.width / page_w, img.height / page_h)
 
             images.append(img)
 
