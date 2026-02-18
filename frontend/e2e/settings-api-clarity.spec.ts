@@ -11,7 +11,7 @@ test('global API config section shows provider dropdown instead of buttons', asy
   await expect(page.getByText('默认 API 配置')).not.toBeVisible();
 
   // Should have a provider dropdown (select), not buttons
-  const globalSection = page.locator('div').filter({ hasText: '全局 API 配置' }).first();
+  const globalSection = page.getByTestId('global-api-config-section');
   const providerSelect = globalSection.locator('select').first();
   await expect(providerSelect).toBeVisible();
 

@@ -278,6 +278,35 @@ const initialFormData = {
   image_caption_api_base_url: '',
 };
 
+const GlobalVendorKeyInput: React.FC<{
+  vendor: string; formData: typeof initialFormData;
+  setFormData: React.Dispatch<React.SetStateAction<typeof initialFormData>>;
+  settings: SettingsType | null; t: ReturnType<typeof useT>;
+}> = ({ vendor, formData, setFormData, settings, t }) => {
+  const vendorLabel = LAZYLLM_SOURCES.find(s => s.value === vendor)?.label || vendor.toUpperCase();
+  const keyLength = settings?.lazyllm_api_keys_info?.[vendor] || 0;
+  const placeholder = keyLength > 0
+    ? t('settings.fields.vendorApiKeySet', { length: keyLength })
+    : t('settings.fields.vendorApiKeyPlaceholder', { vendor: vendorLabel });
+  return (
+    <div className="pl-3 border-l-2 border-amber-300 dark:border-amber-600">
+      <Input
+        label={t('settings.fields.vendorApiKey', { vendor: vendorLabel })}
+        type="password"
+        placeholder={placeholder}
+        value={formData.lazyllm_api_keys[vendor] || ''}
+        onChange={(e) => {
+          setFormData(prev => ({
+            ...prev,
+            lazyllm_api_keys: { ...prev.lazyllm_api_keys, [vendor]: e.target.value }
+          }));
+        }}
+      />
+      <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.vendorApiKeyDesc')}</p>
+    </div>
+  );
+};
+
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
   const t = useT(settingsI18n);
@@ -487,7 +516,7 @@ export const Settings: React.FC = () => {
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
         // Map vendor name to backend format
-        ai_provider_format: LAZYLLM_VENDOR_SET.has(otherData.ai_provider_format)
+        ai_provider_format: (LAZYLLM_VENDOR_SET.has(otherData.ai_provider_format) && otherData.ai_provider_format !== 'openai')
           ? 'lazyllm' : otherData.ai_provider_format,
       };
 
@@ -981,7 +1010,7 @@ export const Settings: React.FC = () => {
       {ConfirmDialog}
       <div className="space-y-8">
         {/* 全局 API 配置区块 */}
-        <div>
+        <div data-testid="global-api-config-section">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
             <Key size={20} />
             <span className="ml-2">{t('settings.sections.apiConfig')}</span>
@@ -1034,31 +1063,9 @@ export const Settings: React.FC = () => {
             )}
 
             {/* LazyLLM 厂商: 厂商 API Key */}
-            {LAZYLLM_VENDOR_SET.has(formData.ai_provider_format) && formData.ai_provider_format !== 'openai' && (() => {
-              const vendor = formData.ai_provider_format;
-              const vendorLabel = LAZYLLM_SOURCES.find(s => s.value === vendor)?.label || vendor.toUpperCase();
-              const keyLength = settings?.lazyllm_api_keys_info?.[vendor] || 0;
-              const placeholder = keyLength > 0
-                ? t('settings.fields.vendorApiKeySet', { length: keyLength })
-                : t('settings.fields.vendorApiKeyPlaceholder', { vendor: vendorLabel });
-              return (
-                <div className="pl-3 border-l-2 border-amber-300 dark:border-amber-600">
-                  <Input
-                    label={t('settings.fields.vendorApiKey', { vendor: vendorLabel })}
-                    type="password"
-                    placeholder={placeholder}
-                    value={formData.lazyllm_api_keys[vendor] || ''}
-                    onChange={(e) => {
-                      setFormData(prev => ({
-                        ...prev,
-                        lazyllm_api_keys: { ...prev.lazyllm_api_keys, [vendor]: e.target.value }
-                      }));
-                    }}
-                  />
-                  <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.vendorApiKeyDesc')}</p>
-                </div>
-              );
-            })()}
+            {LAZYLLM_VENDOR_SET.has(formData.ai_provider_format) && formData.ai_provider_format !== 'openai' && (
+              <GlobalVendorKeyInput vendor={formData.ai_provider_format} formData={formData} setFormData={setFormData} settings={settings} t={t} />
+            )}
           </div>
 
           {/* AIHubmix 提示 */}
