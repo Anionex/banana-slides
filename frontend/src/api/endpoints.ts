@@ -1001,8 +1001,9 @@ export const createPptRenovationProject = async (
     keepLayout?: boolean;
     templateStyle?: string;
     language?: string;
+    renovationMode?: 'mineru' | 'img2img';
   }
-): Promise<ApiResponse<{ project_id: string; task_id: string; page_count: number }>> => {
+): Promise<ApiResponse<{ project_id: string; task_id: string; page_count: number; renovation_mode: string }>> => {
   const formData = new FormData();
   formData.append('file', file);
   if (options?.keepLayout) {
@@ -1014,8 +1015,11 @@ export const createPptRenovationProject = async (
   if (options?.language) {
     formData.append('language', options.language);
   }
+  if (options?.renovationMode) {
+    formData.append('renovation_mode', options.renovationMode);
+  }
 
-  const response = await apiClient.post<ApiResponse<{ project_id: string; task_id: string; page_count: number }>>(
+  const response = await apiClient.post<ApiResponse<{ project_id: string; task_id: string; page_count: number; renovation_mode: string }>>(
     '/api/projects/renovation',
     formData
   );

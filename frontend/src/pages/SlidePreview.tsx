@@ -52,7 +52,11 @@ const previewI18n = {
         loadingProject: "加载项目中...", processing: "处理中...",
         generatingBackgrounds: "正在生成干净背景...", creatingPdf: "正在创建PDF...",
         parsingContent: "正在解析内容...", creatingPptx: "正在创建可编辑PPTX...", complete: "完成！"
-      }
+      },
+      renovationProcessing: "正在美化页面...",
+      renovationProgress: "{{completed}}/{{total}} 页",
+      renovationFailed: "页面美化失败",
+      renovationPollFailed: "任务状态查询失败，请刷新页面重试"
     },
     outline: {
       titleLabel: "标题",
@@ -106,7 +110,11 @@ const previewI18n = {
         loadingProject: "Loading project...", processing: "Processing...",
         generatingBackgrounds: "Generating clean backgrounds...", creatingPdf: "Creating PDF...",
         parsingContent: "Parsing content...", creatingPptx: "Creating editable PPTX...", complete: "Complete!"
-      }
+      },
+      renovationProcessing: "Beautifying pages...",
+      renovationProgress: "{{completed}}/{{total}} pages",
+      renovationFailed: "Page beautification failed",
+      renovationPollFailed: "Task status query failed, please refresh the page"
     },
     outline: {
       titleLabel: "Title",
@@ -145,7 +153,7 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX, getSettings, getTaskStatus } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
@@ -267,6 +275,10 @@ export const SlidePreview: React.FC = () => {
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
+  // img2img renovation task polling state
+  const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
+  const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
+
   // Memoize pages with generated images to avoid re-computing in multiple places
   const pagesWithImages = useMemo(() => {
     return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
@@ -292,6 +304,70 @@ export const SlidePreview: React.FC = () => {
     };
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
+
+  // img2img renovation task polling (when navigated from Home with img2img mode)
+  useEffect(() => {
+    if (!projectId) return;
+    const taskId = localStorage.getItem('renovationTaskId');
+    if (!taskId) return;
+
+    setIsRenovationProcessing(true);
+    let cancelled = false;
+    let pollFailCount = 0;
+
+    const poll = async () => {
+      try {
+        const response = await getTaskStatus(projectId, taskId);
+        if (cancelled) return;
+        const task = response.data;
+        if (!task) return;
+        pollFailCount = 0;
+
+        if (task.progress) {
+          setRenovationProgress({
+            total: task.progress.total || 0,
+            completed: task.progress.completed || 0,
+          });
+        }
+
+        // Sync project to get latest page images
+        await syncProject(projectId);
+
+        if (task.status === 'COMPLETED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          await syncProject(projectId);
+          return;
+        }
+
+        if (task.status === 'FAILED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: task.error_message || t('preview.renovationFailed'), type: 'error' });
+          return;
+        }
+
+        setTimeout(poll, 2000);
+      } catch (err) {
+        if (cancelled) return;
+        pollFailCount++;
+        console.error('Renovation task poll error:', err);
+        if (pollFailCount >= 5) {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: t('preview.renovationPollFailed'), type: 'error' });
+          return;
+        }
+        setTimeout(poll, 3000);
+      }
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   // 监听警告消息
   const lastWarningRef = React.useRef<string | null>(null);
@@ -1156,6 +1232,19 @@ export const SlidePreview: React.FC = () => {
 
   if (!currentProject) {
     return <Loading fullscreen message={t('preview.messages.loadingProject')} />;
+  }
+
+  if (isRenovationProcessing) {
+    const msg = renovationProgress
+      ? `${t('preview.renovationProcessing')} ${t('preview.renovationProgress', { completed: renovationProgress.completed, total: renovationProgress.total })}`
+      : t('preview.renovationProcessing');
+    return (
+      <Loading
+        fullscreen
+        message={msg}
+        progress={renovationProgress ? { total: renovationProgress.total, completed: renovationProgress.completed } : undefined}
+      />
+    );
   }
 
   if (isGlobalLoading) {

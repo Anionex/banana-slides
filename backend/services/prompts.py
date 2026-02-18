@@ -1011,6 +1011,38 @@ Only describe the layout and spatial arrangement. Do not describe colors, text c
     return prompt
 
 
+def get_slide_beautify_prompt(style: str = None, language: str = None) -> str:
+    """
+    图生图模式：美化 PPT 页面图片的 prompt
+
+    Args:
+        style: 用户指定的风格描述（可选）
+        language: 输出语言
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    style_desc = style or "professional, modern, visually polished"
+    lang_instruction = get_ppt_language_instruction(language)
+
+    prompt = f"""\
+Please beautify and re-design this PowerPoint slide image.
+Keep all the original text content and structure, but completely transform it into a professional, visually stunning presentation slide.
+
+Target style: {style_desc}
+
+Requirements:
+- Preserve ALL original text exactly as-is (do not translate, rephrase, or omit any text)
+- Significantly improve the visual design: colors, background, layout, typography
+- Make it look like a professionally designed presentation slide
+- Ensure high contrast and readability
+- Add appropriate visual hierarchy and spacing
+{lang_instruction}
+"""
+    logger.debug(f"[get_slide_beautify_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
 def get_style_extraction_prompt() -> str:
     """
     从图片中提取风格描述（通用，可复用于所有创建模式）

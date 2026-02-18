@@ -77,6 +77,11 @@ const homeI18n = {
         keepLayout: '保留原始排版布局',
         onlyPdfPptx: '仅支持 PDF 和 PPTX 文件',
         uploadFile: '请先上传 PDF 或 PPTX 文件',
+        modeLabel: '翻新模式',
+        modeMineru: '内容解析',
+        modeImg2img: '图生图',
+        mineruDesc: '解析内容后重新生成，可编辑大纲和描述',
+        img2imgDesc: '直接美化原始页面，速度更快',
       },
       style: {
         extractFromImage: '从图片提取风格',
@@ -163,6 +168,11 @@ const homeI18n = {
         keepLayout: 'Keep original layout',
         onlyPdfPptx: 'Only PDF and PPTX files are supported',
         uploadFile: 'Please upload a PDF or PPTX file first',
+        modeLabel: 'Renovation mode',
+        modeMineru: 'Content parsing',
+        modeImg2img: 'Image-to-image',
+        mineruDesc: 'Parse content then regenerate, editable outline & descriptions',
+        img2imgDesc: 'Directly beautify original pages, much faster',
       },
       style: {
         extractFromImage: 'Extract from image',
@@ -223,6 +233,7 @@ export const Home: React.FC = () => {
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
   const [keepLayout, setKeepLayout] = useState(false);
+  const [renovationMode, setRenovationMode] = useState<'mineru' | 'img2img'>('img2img');
   const [isExtractingStyle, setIsExtractingStyle] = useState(false);
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const styleImageInputRef = useRef<HTMLInputElement>(null);
@@ -560,6 +571,7 @@ export const Home: React.FC = () => {
         const result = await createPptRenovationProject(renovationFile, {
           keepLayout,
           templateStyle: styleDesc,
+          renovationMode,
         });
 
         const projectId = result.data?.project_id;
@@ -569,7 +581,7 @@ export const Home: React.FC = () => {
           return;
         }
 
-        // Save project ID and task ID for DetailEditor to poll
+        // Save project ID and task ID for polling
         localStorage.setItem('currentProjectId', projectId);
         if (taskId) {
           localStorage.setItem('renovationTaskId', taskId);
@@ -579,8 +591,13 @@ export const Home: React.FC = () => {
         sessionStorage.removeItem('home-draft-content');
         sessionStorage.removeItem('home-draft-tab');
 
-        // Navigate to detail editor (will poll for task completion with skeleton UI)
-        navigate(`/project/${projectId}/detail`);
+        // img2img mode goes directly to preview (images generated directly)
+        // mineru mode goes to detail editor (needs outline/description editing first)
+        if (renovationMode === 'img2img') {
+          navigate(`/project/${projectId}/preview`);
+        } else {
+          navigate(`/project/${projectId}/detail`);
+        }
         return;
       }
 
@@ -974,22 +991,48 @@ export const Home: React.FC = () => {
                   className="hidden"
                 />
 
-                {/* 保留布局 toggle */}
+                {/* 翻新模式选择 */}
+                <div className="space-y-1.5">
+                  <span className="text-sm text-gray-600 dark:text-foreground-tertiary">
+                    {t('home.renovation.modeLabel')}
+                  </span>
+                  <div className="flex gap-2">
+                    {(['img2img', 'mineru'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setRenovationMode(mode)}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all duration-200 border ${
+                          renovationMode === mode
+                            ? 'bg-banana/10 dark:bg-banana/20 border-banana text-banana-700 dark:text-banana font-medium'
+                            : 'bg-white dark:bg-background-tertiary border-gray-200 dark:border-border-primary text-gray-600 dark:text-foreground-tertiary hover:border-gray-300 dark:hover:border-border-hover'
+                        }`}
+                      >
+                        <div className="font-medium">{t(`home.renovation.mode${mode === 'img2img' ? 'Img2img' : 'Mineru'}`)}</div>
+                        <div className="text-xs mt-0.5 opacity-70">{t(`home.renovation.${mode === 'img2img' ? 'img2imgDesc' : 'mineruDesc'}`)}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 保留布局 toggle - only for mineru mode */}
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                      {t('home.renovation.keepLayout')}
-                    </span>
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={keepLayout}
-                        onChange={(e) => setKeepLayout(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
-                    </div>
-                  </label>
+                  {renovationMode === 'mineru' ? (
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                        {t('home.renovation.keepLayout')}
+                      </span>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={keepLayout}
+                          onChange={(e) => setKeepLayout(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
+                      </div>
+                    </label>
+                  ) : <div />}
                   <Button
                     size="sm"
                     onClick={handleSubmit}

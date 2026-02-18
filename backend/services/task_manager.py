@@ -1086,6 +1086,178 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             db.session.commit()
 
 
+def process_ppt_renovation_img2img_task(task_id: str, project_id: str, ai_service,
+                                        file_service, template_style: str = None,
+                                        max_workers: int = 5, app=None,
+                                        language: str = 'zh',
+                                        aspect_ratio: str = '16:9'):
+    """
+    Background task for PPT renovation (image-to-image mode):
+    directly beautify each page image using AI image edit, skipping MinerU parsing.
+
+    Flow:
+    1. Get existing page images (already created during project creation)
+    2. Parallel: AI beautify each page image → save as new version
+    3. project.status = IMAGES_GENERATED
+
+    Args:
+        task_id: Task ID
+        project_id: Project ID
+        ai_service: AI service instance
+        file_service: FileService instance
+        template_style: Optional style description for beautification
+        max_workers: Maximum parallel workers
+        app: Flask app instance
+        language: Output language
+        aspect_ratio: Image aspect ratio
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            from models import Project
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+            page_count = len(pages)
+            if page_count == 0:
+                raise ValueError("No pages to process")
+
+            task.set_progress({
+                "total": page_count,
+                "completed": 0,
+                "failed": 0,
+                "current_step": "beautifying"
+            })
+            db.session.commit()
+
+            # Build beautification prompt
+            from services.prompts import get_slide_beautify_prompt
+            beautify_prompt = get_slide_beautify_prompt(style=template_style, language=language)
+
+            import threading
+            progress_lock = threading.Lock()
+            completed = 0
+            failed = 0
+            errors = []
+
+            def beautify_single_page(idx, page_obj):
+                nonlocal completed, failed
+                with app.app_context():
+                    try:
+                        page = Page.query.get(page_obj.id)
+                        if not page:
+                            raise ValueError(f"Page {page_obj.id} not found")
+
+                        # Get the current page image path
+                        image_path = None
+                        if page.cached_image_path:
+                            image_path = file_service.get_absolute_path(page.cached_image_path)
+                        elif page.generated_image_path:
+                            image_path = file_service.get_absolute_path(page.generated_image_path)
+
+                        if not image_path or not Path(image_path).exists():
+                            raise ValueError(f"No source image found for page {idx + 1}")
+
+                        # Use AI to beautify the slide image (image-to-image)
+                        logger.info(f"Beautifying page {idx + 1}/{page_count}...")
+                        beautified_image = ai_service.generate_image(
+                            beautify_prompt, image_path, aspect_ratio
+                        )
+
+                        if not beautified_image:
+                            raise ValueError(f"AI returned no image for page {idx + 1}")
+
+                        # Save beautified image as new version
+                        save_image_with_version(
+                            beautified_image, project_id, page.id, file_service, page_obj=page
+                        )
+
+                        with progress_lock:
+                            completed += 1
+                            task_obj = Task.query.get(task_id)
+                            if task_obj:
+                                task_obj.update_progress(completed=completed, failed=failed)
+                                db.session.commit()
+
+                        logger.info(f"Page {idx + 1} beautified (completed={completed}, failed={failed})")
+
+                    except Exception as e:
+                        logger.error(f"Beautify failed for page {idx + 1}: {e}")
+                        with progress_lock:
+                            failed += 1
+                            errors.append(str(e))
+                            task_obj = Task.query.get(task_id)
+                            if task_obj:
+                                task_obj.update_progress(completed=completed, failed=failed)
+                                db.session.commit()
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(beautify_single_page, i, pages[i])
+                    for i in range(page_count)
+                ]
+                for future in as_completed(futures):
+                    future.result()
+
+            logger.info(f"All pages beautified: {completed} completed, {failed} failed")
+
+            if failed > 0:
+                reason = errors[0] if errors else "unknown error"
+                raise ValueError(f"{failed}/{page_count} 页美化失败: {reason}")
+
+            # Update project status — images are already generated
+            project = Project.query.get(project_id)
+            if project:
+                project.status = 'IMAGES_GENERATED'
+                project.updated_at = datetime.utcnow()
+
+            db.session.commit()
+
+            # Mark task as completed
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": page_count,
+                    "completed": completed,
+                    "failed": failed,
+                    "current_step": "done"
+                })
+                db.session.commit()
+
+            logger.info(f"Task {task_id} COMPLETED - img2img renovation processed {page_count} pages")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+
+            project = Project.query.get(project_id)
+            if project:
+                project.status = 'DRAFT'
+
+            db.session.commit()
+
+
 def export_editable_pptx_with_recursive_analysis_task(
     task_id: str,
     project_id: str,

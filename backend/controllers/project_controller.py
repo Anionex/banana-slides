@@ -1074,6 +1074,7 @@ def create_ppt_renovation_project():
         file: PDF or PPTX file (required)
         keep_layout: "true"/"false" - whether to preserve layout via caption model (optional, default false)
         template_style: style description text (optional)
+        renovation_mode: "mineru"/"img2img" - parsing mode (optional, default "mineru")
 
     Returns:
         {project_id, task_id, page_count}
@@ -1094,6 +1095,9 @@ def create_ppt_renovation_project():
 
         keep_layout = request.form.get('keep_layout', 'false').lower() == 'true'
         template_style = request.form.get('template_style', '').strip() or None
+        renovation_mode = request.form.get('renovation_mode', 'mineru').lower()
+        if renovation_mode not in ('mineru', 'img2img'):
+            renovation_mode = 'mineru'
 
         # Create project
         project = Project(
@@ -1228,35 +1232,56 @@ def create_ppt_renovation_project():
 
         # Get services
         ai_service = get_ai_service()
-        from services.file_parser_service import FileParserService
-        file_parser_service = FileParserService(
-            mineru_token=current_app.config['MINERU_TOKEN'],
-            mineru_api_base=current_app.config['MINERU_API_BASE'],
-            google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-            google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
-            openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
-            openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-            image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-            provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
-            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
-        )
+
+        # FileParserService only needed for mineru mode
+        file_parser_service = None
+        if renovation_mode == 'mineru':
+            from services.file_parser_service import FileParserService
+            file_parser_service = FileParserService(
+                mineru_token=current_app.config['MINERU_TOKEN'],
+                mineru_api_base=current_app.config['MINERU_API_BASE'],
+                google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+                google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
+                openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+                openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
+                image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
+                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+                lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
+            )
 
         language = request.form.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         app = current_app._get_current_object()
 
-        # Submit async task
-        task_manager.submit_task(
-            task.id,
-            process_ppt_renovation_task,
-            project_id,
-            ai_service,
-            file_service,
-            file_parser_service,
-            keep_layout,
-            5,  # max_workers
-            app,
-            language
-        )
+        # Submit async task based on renovation mode
+        if renovation_mode == 'img2img':
+            from services.task_manager import process_ppt_renovation_img2img_task
+            # Get project aspect ratio if set
+            aspect_ratio = project.image_aspect_ratio or '16:9'
+            task_manager.submit_task(
+                task.id,
+                process_ppt_renovation_img2img_task,
+                project_id,
+                ai_service,
+                file_service,
+                template_style,
+                5,  # max_workers
+                app,
+                language,
+                aspect_ratio
+            )
+        else:
+            task_manager.submit_task(
+                task.id,
+                process_ppt_renovation_task,
+                project_id,
+                ai_service,
+                file_service,
+                file_parser_service,
+                keep_layout,
+                5,  # max_workers
+                app,
+                language
+            )
 
         project.status = 'PROCESSING'
         db.session.commit()
@@ -1264,7 +1289,8 @@ def create_ppt_renovation_project():
         return success_response({
             'project_id': project_id,
             'task_id': task.id,
-            'page_count': len(pages_list)
+            'page_count': len(pages_list),
+            'renovation_mode': renovation_mode
         }, status_code=202)
 
     except Exception as e:
