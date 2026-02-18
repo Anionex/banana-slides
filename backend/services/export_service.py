@@ -174,8 +174,9 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
     try:
         w, h = (float(x) for x in aspect_ratio.split(':'))
         if w <= 0 or h <= 0:
-            raise ValueError
-    except (ValueError, AttributeError):
+            raise ValueError(f"non-positive: {w}:{h}")
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Invalid aspect ratio '{aspect_ratio}', falling back to 16:9: {e}")
         w, h = 16.0, 9.0
     if w >= h:
         return base, base * h / w
