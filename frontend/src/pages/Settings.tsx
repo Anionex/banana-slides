@@ -12,7 +12,7 @@ const settingsI18n = {
       subtitle: "配置应用的各项参数",
       sections: {
         appearance: "外观设置", language: "界面语言", apiConfig: "全局 API 配置",
-        apiConfigDesc: "所有模型默认使用此配置；下方可为单个模型指定独立的提供商和凭证",
+        apiConfigDesc: "下方模型选择「全局配置」时，将使用此处的提供商和凭证",
         modelConfig: "模型配置", mineruConfig: "MinerU 配置", imageConfig: "图像生成配置",
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
@@ -100,7 +100,7 @@ const settingsI18n = {
       subtitle: "Configure application parameters",
       sections: {
         appearance: "Appearance", language: "Interface Language", apiConfig: "Global API Configuration",
-        apiConfigDesc: "Used by all models by default; override per model below if needed",
+        apiConfigDesc: "When a model below is set to 'Global Config', it will use the provider and credentials configured here",
         modelConfig: "Model Configuration", mineruConfig: "MinerU Configuration", imageConfig: "Image Generation Configuration",
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
