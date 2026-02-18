@@ -182,12 +182,16 @@ def export_images(project_id):
     Multiple images: creates a ZIP archive and returns download URL.
     """
     try:
-        project = Project.query.get(project_id)
+        s_project_id = secure_filename(project_id)
+        if s_project_id != project_id:
+            return bad_request('Invalid project ID')
+
+        project = Project.query.get(s_project_id)
         if not project:
             return not_found('Project')
 
         selected_page_ids = parse_page_ids_from_query(request)
-        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+        pages = get_filtered_pages(s_project_id, selected_page_ids if selected_page_ids else None)
         if not pages:
             return bad_request("No pages found for project")
 
@@ -203,24 +207,24 @@ def export_images(project_id):
         if not image_paths:
             return bad_request("No generated images found for project")
 
-        exports_dir = file_service._get_exports_dir(project_id)
+        exports_dir = file_service._get_exports_dir(s_project_id)
 
         if len(image_paths) == 1:
             # Single image: copy to exports dir
             ext = os.path.splitext(image_paths[0])[1] or '.png'
-            filename = f'slide_{project_id}{ext}'
+            filename = f'slide_{pages[0].id}{ext}'
             output_path = os.path.join(exports_dir, filename)
             shutil.copy2(image_paths[0], output_path)
         else:
             # Multiple images: create ZIP
-            filename = f'slides_{project_id}.zip'
+            filename = f'slides_{s_project_id}.zip'
             output_path = os.path.join(exports_dir, filename)
             with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for i, path in enumerate(image_paths, 1):
                     ext = os.path.splitext(path)[1] or '.png'
                     zf.write(path, f'slide_{i:03d}{ext}')
 
-        download_path = f"/files/{project_id}/exports/{filename}"
+        download_path = f"/files/{s_project_id}/exports/{filename}"
         base_url = request.url_root.rstrip("/")
 
         return success_response(

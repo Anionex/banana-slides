@@ -138,7 +138,6 @@ test.describe('Export Images - UI Mock', () => {
     await page.locator('button:has-text("导出")').first().click()
     await page.locator('button:has-text("导出为图片")').click()
 
-    await page.waitForTimeout(2000)
-    expect(imageExportCalled).toBe(true)
+    await expect.poll(() => imageExportCalled).toBe(true)
   })
 })
