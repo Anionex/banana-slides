@@ -31,23 +31,26 @@ class LazyLLMTextProvider(TextProvider):
                 "Please install backend dependencies including lazyllm."
             ) from exc
 
+        self._source = source
+        self._model = model
+        self._vlm_client = None
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
         self.client = lazyllm.namespace('BANANA').OnlineModule(
-            source = source, 
-            model = model, 
+            source = source,
+            model = model,
             type = 'llm',
             )
         
     def generate_text(self, prompt, thinking_budget = 1000):
-        """
-        Generate text using Lazyllm framework
-        
-        Args:
-            prompt: The input prompt
-            thinking_budget: Not used in Lazyllm, kept for interface compatibility
-            
-        Returns:
-            Generated text
-        """
         message = self.client(prompt)
+        return strip_think_tags(message)
+
+    def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
+        if self._vlm_client is None:
+            import lazyllm
+            ensure_lazyllm_namespace_key(self._source, namespace='BANANA')
+            self._vlm_client = lazyllm.namespace('BANANA').OnlineModule(
+                source=self._source, model=self._model, type='vlm',
+            )
+        message = self._vlm_client(prompt, lazyllm_files=[image_path])
         return strip_think_tags(message)

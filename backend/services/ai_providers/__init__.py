@@ -28,7 +28,7 @@ __all__ = [
     'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'LazyLLMTextProvider',
     'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'LazyLLMImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format',
-    'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
+    'get_caption_provider', 'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
 ]
 
 # LazyLLM vendor names (used to distinguish from gemini/openai formats)
@@ -209,6 +209,29 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
 def get_image_caption_provider_config() -> Dict[str, Any]:
     """Get provider config specifically for image caption model."""
     return _get_model_type_provider_config('image_caption')
+
+
+def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
+    """Factory: return a TextProvider for image caption (multimodal) tasks."""
+    config = _get_model_type_provider_config('image_caption')
+    fmt = config['format']
+
+    if fmt == 'openai':
+        logger.info("Caption provider: OpenAI, model=%s", model)
+        return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+    elif fmt == 'vertex':
+        logger.info("Caption provider: Vertex AI, model=%s", model)
+        return GenAITextProvider(
+            model=model, vertexai=True,
+            project_id=config['project_id'], location=config['location'],
+        )
+    elif fmt == 'lazyllm':
+        source = config.get('source') or 'doubao'
+        logger.info("Caption provider: LazyLLM, model=%s, source=%s", model, source)
+        return LazyLLMTextProvider(source=source, model=model)
+    else:
+        logger.info("Caption provider: Gemini, model=%s", model)
+        return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
 def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:

@@ -26,7 +26,7 @@ from .prompts import (
     get_layout_caption_prompt,
     get_style_extraction_prompt
 )
-from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
+from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class ProjectContext:
 class AIService:
     """Service for AI model interactions using pluggable providers"""
     
-    def __init__(self, text_provider: TextProvider = None, image_provider: ImageProvider = None):
+    def __init__(self, text_provider: TextProvider = None, image_provider: ImageProvider = None, caption_provider: TextProvider = None):
         """
         Initialize AI service with providers
         
@@ -104,9 +104,16 @@ class AIService:
             self.enable_image_reasoning = False
             self.image_thinking_budget = 1024
         
+        # Caption model for multimodal (image→text) tasks
+        if has_app_context() and current_app and hasattr(current_app, "config"):
+            self.caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
+        else:
+            self.caption_model = config.IMAGE_CAPTION_MODEL
+
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT (from Flask config or env var)
         self.text_provider = text_provider or get_text_provider(model=self.text_model)
         self.image_provider = image_provider or get_image_provider(model=self.image_model)
+        self.caption_provider = caption_provider or get_caption_provider(model=self.caption_model)
     
     def _get_text_thinking_budget(self) -> int:
         """
@@ -235,22 +242,23 @@ class AIService:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
             ValueError: text_provider 不支持图片输入
         """
-        # 调用AI生成文本（带图片），根据 enable_text_reasoning 配置调整 thinking_budget
+        # 使用 caption_provider（支持图片输入的多模态模型）
         actual_budget = self._get_text_thinking_budget()
-        if hasattr(self.text_provider, 'generate_with_image'):
-            response_text = self.text_provider.generate_with_image(
+        provider = self.caption_provider
+        if hasattr(provider, 'generate_with_image'):
+            response_text = provider.generate_with_image(
                 prompt=prompt,
                 image_path=image_path,
                 thinking_budget=actual_budget
             )
-        elif hasattr(self.text_provider, 'generate_text_with_images'):
-            response_text = self.text_provider.generate_text_with_images(
+        elif hasattr(provider, 'generate_text_with_images'):
+            response_text = provider.generate_text_with_images(
                 prompt=prompt,
                 images=[image_path],
                 thinking_budget=actual_budget
             )
         else:
-            raise ValueError("text_provider 不支持图片输入")
+            raise ValueError("caption_provider does not support image input")
         
         # 清理响应文本：移除markdown代码块标记和多余空白
         cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -688,23 +696,24 @@ class AIService:
         return result
 
     def _generate_text_from_image(self, prompt: str, image_path: str) -> str:
-        """Helper to generate text from a prompt and an image."""
+        """Helper to generate text from a prompt and an image, using caption_provider."""
         actual_budget = self._get_text_thinking_budget()
+        provider = self.caption_provider
 
-        if hasattr(self.text_provider, 'generate_with_image'):
-            response_text = self.text_provider.generate_with_image(
+        if hasattr(provider, 'generate_with_image'):
+            response_text = provider.generate_with_image(
                 prompt=prompt,
                 image_path=image_path,
                 thinking_budget=actual_budget
             )
-        elif hasattr(self.text_provider, 'generate_text_with_images'):
-            response_text = self.text_provider.generate_text_with_images(
+        elif hasattr(provider, 'generate_text_with_images'):
+            response_text = provider.generate_text_with_images(
                 prompt=prompt,
                 images=[image_path],
                 thinking_budget=actual_budget
             )
         else:
-            raise ValueError("text_provider does not support image input")
+            raise ValueError("caption_provider does not support image input")
 
         return response_text.strip()
 
