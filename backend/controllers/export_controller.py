@@ -5,6 +5,7 @@ import logging
 import os
 import io
 import shutil
+import time
 import zipfile
 
 from flask import Blueprint, request, current_app
@@ -182,6 +183,8 @@ def export_images(project_id):
     Multiple images: creates a ZIP archive and returns download URL.
     """
     try:
+        if '..' in project_id or '/' in project_id or '\\' in project_id:
+            return bad_request('Invalid project ID')
         s_project_id = secure_filename(project_id)
         if s_project_id != project_id:
             return bad_request('Invalid project ID')
@@ -208,16 +211,17 @@ def export_images(project_id):
             return bad_request("No generated images found for project")
 
         exports_dir = file_service._get_exports_dir(s_project_id)
+        timestamp = int(time.time())
 
         if len(image_paths) == 1:
             # Single image: copy to exports dir
             ext = os.path.splitext(image_paths[0])[1] or '.png'
-            filename = f'slide_{pages[0].id}{ext}'
+            filename = f'slide_{pages[0].id}_{timestamp}{ext}'
             output_path = os.path.join(exports_dir, filename)
             shutil.copy2(image_paths[0], output_path)
         else:
             # Multiple images: create ZIP
-            filename = f'slides_{s_project_id}.zip'
+            filename = f'slides_{s_project_id}_{timestamp}.zip'
             output_path = os.path.join(exports_dir, filename)
             with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for i, path in enumerate(image_paths, 1):
