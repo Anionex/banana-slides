@@ -11,8 +11,8 @@ const settingsI18n = {
       title: "系统设置",
       subtitle: "配置应用的各项参数",
       sections: {
-        appearance: "外观设置", language: "界面语言", apiConfig: "全局 API 配置",
-        apiConfigDesc: "下方模型选择「全局配置」时，将使用此处的提供商和凭证",
+        appearance: "外观设置", language: "界面语言", apiConfig: "默认 API 配置",
+        apiConfigDesc: "下方模型未单独指定提供商时，将使用此处的配置",
         modelConfig: "模型配置", mineruConfig: "MinerU 配置", imageConfig: "图像生成配置",
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
@@ -58,9 +58,9 @@ const settingsI18n = {
         vendorApiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
         vendorApiKeySet: "已设置（长度: {{length}}）",
         selectPlaceholder: "-- 请选择 --",
-        modelProvider: "提供商", modelProviderDesc: "为此模型选择独立的提供商，不选则使用上方全局配置",
-        modelProviderPlaceholder: "-- 使用全局配置 --",
-        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "留空使用全局 Base URL",
+        modelProvider: "提供商", modelProviderDesc: "为此模型选择独立的提供商，不选则使用上方默认配置",
+        modelProviderPlaceholder: "-- 使用默认配置 --",
+        perModelApiBaseUrl: "API Base URL", perModelApiBaseUrlPlaceholder: "留空使用默认 Base URL",
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
@@ -99,8 +99,8 @@ const settingsI18n = {
       title: "Settings",
       subtitle: "Configure application parameters",
       sections: {
-        appearance: "Appearance", language: "Interface Language", apiConfig: "Global API Configuration",
-        apiConfigDesc: "When a model below is set to 'Global Config', it will use the provider and credentials configured here",
+        appearance: "Appearance", language: "Interface Language", apiConfig: "Default API Configuration",
+        apiConfigDesc: "Used as fallback when a model below has no provider specified",
         modelConfig: "Model Configuration", mineruConfig: "MinerU Configuration", imageConfig: "Image Generation Configuration",
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
@@ -995,7 +995,7 @@ export const Settings: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <div className="space-y-8">
-        {/* 全局 API 配置区块 */}
+        {/* 默认 API 配置区块 */}
         <div data-testid="global-api-config-section">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
             <Key size={20} />

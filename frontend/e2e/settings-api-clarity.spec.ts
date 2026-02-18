@@ -5,26 +5,22 @@ test.beforeEach(async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
-test('global API config section shows provider dropdown instead of buttons', async ({ page }) => {
-  // Section title should say "全局" not "默认"
-  await expect(page.getByText('全局 API 配置')).toBeVisible();
-  await expect(page.getByText('默认 API 配置')).not.toBeVisible();
+test('default API config section shows provider dropdown instead of buttons', async ({ page }) => {
+  await expect(page.getByText('默认 API 配置')).toBeVisible();
 
   // Should have a provider dropdown (select), not buttons
-  const globalSection = page.getByTestId('global-api-config-section');
-  const providerSelect = globalSection.locator('select').first();
+  const section = page.getByTestId('global-api-config-section');
+  const providerSelect = section.locator('select').first();
   await expect(providerSelect).toBeVisible();
 
-  // Dropdown should contain same vendors as per-model (e.g. Gemini, OpenAI, DeepSeek)
-  const options = providerSelect.locator('option');
-  const texts = await options.allTextContents();
+  // Dropdown should contain same vendors as per-model
+  const texts = await providerSelect.locator('option').allTextContents();
   expect(texts).toContain('Gemini');
   expect(texts).toContain('OpenAI');
   expect(texts).toContain('DeepSeek');
 });
 
-test('per-model provider placeholder references global config', async ({ page }) => {
-  // Per-model dropdowns should say "全局配置" not "默认配置"
-  const globalOption = page.locator('option', { hasText: '全局配置' });
-  await expect(globalOption.first()).toBeAttached();
+test('per-model provider placeholder references default config', async ({ page }) => {
+  const defaultOption = page.locator('option', { hasText: '默认配置' });
+  await expect(defaultOption.first()).toBeAttached();
 });
