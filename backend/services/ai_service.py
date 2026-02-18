@@ -240,7 +240,7 @@ class AIService:
             
         Raises:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
-            ValueError: text_provider 不支持图片输入
+            ValueError: caption_provider 不支持图片输入
         """
         # 使用 caption_provider（支持图片输入的多模态模型）
         actual_budget = self._get_text_thinking_budget()
@@ -258,7 +258,7 @@ class AIService:
                 thinking_budget=actual_budget
             )
         else:
-            raise ValueError("caption_provider does not support image input")
+            raise ValueError("caption_provider 不支持图片输入")
         
         # 清理响应文本：移除markdown代码块标记和多余空白
         cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -713,7 +713,7 @@ class AIService:
                 thinking_budget=actual_budget
             )
         else:
-            raise ValueError("caption_provider does not support image input")
+            raise ValueError("caption_provider 不支持图片输入")
 
         return response_text.strip()
 

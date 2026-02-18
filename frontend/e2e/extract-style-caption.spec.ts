@@ -30,6 +30,10 @@ async function triggerStyleExtract(page: import('@playwright/test').Page) {
 }
 
 test.describe('Extract style - Mock tests', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
+  })
+
   test('should extract style and show success toast', async ({ page }) => {
     const mockStyle = 'Modern minimalist blue gradient'
 

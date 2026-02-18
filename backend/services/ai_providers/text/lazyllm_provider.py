@@ -9,6 +9,7 @@ Supports modes:
 - sensenova
 - ...
 """
+import threading
 from .base import TextProvider, strip_think_tags
 from ..lazyllm_env import ensure_lazyllm_namespace_key
 
@@ -34,6 +35,7 @@ class LazyLLMTextProvider(TextProvider):
         self._source = source
         self._model = model
         self._vlm_client = None
+        self._vlm_lock = threading.Lock()
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
         self.client = lazyllm.namespace('BANANA').OnlineModule(
             source = source,
@@ -47,10 +49,12 @@ class LazyLLMTextProvider(TextProvider):
 
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
         if self._vlm_client is None:
-            import lazyllm
-            ensure_lazyllm_namespace_key(self._source, namespace='BANANA')
-            self._vlm_client = lazyllm.namespace('BANANA').OnlineModule(
-                source=self._source, model=self._model, type='vlm',
-            )
+            with self._vlm_lock:
+                if self._vlm_client is None:
+                    import lazyllm
+                    ensure_lazyllm_namespace_key(self._source, namespace='BANANA')
+                    self._vlm_client = lazyllm.namespace('BANANA').OnlineModule(
+                        source=self._source, model=self._model, type='vlm',
+                    )
         message = self._vlm_client(prompt, lazyllm_files=[image_path])
         return strip_think_tags(message)
