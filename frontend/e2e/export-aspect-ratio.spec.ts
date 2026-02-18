@@ -27,6 +27,12 @@ const WORKTREE_ROOT = path.resolve(__dirname, '..', '..')
 const UPLOADS_DIR = path.join(WORKTREE_ROOT, 'uploads')
 const DB_PATH = path.join(WORKTREE_ROOT, 'backend', 'instance', 'database.db')
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function assertUUID(val: string, label: string) {
+  if (!UUID_RE.test(val)) throw new Error(`Invalid ${label}: ${val}`)
+}
+
 interface ProjectData {
   projectId: string
   pageId: string
@@ -64,7 +70,9 @@ async function setupProject(
   const imgAbsPath = path.join(pagesDir, imgFile)
   fs.writeFileSync(imgAbsPath, TINY_PNG)
 
-  // Update DB to set generated_image_path
+  // Update DB to set generated_image_path (validate UUIDs to prevent injection)
+  assertUUID(projectId, 'projectId')
+  assertUUID(pageId, 'pageId')
   const relPath = `${projectId}/pages/${imgFile}`
   execSync(
     `sqlite3 "${DB_PATH}" "UPDATE pages SET generated_image_path='${relPath}', status='IMAGE_GENERATED' WHERE id='${pageId}';"`
@@ -74,6 +82,7 @@ async function setupProject(
 }
 
 function cleanup(projectId: string) {
+  assertUUID(projectId, 'projectId')
   const dir = path.join(UPLOADS_DIR, projectId)
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true })
@@ -140,6 +149,7 @@ test.describe.serial('Export aspect ratio', () => {
     // Extract slide dimensions from PPTX (ZIP containing XML)
     // The download_url is like /files/{id}/exports/file.pptx
     const pptxPath = path.join(UPLOADS_DIR, body.data.download_url.replace('/files/', ''))
+    if (!pptxPath.startsWith(UPLOADS_DIR)) throw new Error('Invalid pptx path')
     const xml = execSync(`unzip -p "${pptxPath}" ppt/presentation.xml`).toString()
     const sldSzMatch = xml.match(/sldSz\s+cx="(\d+)"\s+cy="(\d+)"/)
     expect(sldSzMatch).not.toBeNull()
