@@ -1,11 +1,12 @@
 /**
  * E2E tests for image export feature.
  *
- * 1. Backend API test: verify the /export/images endpoint works correctly
- * 2. Mock UI test: verify the export menu renders the image export option
+ * 1. Backend API tests: error case + happy path (single & multi-image export)
+ * 2. Mock UI tests: verify the export menu renders the image export option
  */
 
 import { test, expect } from '@playwright/test'
+import { seedProjectWithImages } from './helpers/seed-project'
 
 test.describe('Export Images - Backend API', () => {
   test('returns 400 when project has no images', async ({ request }) => {
@@ -21,6 +22,34 @@ test.describe('Export Images - Backend API', () => {
     const resp = await request.get(`/api/projects/${projectId}/export/images`)
     expect(resp.ok()).toBe(false)
     expect(resp.status()).toBe(400)
+  })
+
+  test('exports single image successfully', async ({ request }) => {
+    const { projectId } = await seedProjectWithImages(request, 1)
+
+    const resp = await request.get(`/api/projects/${projectId}/export/images`)
+    expect(resp.ok()).toBe(true)
+    const data = (await resp.json()).data
+    expect(data.download_url).toContain(`/files/${projectId}/exports/`)
+    expect(data.download_url).toContain('.png')
+
+    // Verify the file is downloadable
+    const fileResp = await request.get(data.download_url)
+    expect(fileResp.ok()).toBe(true)
+    expect(fileResp.headers()['content-type']).toContain('image/png')
+  })
+
+  test('exports multiple images as ZIP', async ({ request }) => {
+    const { projectId } = await seedProjectWithImages(request, 2)
+
+    const resp = await request.get(`/api/projects/${projectId}/export/images`)
+    expect(resp.ok()).toBe(true)
+    const data = (await resp.json()).data
+    expect(data.download_url).toContain('.zip')
+
+    // Verify the ZIP is downloadable
+    const fileResp = await request.get(data.download_url)
+    expect(fileResp.ok()).toBe(true)
   })
 })
 
