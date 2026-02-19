@@ -223,9 +223,9 @@ def export_images(project_id):
             filename = f'slides_{s_project_id}_{timestamp}.zip'
             output_path = os.path.join(exports_dir, filename)
             with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for i, (_, path) in enumerate(image_items, 1):
+                for page, path in image_items:
                     ext = os.path.splitext(path)[1] or '.png'
-                    zf.write(path, f'slide_{i:03d}{ext}')
+                    zf.write(path, f'slide_{page.order_index + 1:03d}{ext}')
 
         download_path = f"/files/{s_project_id}/exports/{filename}"
         base_url = request.url_root.rstrip("/")
