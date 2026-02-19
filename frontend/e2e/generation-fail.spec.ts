@@ -1,7 +1,7 @@
 import { test, expect, Page } from '@playwright/test'
 
 async function setupFailureMocks(page: Page, projectId: string, failUrl: string) {
-  // Most specific first
+  // Routes don't overlap in practice; order doesn't matter here
   await page.route(`**/api/projects/${projectId}`, async (route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({
