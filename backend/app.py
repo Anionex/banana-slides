@@ -3,6 +3,7 @@ Simplified Flask Application Entry Point
 """
 import os
 import sys
+import hmac
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
@@ -115,6 +116,22 @@ def create_app():
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
+    # Access code enforcement on all /api/ routes
+    @app.before_request
+    def _enforce_access_code():
+        from flask import request, jsonify
+        expected = os.getenv('ACCESS_CODE', '').strip()
+        if not expected:
+            return  # not enabled
+        if not request.path.startswith('/api/'):
+            return  # non-API routes (health, static, etc.)
+        if request.path.startswith('/api/access-code/'):
+            return  # allow check/verify endpoints
+        code = request.headers.get('X-Access-Code', '')
+        if code == expected:
+            return
+        return jsonify({'error': 'Access code required'}), 403
+
     # Health check endpoint
     @app.route('/health')
     def health_check():
@@ -135,7 +152,7 @@ def create_app():
         if not expected:
             return {'data': {'valid': True}}
         code = (request.json or {}).get('code', '')
-        if code == expected:
+        if hmac.compare_digest(code, expected):
             return {'data': {'valid': True}}
         return jsonify({'error': 'Invalid access code'}), 403
     

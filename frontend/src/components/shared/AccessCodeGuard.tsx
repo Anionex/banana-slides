@@ -12,12 +12,14 @@ const translations = {
     placeholder: '输入口令',
     submit: '确认',
     error: '口令错误，请重试',
+    networkError: '网络错误，请稍后重试',
   },
   en: {
     title: 'Enter Access Code',
     placeholder: 'Enter code',
     submit: 'Submit',
     error: 'Invalid code, please try again',
+    networkError: 'Network error, please try later',
   },
 };
 
@@ -41,7 +43,8 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
         }
         setStatus('prompt');
       } catch {
-        setStatus('pass');
+        // Fail-closed: if we can't reach the server, show prompt
+        setStatus('prompt');
       }
     })();
   }, []);
@@ -55,9 +58,12 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
       if (res.data.valid) {
         localStorage.setItem(STORAGE_KEY, code.trim());
         setStatus('pass');
+      } else {
+        setError(t('error'));
       }
-    } catch {
-      setError(t('error'));
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setError(status === 403 ? t('error') : t('networkError'));
     } finally {
       setVerifying(false);
     }
