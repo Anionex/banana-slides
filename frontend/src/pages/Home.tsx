@@ -1089,6 +1089,7 @@ export const Home: React.FC = () => {
             onFileStatusChange={handleFileStatusChange}
             deleteMode="remove"
             className="mb-4"
+            showToast={show}
           />
 
           {/* 模板选择 */}

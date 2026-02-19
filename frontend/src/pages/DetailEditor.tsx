@@ -418,6 +418,7 @@ export const DetailEditor: React.FC = () => {
             projectId={projectId}
             onFileClick={setPreviewFileId}
             className="mb-4"
+            showToast={show}
           />
           {currentProject.pages.length === 0 && !isRenovationProcessing ? (
             <div className="text-center py-12 md:py-20">

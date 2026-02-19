@@ -495,6 +495,7 @@ export const OutlineEditor: React.FC = () => {
               projectId={projectId}
               onFileClick={setPreviewFileId}
               className="mt-3"
+              showToast={show}
             />
           </div>
         </div>
@@ -543,6 +544,7 @@ export const OutlineEditor: React.FC = () => {
             projectId={projectId}
             onFileClick={setPreviewFileId}
             className="mt-3"
+            showToast={show}
           />
         </div>
 
