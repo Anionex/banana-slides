@@ -173,8 +173,9 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
     """Return (width, height) in inches for a given aspect ratio string."""
     try:
         w, h = (float(x) for x in aspect_ratio.split(':'))
-        if w <= 0 or h <= 0:
-            raise ValueError(f"non-positive: {w}:{h}")
+        import math
+        if not (math.isfinite(w) and math.isfinite(h) and w > 0 and h > 0):
+            raise ValueError(f"invalid dimensions: {w}:{h}")
     except (ValueError, AttributeError) as e:
         logger.warning(f"Invalid aspect ratio '{aspect_ratio}', falling back to 16:9: {e}")
         w, h = 16.0, 9.0
