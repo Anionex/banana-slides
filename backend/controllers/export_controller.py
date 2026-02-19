@@ -200,31 +200,30 @@ def export_images(project_id):
 
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
-        image_paths = []
+        image_items = []
         for page in pages:
             if page.generated_image_path:
                 abs_path = file_service.get_absolute_path(page.generated_image_path)
                 if os.path.exists(abs_path):
-                    image_paths.append(abs_path)
+                    image_items.append((page, abs_path))
 
-        if not image_paths:
+        if not image_items:
             return bad_request("No generated images found for project")
 
         exports_dir = file_service._get_exports_dir(s_project_id)
         timestamp = int(time.time())
 
-        if len(image_paths) == 1:
-            # Single image: copy to exports dir
-            ext = os.path.splitext(image_paths[0])[1] or '.png'
-            filename = f'slide_{pages[0].id}_{timestamp}{ext}'
+        if len(image_items) == 1:
+            page, path = image_items[0]
+            ext = os.path.splitext(path)[1] or '.png'
+            filename = f'slide_{page.id}_{timestamp}{ext}'
             output_path = os.path.join(exports_dir, filename)
-            shutil.copy2(image_paths[0], output_path)
+            shutil.copy2(path, output_path)
         else:
-            # Multiple images: create ZIP
             filename = f'slides_{s_project_id}_{timestamp}.zip'
             output_path = os.path.join(exports_dir, filename)
             with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for i, path in enumerate(image_paths, 1):
+                for i, (_, path) in enumerate(image_items, 1):
                     ext = os.path.splitext(path)[1] or '.png'
                     zf.write(path, f'slide_{i:03d}{ext}')
 

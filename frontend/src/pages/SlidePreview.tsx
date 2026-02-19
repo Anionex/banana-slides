@@ -942,11 +942,8 @@ export const SlidePreview: React.FC = () => {
     try {
       if (type === 'pptx' || type === 'pdf' || type === 'images') {
         // Synchronous export - direct download, create completed task directly
-        const response = type === 'pptx'
-          ? await apiExportPPTX(projectId, pageIds)
-          : type === 'pdf'
-          ? await apiExportPDF(projectId, pageIds)
-          : await apiExportImages(projectId, pageIds);
+        const exportApi = { pptx: apiExportPPTX, pdf: apiExportPDF, images: apiExportImages };
+        const response = await exportApi[type](projectId, pageIds);
         const downloadUrl = response.data?.download_url || response.data?.download_url_absolute;
         if (downloadUrl) {
           addTask({
