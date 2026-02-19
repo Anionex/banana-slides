@@ -38,12 +38,9 @@ test.describe('Description generation failure handling', () => {
     })
 
     const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
+    // Skip help modal by pre-setting localStorage
+    await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
     await page.goto(baseUrl)
-
-    // Dismiss help modal if present
-    await page.waitForTimeout(500)
-    await page.keyboard.press('Escape')
-    await page.waitForTimeout(300)
 
     // Click "从描述生成" tab
     await page.locator('button').filter({ hasText: /从描述生成|From Description/i }).click()
@@ -57,7 +54,7 @@ test.describe('Description generation failure handling', () => {
     await page.locator('button').filter({ hasText: /下一步|Next/i }).click()
 
     // Should show error toast with the error message
-    await expect(page.getByText('AI service unavailable')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText(/AI service unavailable/i)).toBeVisible({ timeout: 15000 })
 
     // Should stay on Home page
     expect(page.url()).not.toContain('/detail')
