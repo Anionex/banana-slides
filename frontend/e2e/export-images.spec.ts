@@ -31,12 +31,12 @@ test.describe('Export Images - Backend API', () => {
     expect(resp.ok()).toBe(true)
     const data = (await resp.json()).data
     expect(data.download_url).toContain(`/files/${projectId}/exports/`)
-    expect(data.download_url).toContain('.png')
+    expect(data.download_url).toContain('.jpg')
 
     // Verify the file is downloadable
     const fileResp = await request.get(data.download_url)
     expect(fileResp.ok()).toBe(true)
-    expect(fileResp.headers()['content-type']).toContain('image/png')
+    expect(fileResp.headers()['content-type']).toContain('image/jpeg')
   })
 
   test('exports multiple images as ZIP', async ({ request }) => {

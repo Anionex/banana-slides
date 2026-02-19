@@ -1,6 +1,6 @@
 /**
- * Shared helper to create projects with fake images for E2E testing.
- * Bypasses AI image generation by placing fake PNGs on disk + updating DB directly.
+ * Shared helper to create projects with real images for E2E testing.
+ * Bypasses AI image generation by placing fixture images on disk + updating DB directly.
  */
 import { execSync } from 'child_process'
 import * as fs from 'fs'
@@ -11,19 +11,16 @@ import type { APIRequestContext } from '@playwright/test'
 const PROJECT_ROOT = path.resolve(process.cwd(), '..')
 const DB_PATH = path.join(PROJECT_ROOT, 'backend', 'instance', 'database.db')
 const UPLOADS = path.join(PROJECT_ROOT, 'uploads')
+const FIXTURES = path.join(process.cwd(), 'e2e', 'fixtures')
 
 function sql(query: string) {
   execSync(`sqlite3 -cmd ".timeout 5000" "${DB_PATH}" "${query.replace(/"/g, '\\"')}"`)
 }
 
-/** Minimal valid 1x1 PNG */
-function fakePng(): Buffer {
-  return Buffer.from(
-    '89504e470d0a1a0a0000000d49484452000000010000000108020000009001' +
-    '2e00000000c4944415478016360f8cf00000002000160e7274a00000000' +
-    '0049454e44ae426082',
-    'hex'
-  )
+/** Get fixture image path (cycles through slide_1.jpg, slide_2.jpg, slide_3.jpg) */
+function getFixtureImage(index: number): string {
+  const num = (index % 3) + 1
+  return path.join(FIXTURES, `slide_${num}.jpg`)
 }
 
 export interface SeededProject {
@@ -32,19 +29,17 @@ export interface SeededProject {
 }
 
 /**
- * Create a project with N pages, each having a fake PNG image on disk.
+ * Create a project with N pages, each having a real image on disk.
  */
 export async function seedProjectWithImages(
   request: APIRequestContext,
   pageCount = 1
 ): Promise<SeededProject> {
-  // 1. Create project
   const createResp = await request.post('/api/projects', {
     data: { creation_type: 'idea', idea_prompt: 'e2e test', template_style: 'default' },
   })
   const projectId = (await createResp.json()).data?.project_id
 
-  // 2. Create pages and place images
   const pageIds: string[] = []
   const pagesDir = path.join(UPLOADS, projectId, 'pages')
   fs.mkdirSync(pagesDir, { recursive: true })
@@ -56,9 +51,8 @@ export async function seedProjectWithImages(
     const pageId = (await pageResp.json()).data?.page_id
     pageIds.push(pageId)
 
-    // Place fake PNG and update DB
-    const rel = `${projectId}/pages/${pageId}_v1.png`
-    fs.writeFileSync(path.join(UPLOADS, rel), fakePng())
+    const rel = `${projectId}/pages/${pageId}_v1.jpg`
+    fs.copyFileSync(getFixtureImage(i), path.join(UPLOADS, rel))
     sql(`UPDATE pages SET generated_image_path='${rel}', status='COMPLETED' WHERE id='${pageId}'`)
   }
 
