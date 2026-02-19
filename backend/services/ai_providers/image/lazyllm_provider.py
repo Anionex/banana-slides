@@ -15,7 +15,7 @@ Support models:
 import tempfile
 import os
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 from PIL import Image
 from .base import ImageProvider
 from ..lazyllm_env import ensure_lazyllm_namespace_key
@@ -155,17 +155,27 @@ class LazyLLMImageProvider(ImageProvider):
             type='image_editing',
         )
 
-    def generate_image(self, prompt: str = None,
-                       ref_images: Optional[List[Image.Image]] = None,
-                       aspect_ratio = "16:9",
-                       resolution = "1920*1080",
+    def generate_image(self, contents: Optional[List[Union[str, Image.Image]]] = None,
+                       aspect_ratio="16:9",
+                       resolution="1920*1080",
                        enable_thinking: bool = False,
                        thinking_budget: int = 0
                        ) -> Optional[Image.Image]:
+        # Separate text and images from interleaved contents
+        # (lazyllm doesn't support interleaved — concatenate text, collect images)
+        text_parts = []
+        ref_images = []
+        for part in (contents or []):
+            if isinstance(part, str):
+                text_parts.append(part)
+            else:
+                ref_images.append(part)
+        prompt = "\n".join(text_parts)
+
         # Calculate vendor-specific image dimensions
         w, h, size_str = _calculate_image_dimensions(resolution, aspect_ratio, self._source)
         logger.info(f"[LazyLLM] aspect_ratio={aspect_ratio}, resolution={resolution}, size={size_str}")
-        # Convert a PIL Image object to a file path: When passing a reference image to lazyllm, you need to input a path in string format.
+        # Convert PIL Image objects to file paths for lazyllm
         file_paths = None
         temp_paths = []
         decode_query_with_filepaths = None

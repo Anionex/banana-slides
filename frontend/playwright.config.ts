@@ -72,7 +72,7 @@ export default defineConfig({
   // 本地开发时启动服务
   webServer: process.env.CI ? undefined : {
     command: 'cd .. && docker compose up -d && sleep 10',
-    url: 'http://localhost:3000',
+    url: process.env.BASE_URL || 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },
