@@ -174,14 +174,25 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 如果是 description 类型，自动生成大纲和页面描述
+      // 4. 如果是 idea 类型，自动生成大纲
+      if (type === 'idea') {
+        try {
+          await api.generateOutline(projectId);
+          console.log('[初始化项目] 从想法生成大纲完成');
+        } catch (error: any) {
+          console.error('[初始化项目] 从想法生成大纲失败:', error);
+          try { await api.deleteProject(projectId); } catch { /* ignore cleanup error */ }
+          throw error;
+        }
+      }
+
+      // 5. 如果是 description 类型，自动生成大纲和页面描述
       if (type === 'description') {
         try {
           await api.generateFromDescription(projectId, content);
           console.log('[初始化项目] 从描述生成大纲和页面描述完成');
         } catch (error: any) {
           console.error('[初始化项目] 从描述生成失败:', error);
-          // 删除已创建的项目，回到 Home 页
           try { await api.deleteProject(projectId); } catch { /* ignore cleanup error */ }
           throw error;
         }
