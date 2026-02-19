@@ -2,6 +2,7 @@
 Export Service - handles PPTX and PDF export
 Based on demo.py create_pptx_from_images()
 """
+import math
 import os
 import json
 import logging
@@ -173,7 +174,6 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
     """Return (width, height) in inches for a given aspect ratio string."""
     try:
         w, h = (float(x) for x in aspect_ratio.split(':'))
-        import math
         if not (math.isfinite(w) and math.isfinite(h) and w > 0 and h > 0):
             raise ValueError(f"invalid dimensions: {w}:{h}")
     except (ValueError, AttributeError) as e:
