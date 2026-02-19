@@ -282,8 +282,9 @@ class ExportService:
             logger.info(f"Using img2pdf for PDF export ({len(valid_paths)} pages, low memory mode)")
 
             page_w, page_h = _get_page_size_inches(aspect_ratio)
+            page_pt = (img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h))
             layout_fun = img2pdf.get_layout_fun(
-                pagesize=(img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h))
+                pagesize=page_pt, imgsize=page_pt
             )
 
             # Convert images to PDF
