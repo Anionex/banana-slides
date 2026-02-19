@@ -272,6 +272,11 @@ export const SlidePreview: React.FC = () => {
     return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
   }, [currentProject?.pages]);
 
+  const hasImages = useMemo(
+    () => currentProject?.pages?.some(p => p.generated_image_path) ?? false,
+    [currentProject?.pages]
+  );
+
   // 加载项目数据 & 用户模板
   useEffect(() => {
     if (projectId && (!currentProject || currentProject.id !== projectId)) {
@@ -2080,7 +2085,7 @@ export const SlidePreview: React.FC = () => {
             onAspectRatioChange={setAspectRatio}
             onSaveAspectRatio={handleSaveAspectRatio}
             isSavingAspectRatio={isSavingAspectRatio}
-            hasImages={currentProject?.pages?.some(p => p.generated_image_path) ?? false}
+            hasImages={hasImages}
           />
         </>
       )}
