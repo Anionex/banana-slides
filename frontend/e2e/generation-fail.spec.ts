@@ -37,9 +37,8 @@ async function setupFailureMocks(page: Page, projectId: string, failUrl: string)
 
 test.describe('Generation failure handling', () => {
   test.beforeEach(async ({ page }) => {
-    const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
     await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
-    await page.goto(baseUrl)
+    await page.goto('/')
   })
 
   test('outline: stays on Home when generateOutline fails', async ({ page }) => {
@@ -78,11 +77,9 @@ test.describe('Generation failure handling', () => {
 // --- Integration tests (real backend) ---
 
 test.describe('Generation failure rollback (integration)', () => {
-  const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
-
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
-    await page.goto(baseUrl)
+    await page.goto('/')
   })
 
   test('outline: failed generation deletes project and stays on Home', async ({ page }) => {
