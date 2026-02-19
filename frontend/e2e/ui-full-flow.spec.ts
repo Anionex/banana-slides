@@ -28,8 +28,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 test.describe('UI-driven E2E test: From user interface to PPT export', () => {
-  // Increase timeout to 20 minutes
-  test.setTimeout(20 * 60 * 1000)
+  // Increase timeout to 25 minutes (image generation may need retries on API disconnects)
+  test.setTimeout(25 * 60 * 1000)
   
   test('User Full Flow: Create and export PPT in browser', async ({ page }) => {
     console.log('\n========================================')
@@ -93,19 +93,23 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     // Step 5: Wait for outline generation to complete (smart wait)
     // ====================================
-    console.log('⏳ Step 5: Waiting for outline generation (may take 1-2 minutes)...')
-    
-    // Smart wait: Use expect().toPass() for retry polling
-    // Look for cards with "第 X 页" text - this is the most reliable indicator
-    await expect(async () => {
-      // Use text pattern matching for "第 X 页" which appears in each outline card
-      const outlineItems = page.locator('text=/第 \\d+ 页/')
-      const count = await outlineItems.count()
-      if (count === 0) {
-        throw new Error('Outline items not yet visible')
-      }
-      expect(count).toBeGreaterThan(0)
-    }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
+    console.log('⏳ Step 5: Waiting for outline generation (may take 3-5 minutes)...')
+
+    // During generation, OutlineEditor renders a fullscreen <Loading> with "生成大纲中..."
+    // replacing all page content. We must wait for loading to disappear first,
+    // then verify outline cards exist.
+    const loadingIndicator = page.locator('text=/生成大纲中/')
+
+    // Wait for loading indicator to appear (confirms generation started)
+    await loadingIndicator.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
+      console.log('  Loading indicator not detected, generation may have completed quickly')
+    })
+
+    // Wait for loading to disappear (API returned) with generous timeout for CI
+    await expect(loadingIndicator).toBeHidden({ timeout: 300000 })
+
+    // Now verify outline cards appeared
+    await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 10000 })
     
     // Verify outline content
     const outlineItems = page.locator('text=/第 \\d+ 页/')
@@ -440,9 +444,9 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // The frontend uses pageGeneratingTasks to track per-page generation status.
       // StatusBadge shows "生成中" (orange badge with animate-pulse) during generation.
       // We wait for export button to be enabled (hasAllImages = all pages have generated_image_path).
-      // Use 7 minutes timeout (420000ms) to cover the full generation time (typically 2-5 minutes).
+      // Use 15 minutes timeout (900000ms) to cover retries on API disconnects.
       const startTime = Date.now()
-      const maxWaitTime = 420000 // 7 minutes total
+      const maxWaitTime = 900000 // 15 minutes total
       
       // Helper: Precise selector for "生成中" StatusBadge (orange background)
       // StatusBadge structure: <span class="bg-orange-100 text-orange-600 animate-pulse ...">生成中</span>

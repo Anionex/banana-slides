@@ -23,6 +23,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UV_INDEX_URL: https://pypi.org/simple
+
 jobs:
   # ================================
   # Backend Tests
@@ -341,16 +344,11 @@ jobs:
       - name: Run Frontend UI E2E tests
         if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         run: |
-          # Run UI-driven E2E flow (from browser UI to PPT export)
-          # Tests the complete user interaction flow in the browser
-          # Requires: Real Google API key
-          # Takes longer (15-20 minutes) but tests real user experience
           echo "Running Frontend UI E2E tests with Gemini format"
           cd frontend
           npx playwright test ui-full-flow.spec.ts --workers=1
         env:
           CI: true
-          # Ensure API key is not logged
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         timeout-minutes: 25
         continue-on-error: false

@@ -122,7 +122,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
             isSelected ? 'text-banana-600' : 'text-gray-700 dark:text-foreground-secondary'
           }`}
         >
-          {index + 1}. {page.outline_content.title}
+          {index + 1}. {page.outline_content?.title}
         </span>
         {index === 0 && (
           <span

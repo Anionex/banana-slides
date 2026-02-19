@@ -4,6 +4,9 @@ Export Controller - handles file export endpoints
 import logging
 import os
 import io
+import shutil
+import time
+import zipfile
 
 from flask import Blueprint, request, current_app
 from werkzeug.utils import secure_filename
@@ -78,7 +81,7 @@ def export_pptx(project_id):
         output_path = os.path.join(exports_dir, filename)
 
         # Generate PPTX file on disk
-        ExportService.create_pptx_from_images(image_paths, output_file=output_path)
+        ExportService.create_pptx_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
 
         # Build download URLs
         download_path = f"/files/{project_id}/exports/{filename}"
@@ -152,7 +155,7 @@ def export_pdf(project_id):
         output_path = os.path.join(exports_dir, filename)
 
         # Generate PDF file on disk
-        ExportService.create_pdf_from_images(image_paths, output_file=output_path)
+        ExportService.create_pdf_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
 
         # Build download URLs
         download_path = f"/files/{project_id}/exports/{filename}"
@@ -167,6 +170,74 @@ def export_pdf(project_id):
             message="Export PDF task created"
         )
     
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@export_bp.route('/<project_id>/export/images', methods=['GET'])
+def export_images(project_id):
+    """
+    GET /api/projects/{project_id}/export/images?page_ids=id1,id2,id3 - Export images
+
+    Single image: copies to exports dir and returns download URL.
+    Multiple images: creates a ZIP archive and returns download URL.
+    """
+    try:
+        if '..' in project_id or '/' in project_id or '\\' in project_id:
+            return bad_request('Invalid project ID')
+        s_project_id = secure_filename(project_id)
+        if s_project_id != project_id:
+            return bad_request('Invalid project ID')
+
+        project = Project.query.get(s_project_id)
+        if not project:
+            return not_found('Project')
+
+        selected_page_ids = parse_page_ids_from_query(request)
+        pages = get_filtered_pages(s_project_id, selected_page_ids if selected_page_ids else None)
+        if not pages:
+            return bad_request("No pages found for project")
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+        image_items = []
+        for page in pages:
+            if page.generated_image_path:
+                abs_path = file_service.get_absolute_path(page.generated_image_path)
+                if os.path.exists(abs_path):
+                    image_items.append((page, abs_path))
+
+        if not image_items:
+            return bad_request("No generated images found for project")
+
+        exports_dir = file_service._get_exports_dir(s_project_id)
+        timestamp = int(time.time())
+
+        if len(image_items) == 1:
+            page, path = image_items[0]
+            ext = os.path.splitext(path)[1] or '.png'
+            filename = f'slide_{page.id}_{timestamp}{ext}'
+            output_path = os.path.join(exports_dir, filename)
+            shutil.copy2(path, output_path)
+        else:
+            filename = f'slides_{s_project_id}_{timestamp}.zip'
+            output_path = os.path.join(exports_dir, filename)
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for page, path in image_items:
+                    ext = os.path.splitext(path)[1] or '.png'
+                    zf.write(path, f'slide_{page.order_index + 1:03d}{ext}')
+
+        download_path = f"/files/{s_project_id}/exports/{filename}"
+        base_url = request.url_root.rstrip("/")
+
+        return success_response(
+            data={
+                "download_url": download_path,
+                "download_url_absolute": f"{base_url}{download_path}",
+            },
+            message="Export images completed"
+        )
+
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 

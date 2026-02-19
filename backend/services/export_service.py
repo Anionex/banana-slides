@@ -2,6 +2,7 @@
 Export Service - handles PPTX and PDF export
 Based on demo.py create_pptx_from_images()
 """
+import math
 import os
 import json
 import logging
@@ -169,16 +170,31 @@ class ExportWarnings:
         }
 
 
+def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tuple[float, float]:
+    """Return (width, height) in inches for a given aspect ratio string."""
+    try:
+        w, h = (float(x) for x in aspect_ratio.split(':'))
+        if not (math.isfinite(w) and math.isfinite(h) and w > 0 and h > 0):
+            raise ValueError(f"invalid dimensions: {w}:{h}")
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Invalid aspect ratio '{aspect_ratio}', falling back to 16:9: {e}")
+        w, h = 16.0, 9.0
+    if w >= h:
+        return base, base * h / w
+    else:
+        return base * w / h, base
+
+
 class ExportService:
     """Service for exporting presentations"""
-    
+
     # NOTE: clean background生成功能已迁移到解耦的InpaintProvider实现
     # - DefaultInpaintProvider: 基于mask的精确区域重绘（Volcengine）
     # - GenerativeEditInpaintProvider: 基于生成式大模型的整图编辑重绘（Gemini等）
     # 使用方式: from services.image_editability import InpaintProviderFactory
     
     @staticmethod
-    def create_pptx_from_images(image_paths: List[str], output_file: str = None) -> bytes:
+    def create_pptx_from_images(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> bytes:
         """
         Create PPTX file from image paths
         Based on demo.py create_pptx_from_images()
@@ -205,9 +221,10 @@ class ExportService:
         except Exception as e:
             logger.warning(f"Failed to set core properties: {e}")
         
-        # Set slide dimensions to 16:9 (width 10 inches, height 5.625 inches)
-        prs.slide_width = Inches(10)
-        prs.slide_height = Inches(5.625)
+        # Set slide dimensions based on aspect ratio
+        page_w, page_h = _get_page_size_inches(aspect_ratio)
+        prs.slide_width = Inches(page_w)
+        prs.slide_height = Inches(page_h)
         
         # Add each image as a slide
         for image_path in image_paths:
@@ -240,7 +257,7 @@ class ExportService:
             return pptx_bytes.getvalue()
     
     @staticmethod
-    def create_pdf_from_images(image_paths: List[str], output_file: str = None) -> Optional[bytes]:
+    def create_pdf_from_images(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> Optional[bytes]:
         """
         Create PDF file from image paths using img2pdf (low memory usage)
 
@@ -265,9 +282,10 @@ class ExportService:
         try:
             logger.info(f"Using img2pdf for PDF export ({len(valid_paths)} pages, low memory mode)")
 
-            # Set page layout: 16:9 aspect ratio (10 inches × 5.625 inches)
+            page_w, page_h = _get_page_size_inches(aspect_ratio)
             layout_fun = img2pdf.get_layout_fun(
-                pagesize=(img2pdf.in_to_pt(10), img2pdf.in_to_pt(5.625))
+                pagesize=(img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h)),
+                fit=img2pdf.FitMode.exact,
             )
 
             # Convert images to PDF
@@ -281,10 +299,10 @@ class ExportService:
                 return pdf_bytes
         except (img2pdf.ImageOpenError, ValueError, IOError) as e:
             logger.warning(f"img2pdf conversion failed: {e}. Falling back to Pillow (high memory usage).")
-            return ExportService.create_pdf_from_images_pillow(valid_paths, output_file)
+            return ExportService.create_pdf_from_images_pillow(valid_paths, output_file, aspect_ratio)
 
     @staticmethod
-    def create_pdf_from_images_pillow(image_paths: List[str], output_file: str = None) -> Optional[bytes]:
+    def create_pdf_from_images_pillow(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> Optional[bytes]:
         """
         Create PDF file from image paths using Pillow (original method)
 
@@ -299,6 +317,7 @@ class ExportService:
             PDF file as bytes if output_file is None, otherwise None
         """
         images = []
+        page_w, page_h = _get_page_size_inches(aspect_ratio)
 
         # Load all images
         for image_path in image_paths:
@@ -311,6 +330,9 @@ class ExportService:
             # Convert to RGB if necessary (PDF requires RGB)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
+
+            # Set DPI so PDF page matches target dimensions
+            img.info['dpi'] = (img.width / page_w, img.height / page_h)
 
             images.append(img)
 

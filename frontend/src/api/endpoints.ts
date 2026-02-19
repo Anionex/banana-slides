@@ -2,6 +2,18 @@ import { apiClient } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
 import type { Settings } from '../types/index';
 
+// ===== 访问口令 API =====
+
+export const checkAccessCode = async (): Promise<ApiResponse<{ enabled: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ enabled: boolean }>>('/api/access-code/check');
+  return response.data;
+};
+
+export const verifyAccessCode = async (code: string): Promise<ApiResponse<{ valid: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ valid: boolean }>>('/api/access-code/verify', { code });
+  return response.data;
+};
+
 // ===== 项目相关 API =====
 
 /**
@@ -461,6 +473,20 @@ export const exportPDF = async (
   pageIds?: string[]
 ): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
   const url = `/api/projects/${projectId}/export/pdf${buildPageIdsQuery(pageIds)}`;
+  const response = await apiClient.get<
+    ApiResponse<{ download_url: string; download_url_absolute?: string }>
+  >(url);
+  return response.data;
+};
+
+/**
+ * 导出为图片（单张直接下载，多张打包ZIP）
+ */
+export const exportImages = async (
+  projectId: string,
+  pageIds?: string[]
+): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const url = `/api/projects/${projectId}/export/images${buildPageIdsQuery(pageIds)}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
   >(url);

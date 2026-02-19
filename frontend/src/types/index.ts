@@ -40,7 +40,7 @@ export interface Page {
   id?: string;      // 前端使用的别名
   order_index: number;
   part?: string; // 章节名
-  outline_content: OutlineContent;
+  outline_content: OutlineContent | null;
   description_content?: DescriptionContent;
   generated_image_url?: string; // 后端返回 generated_image_url
   generated_image_path?: string; // 前端使用的别名
