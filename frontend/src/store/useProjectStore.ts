@@ -181,7 +181,7 @@ const debouncedUpdatePage = debounce(
           console.log(`[初始化项目] ${label}完成`);
         } catch (error: any) {
           console.error(`[初始化项目] ${label}失败:`, error);
-          try { await api.deleteProject(projectId); } catch { /* ignore cleanup error */ }
+          try { await api.deleteProject(projectId); } catch (e) { console.error(`[初始化项目] 回滚失败，未能删除项目 ${projectId}:`, e); }
           throw error;
         }
       };
