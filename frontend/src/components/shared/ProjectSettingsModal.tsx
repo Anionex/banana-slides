@@ -214,8 +214,10 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary">{t('projectSettings.aspectRatio')}</h4>
                       <div className="relative group">
-                        <HelpCircle size={16} className="text-gray-400 dark:text-foreground-tertiary cursor-help" />
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 pointer-events-none">
+                        <button type="button" className="p-1 -m-1 rounded-full focus:outline-none focus:ring-2 focus:ring-banana-500">
+                          <HelpCircle size={16} className="text-gray-400 dark:text-foreground-tertiary cursor-help" />
+                        </button>
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-10 pointer-events-none">
                           {t('projectSettings.aspectRatioHelp')}
                         </div>
                       </div>

@@ -29,8 +29,9 @@ test.describe('Aspect ratio lock (integration)', () => {
     // Verify locked state
     await expect(page.getByText(/已生成图片的项目无法调整|Cannot change aspect ratio/)).toBeVisible()
 
-    // Buttons should be disabled
-    const btn = page.locator('button:has-text("4:3")').first()
-    await expect(btn).toBeDisabled()
+    // All ratio buttons should be disabled
+    for (const ratio of ['16:9', '4:3', '1:1', '9:16', '3:2']) {
+      await expect(page.locator(`button:has-text("${ratio}")`).first()).toBeDisabled()
+    }
   })
 })

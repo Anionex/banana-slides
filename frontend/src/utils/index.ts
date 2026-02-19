@@ -143,8 +143,8 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh ? '访问被拒绝，请检查 API 权限配置。' : 'Access denied. Please check API permissions.';
   } else if (message.includes('aspect_ratio') || message.includes('aspect ratio')) {
     return isZh
-      ? '当前画面比例不被该模型支持，请在项目设置中尝试其他画面比例（如 16:9、4:3、1:1）后重试。'
-      : 'The selected aspect ratio is not supported by this model. Please try a different ratio (e.g. 16:9, 4:3, 1:1) in project settings.';
+      ? '当前画面比例不被该模型支持，请在项目设置中尝试其他画面比例后重试。'
+      : 'The selected aspect ratio is not supported by this model. Please try a different ratio in project settings.';
   } else if (message.includes('network error') || message.includes('econnrefused')) {
     return isZh ? '网络连接失败，请检查网络或后端服务是否正常运行。' : 'Network error. Please check your connection.';
   } else if (message.includes('timeout')) {
