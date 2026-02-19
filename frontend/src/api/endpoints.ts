@@ -2,6 +2,18 @@ import { apiClient } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
 import type { Settings } from '../types/index';
 
+// ===== 访问口令 API =====
+
+export const checkAccessCode = async (): Promise<ApiResponse<{ enabled: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ enabled: boolean }>>('/api/access-code/check');
+  return response.data;
+};
+
+export const verifyAccessCode = async (code: string): Promise<ApiResponse<{ valid: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ valid: boolean }>>('/api/access-code/verify', { code });
+  return response.data;
+};
+
 // ===== 项目相关 API =====
 
 /**

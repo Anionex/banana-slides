@@ -119,6 +119,25 @@ def create_app():
     @app.route('/health')
     def health_check():
         return {'status': 'ok', 'message': 'Banana Slides API is running'}
+
+    # Access code verification
+    @app.route('/api/access-code/check', methods=['GET'])
+    def check_access_code():
+        """Check if access code protection is enabled"""
+        enabled = bool(os.getenv('ACCESS_CODE', '').strip())
+        return {'data': {'enabled': enabled}}
+
+    @app.route('/api/access-code/verify', methods=['POST'])
+    def verify_access_code():
+        """Verify the provided access code"""
+        from flask import request, jsonify
+        expected = os.getenv('ACCESS_CODE', '').strip()
+        if not expected:
+            return {'data': {'valid': True}}
+        code = (request.json or {}).get('code', '')
+        if code == expected:
+            return {'data': {'valid': True}}
+        return jsonify({'error': 'Invalid access code'}), 403
     
     # Output language endpoint
     @app.route('/api/output-language', methods=['GET'])
