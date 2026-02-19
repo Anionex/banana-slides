@@ -2080,6 +2080,7 @@ export const SlidePreview: React.FC = () => {
             onAspectRatioChange={setAspectRatio}
             onSaveAspectRatio={handleSaveAspectRatio}
             isSavingAspectRatio={isSavingAspectRatio}
+            hasImages={currentProject?.pages?.some(p => p.generated_image_path) ?? false}
           />
         </>
       )}

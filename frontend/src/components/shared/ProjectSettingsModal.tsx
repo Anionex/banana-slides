@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle } from 'lucide-react';
+import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle } from 'lucide-react';
 import { Button, Textarea } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { Settings } from '@/pages/Settings';
@@ -14,6 +14,8 @@ const projectSettingsI18n = {
       projectConfigTitle: "项目级配置", projectConfigDesc: "这些设置仅应用于当前项目，不影响其他项目",
       globalConfigTitle: "全局设置", globalConfigDesc: "这些设置应用于所有项目",
       aspectRatio: "画面比例", aspectRatioDesc: "设置生成幻灯片图片的画面比例",
+      aspectRatioLocked: "已生成图片的项目无法调整画面比例",
+      aspectRatioHelp: "部分模型仅支持特定的画面比例（如 16:9、4:3、1:1）。如果图片生成报错，可尝试切换画面比例后重试。",
       extraRequirements: "额外要求", extraRequirementsDesc: "在生成每个页面时，AI 会参考这些额外要求",
       extraRequirementsPlaceholder: "例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图...",
       saveExtraRequirements: "保存额外要求",
@@ -45,6 +47,8 @@ const projectSettingsI18n = {
       projectConfigTitle: "Project-level Configuration", projectConfigDesc: "These settings only apply to the current project",
       globalConfigTitle: "Global Settings", globalConfigDesc: "These settings apply to all projects",
       aspectRatio: "Aspect Ratio", aspectRatioDesc: "Set the aspect ratio for generated slide images",
+      aspectRatioLocked: "Cannot change aspect ratio after images have been generated",
+      aspectRatioHelp: "Some models only support specific aspect ratios (e.g. 16:9, 4:3, 1:1). If image generation fails, try switching to a different aspect ratio.",
       extraRequirements: "Extra Requirements", extraRequirementsDesc: "AI will reference these extra requirements when generating each page",
       extraRequirementsPlaceholder: "e.g., Use compact layout, show first-level outline title at top, add richer PPT illustrations...",
       saveExtraRequirements: "Save Extra Requirements",
@@ -95,6 +99,7 @@ interface ProjectSettingsModalProps {
   onAspectRatioChange?: (value: string) => void;
   onSaveAspectRatio?: () => void;
   isSavingAspectRatio?: boolean;
+  hasImages?: boolean;
 }
 
 type SettingsTab = 'project' | 'global' | 'export';
@@ -122,6 +127,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onAspectRatioChange,
   onSaveAspectRatio,
   isSavingAspectRatio = false,
+  hasImages = false,
 }) => {
   const t = useT(projectSettingsI18n);
   const [activeTab, setActiveTab] = useState<SettingsTab>('project');
@@ -205,9 +211,17 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 {/* 画面比例 */}
                 <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
                   <div>
-                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.aspectRatio')}</h4>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary">{t('projectSettings.aspectRatio')}</h4>
+                      <div className="relative group">
+                        <HelpCircle size={16} className="text-gray-400 dark:text-foreground-tertiary cursor-help" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 pointer-events-none">
+                          {t('projectSettings.aspectRatioHelp')}
+                        </div>
+                      </div>
+                    </div>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-                      {t('projectSettings.aspectRatioDesc')}
+                      {hasImages ? t('projectSettings.aspectRatioLocked') : t('projectSettings.aspectRatioDesc')}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -215,8 +229,13 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       <button
                         key={opt.value}
                         type="button"
+                        disabled={hasImages}
                         onClick={() => onAspectRatioChange?.(opt.value)}
                         className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-all ${
+                          hasImages
+                            ? 'opacity-50 cursor-not-allowed'
+                            : ''
+                        } ${
                           aspectRatio === opt.value
                             ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary text-banana-700 dark:text-banana'
                             : 'border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
@@ -226,7 +245,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </button>
                     ))}
                   </div>
-                  {onSaveAspectRatio && (
+                  {onSaveAspectRatio && !hasImages && (
                     <Button
                       variant="secondary"
                       size="sm"
