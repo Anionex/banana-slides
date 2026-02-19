@@ -638,10 +638,10 @@ export const Settings: React.FC = () => {
       if (formData.baidu_ocr_api_key) testSettings.baidu_ocr_api_key = formData.baidu_ocr_api_key;
       if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
 
-      // Per-model provider source overrides
-      if (formData.text_model_source) testSettings.text_model_source = formData.text_model_source;
-      if (formData.image_model_source) testSettings.image_model_source = formData.image_model_source;
-      if (formData.image_caption_model_source) testSettings.image_caption_model_source = formData.image_caption_model_source;
+      // Per-model provider source overrides (always send, even empty, to clear saved values)
+      testSettings.text_model_source = formData.text_model_source || '';
+      testSettings.image_model_source = formData.image_model_source || '';
+      testSettings.image_caption_model_source = formData.image_caption_model_source || '';
 
       // Per-model API credentials
       if (formData.text_api_key) testSettings.text_api_key = formData.text_api_key;

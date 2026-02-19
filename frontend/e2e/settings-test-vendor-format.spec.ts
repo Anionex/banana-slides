@@ -33,25 +33,36 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('service test sends lazyllm format instead of raw vendor name', async ({ page }) => {
-  // The dropdown should show DeepSeek (resolved from lazyllm + keys_info)
   const section = page.getByTestId('global-api-config-section');
   const providerSelect = section.locator('select').first();
   await expect(providerSelect).toHaveValue('deepseek');
 
-  // Intercept the test API call to capture the payload
   let capturedPayload: any = null;
   await page.route('**/api/settings/tests/text-model', async (route) => {
     capturedPayload = route.request().postDataJSON();
-    await route.fulfill({
-      json: { data: { task_id: 'mock-task-123' } }
-    });
+    await route.fulfill({ json: { data: { task_id: 'mock-task-123' } } });
   });
 
-  // Click the text model test button
   const textModelTestBtn = page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1);
   await textModelTestBtn.click();
 
-  // Verify the payload sends 'lazyllm' not 'deepseek'
   expect(capturedPayload).toBeTruthy();
   expect(capturedPayload.ai_provider_format).toBe('lazyllm');
+});
+
+test('service test sends empty model source to clear saved per-model override', async ({ page }) => {
+  let capturedPayload: any = null;
+  await page.route('**/api/settings/tests/text-model', async (route) => {
+    capturedPayload = route.request().postDataJSON();
+    await route.fulfill({ json: { data: { task_id: 'mock-task-123' } } });
+  });
+
+  const textModelTestBtn = page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1);
+  await textModelTestBtn.click();
+
+  expect(capturedPayload).toBeTruthy();
+  // Per-model sources should always be sent (even empty) so backend clears saved overrides
+  expect(capturedPayload).toHaveProperty('text_model_source', '');
+  expect(capturedPayload).toHaveProperty('image_model_source', '');
+  expect(capturedPayload).toHaveProperty('image_caption_model_source', '');
 });

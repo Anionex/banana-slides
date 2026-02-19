@@ -75,17 +75,19 @@ def temporary_settings_override(settings_override: dict):
             original_values["IMAGE_CAPTION_MODEL"] = current_app.config.get("IMAGE_CAPTION_MODEL")
             current_app.config["IMAGE_CAPTION_MODEL"] = settings_override["image_caption_model"]
 
-        if settings_override.get("image_caption_model_source"):
-            original_values["IMAGE_CAPTION_MODEL_SOURCE"] = current_app.config.get("IMAGE_CAPTION_MODEL_SOURCE")
-            current_app.config["IMAGE_CAPTION_MODEL_SOURCE"] = settings_override["image_caption_model_source"]
-
-        if settings_override.get("text_model_source"):
-            original_values["TEXT_MODEL_SOURCE"] = current_app.config.get("TEXT_MODEL_SOURCE")
-            current_app.config["TEXT_MODEL_SOURCE"] = settings_override["text_model_source"]
-
-        if settings_override.get("image_model_source"):
-            original_values["IMAGE_MODEL_SOURCE"] = current_app.config.get("IMAGE_MODEL_SOURCE")
-            current_app.config["IMAGE_MODEL_SOURCE"] = settings_override["image_model_source"]
+        # Per-model source overrides (empty string = clear, to fall back to global config)
+        for source_field, config_key in [
+            ("text_model_source", "TEXT_MODEL_SOURCE"),
+            ("image_model_source", "IMAGE_MODEL_SOURCE"),
+            ("image_caption_model_source", "IMAGE_CAPTION_MODEL_SOURCE"),
+        ]:
+            if source_field in settings_override:
+                original_values[config_key] = current_app.config.get(config_key)
+                val = settings_override[source_field]
+                if val:
+                    current_app.config[config_key] = val
+                else:
+                    current_app.config.pop(config_key, None)
 
         # Per-model API credentials override
         for model_type in ('text', 'image', 'image_caption'):
