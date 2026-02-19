@@ -128,7 +128,7 @@ def create_app():
         if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
         code = request.headers.get('X-Access-Code', '')
-        if code == expected:
+        if hmac.compare_digest(code, expected):
             return
         return jsonify({'error': 'Access code required'}), 403
 

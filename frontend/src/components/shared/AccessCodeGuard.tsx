@@ -44,6 +44,7 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
         setStatus('prompt');
       } catch {
         // Fail-closed: if we can't reach the server, show prompt
+        localStorage.removeItem(STORAGE_KEY);
         setStatus('prompt');
       }
     })();
