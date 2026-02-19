@@ -24,8 +24,8 @@ test.describe('Export Images - Backend API', () => {
     expect(resp.status()).toBe(400)
   })
 
-  test('exports single image successfully', async ({ request }) => {
-    const { projectId } = await seedProjectWithImages(request, 1)
+  test('exports single image successfully', async ({ request, baseURL }) => {
+    const { projectId } = await seedProjectWithImages(baseURL!, 1)
 
     const resp = await request.get(`/api/projects/${projectId}/export/images`)
     expect(resp.ok()).toBe(true)
@@ -39,8 +39,8 @@ test.describe('Export Images - Backend API', () => {
     expect(fileResp.headers()['content-type']).toContain('image/jpeg')
   })
 
-  test('exports multiple images as ZIP', async ({ request }) => {
-    const { projectId } = await seedProjectWithImages(request, 2)
+  test('exports multiple images as ZIP', async ({ request, baseURL }) => {
+    const { projectId } = await seedProjectWithImages(baseURL!, 2)
 
     const resp = await request.get(`/api/projects/${projectId}/export/images`)
     expect(resp.ok()).toBe(true)

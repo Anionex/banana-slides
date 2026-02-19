@@ -1,17 +1,21 @@
 /**
  * Shared helper to create projects with real images for E2E testing.
  * Bypasses AI image generation by placing fixture images on disk + updating DB directly.
+ *
+ * Usage:
+ *   - Playwright: import { seedProjectWithImages } from './helpers/seed-project'
+ *   - CLI:        npx tsx frontend/e2e/helpers/seed-project.ts [PAGE_COUNT]
  */
 import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
-import type { APIRequestContext } from '@playwright/test'
 
-// Derive project root from cwd (Playwright runs from frontend/)
-const PROJECT_ROOT = path.resolve(process.cwd(), '..')
+const cwd = process.cwd()
+const FRONTEND_DIR = cwd.endsWith('frontend') ? cwd : path.join(cwd, 'frontend')
+const PROJECT_ROOT = path.resolve(FRONTEND_DIR, '..')
 const DB_PATH = path.join(PROJECT_ROOT, 'backend', 'instance', 'database.db')
 const UPLOADS = path.join(PROJECT_ROOT, 'uploads')
-const FIXTURES = path.join(process.cwd(), 'e2e', 'fixtures')
+const FIXTURES = path.join(FRONTEND_DIR, 'e2e', 'fixtures')
 
 function sql(query: string) {
   execSync(`sqlite3 -cmd ".timeout 5000" "${DB_PATH}" "${query.replace(/"/g, '\\"')}"`)
@@ -30,25 +34,32 @@ export interface SeededProject {
 
 /**
  * Create a project with N pages, each having a real image on disk.
+ * @param baseUrl - Backend base URL, e.g. "http://localhost:5441"
  */
 export async function seedProjectWithImages(
-  request: APIRequestContext,
+  baseUrl: string,
   pageCount = 1
 ): Promise<SeededProject> {
-  const createResp = await request.post('/api/projects', {
-    data: { creation_type: 'idea', idea_prompt: 'e2e test', template_style: 'default' },
-  })
-  const projectId = (await createResp.json()).data?.project_id
+  const post = async (urlPath: string, body: object) => {
+    const resp = await fetch(`${baseUrl}${urlPath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return resp.json()
+  }
+
+  const projectId = (await post('/api/projects', {
+    creation_type: 'idea', idea_prompt: 'e2e test', template_style: 'default',
+  })).data?.project_id
 
   const pageIds: string[] = []
-  const pagesDir = path.join(UPLOADS, projectId, 'pages')
-  fs.mkdirSync(pagesDir, { recursive: true })
+  fs.mkdirSync(path.join(UPLOADS, projectId, 'pages'), { recursive: true })
 
   for (let i = 0; i < pageCount; i++) {
-    const pageResp = await request.post(`/api/projects/${projectId}/pages`, {
-      data: { order_index: i, outline_content: { title: `Slide ${i + 1}` } },
-    })
-    const pageId = (await pageResp.json()).data?.page_id
+    const pageId = (await post(`/api/projects/${projectId}/pages`, {
+      order_index: i, outline_content: { title: `Slide ${i + 1}` },
+    })).data?.page_id
     pageIds.push(pageId)
 
     const rel = `${projectId}/pages/${pageId}_v1.jpg`
@@ -56,5 +67,31 @@ export async function seedProjectWithImages(
     sql(`UPDATE pages SET generated_image_path='${rel}', status='COMPLETED' WHERE id='${pageId}'`)
   }
 
+  sql(`UPDATE projects SET status='IMAGES_GENERATED' WHERE id='${projectId}'`)
   return { projectId, pageIds }
+}
+
+// CLI entry point: npx tsx frontend/e2e/helpers/seed-project.ts [PAGE_COUNT]
+if (process.argv[1]?.includes('seed-project')) {
+  const { createHash } = await import('crypto')
+  const pageCount = parseInt(process.argv[2] || '3', 10)
+
+  // Auto-detect backend port (same MD5 logic as app.py)
+  const envFile = path.join(PROJECT_ROOT, '.env')
+  let port = '5000'
+  if (fs.existsSync(envFile)) {
+    const m = fs.readFileSync(envFile, 'utf8').match(/^BACKEND_PORT=(\d+)/m)
+    if (m) port = m[1]
+  }
+  if (port === '5000') {
+    const basename = path.basename(PROJECT_ROOT)
+    const offset = parseInt(createHash('md5').update(basename).digest('hex').slice(0, 8), 16) % 500
+    port = String(5000 + offset)
+  }
+
+  const baseUrl = `http://localhost:${port}`
+  const res = await seedProjectWithImages(baseUrl, pageCount)
+  const fport = parseInt(port) - 2000
+  console.log(`Project: ${res.projectId}`)
+  console.log(`Preview: http://localhost:${fport}/project/${res.projectId}/preview`)
 }
