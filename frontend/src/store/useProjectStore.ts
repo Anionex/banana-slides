@@ -179,9 +179,11 @@ const debouncedUpdatePage = debounce(
         try {
           await api.generateFromDescription(projectId, content);
           console.log('[初始化项目] 从描述生成大纲和页面描述完成');
-        } catch (error) {
+        } catch (error: any) {
           console.error('[初始化项目] 从描述生成失败:', error);
-          // 继续执行，让用户可以手动操作
+          // 删除已创建的项目，回到 Home 页
+          try { await api.deleteProject(projectId); } catch { /* ignore cleanup error */ }
+          throw error;
         }
       }
 
