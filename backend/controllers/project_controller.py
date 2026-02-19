@@ -339,10 +339,6 @@ def update_project(project_id):
         if 'template_style' in data:
             project.template_style = data['template_style']
 
-        # Update template_image_style if provided
-        if 'template_image_style' in data:
-            project.template_image_style = data['template_image_style']
-        
         # Update aspect ratio if provided
         if 'image_aspect_ratio' in data:
             try:
