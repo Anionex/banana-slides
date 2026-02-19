@@ -98,20 +98,15 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // During generation, OutlineEditor renders a fullscreen <Loading> with "生成大纲中..."
     // replacing all page content. We must wait for loading to disappear first,
     // then verify outline cards exist.
+    const loadingIndicator = page.locator('text=/生成大纲中/')
 
     // Wait for loading indicator to appear (confirms generation started)
-    await page.waitForSelector('text=/生成大纲中/', { timeout: 10000 }).catch(() => {
+    await loadingIndicator.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
       console.log('  Loading indicator not detected, generation may have completed quickly')
     })
 
     // Wait for loading to disappear (API returned) with generous timeout for CI
-    await expect(async () => {
-      const loading = page.locator('text=/生成大纲中/')
-      const isLoading = await loading.isVisible().catch(() => false)
-      if (isLoading) {
-        throw new Error('Outline generation still in progress')
-      }
-    }).toPass({ timeout: 300000, intervals: [3000, 5000, 10000] })
+    await expect(loadingIndicator).toBeHidden({ timeout: 300000 })
 
     // Now verify outline cards appeared
     await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 10000 })
