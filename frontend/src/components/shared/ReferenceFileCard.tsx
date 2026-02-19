@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
 import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
+import { useToast } from './Toast';
 
 // ReferenceFileCard 组件自包含翻译
 const referenceFileCardI18n = {
@@ -9,14 +10,16 @@ const referenceFileCardI18n = {
     referenceFile: {
       parseStatus: { pending: "等待解析", parsing: "解析中...", completed: "解析完成", failed: "解析失败" },
       reparse: "重新解析", removeFromProject: "从项目中移除", deleteFile: "删除文件",
-      imageCaptionFailed: "⚠️ {{count}} 张图片未能生成描述"
+      imageCaptionFailed: "⚠️ {{count}} 张图片未能生成描述",
+      previewAfterParse: "解析完成后可预览"
     }
   },
   en: {
     referenceFile: {
       parseStatus: { pending: "Pending", parsing: "Parsing...", completed: "Completed", failed: "Failed" },
       reparse: "Reparse", removeFromProject: "Remove from Project", deleteFile: "Delete File",
-      imageCaptionFailed: "⚠️ {{count}} images failed to generate captions"
+      imageCaptionFailed: "⚠️ {{count}} images failed to generate captions",
+      previewAfterParse: "Preview available after parsing"
     }
   }
 };
@@ -37,6 +40,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   onClick,
 }) => {
   const t = useT(referenceFileCardI18n);
+  const { show, ToastContainer } = useToast();
   const [file, setFile] = useState<ReferenceFile>(initialFile);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReparsing, setIsReparsing] = useState(false);
@@ -161,7 +165,14 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
       className={`flex items-center gap-2 px-3 py-2 w-72 bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary rounded-lg hover:shadow-sm transition-shadow ${
         onClick ? 'cursor-pointer' : ''
       }`}
-      onClick={onClick}
+      onClick={() => {
+        if (!onClick) return;
+        if (file.parse_status === 'pending' || file.parse_status === 'parsing') {
+          show({ message: t('referenceFile.previewAfterParse'), type: 'info' });
+          return;
+        }
+        onClick();
+      }}
     >
       <div className="flex-shrink-0">
         <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/30 rounded-md flex items-center justify-center">
@@ -236,6 +247,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
           )}
         </button>
       </div>
+      <ToastContainer />
     </div>
   );
 };
