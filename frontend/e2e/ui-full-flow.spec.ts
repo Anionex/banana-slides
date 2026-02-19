@@ -93,19 +93,28 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     // Step 5: Wait for outline generation to complete (smart wait)
     // ====================================
-    console.log('⏳ Step 5: Waiting for outline generation (may take 1-2 minutes)...')
-    
-    // Smart wait: Use expect().toPass() for retry polling
-    // Look for cards with "第 X 页" text - this is the most reliable indicator
+    console.log('⏳ Step 5: Waiting for outline generation (may take 3-5 minutes)...')
+
+    // During generation, OutlineEditor renders a fullscreen <Loading> with "生成大纲中..."
+    // replacing all page content. We must wait for loading to disappear first,
+    // then verify outline cards exist.
+
+    // Wait for loading indicator to appear (confirms generation started)
+    await page.waitForSelector('text=/生成大纲中/', { timeout: 10000 }).catch(() => {
+      console.log('  Loading indicator not detected, generation may have completed quickly')
+    })
+
+    // Wait for loading to disappear (API returned) with generous timeout for CI
     await expect(async () => {
-      // Use text pattern matching for "第 X 页" which appears in each outline card
-      const outlineItems = page.locator('text=/第 \\d+ 页/')
-      const count = await outlineItems.count()
-      if (count === 0) {
-        throw new Error('Outline items not yet visible')
+      const loading = page.locator('text=/生成大纲中/')
+      const isLoading = await loading.isVisible().catch(() => false)
+      if (isLoading) {
+        throw new Error('Outline generation still in progress')
       }
-      expect(count).toBeGreaterThan(0)
-    }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
+    }).toPass({ timeout: 300000, intervals: [3000, 5000, 10000] })
+
+    // Now verify outline cards appeared
+    await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 10000 })
     
     // Verify outline content
     const outlineItems = page.locator('text=/第 \\d+ 页/')
