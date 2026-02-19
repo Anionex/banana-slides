@@ -306,7 +306,10 @@ class FileService:
         Returns:
             Absolute file path
         """
-        return str(self.upload_folder / relative_path.replace('\\', '/'))
+        result = (self.upload_folder / relative_path.replace('\\', '/')).resolve()
+        if not str(result).startswith(str(self.upload_folder.resolve())):
+            raise ValueError(f"Path traversal detected: {relative_path}")
+        return str(result)
     
     def delete_template(self, project_id: str) -> bool:
         """
