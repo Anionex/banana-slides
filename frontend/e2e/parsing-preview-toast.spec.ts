@@ -36,51 +36,40 @@ const mockFiles = () => ({
 test.describe('Parsing attachment preview toast (mocked)', () => {
   test.setTimeout(60_000)
 
-  test('clicking parsing file shows toast, not preview modal', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api/settings', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) }))
     await page.route(`**/api/projects/${PROJECT_ID}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockProject()) }))
     await page.route(`**/api/projects/${PROJECT_ID}/pages`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { pages: [] } }) }))
     await page.route(`**/api/reference-files/project/${PROJECT_ID}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockFiles()) }))
+    await page.route(`**/api/reference-files/${FILE_COMPLETED}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { file: { id: FILE_COMPLETED, filename: 'done-doc.pdf', file_size: 2000, file_type: 'application/pdf', parse_status: 'completed', markdown_content: '# Done' } } }) }))
+  })
 
-    // Mock single file endpoints — parsing file should NOT be fetched for preview
+  test('clicking parsing file shows toast, not preview modal', async ({ page }) => {
     let parsingFileFetched = false
     await page.route(`**/api/reference-files/${FILE_PARSING}`, async r => {
       parsingFileFetched = true
       await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { file: { id: FILE_PARSING, filename: 'parsing-doc.pdf', file_size: 1000, file_type: 'application/pdf', parse_status: 'parsing', markdown_content: null } } }) })
     })
-    await page.route(`**/api/reference-files/${FILE_COMPLETED}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { file: { id: FILE_COMPLETED, filename: 'done-doc.pdf', file_size: 2000, file_type: 'application/pdf', parse_status: 'completed', markdown_content: '# Done' } } }) }))
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
 
-    // Click the parsing file card
     const parsingCard = page.locator('text=parsing-doc.pdf').first()
     await parsingCard.waitFor({ state: 'visible', timeout: 10_000 })
     await parsingCard.click()
 
-    // Toast should appear with the info message
     const toast = page.locator('text=解析完成后可预览').or(page.locator('text=Preview available after parsing'))
     await expect(toast.first()).toBeVisible({ timeout: 3_000 })
 
-    // Preview modal should NOT open (no file content dialog)
-    // The parsing file detail endpoint should NOT have been called
     expect(parsingFileFetched).toBe(false)
   })
 
   test('clicking completed file still opens preview modal', async ({ page }) => {
-    await page.route('**/api/settings', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) }))
-    await page.route(`**/api/projects/${PROJECT_ID}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockProject()) }))
-    await page.route(`**/api/projects/${PROJECT_ID}/pages`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { pages: [] } }) }))
-    await page.route(`**/api/reference-files/project/${PROJECT_ID}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockFiles()) }))
-    await page.route(`**/api/reference-files/${FILE_COMPLETED}`, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { file: { id: FILE_COMPLETED, filename: 'done-doc.pdf', file_size: 2000, file_type: 'application/pdf', parse_status: 'completed', markdown_content: '# Done' } } }) }))
-
     await page.goto(`/project/${PROJECT_ID}/outline`)
 
-    // Click the completed file card
     const completedCard = page.locator('text=done-doc.pdf').first()
     await completedCard.waitFor({ state: 'visible', timeout: 10_000 })
     await completedCard.click()
 
-    // Preview modal should open with content
     const modal = page.locator('[role="dialog"]').last()
     await expect(modal).toBeVisible({ timeout: 5_000 })
     await expect(modal.locator('.prose h1')).toBeVisible({ timeout: 3_000 })

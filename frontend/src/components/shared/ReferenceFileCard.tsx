@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
 import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
-import { useToast } from './Toast';
 
 // ReferenceFileCard 组件自包含翻译
 const referenceFileCardI18n = {
@@ -30,6 +29,7 @@ export interface ReferenceFileCardProps {
   onStatusChange?: (file: ReferenceFile) => void;
   deleteMode?: 'delete' | 'remove';
   onClick?: () => void;
+  showToast?: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
 }
 
 export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
@@ -38,9 +38,9 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
   onStatusChange,
   deleteMode = 'delete',
   onClick,
+  showToast,
 }) => {
   const t = useT(referenceFileCardI18n);
-  const { show, ToastContainer } = useToast();
   const [file, setFile] = useState<ReferenceFile>(initialFile);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReparsing, setIsReparsing] = useState(false);
@@ -168,7 +168,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
       onClick={() => {
         if (!onClick) return;
         if (file.parse_status === 'pending' || file.parse_status === 'parsing') {
-          show({ message: t('referenceFile.previewAfterParse'), type: 'info' });
+          showToast?.({ message: t('referenceFile.previewAfterParse'), type: 'info' });
           return;
         }
         onClick();
@@ -247,7 +247,6 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
           )}
         </button>
       </div>
-      <ToastContainer />
     </div>
   );
 };

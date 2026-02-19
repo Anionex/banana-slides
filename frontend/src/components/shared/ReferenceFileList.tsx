@@ -33,7 +33,7 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
 }) => {
   const t = useT(referenceFileListI18n);
   const [internalFiles, setInternalFiles] = useState<ReferenceFile[]>([]);
-  const { show } = useToast();
+  const { show, ToastContainer } = useToast();
   const showRef = useRef(show);
   
   const displayTitle = title ?? t('referenceFile.uploadedFiles');
@@ -106,9 +106,11 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
             onStatusChange={handleFileStatusChange}
             deleteMode={deleteMode}
             onClick={() => onFileClick?.(file.id)}
+            showToast={show}
           />
         ))}
       </div>
+      <ToastContainer />
     </div>
   );
 };

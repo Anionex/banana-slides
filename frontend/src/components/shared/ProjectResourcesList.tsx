@@ -46,7 +46,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
   onImageClick,
 }) => {
   const t = useT(projectResourcesI18n);
-  const { show } = useToast();
+  const { show, ToastContainer } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
@@ -178,6 +178,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
                 onStatusChange={handleFileStatusChange}
                 deleteMode="remove"
                 onClick={() => onFileClick?.(file.id)}
+                showToast={show}
               />
             ))}
           </div>
@@ -254,6 +255,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
           </div>
         </div>
       )}
+      <ToastContainer />
     </div>
   );
 };
