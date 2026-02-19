@@ -65,9 +65,8 @@ test.describe('Aspect ratio lock (mock)', () => {
     await expect(page.getByText(/已生成图片的项目无法调整|Cannot change aspect ratio/)).toBeVisible()
 
     // Verify buttons are disabled
-    const ratioButtons = page.locator('button:has-text("16:9"), button:has-text("4:3"), button:has-text("1:1"), button:has-text("9:16"), button:has-text("3:2")')
-    for (const btn of await ratioButtons.all()) {
-      await expect(btn).toBeDisabled()
+    for (const ratio of ['16:9', '4:3', '1:1', '9:16', '3:2']) {
+      await expect(page.locator(`button:has-text("${ratio}")`).first()).toBeDisabled()
     }
 
     // Save button should not be visible

@@ -233,11 +233,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                         type="button"
                         disabled={hasImages}
                         onClick={() => onAspectRatioChange?.(opt.value)}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-all ${
-                          hasImages
-                            ? 'opacity-50 cursor-not-allowed'
-                            : ''
-                        } ${
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                           aspectRatio === opt.value
                             ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary text-banana-700 dark:text-banana'
                             : 'border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
