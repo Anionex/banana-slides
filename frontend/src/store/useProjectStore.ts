@@ -186,7 +186,7 @@ const debouncedUpdatePage = debounce(
         }
       };
 
-      if (type === 'idea' || type === 'outline') {
+      if (type === 'outline') {
         await generateWithRollback(() => api.generateOutline(projectId), '生成大纲');
       } else if (type === 'description') {
         await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
