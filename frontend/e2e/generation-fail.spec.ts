@@ -56,6 +56,22 @@ test.describe('Generation failure handling', () => {
     expect(page.url()).not.toContain('/detail')
   })
 
+  test('outline: stays on Home when generateOutline fails', async ({ page }) => {
+    await setupFailureMocks(page, 'test-outline-fail', '**/api/projects/*/generate/outline')
+
+    await page.locator('button').filter({ hasText: /从大纲生成|From Outline/i }).click()
+
+    const editor = page.locator('[role="textbox"][contenteditable="true"]').first()
+    await editor.click()
+    await editor.pressSequentially('Slide 1: Intro\nSlide 2: Content\nSlide 3: Summary', { delay: 10 })
+
+    await page.locator('button').filter({ hasText: /下一步|Next/i }).click()
+
+    await expect(page.getByText(/AI service unavailable/i)).toBeVisible({ timeout: 15000 })
+    expect(page.url()).not.toContain('/outline')
+    expect(page.url()).not.toContain('/detail')
+  })
+
   test('description: stays on Home when generateFromDescription fails', async ({ page }) => {
     await setupFailureMocks(page, 'test-desc-fail', '**/api/projects/*/generate/from-description')
 
