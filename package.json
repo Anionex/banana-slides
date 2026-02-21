@@ -22,8 +22,7 @@
     "build": "docker compose build",
     "start": "docker compose up -d",
     "stop": "docker compose down",
-    "quick-check": "npm run lint && npm run test:frontend && npm run test:backend",
-    "release": "git push --follow-tags"
+    "quick-check": "npm run lint && npm run test:frontend && npm run test:backend"
   },
   "engines": {
     "node": ">=18.0.0"
