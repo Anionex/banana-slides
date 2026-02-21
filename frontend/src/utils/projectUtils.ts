@@ -230,6 +230,8 @@ export interface ParsedDescriptionPage {
   layoutSuggestion?: string;
 }
 
+const sanitize = (s: string) => s.replace(/<[^>]*>/g, '');
+
 const splitMarkdownPages = (markdown: string): string[] => {
   return markdown.split(/^## 第 \d+ 页:/m).slice(1);
 };
@@ -248,7 +250,7 @@ export const parseOutlineFromMarkdown = (markdown: string): ParsedOutlinePage[] 
     const points = lines
       .filter(l => l.startsWith('- '))
       .map(l => l.slice(2).trim());
-    return { title, points, part };
+    return { title: sanitize(title), points: points.map(sanitize), part: part ? sanitize(part) : undefined };
   });
 };
 
@@ -258,11 +260,15 @@ export const parseDescriptionsFromMarkdown = (markdown: string): ParsedDescripti
     const title = lines[0].trim();
     const part = extractMeta(lines, '章节');
     const layoutSuggestion = extractMeta(lines, '布局建议');
-    const text = lines
-      .slice(1)
-      .filter(l => !l.startsWith('> 章节: ') && !l.startsWith('> 布局建议: ') && l.trim() !== '---' && l.trim() !== '*暂无描述*')
-      .join('\n')
-      .trim();
-    return { title, text, part, layoutSuggestion };
+    // Skip metadata lines at the start, then strip trailing separator
+    let contentLines = lines.slice(1);
+    while (contentLines.length && (contentLines[0].startsWith('> 章节: ') || contentLines[0].startsWith('> 布局建议: ') || contentLines[0].trim() === '')) {
+      contentLines.shift();
+    }
+    while (contentLines.length && (contentLines[contentLines.length - 1].trim() === '---' || contentLines[contentLines.length - 1].trim() === '' || contentLines[contentLines.length - 1].trim() === '*暂无描述*')) {
+      contentLines.pop();
+    }
+    const text = contentLines.join('\n').trim();
+    return { title: sanitize(title), text: sanitize(text), part: part ? sanitize(part) : undefined, layoutSuggestion };
   });
 };

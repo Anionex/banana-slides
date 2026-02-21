@@ -280,18 +280,17 @@ export const DetailEditor: React.FC = () => {
         return;
       }
       const startIndex = currentProject.pages.length;
-      for (let i = 0; i < parsed.length; i++) {
-        const { title, text: desc, part, layoutSuggestion } = parsed[i];
+      await Promise.all(parsed.map(({ title, text: desc, part, layoutSuggestion }, i) => {
         const descContent = layoutSuggestion
           ? { title, text_content: [desc], layout_suggestion: layoutSuggestion }
           : { text: desc };
-        await addPage(projectId, {
+        return addPage(projectId, {
           outline_content: { title, points: [] },
           description_content: descContent,
           part,
           order_index: startIndex + i,
         });
-      }
+      }));
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
     } catch {

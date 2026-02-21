@@ -311,10 +311,9 @@ export const OutlineEditor: React.FC = () => {
         return;
       }
       const startIndex = currentProject.pages.length;
-      for (let i = 0; i < parsed.length; i++) {
-        const { title, points, part } = parsed[i];
-        await addPage(projectId, { outline_content: { title, points }, part, order_index: startIndex + i });
-      }
+      await Promise.all(parsed.map(({ title, points, part }, i) =>
+        addPage(projectId, { outline_content: { title, points }, part, order_index: startIndex + i })
+      ));
       await syncProject(projectId);
       show({ message: t('outline.messages.importSuccess'), type: 'success' });
     } catch {
