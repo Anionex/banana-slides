@@ -81,7 +81,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal,
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject, updatePageOutline, updatePage, addPage } from '@/api/endpoints';
+import { refineOutline, updateProject, addPage } from '@/api/endpoints';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { exportOutlineToMarkdown, parseOutlineFromMarkdown } from '@/utils/projectUtils';
 import type { Page } from '@/types';
@@ -298,7 +298,7 @@ export const OutlineEditor: React.FC = () => {
     show({ message: t('outline.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show]);
 
-  // 导入大纲 Markdown 文件
+  // 导入大纲 Markdown 文件（追加新页面）
   const handleImportOutline = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (importFileRef.current) importFileRef.current.value = '';
@@ -310,16 +310,10 @@ export const OutlineEditor: React.FC = () => {
         show({ message: t('outline.messages.importEmpty'), type: 'error' });
         return;
       }
-      const pages = currentProject.pages;
+      const startIndex = currentProject.pages.length;
       for (let i = 0; i < parsed.length; i++) {
         const { title, points, part } = parsed[i];
-        if (i < pages.length) {
-          const pid = pages[i].id || pages[i].page_id;
-          await updatePageOutline(projectId, pid, { title, points });
-          if (part !== undefined) await updatePage(projectId, pid, { part });
-        } else {
-          await addPage(projectId, { outline_content: { title, points }, part, order_index: i });
-        }
+        await addPage(projectId, { outline_content: { title, points }, part, order_index: startIndex + i });
       }
       await syncProject(projectId);
       show({ message: t('outline.messages.importSuccess'), type: 'success' });

@@ -63,7 +63,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, updatePageDescription, updatePage, addPage } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPage } from '@/api/endpoints';
 import { exportDescriptionsToMarkdown, parseDescriptionsFromMarkdown } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
@@ -267,7 +267,7 @@ export const DetailEditor: React.FC = () => {
     show({ message: t('detail.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show, t]);
 
-  // 导入描述 Markdown 文件
+  // 导入描述 Markdown 文件（追加新页面）
   const handleImportDescriptions = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (importFileRef.current) importFileRef.current.value = '';
@@ -279,24 +279,18 @@ export const DetailEditor: React.FC = () => {
         show({ message: t('detail.messages.importEmpty'), type: 'error' });
         return;
       }
-      const pages = currentProject.pages;
+      const startIndex = currentProject.pages.length;
       for (let i = 0; i < parsed.length; i++) {
         const { title, text: desc, part, layoutSuggestion } = parsed[i];
         const descContent = layoutSuggestion
           ? { title, text_content: [desc], layout_suggestion: layoutSuggestion }
           : { text: desc };
-        if (i < pages.length) {
-          const pid = pages[i].id || pages[i].page_id;
-          await updatePageDescription(projectId, pid, descContent);
-          if (part !== undefined) await updatePage(projectId, pid, { part });
-        } else {
-          await addPage(projectId, {
-            outline_content: { title, points: [] },
-            description_content: descContent,
-            part,
-            order_index: i,
-          });
-        }
+        await addPage(projectId, {
+          outline_content: { title, points: [] },
+          description_content: descContent,
+          part,
+          order_index: startIndex + i,
+        });
       }
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
