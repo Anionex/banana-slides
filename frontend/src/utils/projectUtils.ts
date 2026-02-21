@@ -261,7 +261,7 @@ export const parseDescriptionsFromMarkdown = (markdown: string): ParsedDescripti
     const part = extractMeta(lines, '章节');
     const layoutSuggestion = extractMeta(lines, '布局建议');
     // Skip metadata lines at the start, then strip trailing separator
-    let contentLines = lines.slice(1);
+    const contentLines = lines.slice(1);
     while (contentLines.length && (contentLines[0].startsWith('> 章节: ') || contentLines[0].startsWith('> 布局建议: ') || contentLines[0].trim() === '')) {
       contentLines.shift();
     }
