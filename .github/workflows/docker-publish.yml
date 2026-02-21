@@ -1,36 +1,79 @@
 name: Release
 
-# 触发条件：
-# 1. 在 GitHub 上发布 Release（主要触发方式）
-# 2. 手动触发（workflow_dispatch）
+# 手动触发，输入版本号
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v0.3.1)'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  UV_INDEX_URL: https://pypi.org/simple
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Images
+  test:
+    name: Pre-release Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          ref: ${{ github.event.release.tag_name || github.sha }}
-          fetch-depth: 0
+          python-version: '3.10'
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install backend dependencies
+        run: uv sync --extra test
+
+      - name: Backend unit tests
+        run: uv run pytest backend/tests/unit -v
+
+      - name: Backend integration tests
+        run: uv run pytest backend/tests/integration -v -m "not requires_service"
+        env:
+          TESTING: true
+          GOOGLE_API_KEY: mock-api-key-for-testing
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Frontend lint
+        run: cd frontend && npm run lint
+
+      - name: Frontend tests
+        run: cd frontend && npm test -- --run
+
+      - name: Frontend build check
+        run: cd frontend && npm run build
+
+  build-and-push:
+    name: Build and Push Docker Images
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -44,10 +87,9 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=latest
             type=sha
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
 
       - name: Extract metadata for frontend
         id: meta-frontend
@@ -55,10 +97,9 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=latest
             type=sha
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -93,28 +134,35 @@ jobs:
             DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
             NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
 
-      - name: Image digest
+  create-release:
+    name: Create GitHub Release
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create tag and release
         run: |
-          echo "Backend image: ${{ steps.meta-backend.outputs.tags }}"
-          echo "Frontend image: ${{ steps.meta-frontend.outputs.tags }}"
+          git tag ${{ inputs.version }}
+          git push origin ${{ inputs.version }}
+          gh release create ${{ inputs.version }} --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sync-version:
     name: Sync Version to Source Files
+    needs: create-release
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: main
 
       - name: Update version files
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"  # strip leading v
-          # package.json
+          VERSION="${{ inputs.version }}"
+          VERSION="${VERSION#v}"
           jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-          # pyproject.toml
           sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
 
       - name: Commit and push
@@ -123,17 +171,19 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json pyproject.toml
           git diff --cached --quiet && exit 0
-          git commit -m "chore: bump version to ${{ github.event.release.tag_name }}"
+          git commit -m "chore: bump version to ${{ inputs.version }}"
           git push
 
   # build-binaries:
   #   name: Build Binary Artifacts
+  #   needs: test
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v4
   #     - name: Build
   #       run: echo "TODO: add build steps"
   #     - name: Upload to Release
-  #       run: gh release upload ${{ github.event.release.tag_name }} ./dist/*
+  #       needs: create-release  # upload after release exists
+  #       run: gh release upload ${{ inputs.version }} ./dist/*
   #       env:
   #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
