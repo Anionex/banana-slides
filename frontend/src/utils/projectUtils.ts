@@ -124,9 +124,13 @@ export const getDescriptionText = (descContent: DescriptionContent | undefined |
 export const pageOutlineToMarkdown = (page: Page, index: number): string => {
   const title = page.outline_content?.title || `第 ${index + 1} 页`;
   const points = page.outline_content?.points || [];
-  
+
   let markdown = `## 第 ${index + 1} 页: ${title}\n\n`;
-  
+
+  if (page.part) {
+    markdown += `> 章节: ${page.part}\n\n`;
+  }
+
   if (points.length > 0) {
     points.forEach((point) => {
       markdown += `- ${point}\n`;
@@ -135,7 +139,7 @@ export const pageOutlineToMarkdown = (page: Page, index: number): string => {
   } else {
     markdown += `*暂无要点*\n\n`;
   }
-  
+
   return markdown;
 };
 
@@ -145,17 +149,31 @@ export const pageOutlineToMarkdown = (page: Page, index: number): string => {
 export const pageDescriptionToMarkdown = (page: Page, index: number): string => {
   const title = page.outline_content?.title || `第 ${index + 1} 页`;
   const descText = getDescriptionText(page.description_content);
-  
+
   let markdown = `## 第 ${index + 1} 页: ${title}\n\n`;
-  
+
+  if (page.part) {
+    markdown += `> 章节: ${page.part}\n`;
+  }
+
+  const layoutSuggestion = page.description_content && 'layout_suggestion' in page.description_content
+    ? page.description_content.layout_suggestion : undefined;
+  if (layoutSuggestion) {
+    markdown += `> 布局建议: ${layoutSuggestion}\n`;
+  }
+
+  if (page.part || layoutSuggestion) {
+    markdown += '\n';
+  }
+
   if (descText) {
     markdown += `${descText}\n\n`;
   } else {
     markdown += `*暂无描述*\n\n`;
   }
-  
+
   markdown += `---\n\n`;
-  
+
   return markdown;
 };
 
@@ -197,3 +215,54 @@ export const exportDescriptionsToMarkdown = (project: Project): void => {
   downloadFile(blob, filename);
 };
 
+// ========== Markdown 导入相关函数 ==========
+
+export interface ParsedOutlinePage {
+  title: string;
+  points: string[];
+  part?: string;
+}
+
+export interface ParsedDescriptionPage {
+  title: string;
+  text: string;
+  part?: string;
+  layoutSuggestion?: string;
+}
+
+const splitMarkdownPages = (markdown: string): string[] => {
+  return markdown.split(/^## 第 \d+ 页:/m).slice(1);
+};
+
+const extractMeta = (lines: string[], key: string): string | undefined => {
+  const prefix = `> ${key}: `;
+  const line = lines.find(l => l.startsWith(prefix));
+  return line ? line.slice(prefix.length).trim() : undefined;
+};
+
+export const parseOutlineFromMarkdown = (markdown: string): ParsedOutlinePage[] => {
+  return splitMarkdownPages(markdown).map(section => {
+    const lines = section.split('\n');
+    const title = lines[0].trim();
+    const part = extractMeta(lines, '章节');
+    const points = lines
+      .filter(l => l.startsWith('- '))
+      .map(l => l.slice(2).trim());
+    return { title, points, part };
+  });
+};
+
+export const parseDescriptionsFromMarkdown = (markdown: string): ParsedDescriptionPage[] => {
+  return splitMarkdownPages(markdown).map(section => {
+    const lines = section.split('\n');
+    const title = lines[0].trim();
+    const part = extractMeta(lines, '章节');
+    const layoutSuggestion = extractMeta(lines, '布局建议');
+    const text = lines
+      .slice(1)
+      .filter(l => !l.startsWith('> 章节: ') && !l.startsWith('> 布局建议: ') && l.trim() !== '---' && l.trim() !== '*暂无描述*')
+      .join('\n')
+      .trim();
+    return { title, text, part, layoutSuggestion };
+  });
+};

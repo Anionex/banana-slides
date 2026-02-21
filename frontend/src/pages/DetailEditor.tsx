@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -10,7 +10,7 @@ const detailI18n = {
     detail: {
       title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
-      description: "描述", batchGenerate: "批量生成描述", export: "导出描述",
+      description: "描述", batchGenerate: "批量生成描述", export: "导出描述", import: "导入描述",
       pagesCompleted: "页已完成", noPages: "还没有页面",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
@@ -27,7 +27,8 @@ const detailI18n = {
         confirmRenovationRegenerate: "您现在是 PPT 翻新模式，重新生成会依照原 PPT 相同页码页面，重新解析并生成该页的大纲和描述，覆盖已有内容。确定要继续吗？",
         confirmRenovationRegenerateTitle: "重新解析此页",
         refineSuccess: "页面描述修改成功", refineFailed: "修改失败，请稍后重试",
-        exportSuccess: "导出成功", loadingProject: "加载项目中..."
+        exportSuccess: "导出成功", importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
+        loadingProject: "加载项目中..."
       }
     }
   },
@@ -36,7 +37,7 @@ const detailI18n = {
     detail: {
       title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
-      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions",
+      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", import: "Import Descriptions",
       pagesCompleted: "pages completed", noPages: "No pages yet",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
@@ -53,7 +54,8 @@ const detailI18n = {
         confirmRenovationRegenerate: "You are in PPT renovation mode. Regenerating will re-parse the original PDF page and regenerate the outline and description, overwriting existing content. Continue?",
         confirmRenovationRegenerateTitle: "Re-parse This Page",
         refineSuccess: "Descriptions modified successfully", refineFailed: "Modification failed, please try again",
-        exportSuccess: "Export successful", loadingProject: "Loading project..."
+        exportSuccess: "Export successful", importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
+        loadingProject: "Loading project..."
       }
     }
   }
@@ -61,8 +63,8 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus } from '@/api/endpoints';
-import { exportDescriptionsToMarkdown } from '@/utils/projectUtils';
+import { refineDescriptions, getTaskStatus, updatePageDescription, updatePage, addPage } from '@/api/endpoints';
+import { exportDescriptionsToMarkdown, parseDescriptionsFromMarkdown } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -70,6 +72,7 @@ export const DetailEditor: React.FC = () => {
   const t = useT(detailI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
+  const importFileRef = useRef<HTMLInputElement>(null);
   const {
     currentProject,
     syncProject,
@@ -264,6 +267,44 @@ export const DetailEditor: React.FC = () => {
     show({ message: t('detail.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show, t]);
 
+  // 导入描述 Markdown 文件
+  const handleImportDescriptions = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (importFileRef.current) importFileRef.current.value = '';
+    if (!file || !currentProject || !projectId) return;
+    try {
+      const text = await file.text();
+      const parsed = parseDescriptionsFromMarkdown(text);
+      if (parsed.length === 0) {
+        show({ message: t('detail.messages.importEmpty'), type: 'error' });
+        return;
+      }
+      const pages = currentProject.pages;
+      for (let i = 0; i < parsed.length; i++) {
+        const { title, text: desc, part, layoutSuggestion } = parsed[i];
+        const descContent = layoutSuggestion
+          ? { title, text_content: [desc], layout_suggestion: layoutSuggestion }
+          : { text: desc };
+        if (i < pages.length) {
+          const pid = pages[i].id || pages[i].page_id;
+          await updatePageDescription(projectId, pid, descContent);
+          if (part !== undefined) await updatePage(projectId, pid, { part });
+        } else {
+          await addPage(projectId, {
+            outline_content: { title, points: [] },
+            description_content: descContent,
+            part,
+            order_index: i,
+          });
+        }
+      }
+      await syncProject(projectId);
+      show({ message: t('detail.messages.importSuccess'), type: 'success' });
+    } catch {
+      show({ message: t('detail.messages.importFailed'), type: 'error' });
+    }
+  }, [currentProject, projectId, syncProject, show, t]);
+
   if (!currentProject) {
     return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
   }
@@ -402,6 +443,15 @@ export const DetailEditor: React.FC = () => {
             >
               {t('detail.export')}
             </Button>
+            <Button
+              variant="secondary"
+              icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => importFileRef.current?.click()}
+              className="flex-1 sm:flex-initial text-sm md:text-base"
+            >
+              {t('detail.import')}
+            </Button>
+            <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportDescriptions} />
             <span className="text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}
               {currentProject.pages.length} {t('detail.pagesCompleted')}

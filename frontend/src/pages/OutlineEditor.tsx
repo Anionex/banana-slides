@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -16,7 +16,7 @@ const outlineI18n = {
       preview: "预览", clickToPreview: "点击左侧卡片查看详情",
       noPages: "还没有页面", noPagesHint: "点击「添加页面」手动创建，或「自动生成大纲」让 AI 帮你完成",
       parseOutline: "解析大纲", autoGenerate: "自动生成大纲",
-      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲",
+      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲", import: "导入大纲",
       aiPlaceholder: "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：增加/删除页面... · Ctrl+Enter",
       contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
@@ -27,6 +27,7 @@ const outlineI18n = {
         confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
+        importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
       }
     }
@@ -42,7 +43,7 @@ const outlineI18n = {
       preview: "Preview", clickToPreview: "Click a card on the left to view details",
       noPages: "No pages yet", noPagesHint: "Click \"Add Page\" to create manually, or \"Auto Generate\" to let AI help you",
       parseOutline: "Parse Outline", autoGenerate: "Auto Generate Outline",
-      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline",
+      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline", import: "Import Outline",
       aiPlaceholder: "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Add/delete pages... · Ctrl+Enter",
       contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
@@ -53,6 +54,7 @@ const outlineI18n = {
         confirmRegenerate: "Existing outline will be overwritten. Continue?",
         confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
+        importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
       }
     }
@@ -79,9 +81,9 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal,
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject } from '@/api/endpoints';
+import { refineOutline, updateProject, updatePageOutline, updatePage, addPage } from '@/api/endpoints';
 import { useImagePaste } from '@/hooks/useImagePaste';
-import { exportOutlineToMarkdown } from '@/utils/projectUtils';
+import { exportOutlineToMarkdown, parseOutlineFromMarkdown } from '@/utils/projectUtils';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器
@@ -142,6 +144,7 @@ export const OutlineEditor: React.FC = () => {
   // the shared-ref bug where insertAtCursor targets the wrong (hidden) instance.
   const desktopTextareaRef = useRef<MarkdownTextareaRef>(null);
   const mobileTextareaRef = useRef<MarkdownTextareaRef>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const getInputText = useCallback((project: typeof currentProject) => {
     if (!project) return '';
     if (project.creation_type === 'outline' || project.creation_type === 'ppt_renovation') return project.outline_text || project.idea_prompt || '';
@@ -295,6 +298,36 @@ export const OutlineEditor: React.FC = () => {
     show({ message: t('outline.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show]);
 
+  // 导入大纲 Markdown 文件
+  const handleImportOutline = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (importFileRef.current) importFileRef.current.value = '';
+    if (!file || !currentProject || !projectId) return;
+    try {
+      const text = await file.text();
+      const parsed = parseOutlineFromMarkdown(text);
+      if (parsed.length === 0) {
+        show({ message: t('outline.messages.importEmpty'), type: 'error' });
+        return;
+      }
+      const pages = currentProject.pages;
+      for (let i = 0; i < parsed.length; i++) {
+        const { title, points, part } = parsed[i];
+        if (i < pages.length) {
+          const pid = pages[i].id || pages[i].page_id;
+          await updatePageOutline(projectId, pid, { title, points });
+          if (part !== undefined) await updatePage(projectId, pid, { part });
+        } else {
+          await addPage(projectId, { outline_content: { title, points }, part, order_index: i });
+        }
+      }
+      await syncProject(projectId);
+      show({ message: t('outline.messages.importSuccess'), type: 'success' });
+    } catch {
+      show({ message: t('outline.messages.importFailed'), type: 'error' });
+    }
+  }, [currentProject, projectId, syncProject, show, t]);
+
   if (!currentProject) {
     return <Loading fullscreen message={t('outline.messages.loadingProject')} />;
   }
@@ -424,6 +457,15 @@ export const OutlineEditor: React.FC = () => {
             >
               {t('outline.export')}
             </Button>
+            <Button
+              variant="secondary"
+              icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => importFileRef.current?.click()}
+              className="flex-1 sm:flex-initial text-sm md:text-base"
+            >
+              {t('outline.import')}
+            </Button>
+            <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportOutline} />
             {/* 手机端：保存按钮 */}
             <Button
               variant="secondary"
