@@ -92,9 +92,103 @@ jobs:
       - name: Frontend build check
         run: cd frontend && npm run build
 
+  e2e-test:
+    name: E2E Tests
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          chmod +x scripts/setup-env-from-secrets.sh
+          ./scripts/setup-env-from-secrets.sh
+          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
+        env:
+          AI_PROVIDER_FORMAT: gemini
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
+          OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
+          TEXT_MODEL: ${{ secrets.TEXT_MODEL }}
+          IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          FLASK_ENV: ${{ secrets.FLASK_ENV }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
+          MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}
+          MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
+          MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
+          IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
+          OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
+
+      - name: Build and start Docker services
+        run: |
+          docker compose build --no-cache
+          docker compose up -d
+
+      - name: Wait for services
+        run: |
+          chmod +x scripts/wait-for-health.sh
+          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:3000 60 2
+
+      - name: Docker environment tests
+        run: |
+          chmod +x scripts/test_docker_environment.sh
+          AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
+
+      - name: Setup Node.js
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Playwright
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: cd frontend && npx playwright test ui-full-flow.spec.ts --workers=1
+        env:
+          CI: true
+        timeout-minutes: 25
+
+      - name: Upload E2E reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-e2e-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: View logs on failure
+        if: failure()
+        run: |
+          docker compose logs backend
+          docker compose logs frontend
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+          docker system prune -f
+
   sync-version:
     name: Sync Version to Source Files
-    needs: test
+    needs: e2e-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
