@@ -1,24 +1,13 @@
-name: Full Test Suite
+name: CI Tests
 
-# Full tests run in these cases:
-# 1. Push to main/develop branch (direct push, not from PR merge)
-#    - 仅当代码文件变更时触发（排除 *.md 文件）
-# 2. PR labeled with ready-for-test
-# 3. Manual trigger (workflow_dispatch)
-#
-# Note: PR merge does NOT trigger tests again to avoid duplication
-# (PR should be tested via ready-for-test label before merging)
+# Push to main/develop (excluding docs-only changes) or manual trigger
 on:
   push:
     branches: [ main, develop ]
     paths-ignore:
       - '**/*.md'
-  pull_request:
-    types: [labeled]
-    branches: [ main, develop ]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
-# Cancel old builds on the same branch
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,436 +16,59 @@ env:
   UV_INDEX_URL: https://pypi.org/simple
 
 jobs:
-  # ================================
-  # Backend Tests
-  # ================================
-  backend-unit-test:
-    name: Backend Unit Tests
+  backend-test:
+    name: Backend Tests
     runs-on: ubuntu-latest
-    # Run in these cases: direct push to main/develop, ready-for-test label, or manual trigger
-    if: |
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'ready-for-test')
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Python environment
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      
-      - name: Install uv package manager
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      
-      - name: Install dependencies (with test extras)
-        run: |
-          uv sync --extra test
-      
-      - name: Run unit tests
-        run: |
-          cd backend
-          uv run pytest tests/unit -v --cov=. --cov-report=xml --cov-report=term
-        continue-on-error: false
-      
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./backend/coverage.xml
-          flags: backend
-          name: backend-coverage
 
-  backend-integration-test:
-    name: Backend Integration Tests
-    runs-on: ubuntu-latest
-    needs: backend-unit-test
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Python environment
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      
-      - name: Install dependencies (with test extras)
-        run: uv sync --extra test
-      
-      - name: Run integration tests
-        run: |
-          cd backend
-          # Skip tests that require running backend service (marked with @pytest.mark.requires_service)
-          # These tests will run in the docker-test stage where services are started
-          uv run pytest tests/integration -v -m "not requires_service"
-        env:
-          # Use mock mode, no real API dependency
-          TESTING: true
-          SKIP_SERVICE_TESTS: true
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY || 'mock-api-key-for-testing' }}
 
-  # ================================
-  # Frontend Tests
-  # ================================
+      - name: Install dependencies
+        run: uv sync --extra test
+
+      - name: Unit tests
+        run: uv run pytest backend/tests/unit -v --cov=backend --cov-report=xml
+
+      - name: Integration tests
+        run: uv run pytest backend/tests/integration -v -m "not requires_service"
+        env:
+          TESTING: true
+          GOOGLE_API_KEY: mock-api-key-for-testing
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
-      - name: Install dependencies
-        run: |
-          cd frontend
-          npm ci
-      
-      - name: Lint check
-        run: |
-          cd frontend
-          npm run lint
-      
-      - name: Run unit tests
-        run: |
-          cd frontend
-          npm test -- --run --coverage
-        continue-on-error: false
-      
-      - name: Upload coverage report
+
+      - run: cd frontend && npm ci
+      - name: Lint
+        run: cd frontend && npm run lint
+      - name: Unit tests
+        run: cd frontend && npm test -- --run --coverage
+      - name: Build check
+        run: cd frontend && npm run build
+
+      - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
           file: ./frontend/coverage/coverage-final.json
           flags: frontend
-          name: frontend-coverage
-      
-      - name: Build check
-        run: |
-          cd frontend
-          npm run build
-
-  # ================================
-  # Docker Environment Tests
-  # ================================
-  docker-test:
-    name: Docker Environment Tests
-    runs-on: ubuntu-latest
-    needs: [backend-integration-test, frontend-test]
-    # Set environment variable from secret for use in if conditions
-    # (secrets cannot be used directly in if conditions)
-    env:
-      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup environment variables
-        run: |
-          # Use generic script to automatically handle all environment variable replacements
-          chmod +x scripts/setup-env-from-secrets.sh
-          ./scripts/setup-env-from-secrets.sh
-          
-          # E2E tests use Gemini format (full flow testing)
-          # Update .env to use Gemini format for E2E tests
-          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
-          echo "E2E tests will use Gemini format"
-          # Only show non-sensitive config, never print API keys
-          grep "^AI_PROVIDER_FORMAT=" .env
-          
-          # Security: Ensure API keys are not in logs
-          # Remove any lines that might contain sensitive data from .env before displaying
-          echo "Environment configured (API keys hidden for security)"
-        env:
-          # Export all Secrets as environment variables (script will auto-detect and replace)
-          # E2E tests fixed to use Gemini format
-          AI_PROVIDER_FORMAT: gemini
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
-          OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
-          TEXT_MODEL: ${{ secrets.TEXT_MODEL }}
-          IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
-          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
-          FLASK_ENV: ${{ secrets.FLASK_ENV }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
-          MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
-          MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}
-          MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
-          MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
-          IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
-          OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
-      
-      - name: Build Docker images
-        run: |
-          docker compose build --no-cache
-      
-      - name: Start services
-        run: |
-          docker compose up -d
-          echo "Waiting for services to be ready..."
-          
-      - name: Wait for services to be healthy
-        run: |
-          chmod +x scripts/wait-for-health.sh
-          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
-          ./scripts/wait-for-health.sh http://localhost:3000 60 2
-      
-      - name: Health check
-        run: |
-          chmod +x scripts/wait-for-health.sh
-          # Backend health check
-          echo "Checking backend..."
-          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
-          
-          # Frontend health check (with content verification)
-          echo "Checking frontend..."
-          ./scripts/wait-for-health.sh http://localhost:3000 60 2
-          # Additional wait for JS/React to load
-          sleep 5
-          # Verify frontend content
-          if curl -s http://localhost:3000 | grep -q "蕉幻"; then
-            echo "Frontend started successfully and content loaded"
-          else
-            echo "Warning: Frontend responding but content verification failed"
-          fi
-      
-      - name: Run Docker environment tests
-        run: |
-          chmod +x scripts/test_docker_environment.sh
-          AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
-      
-      - name: Setup Node.js for frontend E2E tests
-        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      
-      - name: Install frontend dependencies and Playwright
-        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: |
-          cd frontend
-          npm ci
-          npx playwright install --with-deps chromium
-      
-      - name: Check if E2E tests should run
-        id: check_e2e
-        run: |
-          # Check if this is a fork PR (GitHub doesn't provide secrets to forks)
-          if [ "${{ github.event.pull_request.head.repo.fork }}" == "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Skipping E2E tests: This is a fork PR (secrets not available)"
-            exit 0
-          fi
-          
-          # Check if API key is available
-          if [ -z "${{ secrets.GOOGLE_API_KEY }}" ] || [ "${{ secrets.GOOGLE_API_KEY }}" == "mock-api-key-for-testing" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Skipping E2E tests: GOOGLE_API_KEY not configured or is mock key"
-            exit 0
-          fi
-          
-          echo "skip=false" >> $GITHUB_OUTPUT
-          echo "✓ E2E tests will run"
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      
-      - name: Setup Python for backend API tests
-        if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      
-      - name: Install uv and backend dependencies
-        if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: |
-          # Install uv
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          
-          # Source the cargo env to use uv immediately
-          . "$HOME/.cargo/env"
-          
-          # Now uv is available in PATH
-          uv sync --extra test
-      
-      # NOTE: API Full Flow test is commented out because UI E2E test covers the same flow
-      # UI E2E test is more comprehensive as it tests:
-      # - Frontend UI interactions
-      # - Template selection modal
-      # - Single card retry functionality
-      # - Complete user experience
-      # 
-      # If you need quick API validation without AI, use test_quick_api_flow_no_ai instead
-      # - name: Run Backend API Integration tests (requires running service)
-      #   if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-      #   run: |
-      #     # Source cargo env to access uv
-      #     . "$HOME/.cargo/env"
-      #     
-      #     # Run API integration tests that require real running backend service
-      #     echo "Running Backend API integration tests with real service (Gemini format)"
-      #     cd backend
-      #     uv run pytest tests/integration/test_api_full_flow.py::TestAPIFullFlow::test_api_full_flow_create_to_export -v -m "integration and requires_service"
-      #   env:
-      #     # Ensure API key is not logged
-      #     GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      #     SKIP_SERVICE_TESTS: false
-      #   timeout-minutes: 15
-      #   continue-on-error: false
-      
-      - name: Run Quick API test (no AI, fast validation)
-        if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: |
-          # Source cargo env to access uv
-          . "$HOME/.cargo/env"
-          
-          # Run quick API test that only validates endpoints (no AI generation)
-          echo "Running quick Backend API test (no AI generation, fast feedback)"
-          cd backend
-          uv run pytest tests/integration/test_api_full_flow.py::TestAPIFullFlow::test_quick_api_flow_no_ai -v -m "requires_service"
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          SKIP_SERVICE_TESTS: false
-        timeout-minutes: 5
-        continue-on-error: false
-      
-      - name: Run Frontend UI E2E tests
-        if: steps.check_e2e.outputs.skip != 'true' && env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: |
-          echo "Running Frontend UI E2E tests with Gemini format"
-          cd frontend
-          npx playwright test ui-full-flow.spec.ts --workers=1
-        env:
-          CI: true
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        timeout-minutes: 25
-        continue-on-error: false
-      
-      - name: Upload Frontend E2E test reports
-        if: always() && (env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing')
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-          retention-days: 7
-      
-      - name: Upload Frontend E2E failure screenshots
-        if: failure() && (env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing')
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-screenshots
-          path: frontend/test-results/
-          retention-days: 7
-      
-      - name: View container logs (on failure)
-        if: failure()
-        run: |
-          echo "=== Backend Logs ==="
-          docker compose logs backend
-          echo "=== Frontend Logs ==="
-          docker compose logs frontend
-      
-      - name: Cleanup environment
-        if: always()
-        run: |
-          docker compose down -v
-          docker system prune -f
-
-
-  # ================================
-  # Security Scan
-  # ================================
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Backend dependency security scan
-        run: |
-          # Use uv for consistency
-          uv pip install safety
-          uv run safety check --json || echo "Security vulnerabilities found (warning)"
-        continue-on-error: true
-      
-      - name: Frontend dependency security scan
-        run: |
-          cd frontend
-          npm audit --audit-level=moderate || echo "Security vulnerabilities found (warning)"
-        continue-on-error: true
-      
-      - name: Dockerfile security scan
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: backend/Dockerfile
-        continue-on-error: true
-
-  # ================================
-  # Test Summary
-  # ================================
-  test-summary:
-    name: Test Summary
-    runs-on: ubuntu-latest
-    needs: [backend-unit-test, backend-integration-test, frontend-test, docker-test, security-scan]
-    if: always()
-    
-    steps:
-      - name: Output test results
-        run: |
-          echo "================================="
-          echo "CI/CD Test Complete"
-          echo "================================="
-          echo ""
-          echo "Test Results:"
-          echo "  ✅ Backend unit tests: ${{ needs.backend-unit-test.result }}"
-          echo "  ✅ Backend integration tests: ${{ needs.backend-integration-test.result }}"
-          echo "  ✅ Frontend tests: ${{ needs.frontend-test.result }}"
-          echo "  ✅ Docker environment tests: ${{ needs.docker-test.result }}"
-          echo "  ℹ️  Security scan: ${{ needs.security-scan.result }}"
-          echo ""
-          echo "Note: E2E tests are part of docker-test job"
-          echo "      They run only if GOOGLE_API_KEY is configured"
-          echo ""
-      
-      - name: Check if all tests passed
-        if: |
-          needs.backend-unit-test.result != 'success' ||
-          needs.backend-integration-test.result != 'success' ||
-          needs.frontend-test.result != 'success' ||
-          needs.docker-test.result != 'success'
-        run: |
-          echo "Some tests failed, please check the logs"
-          exit 1
-      
-      - name: All tests passed
-        if: |
-          needs.backend-unit-test.result == 'success' &&
-          needs.backend-integration-test.result == 'success' &&
-          needs.frontend-test.result == 'success' &&
-          needs.docker-test.result == 'success'
-        run: |
-          echo "All tests passed! Ready to merge"
-

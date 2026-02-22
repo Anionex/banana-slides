@@ -4,39 +4,40 @@ on:
   pull_request:
     branches: [ main, develop ]
 
-# Quick check, completes within 2-3 minutes
+# Quick check: lint + unit tests + build + smoke
 jobs:
   quick-check:
-    name: Quick Check (Lint + Build)
+    name: Quick Check (Lint + Unit Tests + Build)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    
+    timeout-minutes: 8
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       # Backend checks
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      
+
       - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      
+
+      - name: Install backend dependencies
+        run: uv sync --extra test
+
       - name: Backend syntax check
         run: |
-          # Use uv for consistency
-          uv pip install flake8 black
           cd backend
-          # Check syntax errors
           uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          # Check code format
-          uv run black --check . || echo "Code format suggestion: run black ."
         continue-on-error: true
-      
+
+      - name: Backend unit tests
+        run: uv run pytest backend/tests/unit -v
+
       # Frontend checks
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -44,26 +45,18 @@ jobs:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Install frontend dependencies
-        run: |
-          cd frontend
-          npm ci
-      
+        run: cd frontend && npm ci
+
       - name: Frontend lint check
-        run: |
-          cd frontend
-          npm run lint
-      
+        run: cd frontend && npm run lint
+
+      - name: Frontend unit tests
+        run: cd frontend && npm test -- --run
+
       - name: Frontend build check
-        run: |
-          cd frontend
-          npm run build
-      
-      - name: Quick check passed
-        run: |
-          echo "Quick check passed"
-          echo "Full tests will run automatically after merge"
+        run: cd frontend && npm run build
 
   # Simple API smoke test
   smoke-test:
