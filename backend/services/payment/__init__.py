@@ -85,9 +85,23 @@ def get_payment_provider(provider_type: Optional[str] = None) -> PaymentProvider
         raise ValueError(f"Unknown payment provider: {provider_type}")
 
 
+def get_all_packages():
+    """Get credit packages, preferring DB overrides over hardcoded defaults."""
+    from models import SystemConfig
+    try:
+        config = SystemConfig.get_instance()
+        db_packages = config.get_credit_packages()
+        if db_packages:
+            fields = {f.name for f in CreditPackage.__dataclass_fields__.values()}
+            return [CreditPackage(**{k: v for k, v in p.items() if k in fields}) for p in db_packages]
+    except Exception:
+        pass
+    return list(CREDIT_PACKAGES)
+
+
 def get_credit_package(package_id: str) -> Optional[CreditPackage]:
     """Get a credit package by ID."""
-    for package in CREDIT_PACKAGES:
+    for package in get_all_packages():
         if package.id == package_id:
             return package
     return None
@@ -102,5 +116,6 @@ __all__ = [
     'LemonSqueezyProvider',
     'get_payment_provider',
     'get_credit_package',
+    'get_all_packages',
     'CREDIT_PACKAGES',
 ]

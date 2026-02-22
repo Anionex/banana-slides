@@ -14,7 +14,7 @@ from services.credits_service import CreditsService, CreditOperation
 from services.payment import (
     get_payment_provider,
     get_credit_package,
-    CREDIT_PACKAGES,
+    get_all_packages,
     PaymentStatus
 )
 
@@ -32,7 +32,7 @@ def list_packages():
         List of credit packages with pricing
     """
     return success_response({
-        'packages': [p.to_dict() for p in CREDIT_PACKAGES]
+        'packages': [p.to_dict() for p in get_all_packages()]
     })
 
 

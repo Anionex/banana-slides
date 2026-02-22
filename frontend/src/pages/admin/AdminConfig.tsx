@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArrowLeft, Save, Settings, CreditCard, Users, Shield, Package } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, Card, Input, Loading, useToast } from '@/components/shared';
 import * as api from '@/api/endpoints';
+import { paymentApi, CreditPackage } from '@/api/payment';
 
 const adminConfigI18n = {
   zh: {
@@ -23,6 +24,15 @@ const adminConfigI18n = {
       bonusConfigDesc: '配置注册和邀请奖励',
       features: '功能开关',
       featuresDesc: '启用或禁用特定功能',
+      packages: '积分套餐',
+      packagesDesc: '配置各套餐的积分数量和价格',
+    },
+    packageFields: {
+      credits: '积分',
+      bonusCredits: '赠送积分',
+      priceCny: '价格 (CNY)',
+      priceUsd: '价格 (USD)',
+      resetToDefault: '恢复默认',
     },
     fields: {
       userEditableFields: '用户可编辑字段',
@@ -69,6 +79,15 @@ const adminConfigI18n = {
       bonusConfigDesc: 'Configure registration and invitation bonuses',
       features: 'Feature Toggles',
       featuresDesc: 'Enable or disable specific features',
+      packages: 'Credit Packages',
+      packagesDesc: 'Configure credits and pricing for each package',
+    },
+    packageFields: {
+      credits: 'Credits',
+      bonusCredits: 'Bonus Credits',
+      priceCny: 'Price (CNY)',
+      priceUsd: 'Price (USD)',
+      resetToDefault: 'Reset to Default',
     },
     fields: {
       userEditableFields: 'User Editable Fields',
@@ -100,6 +119,16 @@ const adminConfigI18n = {
   },
 };
 
+interface PackageConfig {
+  id: string;
+  name: string;
+  credits: number;
+  price_cny: number;
+  price_usd: number;
+  description: string;
+  bonus_credits: number;
+}
+
 interface SystemConfig {
   user_editable_fields: string[];
   registration_bonus: number;
@@ -116,6 +145,7 @@ interface SystemConfig {
   cost_export_editable: number;
   enable_credits_purchase: boolean;
   enable_invitation: boolean;
+  credit_packages: PackageConfig[] | null;
 }
 
 interface FieldInfo {
@@ -147,11 +177,11 @@ const ALL_SETTINGS_FIELDS: FieldInfo[] = [
 ];
 
 export const AdminConfig: React.FC = () => {
-  const navigate = useNavigate();
   const t = useT(adminConfigI18n);
   const { show, ToastContainer } = useToast();
 
   const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -162,10 +192,12 @@ export const AdminConfig: React.FC = () => {
   const loadConfig = async () => {
     setIsLoading(true);
     try {
-      const res = await api.getSystemConfig();
-      if (res.data) {
-        setConfig(res.data);
-      }
+      const [res, pkgs] = await Promise.all([
+        api.getSystemConfig(),
+        paymentApi.getPackages(),
+      ]);
+      if (res.data) setConfig(res.data);
+      setPackages(pkgs);
     } catch (error: any) {
       show({ message: error?.message || 'Failed to load config', type: 'error' });
     } finally {
@@ -208,6 +240,21 @@ export const AdminConfig: React.FC = () => {
   const handleBoolChange = (key: keyof SystemConfig, value: boolean) => {
     if (!config) return;
     setConfig({ ...config, [key]: value });
+  };
+
+  const handlePackageChange = (index: number, field: string, value: string) => {
+    if (!config) return;
+    const pkgs = (config.credit_packages || packages.map(({ id, name, credits, bonus_credits, price_cny, price_usd, description }) =>
+      ({ id, name, credits, bonus_credits, price_cny, price_usd, description })
+    ));
+    const updated = [...pkgs];
+    updated[index] = { ...updated[index], [field]: field === 'credits' || field === 'bonus_credits' ? (parseInt(value) || 0) : (parseFloat(value) || 0) };
+    setConfig({ ...config, credit_packages: updated });
+  };
+
+  const handleResetPackages = () => {
+    if (!config) return;
+    setConfig({ ...config, credit_packages: null });
   };
 
   if (isLoading) {
@@ -451,6 +498,86 @@ export const AdminConfig: React.FC = () => {
                   />
                 </button>
               </div>
+            </div>
+          </Card>
+
+          {/* Credit Packages Section */}
+          <Card className="p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Package className="mr-2 text-indigo-500" size={20} />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary">
+                    {t('sections.packages')}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
+                    {t('sections.packagesDesc')}
+                  </p>
+                </div>
+              </div>
+              {config.credit_packages && (
+                <Button variant="secondary" size="sm" onClick={handleResetPackages}>
+                  {t('packageFields.resetToDefault')}
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {(config.credit_packages || packages).map((pkg, index) => (
+                <div key={pkg.id} className="border dark:border-border-primary rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-800 dark:text-foreground-primary mb-3">
+                    {pkg.name} ({pkg.id})
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('packageFields.credits')}
+                      </label>
+                      <Input
+                        type="number"
+                        value={pkg.credits}
+                        onChange={e => handlePackageChange(index, 'credits', e.target.value)}
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('packageFields.bonusCredits')}
+                      </label>
+                      <Input
+                        type="number"
+                        value={pkg.bonus_credits}
+                        onChange={e => handlePackageChange(index, 'bonus_credits', e.target.value)}
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('packageFields.priceCny')}
+                      </label>
+                      <Input
+                        type="number"
+                        value={pkg.price_cny}
+                        onChange={e => handlePackageChange(index, 'price_cny', e.target.value)}
+                        min={0}
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('packageFields.priceUsd')}
+                      </label>
+                      <Input
+                        type="number"
+                        value={pkg.price_usd}
+                        onChange={e => handlePackageChange(index, 'price_usd', e.target.value)}
+                        min={0}
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
       </main>
