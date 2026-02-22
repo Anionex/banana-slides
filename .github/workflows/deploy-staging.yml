@@ -23,9 +23,11 @@ jobs:
       - name: Resolve image tag
         id: tag
         uses: actions/github-script@v7
+        env:
+          INPUT_TAG: ${{ github.event.inputs.image_tag }}
         with:
           script: |
-            let tag = '${{ github.event.inputs.image_tag }}'.trim();
+            let tag = (process.env.INPUT_TAG || '').trim();
             if (!tag || tag === 'latest') {
               const { data: ref } = await github.rest.git.getRef({
                 owner: context.repo.owner,

@@ -72,10 +72,12 @@ jobs:
       - name: Resolve image tag
         id: resolve
         uses: actions/github-script@v7
+        env:
+          INPUT_TAG: ${{ github.event.inputs.image_tag }}
         with:
           script: |
-            let tag = '${{ github.event.inputs.image_tag }}'.trim();
-            if (!tag) {
+            let tag = (process.env.INPUT_TAG || '').trim();
+            if (!tag || tag === 'latest') {
               const { data: ref } = await github.rest.git.getRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -195,6 +197,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
             echo "${{ steps.resolve.outputs.tag }}" > "$DEPLOY_PATH/.last-production-tag"
@@ -217,6 +220,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
             cd "$DEPLOY_PATH"
