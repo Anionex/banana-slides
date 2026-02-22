@@ -186,6 +186,7 @@ export const SlidePreview: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [useTextStyleMode, setUseTextStyleMode] = useState(false);
+  const [draftTemplateStyle, setDraftTemplateStyle] = useState('');
   const [editPrompt, setEditPrompt] = useState('');
   // 大纲和描述编辑状态
   const [editOutlineTitle, setEditOutlineTitle] = useState('');
@@ -1257,7 +1258,7 @@ export const SlidePreview: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => setIsTemplateModalOpen(true)}
+              onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
               className="hidden lg:inline-flex"
             >
               <span className="hidden xl:inline">{t('preview.changeTemplate')}</span>
@@ -1629,7 +1630,7 @@ export const SlidePreview: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       icon={<Upload size={16} />}
-                      onClick={() => setIsTemplateModalOpen(true)}
+                      onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
                       className="lg:hidden text-xs"
                       title="更换模板"
                     />
@@ -2039,11 +2040,8 @@ export const SlidePreview: React.FC = () => {
           </label>
           {useTextStyleMode ? (
             <TextStyleSelector
-              value={templateStyle}
-              onChange={(value) => {
-                isEditingTemplateStyle.current = true;
-                setTemplateStyle(value);
-              }}
+              value={draftTemplateStyle}
+              onChange={setDraftTemplateStyle}
               onToast={show}
             />
           ) : (
@@ -2068,8 +2066,20 @@ export const SlidePreview: React.FC = () => {
                 variant="primary"
                 loading={isSavingTemplateStyle}
                 onClick={async () => {
-                  await handleSaveTemplateStyle();
-                  setIsTemplateModalOpen(false);
+                  isEditingTemplateStyle.current = true;
+                  setTemplateStyle(draftTemplateStyle);
+                  setIsSavingTemplateStyle(true);
+                  try {
+                    await updateProject(projectId!, { template_style: draftTemplateStyle || '' });
+                    isEditingTemplateStyle.current = false;
+                    await syncProject(projectId!);
+                    show({ message: t('slidePreview.styleDescSaved'), type: 'success' });
+                    setIsTemplateModalOpen(false);
+                  } catch (error: any) {
+                    show({ message: `保存失败: ${error.message || '未知错误'}`, type: 'error' });
+                  } finally {
+                    setIsSavingTemplateStyle(false);
+                  }
                 }}
               >
                 {t('preview.applyStyle')}

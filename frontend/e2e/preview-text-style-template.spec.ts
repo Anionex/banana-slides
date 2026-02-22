@@ -88,6 +88,24 @@ test.describe('Preview text style template - Mock tests', () => {
     // Textarea should now contain the preset description
     await expect(page.locator('textarea')).not.toHaveValue('')
   })
+  test('closing modal without apply discards preset change', async ({ page }) => {
+    await setupMocks(page)
+    await page.goto(`${BASE_URL}/project/mock-proj/preview`)
+    await page.getByText(/更换模板|Change Template/).click()
+
+    // Toggle to text style, click a preset
+    await page.getByText(/使用文字描述风格|Use text description for style/).click()
+    await page.getByText(/简约商务|Business Simple/).click()
+    await expect(page.locator('textarea')).not.toHaveValue('')
+
+    // Close modal without clicking Apply
+    await page.getByText(/关闭|Close/).click()
+    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+
+    // Reopen — toggle is still on, textarea should be empty (draft discarded)
+    await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
+    await expect(page.locator('textarea')).toHaveValue('')
+  })
 })
 
 test.describe('Preview text style template - Integration tests', () => {
