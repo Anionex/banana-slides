@@ -229,7 +229,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     }
     
     // 检查是否有未解析的文件需要触发解析
-    const unparsedFiles = selected.filter(f => f.parse_status === 'pending');
+    const unparsedFiles = selected.filter(f => f.parse_status === 'pending' || f.parse_status === 'failed');
     
     if (unparsedFiles.length > 0) {
       // 触发解析未解析的文件，但立即返回（不等待）

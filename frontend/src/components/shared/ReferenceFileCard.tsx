@@ -213,7 +213,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
       </div>
 
       <div className="flex items-center gap-1">
-        {file.parse_status === 'completed' && (
+        {(file.parse_status === 'completed' || file.parse_status === 'failed') && (
           <button
             onClick={(e) => {
               e.stopPropagation();
