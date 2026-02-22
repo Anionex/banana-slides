@@ -287,7 +287,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     return final_prompt
 
 
-def get_image_generation_prompt(page_desc: str, outline_text: str, 
+def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 current_section: str,
                                 has_material_images: bool = False,
                                 extra_requirements: str = None,
@@ -299,7 +299,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
     
     Args:
         page_desc: 页面描述文本
-        outline_text: 大纲文本
+        outline_text: 大纲文本（NOTE: 当前未使用，保留供未来扩展）
         current_section: 当前章节
         has_material_images: 是否有素材图片
         extra_requirements: 额外的要求（可能包含风格描述）
@@ -334,12 +334,6 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 <page_description>
 {page_desc}
 </page_description>
-
-<reference_information>
-整个PPT的大纲为：
-{outline_text}
-</reference_information>
-
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
