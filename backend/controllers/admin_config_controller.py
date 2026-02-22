@@ -137,8 +137,10 @@ def update_system_config():
             packages = data["credit_packages"]
             if packages is not None and not isinstance(packages, list):
                 return bad_request("credit_packages must be a list or null")
-            config.set_credit_packages(packages) if packages else None
-            config.credit_packages = None if packages is None else config.credit_packages
+            if packages is None:
+                config.credit_packages = None
+            else:
+                config.set_credit_packages(packages)
 
         db.session.commit()
         logger.info("System config updated successfully")
