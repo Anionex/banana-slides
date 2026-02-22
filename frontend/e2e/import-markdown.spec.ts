@@ -130,7 +130,7 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-unified.md', UNIFIED_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入大纲")', { timeout: 10_000 })
+    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
     const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
     await fileInput.setInputFiles(mdPath)
@@ -155,7 +155,7 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-unified-detail.md', UNIFIED_MD)
 
     await page.goto(`/project/${PROJECT_ID}/detail`)
-    await page.waitForSelector('button:has-text("导入描述")', { timeout: 10_000 })
+    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
     const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
     await fileInput.setInputFiles(mdPath)
@@ -171,7 +171,7 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-legacy.md', LEGACY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入大纲")', { timeout: 10_000 })
+    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
     const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
     await fileInput.setInputFiles(mdPath)
@@ -188,7 +188,7 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-empty.md', EMPTY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入大纲")', { timeout: 10_000 })
+    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
     const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
     await fileInput.setInputFiles(mdPath)
@@ -218,25 +218,25 @@ test.describe('Import Markdown (mocked)', () => {
     await page.route(`**/api/projects/${PROJECT_ID}`, r =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockProject(existingPages)) }))
 
-    await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导出大纲")', { timeout: 10_000 })
+    // Use detail page "导出大纲+描述" for full export
+    await page.goto(`/project/${PROJECT_ID}/detail`)
+    await page.waitForSelector('button:has-text("导出大纲+描述")', { timeout: 10_000 })
 
-    // Intercept download
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('button:has-text("导出大纲")'),
+      page.click('button:has-text("导出大纲+描述")'),
     ])
     const downloadPath = await download.path()
     const exportedContent = fs.readFileSync(downloadPath!, 'utf-8')
 
-    // Verify exported content has unified markers
+    // Verify exported content has both markers
     expect(exportedContent).toContain('**大纲要点：**')
     expect(exportedContent).toContain('**页面描述：**')
     expect(exportedContent).toContain('导论')
     expect(exportedContent).toContain('背景介绍')
     expect(exportedContent).toContain('这是导论页面的详细描述。')
 
-    // Now import the exported file back — reset addPageCalls
+    // Import the exported file back
     addPageCalls = []
     const reimportPath = writeTempFile('roundtrip.md', exportedContent)
     const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
@@ -253,7 +253,6 @@ test.describe('Import Markdown (mocked)', () => {
     expect(addPageCalls[1].outline_content.title).toBe('方法论')
     expect(addPageCalls[1].outline_content.points).toEqual(['实验设计'])
     expect(addPageCalls[1].description_content).toEqual({ text: '方法论的描述内容。' })
-    // Page 2 has no part
     expect(addPageCalls[1].part).toBeUndefined()
   })
 })

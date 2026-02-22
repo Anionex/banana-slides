@@ -16,7 +16,7 @@ const outlineI18n = {
       preview: "预览", clickToPreview: "点击左侧卡片查看详情",
       noPages: "还没有页面", noPagesHint: "点击「添加页面」手动创建，或「自动生成大纲」让 AI 帮你完成",
       parseOutline: "解析大纲", autoGenerate: "自动生成大纲",
-      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲", import: "导入大纲",
+      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲", import: "导入",
       aiPlaceholder: "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：增加/删除页面... · Ctrl+Enter",
       contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
@@ -43,7 +43,7 @@ const outlineI18n = {
       preview: "Preview", clickToPreview: "Click a card on the left to view details",
       noPages: "No pages yet", noPagesHint: "Click \"Add Page\" to create manually, or \"Auto Generate\" to let AI help you",
       parseOutline: "Parse Outline", autoGenerate: "Auto Generate Outline",
-      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline", import: "Import Outline",
+      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline", import: "Import",
       aiPlaceholder: "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Add/delete pages... · Ctrl+Enter",
       contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
@@ -294,7 +294,7 @@ export const OutlineEditor: React.FC = () => {
   // 导出大纲为 Markdown 文件
   const handleExportOutline = useCallback(() => {
     if (!currentProject) return;
-    exportProjectToMarkdown(currentProject);
+    exportProjectToMarkdown(currentProject, { outline: true, description: false });
     show({ message: t('outline.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show]);
 

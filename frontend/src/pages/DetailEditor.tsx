@@ -10,7 +10,7 @@ const detailI18n = {
     detail: {
       title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
-      description: "描述", batchGenerate: "批量生成描述", export: "导出描述", import: "导入描述",
+      description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲+描述", import: "导入",
       pagesCompleted: "页已完成", noPages: "还没有页面",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
@@ -37,7 +37,7 @@ const detailI18n = {
     detail: {
       title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
-      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", import: "Import Descriptions",
+      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline+Descriptions", import: "Import",
       pagesCompleted: "pages completed", noPages: "No pages yet",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
@@ -263,6 +263,13 @@ export const DetailEditor: React.FC = () => {
   // 导出页面描述为 Markdown 文件
   const handleExportDescriptions = useCallback(() => {
     if (!currentProject) return;
+    exportProjectToMarkdown(currentProject, { outline: false, description: true });
+    show({ message: t('detail.messages.exportSuccess'), type: 'success' });
+  }, [currentProject, show, t]);
+
+  // 导出大纲+描述
+  const handleExportFull = useCallback(() => {
+    if (!currentProject) return;
     exportProjectToMarkdown(currentProject);
     show({ message: t('detail.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show, t]);
@@ -432,6 +439,15 @@ export const DetailEditor: React.FC = () => {
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.export')}
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={handleExportFull}
+              disabled={!currentProject.pages.some(p => p.description_content)}
+              className="flex-1 sm:flex-initial text-sm md:text-base"
+            >
+              {t('detail.exportFull')}
             </Button>
             <Button
               variant="secondary"
