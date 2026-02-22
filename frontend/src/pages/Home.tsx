@@ -7,6 +7,7 @@ import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, extractStyleFromImage } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
+import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { useT } from '@/hooks/useT';
@@ -614,7 +615,7 @@ export const Home: React.FC = () => {
       if (referenceFiles.length > 0) {
         const unassociatedFiles = referenceFiles.filter(f => f.parse_status !== 'completed');
         if (unassociatedFiles.length > 0) {
-          console.log(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
+          devLog(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
           try {
             await Promise.all(
               unassociatedFiles.map(async file => {
@@ -637,16 +638,16 @@ export const Home: React.FC = () => {
       }
       
       if (materialUrls.length > 0) {
-        console.log(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
+        devLog(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
         try {
           const response = await associateMaterialsToProject(projectId, materialUrls);
-          console.log('Materials associated successfully:', response);
+          devLog('Materials associated successfully:', response);
         } catch (error) {
           console.error('Failed to associate materials:', error);
           // 不影响主流程，继续执行
         }
       } else {
-        console.log('No materials to associate');
+        devLog('No materials to associate');
       }
       
       if (activeTab === 'idea' || activeTab === 'outline') {

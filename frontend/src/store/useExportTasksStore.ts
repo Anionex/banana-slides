@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as api from '@/api/endpoints';
+import { devLog } from '@/utils/logger';
 
 // Note: Backend uses 'RUNNING' but we also accept 'PROCESSING' for compatibility
 export type ExportTaskStatus = 'PENDING' | 'PROCESSING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
@@ -175,7 +176,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
         );
         
         if (activeTasks.length > 0) {
-          console.log(`[ExportTasksStore] 恢复 ${activeTasks.length} 个正在进行的任务`);
+          devLog(`[ExportTasksStore] 恢复 ${activeTasks.length} 个正在进行的任务`);
           activeTasks.forEach(task => {
             // 重新开始轮询
             state.pollTask(task.id, task.projectId, task.taskId).catch(err => {

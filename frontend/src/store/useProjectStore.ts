@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
+import { devLog } from '@/utils/logger';
 
 interface ProjectState {
   // 状态
@@ -158,7 +159,7 @@ const debouncedUpdatePage = debounce(
           await Promise.all(
             referenceFileIds.map(fileId => api.associateFileToProject(fileId, projectId))
           );
-          console.log(`[初始化项目] 已关联 ${referenceFileIds.length} 个参考文件`);
+          devLog(`[初始化项目] 已关联 ${referenceFileIds.length} 个参考文件`);
         } catch (error) {
           console.warn('[初始化项目] 关联参考文件失败:', error);
         }
@@ -178,7 +179,7 @@ const debouncedUpdatePage = debounce(
       const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
         try {
           await fn();
-          console.log(`[初始化项目] ${label}完成`);
+          devLog(`[初始化项目] ${label}完成`);
         } catch (error: any) {
           console.error(`[初始化项目] ${label}失败:`, error);
           try { await api.deleteProject(projectId); } catch (e: any) { console.error(`[初始化项目] 回滚失败，未能删除项目 ${projectId}:`, e); }
@@ -232,7 +233,7 @@ const debouncedUpdatePage = debounce(
       const response = await api.getProject(targetProjectId);
       if (response.data) {
         const project = normalizeProject(response.data);
-        console.log('[syncProject] 同步项目数据:', {
+        devLog('[syncProject] 同步项目数据:', {
           projectId: project.id,
           pagesCount: project.pages?.length || 0,
           status: project.status
@@ -377,16 +378,16 @@ const debouncedUpdatePage = debounce(
 
   // 启动异步任务
   startAsyncTask: async (apiCall) => {
-    console.log('[异步任务] 启动异步任务...');
+    devLog('[异步任务] 启动异步任务...');
     set({ isGlobalLoading: true, error: null });
     try {
       const response = await apiCall();
-      console.log('[异步任务] API响应:', response);
+      devLog('[异步任务] API响应:', response);
       
       // task_id 在 response.data 中
       const taskId = response.data?.task_id;
       if (taskId) {
-        console.log('[异步任务] 收到task_id:', taskId, '开始轮询...');
+        devLog('[异步任务] 收到task_id:', taskId, '开始轮询...');
         set({ activeTaskId: taskId });
         await get().pollTask(taskId);
       } else {
@@ -404,7 +405,7 @@ const debouncedUpdatePage = debounce(
 
   // 轮询任务状态
   pollTask: async (taskId) => {
-    console.log(`[轮询] 开始轮询任务: ${taskId}`);
+    devLog(`[轮询] 开始轮询任务: ${taskId}`);
     const { currentProject } = get();
     if (!currentProject) {
       console.warn('[轮询] 没有当前项目，停止轮询');
@@ -414,7 +415,7 @@ const debouncedUpdatePage = debounce(
 
     const poll = async () => {
       try {
-        console.log(`[轮询] 查询任务状态: ${taskId}`);
+        devLog(`[轮询] 查询任务状态: ${taskId}`);
         const response = await api.getTaskStatus(projectId, taskId);
         const task = response.data;
         
@@ -428,11 +429,11 @@ const debouncedUpdatePage = debounce(
           set({ taskProgress: task.progress });
         }
 
-        console.log(`[轮询] Task ${taskId} 状态: ${task.status}`, task);
+        devLog(`[轮询] Task ${taskId} 状态: ${task.status}`, task);
 
         // 检查任务状态
         if (task.status === 'COMPLETED') {
-          console.log(`[轮询] Task ${taskId} 已完成，刷新项目数据`);
+          devLog(`[轮询] Task ${taskId} 已完成，刷新项目数据`);
           
           // 如果是导出可编辑PPTX任务，检查是否有下载链接
           if (task.task_type === 'EXPORT_EDITABLE_PPTX' && task.progress) {
@@ -442,7 +443,7 @@ const debouncedUpdatePage = debounce(
             
             const downloadUrl = progress?.download_url;
             if (downloadUrl) {
-              console.log('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
+              devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
               // 延迟一下，确保状态更新完成后再打开下载链接
               setTimeout(() => {
                 window.open(downloadUrl, '_blank');
@@ -469,7 +470,7 @@ const debouncedUpdatePage = debounce(
           });
         } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
           // 继续轮询（PENDING 或 PROCESSING）
-          console.log(`[轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
+          devLog(`[轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
           setTimeout(poll, 2000);
         } else {
           // 未知状态，停止轮询
@@ -502,14 +503,14 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const response = await api.generateOutline(currentProject.id!);
-      console.log('[生成大纲] API响应:', response);
+      devLog('[生成大纲] API响应:', response);
       
       // 刷新项目数据，确保获取最新的大纲页面
       await get().syncProject();
       
       // 再次确认数据已更新
       const { currentProject: updatedProject } = get();
-      console.log('[生成大纲] 刷新后的项目:', updatedProject?.pages.length, '个页面');
+      devLog('[生成大纲] 刷新后的项目:', updatedProject?.pages.length, '个页面');
     } catch (error: any) {
       console.error('[生成大纲] 错误:', error);
       const message =
@@ -532,14 +533,14 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const response = await api.generateFromDescription(currentProject.id!);
-      console.log('[从描述生成] API响应:', response);
+      devLog('[从描述生成] API响应:', response);
       
       // 刷新项目数据，确保获取最新的大纲和描述
       await get().syncProject();
       
       // 再次确认数据已更新
       const { currentProject: updatedProject } = get();
-      console.log('[从描述生成] 刷新后的项目:', updatedProject?.pages.length, '个页面');
+      devLog('[从描述生成] 刷新后的项目:', updatedProject?.pages.length, '个页面');
     } catch (error: any) {
       console.error('[从描述生成] 错误:', error);
       set({ error: error.message || '从描述生成失败' });
@@ -680,7 +681,7 @@ const debouncedUpdatePage = debounce(
 
     // 如果该页面正在生成，不重复提交
     if (pageDescriptionGeneratingTasks[pageId]) {
-      console.log(`[生成描述] 页面 ${pageId} 正在生成中，跳过重复请求`);
+      devLog(`[生成描述] 页面 ${pageId} 正在生成中，跳过重复请求`);
       return;
     }
 
@@ -712,7 +713,7 @@ const debouncedUpdatePage = debounce(
               pages: updatedPages,
             },
           });
-          console.log(`[生成描述] 页面 ${pageId} 描述已更新，数据来自 API 响应`);
+          devLog(`[生成描述] 页面 ${pageId} 描述已更新，数据来自 API 响应`);
         }
       }
     } catch (error: any) {
@@ -734,7 +735,7 @@ const debouncedUpdatePage = debounce(
 
     // 如果该页面正在生成，不重复提交
     if (pageDescriptionGeneratingTasks[pageId]) {
-      console.log(`[PPT翻新] 页面 ${pageId} 正在生成中，跳过重复请求`);
+      devLog(`[PPT翻新] 页面 ${pageId} 正在生成中，跳过重复请求`);
       return;
     }
 
@@ -765,7 +766,7 @@ const debouncedUpdatePage = debounce(
               pages: updatedPages,
             },
           });
-          console.log(`[PPT翻新] 页面 ${pageId} 大纲和描述已更新`);
+          devLog(`[PPT翻新] 页面 ${pageId} 大纲和描述已更新`);
         }
       }
     } catch (error: any) {
@@ -791,11 +792,11 @@ const debouncedUpdatePage = debounce(
     // 检查是否有页面正在生成
     const alreadyGenerating = targetPageIds.filter(id => pageGeneratingTasks[id]);
     if (alreadyGenerating.length > 0) {
-      console.log(`[批量生成] ${alreadyGenerating.length} 个页面正在生成中，跳过`);
+      devLog(`[批量生成] ${alreadyGenerating.length} 个页面正在生成中，跳过`);
       // 过滤掉已经在生成的页面
       const newPageIds = targetPageIds.filter(id => !pageGeneratingTasks[id]);
       if (newPageIds.length === 0) {
-        console.log('[批量生成] 所有页面都在生成中，跳过请求');
+        devLog('[批量生成] 所有页面都在生成中，跳过请求');
         return;
       }
     }
@@ -808,7 +809,7 @@ const debouncedUpdatePage = debounce(
       const taskId = response.data?.task_id;
       
       if (taskId) {
-        console.log(`[批量生成] 收到 task_id: ${taskId}，标记 ${targetPageIds.length} 个页面为生成中`);
+        devLog(`[批量生成] 收到 task_id: ${taskId}，标记 ${targetPageIds.length} 个页面为生成中`);
         
         // 为所有目标页面设置任务ID
         const newPageGeneratingTasks = { ...pageGeneratingTasks };
@@ -851,11 +852,11 @@ const debouncedUpdatePage = debounce(
           return;
         }
 
-        console.log(`[批量轮询] Task ${taskId} 状态: ${task.status}`, task.progress);
+        devLog(`[批量轮询] Task ${taskId} 状态: ${task.status}`, task.progress);
 
         // 检查任务状态
         if (task.status === 'COMPLETED') {
-          console.log(`[批量轮询] Task ${taskId} 已完成，清除任务记录`);
+          devLog(`[批量轮询] Task ${taskId} 已完成，清除任务记录`);
           // 清除所有相关页面的任务记录
           const { pageGeneratingTasks } = get();
           const newTasks = { ...pageGeneratingTasks };
@@ -888,13 +889,13 @@ const debouncedUpdatePage = debounce(
               });
 
               if (allImagesReady) {
-                console.log(`[批量轮询] 所有图片路径已同步`);
+                devLog(`[批量轮询] 所有图片路径已同步`);
                 return;
               }
 
               if (retryCount < maxRetries) {
                 retryCount++;
-                console.log(`[批量轮询] 图片路径尚未完全同步，${retryDelay}ms 后重试 (${retryCount}/${maxRetries})`);
+                devLog(`[批量轮询] 图片路径尚未完全同步，${retryDelay}ms 后重试 (${retryCount}/${maxRetries})`);
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 return syncWithRetry();
               } else {
@@ -927,7 +928,7 @@ const debouncedUpdatePage = debounce(
             set({ warningMessage: newWarning });
           }
           // 继续轮询，同时同步项目数据以更新页面状态
-          console.log(`[批量轮询] Task ${taskId} 处理中，同步项目数据...`);
+          devLog(`[批量轮询] Task ${taskId} 处理中，同步项目数据...`);
           await get().syncProject();
 
           // 逐个释放已完成的页面，让缩略图立刻显示
@@ -948,7 +949,7 @@ const debouncedUpdatePage = debounce(
             if (changed) set({ pageGeneratingTasks: updated });
           }
 
-          console.log(`[批量轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
+          devLog(`[批量轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
           setTimeout(poll, 2000);
         } else {
           // 未知状态，停止轮询
@@ -987,7 +988,7 @@ const debouncedUpdatePage = debounce(
 
     // 如果该页面正在生成，不重复提交
     if (pageGeneratingTasks[pageId]) {
-      console.log(`[编辑] 页面 ${pageId} 正在生成中，跳过重复请求`);
+      devLog(`[编辑] 页面 ${pageId} 正在生成中，跳过重复请求`);
       return;
     }
 
@@ -1077,10 +1078,10 @@ const debouncedUpdatePage = debounce(
     if (!currentProject) return;
 
     try {
-      console.log('[导出可编辑PPTX] 启动异步导出任务...');
+      devLog('[导出可编辑PPTX] 启动异步导出任务...');
       // startAsyncTask 中的 pollTask 会在任务完成时自动处理下载
       await startAsyncTask(() => api.exportEditablePPTX(currentProject.id, filename, pageIds));
-      console.log('[导出可编辑PPTX] 异步任务完成');
+      devLog('[导出可编辑PPTX] 异步任务完成');
     } catch (error: any) {
       console.error('[导出可编辑PPTX] 导出失败:', error);
       set({ error: error.message || '导出可编辑PPTX失败' });

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useT } from '@/hooks/useT';
+import { devLog } from '@/utils/logger';
 
 // 组件内翻译
 const previewI18n = {
@@ -468,12 +469,12 @@ export const SlidePreview: React.FC = () => {
             errorMessage = error.message;
           }
 
-          console.log('提取的错误消息:', errorMessage);
+          devLog('提取的错误消息:', errorMessage);
 
           // 使用统一的错误消息规范化函数
           errorMessage = normalizeErrorMessage(errorMessage);
 
-          console.log('规范化后的错误消息:', errorMessage);
+          devLog('规范化后的错误消息:', errorMessage);
 
           show({
             message: errorMessage,
