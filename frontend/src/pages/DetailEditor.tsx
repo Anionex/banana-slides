@@ -64,7 +64,7 @@ import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal,
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage } from '@/api/endpoints';
-import { exportDescriptionsToMarkdown, parseDescriptionsFromMarkdown } from '@/utils/projectUtils';
+import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -263,7 +263,7 @@ export const DetailEditor: React.FC = () => {
   // 导出页面描述为 Markdown 文件
   const handleExportDescriptions = useCallback(() => {
     if (!currentProject) return;
-    exportDescriptionsToMarkdown(currentProject);
+    exportProjectToMarkdown(currentProject);
     show({ message: t('detail.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show, t]);
 
@@ -274,23 +274,20 @@ export const DetailEditor: React.FC = () => {
     if (!file || !currentProject || !projectId) return;
     try {
       const text = await file.text();
-      const parsed = parseDescriptionsFromMarkdown(text);
+      const parsed = parseMarkdownPages(text);
       if (parsed.length === 0) {
         show({ message: t('detail.messages.importEmpty'), type: 'error' });
         return;
       }
       const startIndex = currentProject.pages.length;
-      await Promise.all(parsed.map(({ title, text: desc, part, layoutSuggestion }, i) => {
-        const descContent = layoutSuggestion
-          ? { title, text_content: [desc], layout_suggestion: layoutSuggestion }
-          : { text: desc };
-        return addPage(projectId, {
-          outline_content: { title, points: [] },
-          description_content: descContent,
+      await Promise.all(parsed.map(({ title, points, text: desc, part }, i) =>
+        addPage(projectId, {
+          outline_content: { title, points },
+          description_content: desc ? { text: desc } : undefined,
           part,
           order_index: startIndex + i,
-        });
-      }));
+        })
+      ));
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
     } catch {

@@ -83,7 +83,7 @@ import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineOutline, updateProject, addPage } from '@/api/endpoints';
 import { useImagePaste } from '@/hooks/useImagePaste';
-import { exportOutlineToMarkdown, parseOutlineFromMarkdown } from '@/utils/projectUtils';
+import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器
@@ -294,7 +294,7 @@ export const OutlineEditor: React.FC = () => {
   // 导出大纲为 Markdown 文件
   const handleExportOutline = useCallback(() => {
     if (!currentProject) return;
-    exportOutlineToMarkdown(currentProject);
+    exportProjectToMarkdown(currentProject);
     show({ message: t('outline.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show]);
 
@@ -305,14 +305,19 @@ export const OutlineEditor: React.FC = () => {
     if (!file || !currentProject || !projectId) return;
     try {
       const text = await file.text();
-      const parsed = parseOutlineFromMarkdown(text);
+      const parsed = parseMarkdownPages(text);
       if (parsed.length === 0) {
         show({ message: t('outline.messages.importEmpty'), type: 'error' });
         return;
       }
       const startIndex = currentProject.pages.length;
-      await Promise.all(parsed.map(({ title, points, part }, i) =>
-        addPage(projectId, { outline_content: { title, points }, part, order_index: startIndex + i })
+      await Promise.all(parsed.map(({ title, points, text: desc, part }, i) =>
+        addPage(projectId, {
+          outline_content: { title, points },
+          description_content: desc ? { text: desc } : undefined,
+          part,
+          order_index: startIndex + i,
+        })
       ));
       await syncProject(projectId);
       show({ message: t('outline.messages.importSuccess'), type: 'success' });

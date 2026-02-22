@@ -103,131 +103,63 @@ export const getProjectRoute = (project: Project): string => {
   return `/project/${projectId}/outline`;
 };
 
-// ========== Markdown 导出相关函数 ==========
+// ========== Markdown 导出/导入 ==========
 
-/**
- * 从描述内容中提取文本
- */
 export const getDescriptionText = (descContent: DescriptionContent | undefined | null): string => {
   if (!descContent) return '';
-  if ('text' in descContent) {
-    return (descContent.text as string) || '';
-  } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
-    return descContent.text_content.join('\n');
-  }
+  if ('text' in descContent) return (descContent.text as string) || '';
+  if ('text_content' in descContent && Array.isArray(descContent.text_content)) return descContent.text_content.join('\n');
   return '';
 };
 
-/**
- * 将页面大纲转换为 Markdown 格式
- */
-export const pageOutlineToMarkdown = (page: Page, index: number): string => {
+const pageToMarkdown = (page: Page, index: number): string => {
   const title = page.outline_content?.title || `第 ${index + 1} 页`;
   const points = page.outline_content?.points || [];
-
-  let markdown = `## 第 ${index + 1} 页: ${title}\n\n`;
-
-  if (page.part) {
-    markdown += `> 章节: ${page.part}\n\n`;
-  }
-
-  if (points.length > 0) {
-    points.forEach((point) => {
-      markdown += `- ${point}\n`;
-    });
-    markdown += '\n';
-  } else {
-    markdown += `*暂无要点*\n\n`;
-  }
-
-  return markdown;
-};
-
-/**
- * 将页面描述转换为 Markdown 格式
- */
-export const pageDescriptionToMarkdown = (page: Page, index: number): string => {
-  const title = page.outline_content?.title || `第 ${index + 1} 页`;
   const descText = getDescriptionText(page.description_content);
 
-  let markdown = `## 第 ${index + 1} 页: ${title}\n\n`;
+  let md = `## 第 ${index + 1} 页: ${title}\n\n`;
+  if (page.part) md += `> 章节: ${page.part}\n\n`;
 
-  if (page.part) {
-    markdown += `> 章节: ${page.part}\n`;
-  }
-
-  const layoutSuggestion = page.description_content && 'layout_suggestion' in page.description_content
-    ? page.description_content.layout_suggestion : undefined;
-  if (layoutSuggestion) {
-    markdown += `> 布局建议: ${layoutSuggestion}\n`;
-  }
-
-  if (page.part || layoutSuggestion) {
-    markdown += '\n';
-  }
-
-  if (descText) {
-    markdown += `${descText}\n\n`;
+  // 大纲要点
+  md += `**大纲要点：**\n`;
+  if (points.length > 0) {
+    points.forEach(p => { md += `- ${p}\n`; });
   } else {
-    markdown += `*暂无描述*\n\n`;
+    md += `*暂无要点*\n`;
   }
+  md += '\n';
 
-  markdown += `---\n\n`;
+  // 页面描述
+  md += `**页面描述：**\n`;
+  if (descText) {
+    md += `${descText}\n`;
+  } else {
+    md += `*暂无描述*\n`;
+  }
+  md += '\n---\n\n';
 
-  return markdown;
+  return md;
 };
 
-/**
- * 将项目大纲导出为 Markdown 文件
- */
-export const exportOutlineToMarkdown = (project: Project): void => {
-  const projectTitle = getProjectTitle(project);
-  
-  let markdown = `# ${projectTitle}\n\n`;
-  markdown += `> 生成时间: ${new Date().toLocaleString('zh-CN')}\n\n`;
-  markdown += `---\n\n`;
-  
-  project.pages.forEach((page, index) => {
-    markdown += pageOutlineToMarkdown(page, index);
-  });
-  
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-  const filename = `大纲_${project.id?.slice(0, 8) || 'export'}.md`;
-  downloadFile(blob, filename);
+export const exportProjectToMarkdown = (project: Project): void => {
+  let md = `# ${getProjectTitle(project)}\n\n`;
+  md += `> 生成时间: ${new Date().toLocaleString('zh-CN')}\n\n---\n\n`;
+  project.pages.forEach((page, i) => { md += pageToMarkdown(page, i); });
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  downloadFile(blob, `项目_${project.id?.slice(0, 8) || 'export'}.md`);
 };
 
-/**
- * 将项目页面描述导出为 Markdown 文件
- */
-export const exportDescriptionsToMarkdown = (project: Project): void => {
-  const projectTitle = getProjectTitle(project);
-  
-  let markdown = `# ${projectTitle}\n\n`;
-  markdown += `> 生成时间: ${new Date().toLocaleString('zh-CN')}\n\n`;
-  markdown += `---\n\n`;
-  
-  project.pages.forEach((page, index) => {
-    markdown += pageDescriptionToMarkdown(page, index);
-  });
-  
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-  const filename = `页面描述_${project.id?.slice(0, 8) || 'export'}.md`;
-  downloadFile(blob, filename);
-};
+// 保留旧名称作为别名，避免破坏外部引用
+export const exportOutlineToMarkdown = exportProjectToMarkdown;
+export const exportDescriptionsToMarkdown = exportProjectToMarkdown;
 
-// ========== Markdown 导入相关函数 ==========
+// --- 导入 ---
 
-export interface ParsedOutlinePage {
+export interface ParsedPage {
   title: string;
   points: string[];
-  part?: string;
-}
-
-export interface ParsedDescriptionPage {
-  title: string;
   text: string;
   part?: string;
-  layoutSuggestion?: string;
 }
 
 const sanitize = (s: string) => s.replace(/<[^>]*>/g, '');
@@ -236,39 +168,49 @@ const splitMarkdownPages = (markdown: string): string[] => {
   return markdown.split(/^## 第 \d+ 页:/m).slice(1);
 };
 
-const extractMeta = (lines: string[], key: string): string | undefined => {
-  const prefix = `> ${key}: `;
-  const line = lines.find(l => l.startsWith(prefix));
-  return line ? line.slice(prefix.length).trim() : undefined;
-};
-
-export const parseOutlineFromMarkdown = (markdown: string): ParsedOutlinePage[] => {
+export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
   return splitMarkdownPages(markdown).map(section => {
     const lines = section.split('\n');
-    const title = lines[0].trim();
-    const part = extractMeta(lines, '章节');
-    const points = lines
-      .filter(l => l.startsWith('- '))
-      .map(l => l.slice(2).trim());
-    return { title: sanitize(title), points: points.map(sanitize), part: part ? sanitize(part) : undefined };
+    const title = sanitize(lines[0].trim());
+
+    // Extract metadata
+    const partLine = lines.find(l => l.startsWith('> 章节: '));
+    const part = partLine ? sanitize(partLine.slice('> 章节: '.length).trim()) : undefined;
+
+    // Find section markers
+    const outlineIdx = lines.findIndex(l => l.trim() === '**大纲要点：**');
+    const descIdx = lines.findIndex(l => l.trim() === '**页面描述：**');
+
+    let points: string[] = [];
+    let text = '';
+
+    if (outlineIdx >= 0 && descIdx >= 0) {
+      // New unified format: both markers present
+      points = lines.slice(outlineIdx + 1, descIdx)
+        .filter(l => l.startsWith('- '))
+        .map(l => sanitize(l.slice(2).trim()));
+
+      const descLines = lines.slice(descIdx + 1);
+      // Strip trailing separator
+      while (descLines.length && (descLines[descLines.length - 1].trim() === '---' || descLines[descLines.length - 1].trim() === '' || descLines[descLines.length - 1].trim() === '*暂无描述*')) {
+        descLines.pop();
+      }
+      text = sanitize(descLines.join('\n').trim());
+    } else {
+      // Legacy format: no markers — treat bullet lines as outline, rest as description
+      const contentLines = lines.slice(1);
+      // Strip metadata and separators
+      while (contentLines.length && (contentLines[0].startsWith('> ') || contentLines[0].trim() === '')) contentLines.shift();
+      while (contentLines.length && (contentLines[contentLines.length - 1].trim() === '---' || contentLines[contentLines.length - 1].trim() === '' || contentLines[contentLines.length - 1].trim() === '*暂无要点*' || contentLines[contentLines.length - 1].trim() === '*暂无描述*')) contentLines.pop();
+
+      points = contentLines.filter(l => l.startsWith('- ')).map(l => sanitize(l.slice(2).trim()));
+      text = sanitize(contentLines.join('\n').trim());
+    }
+
+    return { title, points, text, part };
   });
 };
 
-export const parseDescriptionsFromMarkdown = (markdown: string): ParsedDescriptionPage[] => {
-  return splitMarkdownPages(markdown).map(section => {
-    const lines = section.split('\n');
-    const title = lines[0].trim();
-    const part = extractMeta(lines, '章节');
-    const layoutSuggestion = extractMeta(lines, '布局建议');
-    // Skip metadata lines at the start, then strip trailing separator
-    const contentLines = lines.slice(1);
-    while (contentLines.length && (contentLines[0].startsWith('> 章节: ') || contentLines[0].startsWith('> 布局建议: ') || contentLines[0].trim() === '')) {
-      contentLines.shift();
-    }
-    while (contentLines.length && (contentLines[contentLines.length - 1].trim() === '---' || contentLines[contentLines.length - 1].trim() === '' || contentLines[contentLines.length - 1].trim() === '*暂无描述*')) {
-      contentLines.pop();
-    }
-    const text = contentLines.join('\n').trim();
-    return { title: sanitize(title), text: sanitize(text), part: part ? sanitize(part) : undefined, layoutSuggestion };
-  });
-};
+// 保留旧接口作为别名
+export const parseOutlineFromMarkdown = parseMarkdownPages;
+export const parseDescriptionsFromMarkdown = parseMarkdownPages;
