@@ -213,7 +213,7 @@ export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
       while (contentLines.length && (contentLines[0].startsWith('> ') || contentLines[0].trim() === '')) contentLines.shift();
       stripTrailing(contentLines);
       points = contentLines.filter(l => l.startsWith('- ')).map(l => sanitize(l.slice(2).trim()));
-      text = sanitize(contentLines.join('\n').trim());
+      text = sanitize(contentLines.filter(l => !l.startsWith('- ')).join('\n').trim());
     }
 
     return { title, points, text, part };
