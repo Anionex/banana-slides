@@ -24,12 +24,25 @@ jobs:
     name: Validate Version Format
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Check version format
         env:
           VERSION: ${{ inputs.version }}
         run: |
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Version must match vX.Y.Z format (got: $VERSION)"
+            exit 1
+          fi
+
+      - name: Check tag does not exist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists. Aborting to prevent duplicate release."
             exit 1
           fi
 
@@ -105,6 +118,7 @@ jobs:
           git add package.json pyproject.toml
           git diff --cached --quiet && exit 0
           git commit -m "chore: bump version to $VERSION"
+          git pull --rebase
           git push
 
   create-release:
@@ -201,7 +215,7 @@ jobs:
 
   # build-binaries:
   #   name: Build Binary Artifacts
-  #   needs: [test, create-release]
+  #   needs: create-release
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v4
