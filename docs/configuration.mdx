@@ -47,6 +47,29 @@ GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
   `gemini-3-*` series models require `VERTEX_LOCATION=global`.
 </Tip>
 
+## LazyLLM (Multi-Vendor)
+
+Routes requests to different Chinese AI vendors for text, image, and caption tasks:
+
+```env
+AI_PROVIDER_FORMAT=lazyllm
+TEXT_MODEL_SOURCE=deepseek
+IMAGE_MODEL_SOURCE=doubao
+IMAGE_CAPTION_MODEL_SOURCE=qwen
+```
+
+Set API keys for the vendors you use:
+
+```env
+DOUBAO_API_KEY=your-key       # Volcengine
+DEEPSEEK_API_KEY=your-key     # DeepSeek
+QWEN_API_KEY=your-key         # Alibaba Qwen
+GLM_API_KEY=your-key          # Zhipu GLM
+SILICONFLOW_API_KEY=your-key  # SiliconFlow
+SENSENOVA_API_KEY=your-key    # SenseNova
+MINIMAX_API_KEY=your-key      # MiniMax
+```
+
 ## Editable PPTX Export
 
 For enhanced editable export with OCR-based text extraction, obtain an API key from [Baidu Cloud](https://console.bce.baidu.com/iam/#/iam/apikey/list) (generous free tier available):
