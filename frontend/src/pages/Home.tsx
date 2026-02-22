@@ -2,17 +2,15 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
+import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, extractStyleFromImage } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { useT } from '@/hooks/useT';
-import { PRESET_STYLES } from '@/config/presetStyles';
-import { presetStylesI18n } from '@/config/presetStylesI18n';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
@@ -28,7 +26,6 @@ const homeI18n = {
       language: { label: '界面语言' },
       theme: { label: '主题模式', light: '浅色', dark: '深色', system: '跟随系统' }
     },
-    presetStyles: presetStylesI18n.zh,
     home: {
       title: '蕉幻',
       subtitle: 'Vibe your PPT like vibing code',
@@ -63,9 +60,6 @@ const homeI18n = {
       template: {
         title: '选择风格模板',
         useTextStyle: '使用文字描述风格',
-        stylePlaceholder: '描述您想要的 PPT 风格，例如：简约商务风格，使用蓝色和白色配色，字体清晰大方...',
-        presetStyles: '快速选择预设风格：',
-        styleTip: '提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求',
       },
       actions: {
         selectFile: '选择参考文件',
@@ -78,12 +72,6 @@ const homeI18n = {
         keepLayout: '保留原始排版布局',
         onlyPdfPptx: '仅支持 PDF 和 PPTX 文件',
         uploadFile: '请先上传 PDF 或 PPTX 文件',
-      },
-      style: {
-        extractFromImage: '从图片提取风格',
-        extracting: '提取中...',
-        extractSuccess: '风格提取成功',
-        extractFailed: '风格提取失败',
       },
       messages: {
         enterContent: '请输入内容',
@@ -114,7 +102,6 @@ const homeI18n = {
       language: { label: 'Interface Language' },
       theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' }
     },
-    presetStyles: presetStylesI18n.en,
     home: {
       title: 'Banana Slides',
       subtitle: 'Vibe your PPT like vibing code',
@@ -149,9 +136,6 @@ const homeI18n = {
       template: {
         title: 'Select Style Template',
         useTextStyle: 'Use text description for style',
-        stylePlaceholder: 'Describe your desired PPT style, e.g., minimalist business style...',
-        presetStyles: 'Quick select preset styles:',
-        styleTip: 'Tip: Click preset styles to quick fill, or customize',
       },
       actions: {
         selectFile: 'Select reference file',
@@ -164,12 +148,6 @@ const homeI18n = {
         keepLayout: 'Keep original layout',
         onlyPdfPptx: 'Only PDF and PPTX files are supported',
         uploadFile: 'Please upload a PDF or PPTX file first',
-      },
-      style: {
-        extractFromImage: 'Extract from image',
-        extracting: 'Extracting...',
-        extractSuccess: 'Style extracted successfully',
-        extractFailed: 'Style extraction failed',
       },
       messages: {
         enterContent: 'Please enter content',
@@ -219,14 +197,11 @@ export const Home: React.FC = () => {
 
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
-  const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
   const [keepLayout, setKeepLayout] = useState(false);
-  const [isExtractingStyle, setIsExtractingStyle] = useState(false);
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
-  const styleImageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
@@ -1130,112 +1105,11 @@ export const Home: React.FC = () => {
             
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
-              <div className="space-y-3">
-                <Textarea
-                  placeholder={t('home.template.stylePlaceholder')}
-                  value={templateStyle}
-                  onChange={(e) => setTemplateStyle(e.target.value)}
-                  rows={3}
-                  className="text-sm border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200"
-                />
-
-                {/* 预设风格按钮 */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-600 dark:text-foreground-tertiary">
-                    {t('home.template.presetStyles')}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_STYLES.map((preset) => (
-                      <div key={preset.id} className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setTemplateStyle(t(preset.descriptionKey))}
-                          onMouseEnter={() => setHoveredPresetId(preset.id)}
-                          onMouseLeave={() => setHoveredPresetId(null)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none"
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-black/10"
-                            style={{ backgroundColor: preset.color }}
-                          />
-                          {t(preset.nameKey)}
-                        </button>
-
-                        {/* 悬停时显示预览图片 */}
-                        {hoveredPresetId === preset.id && preset.previewImage && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="bg-white dark:bg-background-secondary rounded-lg shadow-2xl dark:shadow-none border-2 border-banana-400 dark:border-banana p-2.5 w-72">
-                              <img
-                                src={preset.previewImage}
-                                alt={t(preset.nameKey)}
-                                className="w-full h-40 object-cover rounded"
-                                onError={(e) => {
-                                  // 如果图片加载失败，隐藏预览
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                              <p className="text-xs text-gray-600 dark:text-foreground-tertiary mt-2 px-1 line-clamp-3">
-                                {t(preset.descriptionKey)}
-                              </p>
-                            </div>
-                            {/* 小三角形指示器 */}
-                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                              <div className="w-3 h-3 bg-white dark:bg-background-secondary border-r-2 border-b-2 border-banana-400 dark:border-banana transform rotate-45"></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* 从图片提取风格按钮 */}
-                    <button
-                      type="button"
-                      onClick={() => styleImageInputRef.current?.click()}
-                      disabled={isExtractingStyle}
-                      className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
-                    >
-                      {isExtractingStyle ? (
-                        <>
-                          <span className="animate-spin">⏳</span>
-                          {t('home.style.extracting')}
-                        </>
-                      ) : (
-                        <>
-                          <ImagePlus size={12} />
-                          {t('home.style.extractFromImage')}
-                        </>
-                      )}
-                    </button>
-                    <input
-                      ref={styleImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        e.target.value = '';
-                        setIsExtractingStyle(true);
-                        try {
-                          const result = await extractStyleFromImage(file);
-                          if (result.data?.style_description) {
-                            setTemplateStyle(result.data.style_description);
-                            show({ message: t('home.style.extractSuccess'), type: 'success' });
-                          }
-                        } catch (error: any) {
-                          show({ message: `${t('home.style.extractFailed')}: ${error?.message || ''}`, type: 'error' });
-                        } finally {
-                          setIsExtractingStyle(false);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-                
-                <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
-                  💡 {t('home.template.styleTip')}
-                </p>
-              </div>
+              <TextStyleSelector
+                value={templateStyle}
+                onChange={setTemplateStyle}
+                onToast={show}
+              />
             ) : (
               <TemplateSelector
                 onSelect={handleTemplateSelect}

@@ -42,6 +42,9 @@ const previewI18n = {
       editPromptPlaceholder: "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
       saveOutlineOnly: "仅保存大纲/描述", generateImage: "生成图片",
       templateModalDesc: "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
+      useTextStyle: "使用文字描述风格",
+      applyStyle: "应用风格",
+      styleSaved: "风格描述已保存",
       uploadingTemplate: "正在上传模板...",
       resolution1KWarning: "1K分辨率警告",
       resolution1KWarningText: "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
@@ -96,6 +99,9 @@ const previewI18n = {
       editPromptPlaceholder: "e.g., Remove elements in selected area, change background to blue, increase title font size, change text box style to dashed...",
       saveOutlineOnly: "Save Outline/Description Only", generateImage: "Generate Image",
       templateModalDesc: "Selecting a new template will apply to future PPT page generation (won't affect already generated pages). You can choose preset templates, existing templates, or upload a new one.",
+      useTextStyle: "Use text description for style",
+      applyStyle: "Apply Style",
+      styleSaved: "Style description saved",
       uploadingTemplate: "Uploading template...",
       resolution1KWarning: "1K Resolution Warning",
       resolution1KWarningText: "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
@@ -136,7 +142,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel } from '@/components/shared';
+import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
@@ -179,6 +185,7 @@ export const SlidePreview: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [useTextStyleMode, setUseTextStyleMode] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
   // 大纲和描述编辑状态
   const [editOutlineTitle, setEditOutlineTitle] = useState('');
@@ -2015,23 +2022,63 @@ export const SlidePreview: React.FC = () => {
           <p className="text-sm text-gray-600 dark:text-foreground-tertiary mb-4">
             {t('preview.templateModalDesc')}
           </p>
-          <TemplateSelector
-            onSelect={handleTemplateSelect}
-            selectedTemplateId={selectedTemplateId}
-            selectedPresetTemplateId={selectedPresetTemplateId}
-            showUpload={false} // 在预览页面上传的模板直接应用到项目，不上传到用户模板库
-            projectId={projectId || null}
-          />
-          {isUploadingTemplate && (
-            <div className="text-center py-2 text-sm text-gray-500 dark:text-foreground-tertiary">
-              {t('preview.uploadingTemplate')}
+          {/* 图片模板 / 文字风格 切换 */}
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+              {t('preview.useTextStyle')}
+            </span>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={useTextStyleMode}
+                onChange={(e) => setUseTextStyleMode(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
             </div>
+          </label>
+          {useTextStyleMode ? (
+            <TextStyleSelector
+              value={templateStyle}
+              onChange={(value) => {
+                isEditingTemplateStyle.current = true;
+                setTemplateStyle(value);
+              }}
+              onToast={show}
+            />
+          ) : (
+            <>
+              <TemplateSelector
+                onSelect={handleTemplateSelect}
+                selectedTemplateId={selectedTemplateId}
+                selectedPresetTemplateId={selectedPresetTemplateId}
+                showUpload={false}
+                projectId={projectId || null}
+              />
+              {isUploadingTemplate && (
+                <div className="text-center py-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('preview.uploadingTemplate')}
+                </div>
+              )}
+            </>
           )}
           <div className="flex justify-end gap-3 pt-4 border-t">
+            {useTextStyleMode && (
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  await handleSaveTemplateStyle();
+                  setIsTemplateModalOpen(false);
+                }}
+                disabled={isSavingTemplateStyle}
+              >
+                {t('preview.applyStyle')}
+              </Button>
+            )}
             <Button
               variant="ghost"
               onClick={() => setIsTemplateModalOpen(false)}
-              disabled={isUploadingTemplate}
+              disabled={isUploadingTemplate || isSavingTemplateStyle}
             >
               {t('common.close')}
             </Button>
