@@ -101,17 +101,20 @@ jobs:
           uv run python app.py &
           SERVER_PID=$!
 
-          # Wait for startup
+          # Poll until backend is ready (max 60s)
           echo "Waiting for backend to start..."
-          sleep 10
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/health > /dev/null 2>&1; then
+              echo "Backend ready after ~${i}x2s"
+              break
+            fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "Backend process has exited"
+              exit 1
+            fi
+            sleep 2
+          done
 
-          # Check if process is still running
-          if ! kill -0 $SERVER_PID 2>/dev/null; then
-            echo "Backend process has exited"
-            exit 1
-          fi
-
-          # Health check
           if curl -f http://localhost:5000/health; then
             echo "Backend smoke test passed"
 
