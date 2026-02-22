@@ -20,8 +20,22 @@ env:
   UV_INDEX_URL: https://pypi.org/simple
 
 jobs:
+  validate:
+    name: Validate Version Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must match vX.Y.Z format (got: $VERSION)"
+            exit 1
+          fi
+
   test:
     name: Pre-release Tests
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,19 +89,22 @@ jobs:
           ref: main
 
       - name: Update version files
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${{ inputs.version }}"
-          VERSION="${VERSION#v}"
-          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          V="${VERSION#v}"
+          jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+          sed -i "s/^version = .*/version = \"$V\"/" pyproject.toml
 
       - name: Commit and push
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json pyproject.toml
           git diff --cached --quiet && exit 0
-          git commit -m "chore: bump version to ${{ inputs.version }}"
+          git commit -m "chore: bump version to $VERSION"
           git push
 
   create-release:
@@ -103,12 +120,13 @@ jobs:
         run: git pull origin main
 
       - name: Create tag and release
-        run: |
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
-          gh release create ${{ inputs.version }} --generate-notes
         env:
+          VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --generate-notes
 
   build-and-push:
     name: Build and Push Docker Images
@@ -183,14 +201,14 @@ jobs:
 
   # build-binaries:
   #   name: Build Binary Artifacts
-  #   needs: test
+  #   needs: [test, create-release]
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v4
   #     - name: Build
   #       run: echo "TODO: add build steps"
   #     - name: Upload to Release
-  #       needs: create-release  # upload after release exists
-  #       run: gh release upload ${{ inputs.version }} ./dist/*
   #       env:
+  #         VERSION: ${{ inputs.version }}
   #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: gh release upload "$VERSION" ./dist/*
