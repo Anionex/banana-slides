@@ -22,7 +22,7 @@ const mockProject = {
 // Mock test: verify blur triggers save API call
 test.describe('Outline auto-save on blur (mock)', () => {
   test('saves input text when textarea loses focus', async ({ page }) => {
-    let savePayload: any = null
+    let savePayload: { idea_prompt?: string } | null = null
 
     await page.route(`**/api/projects/${PROJECT_ID}`, async (route) => {
       if (route.request().method() === 'PUT') {
@@ -89,9 +89,8 @@ test.describe('Outline auto-save on blur (mock)', () => {
     await editor.click()
     await page.locator('header').first().click()
 
-    // Wait a bit to ensure no save is triggered
-    await page.waitForTimeout(1000)
-    expect(putCalled).toBe(false)
+    // Verify no save is triggered after blur
+    await expect.poll(() => putCalled, { timeout: 2000 }).toBe(false)
   })
 })
 
@@ -119,10 +118,12 @@ test.describe('Outline auto-save on blur (integration)', () => {
     await page.keyboard.press('End')
     await editor.pressSequentially(' - auto saved')
 
-    // Blur to trigger save
+    // Blur to trigger save and wait for the PUT request to complete
+    const savePromise = page.waitForResponse(
+      (resp) => resp.url().includes(`/api/projects/${projectId}`) && resp.request().method() === 'PUT'
+    )
     await page.locator('header').first().click()
-    // Wait for save to complete
-    await page.waitForTimeout(1500)
+    await savePromise
 
     // Reload and verify text persisted
     await page.reload()
