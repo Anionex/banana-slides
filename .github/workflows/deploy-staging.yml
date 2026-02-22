@@ -20,10 +20,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Determine image tag
+      - name: Resolve image tag
         id: tag
+        uses: actions/github-script@v7
+        env:
+          INPUT_TAG: ${{ github.event.inputs.image_tag }}
+        with:
+          script: |
+            let tag = (process.env.INPUT_TAG || '').trim();
+            if (!tag || tag === 'latest') {
+              const { data: ref } = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'heads/main',
+              });
+              tag = `sha-${ref.object.sha.substring(0, 7)}`;
+              core.info(`Resolved latest main: ${tag}`);
+            }
+            core.setOutput('tag', tag);
+
+      - name: Validate image tag format
         run: |
-          echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          TAG="${{ steps.tag.outputs.tag }}"
+          if ! echo "$TAG" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'; then
+            echo "ERROR: Invalid image tag format: '$TAG'"
+            exit 1
+          fi
 
       - name: Deploy to staging via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -32,6 +54,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
             TAG="${{ steps.tag.outputs.tag }}"

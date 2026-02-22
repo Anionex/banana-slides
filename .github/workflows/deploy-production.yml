@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag to deploy (e.g. sha-6416ed6, v0.4.0). Must exist in GHCR.'
-        required: true
+        description: 'Image tag to deploy (e.g. sha-6416ed6, v0.4.0). Leave empty to use latest main commit.'
+        required: false
         type: string
       skip_staging_check:
         description: 'Skip staging health check (emergency deploy)'
@@ -65,8 +65,39 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [pre-deploy-checks]
+    outputs:
+      resolved_tag: ${{ steps.resolve.outputs.tag }}
 
     steps:
+      - name: Resolve image tag
+        id: resolve
+        uses: actions/github-script@v7
+        env:
+          INPUT_TAG: ${{ github.event.inputs.image_tag }}
+        with:
+          script: |
+            let tag = (process.env.INPUT_TAG || '').trim();
+            if (!tag || tag === 'latest') {
+              const { data: ref } = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'heads/main',
+              });
+              tag = `sha-${ref.object.sha.substring(0, 7)}`;
+              core.info(`No tag provided, resolved latest main: ${tag}`);
+            }
+            core.setOutput('tag', tag);
+
+      - name: Validate image tag format
+        run: |
+          TAG="${{ steps.resolve.outputs.tag }}"
+          if ! echo "$TAG" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'; then
+            echo "ERROR: Invalid image tag format: '$TAG'"
+            echo "Tag must match [a-zA-Z0-9][a-zA-Z0-9._-]* (no '=' or special chars)"
+            exit 1
+          fi
+          echo "Deploying tag: $TAG"
+
       - name: Backup database and deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -74,9 +105,10 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
-            TAG="${{ github.event.inputs.image_tag }}"
+            TAG="${{ steps.resolve.outputs.tag }}"
             cd "$DEPLOY_PATH"
 
             # --- Step 1: Backup database ---
@@ -89,7 +121,7 @@ jobs:
               echo "Database backed up to: $BACKUP"
             fi
 
-            # --- Step 2: Login and pull images ---
+            # --- Step 2: Login and pull images (before tearing down production!) ---
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
             docker pull ${{ env.BACKEND_IMAGE }}:${TAG}
             docker pull ${{ env.FRONTEND_IMAGE }}:${TAG}
@@ -165,10 +197,11 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
-            echo "${{ github.event.inputs.image_tag }}" > "$DEPLOY_PATH/.last-production-tag"
-            echo "Recorded production tag: ${{ github.event.inputs.image_tag }}"
+            echo "${{ steps.resolve.outputs.tag }}" > "$DEPLOY_PATH/.last-production-tag"
+            echo "Recorded production tag: ${{ steps.resolve.outputs.tag }}"
 
             # Clean up dangling images only (keep tagged ones for rollback)
             docker image prune -f --filter "dangling=true"
@@ -187,6 +220,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
             cd "$DEPLOY_PATH"
@@ -232,5 +266,5 @@ jobs:
         run: |
           echo "## ROLLBACK TRIGGERED" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Production deploy of \`${{ github.event.inputs.image_tag }}\` failed." >> $GITHUB_STEP_SUMMARY
+          echo "Production deploy of \`${{ needs.deploy.outputs.resolved_tag }}\` failed." >> $GITHUB_STEP_SUMMARY
           echo "Automatic rollback was attempted." >> $GITHUB_STEP_SUMMARY

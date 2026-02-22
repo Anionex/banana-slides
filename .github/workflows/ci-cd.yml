@@ -475,6 +475,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/banana-slides' }}"
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
