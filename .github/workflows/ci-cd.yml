@@ -487,7 +487,8 @@ jobs:
             docker pull ${{ env.BACKEND_IMAGE }}:${TAG}
             docker pull ${{ env.FRONTEND_IMAGE }}:${TAG}
 
-            DEPLOY_TAG=${TAG} docker compose -p banana-staging -f docker-compose.staging.yml down || true
+            DEPLOY_TAG=${TAG} docker compose -p banana-staging -f docker-compose.staging.yml down --remove-orphans || true
+            docker rm -f banana-slides-backend-staging banana-slides-frontend-staging 2>/dev/null || true
             DEPLOY_TAG=${TAG} docker compose -p banana-staging -f docker-compose.staging.yml up -d
 
             echo "Staging deployed with tag: ${TAG}"

@@ -127,7 +127,8 @@ jobs:
             docker pull ${{ env.FRONTEND_IMAGE }}:${TAG}
 
             # --- Step 3: Stop old containers and start new ones ---
-            DEPLOY_TAG=${TAG} docker compose -p banana-saas -f docker-compose.saas.yml down || true
+            DEPLOY_TAG=${TAG} docker compose -p banana-saas -f docker-compose.saas.yml down --remove-orphans || true
+            docker rm -f banana-slides-backend-saas banana-slides-frontend-saas 2>/dev/null || true
             DEPLOY_TAG=${TAG} docker compose -p banana-saas -f docker-compose.saas.yml up -d
 
             echo "Production deployed with tag: ${TAG}"
@@ -245,7 +246,8 @@ jobs:
             docker pull ${{ env.FRONTEND_IMAGE }}:${PREV_TAG} || true
 
             # Restart with previous tag
-            DEPLOY_TAG=${PREV_TAG} docker compose -p banana-saas -f docker-compose.saas.yml down || true
+            DEPLOY_TAG=${PREV_TAG} docker compose -p banana-saas -f docker-compose.saas.yml down --remove-orphans || true
+            docker rm -f banana-slides-backend-saas banana-slides-frontend-saas 2>/dev/null || true
             DEPLOY_TAG=${PREV_TAG} docker compose -p banana-saas -f docker-compose.saas.yml up -d
 
             # Wait and verify
