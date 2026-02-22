@@ -190,6 +190,7 @@ jobs:
     name: Sync Version to Source Files
     needs: e2e-test
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - uses: actions/checkout@v4
         with:
