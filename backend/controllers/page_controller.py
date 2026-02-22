@@ -53,7 +53,11 @@ def create_page(project_id):
         
         if 'outline_content' in data:
             page.set_outline_content(data['outline_content'])
-        
+
+        if 'description_content' in data:
+            page.set_description_content(data['description_content'])
+            page.status = 'DESCRIPTION_GENERATED'
+
         db.session.add(page)
         
         # Update other pages' order_index if necessary
