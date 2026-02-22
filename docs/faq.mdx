@@ -1,0 +1,32 @@
+---
+title: "FAQ"
+description: "Frequently asked questions"
+---
+
+## Generated text is garbled or blurry
+
+- Switch to a higher output resolution (2K recommended over 1K). Note: OpenAI format may not support higher resolutions — use Gemini format instead.
+- Include the specific text content you want rendered in your page descriptions.
+
+## Editable PPTX export has overlapping text or missing styles
+
+This is usually an API configuration issue. Make sure `BAIDU_OCR_API_KEY` is set correctly. See [Configuration](/configuration#editable-pptx-export) and [Issue #121](https://github.com/Anionex/banana-slides/issues/121) for troubleshooting.
+
+## Does the free Gemini API tier work?
+
+The free tier supports text generation only. Image generation requires a paid tier.
+
+## Getting 503 errors or Retry Errors
+
+Check the backend logs for detailed error messages:
+
+```bash
+docker logs --tail 200 banana-slides-backend
+```
+
+This is typically caused by incorrect model configuration.
+
+## Environment variable changes not taking effect
+
+- If running via Docker, restart the container after editing `.env`.
+- If you previously configured settings via the web UI Settings page, those values override `.env`. Use "Reset to Default" in Settings to revert.

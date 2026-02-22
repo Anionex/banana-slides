@@ -1,0 +1,60 @@
+---
+title: "Configuration"
+description: "Environment variables and provider setup"
+---
+
+## AI Provider
+
+Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
+
+| Format | Description |
+|--------|-------------|
+| `gemini` | Google Gemini API (default) |
+| `openai` | OpenAI-compatible API |
+| `vertex` | Google Cloud Vertex AI |
+| `lazyllm` | Multi-vendor Chinese model routing |
+
+## Gemini (Default)
+
+```env
+AI_PROVIDER_FORMAT=gemini
+GOOGLE_API_KEY=your-api-key
+GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+```
+
+<Warning>
+  The free tier of Gemini API only supports text generation, not image generation.
+</Warning>
+
+## OpenAI-Compatible
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+## Vertex AI
+
+```env
+AI_PROVIDER_FORMAT=vertex
+VERTEX_PROJECT_ID=your-gcp-project-id
+VERTEX_LOCATION=global
+GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+```
+
+<Tip>
+  `gemini-3-*` series models require `VERTEX_LOCATION=global`.
+</Tip>
+
+## Editable PPTX Export
+
+For enhanced editable export with OCR-based text extraction, obtain an API key from [Baidu Cloud](https://console.bce.baidu.com/iam/#/iam/apikey/list) (generous free tier available):
+
+```env
+BAIDU_OCR_API_KEY=your-baidu-ocr-key
+```
+
+## Runtime Settings Override
+
+Settings configured via the web UI's Settings page are stored in the database and override `.env` values. Use "Reset to Default" in Settings to revert to `.env` values.

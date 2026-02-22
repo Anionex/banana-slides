@@ -1,0 +1,41 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Banana Slides",
+  "colors": {
+    "primary": "#F59E0B",
+    "light": "#FBBF24",
+    "dark": "#D97706"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["index", "quickstart", "configuration"]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/overview",
+              "features/creation",
+              "features/editing",
+              "features/materials",
+              "features/export"
+            ]
+          },
+          {
+            "group": "Support",
+            "pages": ["faq"]
+          }
+        ]
+      }
+    ]
+  }
+}

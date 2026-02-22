@@ -1,0 +1,29 @@
+---
+title: "Export Options"
+description: "Export presentations as PPTX or PDF"
+---
+
+## Formats
+
+| Format | Editable | Notes |
+|--------|----------|-------|
+| PPTX | Yes | Text, images, and layout are editable in PowerPoint |
+| PDF | No | Pixel-perfect output, ready for presentation |
+
+Both formats use 16:9 aspect ratio by default.
+
+## Editable PPTX (Beta)
+
+The editable PPTX export extracts text from generated slide images and recreates it as native PowerPoint text elements, preserving:
+
+- Font size, color, and bold styling
+- Text positioning
+- Table content
+
+<Note>
+  For best results, configure `BAIDU_OCR_API_KEY` in your environment. See [Configuration](/configuration#editable-pptx-export).
+</Note>
+
+## Page Selection
+
+You can select specific pages to export rather than exporting the entire presentation. Use the multi-select feature in the Slide Preview to choose which pages to include.

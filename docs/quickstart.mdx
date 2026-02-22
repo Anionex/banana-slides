@@ -1,0 +1,65 @@
+---
+title: "Quick Start"
+description: "Get Banana Slides running in minutes"
+---
+
+## Docker Compose (Recommended)
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Anionex/banana-slides
+    cd banana-slides
+    ```
+  </Step>
+  <Step title="Configure environment">
+    ```bash
+    cp .env.example .env
+    ```
+    Edit `.env` and set your API key. See [Configuration](/configuration) for details.
+  </Step>
+  <Step title="Start services">
+    **Using pre-built images (fastest):**
+    ```bash
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+
+    **Or build from source:**
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+  <Step title="Open the app">
+    - Frontend: [http://localhost:3000](http://localhost:3000)
+    - Backend API: [http://localhost:5000](http://localhost:5000)
+  </Step>
+</Steps>
+
+## From Source
+
+### Prerequisites
+
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) package manager
+- Node.js 16+ and npm
+- A valid AI provider API key
+
+### Backend
+
+```bash
+cd backend
+uv sync
+uv run alembic upgrade head && uv run python app.py
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+<Note>
+  For the editable PPTX export feature, [LibreOffice](https://www.libreoffice.org/) is required when uploading PPTX files for renovation.
+</Note>
