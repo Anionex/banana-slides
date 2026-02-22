@@ -2066,11 +2066,11 @@ export const SlidePreview: React.FC = () => {
             {useTextStyleMode && (
               <Button
                 variant="primary"
+                loading={isSavingTemplateStyle}
                 onClick={async () => {
                   await handleSaveTemplateStyle();
                   setIsTemplateModalOpen(false);
                 }}
-                disabled={isSavingTemplateStyle}
               >
                 {t('preview.applyStyle')}
               </Button>

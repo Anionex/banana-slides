@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ImagePlus } from 'lucide-react';
+import { ImagePlus, Loader2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
 import { PRESET_STYLES } from '@/config/presetStyles';
@@ -100,7 +100,7 @@ export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onC
             className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
           >
             {isExtractingStyle ? (
-              <><span className="animate-spin">⏳</span>{t('extracting')}</>
+              <><Loader2 size={12} className="animate-spin" />{t('extracting')}</>
             ) : (
               <><ImagePlus size={12} />{t('extractFromImage')}</>
             )}
