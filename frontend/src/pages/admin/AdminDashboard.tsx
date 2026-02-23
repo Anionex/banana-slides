@@ -17,6 +17,7 @@ const i18n = {
     auditTransactions: '积分明细',
     auditOrders: '订单审计',
     systemConfig: '系统配置',
+    announcements: '公告管理',
     logs: '后端日志',
     totalUsers: '总用户数',
     activeUsers: '活跃用户',
@@ -36,6 +37,7 @@ const i18n = {
     auditTransactions: 'Transactions',
     auditOrders: 'Orders',
     systemConfig: 'System Config',
+    announcements: 'Announcements',
     logs: 'Backend Logs',
     totalUsers: 'Total Users',
     activeUsers: 'Active Users',
@@ -146,6 +148,12 @@ export default function AdminDashboard() {
             className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm font-medium"
           >
             {t('systemConfig')}
+          </Link>
+          <Link
+            to="/admin/announcements"
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium"
+          >
+            {t('announcements')}
           </Link>
           <Link
             to="/admin/logs"

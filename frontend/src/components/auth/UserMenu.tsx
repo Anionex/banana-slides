@@ -4,7 +4,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Settings, CreditCard, LogOut, ChevronDown, User, Shield, List, Lock, Users } from 'lucide-react';
+import { Settings, CreditCard, LogOut, ChevronDown, User, Shield, List, Lock, Users, Bell } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { logoutUser } from '../../api/auth';
 import { useT } from '../../hooks/useT';
@@ -20,7 +20,7 @@ const userMenuI18n = {
       invitation: '邀请好友',
       changePassword: { menuItem: '修改密码' },
     },
-    nav: { settings: '设置', admin: '管理后台' },
+    nav: { settings: '设置', admin: '管理后台', announcements: '系统公告' },
   },
   en: {
     auth: {
@@ -32,7 +32,7 @@ const userMenuI18n = {
       invitation: 'Invite Friends',
       changePassword: { menuItem: 'Change Password' },
     },
-    nav: { settings: 'Settings', admin: 'Admin' },
+    nav: { settings: 'Settings', admin: 'Admin', announcements: 'Announcements' },
   },
 };
 
@@ -179,6 +179,14 @@ export default function UserMenu() {
               >
                 <CreditCard size={18} />
                 <span>{t('auth.buyCredits')}</span>
+              </Link>
+              <Link
+                to="/announcements"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+              >
+                <Bell size={18} />
+                <span>{t('nav.announcements')}</span>
               </Link>
             </div>
 
