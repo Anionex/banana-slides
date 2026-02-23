@@ -15,8 +15,8 @@ function dbQuery(sql: string): string {
 
 test.describe('Settings read-only behavior', () => {
   test('GET /api/settings does not persist .env defaults to DB', async ({ request }) => {
-    // 1. Save original value and set text_model to NULL in DB
-    const original = dbQuery('SELECT text_model FROM settings WHERE id=1;');
+    // 1. Save original value (quote() preserves NULL vs empty string)
+    const original = dbQuery('SELECT quote(text_model) FROM settings WHERE id=1;');
     dbQuery('UPDATE settings SET text_model=NULL WHERE id=1;');
 
     try {
@@ -27,12 +27,11 @@ test.describe('Settings read-only behavior', () => {
       expect(data.text_model).toBeTruthy();
 
       // 3. Verify DB field is still NULL (no write side-effect)
-      const dbVal = dbQuery('SELECT text_model FROM settings WHERE id=1;');
-      expect(dbVal).toBe(''); // sqlite3 prints empty string for NULL
+      const dbVal = dbQuery('SELECT quote(text_model) FROM settings WHERE id=1;');
+      expect(dbVal).toBe('NULL');
     } finally {
-      // 4. Restore original value (escape single quotes for safety)
-      const escaped = original.replace(/'/g, "''");
-      dbQuery(`UPDATE settings SET text_model='${escaped}' WHERE id=1;`);
+      // 4. Restore original value
+      dbQuery('UPDATE settings SET text_model=' + original + ' WHERE id=1;');
     }
   });
 });

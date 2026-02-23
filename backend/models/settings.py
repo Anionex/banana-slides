@@ -164,9 +164,9 @@ class Settings(db.Model):
         """
         Get or create the single settings instance.
 
-        Returns a session-attached ORM object.  The database row is
-        **never** updated here — ``.env`` defaults for ``None`` fields
-        are merged only at serialisation time in ``to_dict()``.
+        Returns the ORM object as-is from the database.  ``.env``
+        defaults for ``None`` fields are merged only at serialisation
+        time in ``to_dict()``, so this method has no write side-effects.
         """
         defaults = Settings._get_config_defaults()
         settings = Settings.query.first()
