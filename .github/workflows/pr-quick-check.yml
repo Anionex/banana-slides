@@ -59,7 +59,7 @@ jobs:
         run: cd frontend && npm run build
 
   docs-check:
-    name: Docs Build Check
+    name: Docs Link Check
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -67,8 +67,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - name: Build docs
-        run: cd docs && npx mintlify@latest build
+      - name: Check docs links
+        run: cd docs && npx mintlify@latest broken-links
 
   # Simple API smoke test
   smoke-test:
