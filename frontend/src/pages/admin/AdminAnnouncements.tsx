@@ -65,7 +65,7 @@ export default function AdminAnnouncements() {
       setLoading(true);
       const res = await getAdminAnnouncements({ limit: 200 });
       setItems(res.data.data.items);
-    } catch { /* ignore */ } finally {
+    } catch (err) { console.error('Failed to load announcements:', err); } finally {
       setLoading(false);
     }
   };

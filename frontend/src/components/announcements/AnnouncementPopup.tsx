@@ -50,7 +50,7 @@ export default function AnnouncementPopup() {
       const visible = (res.data.data || []).filter(a => !dismissed.includes(a.id));
       setItems(visible);
       setCurrentIdx(0);
-    }).catch(() => {});
+    }).catch(console.error);
   }, [isAuthenticated]);
 
   if (items.length === 0) return null;

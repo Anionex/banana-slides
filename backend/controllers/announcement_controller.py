@@ -59,15 +59,15 @@ def create():
 @admin_required
 def update(ann_id):
     """Admin: update announcement."""
-    ann = Announcement.query.get(ann_id)
+    ann = db.session.get(Announcement, ann_id)
     if not ann:
         return error_response('NOT_FOUND', 'Announcement not found', 404)
 
     body = request.get_json(silent=True) or {}
     if 'title' in body:
-        ann.title = (body['title'] or '').strip()
+        ann.title = str(body['title'] or '').strip()
     if 'content' in body:
-        ann.content = (body['content'] or '').strip()
+        ann.content = str(body['content'] or '').strip()
     if 'is_active' in body:
         ann.is_active = bool(body['is_active'])
 
@@ -83,7 +83,7 @@ def update(ann_id):
 @admin_required
 def delete(ann_id):
     """Admin: delete announcement."""
-    ann = Announcement.query.get(ann_id)
+    ann = db.session.get(Announcement, ann_id)
     if not ann:
         return error_response('NOT_FOUND', 'Announcement not found', 404)
     db.session.delete(ann)

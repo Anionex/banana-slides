@@ -30,7 +30,7 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     getActiveAnnouncements()
       .then(res => setItems(res.data.data || []))
-      .catch(() => {})
+      .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
