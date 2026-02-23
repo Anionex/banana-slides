@@ -6,6 +6,7 @@ import type { User } from '../../store/useAuthStore';
 
 const i18n = {
   zh: {
+    id: 'ID',
     email: '邮箱',
     username: '用户名',
     plan: '套餐',
@@ -26,6 +27,7 @@ const i18n = {
     noUsers: '暂无用户',
   },
   en: {
+    id: 'ID',
     email: 'Email',
     username: 'Username',
     plan: 'Plan',
@@ -80,6 +82,7 @@ export default function UserTable({
       <table className="w-full text-sm text-left">
         <thead className="text-xs uppercase bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-foreground-secondary">
           <tr>
+            <th className="px-3 py-2">{t('id')}</th>
             <th className="px-3 py-2">{t('email')}</th>
             <th className="px-3 py-2">{t('username')}</th>
             <th className="px-3 py-2">{t('plan')}</th>
@@ -94,6 +97,9 @@ export default function UserTable({
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {users.map((u) => (
             <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+              <td className="px-3 py-2 text-gray-500 dark:text-foreground-secondary text-xs font-mono">
+                {u.id}
+              </td>
               <td className="px-3 py-2 text-gray-900 dark:text-foreground-primary font-medium max-w-[200px] truncate">
                 {u.email}
               </td>
