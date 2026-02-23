@@ -22,7 +22,6 @@ const descriptionCardI18n = {
       addPreset: "添加预设",
       customPreset: "自定义预设名称",
       selectLayout: "选择排版",
-      currentGenerated: "当前生成",
       sectionTitle: "标题",
       sectionText: "正文",
       sectionImage: "配图",
@@ -42,7 +41,6 @@ const descriptionCardI18n = {
       addPreset: "Add preset",
       customPreset: "Custom preset name",
       selectLayout: "Select layout",
-      currentGenerated: "Current generated",
       sectionTitle: "Title",
       sectionText: "Text",
       sectionImage: "Image",
@@ -139,12 +137,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     setIsEditing(false);
   };
 
-  // 排版下拉选择：记住初始AI生成的排版值
-  const layoutSection = useMemo(() => sections.find(s => s.key === '排版建议'), [sections]);
-  const originalLayoutRef = useRef(layoutSection?.content || '');
-  if (originalLayoutRef.current === '' && layoutSection?.content) {
-    originalLayoutRef.current = layoutSection.content;
-  }
   const [showAddPreset, setShowAddPreset] = useState(false);
   const [newPreset, setNewPreset] = useState('');
 
@@ -221,7 +213,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
                         <LayoutDropdown
                           presets={layoutPresets}
                           current={section.content}
-                          originalValue={originalLayoutRef.current}
                           onSelect={handleLayoutSelect}
                           onAdd={() => setShowAddPreset(true)}
                           onDelete={onDeleteLayoutPreset || (() => {})}
@@ -338,10 +329,9 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
 );
 
 /** 排版预设下拉框 */
-function LayoutDropdown({ presets, current, originalValue, onSelect, onAdd, onDelete, t }: {
+function LayoutDropdown({ presets, current, onSelect, onAdd, onDelete, t }: {
   presets: string[];
   current: string;
-  originalValue: string;
   onSelect: (v: string) => void;
   onAdd: () => void;
   onDelete: (v: string) => void;
@@ -370,16 +360,6 @@ function LayoutDropdown({ presets, current, originalValue, onSelect, onAdd, onDe
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-20 min-w-[140px] max-h-[200px] overflow-y-auto bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary rounded-lg shadow-lg py-1">
-          {originalValue && !presets.includes(originalValue) && (
-            <button
-              onClick={() => { onSelect(originalValue); setOpen(false); }}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-banana-50 dark:hover:bg-banana-pale transition-colors ${
-                current === originalValue ? 'text-amber-700 dark:text-amber-400 font-medium bg-amber-50/50 dark:bg-amber-900/10' : 'text-gray-700 dark:text-foreground-secondary'
-              }`}
-            >
-              {t('descriptionCard.currentGenerated')}
-            </button>
-          )}
           {presets.map(p => (
             <div
               key={p}
