@@ -299,6 +299,14 @@ def update_settings():
             if base_field in data:
                 setattr(settings, base_field, (data[base_field] or "").strip() or None)
 
+        # Update layout presets
+        if "layout_presets" in data:
+            presets = data["layout_presets"]
+            if isinstance(presets, list):
+                settings.layout_presets = json.dumps(presets, ensure_ascii=False)
+            elif presets is None:
+                settings.layout_presets = None
+
         if "lazyllm_api_keys" in data:
             keys_data = data["lazyllm_api_keys"]
             if isinstance(keys_data, dict):
@@ -362,6 +370,7 @@ def reset_settings():
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
             setattr(settings, f'{model_type}_api_base_url', None)
+        settings.layout_presets = None
         settings.image_resolution = None
         settings.image_aspect_ratio = None
         settings.max_description_workers = None
