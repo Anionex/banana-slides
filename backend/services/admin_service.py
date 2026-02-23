@@ -229,7 +229,7 @@ class AdminService:
     def get_all_transactions(
         limit: int = 50,
         offset: int = 0,
-        user_id: Optional[str] = None,
+        user_search: Optional[str] = None,
         operation: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -238,20 +238,18 @@ class AdminService:
         Get all credit transactions for auditing with optional filters.
 
         Args:
-            limit: Max number of records to return
-            offset: Number of records to skip
-            user_id: Filter by specific user ID
-            operation: Filter by operation type
-            start_date: Filter by start date (ISO format)
-            end_date: Filter by end date (ISO format)
-
-        Returns:
-            Dict with transactions list, total count, and pagination info
+            user_search: Filter by user ID, username, or email (fuzzy match)
         """
         query = CreditTransaction.query
 
-        if user_id:
-            query = query.filter(CreditTransaction.user_id == user_id)
+        if user_search:
+            query = query.join(User, CreditTransaction.user_id == User.id).filter(
+                db.or_(
+                    CreditTransaction.user_id == user_search,
+                    User.username.ilike(f'%{user_search}%'),
+                    User.email.ilike(f'%{user_search}%'),
+                )
+            )
 
         if operation:
             query = query.filter(CreditTransaction.operation == operation)

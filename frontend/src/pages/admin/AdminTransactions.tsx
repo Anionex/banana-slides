@@ -14,7 +14,7 @@ const i18n = {
   zh: {
     title: '积分明细审计',
     backDashboard: '返回仪表盘',
-    searchPlaceholder: '按用户ID筛选...',
+    searchPlaceholder: '按用户名/邮箱/ID筛选...',
     allOperations: '全部操作类型',
     startDate: '开始日期',
     endDate: '结束日期',
@@ -49,7 +49,7 @@ const i18n = {
   en: {
     title: 'Credit Transaction Audit',
     backDashboard: 'Back to Dashboard',
-    searchPlaceholder: 'Filter by user ID...',
+    searchPlaceholder: 'Filter by name/email/ID...',
     allOperations: 'All Operations',
     startDate: 'Start Date',
     endDate: 'End Date',
@@ -122,7 +122,7 @@ export default function AdminTransactions() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
-  const [userId, setUserId] = useState('');
+  const [userSearch, setUserSearch] = useState('');
   const [operation, setOperation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -136,7 +136,7 @@ export default function AdminTransactions() {
       const res = await getAdminTransactions({
         limit: PAGE_SIZE,
         offset,
-        user_id: userId || undefined,
+        user_search: userSearch || undefined,
         operation: operation || undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
@@ -150,7 +150,7 @@ export default function AdminTransactions() {
     } finally {
       setLoading(false);
     }
-  }, [offset, userId, operation, startDate, endDate]);
+  }, [offset, userSearch, operation, startDate, endDate]);
 
   useEffect(() => {
     fetchData();
@@ -158,7 +158,7 @@ export default function AdminTransactions() {
 
   useEffect(() => {
     setOffset(0);
-  }, [userId, operation, startDate, endDate]);
+  }, [userSearch, operation, startDate, endDate]);
 
   const formatTime = (isoString: string) => {
     return new Date(isoString).toLocaleString();
@@ -190,8 +190,8 @@ export default function AdminTransactions() {
             <input
               type="text"
               placeholder={t('searchPlaceholder')}
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
               className="pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-background-secondary text-gray-900 dark:text-foreground-primary text-sm focus:ring-2 focus:ring-banana-500 outline-none w-56"
             />
           </div>

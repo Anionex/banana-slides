@@ -45,7 +45,7 @@ export const changeUserSubscription = (
 export interface AdminTransactionsParams {
   limit?: number;
   offset?: number;
-  user_id?: string;
+  user_search?: string;
   operation?: string;
   start_date?: string;
   end_date?: string;

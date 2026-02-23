@@ -72,14 +72,14 @@ def list_all_transactions():
     """
     limit = min(request.args.get('limit', 50, type=int), 200)
     offset = max(request.args.get('offset', 0, type=int), 0)
-    user_id = request.args.get('user_id', '').strip() or None
+    user_search = request.args.get('user_search', '').strip() or None
     operation = request.args.get('operation', '').strip() or None
     start_date = request.args.get('start_date', '').strip() or None
     end_date = request.args.get('end_date', '').strip() or None
 
     data = AdminService.get_all_transactions(
         limit=limit, offset=offset,
-        user_id=user_id, operation=operation,
+        user_search=user_search, operation=operation,
         start_date=start_date, end_date=end_date,
     )
     return success_response(data)
