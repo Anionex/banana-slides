@@ -3,6 +3,7 @@
  * 注册页面
  */
 import { useState, useEffect } from 'react';
+import PasswordInput from '../../components/auth/PasswordInput';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { registerUser, authApi } from '../../api/auth';
 import { Button } from '../../components/shared';
@@ -238,14 +239,12 @@ export default function RegisterPage() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
                 {t('register.password')} <span className="text-red-500">{t('register.required')}</span>
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
-                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
                 placeholder={t('register.passwordPlaceholder')}
               />
             </div>
@@ -254,13 +253,11 @@ export default function RegisterPage() {
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
                 {t('register.confirmPassword')} <span className="text-red-500">{t('register.required')}</span>
               </label>
-              <input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
                 placeholder={t('register.confirmPasswordPlaceholder')}
               />
             </div>
