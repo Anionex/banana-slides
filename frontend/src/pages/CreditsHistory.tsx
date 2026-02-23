@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button, Loading, Card } from '@/components/shared';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useT } from '@/hooks/useT';
@@ -25,6 +25,7 @@ const creditsHistoryI18n = {
       balance: '余额',
       description: '描述',
       loadFailed: '加载积分明细失败',
+      refundReason: '退款原因',
       prev: '上一页',
       next: '下一页',
       pageInfo: '第 {{current}} 页，共 {{total}} 页',
@@ -58,6 +59,7 @@ const creditsHistoryI18n = {
       balance: 'Balance',
       description: 'Description',
       loadFailed: 'Failed to load credits history',
+      refundReason: 'Refund Reason',
       prev: 'Previous',
       next: 'Next',
       pageInfo: 'Page {{current}} of {{total}}',
@@ -90,6 +92,7 @@ export const CreditsHistory: React.FC = () => {
   const [offset, setOffset] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRefunds, setExpandedRefunds] = useState<Set<string>>(new Set());
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
@@ -140,6 +143,15 @@ export const CreditsHistory: React.FC = () => {
 
   const getOperationLabel = (op: string) => {
     return t(`operations.${op}` as any, op);
+  };
+
+  const toggleRefund = (id: string) => {
+    setExpandedRefunds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -214,29 +226,51 @@ export const CreditsHistory: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-border-primary bg-white dark:bg-background-secondary">
-                  {transactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-background-hover transition-colors">
-                      <td className="px-4 py-3 text-gray-700 dark:text-foreground-secondary whitespace-nowrap">
-                        {formatDate(tx.created_at)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-foreground-primary">
-                        {getOperationLabel(tx.operation)}
-                      </td>
-                      <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
-                        tx.amount > 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-foreground-secondary">
-                        {tx.balance_after}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-foreground-tertiary hidden md:table-cell truncate max-w-[200px]">
-                        {tx.description || '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {transactions.map((tx) => {
+                    const isRefund = tx.operation === 'refund';
+                    const isExpanded = expandedRefunds.has(tx.id);
+                    return (
+                      <React.Fragment key={tx.id}>
+                        <tr
+                          className={`hover:bg-gray-50 dark:hover:bg-background-hover transition-colors ${isRefund && tx.description ? 'cursor-pointer' : ''}`}
+                          onClick={isRefund && tx.description ? () => toggleRefund(tx.id) : undefined}
+                        >
+                          <td className="px-4 py-3 text-gray-700 dark:text-foreground-secondary whitespace-nowrap">
+                            {formatDate(tx.created_at)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-900 dark:text-foreground-primary">
+                            <span className="flex items-center gap-1">
+                              {getOperationLabel(tx.operation)}
+                              {isRefund && tx.description && (
+                                isExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />
+                              )}
+                            </span>
+                          </td>
+                          <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
+                            tx.amount > 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-700 dark:text-foreground-secondary">
+                            {tx.balance_after}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 dark:text-foreground-tertiary hidden md:table-cell truncate max-w-[200px]">
+                            {tx.description || '-'}
+                          </td>
+                        </tr>
+                        {isRefund && isExpanded && tx.description && (
+                          <tr className="bg-amber-50/50 dark:bg-amber-900/10">
+                            <td colSpan={5} className="px-4 py-3">
+                              <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">{t('credits.refundReason')}</div>
+                              <div className="text-sm text-gray-700 dark:text-foreground-secondary whitespace-pre-wrap break-all">{tx.description}</div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

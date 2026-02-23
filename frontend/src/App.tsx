@@ -21,7 +21,7 @@ import {
 } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
-import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig } from './pages/admin';
+import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useToast } from './components/shared';
@@ -167,6 +167,11 @@ function App() {
         <Route path="/admin/config" element={
           <AdminRoute>
             <AdminConfig />
+          </AdminRoute>
+        } />
+        <Route path="/admin/logs" element={
+          <AdminRoute>
+            <AdminLogs />
           </AdminRoute>
         } />
 

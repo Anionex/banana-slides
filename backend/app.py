@@ -4,6 +4,7 @@ Simplified Flask Application Entry Point
 import os
 import sys
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import event
@@ -88,13 +89,20 @@ def create_app():
         cors_origins = [o.strip() for o in raw_cors.split(',') if o.strip()]
     app.config['CORS_ORIGINS'] = cors_origins
     
-    # Initialize logging (log to stdout so Docker can capture it)
+    # Initialize logging (stdout + rotating file for admin log viewer)
     log_level = getattr(logging, app.config['LOG_LEVEL'], logging.INFO)
+    log_format = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
+    log_file = os.path.join(instance_dir, 'app.log')
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8'
+    )
+    file_handler.setFormatter(logging.Formatter(log_format))
     logging.basicConfig(
         level=log_level,
-        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        format=log_format,
+        handlers=[logging.StreamHandler(sys.stdout), file_handler],
     )
+    app.config['LOG_FILE_PATH'] = log_file
     
     # 设置第三方库的日志级别，避免过多的DEBUG日志
     logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
