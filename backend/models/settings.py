@@ -53,38 +53,50 @@ class Settings(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    def _val(self, attr, defaults):
+        """Return DB value, falling back to .env default when None."""
+        v = getattr(self, attr)
+        return v if v is not None else defaults.get(attr)
+
     def to_dict(self):
-        """Convert to dictionary"""
+        """Convert to dictionary, merging .env defaults for None fields."""
+        d = Settings._get_config_defaults()
+        api_key = self._val('api_key', d)
+        mineru_token = self._val('mineru_token', d)
+        baidu_ocr_api_key = self._val('baidu_ocr_api_key', d)
+        text_api_key = self._val('text_api_key', d)
+        image_api_key = self._val('image_api_key', d)
+        image_caption_api_key = self._val('image_caption_api_key', d)
         return {
             'id': self.id,
-            'ai_provider_format': self.ai_provider_format,
-            'api_base_url': self.api_base_url,
-            'api_key_length': len(self.api_key) if self.api_key else 0,
-            'image_resolution': self.image_resolution,
-            'image_aspect_ratio': self.image_aspect_ratio,
-            'max_description_workers': self.max_description_workers,
-            'max_image_workers': self.max_image_workers,
-            'text_model': self.text_model,
-            'image_model': self.image_model,
-            'mineru_api_base': self.mineru_api_base,
-            'mineru_token_length': len(self.mineru_token) if self.mineru_token else 0,
-            'image_caption_model': self.image_caption_model,
-            'output_language': self.output_language,
+            'ai_provider_format': self._val('ai_provider_format', d),
+            'api_base_url': self._val('api_base_url', d),
+            'api_key_length': len(api_key) if api_key else 0,
+            'image_resolution': self._val('image_resolution', d),
+            'image_aspect_ratio': self._val('image_aspect_ratio', d),
+            'max_description_workers': self._val('max_description_workers', d),
+            'max_image_workers': self._val('max_image_workers', d),
+            'text_model': self._val('text_model', d),
+            'image_model': self._val('image_model', d),
+            'mineru_api_base': self._val('mineru_api_base', d),
+            'mineru_token_length': len(mineru_token) if mineru_token else 0,
+            'image_caption_model': self._val('image_caption_model', d),
+            'output_language': self._val('output_language', d),
             'enable_text_reasoning': self.enable_text_reasoning,
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
-            'baidu_ocr_api_key_length': len(self.baidu_ocr_api_key) if self.baidu_ocr_api_key else 0,
-            'text_model_source': self.text_model_source,
-            'image_model_source': self.image_model_source,
-            'image_caption_model_source': self.image_caption_model_source,
+            'baidu_ocr_api_key_length': len(baidu_ocr_api_key) if baidu_ocr_api_key else 0,
+            'text_model_source': self._val('text_model_source', d),
+            'image_model_source': self._val('image_model_source', d),
+            'image_caption_model_source': self._val('image_caption_model_source', d),
             'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(),
-            'text_api_key_length': len(self.text_api_key) if self.text_api_key else 0,
-            'text_api_base_url': self.text_api_base_url,
-            'image_api_key_length': len(self.image_api_key) if self.image_api_key else 0,
-            'image_api_base_url': self.image_api_base_url,
-            'image_caption_api_key_length': len(self.image_caption_api_key) if self.image_caption_api_key else 0,
-            'image_caption_api_base_url': self.image_caption_api_base_url,
+            'text_api_key_length': len(text_api_key) if text_api_key else 0,
+            'text_api_base_url': self._val('text_api_base_url', d),
+            'image_api_key_length': len(image_api_key) if image_api_key else 0,
+            'image_api_base_url': self._val('image_api_base_url', d),
+            'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
+            'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -151,34 +163,18 @@ class Settings(db.Model):
         """
         Get or create the single settings instance.
 
-        This is a **read** operation.  For any database field that is
-        still ``None``, the corresponding ``.env`` / ``Config`` value is
-        merged **in memory only** — the database row is never updated
-        here.  Only an explicit save (e.g. the user clicking "Save" on
-        the Settings page) should persist values to the database.
-
-        This ensures that editing ``.env`` and restarting the backend is
-        sufficient to pick up new values for fields the user has not
-        explicitly overridden via the UI.
+        Returns a session-attached ORM object.  The database row is
+        **never** updated here — ``.env`` defaults for ``None`` fields
+        are merged only at serialisation time in ``to_dict()``.
         """
         defaults = Settings._get_config_defaults()
         settings = Settings.query.first()
 
         if settings is None:
-            # First access: create and persist the initial record.
             settings = Settings(**defaults)
             settings.id = 1
             db.session.add(settings)
             db.session.commit()
-            return settings
-
-        # Detach from session so in-memory backfills are never flushed.
-        from sqlalchemy.orm import make_transient
-        make_transient(settings)
-
-        for attr, default in defaults.items():
-            if getattr(settings, attr) is None and default is not None:
-                setattr(settings, attr, default)
 
         return settings
 
