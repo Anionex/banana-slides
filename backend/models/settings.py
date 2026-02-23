@@ -172,20 +172,13 @@ class Settings(db.Model):
             db.session.commit()
             return settings
 
-        # Merge .env defaults into None fields *in memory only*.
-        # We set attributes on the ORM instance for convenience but
-        # immediately expunge it so SQLAlchemy will not flush the
-        # changes back to the database.
-        needs_merge = any(
-            getattr(settings, attr) is None and default is not None
-            for attr, default in defaults.items()
-        )
+        # Detach from session so in-memory backfills are never flushed.
+        from sqlalchemy.orm import make_transient
+        make_transient(settings)
 
-        if needs_merge:
-            db.session.expunge(settings)
-            for attr, default in defaults.items():
-                if getattr(settings, attr) is None and default is not None:
-                    setattr(settings, attr, default)
+        for attr, default in defaults.items():
+            if getattr(settings, attr) is None and default is not None:
+                setattr(settings, attr, default)
 
         return settings
 
