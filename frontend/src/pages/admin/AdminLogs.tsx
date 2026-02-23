@@ -41,6 +41,7 @@ export default function AdminLogs() {
   const [lines, setLines] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [keyword, setKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [level, setLevel] = useState('');
   const [lineCount, setLineCount] = useState(200);
   const [loading, setLoading] = useState(true);
@@ -49,13 +50,19 @@ export default function AdminLogs() {
   const logEndRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
+  // Debounce keyword input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedKeyword(keyword), 400);
+    return () => clearTimeout(timer);
+  }, [keyword]);
+
   const fetchLogs = useCallback(async () => {
     try {
       setError(false);
       const res = await getAdminLogs({
         lines: lineCount,
         level: level || undefined,
-        keyword: keyword || undefined,
+        keyword: debouncedKeyword || undefined,
       });
       const data = res.data.data;
       setLines(data.lines);
@@ -65,7 +72,7 @@ export default function AdminLogs() {
     } finally {
       setLoading(false);
     }
-  }, [lineCount, level, keyword]);
+  }, [lineCount, level, debouncedKeyword]);
 
   useEffect(() => {
     setLoading(true);

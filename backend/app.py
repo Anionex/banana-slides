@@ -93,7 +93,9 @@ def create_app():
     log_level = getattr(logging, app.config['LOG_LEVEL'], logging.INFO)
     log_format = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
     log_file = os.path.join(instance_dir, 'app.log')
-    file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8'
+    )
     file_handler.setFormatter(logging.Formatter(log_format))
     logging.basicConfig(
         level=log_level,

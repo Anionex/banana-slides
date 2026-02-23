@@ -1,6 +1,7 @@
 """
 Admin controller - API endpoints for the admin dashboard
 """
+import collections
 import logging
 import os
 
@@ -198,21 +199,23 @@ def get_logs():
         return success_response({'lines': [], 'total': 0})
 
     try:
+        tail_buffer = collections.deque(maxlen=lines)
+        total_count = 0
+        kw_lower = keyword.lower() if keyword else None
+
         with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
-            all_lines = f.readlines()
+            for line in f:
+                if level and f'[{level}]' not in line:
+                    continue
+                if kw_lower and kw_lower not in line.lower():
+                    continue
+                tail_buffer.append(line)
+                total_count += 1
 
-        filtered = all_lines
-        if level:
-            filtered = [l for l in filtered if f'[{level}]' in l]
-        if keyword:
-            kw_lower = keyword.lower()
-            filtered = [l for l in filtered if kw_lower in l.lower()]
-
-        tail = filtered[-lines:]
         return success_response({
-            'lines': [l.rstrip('\n') for l in tail],
-            'total': len(filtered),
+            'lines': [l.rstrip('\n') for l in tail_buffer],
+            'total': total_count,
         })
-    except Exception as e:
-        logger.error(f"Failed to read log file: {e}")
-        return error_response('INTERNAL_ERROR', str(e), 500)
+    except (IOError, OSError):
+        logger.exception("Failed to read log file")
+        return error_response('INTERNAL_ERROR', 'Failed to read log file.', 500)

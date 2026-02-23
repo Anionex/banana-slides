@@ -216,7 +216,7 @@ test.describe('Admin Logs Page - Mock', () => {
     await levelSelect.selectOption('ERROR');
 
     // Wait for filtered results
-    await page.waitForTimeout(500);
+    await page.waitForResponse('**/api/admin/logs**');
     await expect(page.locator('text=Task failed')).toBeVisible();
   });
 });
