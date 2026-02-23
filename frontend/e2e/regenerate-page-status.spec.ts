@@ -120,6 +120,6 @@ test.describe('Frontend resumes polling (mock)', () => {
     await page.goto(`${frontendBase}/project/${projectId}/preview`)
 
     // Should show generating state
-    await expect(page.getByText(/生成中|Generating/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('生成中', { exact: true }).or(page.getByText('Generating', { exact: true }))).toBeVisible({ timeout: 10000 })
   })
 })
