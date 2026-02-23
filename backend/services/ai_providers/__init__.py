@@ -30,7 +30,7 @@ import logging
 from typing import Dict, Any
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AggregatedImageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -204,18 +204,22 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
 
 def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
     """
-    Factory function to get image generation provider based on configuration
-
-    Args:
-        model: Model name to use
-
-    Returns:
-        ImageProvider instance (GenAIImageProvider or OpenAIImageProvider)
-
-    Note:
-        OpenAI format does NOT support 4K resolution, only 1K is available.
-        If you need higher resolution images, use Gemini or Vertex AI format.
+    Factory function to get image generation provider based on configuration.
+    If image_provider_pool is configured with enabled channels, returns
+    AggregatedImageProvider; otherwise falls back to single-provider logic.
     """
+    # Check pool config first
+    try:
+        from models import SystemConfig
+        pool = SystemConfig.get_instance().get_image_provider_pool()
+        if pool:
+            enabled = [c for c in pool if c.get('enabled', True)]
+            if enabled:
+                logger.info(f"Using AggregatedImageProvider with {len(enabled)} channels")
+                return AggregatedImageProvider(enabled)
+    except Exception as e:
+        logger.debug(f"Could not load image_provider_pool: {e}")
+
     config = _get_provider_config()
     provider_format = config['format']
 

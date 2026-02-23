@@ -55,6 +55,10 @@ class SystemConfig(db.Model):
     # 套餐配置（JSON 格式）
     credit_packages = db.Column(db.Text, default=None)
 
+    # ==================== 文生图渠道池 ====================
+    # 多渠道配置（JSON 格式），按优先级自动降级
+    image_provider_pool = db.Column(db.Text, default=None)
+
     # 时间戳
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -93,6 +97,19 @@ class SystemConfig(db.Model):
         """设置积分套餐配置"""
         self.credit_packages = json.dumps(packages)
 
+    def get_image_provider_pool(self):
+        """获取文生图渠道池配置"""
+        if not self.image_provider_pool:
+            return None
+        try:
+            return json.loads(self.image_provider_pool)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    def set_image_provider_pool(self, pool: list):
+        """设置文生图渠道池配置"""
+        self.image_provider_pool = json.dumps(pool)
+
     def get_credit_costs(self):
         """获取所有积分消耗配置"""
         return {
@@ -106,6 +123,20 @@ class SystemConfig(db.Model):
             'parse_file': self.cost_parse_file,
             'export_editable': self.cost_export_editable,
         }
+
+    def _safe_pool_dict(self):
+        """返回渠道池配置，隐藏 api_key 明文"""
+        pool = self.get_image_provider_pool()
+        if not pool:
+            return pool
+        safe = []
+        for ch in pool:
+            c = dict(ch)
+            key = c.get('api_key', '')
+            c['api_key_length'] = len(key) if key else 0
+            c['api_key'] = ''
+            safe.append(c)
+        return safe
 
     def to_dict(self):
         """转换为字典"""
@@ -127,6 +158,7 @@ class SystemConfig(db.Model):
             'enable_credits_purchase': self.enable_credits_purchase,
             'enable_invitation': self.enable_invitation,
             'credit_packages': self.get_credit_packages(),
+            'image_provider_pool': self._safe_pool_dict(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
