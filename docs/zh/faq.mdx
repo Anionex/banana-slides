@@ -1,0 +1,32 @@
+---
+title: "常见问题"
+description: "常见问题解答"
+---
+
+## 生成的文字有乱码或模糊
+
+- 切换到更高分辨率（推荐 2K）。注意：OpenAI 格式可能不支持调高分辨率，建议使用 Gemini 格式。
+- 在页面描述中包含具体要渲染的文字内容。
+
+## 可编辑 PPTX 导出效果不佳
+
+通常是 API 配置问题。确保 `BAIDU_OCR_API_KEY` 设置正确。详见[配置说明](/zh/configuration#可编辑-pptx-导出)和 [Issue #121](https://github.com/Anionex/banana-slides/issues/121)。
+
+## 免费版 Gemini API 能用吗？
+
+免费层仅支持文本生成，图片生成需要付费。
+
+## 出现 503 错误或重试错误
+
+查看后端日志定位问题：
+
+```bash
+docker logs --tail 200 banana-slides-backend
+```
+
+通常是模型配置不正确导致。
+
+## 修改 .env 后不生效
+
+- Docker 部署需重启容器。
+- 如果曾在网页设置页中配置过参数，会覆盖 `.env`，点击"还原默认设置"可恢复。

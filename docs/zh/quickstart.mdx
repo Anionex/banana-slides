@@ -1,0 +1,65 @@
+---
+title: "快速开始"
+description: "几分钟内启动 Banana Slides"
+---
+
+## Docker Compose（推荐）
+
+<Steps>
+  <Step title="克隆仓库">
+    ```bash
+    git clone https://github.com/Anionex/banana-slides
+    cd banana-slides
+    ```
+  </Step>
+  <Step title="配置环境变量">
+    ```bash
+    cp .env.example .env
+    ```
+    编辑 `.env` 设置 API 密钥，详见[配置说明](/zh/configuration)。
+  </Step>
+  <Step title="启动服务">
+    **使用预构建镜像（最快）：**
+    ```bash
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+
+    **或从源码构建：**
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+  <Step title="访问应用">
+    - 前端：[http://localhost:3000](http://localhost:3000)
+    - 后端 API：[http://localhost:5000](http://localhost:5000)
+  </Step>
+</Steps>
+
+## 从源码部署
+
+### 环境要求
+
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) 包管理器
+- Node.js 16+ 和 npm
+- 有效的 AI 服务 API 密钥
+
+### 后端
+
+```bash
+cd backend
+uv sync
+uv run alembic upgrade head && uv run python app.py
+```
+
+### 前端
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+<Note>
+  使用可编辑 PPTX 导出功能上传 PPTX 文件时，需要安装 [LibreOffice](https://www.libreoffice.org/)。
+</Note>
