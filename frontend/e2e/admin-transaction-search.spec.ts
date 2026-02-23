@@ -4,8 +4,8 @@
 import { test, expect } from '@playwright/test'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
-const ADMIN_EMAIL = 'admin@bananaslides.online'
-const ADMIN_PASSWORD = 'ydw20040928Z#admin'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@bananaslides.online'
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'
 
 async function loginAsAdmin(page: import('@playwright/test').Page) {
   await page.goto(`${BASE_URL}/login`)
@@ -36,7 +36,7 @@ test.describe('Admin Transactions - User Search', () => {
 
     // Type search and verify param name is user_search (not user_id)
     await input.fill('admin')
-    await page.waitForTimeout(800)
+    await page.waitForResponse(resp => resp.url().includes('/api/admin/transactions'))
 
     expect(capturedParams).not.toBeNull()
     expect(capturedParams!.get('user_search')).toBe('admin')

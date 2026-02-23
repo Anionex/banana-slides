@@ -236,6 +236,9 @@ class AdminService:
     ):
         """
         Get all credit transactions for auditing with optional filters.
+
+        Args:
+            user_search: Filter by user ID, username, or email (fuzzy match)
         """
         query = CreditTransaction.query
 
