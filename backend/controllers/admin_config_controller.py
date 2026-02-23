@@ -151,7 +151,16 @@ def update_system_config():
             if pool is None:
                 config.image_provider_pool = None
             else:
+                existing_pool = config.get_image_provider_pool() or []
+                existing_keys = {
+                    ch['id']: ch['api_key']
+                    for ch in existing_pool if ch.get('id') and ch.get('api_key')
+                }
                 for ch in pool:
+                    if not isinstance(ch, dict):
+                        return bad_request("Each channel must be an object")
+                    if not ch.get('api_key') and ch.get('id') in existing_keys:
+                        ch['api_key'] = existing_keys[ch['id']]
                     if not ch.get('provider_format') or not ch.get('api_key'):
                         return bad_request(
                             "Each channel must have provider_format and api_key"

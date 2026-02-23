@@ -89,7 +89,7 @@ class AggregatedImageProvider(ImageProvider):
                 _record_failure(cid)
                 last_error = Exception(f"Channel {cid} returned None")
             except Exception as e:
-                logger.error(f"Channel {cid} failed: {e}")
+                logger.error(f"Channel {cid} failed: {type(e).__name__}")
                 _record_failure(cid)
                 last_error = e
         if last_error:
