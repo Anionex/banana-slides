@@ -226,12 +226,15 @@ test.describe('Admin Logs Page - Mock', () => {
 // ============================================================
 test.describe('Admin Logs API - Integration', () => {
   test('admin logs endpoint returns log data', async ({ request }) => {
-    // Login as admin
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL;
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+    if (!adminEmail || !adminPassword) {
+      test.skip(true, 'Admin credentials not configured - skipping integration test');
+      return;
+    }
+
     const loginRes = await request.post(`${BASE_URL}/api/auth/login`, {
-      data: {
-        email: process.env.DEFAULT_ADMIN_EMAIL || 'admin@bananaslides.com',
-        password: process.env.DEFAULT_ADMIN_PASSWORD || 'admin123',
-      },
+      data: { email: adminEmail, password: adminPassword },
     });
 
     if (loginRes.status() !== 200) {
