@@ -160,22 +160,36 @@ export const OutlineEditor: React.FC = () => {
     }
   }, [currentProject?.id]);
 
-  const handleSaveInputText = useCallback(async () => {
-    if (!projectId || !currentProject || !isInputDirty) return;
+  const saveInputText = useCallback(async (text: string, creationType: string | undefined) => {
+    if (!projectId || !creationType) return;
     try {
-      const field = currentProject.creation_type === 'outline'
+      const field = creationType === 'outline'
         ? 'outline_text'
-        : currentProject.creation_type === 'descriptions'
+        : creationType === 'descriptions'
           ? 'description_text'
           : 'idea_prompt';
-      await updateProject(projectId, { [field]: inputText } as any);
+      await updateProject(projectId, { [field]: text } as any);
       await syncProject(projectId);
       setIsInputDirty(false);
     } catch (e) {
       console.error('保存输入文本失败:', e);
       show({ message: '保存失败', type: 'error' });
     }
-  }, [projectId, currentProject?.creation_type, inputText, isInputDirty, show, syncProject]);
+  }, [projectId, show, syncProject]);
+
+  // Debounced auto-save: save 1s after user stops typing
+  useEffect(() => {
+    if (!isInputDirty) return;
+    const timer = setTimeout(() => {
+      saveInputText(inputText, currentProject?.creation_type);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
+
+  const handleSaveInputText = useCallback(() => {
+    if (!isInputDirty) return;
+    saveInputText(inputText, currentProject?.creation_type);
+  }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
 
   const handleInputChange = useCallback((text: string) => {
     setInputText(text);
