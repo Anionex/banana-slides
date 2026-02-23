@@ -69,7 +69,7 @@ export default function AnnouncementPopup() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
+    <div data-testid="announcement-popup" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
       <div className="relative w-full max-w-md mx-4 bg-white dark:bg-background-secondary rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         {/* Header */}
         <div className="px-5 pt-5 pb-2">
