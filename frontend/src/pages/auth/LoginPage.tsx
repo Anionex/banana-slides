@@ -3,6 +3,7 @@
  * 登录页面
  */
 import { useState } from 'react';
+import PasswordInput from '../../components/auth/PasswordInput';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { loginUser } from '../../api/auth';
 import { Button } from '../../components/shared';
@@ -131,13 +132,11 @@ export default function LoginPage() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
                 {t('login.password')}
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-lg text-gray-900 dark:text-foreground-primary placeholder-gray-400 dark:placeholder-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent transition"
                 placeholder="••••••••"
               />
             </div>
