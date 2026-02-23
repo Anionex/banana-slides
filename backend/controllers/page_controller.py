@@ -457,12 +457,10 @@ def generate_page_image(project_id, page_id):
         task.set_progress({
             'total': 1,
             'completed': 0,
-            'failed': 0
+            'failed': 0,
+            'page_ids': [page_id]
         })
         db.session.add(task)
-
-        # Update page status immediately so refresh shows correct state
-        page.status = 'GENERATING'
         db.session.commit()
         
         # Get app instance for background task

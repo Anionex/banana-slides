@@ -288,8 +288,22 @@ def get_project(project_id):
         
         if not project:
             return not_found('Project')
-        
-        return success_response(project.to_dict(include_pages=True))
+
+        result = project.to_dict(include_pages=True)
+
+        # Include active image generation tasks so frontend can resume polling after refresh
+        active_tasks = Task.query.filter(
+            Task.project_id == project_id,
+            Task.task_type.in_(['GENERATE_IMAGES', 'GENERATE_PAGE_IMAGE']),
+            Task.status.in_(['PENDING', 'PROCESSING'])
+        ).all()
+        if active_tasks:
+            result['active_image_tasks'] = [
+                {'task_id': t.id, 'page_ids': (t.get_progress() or {}).get('page_ids', [])}
+                for t in active_tasks
+            ]
+
+        return success_response(result)
     
     except Exception as e:
         logger.error(f"get_project failed: {str(e)}", exc_info=True)
@@ -770,7 +784,8 @@ def generate_images(project_id):
         task.set_progress({
             'total': len(pages),
             'completed': 0,
-            'failed': 0
+            'failed': 0,
+            'page_ids': [p.id for p in pages]
         })
         
         db.session.add(task)
@@ -806,10 +821,8 @@ def generate_images(project_id):
             selected_page_ids if selected_page_ids else None
         )
         
-        # Update project and page statuses immediately so refresh shows correct state
+        # Update project status
         project.status = 'GENERATING_IMAGES'
-        for p in pages:
-            p.status = 'GENERATING'
         db.session.commit()
         
         return success_response({
