@@ -2,8 +2,9 @@
 Admin controller - API endpoints for the admin dashboard
 """
 import logging
+import os
 
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 from middlewares.auth import auth_required, admin_required, get_current_user
 from services.admin_service import AdminService
 from utils.response import success_response, error_response
@@ -174,3 +175,44 @@ def change_subscription(user_id):
     if err:
         return error_response('INVALID_REQUEST', err, 400)
     return success_response(user_data)
+
+
+@admin_bp.route('/logs', methods=['GET'])
+@auth_required
+@admin_required
+def get_logs():
+    """
+    Read application log file with optional filtering.
+
+    Query params:
+        lines: number of lines to return (default 200, max 2000)
+        level: filter by log level (INFO, WARNING, ERROR)
+        keyword: text search filter
+    """
+    lines = min(request.args.get('lines', 200, type=int), 2000)
+    level = request.args.get('level', '').strip().upper() or None
+    keyword = request.args.get('keyword', '').strip() or None
+
+    log_path = current_app.config.get('LOG_FILE_PATH')
+    if not log_path or not os.path.exists(log_path):
+        return success_response({'lines': [], 'total': 0})
+
+    try:
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            all_lines = f.readlines()
+
+        filtered = all_lines
+        if level:
+            filtered = [l for l in filtered if f'[{level}]' in l]
+        if keyword:
+            kw_lower = keyword.lower()
+            filtered = [l for l in filtered if kw_lower in l.lower()]
+
+        tail = filtered[-lines:]
+        return success_response({
+            'lines': [l.rstrip('\n') for l in tail],
+            'total': len(filtered),
+        })
+    except Exception as e:
+        logger.error(f"Failed to read log file: {e}")
+        return error_response('INTERNAL_ERROR', str(e), 500)
