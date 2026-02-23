@@ -151,28 +151,42 @@ class Settings(db.Model):
         """
         Get or create the single settings instance.
 
-        - 首次创建时，用 Config（也就是 .env）里的值初始化，作为"系统默认值"
-        - 已有记录时，用 Config 值回填仍为 None 的字段（应对新增列或后配置 env 的场景）
-        - 之后所有读写都只走数据库，env 只影响初始化/重置逻辑
+        This is a **read** operation.  For any database field that is
+        still ``None``, the corresponding ``.env`` / ``Config`` value is
+        merged **in memory only** — the database row is never updated
+        here.  Only an explicit save (e.g. the user clicking "Save" on
+        the Settings page) should persist values to the database.
+
+        This ensures that editing ``.env`` and restarting the backend is
+        sufficient to pick up new values for fields the user has not
+        explicitly overridden via the UI.
         """
         defaults = Settings._get_config_defaults()
         settings = Settings.query.first()
 
-        if settings:
-            # 回填：仅当数据库字段为 None 时才用 Config 默认值填充
-            dirty = False
+        if settings is None:
+            # First access: create and persist the initial record.
+            settings = Settings(**defaults)
+            settings.id = 1
+            db.session.add(settings)
+            db.session.commit()
+            return settings
+
+        # Merge .env defaults into None fields *in memory only*.
+        # We set attributes on the ORM instance for convenience but
+        # immediately expunge it so SQLAlchemy will not flush the
+        # changes back to the database.
+        needs_merge = any(
+            getattr(settings, attr) is None and default is not None
+            for attr, default in defaults.items()
+        )
+
+        if needs_merge:
+            db.session.expunge(settings)
             for attr, default in defaults.items():
                 if getattr(settings, attr) is None and default is not None:
                     setattr(settings, attr, default)
-                    dirty = True
-            if dirty:
-                db.session.commit()
-            return settings
 
-        settings = Settings(**defaults)
-        settings.id = 1
-        db.session.add(settings)
-        db.session.commit()
         return settings
 
     def __repr__(self):
