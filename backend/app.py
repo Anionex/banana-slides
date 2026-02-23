@@ -167,7 +167,7 @@ def create_app():
         from models import Settings
         try:
             settings = Settings.get_settings()
-            return {'data': {'language': settings.output_language}}
+            return {'data': {'language': settings.output_language or Config.OUTPUT_LANGUAGE}}
         except SQLAlchemyError as db_error:
             logging.warning(f"Failed to load output language from settings: {db_error}")
             return {'data': {'language': Config.OUTPUT_LANGUAGE}}  # 默认中文
@@ -221,15 +221,19 @@ def _load_settings_to_config(app):
             else:
                 logging.info("API key is empty in settings, using env var or default")
 
-        # Load image generation settings
-        app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
-        app.config['DEFAULT_ASPECT_RATIO'] = settings.image_aspect_ratio
-        logging.info(f"Loaded image settings: {settings.image_resolution}, {settings.image_aspect_ratio}")
+        # Load image generation settings (fall back to .env/Config when NULL)
+        resolution = settings.image_resolution or Config.DEFAULT_RESOLUTION
+        aspect_ratio = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
+        app.config['DEFAULT_RESOLUTION'] = resolution
+        app.config['DEFAULT_ASPECT_RATIO'] = aspect_ratio
+        logging.info(f"Loaded image settings: {resolution}, {aspect_ratio}")
 
-        # Load worker settings
-        app.config['MAX_DESCRIPTION_WORKERS'] = settings.max_description_workers
-        app.config['MAX_IMAGE_WORKERS'] = settings.max_image_workers
-        logging.info(f"Loaded worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
+        # Load worker settings (fall back to .env/Config when NULL)
+        desc_workers = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
+        img_workers = settings.max_image_workers or Config.MAX_IMAGE_WORKERS
+        app.config['MAX_DESCRIPTION_WORKERS'] = desc_workers
+        app.config['MAX_IMAGE_WORKERS'] = img_workers
+        logging.info(f"Loaded worker settings: desc={desc_workers}, img={img_workers}")
 
         # Load model settings (FIX for Issue #136: these were missing before)
         if settings.text_model:

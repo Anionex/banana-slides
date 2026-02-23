@@ -340,51 +340,32 @@ def reset_settings():
     try:
         settings = Settings.get_settings()
 
-        # Reset to default values from Config / .env
-        # Priority logic:
-        # - Check AI_PROVIDER_FORMAT
-        # - If "openai" -> use OPENAI_API_BASE / OPENAI_API_KEY
-        # - If "lazyllm" -> keep API base/key empty (uses source-specific env keys)
-        # - Otherwise (default "gemini") -> use GOOGLE_API_BASE / GOOGLE_API_KEY
-        settings.ai_provider_format = Config.AI_PROVIDER_FORMAT
-
-        if (Config.AI_PROVIDER_FORMAT or "").lower() == "openai":
-            default_api_base = Config.OPENAI_API_BASE or None
-            default_api_key = Config.OPENAI_API_KEY or None
-        elif (Config.AI_PROVIDER_FORMAT or "").lower() == "lazyllm":
-            default_api_base = None
-            default_api_key = None
-        else:
-            default_api_base = Config.GOOGLE_API_BASE or None
-            default_api_key = Config.GOOGLE_API_KEY or None
-
-        settings.api_base_url = default_api_base
-        settings.api_key = default_api_key
-        settings.text_model = Config.TEXT_MODEL
-        settings.image_model = Config.IMAGE_MODEL
-        settings.mineru_api_base = Config.MINERU_API_BASE
-        settings.mineru_token = Config.MINERU_TOKEN
-        settings.image_caption_model = Config.IMAGE_CAPTION_MODEL
-        settings.output_language = 'zh'  # 重置为默认中文
-        # 重置推理模式配置
+        # Reset all fields to NULL so .env defaults take over via to_dict()
+        settings.ai_provider_format = None
+        settings.api_base_url = None
+        settings.api_key = None
+        settings.text_model = None
+        settings.image_model = None
+        settings.mineru_api_base = None
+        settings.mineru_token = None
+        settings.image_caption_model = None
+        settings.output_language = None
         settings.enable_text_reasoning = False
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
-        settings.baidu_ocr_api_key = Config.BAIDU_OCR_API_KEY or None
-        settings.text_model_source = getattr(Config, 'TEXT_MODEL_SOURCE', None)
-        settings.image_model_source = getattr(Config, 'IMAGE_MODEL_SOURCE', None)
-        settings.image_caption_model_source = getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None)
-        from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
-        settings.lazyllm_api_keys = collect_env_lazyllm_api_keys()
-        # 重置 per-model API 凭证
+        settings.baidu_ocr_api_key = None
+        settings.text_model_source = None
+        settings.image_model_source = None
+        settings.image_caption_model_source = None
+        settings.lazyllm_api_keys = None
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
             setattr(settings, f'{model_type}_api_base_url', None)
-        settings.image_resolution = Config.DEFAULT_RESOLUTION
-        settings.image_aspect_ratio = Config.DEFAULT_ASPECT_RATIO
-        settings.max_description_workers = Config.MAX_DESCRIPTION_WORKERS
-        settings.max_image_workers = Config.MAX_IMAGE_WORKERS
+        settings.image_resolution = None
+        settings.image_aspect_ratio = None
+        settings.max_description_workers = None
+        settings.max_image_workers = None
         settings.updated_at = datetime.now(timezone.utc)
 
         db.session.commit()
@@ -568,14 +549,14 @@ def _sync_settings_to_config(settings: Settings):
             logger.info(f"Image model changed: {old_model} -> {settings.image_model}")
         current_app.config["IMAGE_MODEL"] = settings.image_model
 
-    # Sync image generation settings
-    current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution
-    current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio
+    # Sync image generation settings (fall back to Config when NULL)
+    current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution or Config.DEFAULT_RESOLUTION
+    current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
 
-    # Sync worker settings
-    current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers
-    current_app.config["MAX_IMAGE_WORKERS"] = settings.max_image_workers
-    logger.info(f"Updated worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
+    # Sync worker settings (fall back to Config when NULL)
+    current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
+    current_app.config["MAX_IMAGE_WORKERS"] = settings.max_image_workers or Config.MAX_IMAGE_WORKERS
+    logger.info(f"Updated worker settings: desc={current_app.config['MAX_DESCRIPTION_WORKERS']}, img={current_app.config['MAX_IMAGE_WORKERS']}")
 
     # Sync MinerU settings (optional, fall back to Config defaults if None)
     if settings.mineru_api_base:

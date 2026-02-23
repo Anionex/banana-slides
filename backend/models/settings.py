@@ -11,13 +11,13 @@ class Settings(db.Model):
     __tablename__ = 'settings'
 
     id = db.Column(db.Integer, primary_key=True, default=1)
-    ai_provider_format = db.Column(db.String(20), nullable=False, default='gemini')  # AI提供商格式: openai, gemini
-    api_base_url = db.Column(db.String(500), nullable=True)  # API基础URL
-    api_key = db.Column(db.String(500), nullable=True)  # API密钥
-    image_resolution = db.Column(db.String(20), nullable=False, default='2K')  # 图像清晰度: 1K, 2K, 4K
-    image_aspect_ratio = db.Column(db.String(10), nullable=False, default='16:9')  # 图像比例: 16:9, 4:3, 1:1
-    max_description_workers = db.Column(db.Integer, nullable=False, default=5)  # 描述生成最大工作线程数
-    max_image_workers = db.Column(db.Integer, nullable=False, default=8)  # 图像生成最大工作线程数
+    ai_provider_format = db.Column(db.String(20), nullable=True)   # AI提供商格式: openai, gemini (NULL=use .env)
+    api_base_url = db.Column(db.String(500), nullable=True)        # API基础URL
+    api_key = db.Column(db.String(500), nullable=True)             # API密钥
+    image_resolution = db.Column(db.String(20), nullable=True)     # 图像清晰度: 1K, 2K, 4K (NULL=use .env)
+    image_aspect_ratio = db.Column(db.String(10), nullable=True)   # 图像比例: 16:9, 4:3, 1:1 (NULL=use .env)
+    max_description_workers = db.Column(db.Integer, nullable=True)  # 描述生成最大工作线程数 (NULL=use .env)
+    max_image_workers = db.Column(db.Integer, nullable=True)        # 图像生成最大工作线程数 (NULL=use .env)
 
     # 新增：大模型与 MinerU 相关可视化配置（可在设置页中编辑）
     text_model = db.Column(db.String(100), nullable=True)  # 文本大模型名称（覆盖 Config.TEXT_MODEL）
@@ -25,7 +25,7 @@ class Settings(db.Model):
     mineru_api_base = db.Column(db.String(255), nullable=True)  # MinerU 服务地址（覆盖 Config.MINERU_API_BASE）
     mineru_token = db.Column(db.String(500), nullable=True)  # MinerU API Token（覆盖 Config.MINERU_TOKEN）
     image_caption_model = db.Column(db.String(100), nullable=True)  # 图片识别模型（覆盖 Config.IMAGE_CAPTION_MODEL）
-    output_language = db.Column(db.String(10), nullable=False, default='zh')  # 输出语言偏好（zh, en, ja, auto）
+    output_language = db.Column(db.String(10), nullable=True)  # 输出语言偏好（zh, en, ja, auto）(NULL=use .env)
     
     # 推理模式配置（分别控制文本和图像生成）
     enable_text_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 文本生成是否开启推理
@@ -168,12 +168,10 @@ class Settings(db.Model):
         defaults for ``None`` fields are merged only at serialisation
         time in ``to_dict()``, so this method has no write side-effects.
         """
-        defaults = Settings._get_config_defaults()
         settings = Settings.query.first()
 
         if settings is None:
-            settings = Settings(**defaults)
-            settings.id = 1
+            settings = Settings(id=1)
             db.session.add(settings)
             db.session.commit()
 
