@@ -90,7 +90,7 @@ class Settings(db.Model):
             'text_model_source': self._val('text_model_source', d),
             'image_model_source': self._val('image_model_source', d),
             'image_caption_model_source': self._val('image_caption_model_source', d),
-            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(),
+            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(self._val('lazyllm_api_keys', d)),
             'text_api_key_length': len(text_api_key) if text_api_key else 0,
             'text_api_base_url': self._val('text_api_base_url', d),
             'image_api_key_length': len(image_api_key) if image_api_key else 0,
@@ -101,12 +101,13 @@ class Settings(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
 
-    def _get_lazyllm_api_keys_info(self):
+    def _get_lazyllm_api_keys_info(self, raw=None):
         """Return vendor names and key lengths (no plaintext) for frontend display."""
-        if not self.lazyllm_api_keys:
+        data = raw if raw is not None else self.lazyllm_api_keys
+        if not data:
             return {}
         try:
-            keys = json.loads(self.lazyllm_api_keys)
+            keys = json.loads(data)
             return {vendor: len(key) for vendor, key in keys.items() if key}
         except (json.JSONDecodeError, TypeError):
             return {}
