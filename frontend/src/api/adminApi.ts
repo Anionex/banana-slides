@@ -67,3 +67,14 @@ export interface AdminOrdersParams {
 
 export const getAdminOrders = (params: AdminOrdersParams = {}) =>
   apiClient.get('/api/admin/orders', { params });
+
+// --- Logs ---
+
+export interface AdminLogsParams {
+  lines?: number;
+  level?: string;
+  keyword?: string;
+}
+
+export const getAdminLogs = (params: AdminLogsParams = {}) =>
+  apiClient.get('/api/admin/logs', { params });
