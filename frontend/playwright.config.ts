@@ -34,7 +34,7 @@ export default defineConfig({
   // 全局设置
   use: {
     // 基础URL
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     
     // 截图设置
     screenshot: 'only-on-failure',
