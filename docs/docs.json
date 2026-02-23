@@ -24,7 +24,8 @@
               "features/creation",
               "features/editing",
               "features/materials",
-              "features/export"
+              "features/export",
+              "features/import-export"
             ]
           },
           {
@@ -47,7 +48,8 @@
               "zh/features/creation",
               "zh/features/editing",
               "zh/features/materials",
-              "zh/features/export"
+              "zh/features/export",
+              "zh/features/import-export"
             ]
           },
           {
