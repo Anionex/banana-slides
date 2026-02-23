@@ -286,7 +286,7 @@ export const DetailEditor: React.FC = () => {
         show({ message: t('detail.messages.importEmpty'), type: 'error' });
         return;
       }
-      const startIndex = currentProject.pages.length;
+      const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
       await Promise.all(parsed.map(({ title, points, text: desc, part }, i) =>
         addPage(projectId, {
           outline_content: { title, points },
