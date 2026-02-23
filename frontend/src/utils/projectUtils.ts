@@ -156,7 +156,8 @@ export const exportProjectToMarkdown = (project: Project, opts?: ExportOptions):
   md += `> 生成时间: ${new Date().toLocaleString('zh-CN')}\n\n---\n\n`;
   project.pages.forEach((page, i) => { md += pageToMarkdown(page, i, opts); });
   const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-  downloadFile(blob, `项目_${project.id?.slice(0, 8) || 'export'}.md`);
+  const prefix = opts?.outline === false ? '描述' : opts?.description === false ? '大纲' : '项目';
+  downloadFile(blob, `${prefix}_${project.id?.slice(0, 8) || 'export'}.md`);
 };
 
 // --- 导入 ---
