@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Save, Settings, CreditCard, Users, Shield, Package } from 'lucide-react';
+import { ArrowLeft, Save, Settings, CreditCard, Users, Shield, Package, Image, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, Card, Input, Loading, useToast } from '@/components/shared';
 import * as api from '@/api/endpoints';
@@ -26,6 +26,18 @@ const adminConfigI18n = {
       featuresDesc: '启用或禁用特定功能',
       packages: '积分套餐',
       packagesDesc: '配置各套餐的积分数量和价格',
+      imagePool: '文生图渠道池',
+      imagePoolDesc: '配置多个文生图渠道，按优先级自动降级',
+    },
+    channelFields: {
+      name: '渠道名称',
+      providerFormat: '提供商格式',
+      apiKey: 'API Key',
+      apiBase: 'API Base URL',
+      model: '模型',
+      priority: '优先级',
+      enabled: '启用',
+      addChannel: '添加渠道',
     },
     packageFields: {
       credits: '积分',
@@ -81,6 +93,18 @@ const adminConfigI18n = {
       featuresDesc: 'Enable or disable specific features',
       packages: 'Credit Packages',
       packagesDesc: 'Configure credits and pricing for each package',
+      imagePool: 'Image Provider Pool',
+      imagePoolDesc: 'Configure multiple image generation channels with priority-based fallback',
+    },
+    channelFields: {
+      name: 'Channel Name',
+      providerFormat: 'Provider Format',
+      apiKey: 'API Key',
+      apiBase: 'API Base URL',
+      model: 'Model',
+      priority: 'Priority',
+      enabled: 'Enabled',
+      addChannel: 'Add Channel',
     },
     packageFields: {
       credits: 'Credits',
@@ -129,6 +153,18 @@ interface PackageConfig {
   bonus_credits: number;
 }
 
+interface ProviderChannel {
+  id: string;
+  name: string;
+  provider_format: string;
+  api_key: string;
+  api_key_length?: number;
+  api_base: string;
+  model: string;
+  priority: number;
+  enabled: boolean;
+}
+
 interface SystemConfig {
   user_editable_fields: string[];
   registration_bonus: number;
@@ -146,6 +182,7 @@ interface SystemConfig {
   enable_credits_purchase: boolean;
   enable_invitation: boolean;
   credit_packages: PackageConfig[] | null;
+  image_provider_pool: ProviderChannel[] | null;
 }
 
 interface FieldInfo {
@@ -255,6 +292,35 @@ export const AdminConfig: React.FC = () => {
   const handleResetPackages = () => {
     if (!config) return;
     setConfig({ ...config, credit_packages: null });
+  };
+
+  const handleAddChannel = () => {
+    if (!config) return;
+    const pool = config.image_provider_pool || [];
+    const newChannel: ProviderChannel = {
+      id: crypto.randomUUID(),
+      name: '',
+      provider_format: 'gemini',
+      api_key: '',
+      api_base: '',
+      model: 'gemini-3-pro-image-preview',
+      priority: pool.length + 1,
+      enabled: true,
+    };
+    setConfig({ ...config, image_provider_pool: [...pool, newChannel] });
+  };
+
+  const handleRemoveChannel = (index: number) => {
+    if (!config || !config.image_provider_pool) return;
+    const updated = config.image_provider_pool.filter((_, i) => i !== index);
+    setConfig({ ...config, image_provider_pool: updated.length ? updated : null });
+  };
+
+  const handleChannelChange = (index: number, field: string, value: string | number | boolean) => {
+    if (!config || !config.image_provider_pool) return;
+    const updated = [...config.image_provider_pool];
+    updated[index] = { ...updated[index], [field]: value };
+    setConfig({ ...config, image_provider_pool: updated });
   };
 
   if (isLoading) {
@@ -578,6 +644,125 @@ export const AdminConfig: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </Card>
+
+          {/* Image Provider Pool Section */}
+          <Card className="p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Image className="mr-2 text-teal-500" size={20} />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary">
+                    {t('sections.imagePool')}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
+                    {t('sections.imagePoolDesc')}
+                  </p>
+                </div>
+              </div>
+              <Button variant="secondary" size="sm" icon={<Plus size={16} />} onClick={handleAddChannel}>
+                {t('channelFields.addChannel')}
+              </Button>
+            </div>
+
+            <div className="space-y-4" data-testid="image-pool-section">
+              {(config.image_provider_pool || []).map((ch, index) => (
+                <div key={ch.id} className="border dark:border-border-primary rounded-lg p-4 relative">
+                  <button
+                    onClick={() => handleRemoveChannel(index)}
+                    className="absolute top-3 right-3 text-red-400 hover:text-red-600"
+                    aria-label="Remove channel"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('channelFields.name')}
+                      </label>
+                      <Input
+                        value={ch.name}
+                        onChange={e => handleChannelChange(index, 'name', e.target.value)}
+                        placeholder="e.g. Gemini Primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('channelFields.providerFormat')}
+                      </label>
+                      <select
+                        value={ch.provider_format}
+                        onChange={e => handleChannelChange(index, 'provider_format', e.target.value)}
+                        className="w-full rounded-md border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-sm px-3 py-2"
+                      >
+                        <option value="gemini">Gemini</option>
+                        <option value="openai">OpenAI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('channelFields.model')}
+                      </label>
+                      <Input
+                        value={ch.model}
+                        onChange={e => handleChannelChange(index, 'model', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('channelFields.apiKey')}
+                      </label>
+                      <Input
+                        type="password"
+                        value={ch.api_key}
+                        onChange={e => handleChannelChange(index, 'api_key', e.target.value)}
+                        placeholder={ch.api_key_length ? `(${ch.api_key_length} chars set)` : ''}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                        {t('channelFields.apiBase')}
+                      </label>
+                      <Input
+                        value={ch.api_base}
+                        onChange={e => handleChannelChange(index, 'api_base', e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div className="flex items-end gap-4">
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                          {t('channelFields.priority')}
+                        </label>
+                        <Input
+                          type="number"
+                          value={ch.priority}
+                          onChange={e => handleChannelChange(index, 'priority', parseInt(e.target.value) || 0)}
+                          min={1}
+                        />
+                      </div>
+                      <button
+                        onClick={() => handleChannelChange(index, 'enabled', !ch.enabled)}
+                        className={`mb-1 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          ch.enabled ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                        title={t('channelFields.enabled')}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          ch.enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {(!config.image_provider_pool || config.image_provider_pool.length === 0) && (
+                <p className="text-sm text-gray-400 dark:text-foreground-tertiary text-center py-4">
+                  {t('sections.imagePoolDesc')}
+                </p>
+              )}
             </div>
           </Card>
       </main>

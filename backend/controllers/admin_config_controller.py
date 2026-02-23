@@ -142,8 +142,42 @@ def update_system_config():
             else:
                 config.set_credit_packages(packages)
 
+        # 更新文生图渠道池
+        pool_changed = False
+        if "image_provider_pool" in data:
+            pool = data["image_provider_pool"]
+            if pool is not None and not isinstance(pool, list):
+                return bad_request("image_provider_pool must be a list or null")
+            if pool is None:
+                config.image_provider_pool = None
+            else:
+                existing_pool = config.get_image_provider_pool() or []
+                existing_keys = {
+                    ch['id']: ch['api_key']
+                    for ch in existing_pool if ch.get('id') and ch.get('api_key')
+                }
+                for ch in pool:
+                    if not isinstance(ch, dict):
+                        return bad_request("Each channel must be an object")
+                    if not ch.get('api_key') and ch.get('id') in existing_keys:
+                        ch['api_key'] = existing_keys[ch['id']]
+                    if not ch.get('provider_format') or not ch.get('api_key'):
+                        return bad_request(
+                            "Each channel must have provider_format and api_key"
+                        )
+                config.set_image_provider_pool(pool)
+            pool_changed = True
+
         db.session.commit()
         logger.info("System config updated successfully")
+
+        if pool_changed:
+            try:
+                from services.ai_service_manager import clear_ai_service_cache
+                clear_ai_service_cache()
+            except Exception as e:
+                logger.warning(f"Failed to clear AI service cache: {e}")
+
         return success_response(config.to_dict(), "系统配置更新成功")
 
     except ValueError as e:
