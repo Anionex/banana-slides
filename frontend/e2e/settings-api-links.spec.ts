@@ -7,16 +7,15 @@ test.describe('Settings page API key labels and links', () => {
   });
 
   test('Baidu section title should not contain OCR', async ({ page }) => {
-    // Should show "百度配置" or "Baidu Configuration", not "百度 OCR 配置"
-    const baiduSection = page.locator('text=/百度配置|Baidu Configuration/');
+    const baiduSection = page.locator('h2').filter({ hasText: /百度配置|Baidu Configuration/ });
     await expect(baiduSection).toBeVisible();
-    await expect(page.locator('text=/百度 OCR 配置|Baidu OCR Configuration/')).not.toBeVisible();
+    await expect(page.locator('h2').filter({ hasText: /百度 OCR 配置|Baidu OCR Configuration/ })).not.toBeVisible();
   });
 
   test('Baidu API Key label should not contain OCR', async ({ page }) => {
-    const baiduLabel = page.locator('text=/百度 API Key|Baidu API Key/').first();
+    const baiduLabel = page.locator('label').filter({ hasText: /百度 API Key|Baidu API Key/ });
     await expect(baiduLabel).toBeVisible();
-    await expect(page.locator('label:text-is("百度 OCR API Key")')).not.toBeVisible();
+    await expect(page.locator('label:has-text("百度 OCR API Key")')).not.toBeVisible();
   });
 
   test('MinerU Token field has application link', async ({ page }) => {
