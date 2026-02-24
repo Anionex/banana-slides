@@ -39,7 +39,7 @@ const settingsI18n = {
         mineruApiBase: "MinerU API Base", mineruApiBasePlaceholder: "留空使用环境变量配置 (如: https://mineru.net)",
         mineruApiBaseDesc: "MinerU 服务地址，用于解析参考文件",
         mineruToken: "MinerU Token", mineruTokenPlaceholder: "输入新的 MinerU Token",
-        mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新", mineruTokenLink: "申请 Token",
+        mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新",
         imageResolution: "图像清晰度（某些OpenAI格式中转调整该值无效）",
         imageResolutionDesc: "更高的清晰度会生成更详细的图像，但需要更长时间",
         maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "同时生成描述的最大工作线程数 (1-20)，越大速度越快",
@@ -50,7 +50,8 @@ const settingsI18n = {
         enableImageReasoning: "启用图像推理", enableImageReasoningDesc: "开启后，图像生成会使用思考链模式，可能获得更好的构图效果",
         imageThinkingBudget: "图像思考负载", imageThinkingBudgetDesc: "图像推理的思考 token 预算 (1-8192)，数值越大推理越深入",
         baiduOcrApiKey: "百度 API Key", baiduOcrApiKeyPlaceholder: "输入百度 API Key",
-        baiduOcrApiKeyDesc: "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变", baiduOcrApiKeyLink: "申请 API Key",
+        baiduOcrApiKeyDesc: "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变",
+        applyLink: "，请点击此处申请",
         textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
         imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --",
         imageCaptionModelSource: "图片识别模型提供商格式", imageCaptionModelSourceDesc: "选择图片识别使用的提供商格式", imageCaptionModelSourcePlaceholder: "-- 请选择 --",
@@ -66,6 +67,7 @@ const settingsI18n = {
         perModelApiKeySet: "已设置（长度: {{length}}）",
       },
       apiKeyTip: "API 密匙获取可前往 {{link}}, 减小迁移成本",
+      apiKeyApplyLink: "，请点击此处申请密钥",
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
         tip: "提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。",
@@ -127,7 +129,7 @@ const settingsI18n = {
         mineruApiBase: "MinerU API Base", mineruApiBasePlaceholder: "Leave empty to use env config (e.g., https://mineru.net)",
         mineruApiBaseDesc: "MinerU service address for parsing reference files",
         mineruToken: "MinerU Token", mineruTokenPlaceholder: "Enter new MinerU Token",
-        mineruTokenDesc: "Leave empty to keep current setting, enter new value to update", mineruTokenLink: "Apply for Token",
+        mineruTokenDesc: "Leave empty to keep current setting, enter new value to update",
         imageResolution: "Image Resolution (may not work with some OpenAI format proxies)",
         imageResolutionDesc: "Higher resolution generates more detailed images but takes longer",
         maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation (1-20), higher is faster",
@@ -138,7 +140,8 @@ const settingsI18n = {
         enableImageReasoning: "Enable Image Reasoning", enableImageReasoningDesc: "When enabled, image generation uses chain-of-thought mode for better composition",
         imageThinkingBudget: "Image Thinking Budget", imageThinkingBudgetDesc: "Token budget for image reasoning (1-8192), higher values enable deeper reasoning",
         baiduOcrApiKey: "Baidu API Key", baiduOcrApiKeyPlaceholder: "Enter Baidu API Key",
-        baiduOcrApiKeyDesc: "For text recognition in editable PPTX export, leave empty to keep current setting", baiduOcrApiKeyLink: "Apply for API Key",
+        baiduOcrApiKeyDesc: "For text recognition in editable PPTX export, leave empty to keep current setting",
+        applyLink: ", click here to apply",
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
         imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --",
         imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
@@ -154,6 +157,7 @@ const settingsI18n = {
         perModelApiKeySet: "Set (length: {{length}})",
       },
       apiKeyTip: "Get API keys from {{link}} for easier migration",
+      apiKeyApplyLink: ", click here to apply",
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
         tip: "Tip: Image generation and MinerU tests may take 30-60 seconds, please be patient.",
@@ -202,7 +206,7 @@ interface FieldConfig {
   options?: { value: string; label: string }[];  // select 类型的选项
   min?: number;
   max?: number;
-  link?: { url: string; text: string };
+  link?: string;  // 申请链接 URL
 }
 
 interface SectionConfig {
@@ -385,7 +389,7 @@ export const Settings: React.FC = () => {
           sensitiveField: true,
           lengthKey: 'mineru_token_length',
           description: t('settings.fields.mineruTokenDesc'),
-          link: { url: 'https://mineru.net/apiManage/token', text: t('settings.fields.mineruTokenLink') },
+          link: 'https://mineru.net/apiManage/token',
         },
       ],
     },
@@ -493,7 +497,7 @@ export const Settings: React.FC = () => {
           sensitiveField: true,
           lengthKey: 'baidu_ocr_api_key_length',
           description: t('settings.fields.baiduOcrApiKeyDesc'),
-          link: { url: 'https://console.bce.baidu.com/iam/#/iam/apikey/list', text: t('settings.fields.baiduOcrApiKeyLink') },
+          link: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
         },
       ],
     },
@@ -844,7 +848,7 @@ export const Settings: React.FC = () => {
           <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
             {field.description}
             {field.link && (
-              <> {field.description ? '· ' : ''}<a href={field.link.url} target="_blank" rel="noopener noreferrer" className="text-banana-500 hover:underline">{field.link.text}</a></>
+              <a href={field.link} target="_blank" rel="noopener noreferrer" className="text-banana-500 hover:underline">{t('settings.fields.applyLink')}</a>
             )}
           </p>
         )}
@@ -1071,6 +1075,7 @@ export const Settings: React.FC = () => {
               {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[0]}
               <a href="https://aihubmix.com/?aff=17EC" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">AIHubmix</a>
               {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[1]}
+              <a href="https://aihubmix.com/token?aff=17EC" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyApplyLink')}</a>
             </p>
           </div>
         </div>
