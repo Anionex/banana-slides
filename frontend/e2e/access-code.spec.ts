@@ -47,6 +47,30 @@ test.describe('Access Code Guard (mocked)', () => {
     await expect(page.getByText('口令错误')).toBeVisible({ timeout: 5000 });
   });
 
+  test('shows connection error with retry when backend is unreachable', async ({ page }) => {
+    await page.route('**/api/access-code/check', route =>
+      route.abort('connectionrefused')
+    );
+    await page.goto('/');
+    await expect(page.getByText('无法连接到服务器')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+    // No access code input should be shown
+    await expect(page.locator('input[type="password"]')).not.toBeVisible();
+  });
+
+  test('retry button re-checks access after connection error', async ({ page }) => {
+    let shouldSucceed = false;
+    await page.route('**/api/access-code/check', route => {
+      if (!shouldSucceed) return route.abort('connectionrefused');
+      return route.fulfill({ json: { data: { enabled: false } } });
+    });
+    await page.goto('/');
+    await expect(page.getByText('无法连接到服务器')).toBeVisible({ timeout: 10000 });
+    shouldSucceed = true;
+    await page.getByRole('button', { name: '重试' }).click();
+    await expect(page.getByText('无法连接到服务器')).not.toBeVisible({ timeout: 10000 });
+  });
+
   test('auto-verifies saved code from localStorage', async ({ page }) => {
     let verified = false;
     await page.route('**/api/access-code/check', route =>
