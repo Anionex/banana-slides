@@ -508,8 +508,11 @@ def generate_page_image(project_id, page_id):
             style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
             combined_requirements = combined_requirements + style_requirement
         
+        # Get user image settings (needed for resolution-based credit cost)
+        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
+
         # Consume credits upfront (async task will run)
-        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE)
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE, resolution=user_resolution)
         if not success:
             return error_response('INSUFFICIENT_CREDITS', err, 402)
 
@@ -526,12 +529,9 @@ def generate_page_image(project_id, page_id):
         })
         db.session.add(task)
         db.session.commit()
-        
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
-        # Get user image settings
-        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
 
         # Submit background task
         task_manager.submit_task(

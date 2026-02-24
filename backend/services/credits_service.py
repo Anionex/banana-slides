@@ -38,7 +38,7 @@ class CreditOperation(Enum):
 DEFAULT_CREDIT_COSTS: Dict[CreditOperation, int] = {
     CreditOperation.GENERATE_OUTLINE: 5,
     CreditOperation.GENERATE_DESCRIPTION: 1,        # 每页
-    CreditOperation.GENERATE_IMAGE: 8,              # 每页
+    CreditOperation.GENERATE_IMAGE: 8,              # 每页 (默认值)
     CreditOperation.EDIT_IMAGE: 8,
     CreditOperation.GENERATE_MATERIAL: 10,
     CreditOperation.REFINE_OUTLINE: 2,
@@ -47,16 +47,22 @@ DEFAULT_CREDIT_COSTS: Dict[CreditOperation, int] = {
     CreditOperation.EXPORT_EDITABLE: 15,            # 每页
 }
 
+# 按分辨率的默认图片生成积分
+DEFAULT_IMAGE_COSTS: Dict[str, int] = {
+    '1K': 4,
+    '2K': 8,
+    '4K': 16,
+}
+
 
 def get_credit_costs() -> Dict[CreditOperation, int]:
-    """从 SystemConfig 获取积分消耗配置"""
+    """从 SystemConfig 获取积分消耗配置（不含图片生成，图片生成按分辨率查询）"""
     try:
         from models import SystemConfig
         config = SystemConfig.get_instance()
         return {
             CreditOperation.GENERATE_OUTLINE: config.cost_generate_outline,
             CreditOperation.GENERATE_DESCRIPTION: config.cost_generate_description,
-            CreditOperation.GENERATE_IMAGE: config.cost_generate_image,
             CreditOperation.EDIT_IMAGE: config.cost_edit_image,
             CreditOperation.GENERATE_MATERIAL: config.cost_generate_material,
             CreditOperation.REFINE_OUTLINE: config.cost_refine_outline,
@@ -69,6 +75,17 @@ def get_credit_costs() -> Dict[CreditOperation, int]:
         return DEFAULT_CREDIT_COSTS
 
 
+def get_image_cost(resolution: str = '2K') -> int:
+    """获取指定分辨率的图片生成积分"""
+    try:
+        from models import SystemConfig
+        config = SystemConfig.get_instance()
+        return config.get_image_cost_by_resolution(resolution)
+    except Exception as e:
+        logger.warning(f"Failed to load image cost from SystemConfig, using defaults: {e}")
+        return DEFAULT_IMAGE_COSTS.get(resolution, DEFAULT_IMAGE_COSTS['2K'])
+
+
 # 保持向后兼容的常量（但实际使用时应调用 get_credit_costs()）
 CREDIT_COSTS = DEFAULT_CREDIT_COSTS
 
@@ -77,19 +94,23 @@ class CreditsService:
     """积分服务"""
 
     @staticmethod
-    def get_cost(operation: CreditOperation, quantity: int = 1) -> int:
+    def get_cost(operation: CreditOperation, quantity: int = 1, resolution: Optional[str] = None) -> int:
         """
         获取操作的积分消耗
 
         Args:
             operation: 操作类型
             quantity: 数量（如页数）
+            resolution: 图片分辨率（仅 GENERATE_IMAGE 时使用）
 
         Returns:
             总积分消耗
         """
-        costs = get_credit_costs()
-        base_cost = costs.get(operation, 0)
+        if operation == CreditOperation.GENERATE_IMAGE:
+            base_cost = get_image_cost(resolution or '2K')
+        else:
+            costs = get_credit_costs()
+            base_cost = costs.get(operation, 0)
         return base_cost * quantity
     
     @staticmethod
@@ -114,7 +135,8 @@ class CreditsService:
         user: User,
         operation: CreditOperation,
         quantity: int = 1,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        resolution: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         消耗用户积分（原子操作，防止并发超扣）
@@ -131,7 +153,7 @@ class CreditsService:
         Returns:
             Tuple of (success, error_message)
         """
-        cost = CreditsService.get_cost(operation, quantity)
+        cost = CreditsService.get_cost(operation, quantity, resolution=resolution)
 
         try:
             # 原子扣减：只有余额充足时才更新，防止并发超扣
@@ -176,7 +198,8 @@ class CreditsService:
         user_id: str,
         operation: CreditOperation,
         quantity: int = 1,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        resolution: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         退还用户积分（任务失败时调用）
@@ -192,7 +215,7 @@ class CreditsService:
         Returns:
             Tuple of (success, error_message)
         """
-        refund_amount = CreditsService.get_cost(operation, quantity)
+        refund_amount = CreditsService.get_cost(operation, quantity, resolution=resolution)
         if refund_amount <= 0:
             return True, None
 

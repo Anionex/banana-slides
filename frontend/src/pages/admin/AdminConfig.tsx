@@ -53,7 +53,9 @@ const adminConfigI18n = {
       maxInvitationCodes: '每用户最大邀请码数',
       costGenerateOutline: '生成大纲',
       costGenerateDescription: '生成描述（每页）',
-      costGenerateImage: '生成图片（每页）',
+      costGenerateImage1k: '生成图片 1K（每页）',
+      costGenerateImage2k: '生成图片 2K（每页）',
+      costGenerateImage4k: '生成图片 4K（每页）',
       costEditImage: '编辑图片',
       costGenerateMaterial: '生成素材',
       costRefineOutline: '修改大纲',
@@ -120,7 +122,9 @@ const adminConfigI18n = {
       maxInvitationCodes: 'Max Invitation Codes per User',
       costGenerateOutline: 'Generate Outline',
       costGenerateDescription: 'Generate Description (per page)',
-      costGenerateImage: 'Generate Image (per page)',
+      costGenerateImage1k: 'Generate Image 1K (per page)',
+      costGenerateImage2k: 'Generate Image 2K (per page)',
+      costGenerateImage4k: 'Generate Image 4K (per page)',
       costEditImage: 'Edit Image',
       costGenerateMaterial: 'Generate Material',
       costRefineOutline: 'Refine Outline',
@@ -172,7 +176,9 @@ interface SystemConfig {
   max_invitation_codes: number;
   cost_generate_outline: number;
   cost_generate_description: number;
-  cost_generate_image: number;
+  cost_generate_image_1k: number;
+  cost_generate_image_2k: number;
+  cost_generate_image_4k: number;
   cost_edit_image: number;
   cost_generate_material: number;
   cost_refine_outline: number;
@@ -491,7 +497,9 @@ export const AdminConfig: React.FC = () => {
               {[
                 { key: 'cost_generate_outline', label: t('fields.costGenerateOutline') },
                 { key: 'cost_generate_description', label: t('fields.costGenerateDescription') },
-                { key: 'cost_generate_image', label: t('fields.costGenerateImage') },
+                { key: 'cost_generate_image_1k', label: t('fields.costGenerateImage1k') },
+                { key: 'cost_generate_image_2k', label: t('fields.costGenerateImage2k') },
+                { key: 'cost_generate_image_4k', label: t('fields.costGenerateImage4k') },
                 { key: 'cost_edit_image', label: t('fields.costEditImage') },
                 { key: 'cost_generate_material', label: t('fields.costGenerateMaterial') },
                 { key: 'cost_refine_outline', label: t('fields.costRefineOutline') },

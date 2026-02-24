@@ -502,7 +502,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             if failed > 0 and user_id:
                 CreditsService.refund_credits(
                     user_id, CreditOperation.GENERATE_IMAGE, quantity=failed,
-                    description=f"批量生成图片部分失败 ({failed}/{completed + failed})")
+                    description=f"批量生成图片部分失败 ({failed}/{completed + failed})",
+                    resolution=resolution)
 
         except Exception as e:
             # Mark task as failed
@@ -517,7 +518,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 total_pages = len(get_filtered_pages(project_id, page_ids))
                 CreditsService.refund_credits(
                     user_id, CreditOperation.GENERATE_IMAGE, quantity=total_pages,
-                    description=str(e)[:200])
+                    description=str(e)[:200], resolution=resolution)
 
 
 def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
@@ -649,7 +650,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             if user_id:
                 CreditsService.refund_credits(
                     user_id, CreditOperation.GENERATE_IMAGE,
-                    description=str(e)[:200])
+                    description=str(e)[:200], resolution=resolution)
 
 
 def edit_page_image_task(task_id: str, project_id: str, page_id: str,

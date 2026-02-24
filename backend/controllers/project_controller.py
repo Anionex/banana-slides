@@ -803,12 +803,15 @@ def generate_images(project_id):
         
         if not ref_image_path and not project.template_style:
             return bad_request("请先上传模板图片或添加风格描述。")
-        
+
+        # Get user image settings (needed for resolution-based credit cost)
+        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
+
         # Consume credits upfront (atomic, async task will run)
-        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE, len(pages))
+        success, err = CreditsService.consume_credits(user, CreditOperation.GENERATE_IMAGE, len(pages), resolution=user_resolution)
         if not success:
             return error_response('INSUFFICIENT_CREDITS', err, 402)
-        
+
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
         
@@ -843,9 +846,6 @@ def generate_images(project_id):
         
         # Get app instance for background task
         app = current_app._get_current_object()
-        
-        # Get user image settings
-        user_resolution, user_aspect_ratio = _get_user_image_settings(user.id)
 
         # Submit background task
         task_manager.submit_task(

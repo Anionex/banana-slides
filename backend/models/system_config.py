@@ -30,8 +30,10 @@ class SystemConfig(db.Model):
     cost_generate_outline = db.Column(db.Integer, default=5)
     # 生成描述积分（每页）
     cost_generate_description = db.Column(db.Integer, default=1)
-    # 生成图片积分（每页）
-    cost_generate_image = db.Column(db.Integer, default=8)
+    # 生成图片积分（每页，按分辨率分级）
+    cost_generate_image_1k = db.Column(db.Integer, default=4)
+    cost_generate_image_2k = db.Column(db.Integer, default=8)
+    cost_generate_image_4k = db.Column(db.Integer, default=16)
     # 编辑图片积分
     cost_edit_image = db.Column(db.Integer, default=8)
     # 生成素材积分
@@ -110,12 +112,23 @@ class SystemConfig(db.Model):
         """设置文生图渠道池配置"""
         self.image_provider_pool = json.dumps(pool)
 
+    def get_image_cost_by_resolution(self, resolution: str) -> int:
+        """根据分辨率获取图片生成积分"""
+        costs = {
+            '1K': self.cost_generate_image_1k,
+            '2K': self.cost_generate_image_2k,
+            '4K': self.cost_generate_image_4k,
+        }
+        return costs.get(resolution, self.cost_generate_image_2k)
+
     def get_credit_costs(self):
         """获取所有积分消耗配置"""
         return {
             'generate_outline': self.cost_generate_outline,
             'generate_description': self.cost_generate_description,
-            'generate_image': self.cost_generate_image,
+            'generate_image_1k': self.cost_generate_image_1k,
+            'generate_image_2k': self.cost_generate_image_2k,
+            'generate_image_4k': self.cost_generate_image_4k,
             'edit_image': self.cost_edit_image,
             'generate_material': self.cost_generate_material,
             'refine_outline': self.cost_refine_outline,
@@ -148,7 +161,9 @@ class SystemConfig(db.Model):
             'max_invitation_codes': self.max_invitation_codes,
             'cost_generate_outline': self.cost_generate_outline,
             'cost_generate_description': self.cost_generate_description,
-            'cost_generate_image': self.cost_generate_image,
+            'cost_generate_image_1k': self.cost_generate_image_1k,
+            'cost_generate_image_2k': self.cost_generate_image_2k,
+            'cost_generate_image_4k': self.cost_generate_image_4k,
             'cost_edit_image': self.cost_edit_image,
             'cost_generate_material': self.cost_generate_material,
             'cost_refine_outline': self.cost_refine_outline,
