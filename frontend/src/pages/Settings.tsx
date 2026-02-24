@@ -16,7 +16,7 @@ const settingsI18n = {
         modelConfig: "模型配置", mineruConfig: "MinerU 配置", imageConfig: "图像生成配置",
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
-        baiduOcr: "百度 OCR 配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
+        baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
         vendorApiKeys: "厂商 API Key 配置"
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
@@ -39,7 +39,7 @@ const settingsI18n = {
         mineruApiBase: "MinerU API Base", mineruApiBasePlaceholder: "留空使用环境变量配置 (如: https://mineru.net)",
         mineruApiBaseDesc: "MinerU 服务地址，用于解析参考文件",
         mineruToken: "MinerU Token", mineruTokenPlaceholder: "输入新的 MinerU Token",
-        mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新",
+        mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新", mineruTokenLink: "申请 Token",
         imageResolution: "图像清晰度（某些OpenAI格式中转调整该值无效）",
         imageResolutionDesc: "更高的清晰度会生成更详细的图像，但需要更长时间",
         maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "同时生成描述的最大工作线程数 (1-20)，越大速度越快",
@@ -49,8 +49,8 @@ const settingsI18n = {
         textThinkingBudget: "文本思考负载", textThinkingBudgetDesc: "文本推理的思考 token 预算 (1-8192)，数值越大推理越深入",
         enableImageReasoning: "启用图像推理", enableImageReasoningDesc: "开启后，图像生成会使用思考链模式，可能获得更好的构图效果",
         imageThinkingBudget: "图像思考负载", imageThinkingBudgetDesc: "图像推理的思考 token 预算 (1-8192)，数值越大推理越深入",
-        baiduOcrApiKey: "百度 OCR API Key", baiduOcrApiKeyPlaceholder: "输入百度 OCR API Key",
-        baiduOcrApiKeyDesc: "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变",
+        baiduOcrApiKey: "百度 API Key", baiduOcrApiKeyPlaceholder: "输入百度 API Key",
+        baiduOcrApiKeyDesc: "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变", baiduOcrApiKeyLink: "申请 API Key",
         textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
         imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --",
         imageCaptionModelSource: "图片识别模型提供商格式", imageCaptionModelSourceDesc: "选择图片识别使用的提供商格式", imageCaptionModelSourcePlaceholder: "-- 请选择 --",
@@ -104,7 +104,7 @@ const settingsI18n = {
         modelConfig: "Model Configuration", mineruConfig: "MinerU Configuration", imageConfig: "Image Generation Configuration",
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
-        baiduOcr: "Baidu OCR Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
+        baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
         vendorApiKeys: "Vendor API Key Configuration"
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
@@ -127,7 +127,7 @@ const settingsI18n = {
         mineruApiBase: "MinerU API Base", mineruApiBasePlaceholder: "Leave empty to use env config (e.g., https://mineru.net)",
         mineruApiBaseDesc: "MinerU service address for parsing reference files",
         mineruToken: "MinerU Token", mineruTokenPlaceholder: "Enter new MinerU Token",
-        mineruTokenDesc: "Leave empty to keep current setting, enter new value to update",
+        mineruTokenDesc: "Leave empty to keep current setting, enter new value to update", mineruTokenLink: "Apply for Token",
         imageResolution: "Image Resolution (may not work with some OpenAI format proxies)",
         imageResolutionDesc: "Higher resolution generates more detailed images but takes longer",
         maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation (1-20), higher is faster",
@@ -137,8 +137,8 @@ const settingsI18n = {
         textThinkingBudget: "Text Thinking Budget", textThinkingBudgetDesc: "Token budget for text reasoning (1-8192), higher values enable deeper reasoning",
         enableImageReasoning: "Enable Image Reasoning", enableImageReasoningDesc: "When enabled, image generation uses chain-of-thought mode for better composition",
         imageThinkingBudget: "Image Thinking Budget", imageThinkingBudgetDesc: "Token budget for image reasoning (1-8192), higher values enable deeper reasoning",
-        baiduOcrApiKey: "Baidu OCR API Key", baiduOcrApiKeyPlaceholder: "Enter Baidu OCR API Key",
-        baiduOcrApiKeyDesc: "For text recognition in editable PPTX export, leave empty to keep current setting",
+        baiduOcrApiKey: "Baidu API Key", baiduOcrApiKeyPlaceholder: "Enter Baidu API Key",
+        baiduOcrApiKeyDesc: "For text recognition in editable PPTX export, leave empty to keep current setting", baiduOcrApiKeyLink: "Apply for API Key",
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
         imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --",
         imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
@@ -202,6 +202,7 @@ interface FieldConfig {
   options?: { value: string; label: string }[];  // select 类型的选项
   min?: number;
   max?: number;
+  link?: { url: string; text: string };
 }
 
 interface SectionConfig {
@@ -384,6 +385,7 @@ export const Settings: React.FC = () => {
           sensitiveField: true,
           lengthKey: 'mineru_token_length',
           description: t('settings.fields.mineruTokenDesc'),
+          link: { url: 'https://mineru.net/apiManage/token', text: t('settings.fields.mineruTokenLink') },
         },
       ],
     },
@@ -491,6 +493,7 @@ export const Settings: React.FC = () => {
           sensitiveField: true,
           lengthKey: 'baidu_ocr_api_key_length',
           description: t('settings.fields.baiduOcrApiKeyDesc'),
+          link: { url: 'https://console.bce.baidu.com/iam/#/iam/apikey/list', text: t('settings.fields.baiduOcrApiKeyLink') },
         },
       ],
     },
@@ -837,8 +840,13 @@ export const Settings: React.FC = () => {
           max={field.max}
           disabled={isDisabled}
         />
-        {field.description && (
-          <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{field.description}</p>
+        {(field.description || field.link) && (
+          <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+            {field.description}
+            {field.link && (
+              <> {field.description ? '· ' : ''}<a href={field.link.url} target="_blank" rel="noopener noreferrer" className="text-banana-500 hover:underline">{field.link.text}</a></>
+            )}
+          </p>
         )}
       </div>
     );
