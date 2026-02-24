@@ -11,6 +11,8 @@ import { SettingsPage } from './pages/Settings';
 import { PricingPage } from './pages/PricingPage';
 import { CreditsHistory } from './pages/CreditsHistory';
 import { InvitationPage } from './pages/InvitationPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
+import AnnouncementPopup from './components/announcements/AnnouncementPopup';
 import {
   LoginPage,
   RegisterPage,
@@ -21,7 +23,7 @@ import {
 } from './pages/auth';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
-import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs } from './pages/admin';
+import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs, AdminAnnouncements } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useToast } from './components/shared';
@@ -127,6 +129,11 @@ function App() {
             <ChangePasswordPage />
           </ProtectedRoute>
         } />
+        <Route path="/announcements" element={
+          <ProtectedRoute>
+            <AnnouncementsPage />
+          </ProtectedRoute>
+        } />
         <Route path="/project/:projectId/outline" element={
           <ProtectedRoute>
             <OutlineEditor />
@@ -174,10 +181,16 @@ function App() {
             <AdminLogs />
           </AdminRoute>
         } />
+        <Route path="/admin/announcements" element={
+          <AdminRoute>
+            <AdminAnnouncements />
+          </AdminRoute>
+        } />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <AnnouncementPopup />
       <ToastContainer />
     </BrowserRouter>
   );

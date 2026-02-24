@@ -30,6 +30,7 @@ from .credit_transaction import CreditTransaction
 from .payment_order import PaymentOrder
 from .system_config import SystemConfig
 from .invitation_code import InvitationCode
+from .announcement import Announcement
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction', 'PaymentOrder', 'SystemConfig', 'InvitationCode']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserSettings', 'User', 'CreditTransaction', 'PaymentOrder', 'SystemConfig', 'InvitationCode', 'Announcement']
 

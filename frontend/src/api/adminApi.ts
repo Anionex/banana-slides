@@ -78,3 +78,17 @@ export interface AdminLogsParams {
 
 export const getAdminLogs = (params: AdminLogsParams = {}) =>
   apiClient.get('/api/admin/logs', { params });
+
+// --- Announcements ---
+
+export const getAdminAnnouncements = (params: { limit?: number; offset?: number } = {}) =>
+  apiClient.get('/api/announcements/all', { params });
+
+export const createAnnouncement = (data: { title: string; content: string; is_active?: boolean }) =>
+  apiClient.post('/api/announcements', data);
+
+export const updateAnnouncement = (id: string, data: { title?: string; content?: string; is_active?: boolean }) =>
+  apiClient.put(`/api/announcements/${id}`, data);
+
+export const deleteAnnouncement = (id: string) =>
+  apiClient.delete(`/api/announcements/${id}`);
