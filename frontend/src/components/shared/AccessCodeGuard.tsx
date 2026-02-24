@@ -15,7 +15,6 @@ const translations = {
     networkError: '网络错误，请稍后重试',
     connectError: '无法连接到后端服务',
     connectHint: '请检查后端服务是否正常运行',
-    debugLabel: '排查命令',
     retry: '重试',
   },
   en: {
@@ -26,7 +25,6 @@ const translations = {
     networkError: 'Network error, please try later',
     connectError: 'Cannot connect to backend service',
     connectHint: 'Please check if the backend service is running',
-    debugLabel: 'Debug commands',
     retry: 'Retry',
   },
 };
@@ -84,15 +82,9 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
   if (status === 'connectError') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background-primary">
-        <div className="w-96 p-6 rounded-2xl bg-white dark:bg-background-secondary shadow-lg border border-gray-200 dark:border-border-primary text-center">
+        <div className="w-80 p-6 rounded-2xl bg-white dark:bg-background-secondary shadow-lg border border-gray-200 dark:border-border-primary text-center">
           <p className="text-gray-600 dark:text-foreground-secondary mb-1">{t('connectError')}</p>
           <p className="text-sm text-gray-400 dark:text-foreground-tertiary mb-4">{t('connectHint')}</p>
-          <details className="text-left mb-4">
-            <summary className="text-xs text-gray-400 dark:text-foreground-tertiary cursor-pointer select-none">{t('debugLabel')}</summary>
-            <pre className="mt-2 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 overflow-x-auto whitespace-pre">
-{`# 检查后端端口状态\nss -tlnp | grep 5000\n\n# 查看 Docker 容器状态\ndocker compose ps\n\n# 查看后端日志\ndocker compose logs --tail=50 backend`}
-            </pre>
-          </details>
           <Button className="w-full" onClick={checkAccess}>{t('retry')}</Button>
         </div>
       </div>
