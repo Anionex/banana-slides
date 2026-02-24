@@ -437,21 +437,24 @@ export const DetailEditor: React.FC = () => {
               {t('detail.batchGenerate')}
             </Button>
             {/* 详细程度选择器 */}
-            <div className="flex items-center rounded-lg border border-gray-200 dark:border-border-primary overflow-hidden">
-              {(['concise', 'default', 'detailed'] as const).map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setDetailLevel(level)}
-                  className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    detailLevel === level
-                      ? 'bg-banana-500 text-white'
-                      : 'bg-white dark:bg-background-secondary text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover'
-                  }`}
-                >
-                  {t(`detail.detailLevel.${level}` as any)}
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-400 dark:text-foreground-tertiary hidden lg:inline">{t('detail.detailLevel.label')}</span>
+              <div className="flex items-center rounded-full bg-gray-100 dark:bg-background-hover p-0.5">
+                {(['concise', 'default', 'detailed'] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setDetailLevel(level)}
+                    className={`px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${
+                      detailLevel === level
+                        ? 'bg-banana-500 text-white shadow-sm'
+                        : 'text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary'
+                    }`}
+                  >
+                    {t(`detail.detailLevel.${level}` as any)}
+                  </button>
+                ))}
+              </div>
             </div>
             <Button
               variant="secondary"
