@@ -13,7 +13,8 @@ const translations = {
     submit: '确认',
     error: '口令错误，请重试',
     networkError: '网络错误，请稍后重试',
-    connectError: '无法连接到服务器',
+    connectError: '无法连接到后端服务',
+    connectHint: '请检查后端服务是否正常运行',
     retry: '重试',
   },
   en: {
@@ -22,7 +23,8 @@ const translations = {
     submit: 'Submit',
     error: 'Invalid code, please try again',
     networkError: 'Network error, please try later',
-    connectError: 'Cannot connect to server',
+    connectError: 'Cannot connect to backend service',
+    connectHint: 'Please check if the backend service is running',
     retry: 'Retry',
   },
 };
@@ -81,7 +83,8 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background-primary">
         <div className="w-80 p-6 rounded-2xl bg-white dark:bg-background-secondary shadow-lg border border-gray-200 dark:border-border-primary text-center">
-          <p className="text-gray-600 dark:text-foreground-secondary mb-4">{t('connectError')}</p>
+          <p className="text-gray-600 dark:text-foreground-secondary mb-1">{t('connectError')}</p>
+          <p className="text-sm text-gray-400 dark:text-foreground-tertiary mb-4">{t('connectHint')}</p>
           <Button className="w-full" onClick={checkAccess}>{t('retry')}</Button>
         </div>
       </div>
