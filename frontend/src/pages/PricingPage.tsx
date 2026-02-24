@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Button, Card, useToast } from '@/components/shared';
 import { useAuthStore, useCreditsBalance } from '@/store/useAuthStore';
-import { paymentApi, CreditPackage } from '@/api/payment';
+import { paymentApi, CreditPackage, CreditCosts } from '@/api/payment';
 
 // 页面翻译
 const pricingI18n = {
@@ -45,7 +45,9 @@ const pricingI18n = {
     usageItems: {
       outline: '生成大纲',
       description: '生成描述（每页）',
-      image: '生成图片（每页）',
+      image1k: '生成图片 1K（每页）',
+      image2k: '生成图片 2K（每页）',
+      image4k: '生成图片 4K（每页）',
       refineOutline: '修改大纲',
       refineDescription: '修改描述',
       parseFile: '解析参考文件',
@@ -74,7 +76,9 @@ const pricingI18n = {
     usageItems: {
       outline: 'Generate outline',
       description: 'Generate description (per page)',
-      image: 'Generate image (per page)',
+      image1k: 'Generate image 1K (per page)',
+      image2k: 'Generate image 2K (per page)',
+      image4k: 'Generate image 4K (per page)',
       refineOutline: 'Refine outline',
       refineDescription: 'Refine description',
       parseFile: 'Parse reference file',
@@ -84,16 +88,18 @@ const pricingI18n = {
   },
 };
 
-// 积分消耗配置（与后端保持一致）
-const CREDIT_COSTS = {
-  outline: 5,
-  description: 2,
-  image: 10,
-  refineOutline: 3,
-  refineDescription: 3,
-  parseFile: 5,
-  exportEditable: 20,
-};
+// 积分消耗说明：key 对应后端字段，label 对应 i18n key
+const USAGE_ITEMS: { key: keyof CreditCosts; label: string }[] = [
+  { key: 'generate_outline', label: 'outline' },
+  { key: 'generate_description', label: 'description' },
+  { key: 'generate_image_1k', label: 'image1k' },
+  { key: 'generate_image_2k', label: 'image2k' },
+  { key: 'generate_image_4k', label: 'image4k' },
+  { key: 'refine_outline', label: 'refineOutline' },
+  { key: 'refine_description', label: 'refineDescription' },
+  { key: 'parse_file', label: 'parseFile' },
+  { key: 'export_editable', label: 'exportEditable' },
+];
 
 // 套餐图标映射
 const packageIcons: Record<string, React.ReactNode> = {
@@ -111,6 +117,7 @@ export const PricingPage: React.FC = () => {
   const creditsBalance = useCreditsBalance();
   
   const [packages, setPackages] = useState<CreditPackage[]>([]);
+  const [creditCosts, setCreditCosts] = useState<CreditCosts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
@@ -128,27 +135,30 @@ export const PricingPage: React.FC = () => {
     return value || key;
   };
 
-  // 加载套餐列表
+  // 加载套餐列表和积分消耗配置
   useEffect(() => {
-    const loadPackages = async () => {
+    const loadData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await paymentApi.getPackages();
-        setPackages(data);
-        // 默认选中最受欢迎的套餐
-        const popularPackage = data.find(p => p.id === 'standard');
+        const [pkgs, costs] = await Promise.all([
+          paymentApi.getPackages(),
+          paymentApi.getCreditCosts(),
+        ]);
+        setPackages(pkgs);
+        setCreditCosts(costs);
+        const popularPackage = pkgs.find(p => p.id === 'standard');
         if (popularPackage) {
           setSelectedPackage(popularPackage.id);
         }
       } catch (err: any) {
-        console.error('Failed to load packages:', err);
-        setError(err.message || t('loadError'));
+        console.error('Failed to load data:', err);
+        setError(err.response?.data?.message || err.message || t('loadError'));
       } finally {
         setLoading(false);
       }
     };
-    loadPackages();
+    loadData();
   }, []);
 
   // 处理购买
@@ -384,28 +394,30 @@ export const PricingPage: React.FC = () => {
         )}
 
         {/* 积分消耗说明 */}
-        <Card className="max-w-2xl mx-auto p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Sparkles size={20} className="text-banana" />
-            {t('usageGuide')}
-          </h3>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {Object.entries(CREDIT_COSTS).map(([key, cost]) => (
-              <div
-                key={key}
-                className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-background-tertiary rounded-lg"
-              >
-                <span className="text-gray-700 dark:text-foreground-secondary">
-                  {t(`usageItems.${key}`)}
-                </span>
-                <span className="font-medium text-amber-600 dark:text-amber-400">
-                  {cost} {t('credits')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {creditCosts && (
+          <Card className="max-w-2xl mx-auto p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Sparkles size={20} className="text-banana" />
+              {t('usageGuide')}
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {USAGE_ITEMS.map(({ key, label }) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-background-tertiary rounded-lg"
+                >
+                  <span className="text-gray-700 dark:text-foreground-secondary">
+                    {t(`usageItems.${label}`)}
+                  </span>
+                  <span className="font-medium text-amber-600 dark:text-amber-400">
+                    {creditCosts[key]} {t('credits')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
       </main>
 
       <ToastContainer />

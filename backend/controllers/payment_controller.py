@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from flask import Blueprint, request, current_app
-from models import db, User, PaymentOrder
+from models import db, User, PaymentOrder, SystemConfig
 from utils import success_response, error_response, bad_request, not_found
 from middlewares.auth import auth_required, get_current_user
 from services.credits_service import CreditsService, CreditOperation
@@ -34,6 +34,13 @@ def list_packages():
     return success_response({
         'packages': [p.to_dict() for p in get_all_packages()]
     })
+
+
+@payment_bp.route('/credit-costs', methods=['GET'])
+def get_credit_costs():
+    """GET /api/payment/credit-costs - Public endpoint for credit cost config"""
+    config = SystemConfig.get_instance()
+    return success_response(config.get_credit_costs())
 
 
 @payment_bp.route('/credits', methods=['GET'])

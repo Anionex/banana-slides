@@ -63,7 +63,29 @@ export interface TransactionsResponse {
 
 // ==================== Payment API ====================
 
+export interface CreditCosts {
+  generate_outline: number;
+  generate_description: number;
+  generate_image_1k: number;
+  generate_image_2k: number;
+  generate_image_4k: number;
+  edit_image: number;
+  generate_material: number;
+  refine_outline: number;
+  refine_description: number;
+  parse_file: number;
+  export_editable: number;
+}
+
 export const paymentApi = {
+  /**
+   * Get credit cost configuration (public)
+   */
+  getCreditCosts: async (): Promise<CreditCosts> => {
+    const response = await apiClient.get<ApiResponse<CreditCosts>>('/api/payment/credit-costs');
+    return response.data.data;
+  },
+
   /**
    * Get available credit packages
    */
