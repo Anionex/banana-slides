@@ -13,6 +13,8 @@ const translations = {
     submit: '确认',
     error: '口令错误，请重试',
     networkError: '网络错误，请稍后重试',
+    connectError: '无法连接到服务器',
+    retry: '重试',
   },
   en: {
     title: 'Enter Access Code',
@@ -20,35 +22,37 @@ const translations = {
     submit: 'Submit',
     error: 'Invalid code, please try again',
     networkError: 'Network error, please try later',
+    connectError: 'Cannot connect to server',
+    retry: 'Retry',
   },
 };
 
 export function AccessCodeGuard({ children }: { children: ReactNode }) {
   const t = useT(translations);
-  const [status, setStatus] = useState<'loading' | 'prompt' | 'pass'>('loading');
+  const [status, setStatus] = useState<'loading' | 'prompt' | 'pass' | 'connectError'>('loading');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [verifying, setVerifying] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await checkAccessCode();
-        if (!res.data.enabled) { setStatus('pass'); return; }
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const v = await verifyAccessCode(saved);
-          if (v.data.valid) { setStatus('pass'); return; }
-          localStorage.removeItem(STORAGE_KEY);
-        }
-        setStatus('prompt');
-      } catch {
-        // Fail-closed: if we can't reach the server, show prompt
+  const checkAccess = async () => {
+    setStatus('loading');
+    try {
+      const res = await checkAccessCode();
+      if (!res.data.enabled) { setStatus('pass'); return; }
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const v = await verifyAccessCode(saved);
+        if (v.data.valid) { setStatus('pass'); return; }
         localStorage.removeItem(STORAGE_KEY);
-        setStatus('prompt');
       }
-    })();
-  }, []);
+      setStatus('prompt');
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      setStatus('connectError');
+    }
+  };
+
+  useEffect(() => { checkAccess(); }, []);
 
   const handleSubmit = async () => {
     if (!code.trim()) return;
@@ -72,6 +76,17 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
 
   if (status === 'loading') return null;
   if (status === 'pass') return <>{children}</>;
+
+  if (status === 'connectError') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-primary">
+        <div className="w-80 p-6 rounded-2xl bg-white dark:bg-background-secondary shadow-lg border border-gray-200 dark:border-border-primary text-center">
+          <p className="text-gray-600 dark:text-foreground-secondary mb-4">{t('connectError')}</p>
+          <Button className="w-full" onClick={checkAccess}>{t('retry')}</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background-primary">
