@@ -66,7 +66,7 @@ const settingsI18n = {
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
       },
-      apiKeyTip: { before: "API 密匙获取可前往 ", after: "，减小迁移成本" },
+      apiKeyTip: { before: "推荐使用 ", after: " 中转，支持 Gemini 和 OpenAI 双格式，高并发文生图稳定可靠。" },
       apiKeyApplyLink: "，请点击此处申请密钥",
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
@@ -156,7 +156,7 @@ const settingsI18n = {
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
       },
-      apiKeyTip: { before: "Get API keys from ", after: " for easier migration" },
+      apiKeyTip: { before: "Recommended: ", after: " proxy — supports both Gemini and OpenAI formats with stable high-concurrency image generation." },
       apiKeyApplyLink: ", click here to apply",
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
