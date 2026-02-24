@@ -70,14 +70,37 @@ SENSENOVA_API_KEY=your-key    # SenseNova
 MINIMAX_API_KEY=your-key      # MiniMax
 ```
 
-## Editable PPTX Export
+## AIHubMix (Recommended Proxy)
 
-For enhanced editable export with OCR-based text extraction, obtain an API key from [Baidu Cloud](https://console.bce.baidu.com/iam/#/iam/apikey/list) (generous free tier available):
+[AIHubMix](https://aihubmix.com/?aff=17EC) is a recommended API proxy that supports multiple model providers through a single OpenAI-compatible endpoint. This simplifies configuration — you only need one API key for access to Gemini, GPT, Claude, and more.
 
 ```env
-BAIDU_OCR_API_KEY=your-baidu-ocr-key
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-aihubmix-key
+OPENAI_API_BASE=https://aihubmix.com/v1
+```
+
+[Apply for an AIHubMix API key here](https://aihubmix.com/token?aff=17EC).
+
+## MinerU (PDF Parsing)
+
+[MinerU](https://mineru.net) provides high-quality PDF parsing for reference file uploads. Configure it to enable PDF content extraction:
+
+```env
+MINERU_API_BASE=https://mineru.net
+MINERU_TOKEN=your-mineru-token
+```
+
+[Apply for a MinerU token here](https://mineru.net/apiManage/token).
+
+## Baidu API Key
+
+For enhanced editable PPTX export with OCR-based text extraction, obtain an API key from [Baidu Cloud Console](https://console.bce.baidu.com/iam/#/iam/apikey/list) (generous free tier available):
+
+```env
+BAIDU_OCR_API_KEY=your-baidu-api-key
 ```
 
 ## Runtime Settings Override
 
-Settings configured via the web UI's Settings page are stored in the database and override `.env` values. Use "Reset to Default" in Settings to revert to `.env` values.
+All of the above can also be configured via the web UI's Settings page. Settings configured there are stored in the database and override `.env` values. Use "Reset to Default" in Settings to revert to `.env` values.
