@@ -66,7 +66,7 @@ const settingsI18n = {
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
       },
-      apiKeyTip: "API 密匙获取可前往 {{link}}, 减小迁移成本",
+      apiKeyTip: { before: "API 密匙获取可前往 ", after: "，减小迁移成本" },
       apiKeyApplyLink: "，请点击此处申请密钥",
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
@@ -156,7 +156,7 @@ const settingsI18n = {
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
       },
-      apiKeyTip: "Get API keys from {{link}} for easier migration",
+      apiKeyTip: { before: "Get API keys from ", after: " for easier migration" },
       apiKeyApplyLink: ", click here to apply",
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
@@ -1072,9 +1072,9 @@ export const Settings: React.FC = () => {
           {/* AIHubmix 提示 */}
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
             <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-              {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[0]}
+              {t('settings.apiKeyTip.before')}
               <a href="https://aihubmix.com/?aff=17EC" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">AIHubmix</a>
-              {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[1]}
+              {t('settings.apiKeyTip.after')}
               <a href="https://aihubmix.com/token?aff=17EC" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyApplyLink')}</a>
             </p>
           </div>
