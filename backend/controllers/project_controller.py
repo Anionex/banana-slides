@@ -762,6 +762,7 @@ def generate_descriptions(project_id):
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        detail_level = data.get('detail_level', 'default')
         
         # Create task
         task = Task(
@@ -798,7 +799,8 @@ def generate_descriptions(project_id):
             outline,
             max_workers,
             app,
-            language
+            language,
+            detail_level
         )
         
         # Update project status

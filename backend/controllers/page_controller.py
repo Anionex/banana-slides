@@ -256,7 +256,8 @@ def generate_page_description(project_id, page_id):
         data = request.get_json() or {}
         force_regenerate = data.get('force_regenerate', False)
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        detail_level = data.get('detail_level', 'default')
+
         # Check if already generated
         if page.get_description_content() and not force_regenerate:
             return bad_request("Description already exists. Set force_regenerate=true to regenerate")
@@ -295,7 +296,8 @@ def generate_page_description(project_id, page_id):
             outline,
             page_data,
             page.order_index + 1,
-            language=language
+            language=language,
+            detail_level=detail_level
         )
         
         # Save description

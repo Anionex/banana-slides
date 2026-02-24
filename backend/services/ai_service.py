@@ -488,30 +488,33 @@ class AIService:
                 pages.append(item)
         return pages
     
-    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict], 
-                                 page_outline: Dict, page_index: int, language='zh') -> str:
+    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
+                                 page_outline: Dict, page_index: int, language='zh',
+                                 detail_level: str = 'default') -> str:
         """
         Generate description for a single page
         Based on demo.py gen_desc() logic
-        
+
         Args:
             project_context: 项目上下文对象，包含所有原始信息
             outline: Complete outline
             page_outline: Outline for this specific page
             page_index: Page number (1-indexed)
-        
+            detail_level: Description detail level (concise/default/detailed)
+
         Returns:
             Text description for the page
         """
         part_info = f"\nThis page belongs to: {page_outline['part']}" if 'part' in page_outline else ""
-        
+
         desc_prompt = get_page_description_prompt(
             project_context=project_context,
             outline=outline,
             page_outline=page_outline,
             page_index=page_index,
             part_info=part_info,
-            language=language
+            language=language,
+            detail_level=detail_level
         )
         
         # 根据 enable_text_reasoning 配置调整 thinking_budget

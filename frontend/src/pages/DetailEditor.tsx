@@ -20,8 +20,8 @@ const detailI18n = {
       renovationFailed: "PDF 解析失败，请返回重试",
       renovationPollFailed: "与服务器通信失败，请检查网络后刷新页面重试",
       disabledNextTip: "还有 {{count}} 页缺少描述，请先完成所有页面的描述",
+      detailLevel: { label: "详细程度", concise: "精简", default: "默认", detailed: "详细" },
       messages: {
-        generateSuccess: "生成成功", generateFailed: "生成失败",
         confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成",
         confirmRegeneratePage: "该页面已有描述，重新生成将覆盖现有内容，确定继续吗？",
@@ -48,6 +48,7 @@ const detailI18n = {
       renovationFailed: "PDF parsing failed, please go back and retry",
       renovationPollFailed: "Lost connection to server. Please check your network and refresh the page.",
       disabledNextTip: "{{count}} page(s) are missing descriptions. Please complete all page descriptions first",
+      detailLevel: { label: "Detail Level", concise: "Concise", default: "Default", detailed: "Detailed" },
       messages: {
         generateSuccess: "Generated successfully", generateFailed: "Generation failed",
         confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
@@ -89,6 +90,7 @@ export const DetailEditor: React.FC = () => {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
+  const [detailLevel, setDetailLevel] = useState<string>('default');
 
   // PPT 翻新：异步任务轮询
   useEffect(() => {
@@ -177,7 +179,7 @@ export const DetailEditor: React.FC = () => {
     );
     
     const executeGenerate = async () => {
-      await generateDescriptions();
+      await generateDescriptions(detailLevel);
     };
     
     if (hasDescriptions) {
@@ -205,7 +207,7 @@ export const DetailEditor: React.FC = () => {
         if (isRenovation) {
           await regenerateRenovationPage(pageId);
         } else {
-          await generatePageDescription(pageId);
+          await generatePageDescription(pageId, detailLevel);
         }
         show({ message: t('detail.messages.generateSuccess'), type: 'success' });
       } catch (error: any) {
@@ -434,6 +436,23 @@ export const DetailEditor: React.FC = () => {
             >
               {t('detail.batchGenerate')}
             </Button>
+            {/* 详细程度选择器 */}
+            <div className="flex items-center rounded-lg border border-gray-200 dark:border-border-primary overflow-hidden">
+              {(['concise', 'default', 'detailed'] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setDetailLevel(level)}
+                  className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    detailLevel === level
+                      ? 'bg-banana-500 text-white'
+                      : 'bg-white dark:bg-background-secondary text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover'
+                  }`}
+                >
+                  {t(`detail.detailLevel.${level}` as any)}
+                </button>
+              ))}
+            </div>
             <Button
               variant="secondary"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}

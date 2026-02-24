@@ -340,20 +340,22 @@ Now parse the outline text above into the structured format. Return only the JSO
     return final_prompt
 
 
-def get_page_description_prompt(project_context: 'ProjectContext', outline: list, 
-                                page_outline: dict, page_index: int, 
+def get_page_description_prompt(project_context: 'ProjectContext', outline: list,
+                                page_outline: dict, page_index: int,
                                 part_info: str = "",
-                                language: str = None) -> str:
+                                language: str = None,
+                                detail_level: str = "default") -> str:
     """
     生成单个页面描述的 prompt
-    
+
     Args:
         project_context: 项目上下文对象，包含所有原始信息
         outline: 完整大纲
         page_outline: 当前页面的大纲
         page_index: 页面编号（从1开始）
         part_info: 可选的章节信息
-        
+        detail_level: 描述详细程度 (concise/default/detailed)
+
     Returns:
         格式化后的 prompt 字符串
     """
@@ -368,6 +370,48 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     else:
         original_input = project_context.idea_prompt or ""
     
+    # 根据 detail_level 生成不同的描述要求和示例
+    if detail_level == 'concise':
+        detail_instructions = """\
+【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
+1. 文字内容要极度精简，每条要点控制在10字以内，只保留核心关键词
+2. 每页要点数量控制在3-4条
+3. 使用短语或词组，不使用完整句子
+4. 确保一眼就能抓住重点，适合快速演示"""
+        detail_example = """\
+页面文字：
+- 狩猎采集，影响有限
+- 完全依赖自然供给
+- 适应自然，非改造
+- 局部低强度影响"""
+    elif detail_level == 'detailed':
+        detail_instructions = """\
+【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
+1. 文字内容要详细充实，每条要点控制在30-50字，包含具体的解释、数据或例子
+2. 每页要点数量可以有5-7条，充分展开论述
+3. 使用完整的句子，逻辑清晰，信息量丰富
+4. 适合需要深入讲解的场景，让观众获得充分的信息"""
+        detail_example = """\
+页面文字：
+- 狩猎采集文明时期：人类以小规模部落形式生活，主要通过狩猎野生动物和采集植物果实获取食物，活动范围有限，对自然环境的影响微乎其微
+- 高度依赖性：人类的衣食住行完全依赖自然资源的直接供给，尚未发展出大规模改造自然的技术手段，与生态系统保持着紧密的共生关系
+- 适应而非改造：通过长期观察和学习自然规律，发展出与环境相适应的生存技能和工具，如石器制作、火的使用等，但本质上是顺应自然而非征服自然
+- 环境影响特点：人类活动的影响具有局部性、短期性和低强度的特征，生态系统能够通过自身的调节机制完成自我恢复，维持动态平衡"""
+    else:
+        detail_instructions = """\
+【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
+1. 文字内容要简洁精炼，每条要点控制在15-25字以内
+2. 条理清晰，使用列表形式组织内容
+3. 避免冗长的句子和复杂的表述
+4. 确保内容可读性强，适合在演示时展示
+5. 不要包含任何额外的说明性文字或注释"""
+        detail_example = """\
+页面文字：
+- 狩猎采集文明：人类活动规模小，对环境影响有限
+- 依赖性强：生活完全依赖自然资源的直接供给
+- 适应而非改造：通过观察学习自然，发展生存技能
+- 影响特点：局部、短期、低强度，生态可自我恢复"""
+
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -376,22 +420,13 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
 
-【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
-1. 文字内容要简洁精炼，每条要点控制在15-25字以内
-2. 条理清晰，使用列表形式组织内容
-3. 避免冗长的句子和复杂的表述
-4. 确保内容可读性强，适合在演示时展示
-5. 不要包含任何额外的说明性文字或注释
+{detail_instructions}
 
 输出格式示例：
 页面标题：原始社会：与自然共生
 {"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
 
-页面文字：
-- 狩猎采集文明：人类活动规模小，对环境影响有限
-- 依赖性强：生活完全依赖自然资源的直接供给
-- 适应而非改造：通过观察学习自然，发展生存技能
-- 影响特点：局部、短期、低强度，生态可自我恢复
+{detail_example}
 
 其他页面素材（如果文件中存在请积极添加，包括markdown图片链接、公式、表格等）
 

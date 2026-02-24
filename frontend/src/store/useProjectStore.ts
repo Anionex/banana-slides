@@ -112,8 +112,8 @@ interface ProjectState {
   generateOutline: () => Promise<void>;
   generateOutlineStream: () => Promise<{ complete: boolean } | undefined>;
   generateFromDescription: () => Promise<void>;
-  generateDescriptions: () => Promise<void>;
-  generatePageDescription: (pageId: string) => Promise<void>;
+  generateDescriptions: (detailLevel?: string) => Promise<void>;
+  generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
   regenerateRenovationPage: (pageId: string, keepLayout?: boolean) => Promise<void>;
   generateImages: (pageIds?: string[]) => Promise<void>;
   editPageImage: (
@@ -708,7 +708,7 @@ const debouncedUpdatePage = debounce(
   },
 
   // 生成描述（使用异步任务，实时显示进度）
-  generateDescriptions: async () => {
+  generateDescriptions: async (detailLevel?: string) => {
     const { currentProject } = get();
     if (!currentProject || !currentProject.id) return;
 
@@ -729,7 +729,7 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.projectIdMissing'));
       }
 
-      const response = await api.generateDescriptions(projectId);
+      const response = await api.generateDescriptions(projectId, undefined, detailLevel);
       const taskId = response.data?.task_id;
 
       if (!taskId) {
@@ -795,7 +795,7 @@ const debouncedUpdatePage = debounce(
   },
 
   // 生成单页描述
-  generatePageDescription: async (pageId: string) => {
+  generatePageDescription: async (pageId: string, detailLevel?: string) => {
     const { currentProject } = get();
     if (!currentProject) return;
 
@@ -815,7 +815,7 @@ const debouncedUpdatePage = debounce(
     set({ currentProject: { ...currentProject, pages: updatedPages } });
 
     try {
-      const response = await api.generatePageDescription(currentProject.id, pageId, true);
+      const response = await api.generatePageDescription(currentProject.id, pageId, true, undefined, detailLevel);
 
       if (response.data) {
         const updatedPageData = response.data;
