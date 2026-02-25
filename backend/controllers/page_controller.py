@@ -546,7 +546,7 @@ def edit_page_image(project_id, page_id):
             if 'desc_image_urls' in data and data['desc_image_urls']:
                 try:
                     data['desc_image_urls'] = json.loads(data['desc_image_urls'])
-                except:
+                except Exception:
                     data['desc_image_urls'] = []
             else:
                 data['desc_image_urls'] = []
@@ -595,7 +595,7 @@ def edit_page_image(project_id, page_id):
             if isinstance(desc_image_urls, str):
                 try:
                     desc_image_urls = json.loads(desc_image_urls)
-                except:
+                except Exception:
                     desc_image_urls = []
             if isinstance(desc_image_urls, list):
                 additional_ref_images.extend(desc_image_urls)
