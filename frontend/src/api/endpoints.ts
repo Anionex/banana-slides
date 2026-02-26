@@ -127,6 +127,85 @@ export const generateOutline = async (projectId: string, language?: OutputLangua
   return response.data;
 };
 
+/**
+ * 流式生成大纲（SSE）
+ * 返回 ReadableStream，每个 page 事件包含一个页面对象
+ */
+export interface OutlineStreamPage {
+  index: number;
+  title: string;
+  points: string[];
+  part?: string;
+}
+
+export interface OutlineStreamCallbacks {
+  onPage: (page: OutlineStreamPage) => void;
+  onDone: (data: { total: number; pages: Page[] }) => void;
+  onError: (message: string) => void;
+}
+
+export const generateOutlineStream = async (
+  projectId: string,
+  callbacks: OutlineStreamCallbacks,
+  language?: OutputLanguage,
+): Promise<void> => {
+  const lang = language || await getStoredOutputLanguage();
+  const accessCode = localStorage.getItem('banana-access-code');
+
+  const response = await fetch(`/api/projects/${projectId}/generate/outline/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+    },
+    body: JSON.stringify({ language: lang }),
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError(`HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    const { value } = readResult;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE events from buffer
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let eventType = '';
+      let eventData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) eventData = line.slice(6);
+      }
+
+      if (!eventType || !eventData) continue;
+
+      try {
+        const parsed = JSON.parse(eventData);
+        if (eventType === 'page') callbacks.onPage(parsed);
+        else if (eventType === 'done') callbacks.onDone(parsed);
+        else if (eventType === 'error') callbacks.onError(parsed.message);
+      } catch {
+        // Skip malformed events
+      }
+    }
+
+    readResult = await reader.read();
+  }
+};
+
 // ===== 描述生成 =====
 
 /**

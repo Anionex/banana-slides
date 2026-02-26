@@ -86,6 +86,8 @@ interface ProjectState {
   pageDescriptionGeneratingTasks: Record<string, boolean>;
   // 警告消息
   warningMessage: string | null;
+  // 流式大纲生成中
+  isOutlineStreaming: boolean;
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -110,6 +112,7 @@ interface ProjectState {
 
   // 生成操作
   generateOutline: () => Promise<void>;
+  generateOutlineStream: () => Promise<void>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: () => Promise<void>;
   generatePageDescription: (pageId: string) => Promise<void>;
@@ -186,6 +189,7 @@ const debouncedUpdatePage = debounce(
   pageGeneratingTasks: {},
   pageDescriptionGeneratingTasks: {},
   warningMessage: null,
+  isOutlineStreaming: false,
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -593,6 +597,70 @@ const debouncedUpdatePage = debounce(
       throw error;
     } finally {
       set({ isGlobalLoading: false });
+    }
+  },
+
+  // 流式生成大纲（SSE，逐页渲染）
+  generateOutlineStream: async () => {
+    const { currentProject } = get();
+    if (!currentProject) return;
+
+    set({ isOutlineStreaming: true, error: null });
+
+    // Clear existing pages for fresh streaming display
+    set({
+      currentProject: { ...currentProject, pages: [] },
+    });
+
+    try {
+      await api.generateOutlineStream(currentProject.id!, {
+        onPage: (page) => {
+          const { currentProject: proj } = get();
+          if (!proj) return;
+
+          // Build a temporary page object for immediate rendering
+          const tempPage: any = {
+            id: `streaming-${page.index}`,
+            order_index: page.index,
+            outline_content: { title: page.title, points: page.points },
+            part: page.part,
+            status: 'DRAFT',
+          };
+
+          set({
+            currentProject: {
+              ...proj,
+              pages: [...proj.pages, tempPage],
+            },
+          });
+        },
+        onDone: (data) => {
+          // Replace temporary pages with real persisted pages from backend
+          const { currentProject: proj } = get();
+          if (!proj) return;
+
+          const normalized = normalizeProject({ ...proj, pages: data.pages });
+          set({
+            currentProject: normalized,
+            isOutlineStreaming: false,
+          });
+          devLog('[流式大纲] 完成:', data.total, '个页面');
+        },
+        onError: (message) => {
+          console.error('[流式大纲] 错误:', message);
+          set({
+            error: normalizeErrorMessage(message),
+            isOutlineStreaming: false,
+          });
+        },
+      });
+    } catch (error: any) {
+      console.error('[流式大纲] 错误:', error);
+      set({
+        error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')),
+        isOutlineStreaming: false,
+      });
+      throw error;
     }
   },
 

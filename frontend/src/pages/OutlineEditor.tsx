@@ -131,8 +131,9 @@ export const OutlineEditor: React.FC = () => {
     reorderPages,
     deletePageById,
     addNewPage,
-    generateOutline,
+    generateOutlineStream,
     isGlobalLoading,
+    isOutlineStreaming,
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -256,30 +257,26 @@ export const OutlineEditor: React.FC = () => {
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
 
+    const doGenerate = async () => {
+      try {
+        await generateOutlineStream();
+      } catch (error: any) {
+        console.error('生成大纲失败:', error);
+        const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
+        show({ message, type: 'error' });
+      }
+    };
+
     if (currentProject.pages.length > 0) {
       confirm(
         t('outline.messages.confirmRegenerate'),
-        async () => {
-          try {
-            await generateOutline();
-          } catch (error: any) {
-            console.error('生成大纲失败:', error);
-            const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-            show({ message, type: 'error' });
-          }
-        },
+        doGenerate,
         { title: t('outline.messages.confirmRegenerateTitle'), variant: 'warning' }
       );
       return;
     }
 
-    try {
-      await generateOutline();
-    } catch (error: any) {
-      console.error('生成大纲失败:', error);
-      const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-      show({ message, type: 'error' });
-    }
+    await doGenerate();
   };
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
@@ -341,7 +338,7 @@ export const OutlineEditor: React.FC = () => {
     return <Loading fullscreen message={t('outline.messages.loadingProject')} />;
   }
 
-  if (isGlobalLoading) {
+  if (isGlobalLoading && !isOutlineStreaming) {
     return <Loading fullscreen message={t('outline.messages.generatingOutline')} />;
   }
 
@@ -440,10 +437,11 @@ export const OutlineEditor: React.FC = () => {
             >
               {t('outline.addPage')}
             </Button>
-            {currentProject.pages.length === 0 ? (
+            {currentProject.pages.length === 0 && !isOutlineStreaming ? (
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
+                disabled={isOutlineStreaming}
                 className="flex-1 sm:flex-initial text-sm md:text-base"
               >
                 {currentProject.creation_type === 'outline' ? t('outline.parseOutline') : t('outline.autoGenerate')}
@@ -452,9 +450,12 @@ export const OutlineEditor: React.FC = () => {
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
+                disabled={isOutlineStreaming}
                 className="flex-1 sm:flex-initial text-sm md:text-base"
               >
-                {currentProject.creation_type === 'outline' ? t('outline.reParseOutline') : t('outline.reGenerate')}
+                {isOutlineStreaming
+                  ? t('outline.generating')
+                  : currentProject.creation_type === 'outline' ? t('outline.reParseOutline') : t('outline.reGenerate')}
               </Button>
             )}
             <Button
@@ -585,7 +586,7 @@ export const OutlineEditor: React.FC = () => {
 
         {/* 右侧：大纲列表 */}
         <div className="flex-1 min-w-0">
-          {currentProject.pages.length === 0 ? (
+          {currentProject.pages.length === 0 && !isOutlineStreaming ? (
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4">
                 <FileText size={48} className="text-gray-300" />
@@ -609,19 +610,30 @@ export const OutlineEditor: React.FC = () => {
               >
                 <div className="space-y-3 md:space-y-4">
                   {currentProject.pages.map((page, index) => (
-                    <SortableCard
+                    <div
                       key={page.id || `page-${index}`}
-                      page={page}
-                      index={index}
-                      projectId={projectId}
-                      showToast={show}
-                      onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
-                      onDelete={() => page.id && deletePageById(page.id)}
-                      onClick={() => setSelectedPageId(page.id || null)}
-                      isSelected={selectedPageId === page.id}
-                      isAiRefining={isAiRefining}
-                    />
+                      className={isOutlineStreaming ? 'animate-slide-in-up' : ''}
+                      style={isOutlineStreaming ? { animationDelay: `${index * 60}ms` } : undefined}
+                    >
+                      <SortableCard
+                        page={page}
+                        index={index}
+                        projectId={projectId}
+                        showToast={show}
+                        onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
+                        onDelete={() => page.id && deletePageById(page.id)}
+                        onClick={() => setSelectedPageId(page.id || null)}
+                        isSelected={selectedPageId === page.id}
+                        isAiRefining={isAiRefining}
+                      />
+                    </div>
                   ))}
+                  {isOutlineStreaming && (
+                    <div className="flex items-center gap-2 py-3 px-4 text-sm text-gray-500 dark:text-foreground-tertiary">
+                      <div className="animate-spin h-4 w-4 border-2 border-banana-500 border-t-transparent rounded-full" />
+                      {t('outline.messages.generatingOutline')}
+                    </div>
+                  )}
                 </div>
               </SortableContext>
             </DndContext>
