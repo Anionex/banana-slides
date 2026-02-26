@@ -56,6 +56,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   
   return (
     <span
+      data-testid="status-badge"
+      data-status={status}
       className={cn(
         'inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium',
         className

@@ -63,6 +63,9 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
+  // syncProject 请求计数器，防止并发调用时旧响应覆盖新数据
+  let syncRequestId = 0;
+
   // 防抖的API更新函数（在store内部定义，以便访问syncProject）
 const debouncedUpdatePage = debounce(
   async (projectId: string, pageId: string, data: any) => {
@@ -213,7 +216,7 @@ const debouncedUpdatePage = debounce(
   // 同步项目数据
   syncProject: async (projectId?: string) => {
     const { currentProject } = get();
-    
+
     // 如果没有提供 projectId，尝试从 currentProject 或 localStorage 获取
     let targetProjectId = projectId;
     if (!targetProjectId) {
@@ -223,14 +226,21 @@ const debouncedUpdatePage = debounce(
         targetProjectId = localStorage.getItem('currentProjectId') || undefined;
       }
     }
-    
+
     if (!targetProjectId) {
       console.warn('syncProject: 没有可用的项目ID');
       return;
     }
 
+    // 递增请求计数器，丢弃过期的响应（防止并发 syncProject 时旧数据覆盖新数据）
+    const currentRequestId = ++syncRequestId;
+
     try {
       const response = await api.getProject(targetProjectId);
+      if (currentRequestId !== syncRequestId) {
+        devLog('[syncProject] 丢弃过期响应', { currentRequestId, latestRequestId: syncRequestId });
+        return;
+      }
       if (response.data) {
         const project = normalizeProject(response.data);
         devLog('[syncProject] 同步项目数据:', {
@@ -243,6 +253,7 @@ const debouncedUpdatePage = debounce(
         localStorage.setItem('currentProjectId', project.id!);
       }
     } catch (error: any) {
+      if (currentRequestId !== syncRequestId) return;
       // 提取更详细的错误信息
       let errorMessage = '同步项目失败';
       let shouldClearStorage = false;
@@ -939,8 +950,9 @@ const debouncedUpdatePage = debounce(
             pageIds.forEach(id => {
               if (updated[id] === taskId) {
                 const page = proj.pages.find(p => p.id === id);
-                // 后端完成后 status 从 GENERATING → COMPLETED
-                if (page && page.status !== 'GENERATING') {
+                // 只释放已完成或失败的页面，避免误释放尚未被线程池拾取的页面
+                // （未拾取的页面仍为 DESCRIPTION_GENERATED，不应提前释放）
+                if (page && (page.status === 'COMPLETED' || page.status === 'FAILED')) {
                   delete updated[id];
                   changed = true;
                 }
