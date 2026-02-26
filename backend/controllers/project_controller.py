@@ -1134,7 +1134,7 @@ def create_ppt_renovation_project():
             except subprocess.TimeoutExpired:
                 raise ValueError("PPTX to PDF conversion timed out")
             except FileNotFoundError:
-                raise ValueError("LibreOffice not found. Please install LibreOffice for PPTX support.")
+                raise ValueError("PPTX conversion requires LibreOffice, which is not installed. Please convert your PPTX to PDF locally before uploading.")
 
         # Convert PDF to page images using PyMuPDF or pdf2image
         pages_dir = project_dir / "pages"
