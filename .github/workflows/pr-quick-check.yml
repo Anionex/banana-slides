@@ -103,27 +103,27 @@ jobs:
           uv run python app.py &
           SERVER_PID=$!
           
-          # Wait for startup
+          # Poll until backend is ready (up to 30s)
           echo "Waiting for backend to start..."
-          sleep 10
-          
-          # Check if process is still running
-          if ! kill -0 $SERVER_PID 2>/dev/null; then
-            echo "Backend process has exited"
-            exit 1
-          fi
-          
-          # Health check
-          if curl -f http://localhost:5000/health; then
-            echo "Backend smoke test passed"
-            kill $SERVER_PID
-          else
-            echo "Backend smoke test failed"
-            echo "Checking backend logs..."
-            cat ../instance/app.log 2>/dev/null || echo "No log file found"
-            kill $SERVER_PID
-            exit 1
-          fi
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/health; then
+              echo ""
+              echo "Backend smoke test passed (ready after ${i}s)"
+              kill $SERVER_PID
+              exit 0
+            fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "Backend process exited unexpectedly"
+              cat ../instance/app.log 2>/dev/null || echo "No log file found"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "Backend failed to start within 30s"
+          cat ../instance/app.log 2>/dev/null || echo "No log file found"
+          kill $SERVER_PID 2>/dev/null
+          exit 1
         env:
           GOOGLE_API_KEY: mock-key-for-testing
           TESTING: true
