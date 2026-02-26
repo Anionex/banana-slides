@@ -129,7 +129,8 @@ class TestSmartMergePages:
         assert result[0].status == 'DRAFT'
         assert result[0].get_outline_content()['title'] == 'Brand New'
 
-    def test_handles_duplicate_titles_first_match_only(self, ctx):
+    def test_handles_duplicate_titles_both_matched(self, ctx):
+        """Both duplicate-titled pages should be matched in order."""
         from controllers.project_controller import _smart_merge_pages
         from models import db
 
@@ -143,7 +144,55 @@ class TestSmartMergePages:
         ])
         db.session.flush()
 
-        # First match reuses p1, second creates new (p2 deleted since not matched)
+        # Both duplicates should be matched in order
         assert result[0].id == p1.id
+        assert result[1].id == p2.id
         assert result[0].get_description_content()['text'] == 'first'
-        assert result[1].id != p2.id
+        assert result[1].get_description_content()['text'] == 'second'
+
+    def test_position_fallback_preserves_image_on_title_change(self, ctx):
+        """When AI renames a page title, position fallback should preserve the image."""
+        from controllers.project_controller import _smart_merge_pages
+        from models import db
+
+        pid = _make_project()
+        p0 = _make_page(pid, 'Old Title A', 0, image_path='/img/a.png', status='IMAGE_GENERATED')
+        p1 = _make_page(pid, 'Old Title B', 1, image_path='/img/b.png', status='IMAGE_GENERATED')
+
+        # AI renamed both titles — no exact title match
+        result = _smart_merge_pages(pid, [
+            {'title': 'New Title A', 'points': []},
+            {'title': 'New Title B', 'points': []},
+        ])
+        db.session.flush()
+
+        # Position fallback: slot 0 → p0, slot 1 → p1
+        assert result[0].id == p0.id
+        assert result[0].generated_image_path == '/img/a.png'
+        assert result[1].id == p1.id
+        assert result[1].generated_image_path == '/img/b.png'
+
+    def test_position_fallback_new_page_inserted_middle(self, ctx):
+        """Inserting a new page in the middle: existing pages matched by title, new slot gets no image."""
+        from controllers.project_controller import _smart_merge_pages
+        from models import db, Page
+
+        pid = _make_project()
+        p0 = _make_page(pid, 'Intro', 0, image_path='/img/intro.png', status='IMAGE_GENERATED')
+        p1 = _make_page(pid, 'Conclusion', 1, image_path='/img/conc.png', status='IMAGE_GENERATED')
+
+        # Insert a new page between Intro and Conclusion
+        result = _smart_merge_pages(pid, [
+            {'title': 'Intro', 'points': []},
+            {'title': 'New Middle', 'points': []},
+            {'title': 'Conclusion', 'points': []},
+        ])
+        db.session.flush()
+
+        assert len(result) == 3
+        assert result[0].id == p0.id          # title match
+        assert result[0].generated_image_path == '/img/intro.png'
+        assert result[1].status == 'DRAFT'    # new page, no image
+        assert result[1].generated_image_path is None
+        assert result[2].id == p1.id          # title match
+        assert result[2].generated_image_path == '/img/conc.png'

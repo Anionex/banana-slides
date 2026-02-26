@@ -121,37 +121,61 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
 
 
 def _smart_merge_pages(project_id, pages_data):
-    """Smart merge: match new pages to existing by title, update in place to preserve images/descriptions."""
+    """Smart merge: match new pages to existing by title, update in place to preserve images/descriptions.
+
+    Two-pass strategy:
+    1. Exact title match — reuses the existing page record (preserving image/description).
+    2. Position fallback — for new pages that had no title match, reuse the unmatched old page
+       at the same order_index so that minor AI title rewrites don't lose generated images.
+    """
     old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
 
-    old_by_title = {}
+    # Build title → list[Page] to handle duplicate titles correctly
+    old_by_title: dict = {}
     for p in old_pages:
         outline = p.get_outline_content()
         title = (outline.get('title') or '').strip() if outline else ''
-        if title and title not in old_by_title:
-            old_by_title[title] = p
+        if title:
+            old_by_title.setdefault(title, []).append(p)
 
-    matched_ids = set()
+    matched_ids: set = set()
     pages_list = []
 
+    # Pass 1: exact title matching
     for i, page_data in enumerate(pages_data):
         title = (page_data.get('title') or '').strip()
-        old_page = old_by_title.get(title) if title else None
+        candidates = old_by_title.get(title, []) if title else []
+        old_page = next((p for p in candidates if p.id not in matched_ids), None)
 
-        if old_page and old_page.id not in matched_ids:
+        if old_page:
             matched_ids.add(old_page.id)
             page = old_page
         else:
-            page = Page(project_id=project_id, status='DRAFT')
-            db.session.add(page)
+            page = None  # resolved in pass 2
+        pages_list.append(page)
 
+    # Pass 2: position-based fallback for unmatched slots
+    old_by_index = {p.order_index: p for p in old_pages}
+    for i, page in enumerate(pages_list):
+        if page is not None:
+            continue
+        fallback = old_by_index.get(i)
+        if fallback and fallback.id not in matched_ids:
+            matched_ids.add(fallback.id)
+            pages_list[i] = fallback
+        else:
+            new_page = Page(project_id=project_id, status='DRAFT')
+            db.session.add(new_page)
+            pages_list[i] = new_page
+
+    # Apply new outline data and order
+    for i, (page, page_data) in enumerate(zip(pages_list, pages_data)):
         page.order_index = i
         page.part = page_data.get('part')
         page.set_outline_content({
             'title': page_data.get('title'),
             'points': page_data.get('points', [])
         })
-        pages_list.append(page)
 
     for p in old_pages:
         if p.id not in matched_ids:
