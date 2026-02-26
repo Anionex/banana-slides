@@ -114,7 +114,7 @@ test.describe('UX Polish – i18n strings (mock)', () => {
     });
 
     await page.goto(`${BASE}/history`);
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Slide 1')).toBeVisible({ timeout: 5000 });
 
     // The status badge should show English text, not Chinese
     const pageContent = await page.textContent('body');
@@ -139,7 +139,8 @@ test.describe('UX Polish – i18n strings (mock)', () => {
     });
 
     await page.goto(`${BASE}/settings`);
-    await page.waitForTimeout(2000);
+    // Wait for the settings page to render (heading appears even on error)
+    await expect(page.locator('h1, h2').first()).toBeVisible({ timeout: 5000 });
 
     // The error toast should show English text
     const toastText = await page.textContent('body');
@@ -158,7 +159,7 @@ test.describe('UX Polish – integration', () => {
     });
 
     await page.goto(`${BASE}/settings`);
-    await page.waitForTimeout(2000);
+    await expect(page.locator('h1, h2').first()).toBeVisible({ timeout: 5000 });
 
     // Check that the page title is in English
     const heading = page.locator('h1, h2').first();
