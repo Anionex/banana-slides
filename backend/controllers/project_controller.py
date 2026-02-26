@@ -1039,7 +1039,7 @@ def refine_descriptions(project_id):
                 "generated_at": datetime.utcnow().isoformat()
             }
             page.set_description_content(desc_content)
-            page.status = 'DESCRIPTION_GENERATED'
+            page.status = 'COMPLETED' if page.generated_image_path else 'DESCRIPTION_GENERATED'
         
         # Update project status
         project.status = 'DESCRIPTIONS_GENERATED'

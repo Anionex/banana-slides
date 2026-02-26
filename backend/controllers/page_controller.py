@@ -305,13 +305,13 @@ def generate_page_description(project_id, page_id):
         }
         
         page.set_description_content(desc_content)
-        page.status = 'DESCRIPTION_GENERATED'
+        page.status = 'COMPLETED' if page.generated_image_path else 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
         return success_response(page.to_dict())
-    
+
     except Exception as e:
         db.session.rollback()
         return error_response('AI_SERVICE_ERROR', str(e), 503)
@@ -837,7 +837,7 @@ def regenerate_renovation_page(project_id, page_id):
             "text": description,
             "generated_at": datetime.utcnow().isoformat()
         })
-        page.status = 'DESCRIPTION_GENERATED'
+        page.status = 'COMPLETED' if page.generated_image_path else 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
 
         db.session.commit()

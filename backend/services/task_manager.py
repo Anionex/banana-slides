@@ -988,7 +988,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                                 "text": description,
                                 "generated_at": datetime.utcnow().isoformat()
                             })
-                            page_obj.status = 'DESCRIPTION_GENERATED'
+                            page_obj.status = 'COMPLETED' if page_obj.generated_image_path else 'DESCRIPTION_GENERATED'
                             db.session.commit()
 
                         with progress_lock:
