@@ -63,9 +63,6 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
-  // syncProject 请求计数器，防止并发调用时旧响应覆盖新数据
-  let syncRequestId = 0;
-
   // 防抖的API更新函数（在store内部定义，以便访问syncProject）
 const debouncedUpdatePage = debounce(
   async (projectId: string, pageId: string, data: any) => {
@@ -96,9 +93,11 @@ const debouncedUpdatePage = debounce(
     }
         
         // API调用成功后，同步项目状态以更新updated_at
-        // 这样可以确保历史记录页面显示最新的更新时间
-        const { syncProject } = get();
-        await syncProject(projectId);
+        // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
+        const { syncProject, pageGeneratingTasks } = get();
+        if (Object.keys(pageGeneratingTasks).length === 0) {
+          await syncProject(projectId);
+        }
       } catch (error: any) {
         console.error('保存页面失败:', error);
         // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
@@ -232,15 +231,8 @@ const debouncedUpdatePage = debounce(
       return;
     }
 
-    // 递增请求计数器，丢弃过期的响应（防止并发 syncProject 时旧数据覆盖新数据）
-    const currentRequestId = ++syncRequestId;
-
     try {
       const response = await api.getProject(targetProjectId);
-      if (currentRequestId !== syncRequestId) {
-        devLog('[syncProject] 丢弃过期响应', { currentRequestId, latestRequestId: syncRequestId });
-        return;
-      }
       if (response.data) {
         const project = normalizeProject(response.data);
         devLog('[syncProject] 同步项目数据:', {
@@ -253,7 +245,6 @@ const debouncedUpdatePage = debounce(
         localStorage.setItem('currentProjectId', project.id!);
       }
     } catch (error: any) {
-      if (currentRequestId !== syncRequestId) return;
       // 提取更详细的错误信息
       let errorMessage = '同步项目失败';
       let shouldClearStorage = false;
