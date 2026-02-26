@@ -1146,13 +1146,13 @@ def create_ppt_renovation_project():
         try:
             import fitz  # PyMuPDF
             doc = fitz.open(pdf_path)
+            # Extract page dimensions from the first page before rendering
+            if len(doc) > 0:
+                rect = doc[0].rect
+                pdf_page_width = rect.width
+                pdf_page_height = rect.height
             for i, fitz_page in enumerate(doc):
                 try:
-                    # Extract page dimensions from the first page
-                    if i == 0:
-                        rect = fitz_page.rect
-                        pdf_page_width = rect.width
-                        pdf_page_height = rect.height
                     mat = fitz.Matrix(2, 2)
                     pix = fitz_page.get_pixmap(matrix=mat)
                     img_path = str(pages_dir / f"page_{i + 1}_original.png")
@@ -1169,8 +1169,8 @@ def create_ppt_renovation_project():
                 images = convert_from_path(pdf_path, dpi=200)
                 for i, img in enumerate(images):
                     try:
-                        # Extract page dimensions from the first page
-                        if i == 0:
+                        # Extract page dimensions from the first image
+                        if pdf_page_width is None:
                             pdf_page_width = img.width
                             pdf_page_height = img.height
                         img_path = str(pages_dir / f"page_{i + 1}_original.png")

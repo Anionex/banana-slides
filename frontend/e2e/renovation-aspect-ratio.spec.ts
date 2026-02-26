@@ -110,8 +110,9 @@ test.describe.serial('Renovation aspect ratio', () => {
     const settingsBtn = page.locator('button').filter({ hasText: /设置|Settings/ }).first()
     await settingsBtn.click()
 
-    // The 4:3 button should be the active/selected one
+    // The 4:3 button should be the active/selected one (has border-banana-500 class)
     const ratioButton = page.locator('button:has-text("4:3")').first()
     await expect(ratioButton).toBeVisible()
+    await expect(ratioButton).toHaveClass(/border-banana-500/)
   })
 })
