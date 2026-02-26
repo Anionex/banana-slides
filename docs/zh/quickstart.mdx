@@ -63,5 +63,11 @@ npm run dev
 ```
 
 <Note>
-  使用可编辑 PPTX 导出功能上传 PPTX 文件时，需要安装 [LibreOffice](https://www.libreoffice.org/)。
+  使用「PPT 翻新」功能上传 PPTX 文件时，需要安装 [LibreOffice](https://www.libreoffice.org/) 进行服务端转换。**推荐先在本地将 PPTX 转为 PDF 后再上传**——LibreOffice 在服务端渲染时可能因缺少字体（如微软雅黑、Calibri 等）导致排版错位，无法完整还原特效。
+
+  Docker 用户如需在容器内支持 PPTX 上传：
+  ```bash
+  docker exec -it <container_name> bash -c "apt-get update && apt-get install -y libreoffice-impress && rm -rf /var/lib/apt/lists/*"
+  ```
+  容器重建后需重新安装。
 </Note>

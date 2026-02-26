@@ -63,5 +63,11 @@ npm run dev
 ```
 
 <Note>
-  For the editable PPTX export feature, [LibreOffice](https://www.libreoffice.org/) is required when uploading PPTX files for renovation.
+  The PPT Renovation feature requires [LibreOffice](https://www.libreoffice.org/) for server-side PPTX-to-PDF conversion. **We recommend converting PPTX to PDF locally before uploading** — LibreOffice may produce inaccurate results due to missing fonts (e.g., Microsoft YaHei, Calibri) and unsupported visual effects.
+
+  Docker users who still need PPTX upload support can install it inside the container:
+  ```bash
+  docker exec -it <container_name> bash -c "apt-get update && apt-get install -y libreoffice-impress && rm -rf /var/lib/apt/lists/*"
+  ```
+  This must be re-done after container recreation.
 </Note>
