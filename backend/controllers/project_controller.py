@@ -1194,7 +1194,6 @@ def create_ppt_renovation_project():
             try:
                 raw_ratio = f"{int(round(pdf_page_width))}:{int(round(pdf_page_height))}"
                 project.image_aspect_ratio = normalize_aspect_ratio(raw_ratio)
-                db.session.commit()
                 logger.info(f"Set project aspect ratio from PDF: {pdf_page_width}x{pdf_page_height} -> {project.image_aspect_ratio}")
             except (ValueError, OverflowError) as e:
                 logger.warning(f"Could not normalize PDF aspect ratio ({pdf_page_width}x{pdf_page_height}): {e}, keeping default 16:9")
