@@ -15,7 +15,12 @@ const previewI18n = {
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
-      exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功"
+      exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功",
+      saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
+      loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
+      versionSwitchFailed: "切换失败: {{error}}", unknownError: "未知错误",
+      regionCropSuccess: "已将选中区域添加为参考图片，可在下方\"上传图片\"中查看与删除",
+      regionCropFailed: "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。"
     },
     preview: {
       title: "预览", pageCount: "共 {{count}} 页", export: "导出",
@@ -50,6 +55,10 @@ const previewI18n = {
       resolution1KWarningText: "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
       resolution1KWarningHint: "建议在「项目设置 → 全局设置」中切换到 2K 或 4K 分辨率以获得更清晰的效果。",
       dontShowAgain: "不再提示", generateAnyway: "仍然生成",
+      confirmRegenerateSelected: "将重新生成选中的 {{count}} 页（历史记录将会保存），确定继续吗？",
+      confirmRegenerateAll: "将重新生成所有页面（历史记录将会保存），确定继续吗？",
+      confirmRegenerateTitle: "确认重新生成",
+      generationFailed: "生成失败",
       disabledExportTip: "还有 {{count}} 页未生成图片，请先生成所有页面图片",
       disabledEditTip: "请先生成该页图片",
       messages: {
@@ -74,7 +83,12 @@ const previewI18n = {
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
-      exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully"
+      exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully",
+      saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
+      loadMaterialFailed: "Failed to load material: {{error}}", templateChangeFailed: "Failed to change template: {{error}}",
+      versionSwitchFailed: "Switch failed: {{error}}", unknownError: "Unknown error",
+      regionCropSuccess: "Selected region added as reference image. You can view and delete it in \"Upload Images\" below.",
+      regionCropFailed: "Cannot crop from current image (browser security restriction). Try uploading a reference image manually."
     },
     preview: {
       title: "Preview", pageCount: "{{count}} pages", export: "Export",
@@ -109,6 +123,10 @@ const previewI18n = {
       resolution1KWarningText: "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
       resolution1KWarningHint: "It's recommended to switch to 2K or 4K resolution in \"Project Settings → Global Settings\" for clearer results.",
       dontShowAgain: "Don't show again", generateAnyway: "Generate Anyway",
+      confirmRegenerateSelected: "Will regenerate {{count}} selected page(s) (history will be saved). Continue?",
+      confirmRegenerateAll: "Will regenerate all pages (history will be saved). Continue?",
+      confirmRegenerateTitle: "Confirm Regenerate",
+      generationFailed: "Generation failed",
       disabledExportTip: "{{count}} page(s) have no images yet. Please generate all page images first",
       disabledEditTip: "Please generate this page's image first",
       messages: {
@@ -463,7 +481,7 @@ export const SlidePreview: React.FC = () => {
           console.error('错误响应:', error?.response?.data);
 
           // 提取后端返回的更具体错误信息
-          let errorMessage = '生成失败';
+          let errorMessage = t('preview.generationFailed');
           const respData = error?.response?.data;
 
           if (respData) {
@@ -497,12 +515,12 @@ export const SlidePreview: React.FC = () => {
 
       if (hasImages) {
         const message = isPartialGenerate
-          ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
-          : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
+          ? t('preview.confirmRegenerateSelected', { count: selectedPageIds.size })
+          : t('preview.confirmRegenerateAll');
         confirm(
           message,
           executeGenerate,
-          { title: '确认重新生成', variant: 'warning' }
+          { title: t('preview.confirmRegenerateTitle'), variant: 'warning' }
         );
       } else {
         await executeGenerate();
@@ -568,7 +586,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.versionSwitched'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: `切换失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.versionSwitchFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     }
@@ -775,7 +793,7 @@ export const SlidePreview: React.FC = () => {
     } catch (error: any) {
       console.error('加载素材失败:', error);
       show({
-        message: '加载素材失败: ' + (error.message || '未知错误'),
+        message: t('slidePreview.loadMaterialFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error',
       });
     }
@@ -894,14 +912,14 @@ export const SlidePreview: React.FC = () => {
           }));
           // 给用户一个明显反馈：选区已作为图片加入下方“上传图片”
           show({
-            message: '已将选中区域添加为参考图片，可在下方“上传图片”中查看与删除',
+            message: t('slidePreview.regionCropSuccess'),
             type: 'success',
           });
         }, 'image/png');
       } catch (e: any) {
         console.error('裁剪选中区域失败（可能是跨域图片导致 canvas 被污染）:', e);
         show({
-          message: '无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。',
+          message: t('slidePreview.regionCropFailed'),
           type: 'error',
         });
       }
@@ -1014,7 +1032,7 @@ export const SlidePreview: React.FC = () => {
         projectId,
         type: type as ExportTaskType,
         status: 'FAILED',
-        errorMessage: normalizeErrorMessage(error.message || '导出失败'),
+        errorMessage: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')),
         pageIds: pageIds,
       });
       show({ message: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')), type: 'error' });
@@ -1034,7 +1052,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.refreshSuccess'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: error.message || '刷新失败，请稍后重试', 
+        message: error.message || t('slidePreview.refreshFailed'),
         type: 'error' 
       });
     } finally {
@@ -1055,7 +1073,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.extraRequirementsSaved'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: `保存失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     } finally {
@@ -1076,7 +1094,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.styleDescSaved'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: `保存失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     } finally {
@@ -1099,7 +1117,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.exportSettingsSaved'), type: 'success' });
     } catch (error: any) {
       show({
-        message: `保存失败: ${error.message || '未知错误'}`,
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error'
       });
     } finally {
@@ -1117,7 +1135,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.aspectRatioSaved'), type: 'success' });
     } catch (error: any) {
       show({
-        message: `保存失败: ${error.message || '未知错误'}`,
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error'
       });
     } finally {
@@ -1163,7 +1181,7 @@ export const SlidePreview: React.FC = () => {
       }
     } catch (error: any) {
       show({ 
-        message: `更换模板失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.templateChangeFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     } finally {
@@ -1638,7 +1656,7 @@ export const SlidePreview: React.FC = () => {
                       icon={<Upload size={16} />}
                       onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
                       className="lg:hidden text-xs"
-                      title="更换模板"
+                      title={t('preview.changeTemplate')}
                     />
                     {/* 手机端：素材生成按钮 */}
                     <Button
@@ -1647,7 +1665,7 @@ export const SlidePreview: React.FC = () => {
                       icon={<ImagePlus size={16} />}
                       onClick={() => setIsMaterialModalOpen(true)}
                       className="lg:hidden text-xs"
-                      title="素材生成"
+                      title={t('nav.materialGenerate')}
                     />
                     {/* 手机端：刷新按钮 */}
                     <Button
@@ -1657,7 +1675,7 @@ export const SlidePreview: React.FC = () => {
                       onClick={handleRefresh}
                       disabled={isRefreshing}
                       className="md:hidden text-xs"
-                      title="刷新"
+                      title={t('preview.refresh')}
                     />
                     {imageVersions.length > 1 && (
                       <div className="relative">
@@ -2083,7 +2101,7 @@ export const SlidePreview: React.FC = () => {
                     show({ message: t('slidePreview.styleDescSaved'), type: 'success' });
                     setIsTemplateModalOpen(false);
                   } catch (error: any) {
-                    show({ message: `保存失败: ${error.message || '未知错误'}`, type: 'error' });
+                    show({ message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }), type: 'error' });
                   } finally {
                     setIsSavingTemplateStyle(false);
                   }
