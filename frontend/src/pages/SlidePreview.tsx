@@ -50,6 +50,8 @@ const previewI18n = {
       resolution1KWarningText: "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
       resolution1KWarningHint: "建议在「项目设置 → 全局设置」中切换到 2K 或 4K 分辨率以获得更清晰的效果。",
       dontShowAgain: "不再提示", generateAnyway: "仍然生成",
+      disabledExportTip: "还有 {{count}} 页未生成图片，请先生成所有页面图片",
+      disabledEditTip: "请先生成该页图片",
       messages: {
         exportSuccess: "导出成功", exportFailed: "导出失败",
         regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
@@ -107,6 +109,8 @@ const previewI18n = {
       resolution1KWarningText: "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
       resolution1KWarningHint: "It's recommended to switch to 2K or 4K resolution in \"Project Settings → Global Settings\" for clearer results.",
       dontShowAgain: "Don't show again", generateAnyway: "Generate Anyway",
+      disabledExportTip: "{{count}} page(s) have no images yet. Please generate all page images first",
+      disabledEditTip: "Please generate this page's image first",
       messages: {
         exportSuccess: "Export successful", exportFailed: "Export failed",
         regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
@@ -1207,6 +1211,7 @@ export const SlidePreview: React.FC = () => {
   const hasAllImages = currentProject.pages.every(
     (p) => p.generated_image_path
   );
+  const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
 
   return (
     <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
@@ -1335,6 +1340,7 @@ export const SlidePreview: React.FC = () => {
                 setShowExportTasksPanel(false);
               }}
               disabled={isMultiSelectMode ? selectedPageIds.size === 0 : !hasAllImages}
+              title={!isMultiSelectMode && !hasAllImages ? t('preview.disabledExportTip', { count: missingImageCount }) : undefined}
               className="text-xs md:text-sm"
             >
               <span className="hidden sm:inline">
@@ -1705,6 +1711,7 @@ export const SlidePreview: React.FC = () => {
                       size="sm"
                       onClick={handleEditPage}
                       disabled={!selectedPage?.generated_image_path}
+                      title={!selectedPage?.generated_image_path ? t('preview.disabledEditTip') : undefined}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {t('common.edit')}
