@@ -9,6 +9,11 @@ const BASE = process.env.BASE_URL || 'http://localhost:3000';
  */
 test.describe('UX Polish – disabled button tooltips (mock)', () => {
   test('export button shows tooltip when images are missing', async ({ page }) => {
+    // Set English locale to verify i18n tooltip content
+    await page.addInitScript(() => {
+      localStorage.setItem('banana-slides-language', 'en');
+    });
+
     // Mock project with pages that have NO generated images
     const mockProject = {
       data: {
@@ -34,12 +39,17 @@ test.describe('UX Polish – disabled button tooltips (mock)', () => {
     const exportBtn = page.locator('button:has-text("PPTX")').first();
     if (await exportBtn.count() > 0) {
       const title = await exportBtn.getAttribute('title');
-      // Should have a tooltip (either zh or en depending on locale)
-      expect(title).toBeTruthy();
+      // Should have the English tooltip explaining why export is disabled
+      expect(title).toContain('no images yet');
     }
   });
 
   test('next button shows tooltip when descriptions are missing in detail editor', async ({ page }) => {
+    // Set English locale to verify i18n tooltip content
+    await page.addInitScript(() => {
+      localStorage.setItem('banana-slides-language', 'en');
+    });
+
     const mockProject = {
       data: {
         id: 'proj-2',
@@ -60,15 +70,11 @@ test.describe('UX Polish – disabled button tooltips (mock)', () => {
     await page.goto(`${BASE}/project/proj-2/detail`);
     await page.waitForSelector('text=Page 1', { timeout: 5000 }).catch(() => {});
 
-    // Find the next/arrow-right button in the header
-    const nextBtn = page.locator('header button').last();
+    // Target the "Generate Images" / next-step button specifically (not the AI refine submit)
+    const nextBtn = page.locator('button[title*="descriptions"]').first();
     if (await nextBtn.count() > 0) {
       const title = await nextBtn.getAttribute('title');
-      // When descriptions are missing, the next button should have a tooltip
-      // (it may or may not be disabled depending on renovation status)
-      if (title) {
-        expect(title.length).toBeGreaterThan(0);
-      }
+      expect(title).toContain('missing descriptions');
     }
   });
 });
@@ -81,22 +87,25 @@ test.describe('UX Polish – i18n strings (mock)', () => {
     });
 
     const mockProjects = {
-      data: [
-        {
-          id: 'proj-en-1',
-          project_id: 'proj-en-1',
-          creation_type: 'idea',
-          idea_prompt: 'English test',
-          pages: [
-            { id: 'p1', order_index: 0, outline_content: { title: 'Slide 1', points: [] }, description_content: { text: 'desc' }, generated_image_path: '/img.png' },
-          ],
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-        },
-      ],
+      data: {
+        projects: [
+          {
+            id: 'proj-en-1',
+            project_id: 'proj-en-1',
+            creation_type: 'idea',
+            idea_prompt: 'English test',
+            pages: [
+              { id: 'p1', page_id: 'p1', order_index: 0, outline_content: { title: 'Slide 1', points: [] }, description_content: { text: 'desc' }, generated_image_url: '/img.png' },
+            ],
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        ],
+        total: 1,
+      },
     };
 
-    await page.route('**/api/projects', (route) => {
+    await page.route('**/api/projects**', (route) => {
       if (route.request().method() === 'GET') {
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockProjects) });
       } else {
@@ -109,12 +118,9 @@ test.describe('UX Polish – i18n strings (mock)', () => {
 
     // The status badge should show English text, not Chinese
     const pageContent = await page.textContent('body');
-    // Should NOT contain hardcoded Chinese status text when in English mode
-    // (This is a soft check - the status text should be "Completed" not "已完成")
-    if (pageContent?.includes('Completed') || pageContent?.includes('已完成')) {
-      // At least one should be present; if English locale is active, prefer English
-      expect(true).toBe(true);
-    }
+    // In English mode, status should be "Completed" not "已完成"
+    expect(pageContent).toContain('Completed');
+    expect(pageContent).not.toContain('已完成');
   });
 
   test('settings page error messages use i18n', async ({ page }) => {
