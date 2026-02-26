@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
             output_language: 'zh', mineru_api_base: '', mineru_token_length: 0,
             enable_text_reasoning: false, text_thinking_budget: 1024,
             enable_image_reasoning: false, image_thinking_budget: 1024,
-            baidu_ocr_api_key_length: 0,
+            baidu_api_key_length: 0,
             text_api_key_length: 0, text_api_base_url: '',
             image_api_key_length: 0, image_api_base_url: '',
             image_caption_api_key_length: 0, image_caption_api_base_url: '',

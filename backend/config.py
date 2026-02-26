@@ -108,7 +108,7 @@ class Config:
     INPAINTING_PROVIDER = os.getenv('INPAINTING_PROVIDER', 'gemini')  # 默认使用 Gemini
 
     # 百度 API 配置（用于 OCR 和图像修复）
-    BAIDU_OCR_API_KEY = os.getenv('BAIDU_OCR_API_KEY', '')
+    BAIDU_API_KEY = os.getenv('BAIDU_API_KEY', '') or os.getenv('BAIDU_OCR_API_KEY', '')
 
 
 class DevelopmentConfig(Config):

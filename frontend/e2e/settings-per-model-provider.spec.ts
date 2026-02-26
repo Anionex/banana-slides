@@ -27,7 +27,7 @@ const mockSettingsWithPerModel = {
     image_thinking_budget: 1024,
     mineru_api_base: '',
     mineru_token_length: 0,
-    baidu_ocr_api_key_length: 0,
+    baidu_api_key_length: 0,
     // Per-model provider config
     text_model_source: 'openai',
     text_api_key_length: 26,

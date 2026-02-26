@@ -111,9 +111,9 @@ def temporary_settings_override(settings_override: dict):
             original_values["MINERU_TOKEN"] = current_app.config.get("MINERU_TOKEN")
             current_app.config["MINERU_TOKEN"] = settings_override["mineru_token"]
 
-        if settings_override.get("baidu_ocr_api_key"):
-            original_values["BAIDU_OCR_API_KEY"] = current_app.config.get("BAIDU_OCR_API_KEY")
-            current_app.config["BAIDU_OCR_API_KEY"] = settings_override["baidu_ocr_api_key"]
+        if settings_override.get("baidu_api_key"):
+            original_values["BAIDU_API_KEY"] = current_app.config.get("BAIDU_API_KEY")
+            current_app.config["BAIDU_API_KEY"] = settings_override["baidu_api_key"]
 
         if settings_override.get("image_resolution"):
             original_values["DEFAULT_RESOLUTION"] = current_app.config.get("DEFAULT_RESOLUTION")
@@ -275,8 +275,8 @@ def update_settings():
             settings.image_thinking_budget = budget
 
         # Update Baidu OCR configuration
-        if "baidu_ocr_api_key" in data:
-            settings.baidu_ocr_api_key = data["baidu_ocr_api_key"] or None
+        if "baidu_api_key" in data:
+            settings.baidu_api_key = data["baidu_api_key"] or None
 
         # Update per-model provider source configuration
         if "text_model_source" in data:
@@ -354,7 +354,7 @@ def reset_settings():
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
-        settings.baidu_ocr_api_key = None
+        settings.baidu_api_key = None
         settings.text_model_source = None
         settings.image_model_source = None
         settings.image_caption_model_source = None
@@ -592,9 +592,9 @@ def _sync_settings_to_config(settings: Settings):
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
     
     # Sync Baidu OCR settings
-    if settings.baidu_ocr_api_key:
-        current_app.config["BAIDU_OCR_API_KEY"] = settings.baidu_ocr_api_key
-        logger.info("Updated BAIDU_OCR_API_KEY from settings")
+    if settings.baidu_api_key:
+        current_app.config["BAIDU_API_KEY"] = settings.baidu_api_key
+        logger.info("Updated BAIDU_API_KEY from settings")
 
     # Sync per-model provider source settings
     for model_type, source_attr in [('TEXT', 'text_model_source'), ('IMAGE', 'image_model_source'), ('IMAGE_CAPTION', 'image_caption_model_source')]:
@@ -658,9 +658,9 @@ def _get_test_image_path() -> Path:
 
 def _get_baidu_credentials():
     """获取百度 API 凭证"""
-    api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
+    api_key = current_app.config.get("BAIDU_API_KEY") or Config.BAIDU_API_KEY
     if not api_key:
-        raise ValueError("未配置 BAIDU_OCR_API_KEY")
+        raise ValueError("未配置 BAIDU_API_KEY")
     return api_key
 
 
@@ -987,8 +987,8 @@ def run_settings_test(test_name: str):
             test_settings["mineru_api_base"] = global_settings.mineru_api_base
         if global_settings.mineru_token:
             test_settings["mineru_token"] = global_settings.mineru_token
-        if global_settings.baidu_ocr_api_key:
-            test_settings["baidu_ocr_api_key"] = global_settings.baidu_ocr_api_key
+        if global_settings.baidu_api_key:
+            test_settings["baidu_api_key"] = global_settings.baidu_api_key
         if global_settings.image_resolution:
             test_settings["image_resolution"] = global_settings.image_resolution
         # 推理模式设置

@@ -26,7 +26,7 @@ services:
       MINERU_TOKEN: ""
       MINERU_API_BASE: https://mineru.net
       IMAGE_CAPTION_MODEL: gemini-3-flash-preview
-      BAIDU_OCR_API_KEY: ""
+      BAIDU_API_KEY: ""
       OUTPUT_LANGUAGE: zh
     volumes:
       - ./backend/instance:/app/backend/instance

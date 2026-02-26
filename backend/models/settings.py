@@ -33,8 +33,8 @@ class Settings(db.Model):
     enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
     image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
     
-    # 百度 OCR 配置
-    baidu_ocr_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
+    # 百度 API 配置
+    baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 API Key
 
     # 每种模型类型的提供商配置（source 可选 gemini/openai/lazyllm厂商名，NULL=使用全局配置）
     text_model_source = db.Column(db.String(50), nullable=True)           # 文本模型提供商 (gemini, openai, qwen, doubao, deepseek, ...)
@@ -63,7 +63,7 @@ class Settings(db.Model):
         d = Settings._get_config_defaults()
         api_key = self._val('api_key', d)
         mineru_token = self._val('mineru_token', d)
-        baidu_ocr_api_key = self._val('baidu_ocr_api_key', d)
+        baidu_api_key = self._val('baidu_api_key', d)
         text_api_key = self._val('text_api_key', d)
         image_api_key = self._val('image_api_key', d)
         image_caption_api_key = self._val('image_caption_api_key', d)
@@ -86,7 +86,7 @@ class Settings(db.Model):
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
-            'baidu_ocr_api_key_length': len(baidu_ocr_api_key) if baidu_ocr_api_key else 0,
+            'baidu_api_key_length': len(baidu_api_key) if baidu_api_key else 0,
             'text_model_source': self._val('text_model_source', d),
             'image_model_source': self._val('image_model_source', d),
             'image_caption_model_source': self._val('image_caption_model_source', d),
@@ -152,7 +152,7 @@ class Settings(db.Model):
             'mineru_token': Config.MINERU_TOKEN,
             'image_caption_model': Config.IMAGE_CAPTION_MODEL,
             'output_language': Config.OUTPUT_LANGUAGE,
-            'baidu_ocr_api_key': Config.BAIDU_OCR_API_KEY or None,
+            'baidu_api_key': Config.BAIDU_API_KEY or None,
             'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
             'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
             'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),

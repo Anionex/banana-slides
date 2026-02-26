@@ -73,7 +73,7 @@ const settingsI18n = {
         tip: "提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。",
         startTest: "开始测试", testing: "测试中...", testTimeout: "测试超时，请重试", testFailed: "测试失败",
         tests: {
-          baiduOcr: { title: "Baidu OCR 服务", description: "识别测试图片文字，验证 BAIDU_OCR_API_KEY 配置" },
+          baiduOcr: { title: "Baidu OCR 服务", description: "识别测试图片文字，验证 BAIDU_API_KEY 配置" },
           textModel: { title: "文本生成模型", description: "发送短提示词，验证文本模型与 API 配置" },
           captionModel: { title: "图片识别模型", description: "生成测试图片并请求模型输出描述" },
           baiduInpaint: { title: "Baidu 图像修复", description: "使用测试图片执行修复，验证百度 inpaint 服务" },
@@ -163,7 +163,7 @@ const settingsI18n = {
         tip: "Tip: Image generation and MinerU tests may take 30-60 seconds, please be patient.",
         startTest: "Start Test", testing: "Testing...", testTimeout: "Test timeout, please retry", testFailed: "Test failed",
         tests: {
-          baiduOcr: { title: "Baidu OCR Service", description: "Recognize text in test image, verify BAIDU_OCR_API_KEY configuration" },
+          baiduOcr: { title: "Baidu OCR Service", description: "Recognize text in test image, verify BAIDU_API_KEY configuration" },
           textModel: { title: "Text Generation Model", description: "Send short prompt to verify text model and API configuration" },
           captionModel: { title: "Image Caption Model", description: "Generate test image and request model to output description" },
           baiduInpaint: { title: "Baidu Image Inpainting", description: "Use test image for inpainting, verify Baidu inpaint service" },
@@ -268,7 +268,7 @@ const initialFormData = {
   text_thinking_budget: 1024,
   enable_image_reasoning: false,
   image_thinking_budget: 1024,
-  baidu_ocr_api_key: '',
+  baidu_api_key: '',
   // LazyLLM 配置
   text_model_source: '',
   image_model_source: '',
@@ -342,7 +342,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   text_thinking_budget: data.text_thinking_budget || 1024,
   enable_image_reasoning: data.enable_image_reasoning || false,
   image_thinking_budget: data.image_thinking_budget || 1024,
-  baidu_ocr_api_key: '',
+  baidu_api_key: '',
   text_model_source: data.text_model_source || '',
   image_model_source: data.image_model_source || '',
   image_caption_model_source: data.image_caption_model_source || '',
@@ -490,12 +490,12 @@ export const Settings: React.FC = () => {
       icon: <FileText size={20} />,
       fields: [
         {
-          key: 'baidu_ocr_api_key',
+          key: 'baidu_api_key',
           label: t('settings.fields.baiduOcrApiKey'),
           type: 'password',
           placeholder: t('settings.fields.baiduOcrApiKeyPlaceholder'),
           sensitiveField: true,
-          lengthKey: 'baidu_ocr_api_key_length',
+          lengthKey: 'baidu_api_key_length',
           description: t('settings.fields.baiduOcrApiKeyDesc'),
           link: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
         },
@@ -530,7 +530,7 @@ export const Settings: React.FC = () => {
     setIsSaving(true);
     try {
       const {
-        api_key, mineru_token, baidu_ocr_api_key, lazyllm_api_keys,
+        api_key, mineru_token, baidu_api_key, lazyllm_api_keys,
         text_api_key, image_api_key, image_caption_api_key,
         ...otherData
       } = formData;
@@ -544,7 +544,7 @@ export const Settings: React.FC = () => {
       // Only send sensitive fields if user entered a new value
       if (api_key) payload.api_key = api_key;
       if (mineru_token) payload.mineru_token = mineru_token;
-      if (baidu_ocr_api_key) payload.baidu_ocr_api_key = baidu_ocr_api_key;
+      if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
       if (text_api_key) payload.text_api_key = text_api_key;
       if (image_api_key) payload.image_api_key = image_api_key;
       if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
@@ -565,7 +565,7 @@ export const Settings: React.FC = () => {
         // Clear all sensitive fields after save
         setFormData(prev => ({
           ...prev,
-          api_key: '', mineru_token: '', baidu_ocr_api_key: '',
+          api_key: '', mineru_token: '', baidu_api_key: '',
           lazyllm_api_keys: {},
           text_api_key: '', image_api_key: '', image_caption_api_key: '',
         }));
@@ -642,7 +642,7 @@ export const Settings: React.FC = () => {
       if (formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
       if (formData.mineru_api_base) testSettings.mineru_api_base = formData.mineru_api_base;
       if (formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
-      if (formData.baidu_ocr_api_key) testSettings.baidu_ocr_api_key = formData.baidu_ocr_api_key;
+      if (formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
       if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
 
       // Per-model provider source overrides (always send, even empty, to clear saved values)
