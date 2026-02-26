@@ -158,6 +158,121 @@ The user's request: {idea_prompt}. Now generate the outline, don't include any o
     return final_prompt
 
 
+def get_outline_generation_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
+    """
+    生成 PPT 大纲的 prompt（Markdown 输出格式，用于流式生成）
+    """
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    idea_prompt = project_context.idea_prompt or ""
+
+    prompt = (f"""\
+You are a helpful assistant that generates an outline for a PPT presentation.
+
+Output the outline in Markdown format using these rules:
+- Use `# Part Name` for major sections (only when the PPT has clear parts/chapters)
+- Use `## Page Title` for each page
+- Use `- ` bullet points for key points under each page
+- Output pages sequentially, one after another
+- Do NOT wrap in code blocks or add any extra text
+
+Example (with parts):
+# Introduction
+## Welcome
+- Company overview
+- Today's agenda
+
+## Background
+- Industry context
+- Key challenges
+
+# Main Content
+## Core Strategy
+- Strategic pillar 1
+- Strategic pillar 2
+
+Example (without parts, for short PPTs):
+## Project Title
+- Subtitle or presenter info
+
+## Current Status
+- Key metric 1
+- Key metric 2
+
+Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
+
+The user's request: {idea_prompt}. Now generate the outline.
+{get_language_instruction(language)}
+""")
+
+    final_prompt = files_xml + prompt
+    logger.debug(f"[get_outline_generation_prompt_markdown] Final prompt:\n{final_prompt}")
+    return final_prompt
+
+
+def get_outline_parsing_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
+    """
+    解析用户提供的大纲文本的 prompt（Markdown 输出格式，用于流式生成）
+    """
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    outline_text = project_context.outline_text or ""
+
+    prompt = (f"""\
+You are a helpful assistant that parses a user-provided PPT outline text into a structured Markdown format.
+
+The user has provided the following outline text:
+
+{outline_text}
+
+Your task is to analyze this text and convert it into a structured Markdown outline WITHOUT modifying any of the original text content.
+
+Output rules:
+- Use `# Part Name` for major sections (only if the text has clear parts/chapters)
+- Use `## Page Title` for each page
+- Use `- ` bullet points for key points under each page
+- Preserve all titles, points, and text exactly as provided
+- Do NOT wrap in code blocks or add any extra text
+
+Now parse the outline text above into the Markdown format.
+{get_language_instruction(language)}
+""")
+
+    final_prompt = files_xml + prompt
+    logger.debug(f"[get_outline_parsing_prompt_markdown] Final prompt:\n{final_prompt}")
+    return final_prompt
+
+
+def get_description_to_outline_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
+    """
+    从描述文本解析出大纲的 prompt（Markdown 输出格式，用于流式生成）
+    """
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    description_text = project_context.description_text or ""
+
+    prompt = (f"""\
+You are a helpful assistant that analyzes a user-provided PPT description text and extracts the outline structure.
+
+The user has provided the following description text:
+
+{description_text}
+
+Your task is to extract the outline structure (titles and key points) for each page.
+
+Output rules:
+- Use `# Part Name` for major sections (only if the text has clear parts/chapters)
+- Use `## Page Title` for each page
+- Use `- ` bullet points for key points under each page
+- Preserve the logical structure from the original text
+- Do NOT wrap in code blocks or add any extra text
+
+Now extract the outline structure from the description text above.
+{get_language_instruction(language)}
+""")
+
+    final_prompt = files_xml + prompt
+    logger.debug(f"[get_description_to_outline_prompt_markdown] Final prompt:\n{final_prompt}")
+    return final_prompt
+
+
 def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str = None ) -> str:
     """
     解析用户提供的大纲文本的 prompt

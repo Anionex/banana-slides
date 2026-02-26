@@ -24,7 +24,10 @@ from .prompts import (
     get_descriptions_refinement_prompt,
     get_ppt_page_content_extraction_prompt,
     get_layout_caption_prompt,
-    get_style_extraction_prompt
+    get_style_extraction_prompt,
+    get_outline_generation_prompt_markdown,
+    get_outline_parsing_prompt_markdown,
+    get_description_to_outline_prompt_markdown,
 )
 from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
@@ -325,6 +328,105 @@ class AIService:
         outline_prompt = get_outline_generation_prompt(project_context, language)
         outline = self.generate_json(outline_prompt, thinking_budget=1000)
         return outline
+
+    @staticmethod
+    def parse_markdown_outline(markdown: str) -> List[Dict]:
+        """
+        Parse markdown outline into structured page data.
+
+        Format:
+          # Part Name        → sets current part
+          ## Page Title       → starts a new page
+          - Point text        → adds a bullet point to current page
+
+        Returns list of dicts: [{"title": ..., "points": [...], "part": ...}, ...]
+        """
+        pages = []
+        current_part = None
+        current_page = None
+
+        for line in markdown.split('\n'):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            if stripped.startswith('# ') and not stripped.startswith('## '):
+                # Part header
+                current_part = stripped[2:].strip()
+            elif stripped.startswith('## '):
+                # New page — flush previous
+                if current_page:
+                    pages.append(current_page)
+                current_page = {
+                    'title': stripped[3:].strip(),
+                    'points': [],
+                }
+                if current_part:
+                    current_page['part'] = current_part
+            elif stripped.startswith('- ') and current_page is not None:
+                current_page['points'].append(stripped[2:].strip())
+
+        # Flush last page
+        if current_page:
+            pages.append(current_page)
+
+        return pages
+
+    def generate_outline_stream(self, project_context: ProjectContext, language: str = None):
+        """
+        Stream outline generation, yielding each completed page as it's detected.
+
+        Yields dicts: {"title": ..., "points": [...], "part": ...}
+        """
+        creation_type = project_context.creation_type or 'idea'
+
+        if creation_type == 'outline':
+            prompt = get_outline_parsing_prompt_markdown(project_context, language)
+        elif creation_type == 'descriptions':
+            prompt = get_description_to_outline_prompt_markdown(project_context, language)
+        else:
+            prompt = get_outline_generation_prompt_markdown(project_context, language)
+
+        actual_budget = self._get_text_thinking_budget()
+        buffer = ""
+        current_part = None
+        current_page = None
+
+        for chunk in self.text_provider.generate_text_stream(prompt, thinking_budget=actual_budget):
+            buffer += chunk
+
+            # Process complete lines from buffer
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                stripped = line.strip()
+
+                if not stripped:
+                    continue
+
+                if stripped.startswith('# ') and not stripped.startswith('## '):
+                    current_part = stripped[2:].strip()
+                elif stripped.startswith('## '):
+                    # New page detected — yield previous page
+                    if current_page:
+                        yield current_page
+                    current_page = {
+                        'title': stripped[3:].strip(),
+                        'points': [],
+                    }
+                    if current_part:
+                        current_page['part'] = current_part
+                elif stripped.startswith('- ') and current_page is not None:
+                    current_page['points'].append(stripped[2:].strip())
+
+        # Process remaining buffer
+        if buffer.strip():
+            stripped = buffer.strip()
+            if stripped.startswith('- ') and current_page is not None:
+                current_page['points'].append(stripped[2:].strip())
+
+        # Yield last page
+        if current_page:
+            yield current_page
     
     def parse_outline_text(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """

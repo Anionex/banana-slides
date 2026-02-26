@@ -6,6 +6,7 @@ Operates in two authentication modes selected at construction time:
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
+from typing import Generator
 from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -124,3 +125,19 @@ class GenAITextProvider(TextProvider):
             config=types.GenerateContentConfig(**config_params) if config_params else None,
         )
         return _validate_response(response)
+
+    def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
+        """Stream text using Google GenAI SDK's generate_content_stream."""
+        config_params = {}
+        if thinking_budget > 0:
+            config_params['thinking_config'] = types.ThinkingConfig(thinking_budget=thinking_budget)
+
+        response = self.client.models.generate_content_stream(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(**config_params) if config_params else None,
+        )
+        for chunk in response:
+            # Skip thinking chunks, only yield text content
+            if chunk.text:
+                yield chunk.text
