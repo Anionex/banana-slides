@@ -31,7 +31,7 @@ ARG PYPI_INDEX_URL=
 
 WORKDIR /app
 
-# 安装系统依赖：nginx + supervisor + libreoffice + curl
+# 安装系统依赖：nginx + supervisor + curl
 RUN if [ -n "$APT_MIRROR" ]; then \
         if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
             sed -i "s@deb.debian.org@$APT_MIRROR@g" /etc/apt/sources.list.d/debian.sources; \
@@ -41,7 +41,6 @@ RUN if [ -n "$APT_MIRROR" ]; then \
         curl \
         nginx \
         supervisor \
-        libreoffice-impress \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制 uv
