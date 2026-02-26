@@ -58,6 +58,7 @@ const outlineI18n = {
         importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
         saveFailed: "Save failed",
+      }
     }
   }
 };

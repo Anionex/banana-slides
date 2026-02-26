@@ -91,7 +91,9 @@ const settingsI18n = {
         loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
         resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
         resetTitle: "确认重置为默认配置", resetSuccess: "设置已重置", resetFailed: "重置设置失败",
-        testServiceTip: "建议在本页底部进行服务测试，验证关键配置"
+        testServiceTip: "建议在本页底部进行服务测试，验证关键配置",
+        resetConfirmBtn: "确定重置", resetCancelBtn: "取消", unknownError: "未知错误",
+        testSuccess: "测试成功"
       }
     }
   },
@@ -181,7 +183,9 @@ const settingsI18n = {
         loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
         resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
         resetTitle: "Confirm Reset to Default", resetSuccess: "Settings reset successfully", resetFailed: "Failed to reset settings",
-        testServiceTip: "It's recommended to test services at the bottom of this page to verify configurations"
+        testServiceTip: "It's recommended to test services at the bottom of this page to verify configurations",
+        resetConfirmBtn: "Confirm Reset", resetCancelBtn: "Cancel", unknownError: "Unknown error",
+        testSuccess: "Test passed"
       }
     }
   }
@@ -518,7 +522,7 @@ export const Settings: React.FC = () => {
     } catch (error: any) {
       console.error('加载设置失败:', error);
       show({
-        message: '加载设置失败: ' + (error?.message || '未知错误'),
+        message: t('settings.messages.loadFailed') + ': ' + (error?.message || t('settings.messages.unknownError')),
         type: 'error'
       });
     } finally {
@@ -573,7 +577,7 @@ export const Settings: React.FC = () => {
     } catch (error: any) {
       console.error('保存设置失败:', error);
       show({
-        message: '保存设置失败: ' + (error?.response?.data?.error?.message || error?.message || '未知错误'),
+        message: t('settings.messages.saveFailed') + ': ' + (error?.response?.data?.error?.message || error?.message || t('settings.messages.unknownError')),
         type: 'error'
       });
     } finally {
@@ -583,7 +587,7 @@ export const Settings: React.FC = () => {
 
   const handleReset = () => {
     confirm(
-      '将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？',
+      t('settings.messages.resetConfirm'),
       async () => {
         setIsSaving(true);
         try {
@@ -596,7 +600,7 @@ export const Settings: React.FC = () => {
         } catch (error: any) {
           console.error('重置设置失败:', error);
           show({
-            message: '重置设置失败: ' + (error?.message || '未知错误'),
+            message: t('settings.messages.resetFailed') + ': ' + (error?.message || t('settings.messages.unknownError')),
             type: 'error'
           });
         } finally {
@@ -604,9 +608,9 @@ export const Settings: React.FC = () => {
         }
       },
       {
-        title: '确认重置为默认配置',
-        confirmText: '确定重置',
-        cancelText: '取消',
+        title: t('settings.messages.resetTitle'),
+        confirmText: t('settings.messages.resetConfirmBtn'),
+        cancelText: t('settings.messages.resetCancelBtn'),
         variant: 'warning',
       }
     );
@@ -685,12 +689,12 @@ export const Settings: React.FC = () => {
           if (taskStatus === 'COMPLETED') {
             clearInterval(pollInterval);
             const detail = formatDetail(statusResponse.data.result || {});
-            const message = statusResponse.data.message || '测试成功';
+            const message = statusResponse.data.message || t('settings.messages.testSuccess');
             updateServiceTest(key, { status: 'success', message, detail });
             show({ message, type: 'success' });
           } else if (taskStatus === 'FAILED') {
             clearInterval(pollInterval);
-            const errorMessage = statusResponse.data.error || '测试失败';
+            const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
             updateServiceTest(key, { status: 'error', message: errorMessage });
             show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
           }
@@ -707,7 +711,7 @@ export const Settings: React.FC = () => {
       setTimeout(() => {
         clearInterval(pollInterval);
         if (serviceTestStates[key]?.status === 'loading') {
-          updateServiceTest(key, { status: 'error', message: '测试超时' });
+          updateServiceTest(key, { status: 'error', message: t('settings.serviceTest.testTimeout') });
           show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
         }
       }, 120000);
