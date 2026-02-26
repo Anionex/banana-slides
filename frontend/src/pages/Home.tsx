@@ -377,14 +377,14 @@ export const Home: React.FC = () => {
       
       // 特殊处理413错误
       if (error?.response?.status === 413) {
-        show({ 
-          message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
-          type: 'error' 
+        show({
+          message: t('home.messages.fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
+          type: 'error'
         });
       } else {
-        show({ 
-          message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-          type: 'error' 
+        show({
+          message: `${t('home.messages.fileUploadFailed')}: ${error?.response?.data?.error?.message || error.message || ''}`.replace(/: $/, ''),
+          type: 'error'
         });
       }
     } finally {

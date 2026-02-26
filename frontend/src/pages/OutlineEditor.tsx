@@ -29,6 +29,7 @@ const outlineI18n = {
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
         importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
+        saveFailed: "保存失败",
       }
     }
   },
@@ -56,7 +57,7 @@ const outlineI18n = {
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
         importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
-      }
+        saveFailed: "Save failed",
     }
   }
 };
@@ -176,7 +177,7 @@ export const OutlineEditor: React.FC = () => {
       setIsInputDirty(false);
     } catch (e) {
       console.error('保存输入文本失败:', e);
-      show({ message: '保存失败', type: 'error' });
+      show({ message: t('outline.messages.saveFailed'), type: 'error' });
     }
   }, [projectId, show, syncProject]);
 
