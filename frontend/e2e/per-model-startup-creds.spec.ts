@@ -51,7 +51,7 @@ test.afterAll(async ({ browser }) => {
   await page.goto('/settings')
   await page.getByRole('button', { name: /重置/ }).click()
   await page.getByRole('button', { name: /确定重置/ }).click()
-  await page.waitForTimeout(1000)
+  await expect(page.locator('text=已重置').or(page.locator('text=reset'))).toBeVisible({ timeout: 5000 })
   await page.close()
   try { execSync(`rm -f ${LOG_FILE}`) } catch { /* ignore */ }
 })
