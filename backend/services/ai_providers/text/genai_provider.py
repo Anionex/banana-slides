@@ -6,8 +6,11 @@ Operates in two authentication modes selected at construction time:
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
+from typing import Type, Optional
 from google import genai
 from google.genai import types
+from PIL import Image
+from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 from .base import TextProvider, strip_think_tags
 from config import get_config
@@ -105,8 +108,6 @@ class GenAITextProvider(TextProvider):
         Returns:
             Generated text
         """
-        from PIL import Image
-        
         # 加载图片
         img = Image.open(image_path)
         
@@ -124,3 +125,51 @@ class GenAITextProvider(TextProvider):
             config=types.GenerateContentConfig(**config_params) if config_params else None,
         )
         return _validate_response(response)
+
+    def _build_json_config(self, schema: Type[BaseModel],
+                           thinking_budget: int) -> types.GenerateContentConfig:
+        """Build config for structured JSON output."""
+        params = {
+            'response_mime_type': 'application/json',
+            'response_schema': schema,
+        }
+        if thinking_budget > 0:
+            params['thinking_config'] = types.ThinkingConfig(
+                thinking_budget=thinking_budget)
+        return types.GenerateContentConfig(**params)
+
+    @retry(
+        stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True,
+        before_sleep=_log_retry
+    )
+    def generate_json(self, prompt: str, schema: Type[BaseModel],
+                      thinking_budget: int = 0) -> Optional[BaseModel]:
+        """Generate structured JSON conforming to a Pydantic schema."""
+        config = self._build_json_config(schema, thinking_budget)
+        response = self.client.models.generate_content(
+            model=self.model, contents=prompt, config=config,
+        )
+        if response.text is None:
+            raise ValueError("AI model returned empty response")
+        return schema.model_validate_json(response.text)
+
+    @retry(
+        stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True,
+        before_sleep=_log_retry
+    )
+    def generate_json_with_image(self, prompt: str, image_path: str,
+                                 schema: Type[BaseModel],
+                                 thinking_budget: int = 0) -> Optional[BaseModel]:
+        """Generate structured JSON with image input."""
+        img = Image.open(image_path)
+        config = self._build_json_config(schema, thinking_budget)
+        response = self.client.models.generate_content(
+            model=self.model, contents=[img, prompt], config=config,
+        )
+        if response.text is None:
+            raise ValueError("AI model returned empty response")
+        return schema.model_validate_json(response.text)

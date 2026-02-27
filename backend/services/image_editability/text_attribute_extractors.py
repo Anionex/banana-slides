@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, List, Optional, Tuple, Union
 from PIL import Image
 from services.prompts import get_text_attribute_extraction_prompt
+from services.ai_schemas import TextAttributeResponse, BatchTextAttributeResponse
 
 logger = logging.getLogger(__name__)
 
@@ -314,11 +315,13 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
             image.save(tmp_path)
         
         try:
-            # 使用 ai_service.generate_json_with_image（带重试机制）
+            # 使用 ai_service.generate_json_with_image（优先结构化输出，回退到重试）
             result = self.ai_service.generate_json_with_image(
                 prompt=prompt,
                 image_path=tmp_path,
-                thinking_budget=thinking_budget
+                thinking_budget=thinking_budget,
+                response_schema=TextAttributeResponse,
+                extract_fn=lambda r: r.model_dump()
             )
             return result if isinstance(result, dict) else {}
         
@@ -486,12 +489,14 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
             # 构建 prompt
             prompt = get_batch_text_attribute_extraction_prompt(text_elements_json)
             
-            # 调用 ai_service.generate_json_with_image（带重试机制）
+            # 调用 ai_service.generate_json_with_image（优先结构化输出，回退到重试）
             try:
                 result = self.ai_service.generate_json_with_image(
                     prompt=prompt,
                     image_path=tmp_path,
-                    thinking_budget=thinking_budget
+                    thinking_budget=thinking_budget,
+                    response_schema=BatchTextAttributeResponse,
+                    extract_fn=lambda r: [item.model_dump() for item in r.items]
                 )
                 
                 # 确保结果是列表

@@ -1,16 +1,16 @@
 """
 AI Service - handles all AI model interactions
 Based on demo.py and gemini_genai.py
-TODO: use structured output API
 """
 import os
 import json
 import re
 import logging
 import requests
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Callable, Type
 from textwrap import dedent
 from PIL import Image
+from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
 from .prompts import (
     get_outline_generation_prompt,
@@ -27,6 +27,10 @@ from .prompts import (
     get_style_extraction_prompt
 )
 from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
+from .ai_schemas import (
+    OutlineResponse, OutlineItem, PageDescriptionsResponse,
+    PageContentResponse, TextAttributeResponse, BatchTextAttributeResponse,
+)
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -189,84 +193,96 @@ class AIService:
         
         return cleaned_text
     
-    @retry(
-        stop=stop_after_attempt(3),
-        retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
-        reraise=True
-    )
-    def generate_json(self, prompt: str, thinking_budget: int = 1000) -> Union[Dict, List]:
+    def generate_json(self, prompt: str, thinking_budget: int = 1000,
+                      response_schema: Type[BaseModel] = None,
+                      extract_fn: Callable = None) -> Union[Dict, List]:
         """
-        生成并解析JSON，如果解析失败则重新生成
-        
+        生成并解析JSON。优先使用结构化输出API，不支持时回退到文本+解析+重试。
+
         Args:
             prompt: 生成提示词
             thinking_budget: 思考预算（会根据 enable_text_reasoning 配置自动调整）
-            
+            response_schema: Pydantic model for structured output (optional)
+            extract_fn: Function to convert parsed Pydantic model to dict/list (optional)
+
         Returns:
             解析后的JSON对象（字典或列表）
-            
-        Raises:
-            json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
         """
-        # 调用AI生成文本（根据 enable_text_reasoning 配置调整 thinking_budget）
         actual_budget = self._get_text_thinking_budget()
-        response_text = self.text_provider.generate_text(prompt, thinking_budget=actual_budget)
-        
-        # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().strip("```json").strip("```").strip()
-        
-        try:
-            return json.loads(cleaned_text)
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
-            raise
+
+        # 尝试结构化输出
+        if response_schema:
+            try:
+                result = self.text_provider.generate_json(
+                    prompt, response_schema, thinking_budget=actual_budget)
+                if result is not None:
+                    return extract_fn(result) if extract_fn else result.model_dump()
+            except Exception as e:
+                logger.warning(f"结构化输出失败，回退到文本解析: {e}")
+
+        # 回退：文本生成 + JSON解析 + 重试
+        return self._generate_json_fallback(prompt, actual_budget)
     
+    def generate_json_with_image(self, prompt: str, image_path: str,
+                                thinking_budget: int = 1000,
+                                response_schema: Type[BaseModel] = None,
+                                extract_fn: Callable = None) -> Union[Dict, List]:
+        """
+        带图片输入的JSON生成。优先使用结构化输出API，不支持时回退到文本+解析+重试。
+        """
+        actual_budget = self._get_text_thinking_budget()
+
+        # 尝试结构化输出
+        if response_schema:
+            try:
+                result = self.caption_provider.generate_json_with_image(
+                    prompt, image_path, response_schema,
+                    thinking_budget=actual_budget)
+                if result is not None:
+                    return extract_fn(result) if extract_fn else result.model_dump()
+            except Exception as e:
+                logger.warning(f"结构化输出失败（带图片），回退到文本解析: {e}")
+
+        # 回退
+        return self._generate_json_with_image_fallback(prompt, image_path, actual_budget)
+
     @retry(
         stop=stop_after_attempt(3),
         retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
         reraise=True
     )
-    def generate_json_with_image(self, prompt: str, image_path: str, thinking_budget: int = 1000) -> Union[Dict, List]:
-        """
-        带图片输入的JSON生成，如果解析失败则重新生成（最多重试3次）
-        
-        Args:
-            prompt: 生成提示词
-            image_path: 图片文件路径
-            thinking_budget: 思考预算（会根据 enable_text_reasoning 配置自动调整）
-            
-        Returns:
-            解析后的JSON对象（字典或列表）
-            
-        Raises:
-            json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
-            ValueError: caption_provider 不支持图片输入
-        """
-        # 使用 caption_provider（支持图片输入的多模态模型）
-        actual_budget = self._get_text_thinking_budget()
+    def _generate_json_fallback(self, prompt: str, thinking_budget: int) -> Union[Dict, List]:
+        """文本生成 + JSON解析，解析失败自动重试"""
+        response_text = self.text_provider.generate_text(prompt, thinking_budget=thinking_budget)
+        cleaned = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned[:200]}... 错误: {e}")
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
+        reraise=True
+    )
+    def _generate_json_with_image_fallback(self, prompt: str, image_path: str,
+                                           thinking_budget: int) -> Union[Dict, List]:
+        """带图片的文本生成 + JSON解析，解析失败自动重试"""
         provider = self.caption_provider
         if hasattr(provider, 'generate_with_image'):
             response_text = provider.generate_with_image(
-                prompt=prompt,
-                image_path=image_path,
-                thinking_budget=actual_budget
-            )
+                prompt=prompt, image_path=image_path, thinking_budget=thinking_budget)
         elif hasattr(provider, 'generate_text_with_images'):
             response_text = provider.generate_text_with_images(
-                prompt=prompt,
-                images=[image_path],
-                thinking_budget=actual_budget
-            )
+                prompt=prompt, images=[image_path], thinking_budget=thinking_budget)
         else:
             raise ValueError("caption_provider 不支持图片输入")
-        
-        # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        
+        cleaned = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         try:
-            return json.loads(cleaned_text)
+            return json.loads(cleaned)
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON解析失败（带图片），将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
+            logger.warning(f"JSON解析失败（带图片），将重新生成。原始文本: {cleaned[:200]}... 错误: {e}")
             raise
     
     @staticmethod
@@ -311,20 +327,31 @@ class AIService:
             logger.error(f"Failed to download image from {url}: {str(e)}")
             return None
     
+    @staticmethod
+    def _extract_outline(resp: OutlineResponse) -> List[Dict]:
+        """Convert OutlineResponse to the list-of-dicts format used downstream."""
+        return [item.model_dump(exclude_none=True) for item in resp.items]
+
+    @staticmethod
+    def _extract_descriptions(resp: PageDescriptionsResponse) -> List[str]:
+        return resp.descriptions
+
     def generate_outline(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
         Generate PPT outline from idea prompt
         Based on demo.py gen_outline()
-        
+
         Args:
             project_context: 项目上下文对象，包含所有原始信息
-            
+
         Returns:
             List of outline items (may contain parts with pages or direct pages)
         """
         outline_prompt = get_outline_generation_prompt(project_context, language)
-        outline = self.generate_json(outline_prompt, thinking_budget=1000)
-        return outline
+        return self.generate_json(
+            outline_prompt, thinking_budget=1000,
+            response_schema=OutlineResponse,
+            extract_fn=self._extract_outline)
     
     def parse_outline_text(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
@@ -338,8 +365,10 @@ class AIService:
             List of outline items (may contain parts with pages or direct pages)
         """
         parse_prompt = get_outline_parsing_prompt(project_context, language)
-        outline = self.generate_json(parse_prompt, thinking_budget=1000)
-        return outline
+        return self.generate_json(
+            parse_prompt, thinking_budget=1000,
+            response_schema=OutlineResponse,
+            extract_fn=self._extract_outline)
     
     def flatten_outline(self, outline: List[Dict]) -> List[Dict]:
         """
@@ -586,8 +615,10 @@ class AIService:
             List of outline items (may contain parts with pages or direct pages)
         """
         parse_prompt = get_description_to_outline_prompt(project_context, language)
-        outline = self.generate_json(parse_prompt, thinking_budget=1000)
-        return outline
+        return self.generate_json(
+            parse_prompt, thinking_budget=1000,
+            response_schema=OutlineResponse,
+            extract_fn=self._extract_outline)
     
     def parse_description_to_page_descriptions(self, project_context: ProjectContext, 
                                                outline: List[Dict],
@@ -603,8 +634,11 @@ class AIService:
             List of page descriptions (strings), one for each page in the outline
         """
         split_prompt = get_description_split_prompt(project_context, outline, language)
-        descriptions = self.generate_json(split_prompt, thinking_budget=1000)
-        
+        descriptions = self.generate_json(
+            split_prompt, thinking_budget=1000,
+            response_schema=PageDescriptionsResponse,
+            extract_fn=self._extract_descriptions)
+
         # 确保返回的是字符串列表
         if isinstance(descriptions, list):
             return [str(desc) for desc in descriptions]
@@ -634,9 +668,11 @@ class AIService:
             previous_requirements=previous_requirements,
             language=language
         )
-        outline = self.generate_json(refinement_prompt, thinking_budget=1000)
-        return outline
-    
+        return self.generate_json(
+            refinement_prompt, thinking_budget=1000,
+            response_schema=OutlineResponse,
+            extract_fn=self._extract_outline)
+
     def refine_descriptions(self, current_descriptions: List[Dict], user_requirement: str,
                            project_context: ProjectContext,
                            outline: List[Dict] = None,
@@ -663,7 +699,10 @@ class AIService:
             previous_requirements=previous_requirements,
             language=language
         )
-        descriptions = self.generate_json(refinement_prompt, thinking_budget=1000)
+        descriptions = self.generate_json(
+            refinement_prompt, thinking_budget=1000,
+            response_schema=PageDescriptionsResponse,
+            extract_fn=self._extract_descriptions)
 
         # 确保返回的是字符串列表
         if isinstance(descriptions, list):
@@ -683,7 +722,10 @@ class AIService:
             Dict with keys: title, points, description
         """
         prompt = get_ppt_page_content_extraction_prompt(markdown_text, language=language)
-        result = self.generate_json(prompt, thinking_budget=1000)
+        result = self.generate_json(
+            prompt, thinking_budget=1000,
+            response_schema=PageContentResponse,
+            extract_fn=lambda r: r.model_dump())
 
         # Ensure required fields exist
         if not isinstance(result, dict):
