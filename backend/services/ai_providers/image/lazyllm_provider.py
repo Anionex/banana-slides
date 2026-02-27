@@ -12,9 +12,12 @@ Support models:
 - doubao-seedream-4.5
 - ...
 """
+import re
 import tempfile
 import os
 import logging
+import requests
+from io import BytesIO
 from typing import Optional, List, Tuple
 from PIL import Image
 from .base import ImageProvider
@@ -186,7 +189,28 @@ class LazyLLMImageProvider(ImageProvider):
                 file_paths.append(temp_path)
                 temp_paths.append(temp_path)
         try:
-            response_path = self.client(prompt, lazyllm_files=file_paths, size=size_str)
+            try:
+                response_path = self.client(prompt, lazyllm_files=file_paths, size=size_str)
+            except Exception as client_err:
+                # LazyLLM may fail internally when the image URL returns application/octet-stream
+                # instead of image/*. In that case, extract the URL and download manually.
+                err_str = str(client_err)
+                if 'content type' in err_str.lower() or 'Failed to load image from' in err_str:
+                    url_match = re.search(r'(https?://\S+)', err_str)
+                    if url_match:
+                        url = url_match.group(1).rstrip('.')
+                        logger.warning(
+                            f"[LazyLLM] Content-type mismatch, downloading image manually: {url[:80]}..."
+                        )
+                        resp = requests.get(url, timeout=60)
+                        resp.raise_for_status()
+                        image = Image.open(BytesIO(resp.content))
+                        image.load()
+                        result = image.copy()
+                        logger.info(f"[LazyLLM] Manual download succeeded, size: {result.size}")
+                        return result
+                raise
+
             image_path = decode_query_with_filepaths(response_path) # dict
             if not image_path:
                 logger.warning('No images found in response')
