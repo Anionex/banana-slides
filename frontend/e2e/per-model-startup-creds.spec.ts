@@ -7,6 +7,11 @@
  */
 import { test, expect } from '@playwright/test'
 import { execSync } from 'child_process'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const backendPort = (() => {
   const m = (process.env.BASE_URL ?? '').match(/:(\d+)$/)
@@ -14,8 +19,8 @@ const backendPort = (() => {
   return m ? Number(m[1]) + 2000 : 5000
 })()
 const BACKEND_URL = `http://localhost:${backendPort}`
-const WORKTREE = '/home/aa/banana-slides-fix-startup-creds'
-const LOG_FILE = '/tmp/fix-startup-creds-backend.log'
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..')
+const LOG_FILE = path.join('/tmp', `startup-creds-backend-${process.pid}.log`)
 
 function restartBackend() {
   // Kill existing backend
@@ -27,7 +32,7 @@ function restartBackend() {
   execSync(`truncate -s 0 ${LOG_FILE}`)
   // Start backend fresh
   execSync(
-    `cd ${WORKTREE}/backend && nohup uv run python app.py >> ${LOG_FILE} 2>&1 &`,
+    `cd ${PROJECT_ROOT}/backend && nohup uv run python app.py >> ${LOG_FILE} 2>&1 &`,
     { timeout: 10000 },
   )
   // Wait for backend to be ready
@@ -40,7 +45,7 @@ function restartBackend() {
   throw new Error('Backend did not start within 20s')
 }
 
-// Clean up after all tests: reset settings to defaults
+// Clean up after all tests: reset settings and remove temp log
 test.afterAll(async ({ browser }) => {
   const page = await browser.newPage()
   await page.goto('/settings')
@@ -48,6 +53,7 @@ test.afterAll(async ({ browser }) => {
   await page.getByRole('button', { name: /确定重置/ }).click()
   await page.waitForTimeout(1000)
   await page.close()
+  try { execSync(`rm -f ${LOG_FILE}`) } catch { /* ignore */ }
 })
 
 test.describe('Per-model API credentials loaded on startup (#284)', () => {
