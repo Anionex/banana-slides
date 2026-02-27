@@ -142,6 +142,23 @@ export const OutlineEditor: React.FC = () => {
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+
+  // Skeleton fade-out: keep it mounted briefly after streaming ends
+  const [skeletonVisible, setSkeletonVisible] = useState(false);
+  const [skeletonFading, setSkeletonFading] = useState(false);
+  useEffect(() => {
+    if (isOutlineStreaming) {
+      setSkeletonVisible(true);
+      setSkeletonFading(false);
+    } else if (skeletonVisible) {
+      setSkeletonFading(true);
+      const timer = setTimeout(() => {
+        setSkeletonVisible(false);
+        setSkeletonFading(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOutlineStreaming]);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
 
@@ -633,8 +650,11 @@ export const OutlineEditor: React.FC = () => {
                       />
                     </div>
                   ))}
-                  {isOutlineStreaming && (
-                    <div className="animate-pulse">
+                  {skeletonVisible && (
+                    <div
+                      className="animate-pulse transition-opacity duration-300"
+                      style={{ opacity: skeletonFading ? 0 : 1 }}
+                    >
                       <div className="bg-white dark:bg-background-secondary rounded-xl shadow-sm border border-gray-100 dark:border-border-primary p-4">
                         <div className="flex items-start gap-3">
                           <div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded mt-1" />
