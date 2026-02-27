@@ -155,7 +155,7 @@ export const OutlineEditor: React.FC = () => {
       const timer = setTimeout(() => {
         setSkeletonVisible(false);
         setSkeletonFading(false);
-      }, 300);
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [isOutlineStreaming]);
@@ -652,10 +652,11 @@ export const OutlineEditor: React.FC = () => {
                   ))}
                   {skeletonVisible && (
                     <div
-                      className="animate-pulse transition-opacity duration-300"
+                      className="transition-opacity duration-1000"
                       style={{ opacity: skeletonFading ? 0 : 1 }}
                     >
-                      <div className="bg-white dark:bg-background-secondary rounded-xl shadow-sm border border-gray-100 dark:border-border-primary p-4">
+                      <div className="animate-pulse">
+                        <div className="bg-white dark:bg-background-secondary rounded-xl shadow-sm border border-gray-100 dark:border-border-primary p-4">
                         <div className="flex items-start gap-3">
                           <div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded mt-1" />
                           <div className="flex-1 space-y-3">
@@ -670,6 +671,7 @@ export const OutlineEditor: React.FC = () => {
                               <div className="h-3.5 w-3/5 bg-gray-100 dark:bg-gray-800 rounded" />
                             </div>
                           </div>
+                        </div>
                         </div>
                       </div>
                     </div>
