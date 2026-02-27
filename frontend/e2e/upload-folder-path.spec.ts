@@ -57,9 +57,7 @@ test.describe('UPLOAD_FOLDER path resolution (#287)', () => {
       return
     }
 
-    const formData = new FormData()
     const fileBuffer = fs.readFileSync(fixturePath)
-    formData.append('file', new Blob([fileBuffer], { type: 'image/jpeg' }), 'test-material.jpg')
 
     const uploadResp = await request.post(
       `/api/projects/${projectId}/materials/upload`,
@@ -143,12 +141,19 @@ test.describe('UPLOAD_FOLDER path resolution (#287)', () => {
       `Material file should be found by ai_service, but got "Local file not found" in logs`,
     ).toHaveLength(0)
 
-    // Positive check: if the generation got far enough, we should see the file was loaded
-    // (may not always appear if AI provider fails very early, so this is a soft check)
-    const fileLoaded = newLogs.includes(`Loaded image from local path`)
+    // Positive check: if the material filename appears in logs, it should be "Loaded", not "not found"
+    const materialLoadedLine = newLogs
+      .split('\n')
+      .some(
+        (line) =>
+          line.includes('Loaded image from local path') &&
+          line.includes(materialFilename),
+      )
     if (newLogs.includes(materialFilename)) {
-      // If the material filename appears in logs at all, it should be "Loaded", not "not found"
-      expect(fileLoaded || !newLogs.includes('Local file not found')).toBe(true)
+      expect(
+        materialLoadedLine || !fileNotFoundForMaterial.length,
+        `Material ${materialFilename} should be loaded, not missing`,
+      ).toBe(true)
     }
   })
 })
