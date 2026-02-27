@@ -203,7 +203,7 @@ Constraints:
 - Choose the format that best fits the content. Use parts when the PPT has clear major sections. 
 - Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information. 
 
-The user's request: {idea_prompt}. Now generate the outline, strictly follow the format provided above, don't include any other text.
+The user's request: {idea_prompt}. Now generate the outline, strictly follow the format provided above, don't include any other text. Output `<!-- END -->` on the last line when finished.
 {get_language_instruction(language)}
 """)
 
@@ -235,7 +235,7 @@ Output rules:
 - Preserve all titles, points, and text exactly as provided
 - Do NOT wrap in code blocks or add any extra text
 
-Now parse the outline text above into the Markdown format.
+Now parse the outline text above into the Markdown format. Output `<!-- END -->` on the last line when finished.
 {get_language_instruction(language)}
 """)
 
@@ -267,7 +267,7 @@ Output rules:
 - Preserve the logical structure from the original text
 - Do NOT wrap in code blocks or add any extra text
 
-Now extract the outline structure from the description text above.
+Now extract the outline structure from the description text above. Output `<!-- END -->` on the last line when finished.
 {get_language_instruction(language)}
 """)
 

@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, request, jsonify, current_app, Response
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
@@ -552,7 +552,13 @@ def generate_outline_stream(project_id):
 
                 # Stream pages from AI
                 streamed_pages = []
-                for i, page_data in enumerate(ai_service.generate_outline_stream(project_context, language=language)):
+                stream_complete = False
+                for page_data in ai_service.generate_outline_stream(project_context, language=language):
+                    # Check for completion sentinel
+                    if '__stream_complete__' in page_data:
+                        stream_complete = page_data['__stream_complete__']
+                        continue
+                    i = len(streamed_pages)
                     streamed_pages.append(page_data)
                     yield _sse_event('page', {
                         'index': i,
@@ -576,6 +582,7 @@ def generate_outline_stream(project_id):
                 yield _sse_event('done', {
                     'total': len(pages_list),
                     'pages': [p.to_dict() for p in pages_list],
+                    'complete': stream_complete,
                 })
 
             except Exception as e:
@@ -587,11 +594,12 @@ def generate_outline_stream(project_id):
                 yield _sse_event('error', {'message': str(e)})
 
     return Response(
-        sse_generate(),
+        stream_with_context(sse_generate()),
         mimetype='text/event-stream',
         headers={
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-transform',
             'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
         },
     )
 

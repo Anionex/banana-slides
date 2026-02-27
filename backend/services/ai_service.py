@@ -391,6 +391,7 @@ class AIService:
         buffer = ""
         current_part = None
         current_page = None
+        stream_complete = False
 
         for chunk in self.text_provider.generate_text_stream(prompt, thinking_budget=actual_budget):
             buffer += chunk
@@ -401,6 +402,10 @@ class AIService:
                 stripped = line.strip()
 
                 if not stripped:
+                    continue
+
+                if stripped == '<!-- END -->':
+                    stream_complete = True
                     continue
 
                 if stripped.startswith('# ') and not stripped.startswith('## '):
@@ -421,12 +426,17 @@ class AIService:
         # Process remaining buffer
         if buffer.strip():
             stripped = buffer.strip()
-            if stripped.startswith('- ') and current_page is not None:
+            if stripped == '<!-- END -->':
+                stream_complete = True
+            elif stripped.startswith('- ') and current_page is not None:
                 current_page['points'].append(stripped[2:].strip())
 
         # Yield last page
         if current_page:
             yield current_page
+
+        # Yield completion sentinel
+        yield {'__stream_complete__': stream_complete}
     
     def parse_outline_text(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
