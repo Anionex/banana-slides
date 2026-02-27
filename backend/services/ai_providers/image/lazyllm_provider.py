@@ -202,16 +202,22 @@ class LazyLLMImageProvider(ImageProvider):
                         # Only fetch from known image-hosting domains to prevent SSRF
                         from urllib.parse import urlparse
                         host = urlparse(url).hostname or ''
-                        allowed = host.endswith('.siliconflow.cn') or host.endswith('.amazonaws.com')
+                        allowed = host == 's3.siliconflow.cn' or host.endswith('.s3.amazonaws.com')
                         if not allowed:
                             logger.warning(f"[LazyLLM] Untrusted host '{host}', skipping manual download")
                             raise
                         logger.warning(
                             f"[LazyLLM] Content-type mismatch, downloading image manually: {url[:80]}..."
                         )
-                        resp = requests.get(url, timeout=60)
+                        max_size = 20 * 1024 * 1024  # 20 MB
+                        resp = requests.get(url, timeout=60, stream=True)
                         resp.raise_for_status()
-                        result = Image.open(BytesIO(resp.content)).copy()
+                        content = b""
+                        for chunk in resp.iter_content(chunk_size=8192):
+                            content += chunk
+                            if len(content) > max_size:
+                                raise ValueError(f"Image too large (>{max_size // 1024 // 1024}MB)")
+                        result = Image.open(BytesIO(content)).copy()
                         logger.info(f"[LazyLLM] Manual download succeeded, size: {result.size}")
                         return result
                 raise

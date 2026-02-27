@@ -63,9 +63,10 @@ class TestLazyLLMContentTypeFallback:
         )
         provider.client.side_effect = Exception(error_msg)
 
+        png_bytes = _make_png_bytes()
         mock_resp = MagicMock()
-        mock_resp.content = _make_png_bytes()
         mock_resp.raise_for_status = MagicMock()
+        mock_resp.iter_content = MagicMock(return_value=iter([png_bytes]))
 
         with patch('services.ai_providers.image.lazyllm_provider.requests.get',
                    return_value=mock_resp) as mock_get:
