@@ -196,17 +196,22 @@ class LazyLLMImageProvider(ImageProvider):
                 # instead of image/*. In that case, extract the URL and download manually.
                 err_str = str(client_err)
                 if 'content type' in err_str.lower() or 'Failed to load image from' in err_str:
-                    url_match = re.search(r'(https?://\S+)', err_str)
+                    url_match = re.search(r'(https://[^\s"\'<>]+)', err_str)
                     if url_match:
                         url = url_match.group(1).rstrip('.')
+                        # Only fetch from known image-hosting domains to prevent SSRF
+                        from urllib.parse import urlparse
+                        host = urlparse(url).hostname or ''
+                        allowed = host.endswith('.siliconflow.cn') or host.endswith('.amazonaws.com')
+                        if not allowed:
+                            logger.warning(f"[LazyLLM] Untrusted host '{host}', skipping manual download")
+                            raise
                         logger.warning(
                             f"[LazyLLM] Content-type mismatch, downloading image manually: {url[:80]}..."
                         )
                         resp = requests.get(url, timeout=60)
                         resp.raise_for_status()
-                        image = Image.open(BytesIO(resp.content))
-                        image.load()
-                        result = image.copy()
+                        result = Image.open(BytesIO(resp.content)).copy()
                         logger.info(f"[LazyLLM] Manual download succeeded, size: {result.size}")
                         return result
                 raise

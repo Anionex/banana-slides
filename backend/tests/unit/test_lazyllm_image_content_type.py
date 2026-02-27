@@ -76,6 +76,22 @@ class TestLazyLLMContentTypeFallback:
         mock_get.assert_called_once()
         assert 's3.siliconflow.cn' in mock_get.call_args[0][0]
 
+    def test_untrusted_host_is_not_fetched(self):
+        """URLs from untrusted hosts should not be fetched (SSRF prevention)."""
+        provider = self._make_provider()
+
+        evil_url = 'https://evil.example.com/steal.png'
+        error_msg = (
+            f'Failed to load image from {evil_url}\n'
+            'Invalid content type for image: application/octet-stream'
+        )
+        provider.client.side_effect = Exception(error_msg)
+
+        with patch('backend.services.ai_providers.image.lazyllm_provider.requests.get') as mock_get:
+            with pytest.raises(Exception):
+                provider.generate_image(prompt='test prompt')
+        mock_get.assert_not_called()
+
     def test_non_content_type_error_is_reraised(self):
         """Non content-type errors propagate normally."""
         provider = self._make_provider()
