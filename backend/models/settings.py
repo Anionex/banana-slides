@@ -50,6 +50,9 @@ class Settings(db.Model):
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
     
+    # 排版预设（JSON 数组，如 ["左图右文", "全图背景", ...]）
+    layout_presets = db.Column(db.Text, nullable=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -97,6 +100,7 @@ class Settings(db.Model):
             'image_api_base_url': self._val('image_api_base_url', d),
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
             'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'layout_presets': self._get_layout_presets(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -111,6 +115,15 @@ class Settings(db.Model):
             return {vendor: len(key) for vendor, key in keys.items() if key}
         except (json.JSONDecodeError, TypeError):
             return {}
+
+    def _get_layout_presets(self):
+        """Parse layout_presets JSON, return list or default presets."""
+        if self.layout_presets:
+            try:
+                return json.loads(self.layout_presets)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return ["左图右文", "右图左文", "上图下文", "全图背景+文字叠加", "上下分栏", "纯文字居中"]
 
     def get_lazyllm_api_keys_dict(self):
         """Parse lazyllm_api_keys JSON into a dict."""

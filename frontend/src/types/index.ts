@@ -154,6 +154,7 @@ export interface Settings {
   image_api_base_url?: string;
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
+  layout_presets?: string[];
   created_at?: string;
   updated_at?: string;
 }

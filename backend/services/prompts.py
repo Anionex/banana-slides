@@ -3,6 +3,7 @@ AI Service Prompts - 集中管理所有 AI 服务的 prompt 模板
 """
 import json
 import logging
+import re
 from textwrap import dedent
 from typing import List, Dict, Optional, TYPE_CHECKING
 
@@ -10,6 +11,39 @@ if TYPE_CHECKING:
     from services.ai_service import ProjectContext
 
 logger = logging.getLogger(__name__)
+
+
+# 描述格式段落标记（单一来源，前后端共用）
+DESCRIPTION_SECTIONS = ["页面标题", "页面文字", "配图建议", "排版建议", "其他页面素材"]
+
+
+def get_description_format_template(is_cover_page=False):
+    """返回描述格式说明文本，供所有 prompt 引用"""
+    if is_cover_page:
+        return "页面标题：[标题]\n副标题：[副标题]"
+    return (
+        "页面标题：[标题]\n\n"
+        "页面文字：\n- [要点1，15-25字]\n- [要点2]\n\n"
+        "配图建议：[描述该页适合的配图内容、风格和氛围，用于后续AI生图；如有参考图片请以markdown图片链接放在此处]\n\n"
+        '排版建议：[如"左图右文"、"全图背景+文字叠加"、"上下分栏"、"纯文字居中"等]\n\n'
+        "其他页面素材（如果有公式、表格等）"
+    )
+
+
+def get_description_format_example():
+    """返回描述格式的具体示例，供 prompt 参考"""
+    return (
+        "页面标题：原始社会：与自然共生\n\n"
+        "页面文字：\n"
+        "- 狩猎采集文明：人类活动规模小，对环境影响有限\n"
+        "- 依赖性强：生活完全依赖自然资源的直接供给\n"
+        "- 适应而非改造：通过观察学习自然，发展生存技能\n"
+        "- 影响特点：局部、短期、低强度，生态可自我恢复\n\n"
+        "配图建议：一张原始人类在森林中采集果实的场景插画，自然色调，温暖柔和的光线\n"
+        "![参考图](/files/mineru/xxx/image.png)\n\n"
+        "排版建议：左图右文\n\n"
+        "其他页面素材"
+    )
 
 
 # 语言配置映射
@@ -265,19 +299,13 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 4. 确保内容可读性强，适合在演示时展示
 5. 不要包含任何额外的说明性文字或注释
 
+输出格式模板：
+{get_description_format_template(is_cover_page=(page_index == 1))}
+
 输出格式示例：
-页面标题：原始社会：与自然共生
-{"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
+{get_description_format_example()}
 
-页面文字：
-- 狩猎采集文明：人类活动规模小，对环境影响有限
-- 依赖性强：生活完全依赖自然资源的直接供给
-- 适应而非改造：通过观察学习自然，发展生存技能
-- 影响特点：局部、短期、低强度，生态可自我恢复
-
-其他页面素材（如果文件中存在请积极添加，包括markdown图片链接、公式、表格等）
-
-【关于图片】如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
+【关于图片】如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式放在"配图建议"段落中，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
 
 {get_language_instruction(language)}
 """)
@@ -364,9 +392,8 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
         格式化后的 prompt 字符串
     """
     if original_description:
-        # 删除"其他页面素材："之后的内容，避免被前面的图影响
-        if "其他页面素材" in original_description:
-            original_description = original_description.split("其他页面素材")[0].strip()
+        # 删除 markdown 图片链接，避免参考图影响生图
+        original_description = re.sub(r'!\[.*?\]\(.*?\)\s*', '', original_description).strip()
         
         prompt = (f"""\
 该PPT页面的原始页面描述为：
@@ -481,28 +508,14 @@ For each page in the outline, extract the corresponding description from the ori
 Return a JSON array where each element corresponds to a page in the outline (in the same order).
 Each element should be a string containing the page description in the following format:
 
-页面标题：[页面标题]
-
-页面文字：
-- [要点1]
-- [要点2]
-...
-
-其他页面素材（如果有排版、风格、素材等细节）
-
-Example output format:
-[
-    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"\\n- 奠定了AI的理论基础\\n\\n其他页面素材：\\n排版：标题居中，大字号\\n风格：科技感蓝色背景",
-    "页面标题：AI 的发展历程\\n页面文字：\\n- 1950年代：符号主义...",
-    ...
-]
+{get_description_format_template()}
 
 Important rules:
 - Split the description text according to the outline structure
 - Each page description should match the corresponding page in the outline
-- Preserve all important content from the original text, including layout details (排版细节), style requirements (风格要求), material specifications (素材说明), and any other design requirements
-- If the user described layout, style, or materials for a page, include them in the "其他页面素材" section
-- Keep the format consistent with the example above
+- Preserve all important content from the original text, including layout details, style requirements, material specifications, and any other design requirements
+- Map user's layout/style descriptions to the "配图建议" and "排版建议" sections
+- Keep the format consistent with the template above
 - If a page in the outline doesn't have a clear description in the text, create a reasonable description based on the outline
 
 Now split the description text into individual page descriptions. Return only the JSON array, don't include any other text.
@@ -685,26 +698,11 @@ You are a helpful assistant that modifies PPT page descriptions based on user re
 
 请为每个页面生成修改后的描述，格式如下：
 
-页面标题：[页面标题]
+{get_description_format_template()}
 
-页面文字：
-- [要点1]
-- [要点2]
-...
-其他页面素材（如果有请加上，包括markdown图片链接等）
+提示：如果参考文件中包含以 /files/ 开头的本地文件URL图片，请以markdown格式放在"配图建议"段落中，例如：![图片描述](/files/mineru/xxx/image.png)。
 
-提示：如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)，而不是作为普通文本。
-
-请返回一个 JSON 数组，每个元素是一个字符串，对应每个页面的修改后描述（按页面顺序）。
-
-示例输出格式：
-[
-    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出\\"图灵测试\\"...",
-    "页面标题：AI 的发展历程\\n页面文字：\\n- 1950年代：符号主义...",
-    ...
-]
-
-现在请根据用户要求修改所有页面描述，只输出 JSON 数组，不要包含其他文字。
+请返回一个 JSON 数组，每个元素是一个字符串，对应每个页面的修改后描述（按页面顺序）。只输出 JSON 数组，不要包含其他文字。
 {get_language_instruction(language)}
 """)
     
@@ -950,21 +948,16 @@ Your task is to extract the following structured information from this slide:
 2. **points**: A list of key bullet points or content items on the slide
 3. **description**: A complete page description suitable for regenerating this slide, following this format:
 
-页面标题：[title]
-
-页面文字：
-- [point 1]
-- [point 2]
-...
-
-其他页面素材（如果有图表、表格、公式等描述，保留原文中的markdown图片完整形式）
+{get_description_format_template()}
 
 Rules:
 - Extract the title faithfully from the first heading in the markdown. Do NOT invent or rephrase it
 - Points must be extracted verbatim from the slide content, in their original order
-- In the description, 页面标题 and 页面文字 must be copied verbatim from the original text (punctuation may be normalized, but wording must be identical)
+- In the description, 页面标题 and 页面文字 must be copied verbatim from the original text
 - The description should capture ALL content on the slide including text, data, and visual element descriptions
 - If there are tables, charts, or formulas, describe them in the description under "其他页面素材"
+- If there are images or visual elements, describe them under "配图建议"
+- If the layout is apparent, describe it under "排版建议"
 - Preserve the original language of the content
 
 Return a JSON object with exactly these three fields: "title", "points" (array of strings), "description" (string).
