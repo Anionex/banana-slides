@@ -286,6 +286,19 @@ def _load_settings_to_config(app):
             app.config['IMAGE_CAPTION_MODEL_SOURCE'] = settings.image_caption_model_source
             logging.info(f"Loaded IMAGE_CAPTION_MODEL_SOURCE from settings: {settings.image_caption_model_source}")
 
+        # Load per-model API credentials (for gemini/openai per-model overrides)
+        for model_type in ('text', 'image', 'image_caption'):
+            prefix = model_type.upper()
+            for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
+                config_key = f'{prefix}{suffix}'
+                val = getattr(settings, f'{model_type}{setting_suffix}', None)
+                if val:
+                    app.config[config_key] = val
+                    if suffix == '_API_BASE':
+                        logging.info(f"Loaded {config_key} from settings: {val}")
+                    else:
+                        logging.info(f"Loaded {config_key} from settings")
+
         # Sync LazyLLM vendor API keys to environment variables
         # Only allow known vendor names to prevent environment variable injection
         from services.ai_providers.lazyllm_env import ALLOWED_LAZYLLM_VENDORS
