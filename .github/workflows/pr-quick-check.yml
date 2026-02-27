@@ -5,6 +5,9 @@ on:
     branches: [ main, develop ]
 
 # Quick check: lint + unit tests + build + smoke
+env:
+  UV_INDEX_URL: https://pypi.org/simple
+
 jobs:
   quick-check:
     name: Quick Check (Lint + Unit Tests + Build)
