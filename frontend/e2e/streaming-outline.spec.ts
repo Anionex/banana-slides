@@ -149,8 +149,8 @@ test.describe('Streaming Outline - Integration Tests', () => {
     // The first card should appear within 15 seconds
     await expect(page.locator('h4').first()).toBeVisible({ timeout: 30000 });
 
-    // Wait for streaming to complete - the spinner should disappear
-    await expect(page.locator('.animate-spin')).not.toBeVisible({ timeout: 60000 });
+    // Wait for streaming to complete - "Regenerate" button appears when done
+    await expect(page.getByRole('button', { name: /重新生成|Regenerate/i })).toBeVisible({ timeout: 60000 });
 
     // Verify multiple cards were generated
     const cardTitles = page.locator('h4');
