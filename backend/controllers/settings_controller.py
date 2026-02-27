@@ -511,12 +511,14 @@ def _sync_settings_to_config(settings: Settings):
         current_app.config["GOOGLE_API_BASE"] = settings.api_base_url
         current_app.config["OPENAI_API_BASE"] = settings.api_base_url
     else:
-        # Remove overrides, fall back to env variables or defaults
-        if "GOOGLE_API_BASE" in current_app.config or "OPENAI_API_BASE" in current_app.config:
+        # Restore .env defaults (pop would permanently lose .env values)
+        env_base_google = Config.GOOGLE_API_BASE
+        env_base_openai = Config.OPENAI_API_BASE
+        if current_app.config.get("GOOGLE_API_BASE") != env_base_google or current_app.config.get("OPENAI_API_BASE") != env_base_openai:
             ai_config_changed = True
-            logger.info("API base URL cleared, falling back to defaults")
-        current_app.config.pop("GOOGLE_API_BASE", None)
-        current_app.config.pop("OPENAI_API_BASE", None)
+            logger.info("API base URL cleared, falling back to .env defaults")
+        current_app.config["GOOGLE_API_BASE"] = env_base_google
+        current_app.config["OPENAI_API_BASE"] = env_base_openai
 
     if settings.api_key is not None:
         old_key = current_app.config.get("GOOGLE_API_KEY")
@@ -527,12 +529,14 @@ def _sync_settings_to_config(settings: Settings):
         current_app.config["GOOGLE_API_KEY"] = settings.api_key
         current_app.config["OPENAI_API_KEY"] = settings.api_key
     else:
-        # Remove overrides, fall back to env variables or defaults
-        if "GOOGLE_API_KEY" in current_app.config or "OPENAI_API_KEY" in current_app.config:
+        # Restore .env defaults (pop would permanently lose .env values)
+        env_key_google = Config.GOOGLE_API_KEY
+        env_key_openai = Config.OPENAI_API_KEY
+        if current_app.config.get("GOOGLE_API_KEY") != env_key_google or current_app.config.get("OPENAI_API_KEY") != env_key_openai:
             ai_config_changed = True
-            logger.info("API key cleared, falling back to defaults")
-        current_app.config.pop("GOOGLE_API_KEY", None)
-        current_app.config.pop("OPENAI_API_KEY", None)
+            logger.info("API key cleared, falling back to .env defaults")
+        current_app.config["GOOGLE_API_KEY"] = env_key_google
+        current_app.config["OPENAI_API_KEY"] = env_key_openai
     
     # Check model changes
     if settings.text_model is not None:
