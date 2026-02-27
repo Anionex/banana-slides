@@ -39,13 +39,13 @@ class TestLazyLLMContentTypeFallback:
     def setup_method(self):
         self._lz, self._formatter = _inject_lazyllm_mock()
         # Remove cached provider module so it re-imports with our mock
-        sys.modules.pop(
-            'backend.services.ai_providers.image.lazyllm_provider', None
-        )
+        for key in ('services.ai_providers.image.lazyllm_provider',
+                    'backend.services.ai_providers.image.lazyllm_provider'):
+            sys.modules.pop(key, None)
 
     def _make_provider(self):
-        with patch('backend.services.ai_providers.image.lazyllm_provider.ensure_lazyllm_namespace_key'):
-            from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        with patch('services.ai_providers.image.lazyllm_provider.ensure_lazyllm_namespace_key'):
+            from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
             provider = LazyLLMImageProvider.__new__(LazyLLMImageProvider)
             provider._source = 'siliconflow'
             provider.client = MagicMock()
@@ -67,7 +67,7 @@ class TestLazyLLMContentTypeFallback:
         mock_resp.content = _make_png_bytes()
         mock_resp.raise_for_status = MagicMock()
 
-        with patch('backend.services.ai_providers.image.lazyllm_provider.requests.get',
+        with patch('services.ai_providers.image.lazyllm_provider.requests.get',
                    return_value=mock_resp) as mock_get:
             result = provider.generate_image(prompt='test prompt')
 
@@ -87,7 +87,7 @@ class TestLazyLLMContentTypeFallback:
         )
         provider.client.side_effect = Exception(error_msg)
 
-        with patch('backend.services.ai_providers.image.lazyllm_provider.requests.get') as mock_get:
+        with patch('services.ai_providers.image.lazyllm_provider.requests.get') as mock_get:
             with pytest.raises(Exception):
                 provider.generate_image(prompt='test prompt')
         mock_get.assert_not_called()
