@@ -166,41 +166,44 @@ def get_outline_generation_prompt_markdown(project_context: 'ProjectContext', la
     idea_prompt = project_context.idea_prompt or ""
 
     prompt = (f"""\
-You are a helpful assistant that generates an outline for a PPT presentation.
+You are a helpful assistant that generates an outline for a ppt.
 
-Output the outline in Markdown format using these rules:
-- Use `# Part Name` for major sections (only when the PPT has clear parts/chapters)
-- Use `## Page Title` for each page
-- Use `- ` bullet points for key points under each page
-- Output pages sequentially, one after another
-- Do NOT wrap in code blocks or add any extra text
+You can organize the content in two ways:
 
-Example (with parts):
-# Introduction
+1. Simple format (for short PPTs without major sections):
+## title1
+- point1
+- point2
+
+## title2
+- point1
+- point2
+
+2. Part-based format (for longer PPTs with major sections):
+# Part 1: Introduction
 ## Welcome
-- Company overview
-- Today's agenda
+- point1
+- point2
 
-## Background
-- Industry context
-- Key challenges
+## Overview
+- point1
+- point2
 
-# Main Content
-## Core Strategy
-- Strategic pillar 1
-- Strategic pillar 2
+# Part 2: Main Content
+## Topic 1
+- point1
+- point2
 
-Example (without parts, for short PPTs):
-## Project Title
-- Subtitle or presenter info
+## Topic 2
+- point1
+- point2
 
-## Current Status
-- Key metric 1
-- Key metric 2
+Constraints:
+- Title should not contain page number.
+- Choose the format that best fits the content. Use parts when the PPT has clear major sections. 
+- Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information. 
 
-Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
-
-The user's request: {idea_prompt}. Now generate the outline.
+The user's request: {idea_prompt}. Now generate the outline, strictly follow the format provided above, don't include any other text.
 {get_language_instruction(language)}
 """)
 
