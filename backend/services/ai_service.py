@@ -517,7 +517,7 @@ class AIService:
                                 logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
                         elif ref_img.startswith('/files/'):
                             # 通用 /files/ 路径（materials、项目文件等），转换为文件系统路径
-                            upload_folder = os.environ.get('UPLOAD_FOLDER', '')
+                            upload_folder = get_config().UPLOAD_FOLDER
                             relative_path = ref_img[len('/files/'):].lstrip('/')
                             local_path = os.path.abspath(os.path.join(upload_folder, relative_path))
                             if not local_path.startswith(os.path.abspath(upload_folder)):
