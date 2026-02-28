@@ -494,13 +494,13 @@ def _sync_settings_to_config(settings: Settings):
     # Track if AI-related settings changed
     ai_config_changed = False
     
-    # Sync AI provider format (always sync, has default value)
-    if settings.ai_provider_format:
-        old_format = current_app.config.get("AI_PROVIDER_FORMAT")
-        if old_format != settings.ai_provider_format:
-            ai_config_changed = True
-            logger.info(f"AI provider format changed: {old_format} -> {settings.ai_provider_format}")
-        current_app.config["AI_PROVIDER_FORMAT"] = settings.ai_provider_format
+    # Sync AI provider format (always sync, fall back to .env default when NULL)
+    new_format = settings.ai_provider_format or Config.AI_PROVIDER_FORMAT
+    old_format = current_app.config.get("AI_PROVIDER_FORMAT")
+    if old_format != new_format:
+        ai_config_changed = True
+        logger.info(f"AI provider format changed: {old_format} -> {new_format}")
+    current_app.config["AI_PROVIDER_FORMAT"] = new_format
     
     # Sync API configuration (sync to both GOOGLE_* and OPENAI_* to ensure DB settings override env vars)
     if settings.api_base_url is not None:
@@ -539,19 +539,19 @@ def _sync_settings_to_config(settings: Settings):
         current_app.config["OPENAI_API_KEY"] = env_key_openai
     
     # Check model changes
-    if settings.text_model is not None:
-        old_model = current_app.config.get("TEXT_MODEL")
-        if old_model != settings.text_model:
-            ai_config_changed = True
-            logger.info(f"Text model changed: {old_model} -> {settings.text_model}")
-        current_app.config["TEXT_MODEL"] = settings.text_model
-    
-    if settings.image_model is not None:
-        old_model = current_app.config.get("IMAGE_MODEL")
-        if old_model != settings.image_model:
-            ai_config_changed = True
-            logger.info(f"Image model changed: {old_model} -> {settings.image_model}")
-        current_app.config["IMAGE_MODEL"] = settings.image_model
+    new_text_model = settings.text_model or Config.TEXT_MODEL
+    old_model = current_app.config.get("TEXT_MODEL")
+    if old_model != new_text_model:
+        ai_config_changed = True
+        logger.info(f"Text model changed: {old_model} -> {new_text_model}")
+    current_app.config["TEXT_MODEL"] = new_text_model
+
+    new_image_model = settings.image_model or Config.IMAGE_MODEL
+    old_model = current_app.config.get("IMAGE_MODEL")
+    if old_model != new_image_model:
+        ai_config_changed = True
+        logger.info(f"Image model changed: {old_model} -> {new_image_model}")
+    current_app.config["IMAGE_MODEL"] = new_image_model
 
     # Sync image generation settings (fall back to Config when NULL)
     current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution or Config.DEFAULT_RESOLUTION
