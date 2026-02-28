@@ -112,7 +112,7 @@ interface ProjectState {
 
   // 生成操作
   generateOutline: () => Promise<void>;
-  generateOutlineStream: () => Promise<void>;
+  generateOutlineStream: () => Promise<{ complete: boolean } | undefined>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: () => Promise<void>;
   generatePageDescription: (pageId: string) => Promise<void>;
