@@ -423,13 +423,30 @@ class AIService:
                 elif stripped.startswith('- ') and current_page is not None:
                     current_page['points'].append(stripped[2:].strip())
 
-        # Process remaining buffer
+        # Process remaining buffer (same logic as main loop)
         if buffer.strip():
-            stripped = buffer.strip()
-            if stripped == '<!-- END -->':
-                stream_complete = True
-            elif stripped.startswith('- ') and current_page is not None:
-                current_page['points'].append(stripped[2:].strip())
+            buffer += '\n'
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped == '<!-- END -->':
+                    stream_complete = True
+                    continue
+                if stripped.startswith('# ') and not stripped.startswith('## '):
+                    current_part = stripped[2:].strip()
+                elif stripped.startswith('## '):
+                    if current_page:
+                        yield current_page
+                    current_page = {
+                        'title': stripped[3:].strip(),
+                        'points': [],
+                    }
+                    if current_part:
+                        current_page['part'] = current_part
+                elif stripped.startswith('- ') and current_page is not None:
+                    current_page['points'].append(stripped[2:].strip())
 
         # Yield last page
         if current_page:

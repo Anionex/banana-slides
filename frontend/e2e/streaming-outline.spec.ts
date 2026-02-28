@@ -106,28 +106,30 @@ test.describe('Streaming Outline - Mock Tests', () => {
     await expect(page.getByText('Introduction')).not.toBeVisible();
   });
 
-  test('should disable generate button during streaming', async ({ page }) => {
+  test('should disable generate button during streaming and re-enable on completion', async ({ page }) => {
     const projectId = await createProjectAndNavigate(page, 'Test button state');
 
-    // Use a slow SSE response to keep streaming state active
     await page.route(`**/api/projects/*/generate/outline/stream`, async (route) => {
-      // Send one page, then delay before done
-      const sseBody = `event: page\ndata: ${JSON.stringify({ index: 0, title: 'Page 1', points: ['Point'] })}\n\n`;
-      // Don't send done event immediately - fulfill with just the page
+      const pageEvent = `event: page\ndata: ${JSON.stringify({ index: 0, title: 'Page 1', points: ['Point'] })}\n\n`;
+      const doneEvent = `event: done\ndata: ${JSON.stringify({ total: 1, pages: [{id: 'p1', order_index: 0, outline_content: {title: 'Page 1', points: ['Point']}}] })}\n\n`;
       await route.fulfill({
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
-        body: sseBody,
-        // No done event means streaming will complete after reading all data
+        body: pageEvent + doneEvent,
       });
     });
 
     const generateBtn = page.getByRole('button', { name: /自动生成|Auto Generate/i });
     await generateBtn.click();
 
-    // After streaming completes (no done event, stream ends), button should show regenerate text
-    await page.waitForTimeout(500);
+    // Assert button shows disabled "Generating..." state
+    await expect(page.getByRole('button', { name: /生成中|Generating/i })).toBeDisabled();
+
+    // Wait for page to render
     await expect(page.getByText('Page 1')).toBeVisible();
+
+    // Assert button re-enables with "Regenerate" text
+    await expect(page.getByRole('button', { name: /重新生成|Regenerate/i })).toBeEnabled();
   });
 });
 
