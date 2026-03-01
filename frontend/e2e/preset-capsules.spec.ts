@@ -23,32 +23,35 @@ const mockProject = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+/** Shared mock route handler for project API */
+async function setupProjectMock(page: import('@playwright/test').Page) {
+  await page.route(`**/api/projects/${PROJECT_ID}`, async (route) => {
+    if (route.request().method() === 'PUT') {
+      const data = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: mockProject(data) }),
+      })
+    } else {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: mockProject() }),
+      })
+    }
+  })
+}
+
 // ── Mock tests: Outline presets ──────────────────────────────────────
 
 test.describe('Preset capsules - OutlineEditor (mock)', () => {
   test.beforeEach(async ({ page }) => {
-    // Clear localStorage presets before each test
     await page.addInitScript(() => {
       localStorage.removeItem('presetCapsules_outline')
       localStorage.setItem('outlineReqOpen', 'true')
     })
-
-    await page.route(`**/api/projects/${PROJECT_ID}`, async (route) => {
-      if (route.request().method() === 'PUT') {
-        const data = route.request().postDataJSON()
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: mockProject(data) }),
-        })
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: mockProject() }),
-        })
-      }
-    })
+    await setupProjectMock(page)
   })
 
   test('displays system presets as capsules', async ({ page }) => {
@@ -206,23 +209,7 @@ test.describe('Preset capsules - DetailEditor (mock)', () => {
       localStorage.removeItem('presetCapsules_description')
       localStorage.setItem('descReqOpen', 'true')
     })
-
-    await page.route(`**/api/projects/${PROJECT_ID}`, async (route) => {
-      if (route.request().method() === 'PUT') {
-        const data = route.request().postDataJSON()
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: mockProject(data) }),
-        })
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: mockProject() }),
-        })
-      }
-    })
+    await setupProjectMock(page)
   })
 
   test('displays description system presets', async ({ page }) => {
@@ -309,12 +296,10 @@ test.describe('Preset capsules (integration)', () => {
     const value = await textarea.inputValue()
     expect(value.length).toBeGreaterThan(0)
 
-    // Wait for auto-save
+    // Wait for debounced auto-save (1s after state change)
     const savePromise = page.waitForResponse(
       (resp) => resp.url().includes(`/api/projects/${projectId}`) && resp.request().method() === 'PUT'
     )
-    // Trigger save by blurring
-    await page.locator('header').first().click()
     await savePromise
 
     // Reload and verify persisted

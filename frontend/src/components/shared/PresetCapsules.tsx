@@ -123,16 +123,20 @@ export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) 
     saveUserPresets(type, updated);
   }, [userPresets, type]);
 
+  const handleCancelAdd = useCallback(() => {
+    setIsAdding(false);
+    setNewName('');
+    setNewContent('');
+  }, []);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddPreset();
     } else if (e.key === 'Escape') {
-      setIsAdding(false);
-      setNewName('');
-      setNewContent('');
+      handleCancelAdd();
     }
-  }, [handleAddPreset]);
+  }, [handleAddPreset, handleCancelAdd]);
 
   const capsuleBase = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs cursor-pointer transition-colors whitespace-nowrap';
   const systemCapsule = `${capsuleBase} bg-gray-100 dark:bg-background-primary text-gray-600 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-banana-900/20 hover:text-banana-700 dark:hover:text-banana-400 border border-gray-200 dark:border-border-primary`;
@@ -172,6 +176,7 @@ export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) 
           <button
             type="button"
             data-testid={`${type}-delete-preset-${i}`}
+            aria-label="Delete preset"
             className="ml-0.5 p-0.5 rounded-full hover:bg-banana-200 dark:hover:bg-banana-800/40 transition-colors"
             onClick={(e) => { e.stopPropagation(); handleDeletePreset(i); }}
           >
@@ -212,7 +217,7 @@ export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) 
           <button
             type="button"
             data-testid={`${type}-preset-cancel`}
-            onClick={() => { setIsAdding(false); setNewName(''); setNewContent(''); }}
+            onClick={handleCancelAdd}
             className="px-2 py-1 text-xs rounded-md text-gray-500 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
           >
             {t('preset.cancel')}
