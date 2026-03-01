@@ -334,6 +334,12 @@ def update_project(project_id):
         # Update extra_requirements if provided
         if 'extra_requirements' in data:
             project.extra_requirements = data['extra_requirements']
+
+        # Update generation requirements if provided
+        if 'outline_requirements' in data:
+            project.outline_requirements = data['outline_requirements']
+        if 'description_requirements' in data:
+            project.description_requirements = data['description_requirements']
         
         # Update template_style if provided
         if 'template_style' in data:

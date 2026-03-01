@@ -17,6 +17,8 @@ class Project(db.Model):
     outline_text = db.Column(db.Text, nullable=True)  # 用户输入的大纲文本（用于outline类型）
     description_text = db.Column(db.Text, nullable=True)  # 用户输入的描述文本（用于description类型）
     extra_requirements = db.Column(db.Text, nullable=True)  # 额外要求，应用到每个页面的AI提示词
+    outline_requirements = db.Column(db.Text, nullable=True)  # 大纲生成要求
+    description_requirements = db.Column(db.Text, nullable=True)  # 页面描述生成要求
     creation_type = db.Column(db.String(20), nullable=False, default='idea')  # idea|outline|descriptions
     template_image_path = db.Column(db.String(500), nullable=True)
     template_style = db.Column(db.Text, nullable=True)  # 风格描述文本（无模板图模式）
@@ -55,6 +57,8 @@ class Project(db.Model):
             'outline_text': self.outline_text,
             'description_text': self.description_text,
             'extra_requirements': self.extra_requirements,
+            'outline_requirements': self.outline_requirements,
+            'description_requirements': self.description_requirements,
             'creation_type': self.creation_type,
             'template_image_url': f'/files/{self.id}/template/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
             'template_style': self.template_style,

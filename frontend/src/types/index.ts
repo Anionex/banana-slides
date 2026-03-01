@@ -64,6 +64,8 @@ export interface Project {
   outline_text?: string;  // 用户输入的大纲文本（用于outline类型）
   description_text?: string;  // 用户输入的描述文本（用于description类型）
   extra_requirements?: string; // 额外要求，应用到每个页面的AI提示词
+  outline_requirements?: string; // 大纲生成要求
+  description_requirements?: string; // 页面描述生成要求
   creation_type?: string;
   template_image_url?: string; // 后端返回 template_image_url
   template_image_path?: string; // 前端使用的别名
