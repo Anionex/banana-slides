@@ -594,6 +594,7 @@ export const DetailEditor: React.FC = () => {
       <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary flex-shrink-0">
         <button
           type="button"
+          data-testid="desc-requirements-toggle"
           onClick={() => setIsDescReqOpen(!isDescReqOpen)}
           className="w-full px-3 md:px-6 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
         >
@@ -613,6 +614,7 @@ export const DetailEditor: React.FC = () => {
         >
           <div className="px-3 md:px-6 pb-3">
             <textarea
+              data-testid="desc-requirements-textarea"
               value={descRequirements}
               onChange={(e) => { setDescRequirements(e.target.value); setIsDescReqDirty(true); }}
               onBlur={() => {

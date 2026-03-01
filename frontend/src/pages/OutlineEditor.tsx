@@ -398,6 +398,7 @@ export const OutlineEditor: React.FC = () => {
     <div className="border-t border-gray-100 dark:border-border-secondary">
       <button
         type="button"
+        data-testid="outline-requirements-toggle"
         onClick={() => setIsRequirementsOpen(!isRequirementsOpen)}
         className="w-full px-4 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
       >
@@ -416,6 +417,7 @@ export const OutlineEditor: React.FC = () => {
         style={{ maxHeight: isRequirementsOpen ? '200px' : '0px' }}
       >
         <textarea
+          data-testid="outline-requirements-textarea"
           value={outlineRequirements}
           onChange={(e) => { setOutlineRequirements(e.target.value); setIsRequirementsDirty(true); }}
           onBlur={() => {
