@@ -37,8 +37,8 @@ test.describe('Material generation aspect ratio selector', () => {
     // Check the aspect ratio label is visible
     await expect(dialog.getByText(/生成比例|Aspect Ratio/)).toBeVisible();
 
-    // Check that all common ratio buttons are visible inside the dialog
-    for (const ratio of ['16:9', '4:3', '1:1', '9:16']) {
+    // Check that all 10 ratio buttons are visible inside the dialog
+    for (const ratio of ['16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16']) {
       await expect(dialog.locator('button', { hasText: ratio })).toBeVisible();
     }
   });
