@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import PresetCapsules from '@/components/shared/PresetCapsules';
 
 // 组件内翻译
 const outlineI18n = {
@@ -591,7 +592,7 @@ export const OutlineEditor: React.FC = () => {
         </button>
         <div
           className="overflow-hidden transition-all duration-200 ease-in-out"
-          style={{ maxHeight: isRequirementsOpen ? '160px' : '0px' }}
+          style={{ maxHeight: isRequirementsOpen ? '280px' : '0px' }}
         >
           <div className="px-3 md:px-6 pb-3">
             <textarea
@@ -601,6 +602,13 @@ export const OutlineEditor: React.FC = () => {
               placeholder={t('outline.outlineRequirementsPlaceholder')}
               rows={2}
               className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 rounded-lg border border-gray-200 dark:border-border-primary resize-none focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"
+            />
+            <PresetCapsules
+              type="outline"
+              onAppend={(text) => {
+                setOutlineRequirements((prev) => prev ? `${prev}\n${text}` : text);
+                setIsRequirementsDirty(true);
+              }}
             />
           </div>
         </div>
