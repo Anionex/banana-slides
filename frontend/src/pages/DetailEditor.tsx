@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -10,7 +10,7 @@ const detailI18n = {
     detail: {
       title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
-      description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲+描述", import: "导入",
+      description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲和描述", import: "导入", importExport: "导入/导出",
       pagesCompleted: "页已完成", noPages: "还没有页面",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
@@ -38,7 +38,7 @@ const detailI18n = {
     detail: {
       title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
-      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline+Descriptions", import: "Import",
+      description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline & Descriptions", import: "Import", importExport: "Import/Export",
       pagesCompleted: "pages completed", noPages: "No pages yet",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
@@ -69,6 +69,21 @@ import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
+/** 详细程度图标：用线条数量表示精简/标准/详细 */
+const DETAIL_LEVEL_LINES: Record<string, number[]> = {
+  concise:  [5, 8],
+  default:  [4, 7, 10],
+  detailed: [3.5, 5.5, 7.5, 9.5, 11.5],
+};
+const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
+    <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+    {(DETAIL_LEVEL_LINES[level] ?? DETAIL_LEVEL_LINES.default).map((y) => (
+      <line key={y} x1="4.5" y1={y} x2="11.5" y2={y} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    ))}
+  </svg>
+);
+
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,6 +106,26 @@ export const DetailEditor: React.FC = () => {
   const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
+  const [detailLevelOpen, setDetailLevelOpen] = useState(false);
+  const detailLevelRef = useRef<HTMLDivElement>(null);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (detailLevelRef.current && !detailLevelRef.current.contains(e.target as Node)) {
+        setDetailLevelOpen(false);
+      }
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setFileMenuOpen(false);
+      }
+    };
+    if (detailLevelOpen || fileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [detailLevelOpen, fileMenuOpen]);
 
   // PPT 翻新：异步任务轮询
   useEffect(() => {
@@ -436,52 +471,81 @@ export const DetailEditor: React.FC = () => {
             >
               {t('detail.batchGenerate')}
             </Button>
-            {/* 详细程度选择器 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-400 dark:text-foreground-tertiary hidden lg:inline">{t('detail.detailLevel.label')}</span>
-              <div className="flex items-center rounded-full bg-gray-100 dark:bg-background-hover p-0.5">
-                {(['concise', 'default', 'detailed'] as const).map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setDetailLevel(level)}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${
-                      detailLevel === level
-                        ? 'bg-banana-500 text-white shadow-sm'
-                        : 'text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary'
-                    }`}
-                  >
-                    {t(`detail.detailLevel.${level}` as any)}
-                  </button>
-                ))}
-              </div>
+            {/* 详细程度下拉选择器 — secondary 风格 */}
+            <div className="relative" ref={detailLevelRef}>
+              <Button
+                variant="secondary"
+                onClick={() => setDetailLevelOpen(!detailLevelOpen)}
+                className="text-sm md:text-base"
+              >
+                <span className="text-gray-400 dark:text-foreground-tertiary">{t('detail.detailLevel.label')}:</span>
+                <span className="ml-1">{t(`detail.detailLevel.${detailLevel}` as any)}</span>
+                <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${detailLevelOpen ? 'rotate-180' : ''}`} />
+              </Button>
+              {detailLevelOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-full rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none overflow-hidden">
+                  {(['concise', 'default', 'detailed'] as const).map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => { setDetailLevel(level); setDetailLevelOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors duration-150 ${
+                        detailLevel === level
+                          ? 'bg-banana-50 dark:bg-background-hover text-black dark:text-foreground-primary'
+                          : 'text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover'
+                      }`}
+                    >
+                      <DetailLevelIcon level={level} />
+                      {t(`detail.detailLevel.${level}` as any)}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <Button
-              variant="secondary"
-              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={handleExportDescriptions}
-              disabled={!currentProject.pages.some(p => p.description_content)}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
-            >
-              {t('detail.export')}
-            </Button>
-            <Button
-              variant="secondary"
-              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={handleExportFull}
-              disabled={!currentProject.pages.some(p => p.description_content)}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
-            >
-              {t('detail.exportFull')}
-            </Button>
-            <Button
-              variant="secondary"
-              icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => importFileRef.current?.click()}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
-            >
-              {t('detail.import')}
-            </Button>
+            <div className="w-px h-6 bg-gray-200 dark:bg-border-primary flex-shrink-0" />
+            {/* 导入导出下拉菜单 */}
+            <div className="relative" ref={fileMenuRef}>
+              <Button
+                variant="secondary"
+                onClick={() => setFileMenuOpen(!fileMenuOpen)}
+                icon={<FileText size={16} className="md:w-[18px] md:h-[18px]" />}
+                className="text-sm md:text-base"
+              >
+                {t('detail.importExport')}
+                <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${fileMenuOpen ? 'rotate-180' : ''}`} />
+              </Button>
+              {fileMenuOpen && (
+                <div className="absolute top-full right-0 mt-1 z-50 min-w-[160px] rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { handleExportDescriptions(); setFileMenuOpen(false); }}
+                    disabled={!currentProject.pages.some(p => p.description_content)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                  >
+                    <Download size={14} />
+                    {t('detail.export')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { handleExportFull(); setFileMenuOpen(false); }}
+                    disabled={!currentProject.pages.some(p => p.description_content)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                  >
+                    <Download size={14} />
+                    {t('detail.exportFull')}
+                  </button>
+                  <div className="border-t border-gray-100 dark:border-border-primary" />
+                  <button
+                    type="button"
+                    onClick={() => { importFileRef.current?.click(); setFileMenuOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors duration-150"
+                  >
+                    <Upload size={14} />
+                    {t('detail.import')}
+                  </button>
+                </div>
+              )}
+            </div>
             <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportDescriptions} />
             <span className="text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}

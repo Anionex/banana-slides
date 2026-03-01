@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -16,7 +16,7 @@ const outlineI18n = {
       preview: "预览", clickToPreview: "点击左侧卡片查看详情",
       noPages: "还没有页面", noPagesHint: "点击「添加页面」手动创建，或「自动生成大纲」让 AI 帮你完成",
       parseOutline: "解析大纲", autoGenerate: "自动生成大纲",
-      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲", import: "导入",
+      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲", import: "导入", importExport: "导入/导出",
       aiPlaceholder: "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：增加/删除页面... · Ctrl+Enter",
       contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
@@ -45,7 +45,7 @@ const outlineI18n = {
       preview: "Preview", clickToPreview: "Click a card on the left to view details",
       noPages: "No pages yet", noPagesHint: "Click \"Add Page\" to create manually, or \"Auto Generate\" to let AI help you",
       parseOutline: "Parse Outline", autoGenerate: "Auto Generate Outline",
-      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline", import: "Import",
+      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline", import: "Import", importExport: "Import/Export",
       aiPlaceholder: "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Add/delete pages... · Ctrl+Enter",
       contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
@@ -167,6 +167,8 @@ export const OutlineEditor: React.FC = () => {
   const desktopTextareaRef = useRef<MarkdownTextareaRef>(null);
   const mobileTextareaRef = useRef<MarkdownTextareaRef>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
   const getInputText = useCallback((project: typeof currentProject) => {
     if (!project) return '';
     if (project.creation_type === 'outline' || project.creation_type === 'ppt_renovation') return project.outline_text || project.idea_prompt || '';
@@ -176,6 +178,18 @@ export const OutlineEditor: React.FC = () => {
 
   const [inputText, setInputText] = useState('');
   const [isInputDirty, setIsInputDirty] = useState(false);
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    if (!fileMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setFileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [fileMenuOpen]);
 
   // 项目切换时：强制加载文本
   useEffect(() => {
@@ -480,23 +494,40 @@ export const OutlineEditor: React.FC = () => {
                   : currentProject.creation_type === 'outline' ? t('outline.reParseOutline') : t('outline.reGenerate')}
               </Button>
             )}
-            <Button
-              variant="secondary"
-              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={handleExportOutline}
-              disabled={currentProject.pages.length === 0}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
-            >
-              {t('outline.export')}
-            </Button>
-            <Button
-              variant="secondary"
-              icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => importFileRef.current?.click()}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
-            >
-              {t('outline.import')}
-            </Button>
+            {/* 导入导出下拉菜单 */}
+            <div className="relative" ref={fileMenuRef}>
+              <Button
+                variant="secondary"
+                onClick={() => setFileMenuOpen(!fileMenuOpen)}
+                icon={<FileText size={16} className="md:w-[18px] md:h-[18px]" />}
+                className="flex-1 sm:flex-initial text-sm md:text-base"
+              >
+                {t('outline.importExport')}
+                <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${fileMenuOpen ? 'rotate-180' : ''}`} />
+              </Button>
+              {fileMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-full rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { handleExportOutline(); setFileMenuOpen(false); }}
+                    disabled={currentProject.pages.length === 0}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                  >
+                    <Download size={14} />
+                    {t('outline.export')}
+                  </button>
+                  <div className="border-t border-gray-100 dark:border-border-primary" />
+                  <button
+                    type="button"
+                    onClick={() => { importFileRef.current?.click(); setFileMenuOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors duration-150"
+                  >
+                    <Upload size={14} />
+                    {t('outline.import')}
+                  </button>
+                </div>
+              )}
+            </div>
             <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportOutline} />
             {/* 手机端：保存按钮 */}
             <Button
