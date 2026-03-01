@@ -914,9 +914,9 @@ const debouncedUpdatePage = debounce(
         });
         set({ pageGeneratingTasks: newPageGeneratingTasks });
         
-        // 立即同步一次项目数据，以获取后端设置的 'GENERATING' 状态
+        // 立即同步一次项目数据，以获取后端设置的 'QUEUED' 状态
         await get().syncProject();
-        
+
         // 开始轮询批量任务状态（非阻塞）
         get().pollImageTask(taskId, targetPageIds);
       } else {

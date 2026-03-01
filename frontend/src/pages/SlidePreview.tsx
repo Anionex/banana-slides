@@ -33,7 +33,7 @@ const previewI18n = {
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
-      generating: "正在生成中...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
+      generating: "正在生成中...", queued: "排队等待生成...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
@@ -101,7 +101,7 @@ const previewI18n = {
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
-      generating: "Generating...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
+      generating: "Generating...", queued: "Queued for generation...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
@@ -1591,11 +1591,14 @@ export const SlidePreview: React.FC = () => {
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
                             {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
                               ? t('preview.generating')
+                              : selectedPage?.status === 'QUEUED'
+                              ? t('preview.queued')
                               : selectedPage?.status === 'GENERATING'
                               ? t('preview.generating')
                               : t('preview.notGenerated')}
                           </p>
-                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) && 
+                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
+                           selectedPage?.status !== 'QUEUED' &&
                            selectedPage?.status !== 'GENERATING' && (
                             <Button
                               variant="primary"

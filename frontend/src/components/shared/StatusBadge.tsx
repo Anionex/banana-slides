@@ -7,7 +7,7 @@ import type { PageStatus } from '@/types';
 const statusI18n = {
   zh: {
     status: {
-      draft: "草稿", generatingDescription: "描述生成中", descriptionGenerated: "已生成描述", generating: "生成中",
+      draft: "草稿", generatingDescription: "描述生成中", descriptionGenerated: "已生成描述", queued: "排队中", generating: "生成中",
       completed: "已完成", failed: "失败", unknown: "未知",
       notGeneratedDesc: "未生成描述", noDescription: "还没有生成描述",
       descGenerated: "描述已生成", notGeneratedImage: "未生成图片",
@@ -18,7 +18,7 @@ const statusI18n = {
   },
   en: {
     status: {
-      draft: "Draft", generatingDescription: "Generating Description", descriptionGenerated: "Description Generated", generating: "Generating",
+      draft: "Draft", generatingDescription: "Generating Description", descriptionGenerated: "Description Generated", queued: "Queued", generating: "Generating",
       completed: "Completed", failed: "Failed", unknown: "Unknown",
       notGeneratedDesc: "Description Not Generated", noDescription: "No description generated yet",
       descGenerated: "Description Generated", notGeneratedImage: "Image Not Generated",
@@ -37,6 +37,7 @@ const statusClassNames: Record<PageStatus, string> = {
   DRAFT: 'bg-gray-100 dark:bg-background-secondary text-gray-600 dark:text-foreground-tertiary',
   GENERATING_DESCRIPTION: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 animate-pulse',
   DESCRIPTION_GENERATED: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  QUEUED: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 animate-pulse',
   GENERATING: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 animate-pulse',
   COMPLETED: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   FAILED: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
@@ -46,6 +47,7 @@ const statusLabelKeys: Record<PageStatus, string> = {
   DRAFT: 'status.draft',
   GENERATING_DESCRIPTION: 'status.generatingDescription',
   DESCRIPTION_GENERATED: 'status.descriptionGenerated',
+  QUEUED: 'status.queued',
   GENERATING: 'status.generating',
   COMPLETED: 'status.completed',
   FAILED: 'status.failed',

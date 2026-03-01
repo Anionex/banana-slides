@@ -894,9 +894,15 @@ def generate_images(project_id):
             style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
             combined_requirements = combined_requirements + style_requirement
         
+        # Set all target pages to QUEUED before submitting background task
+        # This ensures the status is visible to frontend immediately after API returns
+        for page in pages:
+            page.status = 'QUEUED'
+        db.session.commit()
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,

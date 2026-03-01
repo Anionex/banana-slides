@@ -54,7 +54,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
     ? getImageUrl(page.generated_image_path, page.updated_at)
     : '';
   
-  const generating = isGenerating || page.status === 'GENERATING';
+  const generating = isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
 
   return (
     <div

@@ -21,7 +21,7 @@ export const useImageGeneratingState = (
   page: Page,
   isGenerating: boolean
 ): boolean => {
-  return isGenerating || page.status === 'GENERATING';
+  return isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
 };
 
 /**
@@ -34,7 +34,7 @@ export const useGeneratingState = (
   isGenerating: boolean,
   isAiRefining: boolean
 ): boolean => {
-  return isGenerating || page.status === 'GENERATING' || isAiRefining;
+  return isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING' || isAiRefining;
 };
 
 /**
@@ -44,7 +44,7 @@ export const usePageGeneratingState = (
   page: Page,
   isGenerating: boolean
 ): boolean => {
-  return isGenerating || page.status === 'GENERATING';
+  return isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
 };
 
 
