@@ -173,28 +173,24 @@ def list_projects():
         # Parameter validation
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        
+
         # Enforce limits to prevent performance issues
         limit = min(max(1, limit), 100)  # Between 1-100
         offset = max(0, offset)  # Non-negative
-        
-        # Fetch limit + 1 items to check for more pages efficiently
-        # This avoids a second database query
-        projects_with_extra = Project.query\
+
+        # Get total count for pagination
+        total = Project.query.count()
+
+        projects = Project.query\
             .options(joinedload(Project.pages))\
             .order_by(desc(Project.updated_at))\
-            .limit(limit + 1)\
+            .limit(limit)\
             .offset(offset)\
             .all()
-        
-        # Check if there are more items beyond the current page
-        has_more = len(projects_with_extra) > limit
-        # Return only the requested limit
-        projects = projects_with_extra[:limit]
-        
+
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'has_more': has_more,
+            'total': total,
             'limit': limit,
             'offset': offset
         })
