@@ -16,10 +16,12 @@ export const Pagination: React.FC<PaginationProps> = ({
   if (totalPages <= 1) return null;
 
   const getPageNumbers = (): (number | 'ellipsis')[] => {
-    const pages: (number | 'ellipsis')[] = [];
+    // Show all pages when total is small enough
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
 
-    // Always show first page
-    pages.push(1);
+    const pages: (number | 'ellipsis')[] = [1];
 
     const start = Math.max(2, currentPage - 1);
     const end = Math.min(totalPages - 1, currentPage + 1);
@@ -28,9 +30,7 @@ export const Pagination: React.FC<PaginationProps> = ({
     for (let i = start; i <= end; i++) pages.push(i);
     if (end < totalPages - 1) pages.push('ellipsis');
 
-    // Always show last page
-    if (totalPages > 1) pages.push(totalPages);
-
+    pages.push(totalPages);
     return pages;
   };
 
