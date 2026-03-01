@@ -71,6 +71,14 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const defaultAspectRatio = (projectId && currentProject?.image_aspect_ratio) || '16:9';
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState(defaultAspectRatio);
+
+  // Reset aspect ratio to project default when modal opens,
+  // so newly opened modals always reflect current project settings
+  useEffect(() => {
+    if (isOpen) {
+      setAspectRatio((projectId && currentProject?.image_aspect_ratio) || '16:9');
+    }
+  }, [isOpen]);
   const [refImage, setRefImage] = useState<File | null>(null);
   const [extraImages, setExtraImages] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);

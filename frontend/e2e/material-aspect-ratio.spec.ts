@@ -114,12 +114,13 @@ test.describe('Material generation aspect ratio selector', () => {
     // Fill in prompt
     await dialog.locator('textarea').first().fill('test material prompt');
 
-    // Click the generate button
-    await dialog.locator('button', { hasText: /生成素材|Generate Material/ }).first().click();
+    // Click the generate button and wait for the API response
+    const [response] = await Promise.all([
+      page.waitForResponse('**/api/projects/none/materials/generate'),
+      dialog.locator('button', { hasText: /生成素材|Generate Material/ }).first().click(),
+    ]);
 
-    // Wait for request to be intercepted
-    await page.waitForTimeout(2000);
-
+    expect(response.status()).toBe(202);
     expect(requestIntercepted).toBe(true);
     expect(capturedAspectRatio).toBe('1:1');
   });
