@@ -184,6 +184,10 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             if len(pages) != len(pages_data):
                 raise ValueError("Page count mismatch")
             
+            # Mark all pages as GENERATING_DESCRIPTION before starting
+            for page in pages:
+                page.status = 'GENERATING_DESCRIPTION'
+
             # Initialize progress
             task.set_progress({
                 "total": len(pages),
@@ -191,7 +195,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 "failed": 0
             })
             db.session.commit()
-            
+
             # Generate descriptions in parallel
             completed = 0
             failed = 0
