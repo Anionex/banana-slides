@@ -184,7 +184,9 @@ export const OutlineEditor: React.FC = () => {
   const [isInputDirty, setIsInputDirty] = useState(false);
   const [outlineRequirements, setOutlineRequirements] = useState('');
   const [isRequirementsDirty, setIsRequirementsDirty] = useState(false);
-  const [isRequirementsOpen, setIsRequirementsOpen] = useState(false);
+  const [isRequirementsOpen, setIsRequirementsOpen] = useState(
+    () => localStorage.getItem('outlineReqOpen') !== 'false'
+  );
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -205,7 +207,6 @@ export const OutlineEditor: React.FC = () => {
       setIsInputDirty(false);
       setOutlineRequirements(currentProject.outline_requirements || '');
       setIsRequirementsDirty(false);
-      if (currentProject.outline_requirements) setIsRequirementsOpen(true);
     }
   }, [currentProject?.id]);
 
@@ -575,7 +576,7 @@ export const OutlineEditor: React.FC = () => {
         <button
           type="button"
           data-testid="outline-requirements-toggle"
-          onClick={() => setIsRequirementsOpen(!isRequirementsOpen)}
+          onClick={() => { const next = !isRequirementsOpen; setIsRequirementsOpen(next); localStorage.setItem('outlineReqOpen', String(next)); }}
           className="w-full px-3 md:px-6 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
         >
           <Settings2 size={12} className="flex-shrink-0" />

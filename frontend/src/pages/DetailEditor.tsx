@@ -120,7 +120,9 @@ export const DetailEditor: React.FC = () => {
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const [descRequirements, setDescRequirements] = useState('');
   const [isDescReqDirty, setIsDescReqDirty] = useState(false);
-  const [isDescReqOpen, setIsDescReqOpen] = useState(false);
+  const [isDescReqOpen, setIsDescReqOpen] = useState(
+    () => localStorage.getItem('descReqOpen') !== 'false'
+  );
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -223,7 +225,6 @@ export const DetailEditor: React.FC = () => {
     if (currentProject) {
       setDescRequirements(currentProject.description_requirements || '');
       setIsDescReqDirty(false);
-      if (currentProject.description_requirements) setIsDescReqOpen(true);
     }
   }, [currentProject?.id]);
 
@@ -595,7 +596,7 @@ export const DetailEditor: React.FC = () => {
         <button
           type="button"
           data-testid="desc-requirements-toggle"
-          onClick={() => setIsDescReqOpen(!isDescReqOpen)}
+          onClick={() => { const next = !isDescReqOpen; setIsDescReqOpen(next); localStorage.setItem('descReqOpen', String(next)); }}
           className="w-full px-3 md:px-6 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
         >
           <Settings2 size={12} className="flex-shrink-0" />
