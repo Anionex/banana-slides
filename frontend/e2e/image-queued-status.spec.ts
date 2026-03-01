@@ -150,8 +150,8 @@ test.describe('QUEUED status during batch image generation (mock)', () => {
 
     await page.goto(`/project/${PROJECT_ID}/preview`)
 
-    // Skeleton elements should be visible for QUEUED pages
-    const skeletons = page.locator('[data-testid="skeleton"]')
+    // Skeleton elements (animate-shimmer) should be visible for QUEUED pages
+    const skeletons = page.locator('.animate-shimmer')
     await expect(skeletons.first()).toBeVisible({ timeout: 10000 })
     const count = await skeletons.count()
     expect(count).toBeGreaterThanOrEqual(2)
