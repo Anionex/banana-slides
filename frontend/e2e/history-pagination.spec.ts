@@ -262,10 +262,8 @@ test.describe('History pagination — integration', () => {
         pagination.locator('button[aria-current="page"]')
       ).toHaveText('2')
     } finally {
-      // Cleanup: delete all created projects
-      for (const id of projectIds) {
-        await deleteProject(id)
-      }
+      // Cleanup: delete all created projects in parallel
+      await Promise.all(projectIds.map(id => deleteProject(id)))
     }
   })
 })

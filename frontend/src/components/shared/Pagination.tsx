@@ -46,7 +46,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           'hover:bg-gray-100 dark:hover:bg-background-hover cursor-pointer': currentPage > 1,
           'opacity-30 cursor-not-allowed': currentPage <= 1,
         })}
-        onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+        onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage <= 1}
         aria-label="Previous page"
       >
@@ -84,7 +84,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           'hover:bg-gray-100 dark:hover:bg-background-hover cursor-pointer': currentPage < totalPages,
           'opacity-30 cursor-not-allowed': currentPage >= totalPages,
         })}
-        onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+        onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages}
         aria-label="Next page"
       >

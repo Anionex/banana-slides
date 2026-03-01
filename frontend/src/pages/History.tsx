@@ -214,8 +214,12 @@ export const History: React.FC = () => {
       if (successIds.length > 0) {
         const remainingOnPage = projects.length - successIds.length;
         const newPage = remainingOnPage <= 0 && currentPage > 1 ? currentPage - 1 : currentPage;
-        setCurrentPage(newPage);
-        await loadProjects(newPage);
+        if (newPage !== currentPage) {
+          // setCurrentPage triggers the useEffect which calls loadProjects
+          setCurrentPage(newPage);
+        } else {
+          await loadProjects(newPage);
+        }
       }
 
       if (failCount > 0 && successIds.length > 0) {
