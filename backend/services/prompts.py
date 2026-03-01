@@ -109,7 +109,7 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
 def _format_requirements(requirements: str) -> str:
     """格式化用户提供的生成要求，返回可直接拼接到 prompt 中的文本段"""
     if requirements and requirements.strip():
-        return f"\n\nAdditional requirements from the user (MUST follow):\n{requirements.strip()}\n"
+        return f"Requirements: {requirements.strip()}\n"
     return ""
 
 
