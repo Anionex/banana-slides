@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -22,6 +22,8 @@ const outlineI18n = {
       contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
       inputLabel: { idea: "PPT 构想", outline: "原始大纲", description: "页面描述", ppt_renovation: "原始 PPT 内容" },
       inputPlaceholder: { idea: "输入你的 PPT 构想...", outline: "输入大纲内容...", description: "输入页面描述...", ppt_renovation: "已从 PDF 中提取内容" },
+      outlineRequirements: "大纲生成要求",
+      outlineRequirementsPlaceholder: "例如：限制在10页以内、每页要点不超过3条、多使用图表...",
       messages: {
         outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
         generateIncomplete: "大纲生成可能不完整，请检查后重试",
@@ -51,6 +53,8 @@ const outlineI18n = {
       contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
       inputLabel: { idea: "PPT Idea", outline: "Original Outline", description: "Page Descriptions", ppt_renovation: "Original PPT Content" },
       inputPlaceholder: { idea: "Enter your PPT idea...", outline: "Enter outline content...", description: "Enter page descriptions...", ppt_renovation: "Content extracted from PDF" },
+      outlineRequirements: "Generation Requirements",
+      outlineRequirementsPlaceholder: "e.g., Limit to 10 pages, max 3 points per page, use more charts...",
       messages: {
         outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
         generateIncomplete: "Outline generation may be incomplete, please review and retry",
@@ -178,6 +182,9 @@ export const OutlineEditor: React.FC = () => {
 
   const [inputText, setInputText] = useState('');
   const [isInputDirty, setIsInputDirty] = useState(false);
+  const [outlineRequirements, setOutlineRequirements] = useState('');
+  const [isRequirementsDirty, setIsRequirementsDirty] = useState(false);
+  const [isRequirementsOpen, setIsRequirementsOpen] = useState(false);
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -196,6 +203,9 @@ export const OutlineEditor: React.FC = () => {
     if (currentProject) {
       setInputText(getInputText(currentProject));
       setIsInputDirty(false);
+      setOutlineRequirements(currentProject.outline_requirements || '');
+      setIsRequirementsDirty(false);
+      if (currentProject.outline_requirements) setIsRequirementsOpen(true);
     }
   }, [currentProject?.id]);
 
@@ -224,6 +234,20 @@ export const OutlineEditor: React.FC = () => {
     }, 1000);
     return () => clearTimeout(timer);
   }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
+
+  // Debounced auto-save for outline requirements
+  useEffect(() => {
+    if (!isRequirementsDirty || !projectId) return;
+    const timer = setTimeout(async () => {
+      try {
+        await updateProject(projectId, { outline_requirements: outlineRequirements });
+        setIsRequirementsDirty(false);
+      } catch (e) {
+        console.error('保存大纲要求失败:', e);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [outlineRequirements, isRequirementsDirty, projectId]);
 
   const handleSaveInputText = useCallback(() => {
     if (!isInputDirty) return;
@@ -369,6 +393,44 @@ export const OutlineEditor: React.FC = () => {
       show({ message: t('outline.messages.importFailed'), type: 'error' });
     }
   }, [currentProject, projectId, syncProject, show, t]);
+
+  const requirementsSection = (
+    <div className="border-t border-gray-100 dark:border-border-secondary">
+      <button
+        type="button"
+        onClick={() => setIsRequirementsOpen(!isRequirementsOpen)}
+        className="w-full px-4 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+      >
+        <Settings2 size={12} className="flex-shrink-0" />
+        <span className="font-medium">{t('outline.outlineRequirements')}</span>
+        {outlineRequirements && !isRequirementsOpen && (
+          <span className="w-1.5 h-1.5 rounded-full bg-banana-400 flex-shrink-0" />
+        )}
+        <ChevronDown
+          size={12}
+          className={`ml-auto transition-transform duration-200 ${isRequirementsOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div
+        className="overflow-hidden transition-all duration-200 ease-in-out"
+        style={{ maxHeight: isRequirementsOpen ? '200px' : '0px' }}
+      >
+        <textarea
+          value={outlineRequirements}
+          onChange={(e) => { setOutlineRequirements(e.target.value); setIsRequirementsDirty(true); }}
+          onBlur={() => {
+            if (isRequirementsDirty && projectId) {
+              updateProject(projectId, { outline_requirements: outlineRequirements });
+              setIsRequirementsDirty(false);
+            }
+          }}
+          placeholder={t('outline.outlineRequirementsPlaceholder')}
+          rows={3}
+          className="w-full px-4 py-2 text-sm bg-transparent text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 resize-none focus:outline-none"
+        />
+      </div>
+    </div>
+  );
 
   if (!currentProject) {
     return <Loading fullscreen message={t('outline.messages.loadingProject')} />;
@@ -587,6 +649,7 @@ export const OutlineEditor: React.FC = () => {
                 rows={12}
                 className="border-0 rounded-none shadow-none"
               />
+              {requirementsSection}
             </div>
             <ReferenceFileList
               projectId={projectId}
@@ -628,6 +691,7 @@ export const OutlineEditor: React.FC = () => {
               rows={6}
               className="border-0 rounded-none shadow-none"
             />
+            {requirementsSection}
           </div>
           <ReferenceFileList
             projectId={projectId}

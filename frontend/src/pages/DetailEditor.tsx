@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -21,6 +21,8 @@ const detailI18n = {
       renovationPollFailed: "与服务器通信失败，请检查网络后刷新页面重试",
       disabledNextTip: "还有 {{count}} 页缺少描述，请先完成所有页面的描述",
       detailLevel: { label: "详细程度", concise: "精简", default: "默认", detailed: "详细" },
+      descRequirements: "描述生成要求",
+      descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
       messages: {
         confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成",
@@ -49,6 +51,8 @@ const detailI18n = {
       renovationPollFailed: "Lost connection to server. Please check your network and refresh the page.",
       disabledNextTip: "{{count}} page(s) are missing descriptions. Please complete all page descriptions first",
       detailLevel: { label: "Detail Level", concise: "Concise", default: "Default", detailed: "Detailed" },
+      descRequirements: "Generation Requirements",
+      descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
       messages: {
         generateSuccess: "Generated successfully", generateFailed: "Generation failed",
         confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
@@ -66,7 +70,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPage } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPage, updateProject } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 /** 详细程度图标：用线条数量表示精简/标准/详细 */
@@ -114,6 +118,9 @@ export const DetailEditor: React.FC = () => {
   const detailLevelRef = useRef<HTMLDivElement>(null);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const [descRequirements, setDescRequirements] = useState('');
+  const [isDescReqDirty, setIsDescReqDirty] = useState(false);
+  const [isDescReqOpen, setIsDescReqOpen] = useState(false);
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -210,6 +217,29 @@ export const DetailEditor: React.FC = () => {
       }
     }
   }, [projectId, currentProject?.id]); // 只在 projectId 或项目ID变化时更新
+
+  // 同步描述生成要求
+  useEffect(() => {
+    if (currentProject) {
+      setDescRequirements(currentProject.description_requirements || '');
+      setIsDescReqDirty(false);
+      if (currentProject.description_requirements) setIsDescReqOpen(true);
+    }
+  }, [currentProject?.id]);
+
+  // Debounced auto-save for description requirements
+  useEffect(() => {
+    if (!isDescReqDirty || !projectId) return;
+    const timer = setTimeout(async () => {
+      try {
+        await updateProject(projectId, { description_requirements: descRequirements });
+        setIsDescReqDirty(false);
+      } catch (e) {
+        console.error('保存描述要求失败:', e);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [descRequirements, isDescReqDirty, projectId]);
 
 
   const handleGenerateAll = async () => {
@@ -558,6 +588,45 @@ export const DetailEditor: React.FC = () => {
           </div>
         </div>
         )}
+      </div>
+
+      {/* 描述生成要求 - 可折叠 */}
+      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsDescReqOpen(!isDescReqOpen)}
+          className="w-full px-3 md:px-6 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+        >
+          <Settings2 size={12} className="flex-shrink-0" />
+          <span className="font-medium">{t('detail.descRequirements')}</span>
+          {descRequirements && !isDescReqOpen && (
+            <span className="w-1.5 h-1.5 rounded-full bg-banana-400 flex-shrink-0" />
+          )}
+          <ChevronDown
+            size={12}
+            className={`ml-auto transition-transform duration-200 ${isDescReqOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        <div
+          className="overflow-hidden transition-all duration-200 ease-in-out"
+          style={{ maxHeight: isDescReqOpen ? '160px' : '0px' }}
+        >
+          <div className="px-3 md:px-6 pb-3">
+            <textarea
+              value={descRequirements}
+              onChange={(e) => { setDescRequirements(e.target.value); setIsDescReqDirty(true); }}
+              onBlur={() => {
+                if (isDescReqDirty && projectId) {
+                  updateProject(projectId, { description_requirements: descRequirements });
+                  setIsDescReqDirty(false);
+                }
+              }}
+              placeholder={t('detail.descRequirementsPlaceholder')}
+              rows={2}
+              className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 rounded-lg border border-gray-200 dark:border-border-primary resize-none focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"
+            />
+          </div>
+        </div>
       </div>
 
       {/* 主内容区 */}
