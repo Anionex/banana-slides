@@ -598,12 +598,6 @@ export const OutlineEditor: React.FC = () => {
               data-testid="outline-requirements-textarea"
               value={outlineRequirements}
               onChange={(e) => { setOutlineRequirements(e.target.value); setIsRequirementsDirty(true); }}
-              onBlur={() => {
-                if (isRequirementsDirty && projectId) {
-                  updateProject(projectId, { outline_requirements: outlineRequirements });
-                  setIsRequirementsDirty(false);
-                }
-              }}
               placeholder={t('outline.outlineRequirementsPlaceholder')}
               rows={2}
               className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 rounded-lg border border-gray-200 dark:border-border-primary resize-none focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"

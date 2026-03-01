@@ -244,7 +244,7 @@ Output rules:
 - Preserve all titles, points, and text exactly as provided
 - Do NOT wrap in code blocks or add any extra text
 
-{_format_requirements(project_context.outline_requirements)}Now parse the outline text above into the Markdown format. Output `<!-- END -->` on the last line when finished.
+Now parse the outline text above into the Markdown format. Output `<!-- END -->` on the last line when finished.
 {get_language_instruction(language)}
 """)
 
@@ -276,7 +276,7 @@ Output rules:
 - Preserve the logical structure from the original text
 - Do NOT wrap in code blocks or add any extra text
 
-{_format_requirements(project_context.outline_requirements)}Now extract the outline structure from the description text above. Output `<!-- END -->` on the last line when finished.
+Now extract the outline structure from the description text above. Output `<!-- END -->` on the last line when finished.
 {get_language_instruction(language)}
 """)
 
@@ -340,7 +340,7 @@ Important rules:
 - If the text has clear sections/parts, use the part-based format
 - Extract titles and points from the original text, keeping them exactly as written
 
-{_format_requirements(project_context.outline_requirements)}Now parse the outline text above into the structured format. Return only the JSON, don't include any other text.
+Now parse the outline text above into the structured format. Return only the JSON, don't include any other text.
 {get_language_instruction(language)}
 """)
 
@@ -574,7 +574,7 @@ Important rules:
 - Preserve the logical structure and organization from the original text
 - The points should be concise summaries of the main content for each page
 
-{_format_requirements(project_context.outline_requirements)}Now extract the outline structure from the description text above. Return only the JSON, don't include any other text.
+Now extract the outline structure from the description text above. Return only the JSON, don't include any other text.
 {get_language_instruction(language)}
 """)
 

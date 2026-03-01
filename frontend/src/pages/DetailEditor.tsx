@@ -588,12 +588,6 @@ export const DetailEditor: React.FC = () => {
               data-testid="desc-requirements-textarea"
               value={descRequirements}
               onChange={(e) => { setDescRequirements(e.target.value); setIsDescReqDirty(true); }}
-              onBlur={() => {
-                if (isDescReqDirty && projectId) {
-                  updateProject(projectId, { description_requirements: descRequirements });
-                  setIsDescReqDirty(false);
-                }
-              }}
               placeholder={t('detail.descRequirementsPlaceholder')}
               rows={2}
               className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 rounded-lg border border-gray-200 dark:border-border-primary resize-none focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"
