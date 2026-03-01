@@ -127,6 +127,7 @@ export const Loading: React.FC<LoadingProps> = ({
 export const Skeleton: React.FC<{ className?: string }> = ({ className }) => {
   return (
     <div
+      data-testid="skeleton"
       className={cn(
         'animate-shimmer bg-gradient-to-r from-gray-200 dark:from-background-hover via-banana-50 dark:via-background-elevated to-gray-200 dark:to-background-hover',
         'bg-[length:200%_100%]',
