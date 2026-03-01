@@ -395,7 +395,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
 我们已经有了完整的大纲：\n{outline}\n{part_info}
-现在请为第 {page_index} 页生成描述：
+{_format_requirements(project_context.description_requirements)}现在请为第 {page_index} 页生成描述：
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
 
@@ -414,7 +414,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 ## 关于图片
 如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
-{_format_requirements(project_context.description_requirements)}{get_language_instruction(language)}
+{get_language_instruction(language)}
 """)
 
     final_prompt = files_xml + prompt
