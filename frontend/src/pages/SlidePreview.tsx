@@ -1589,11 +1589,10 @@ export const SlidePreview: React.FC = () => {
                         <div className="text-center">
                           <div className="text-6xl mb-4">🍌</div>
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
-                            {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                              ? t('preview.generating')
-                              : selectedPage?.status === 'QUEUED'
+                            {selectedPage?.status === 'QUEUED'
                               ? t('preview.queued')
-                              : selectedPage?.status === 'GENERATING'
+                              : (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
+                                selectedPage?.status === 'GENERATING'
                               ? t('preview.generating')
                               : t('preview.notGenerated')}
                           </p>
