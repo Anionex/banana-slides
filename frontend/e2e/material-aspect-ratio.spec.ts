@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * E2E tests for material generation aspect ratio selector.
@@ -19,7 +19,7 @@ test.describe('Material generation aspect ratio selector', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  async function openMaterialGeneratorModal(page: any) {
+  async function openMaterialGeneratorModal(page: Page) {
     // Use dispatchEvent to reliably trigger the click on the 素材生成 button
     // (regular click may be blocked by overlay elements)
     const materialBtn = page.locator('button', { hasText: /素材生成/ }).first();
@@ -72,7 +72,7 @@ test.describe('Material generation aspect ratio selector', () => {
       const postData = request.postData() || '';
 
       // Multipart form: find aspect_ratio field value
-      const match = postData.match(/name="aspect_ratio"[\r\n]+([^\r\n-][^\r\n]*)/);
+      const match = postData.match(/name="aspect_ratio"\r\n\r\n([^\r\n]*)/);
       if (match) {
         capturedAspectRatio = match[1].trim();
       }

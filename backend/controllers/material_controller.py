@@ -262,6 +262,10 @@ def generate_material_image(project_id):
             extra_files = request.files.getlist('extra_images') or []
 
         aspect_ratio = (data.get('aspect_ratio') or '').strip() or None
+        if aspect_ratio:
+            _allowed_ratios = {'16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'}
+            if aspect_ratio not in _allowed_ratios:
+                return bad_request(f"Invalid aspect ratio. Allowed values: {', '.join(sorted(_allowed_ratios))}")
 
         if not prompt:
             return bad_request("prompt is required")
