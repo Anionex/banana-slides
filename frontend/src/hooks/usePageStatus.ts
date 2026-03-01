@@ -46,6 +46,13 @@ export const usePageStatus = (
 
   switch (context) {
     case 'description':
+      if (pageStatus === 'GENERATING_DESCRIPTION') {
+        return {
+          status: 'GENERATING_DESCRIPTION',
+          label: t('status.generatingDescription'),
+          description: t('status.generatingDescription')
+        };
+      }
       if (!hasDescription) {
         return {
           status: 'DRAFT',
