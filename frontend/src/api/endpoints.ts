@@ -603,10 +603,14 @@ export const generateMaterialImage = async (
   projectId: string,
   prompt: string,
   refImage?: File | null,
-  extraImages?: File[]
+  extraImages?: File[],
+  aspectRatio?: string
 ): Promise<ApiResponse<{ task_id: string; status: string }>> => {
   const formData = new FormData();
   formData.append('prompt', prompt);
+  if (aspectRatio) {
+    formData.append('aspect_ratio', aspectRatio);
+  }
   if (refImage) {
     formData.append('ref_image', refImage);
   }
