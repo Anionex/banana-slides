@@ -82,7 +82,6 @@ export const DetailEditor: React.FC = () => {
     generateDescriptions,
     generatePageDescription,
     regenerateRenovationPage,
-    pageDescriptionGeneratingTasks,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -504,35 +503,34 @@ export const DetailEditor: React.FC = () => {
                 Array.from({ length: renovationProgress?.total || 6 }).map((_, index) => (
                   <DescriptionCard
                     key={`skeleton-${index}`}
-                    page={{ id: `skeleton-${index}`, title: '', sort_order: index } as any}
+                    page={{ id: `skeleton-${index}`, title: '', sort_order: index, status: 'GENERATING_DESCRIPTION' } as any}
                     index={index}
                     projectId={currentProject.id}
                     showToast={show}
                     onUpdate={() => {}}
                     onRegenerate={() => {}}
-                    isGenerating={true}
-                    isAiRefining={false}
                   />
                 ))
               ) : (
                 currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
-                // Show skeleton only if page has no description content yet
+                // Renovation processing: treat pages without description as generating
                 const hasDescription = page.description_content && (
                   (typeof page.description_content === 'string' && page.description_content.trim()) ||
                   (typeof page.description_content === 'object' && page.description_content.text?.trim())
                 );
-                const pageIsGenerating = isRenovationProcessing && !hasDescription;
+                const effectivePage = (isRenovationProcessing && !hasDescription)
+                  ? { ...page, status: 'GENERATING_DESCRIPTION' as const }
+                  : page;
                 return (
                   <DescriptionCard
                     key={pageId}
-                    page={page}
+                    page={effectivePage}
                     index={index}
                     projectId={currentProject.id}
                     showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => stableHandleRegeneratePage(pageId)}
-                    isGenerating={pageIsGenerating || (pageId ? !!pageDescriptionGeneratingTasks[pageId] : false)}
                     isAiRefining={isAiRefining}
                   />
                 );

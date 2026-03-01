@@ -5,7 +5,7 @@ import type { Page, PageStatus } from '@/types';
 const pageStatusI18n = {
   zh: {
     status: {
-      draft: "草稿", descriptionGenerated: "描述已生成", generating: "生成中",
+      draft: "草稿", generatingDescription: "描述生成中", descriptionGenerated: "描述已生成", generating: "生成中",
       completed: "已完成", failed: "失败", unknown: "未知",
       notGeneratedDesc: "未生成描述", noDescription: "还没有生成描述",
       descGenerated: "描述已生成", notGeneratedImage: "未生成图片",
@@ -16,7 +16,7 @@ const pageStatusI18n = {
   },
   en: {
     status: {
-      draft: "Draft", descriptionGenerated: "Description Generated", generating: "Generating",
+      draft: "Draft", generatingDescription: "Generating Description", descriptionGenerated: "Description Generated", generating: "Generating",
       completed: "Completed", failed: "Failed", unknown: "Unknown",
       notGeneratedDesc: "No Description", noDescription: "No description generated yet",
       descGenerated: "Description Generated", notGeneratedImage: "No Image",
@@ -114,6 +114,7 @@ export const usePageStatus = (
 function getStatusLabel(status: PageStatus, t: (key: string) => string): string {
   const labels: Record<PageStatus, string> = {
     DRAFT: t('status.draft'),
+    GENERATING_DESCRIPTION: t('status.generatingDescription'),
     DESCRIPTION_GENERATED: t('status.descriptionGenerated'),
     GENERATING: t('status.generating'),
     COMPLETED: t('status.completed'),
@@ -124,6 +125,7 @@ function getStatusLabel(status: PageStatus, t: (key: string) => string): string 
 
 function getStatusDescription(status: PageStatus, t: (key: string) => string): string {
   if (status === 'DRAFT') return t('status.draftStage');
+  if (status === 'GENERATING_DESCRIPTION') return t('status.generatingDescription');
   if (status === 'DESCRIPTION_GENERATED') return t('status.descGenerated');
   if (status === 'GENERATING') return t('status.generating');
   if (status === 'FAILED') return t('status.failed');

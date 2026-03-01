@@ -40,7 +40,6 @@ export interface DescriptionCardProps {
   showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
-  isGenerating?: boolean;
   isAiRefining?: boolean;
 }
 
@@ -62,7 +61,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   showToast,
   onUpdate,
   onRegenerate,
-  isGenerating = false,
   isAiRefining = false,
 }) => {
   const t = useT(descriptionCardI18n);
@@ -85,8 +83,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     insertAtCursor,
   });
 
-  // 使用专门的描述生成状态 hook，不受图片生成状态影响
-  const generating = useDescriptionGeneratingState(isGenerating, isAiRefining);
+  // 通过 page.status 驱动骨架屏，与图片生成的 GENERATING 状态互不干扰
+  const generating = useDescriptionGeneratingState(page, isAiRefining);
 
   const handleEdit = () => {
     // 在打开编辑对话框时，从当前的 page 获取最新值
@@ -209,7 +207,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   );
 }, (prev, next) =>
   prev.index === next.index &&
-  prev.isGenerating === next.isGenerating &&
   prev.isAiRefining === next.isAiRefining &&
   prev.projectId === next.projectId &&
   prev.page.id === next.page.id &&
