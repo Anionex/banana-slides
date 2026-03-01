@@ -164,7 +164,7 @@ function reducer(s: State, a: Action): State {
     case 'SET_PREVIEW':
       return { ...s, preview: a.preview };
     case 'RESET_EPHEMERAL':
-      return { ...s, selected: new Set(), showAllProjects: false };
+      return { ...s, selected: new Set(), showAllProjects: false, preview: null };
     default:
       return s;
   }
@@ -498,40 +498,49 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('mc.title')} size="lg">
-      <div className="space-y-4">
-        <ToolbarSection t={t} state={s} dispatch={dispatch} onRefresh={fetchItems} onUpload={handleUpload} onDownload={handleDownload} />
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} title={t('mc.title')} size="lg">
+        <div className="space-y-4">
+          <ToolbarSection t={t} state={s} dispatch={dispatch} onRefresh={fetchItems} onUpload={handleUpload} onDownload={handleDownload} />
 
-        {s.loading && s.items.length === 0 ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-gray-400">{t('common.loading')}</div>
-          </div>
-        ) : s.items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400 p-4">
-            <ImageIcon size={48} className="mb-4 opacity-50" />
-            <div className="text-sm">{t('mc.empty')}</div>
-            <div className="text-xs mt-1">{t('mc.emptyHint')}</div>
-          </div>
-        ) : (
-          <MaterialGrid
-            items={s.items}
-            selected={s.selected}
-            deleting={s.deleting}
-            t={t}
-            onToggle={(id) => dispatch({ type: 'TOGGLE_SELECT', key: id })}
-            onPreview={handlePreview}
-            onDelete={handleDelete}
-          />
-        )}
+          {s.loading && s.items.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gray-400">{t('common.loading')}</div>
+            </div>
+          ) : s.items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400 p-4">
+              <ImageIcon size={48} className="mb-4 opacity-50" />
+              <div className="text-sm">{t('mc.empty')}</div>
+              <div className="text-xs mt-1">{t('mc.emptyHint')}</div>
+            </div>
+          ) : (
+            <MaterialGrid
+              items={s.items}
+              selected={s.selected}
+              deleting={s.deleting}
+              t={t}
+              onToggle={(id) => dispatch({ type: 'TOGGLE_SELECT', key: id })}
+              onPreview={handlePreview}
+              onDelete={handleDelete}
+            />
+          )}
 
-        <div className="pt-4 border-t flex justify-end">
-          <Button variant="ghost" onClick={onClose}>
-            {t('common.close')}
-          </Button>
+          <div className="pt-4 border-t flex justify-end">
+            <Button variant="ghost" onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          </div>
         </div>
-      </div>
+      </Modal>
 
-      {s.preview && <PreviewOverlay url={s.preview.url} label={s.preview.label} t={t} onClose={() => dispatch({ type: 'SET_PREVIEW', preview: null })} />}
-    </Modal>
+      {s.preview && (
+        <PreviewOverlay
+          url={s.preview.url}
+          label={s.preview.label}
+          t={t}
+          onClose={() => dispatch({ type: 'SET_PREVIEW', preview: null })}
+        />
+      )}
+    </>
   );
 };
