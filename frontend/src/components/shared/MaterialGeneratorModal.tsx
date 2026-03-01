@@ -299,11 +299,11 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
               {t('material.generatedResult')}
             </h4>
             {isGenerating ? (
-              <div className="aspect-video rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner">
+              <div className="rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
                 <Skeleton className="w-full h-full" />
               </div>
             ) : previewUrl ? (
-              <div className="aspect-video bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
+              <div className="bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
                 <img
                   src={previewUrl}
                   alt={t('material.generatedMaterial')}
@@ -311,7 +311,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                 />
               </div>
             ) : (
-              <div className="aspect-video bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm">
+              <div className="bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
                 <ImageIcon size={48} className="mb-3 animate-pulse opacity-50" />
                 <div className="font-medium">{t('material.generatedPreview')}</div>
               </div>
