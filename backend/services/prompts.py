@@ -373,50 +373,15 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     # 根据 detail_level 生成不同的详细程度要求和示例
     # concise=演示型  default=标准型  detailed=阅读型(Slidedoc)
     detail_level_specs = {
-        'concise': {
-            'requirement': '极简风格，仅保留核心关键词或短语，绝对禁止使用完整句子',
-            'style': '采用"主谓"或"动宾"短语结构，具有强烈的视觉冲击力，适合配合口头演讲',
-            'example': """\
-页面文字：
-- 狩猎采集：影响微弱
-- 依赖自然：完全顺应
-- 适应环境：非改造
-- 局部影响：可自愈""",
-        },
-        'detailed': {
-            'requirement': '内容详实，采用结构化表达。每条要点需包含"核心论点"和"具体解释/数据"',
-            'style': '使用"总-分"结构，例如：【小标题/核心句】：具体解释内容。逻辑严密，适合作为阅读材料独立使用',
-            'example': """\
-页面文字：
-- 狩猎采集文明对环境的低强度影响：
-  人类以小规模部落生活，主要通过狩猎和采集获取食物，对生态系统的干扰微乎其微。
-- 对自然资源的高度依赖：
-  尚未掌握改造自然的技术，衣食住行完全取决于自然的直接供给，与环境保持共生关系。
-- 适应性生存策略：
-  重点在于观察和顺应自然规律（如季节迁徙），而非尝试征服或改造自然环境。
-- 知识体系的原始积累：
-  通过口耳相传，形成了关于动植物习性和地理特征的原始知识库，为文明演进奠定基础。""",
-        },
+        'concise': 
+            '风格及其精简，仅保留核心关键词或短语，要点控制在8个字以内，整体控制在30字以内，演示禅风格，文字仅做视觉锚点。数据优先。',
+        'default': 
+            '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
+        'detailed': 
+            '内容详实，逻辑清晰。**严禁输出任何不存在于原文或要求的内容或者数据**',
     }
-    default_spec = {
-        'requirement': '清晰明了，每条要点控制在15-20字以内，确保单行或双行能排版下',
-        'style': '观点鲜明，采用"核心观点 + 简要补充"的形式，逻辑连贯，便于观众快速扫读',
-        'example': """\
-页面文字：
-- 狩猎采集文明：人类活动规模小，对环境影响有限
-- 强依赖性：衣食住行完全依赖自然资源的直接供给
-- 适应而非改造：通过观察学习自然，发展基础生存技能
-- 影响特征：局部且低强度，生态系统可自我恢复""",
-    }
-    spec = detail_level_specs.get(detail_level, default_spec)
-
-    detail_instructions = f"""\
-【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
-1. 文字内容要{spec['requirement']}
-2. {spec['style']}
-3. 不要包含任何额外的说明性文字或注释"""
-    detail_example = spec['example']
-
+    
+    
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -425,17 +390,21 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
 
-{detail_instructions}
+## 重要提示
+生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必不要包含任何额外的说明性文字或注释。
 
-输出格式示例：
-页面标题：原始社会：与自然共生
-{"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
+## 输出格式
+页面标题：[实际页面标题]
+{"副标题：[实际副标题]" if page_index == 1 else ""}
 
-{detail_example}
+页面文字：
+[此处输出页面文字, 要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
-其他页面素材（如果文件中存在请积极添加，包括markdown图片链接、公式、表格等）
+图片素材:
+[如果文件中存在图片请积极添加； 否则忽略图片素材字段]
 
-【关于图片】如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
+## 关于图片
+如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
 
 {get_language_instruction(language)}
 """)
