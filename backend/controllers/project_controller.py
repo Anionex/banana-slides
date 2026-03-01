@@ -743,7 +743,7 @@ def generate_descriptions(project_id):
         if not project:
             return not_found('Project')
         
-        if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED']:
+        if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED', 'COMPLETED']:
             return bad_request("Project must have outline generated first")
         
         # IMPORTANT: Expire cached objects to ensure fresh data

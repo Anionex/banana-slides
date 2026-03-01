@@ -374,11 +374,11 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     # concise=演示型  default=标准型  detailed=阅读型(Slidedoc)
     detail_level_specs = {
         'concise': 
-            '风格及其精简，仅保留核心关键词或短语，要点控制在8个字以内，整体控制在30字以内，演示禅风格，文字仅做视觉锚点。数据优先。',
+            '文字极致地压缩和精简',
         'default': 
             '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
         'detailed': 
-            '内容详实，逻辑清晰。**严禁输出任何不存在于原文或要求的内容或者数据**',
+            '忠于原文的基础上做到内容详实，逻辑清晰。',
     }
     
     
@@ -398,7 +398,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 {"副标题：[实际副标题]" if page_index == 1 else ""}
 
 页面文字：
-[此处输出页面文字, 要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
+[此处输出页面文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
 图片素材:
 [如果文件中存在图片请积极添加； 否则忽略图片素材字段]

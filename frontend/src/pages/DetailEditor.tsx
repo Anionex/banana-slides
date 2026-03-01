@@ -482,7 +482,7 @@ export const DetailEditor: React.FC = () => {
                 onClick={() => setDetailLevelOpen(!detailLevelOpen)}
                 className="text-sm md:text-base"
               >
-                <span className="text-gray-400 dark:text-foreground-tertiary">{t('detail.detailLevel.label')}:</span>
+                <span>{t('detail.detailLevel.label')}:</span>
                 <span className="ml-1">{t(`detail.detailLevel.${detailLevel}` as any)}</span>
                 <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${detailLevelOpen ? 'rotate-180' : ''}`} />
               </Button>
