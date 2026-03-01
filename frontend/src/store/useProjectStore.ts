@@ -775,6 +775,7 @@ const debouncedUpdatePage = debounce(
               activeTaskId: null,
               error: normalizeErrorMessage(error.message || t('store.generateDescTimeout'))
             });
+            await get().syncProject();
             return;
           }
           await get().syncProject();
