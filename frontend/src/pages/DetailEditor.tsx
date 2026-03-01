@@ -506,37 +506,7 @@ export const DetailEditor: React.FC = () => {
             >
               {t('detail.batchGenerate')}
             </Button>
-            {/* 详细程度下拉选择器 — secondary 风格 */}
-            <div className="relative" ref={detailLevelRef}>
-              <Button
-                variant="secondary"
-                onClick={() => setDetailLevelOpen(!detailLevelOpen)}
-                className="text-sm md:text-base"
-              >
-                <span>{t('detail.detailLevel.label')}:</span>
-                <span className="ml-1">{t(`detail.detailLevel.${detailLevel}` as any)}</span>
-                <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${detailLevelOpen ? 'rotate-180' : ''}`} />
-              </Button>
-              {detailLevelOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 w-full rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none overflow-hidden">
-                  {(['concise', 'default', 'detailed'] as const).map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => { setDetailLevel(level); setDetailLevelOpen(false); }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors duration-150 ${
-                        detailLevel === level
-                          ? 'bg-banana-50 dark:bg-background-hover text-black dark:text-foreground-primary'
-                          : 'text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover'
-                      }`}
-                    >
-                      <DetailLevelIcon level={level} />
-                      {t(`detail.detailLevel.${level}` as any)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <div className="hidden" ref={detailLevelRef} />
             <div className="w-px h-6 bg-gray-200 dark:bg-border-primary flex-shrink-0" />
             {/* 导入导出下拉菜单 */}
             <div className="relative" ref={fileMenuRef}>
