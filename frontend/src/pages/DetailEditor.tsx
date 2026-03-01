@@ -105,7 +105,11 @@ export const DetailEditor: React.FC = () => {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
-  const [detailLevel, setDetailLevel] = useState<string>('default');
+  const [detailLevel, _setDetailLevel] = useState<string>(() => localStorage.getItem('detailLevel') || 'default');
+  const setDetailLevel = useCallback((level: string) => {
+    _setDetailLevel(level);
+    localStorage.setItem('detailLevel', level);
+  }, []);
   const [detailLevelOpen, setDetailLevelOpen] = useState(false);
   const detailLevelRef = useRef<HTMLDivElement>(null);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
