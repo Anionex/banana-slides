@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ASPECT_RATIO_OPTIONS } from '../src/config/aspectRatio';
 
 /**
  * E2E tests for material generation aspect ratio selector.
@@ -37,9 +38,9 @@ test.describe('Material generation aspect ratio selector', () => {
     // Check the aspect ratio label is visible
     await expect(dialog.getByText(/生成比例|Aspect Ratio/)).toBeVisible();
 
-    // Check that all 10 ratio buttons are visible inside the dialog
-    for (const ratio of ['16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16']) {
-      await expect(dialog.locator('button', { hasText: ratio })).toBeVisible();
+    // Check that all ratio buttons are visible inside the dialog (derived from config)
+    for (const { value } of ASPECT_RATIO_OPTIONS) {
+      await expect(dialog.locator('button', { hasText: value })).toBeVisible();
     }
   });
 

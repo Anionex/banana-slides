@@ -24,6 +24,7 @@ material_bp = Blueprint('materials', __name__, url_prefix='/api/projects')
 material_global_bp = Blueprint('materials_global', __name__, url_prefix='/api/materials')
 
 ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+ALLOWED_ASPECT_RATIOS = frozenset({'16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'})
 
 
 def _generate_image_caption(filepath: str) -> str:
@@ -262,10 +263,8 @@ def generate_material_image(project_id):
             extra_files = request.files.getlist('extra_images') or []
 
         aspect_ratio = (data.get('aspect_ratio') or '').strip() or None
-        if aspect_ratio:
-            _allowed_ratios = {'16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'}
-            if aspect_ratio not in _allowed_ratios:
-                return bad_request(f"Invalid aspect ratio. Allowed values: {', '.join(sorted(_allowed_ratios))}")
+        if aspect_ratio and aspect_ratio not in ALLOWED_ASPECT_RATIOS:
+            return bad_request(f"Invalid aspect ratio. Allowed values: {', '.join(sorted(ALLOWED_ASPECT_RATIOS))}")
 
         if not prompt:
             return bad_request("prompt is required")
