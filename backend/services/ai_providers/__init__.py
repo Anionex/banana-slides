@@ -93,6 +93,22 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
     return fallback
 
 
+# Ordered list for lazyllm vendor inference (priority order when multiple keys exist)
+_LAZYLLM_VENDOR_PRIORITY = ['doubao', 'qwen', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi']
+
+
+def _infer_lazyllm_vendor(fallback: str) -> str:
+    """Return the first lazyllm vendor with a configured {VENDOR}_API_KEY env var, or fallback.
+
+    Used when AI_PROVIDER_FORMAT=lazyllm but no explicit TEXT/IMAGE_MODEL_SOURCE is set,
+    so the globally-selected vendor (e.g. doubao) is inferred from the configured API keys.
+    """
+    for vendor in _LAZYLLM_VENDOR_PRIORITY:
+        if os.getenv(f'{vendor.upper()}_API_KEY'):
+            return vendor
+    return fallback
+
+
 def _build_provider_config() -> Dict[str, Any]:
     """Assemble provider-specific configuration dict.
 
@@ -128,8 +144,8 @@ def _build_provider_config() -> Dict[str, Any]:
                      cfg['project_id'], cfg['location'])
 
     elif fmt == 'lazyllm':
-        cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE', 'deepseek')
-        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE', 'doubao')
+        cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE') or _infer_lazyllm_vendor('deepseek')
+        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or _infer_lazyllm_vendor('doubao')
         logger.info("Provider config — format: lazyllm, text_source: %s, image_source: %s",
                      cfg['text_source'], cfg['image_source'])
 
