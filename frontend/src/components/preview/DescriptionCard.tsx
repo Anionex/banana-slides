@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Edit2, FileText, RefreshCw, Tag } from 'lucide-react';
+import { Edit2, FileText, RefreshCw, Tag, Layout } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
@@ -177,10 +177,11 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
               {allFieldNames.map(name => {
                 const value = extraFields[name];
                 if (!value) return null;
+                const FieldIcon = name.includes('排版') ? Layout : Tag;
                 return (
                   <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
-                      <Tag size={12} />
+                      <FieldIcon size={12} />
                       <span className="font-medium">{name}</span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-foreground-tertiary">{value}</p>
