@@ -23,13 +23,13 @@ const mockProject = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
-/** Locate the outline requirements textarea (uses data-testid) */
-const outlineReqTextarea = (page: import('@playwright/test').Page) =>
-  page.locator('[data-testid="outline-requirements-textarea"]').first()
+/** Locate the outline requirements editor (contentEditable inside data-testid wrapper) */
+const outlineReqEditor = (page: import('@playwright/test').Page) =>
+  page.locator('[data-testid="outline-requirements-textarea"] [contenteditable="true"]').first()
 
-/** Locate the description requirements textarea */
-const descReqTextarea = (page: import('@playwright/test').Page) =>
-  page.locator('[data-testid="desc-requirements-textarea"]').first()
+/** Locate the description requirements editor */
+const descReqEditor = (page: import('@playwright/test').Page) =>
+  page.locator('[data-testid="desc-requirements-textarea"] [contenteditable="true"]').first()
 
 /** Locate the outline requirements toggle button */
 const outlineReqToggle = (page: import('@playwright/test').Page) =>
@@ -38,6 +38,17 @@ const outlineReqToggle = (page: import('@playwright/test').Page) =>
 /** Locate the description requirements toggle button */
 const descReqToggle = (page: import('@playwright/test').Page) =>
   page.locator('[data-testid="desc-requirements-toggle"]').first()
+
+/** Clear and type into a contentEditable element */
+async function clearAndType(editor: import('@playwright/test').Locator, text: string) {
+  await editor.click()
+  await editor.press('Control+a')
+  if (text) {
+    await editor.page().keyboard.insertText(text)
+  } else {
+    await editor.press('Backspace')
+  }
+}
 
 // ── Mock tests ──────────────────────────────────────────────────────
 
@@ -72,12 +83,12 @@ test.describe('Generation requirements - OutlineEditor (mock)', () => {
     // Expand it
     await toggle.click()
 
-    // Textarea should now be visible
-    const textarea = outlineReqTextarea(page)
-    await expect(textarea).toBeVisible()
+    // Editor should now be visible
+    const editor = outlineReqEditor(page)
+    await expect(editor).toBeVisible()
 
     // Type requirements
-    await textarea.fill('限制在5页以内')
+    await clearAndType(editor, '限制在5页以内')
 
     // Blur to trigger save
     await page.locator('header').first().click()
@@ -103,9 +114,9 @@ test.describe('Generation requirements - OutlineEditor (mock)', () => {
     await page.waitForLoadState('networkidle')
 
     // Should auto-expand when there are existing requirements
-    const textarea = outlineReqTextarea(page)
-    await expect(textarea).toBeVisible()
-    await expect(textarea).toHaveValue('Some requirement')
+    const editor = outlineReqEditor(page)
+    await expect(editor).toBeVisible()
+    await expect(editor).toContainText('Some requirement')
   })
 })
 
@@ -140,12 +151,12 @@ test.describe('Generation requirements - DetailEditor (mock)', () => {
     // Expand it
     await toggle.click()
 
-    // Textarea should be visible
-    const textarea = descReqTextarea(page)
-    await expect(textarea).toBeVisible()
+    // Editor should be visible
+    const editor = descReqEditor(page)
+    await expect(editor).toBeVisible()
 
     // Type requirements
-    await textarea.fill('每页不超过50字')
+    await clearAndType(editor, '每页不超过50字')
 
     // Blur to trigger save
     await page.locator('header').first().click()
@@ -171,9 +182,9 @@ test.describe('Generation requirements - DetailEditor (mock)', () => {
     await page.waitForLoadState('networkidle')
 
     // Should auto-expand with existing content
-    const textarea = descReqTextarea(page)
-    await expect(textarea).toBeVisible()
-    await expect(textarea).toHaveValue('Existing desc requirement')
+    const editor = descReqEditor(page)
+    await expect(editor).toBeVisible()
+    await expect(editor).toContainText('Existing desc requirement')
   })
 })
 
@@ -199,9 +210,9 @@ test.describe('Generation requirements (integration)', () => {
     await toggle.click()
 
     // Type requirements
-    const textarea = outlineReqTextarea(page)
-    await expect(textarea).toBeVisible()
-    await textarea.fill('限制在8页以内，使用中文')
+    const editor = outlineReqEditor(page)
+    await expect(editor).toBeVisible()
+    await clearAndType(editor, '限制在8页以内')
 
     // Blur and wait for save
     const savePromise = page.waitForResponse(
@@ -215,9 +226,9 @@ test.describe('Generation requirements (integration)', () => {
     await page.waitForLoadState('networkidle')
 
     // Should auto-expand since there's content
-    const textareaAfter = outlineReqTextarea(page)
-    await expect(textareaAfter).toBeVisible()
-    await expect(textareaAfter).toHaveValue('限制在8页以内，使用中文')
+    const editorAfter = outlineReqEditor(page)
+    await expect(editorAfter).toBeVisible()
+    await expect(editorAfter).toContainText('限制在8页以内')
   })
 
   test('description requirements: save, reload, verify persisted', async ({ page, request }) => {
@@ -238,9 +249,9 @@ test.describe('Generation requirements (integration)', () => {
     await toggle.click()
 
     // Type requirements
-    const textarea = descReqTextarea(page)
-    await expect(textarea).toBeVisible()
-    await textarea.fill('多使用数据和案例')
+    const editor = descReqEditor(page)
+    await expect(editor).toBeVisible()
+    await clearAndType(editor, '多使用数据和案例')
 
     // Blur and wait for save
     const savePromise = page.waitForResponse(
@@ -253,9 +264,9 @@ test.describe('Generation requirements (integration)', () => {
     await page.reload()
     await page.waitForLoadState('networkidle')
 
-    const textareaAfter = descReqTextarea(page)
-    await expect(textareaAfter).toBeVisible()
-    await expect(textareaAfter).toHaveValue('多使用数据和案例')
+    const editorAfter = descReqEditor(page)
+    await expect(editorAfter).toBeVisible()
+    await expect(editorAfter).toContainText('多使用数据和案例')
   })
 
   test('clearing requirements saves empty string', async ({ page }) => {
@@ -269,12 +280,12 @@ test.describe('Generation requirements (integration)', () => {
     await page.waitForLoadState('networkidle')
 
     // Should auto-expand with existing content
-    const textarea = outlineReqTextarea(page)
-    await expect(textarea).toBeVisible()
-    await expect(textarea).toHaveValue('Temporary requirement')
+    const editor = outlineReqEditor(page)
+    await expect(editor).toBeVisible()
+    await expect(editor).toContainText('Temporary requirement')
 
     // Clear it
-    await textarea.fill('')
+    await clearAndType(editor, '')
 
     // Blur and wait for save
     const savePromise = page.waitForResponse(

@@ -185,6 +185,7 @@ export const OutlineEditor: React.FC = () => {
   const [isInputDirty, setIsInputDirty] = useState(false);
   const [outlineRequirements, setOutlineRequirements] = useState('');
   const [isRequirementsDirty, setIsRequirementsDirty] = useState(false);
+  const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
   const [isRequirementsOpen, setIsRequirementsOpen] = useState(
     () => localStorage.getItem('outlineReqOpen') !== 'false'
   );
@@ -272,6 +273,20 @@ export const OutlineEditor: React.FC = () => {
     setContent: setInputText,
     showToast: show,
     insertAtCursor,
+  });
+
+  const insertAtReqCursor = useCallback((markdown: string) => {
+    reqTextareaRef.current?.insertAtCursor(markdown);
+  }, []);
+
+  const { handlePaste: handleReqImagePaste, handleFiles: handleReqImageFiles } = useImagePaste({
+    projectId: projectId || null,
+    setContent: (updater) => {
+      setOutlineRequirements(updater);
+      setIsRequirementsDirty(true);
+    },
+    showToast: show,
+    insertAtCursor: insertAtReqCursor,
   });
 
   const inputLabel = useMemo(() => {
@@ -597,14 +612,18 @@ export const OutlineEditor: React.FC = () => {
           style={{ maxHeight: isRequirementsOpen ? '600px' : '0px' }}
         >
           <div className="px-3 md:px-6 pb-3">
-            <textarea
-              data-testid="outline-requirements-textarea"
-              value={outlineRequirements}
-              onChange={(e) => { setOutlineRequirements(e.target.value); setIsRequirementsDirty(true); }}
-              placeholder={t('outline.outlineRequirementsPlaceholder')}
-              rows={2}
-              className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 rounded-lg border border-gray-200 dark:border-border-primary resize-y focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"
-            />
+            <div data-testid="outline-requirements-textarea">
+              <MarkdownTextarea
+                ref={reqTextareaRef}
+                value={outlineRequirements}
+                onChange={(val) => { setOutlineRequirements(val); setIsRequirementsDirty(true); }}
+                onPaste={handleReqImagePaste}
+                onFiles={handleReqImageFiles}
+                placeholder={t('outline.outlineRequirementsPlaceholder')}
+                rows={2}
+                showImagePreview={false}
+              />
+            </div>
             <PresetCapsules
               type="outline"
               onAppend={(text) => {
