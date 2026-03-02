@@ -113,9 +113,11 @@ def _format_requirements(requirements: str) -> str:
             "<user_requirements>\n"
             f"{requirements.strip()}\n"
             "</user_requirements>\n"
-            "Note: The requirements above apply to the generated content and take precedence "
-            "over other content-related instructions. The required output format and structural "
-            "markers (e.g. markdown headings) must still be followed as-is.\n\n"
+            "Note: The requirements above apply to the generated content of each page and "
+            "take precedence over other content-related instructions. The required output format "
+            "and structural markers must still be used as-is. For example, if the user asks to "
+            "avoid '#' symbols, do NOT use '#' in the page content, but still use '## Title' as "
+            "the structural heading delimiter between pages.\n\n"
         )
     return ""
 
