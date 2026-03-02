@@ -95,21 +95,20 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('⏳ Step 5: Waiting for outline generation (may take 3-5 minutes)...')
 
-    // During generation, OutlineEditor renders a fullscreen <Loading> with "生成大纲中..."
-    // replacing all page content. We must wait for loading to disappear first,
-    // then verify outline cards exist.
-    const loadingIndicator = page.locator('text=/生成大纲中/')
-
-    // Wait for loading indicator to appear (confirms generation started)
-    await loadingIndicator.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
-      console.log('  Loading indicator not detected, generation may have completed quickly')
+    // Outline generation uses SSE streaming: the button shows "生成中..." and
+    // pages appear incrementally. Wait for the first card, then for streaming
+    // to finish (button text reverts from "生成中...").
+    const streamingBtn = page.locator('button:has-text("生成中...")')
+    await streamingBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
+      console.log('  Streaming button state not detected, generation may have completed quickly')
     })
 
-    // Wait for loading to disappear (API returned) with generous timeout for CI
-    await expect(loadingIndicator).toBeHidden({ timeout: 300000 })
+    // Wait for at least one outline card (pages stream in one by one)
+    await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 300000 })
+    console.log('  First outline card appeared')
 
-    // Now verify outline cards appeared
-    await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 10000 })
+    // Wait for streaming to finish (button reverts from "生成中...")
+    await expect(streamingBtn).toBeHidden({ timeout: 300000 })
     
     // Verify outline content
     const outlineItems = page.locator('text=/第 \\d+ 页/')
