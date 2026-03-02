@@ -201,7 +201,7 @@ def update_page_description(project_id, page_id):
         "description_content": {
             "title": "...",
             "text_content": ["...", "..."],
-            "extra_fields": {"排版建议": "..."}
+            "extra_fields": {"排版布局": "..."}
         }
     }
     """

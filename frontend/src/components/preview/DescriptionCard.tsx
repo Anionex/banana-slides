@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Edit2, FileText, RefreshCw, Tag, Layout } from 'lucide-react';
+import { Edit2, FileText, RefreshCw, Tag, LayoutGrid, Image, Focus } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
@@ -177,7 +177,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
               {allFieldNames.map(name => {
                 const value = extraFields[name];
                 if (!value) return null;
-                const FieldIcon = name.includes('排版') ? Layout : Tag;
+                const FIELD_ICONS: Record<string, typeof Tag> = { '排版布局': LayoutGrid, '视觉素材': Image, '视觉焦点': Focus };
+                const FieldIcon = FIELD_ICONS[name] || Tag;
                 return (
                   <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-foreground-tertiary mb-1">

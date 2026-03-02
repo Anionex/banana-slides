@@ -124,7 +124,7 @@ def mock_ai_service():
         mock_instance.generate_page_description.return_value = {
             'title': '测试标题',
             'text_content': ['内容1', '内容2'],
-            'extra_fields': {'排版建议': '居中布局'}
+            'extra_fields': {'排版布局': '居中布局'}
         }
         
         # Mock图片生成 - 返回一个简单的测试图片

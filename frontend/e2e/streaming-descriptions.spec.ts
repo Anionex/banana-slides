@@ -61,7 +61,7 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
           page_index: i,
           page_id: p.page_id,
           text: `页面标题：Page ${i + 1}\n\n页面文字：\n- Content for page ${i + 1}`,
-          extra_fields: i === 0 ? { '排版建议': '居中布局，大标题' } : { '排版建议': '左文右图' },
+          extra_fields: i === 0 ? { '排版布局': '居中布局，大标题' } : { '排版布局': '左文右图' },
         })}\n\n`;
         return descEvent;
       });
@@ -73,7 +73,7 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
           status: 'DESCRIPTION_GENERATED',
           description_content: {
             text: `页面标题：Page ${i + 1}\n\n页面文字：\n- Content for page ${i + 1}`,
-            extra_fields: i === 0 ? { '排版建议': '居中布局，大标题' } : { '排版建议': '左文右图' },
+            extra_fields: i === 0 ? { '排版布局': '居中布局，大标题' } : { '排版布局': '左文右图' },
           },
         })),
       })}\n\n`;
@@ -125,7 +125,7 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
         data: {
           description_content: {
             text: '页面标题：Test Page\n\n页面文字：\n- Test content',
-            extra_fields: { '排版建议': '居中布局，大标题+副标题' },
+            extra_fields: { '排版布局': '居中布局，大标题+副标题' },
           },
         },
       }
@@ -136,7 +136,7 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Check extra field is displayed
-    await expect(page.locator('text=排版建议')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=排版布局')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=居中布局，大标题+副标题')).toBeVisible({ timeout: 5000 });
   });
 
@@ -163,7 +163,7 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
     await page.goto(`${BASE_URL}/project/${projectId}/detail`);
     await page.waitForLoadState('networkidle');
 
-    // Old layout_suggestion should be mapped to "排版建议" field
+    // Old layout_suggestion should be mapped to "排版建议" field (legacy name)
     await expect(page.locator('text=排版建议')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=左右分栏布局')).toBeVisible({ timeout: 5000 });
   });
@@ -248,7 +248,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     // Check extra fields section
     await expect(page.locator('text=额外字段').or(page.locator('text=Extra Fields'))).toBeVisible();
     // Default field "排版建议" should be shown
-    await expect(page.locator('text=排版建议')).toBeVisible();
+    await expect(page.locator('text=排版布局')).toBeVisible();
   });
 
   test('should persist generation mode via settings API', async ({ page }) => {
@@ -303,7 +303,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     const settingsResp = await page.request.get(`${BASE_URL}/api/settings`);
     const settingsData = await settingsResp.json();
     expect(settingsData.data?.description_extra_fields).toContain('配图建议');
-    expect(settingsData.data?.description_extra_fields).toContain('排版建议');
+    expect(settingsData.data?.description_extra_fields).toContain('排版布局');
 
     // Uncheck 配图建议
     await newCheckbox.uncheck();
@@ -317,7 +317,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
 
     // Clean up: reset extra fields
     await page.request.put(`${BASE_URL}/api/settings`, {
-      data: { description_extra_fields: ['排版建议'] },
+      data: { description_extra_fields: ['排版布局', '视觉素材', '视觉焦点'] },
     });
     // Clean up localStorage pool
     await page.evaluate(() => localStorage.removeItem('banana-available-extra-fields'));
@@ -337,7 +337,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
         data: {
           description_content: {
             text: '测试内容',
-            extra_fields: { '排版建议': '居中布局' },
+            extra_fields: { '排版布局': '居中布局' },
           },
         },
       }
@@ -351,7 +351,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     await editBtn.click();
 
     // Modal should be visible with extra field input
-    await expect(page.locator('label').filter({ hasText: '排版建议' })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('label').filter({ hasText: '排版布局' })).toBeVisible({ timeout: 5000 });
     const fieldTextarea = page.locator('textarea').filter({ hasText: '居中布局' });
     await expect(fieldTextarea).toBeVisible();
 

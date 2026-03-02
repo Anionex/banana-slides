@@ -3,6 +3,25 @@ AI Service Prompts - 集中管理所有 AI 服务的 prompt 模板
 """
 import json
 import logging
+
+
+# 额外字段的 prompt 指示：对特定字段给出专门说明
+_FIELD_INSTRUCTIONS: dict[str, str] = {
+    '视觉素材': '视觉素材：[建议使用的素材类型，如照片、图标、图表等，只说明素材种类，不描述素材的视觉风格]',
+}
+
+
+def _format_extra_field_instructions(extra_fields: list | None) -> str:
+    """将额外字段列表格式化为 prompt 中的输出要求。"""
+    if not extra_fields:
+        return ''
+    parts = []
+    for f in extra_fields:
+        if f in _FIELD_INSTRUCTIONS:
+            parts.append(_FIELD_INSTRUCTIONS[f])
+        else:
+            parts.append(f'{f}：[关于{f}的建议]')
+    return '\n'.join([''] + parts)  # 前导换行
 from textwrap import dedent
 from typing import List, Dict, Optional, TYPE_CHECKING
 
@@ -421,7 +440,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 图片素材:
 [如果文件中存在图片请积极添加； 否则忽略图片素材字段]
-{''.join(chr(10) + f'{f}：[关于{f}的建议]' for f in (extra_fields or []))}
+{_format_extra_field_instructions(extra_fields)}
 
 ## 关于图片
 如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
@@ -500,7 +519,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 
 图片素材：
 [如果参考文件中存在图片请积极添加；否则忽略此字段]
-{''.join(chr(10) + f'{f}：[关于{f}的建议]' for f in (extra_fields or []))}
+{_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
 ```
 

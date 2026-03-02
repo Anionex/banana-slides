@@ -126,13 +126,13 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['排版建议']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['排版布局', '视觉素材', '视觉焦点']);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['排版建议'];
-    } catch { return ['排版建议']; }
+      return stored ? JSON.parse(stored) : ['排版布局', '视觉素材', '视觉焦点'];
+    } catch { return ['排版布局', '视觉素材', '视觉焦点']; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -153,7 +153,7 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['排版建议'];
+        const activeFields = s.description_extra_fields || ['排版布局', '视觉素材', '视觉焦点'];
         setExtraFieldNames(activeFields);
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
@@ -660,7 +660,7 @@ export const DetailEditor: React.FC = () => {
                                   ? extraFieldNames.filter(f => f !== name)
                                   : [...extraFieldNames, name];
                                 setExtraFieldNames(next);
-                                saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版建议'] });
+                                saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版布局', '视觉素材', '视觉焦点'] });
                               }}
                               className="rounded border-gray-300 dark:border-border-primary text-banana-500 focus:ring-banana-500/30 w-3.5 h-3.5"
                             />

@@ -36,7 +36,7 @@ class Settings(db.Model):
     # 描述生成模式: streaming / parallel (NULL=默认 streaming)
     description_generation_mode = db.Column(db.String(20), nullable=True)
 
-    # 描述额外字段配置: JSON 数组如 ["排版建议", "配图建议"] (NULL=默认 ["排版建议"])
+    # 描述额外字段配置: JSON 数组如 ["排版布局", "视觉素材"] (NULL=默认 DEFAULT_EXTRA_FIELDS)
     description_extra_fields = db.Column(db.Text, nullable=True)
 
     # 百度 API 配置
@@ -64,8 +64,10 @@ class Settings(db.Model):
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
 
+    DEFAULT_EXTRA_FIELDS = ['排版布局', '视觉素材', '视觉焦点']
+
     def get_description_extra_fields(self):
-        """Return parsed extra fields list, defaulting to ['排版建议']."""
+        """Return parsed extra fields list."""
         if self.description_extra_fields:
             try:
                 fields = json.loads(self.description_extra_fields)
@@ -73,7 +75,7 @@ class Settings(db.Model):
                     return fields
             except (json.JSONDecodeError, TypeError):
                 pass
-        return ['排版建议']
+        return list(self.DEFAULT_EXTRA_FIELDS)
 
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
