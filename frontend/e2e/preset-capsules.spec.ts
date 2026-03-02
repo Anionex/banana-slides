@@ -61,10 +61,9 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     const presets = page.locator('[data-testid="outline-presets"]')
     await expect(presets).toBeVisible()
 
-    // Should have 3 system presets
+    // Should have 2 system presets (极简演示 + 忠于原文)
     await expect(page.locator('[data-testid="outline-system-preset-0"]')).toBeVisible()
     await expect(page.locator('[data-testid="outline-system-preset-1"]')).toBeVisible()
-    await expect(page.locator('[data-testid="outline-system-preset-2"]')).toBeVisible()
 
     // Should have an add button
     await expect(page.locator('[data-testid="outline-add-preset"]')).toBeVisible()
