@@ -2,29 +2,32 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
+import { Modal } from '@/components/shared/Modal';
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
 const presetI18n = {
   zh: {
     preset: {
       addCustom: '自定义',
-      namePlaceholder: '预设名称',
-      contentPlaceholder: '提示词内容',
+      modalTitle: '添加自定义预设',
+      nameLabel: '预设名称',
+      namePlaceholder: '简短的名称，显示在胶囊上',
+      contentLabel: '提示词内容',
+      contentPlaceholder: '点击胶囊时会追加到生成要求中的提示词',
       add: '添加',
       cancel: '取消',
-      system: '系统',
-      user: '自定义',
     },
   },
   en: {
     preset: {
       addCustom: 'Custom',
-      namePlaceholder: 'Preset name',
-      contentPlaceholder: 'Prompt content',
+      modalTitle: 'Add Custom Preset',
+      nameLabel: 'Preset Name',
+      namePlaceholder: 'Short name shown on the capsule',
+      contentLabel: 'Prompt Content',
+      contentPlaceholder: 'Prompt text appended to requirements when clicked',
       add: 'Add',
       cancel: 'Cancel',
-      system: 'System',
-      user: 'Custom',
     },
   },
 };
@@ -90,7 +93,7 @@ interface PresetCapsulesProps {
 export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) {
   const t = useT(presetI18n);
   const [userPresets, setUserPresets] = useState<Preset[]>(() => loadUserPresets(type));
-  const [isAdding, setIsAdding] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newContent, setNewContent] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -100,10 +103,18 @@ export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) 
   const systemPresets = SYSTEM_PRESETS[type][currentLang];
 
   useEffect(() => {
-    if (isAdding && nameInputRef.current) {
-      nameInputRef.current.focus();
+    if (isModalOpen && nameInputRef.current) {
+      // Delay focus slightly to allow modal animation
+      const timer = setTimeout(() => nameInputRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
     }
-  }, [isAdding]);
+  }, [isModalOpen]);
+
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+    setNewName('');
+    setNewContent('');
+  }, []);
 
   const handleAddPreset = useCallback(() => {
     const trimmedName = newName.trim();
@@ -113,10 +124,8 @@ export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) 
     const updated = [...userPresets, { name: trimmedName, content: trimmedContent }];
     setUserPresets(updated);
     saveUserPresets(type, updated);
-    setNewName('');
-    setNewContent('');
-    setIsAdding(false);
-  }, [newName, newContent, userPresets, type]);
+    handleCloseModal();
+  }, [newName, newContent, userPresets, type, handleCloseModal]);
 
   const handleDeletePreset = useCallback((index: number) => {
     const updated = userPresets.filter((_, i) => i !== index);
@@ -124,117 +133,121 @@ export default function PresetCapsules({ type, onAppend }: PresetCapsulesProps) 
     saveUserPresets(type, updated);
   }, [userPresets, type]);
 
-  const handleCancelAdd = useCallback(() => {
-    setIsAdding(false);
-    setNewName('');
-    setNewContent('');
-  }, []);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddPreset();
-    } else if (e.key === 'Escape') {
-      handleCancelAdd();
-    }
-  }, [handleAddPreset, handleCancelAdd]);
-
   const capsuleBase = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs cursor-pointer transition-colors whitespace-nowrap';
   const systemCapsule = `${capsuleBase} bg-gray-100 dark:bg-background-primary text-gray-600 dark:text-foreground-secondary hover:bg-banana-50 dark:hover:bg-banana-900/20 hover:text-banana-700 dark:hover:text-banana-400 border border-gray-200 dark:border-border-primary`;
   const userCapsule = `${capsuleBase} bg-banana-50 dark:bg-banana-900/20 text-banana-700 dark:text-banana-400 hover:bg-banana-100 dark:hover:bg-banana-900/30 border border-banana-200 dark:border-banana-700/40`;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 mt-2" data-testid={`${type}-presets`}>
-      {/* System presets */}
-      {systemPresets.map((preset, i) => (
-        <button
-          key={`sys-${i}`}
-          type="button"
-          data-testid={`${type}-system-preset-${i}`}
-          className={systemCapsule}
-          title={preset.content}
-          onClick={() => onAppend(preset.content)}
-        >
-          {preset.name}
-        </button>
-      ))}
-
-      {/* User presets */}
-      {userPresets.map((preset, i) => (
-        <span
-          key={`usr-${i}`}
-          className={userCapsule}
-          title={preset.content}
-          data-testid={`${type}-user-preset-${i}`}
-        >
+    <>
+      <div className="flex flex-wrap items-center gap-1.5 mt-2" data-testid={`${type}-presets`}>
+        {/* System presets */}
+        {systemPresets.map((preset, i) => (
           <button
+            key={`sys-${i}`}
             type="button"
-            className="hover:underline"
+            data-testid={`${type}-system-preset-${i}`}
+            className={systemCapsule}
+            title={preset.content}
             onClick={() => onAppend(preset.content)}
           >
             {preset.name}
           </button>
-          <button
-            type="button"
-            data-testid={`${type}-delete-preset-${i}`}
-            aria-label="Delete preset"
-            className="ml-0.5 p-0.5 rounded-full hover:bg-banana-200 dark:hover:bg-banana-800/40 transition-colors"
-            onClick={(e) => { e.stopPropagation(); handleDeletePreset(i); }}
-          >
-            <X size={10} />
-          </button>
-        </span>
-      ))}
+        ))}
 
-      {/* Add button / inline form */}
-      {isAdding ? (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <input
-            ref={nameInputRef}
-            data-testid={`${type}-preset-name-input`}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('preset.namePlaceholder')}
-            className="w-20 px-2 py-1 text-xs rounded-md border border-gray-200 dark:border-border-primary bg-white dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40"
-          />
-          <input
-            data-testid={`${type}-preset-content-input`}
-            value={newContent}
-            onChange={(e) => setNewContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('preset.contentPlaceholder')}
-            className="w-36 px-2 py-1 text-xs rounded-md border border-gray-200 dark:border-border-primary bg-white dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40"
-          />
-          <button
-            type="button"
-            data-testid={`${type}-preset-confirm`}
-            onClick={handleAddPreset}
-            disabled={!newName.trim() || !newContent.trim()}
-            className="px-2 py-1 text-xs rounded-md bg-banana-500 text-white hover:bg-banana-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        {/* User presets */}
+        {userPresets.map((preset, i) => (
+          <span
+            key={`usr-${i}`}
+            className={userCapsule}
+            title={preset.content}
+            data-testid={`${type}-user-preset-${i}`}
           >
-            {t('preset.add')}
-          </button>
-          <button
-            type="button"
-            data-testid={`${type}-preset-cancel`}
-            onClick={handleCancelAdd}
-            className="px-2 py-1 text-xs rounded-md text-gray-500 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
-          >
-            {t('preset.cancel')}
-          </button>
-        </div>
-      ) : (
+            <button
+              type="button"
+              className="hover:underline"
+              onClick={() => onAppend(preset.content)}
+            >
+              {preset.name}
+            </button>
+            <button
+              type="button"
+              data-testid={`${type}-delete-preset-${i}`}
+              aria-label="Delete preset"
+              className="ml-0.5 p-0.5 rounded-full hover:bg-banana-200 dark:hover:bg-banana-800/40 transition-colors"
+              onClick={(e) => { e.stopPropagation(); handleDeletePreset(i); }}
+            >
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+
+        {/* Add button */}
         <button
           type="button"
           data-testid={`${type}-add-preset`}
-          onClick={() => setIsAdding(true)}
+          onClick={() => setIsModalOpen(true)}
           className={`${capsuleBase} bg-white dark:bg-background-primary text-gray-400 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana-400 hover:border-banana-300 dark:hover:border-banana-600/40 border border-dashed border-gray-300 dark:border-border-primary`}
         >
           <Plus size={10} />
           {t('preset.addCustom')}
         </button>
-      )}
-    </div>
+      </div>
+
+      {/* Add preset modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title={t('preset.modalTitle')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+              {t('preset.nameLabel')}
+            </label>
+            <input
+              ref={nameInputRef}
+              data-testid={`${type}-preset-name-input`}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={t('preset.namePlaceholder')}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-border-primary bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1.5">
+              {t('preset.contentLabel')}
+            </label>
+            <textarea
+              data-testid={`${type}-preset-content-input`}
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder={t('preset.contentPlaceholder')}
+              rows={3}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-border-primary bg-gray-50 dark:bg-background-primary text-gray-700 dark:text-foreground-secondary placeholder-gray-400 dark:placeholder-foreground-tertiary/50 resize-y focus:outline-none focus:border-banana-300 dark:focus:border-banana-500/40 transition-colors"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              data-testid={`${type}-preset-cancel`}
+              onClick={handleCloseModal}
+              className="px-4 py-2 text-sm rounded-lg text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
+            >
+              {t('preset.cancel')}
+            </button>
+            <button
+              type="button"
+              data-testid={`${type}-preset-confirm`}
+              onClick={handleAddPreset}
+              disabled={!newName.trim() || !newContent.trim()}
+              className="px-4 py-2 text-sm rounded-lg bg-banana-500 text-white hover:bg-banana-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {t('preset.add')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
