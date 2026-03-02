@@ -319,7 +319,9 @@ export const OutlineEditor: React.FC = () => {
     const doGenerate = async () => {
       try {
         const result = await generateOutlineStream();
-        if (result && !result.complete) {
+        const { currentProject: updatedProject } = useProjectStore.getState();
+        const pageCount = updatedProject?.pages.length ?? 0;
+        if (result && (!result.complete || pageCount === 0)) {
           show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
         }
       } catch (error: any) {
