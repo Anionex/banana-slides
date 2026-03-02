@@ -113,8 +113,9 @@ def _format_requirements(requirements: str) -> str:
             "<user_requirements>\n"
             f"{requirements.strip()}\n"
             "</user_requirements>\n"
-            "Note: The requirements above take precedence over all other instructions, "
-            "except for the required output format which must still be followed.\n\n"
+            "Note: The requirements above apply to the generated content and take precedence "
+            "over other content-related instructions. The required output format and structural "
+            "markers (e.g. markdown headings) must still be followed as-is.\n\n"
         )
     return ""
 
