@@ -77,9 +77,7 @@ test.describe('Markdown image size and DescriptionCard max height', () => {
     await page.goto(`${BASE}/project/${PROJECT_ID}/detail`);
     await expect(page.locator('text=第 1 页')).toBeVisible({ timeout: 10000 });
 
-    // The content div with max-h-64 is the grandparent of .markdown-content
-    // Structure: div.p-4.flex-1.max-h-64 > div.text-sm > div.markdown-content
-    const contentArea = page.locator('.markdown-content').first().locator('..').locator('..');
+    const contentArea = page.getByTestId('description-card-content');
     await expect(contentArea).toHaveClass(/max-h-64/);
     await expect(contentArea).toHaveClass(/overflow-y-auto/);
 
