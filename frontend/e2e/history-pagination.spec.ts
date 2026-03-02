@@ -9,9 +9,10 @@
  */
 import { test, expect } from '@playwright/test'
 
+const PAGE_SIZE = 5
+
 function makeProject(index: number) {
   const id = `proj-${String(index).padStart(3, '0')}`
-  // Use padded numbering so text matching stays unambiguous (P-01, P-02 … P-32)
   const label = `P-${String(index).padStart(2, '0')}`
   return {
     id,
@@ -49,14 +50,13 @@ async function setupMockRoutes(
   // Mock projects list API — handles both with and without query string
   await page.route('**/api/projects**', async (route) => {
     const req = route.request()
-    // Only intercept GET requests for project listing
     if (req.method() !== 'GET' || req.url().includes('/api/projects/')) {
       await route.fallback()
       return
     }
 
     const url = new URL(req.url())
-    const limit = parseInt(url.searchParams.get('limit') || '15')
+    const limit = parseInt(url.searchParams.get('limit') || String(PAGE_SIZE))
     const offset = parseInt(url.searchParams.get('offset') || '0')
 
     const allProjects = Array.from({ length: totalProjects }, (_, i) =>
@@ -86,71 +86,61 @@ test.describe('History pagination — mock', () => {
   test('should not show pagination when projects fit on one page', async ({
     page,
   }) => {
-    await setupMockRoutes(page, 5)
+    await setupMockRoutes(page, 3) // 3 < PAGE_SIZE, no pagination
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
-    // Pagination nav should not be present
     await expect(page.locator('nav[aria-label="Pagination"]')).not.toBeVisible()
   })
 
   test('should show pagination when projects exceed one page', async ({
     page,
   }) => {
-    await setupMockRoutes(page, 32) // 3 pages: 15 + 15 + 2
+    await setupMockRoutes(page, 12) // 3 pages: 5 + 5 + 2
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
-    // Pagination should be visible
     const pagination = page.locator('nav[aria-label="Pagination"]')
     await expect(pagination).toBeVisible()
-    // Should show page 1 as active
     await expect(
       pagination.locator('button[aria-current="page"]')
     ).toHaveText('1')
-    // Should show page 3
     await expect(pagination.locator('button:text-is("3")')).toBeVisible()
   })
 
   test('should navigate to next page and load correct projects', async ({
     page,
   }) => {
-    await setupMockRoutes(page, 32)
+    await setupMockRoutes(page, 12)
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
 
-    // Click page 2
     const pagination = page.locator('nav[aria-label="Pagination"]')
     await pagination.locator('button:text-is("2")').click()
 
-    // Should now show projects from page 2 (P-16 to P-30)
-    await expect(page.getByRole('heading', { name: 'P-16', exact: true })).toBeVisible()
-    // P-01 should no longer be visible
+    // Page 2: P-06 to P-10
+    await expect(page.getByRole('heading', { name: 'P-06', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).not.toBeVisible()
-    // Page 2 should be active
     await expect(
       pagination.locator('button[aria-current="page"]')
     ).toHaveText('2')
   })
 
   test('should navigate to last page with fewer items', async ({ page }) => {
-    await setupMockRoutes(page, 32) // last page has 2 items
+    await setupMockRoutes(page, 12) // last page has 2 items (P-11, P-12)
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
 
-    // Click page 3
     const pagination = page.locator('nav[aria-label="Pagination"]')
     await pagination.locator('button:text-is("3")').click()
 
-    // Should show P-31 and P-32
-    await expect(page.getByRole('heading', { name: 'P-31', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'P-32', exact: true })).toBeVisible()
-    // Page 3 should be active
+    await expect(page.getByRole('heading', { name: 'P-11', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'P-12', exact: true })).toBeVisible()
     await expect(
       pagination.locator('button[aria-current="page"]')
     ).toHaveText('3')
   })
 
   test('previous/next buttons should work correctly', async ({ page }) => {
-    await setupMockRoutes(page, 45) // 3 pages
+    await setupMockRoutes(page, 15) // 3 pages
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
 
@@ -158,17 +148,13 @@ test.describe('History pagination — mock', () => {
     const prevButton = pagination.locator('button[aria-label="Previous page"]')
     const nextButton = pagination.locator('button[aria-label="Next page"]')
 
-    // Previous should be disabled on first page
     await expect(prevButton).toBeDisabled()
 
-    // Click next
     await nextButton.click()
-    await expect(page.getByRole('heading', { name: 'P-16', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'P-06', exact: true })).toBeVisible()
 
-    // Previous should now be enabled
     await expect(prevButton).not.toBeDisabled()
 
-    // Click previous to go back
     await prevButton.click()
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
   })
@@ -177,7 +163,7 @@ test.describe('History pagination — mock', () => {
     page,
   }) => {
     const requests: string[] = []
-    await setupMockRoutes(page, 32)
+    await setupMockRoutes(page, 12)
 
     page.on('request', (req) => {
       if (req.url().includes('/api/projects')) {
@@ -188,28 +174,24 @@ test.describe('History pagination — mock', () => {
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
 
-    // First request should have limit=15&offset=0
     const firstReq = requests.find((r) => r.includes('limit='))
-    expect(firstReq).toContain('limit=15')
+    expect(firstReq).toContain('limit=5')
     expect(firstReq).toContain('offset=0')
 
-    // Navigate to page 2
     requests.length = 0
     const pagination = page.locator('nav[aria-label="Pagination"]')
     await pagination.locator('button:text-is("2")').click()
-    await expect(page.getByRole('heading', { name: 'P-16', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'P-06', exact: true })).toBeVisible()
 
-    // Second request should have offset=15
     const secondReq = requests.find((r) => r.includes('limit='))
-    expect(secondReq).toContain('limit=15')
-    expect(secondReq).toContain('offset=15')
+    expect(secondReq).toContain('limit=5')
+    expect(secondReq).toContain('offset=5')
   })
 })
 
 // ───────────────── Integration test ─────────────────
 
 test.describe('History pagination — integration', () => {
-  // Backend API URL — derive from BASE_URL (frontend port + 2000 = backend port)
   const frontendUrl = process.env.BASE_URL || 'http://localhost:3000'
   const frontendPort = parseInt(new URL(frontendUrl).port || '3000')
   const BACKEND_URL = `http://localhost:${frontendPort + 2000}`
@@ -229,40 +211,34 @@ test.describe('History pagination — integration', () => {
   }
 
   test('pagination works with real backend data', async ({ page }) => {
-    // Create 18 projects (enough for 2 pages with PAGE_SIZE=15)
+    // Create 8 projects (enough for 2 pages with PAGE_SIZE=5)
     const projectIds: string[] = []
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 8; i++) {
       const id = await createSimpleProject(i + 1)
       if (id) projectIds.push(id)
     }
-    expect(projectIds.length).toBe(18)
+    expect(projectIds.length).toBe(8)
 
     try {
       await page.goto('/history')
       await page.waitForLoadState('networkidle')
 
-      // Wait for the history page title to confirm we're on the right page
       await expect(page.locator('text=/历史项目|Project History/')).toBeVisible({ timeout: 10000 })
 
-      // Pagination should be visible (18 projects > 15 per page)
       const pagination = page.locator('nav[aria-label="Pagination"]')
       await expect(pagination).toBeVisible({ timeout: 10000 })
 
-      // Page 1 should be active
       await expect(
         pagination.locator('button[aria-current="page"]')
       ).toHaveText('1')
 
-      // Navigate to page 2
       await pagination.locator('button:text-is("2")').click()
       await page.waitForLoadState('networkidle')
 
-      // Page 2 should now be active
       await expect(
         pagination.locator('button[aria-current="page"]')
       ).toHaveText('2')
     } finally {
-      // Cleanup: delete all created projects in parallel
       await Promise.all(projectIds.map(id => deleteProject(id)))
     }
   })

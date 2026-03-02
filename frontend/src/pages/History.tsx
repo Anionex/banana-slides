@@ -70,7 +70,7 @@ const historyI18n = {
   },
 };
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 5;
 
 export const History: React.FC = () => {
   const navigate = useNavigate();
