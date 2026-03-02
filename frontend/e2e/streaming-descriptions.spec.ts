@@ -243,7 +243,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     // Check detail level buttons
     await expect(page.locator('text=精简').or(page.locator('text=Concise'))).toBeVisible();
     await expect(page.locator('text=默认').or(page.locator('text=Default'))).toBeVisible();
-    await expect(page.locator('text=详细').or(page.locator('text=Detailed'))).toBeVisible();
+    await expect(page.getByRole('button', { name: /详细|Detailed/ })).toBeVisible();
 
     // Check extra fields section
     await expect(page.locator('text=额外字段').or(page.locator('text=Extra Fields'))).toBeVisible();
@@ -346,8 +346,8 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     const saveBtn = page.locator('button').filter({ hasText: /保存|Save/ });
     await saveBtn.click();
 
-    // Verify the card shows updated value
-    await expect(page.locator('text=左右分栏')).toBeVisible({ timeout: 5000 });
+    // Verify the card shows updated value (use paragraph to avoid matching textarea)
+    await expect(page.getByRole('paragraph').filter({ hasText: '左右分栏' })).toBeVisible({ timeout: 5000 });
   });
 
   test('single page regeneration should still work', async ({ page }) => {
