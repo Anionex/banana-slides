@@ -620,6 +620,7 @@ export const OutlineEditor: React.FC = () => {
                 onPaste={handleReqImagePaste}
                 onFiles={handleReqImageFiles}
                 placeholder={t('outline.outlineRequirementsPlaceholder')}
+                className="ring-inset"
                 rows={2}
                 showImagePreview={false}
               />

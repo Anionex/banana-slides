@@ -609,6 +609,7 @@ export const DetailEditor: React.FC = () => {
                 onPaste={handleReqImagePaste}
                 onFiles={handleReqImageFiles}
                 placeholder={t('detail.descRequirementsPlaceholder')}
+                className="ring-inset"
                 rows={2}
                 showImagePreview={false}
               />

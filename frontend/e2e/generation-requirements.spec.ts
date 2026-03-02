@@ -41,7 +41,7 @@ const descReqToggle = (page: import('@playwright/test').Page) =>
 
 /** Clear and type into a contentEditable element */
 async function clearAndType(editor: import('@playwright/test').Locator, text: string) {
-  await editor.click()
+  await editor.focus()
   await editor.press('Control+a')
   if (text) {
     await editor.page().keyboard.insertText(text)
