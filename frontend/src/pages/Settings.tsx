@@ -552,9 +552,7 @@ export const Settings: React.FC = () => {
       } = formData;
       const payload: Parameters<typeof api.updateSettings>[0] = {
         ...otherData,
-        // Map vendor name to backend format
-        ai_provider_format: (isLazyllmVendor(otherData.ai_provider_format)
-          ? 'lazyllm' : otherData.ai_provider_format) as 'openai' | 'gemini' | 'lazyllm',
+        ai_provider_format: otherData.ai_provider_format,
       };
 
       // Only send sensitive fields if user entered a new value
@@ -650,8 +648,7 @@ export const Settings: React.FC = () => {
       if (formData.api_key) testSettings.api_key = formData.api_key;
       if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
       if (formData.ai_provider_format) {
-        testSettings.ai_provider_format = isLazyllmVendor(formData.ai_provider_format)
-          ? 'lazyllm' : formData.ai_provider_format;
+        testSettings.ai_provider_format = formData.ai_provider_format;
       }
       if (formData.text_model) testSettings.text_model = formData.text_model;
       if (formData.image_model) testSettings.image_model = formData.image_model;

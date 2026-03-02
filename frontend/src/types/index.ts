@@ -125,7 +125,7 @@ export interface ApiResponse<T = any> {
 // 设置
 export interface Settings {
   id: number;
-  ai_provider_format: 'openai' | 'gemini' | 'lazyllm';
+  ai_provider_format: string;
   api_base_url?: string;
   api_key_length: number;
   image_resolution: string;

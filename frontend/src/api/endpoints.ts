@@ -1015,7 +1015,7 @@ export interface TestSettingsOverride {
   mineru_api_base?: string;
   mineru_token?: string;
   baidu_api_key?: string;
-  ai_provider_format?: 'openai' | 'gemini' | 'lazyllm';
+  ai_provider_format?: string;
   image_resolution?: string;
   enable_text_reasoning?: boolean;
   text_thinking_budget?: number;

@@ -45,7 +45,8 @@ def get_provider_format() -> str:
         3. Default: 'gemini'
 
     Returns:
-        "gemini", "openai", "vertex" or "lazyllm"
+        "gemini", "openai", "vertex", "lazyllm", or a lazyllm vendor name
+        (e.g., "doubao", "qwen", "deepseek")
     """
     # Try to get from Flask app config first (database settings)
     try:
@@ -127,11 +128,14 @@ def _build_provider_config() -> Dict[str, Any]:
         logger.info("Provider config — format: vertex, project: %s, location: %s",
                      cfg['project_id'], cfg['location'])
 
-    elif fmt == 'lazyllm':
-        cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE', 'deepseek')
-        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE', 'doubao')
-        logger.info("Provider config — format: lazyllm, text_source: %s, image_source: %s",
-                     cfg['text_source'], cfg['image_source'])
+    elif fmt in LAZYLLM_VENDORS or fmt == 'lazyllm':
+        # fmt is a specific vendor (e.g., 'doubao') or generic 'lazyllm' (legacy)
+        vendor = fmt if fmt in LAZYLLM_VENDORS else None
+        cfg['format'] = 'lazyllm'
+        cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE') or vendor or 'deepseek'
+        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or vendor or 'doubao'
+        logger.info("Provider config — format: lazyllm, vendor: %s, text_source: %s, image_source: %s",
+                     vendor, cfg['text_source'], cfg['image_source'])
 
     else:
         # gemini (default) or unknown format
@@ -226,7 +230,7 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
             project_id=config['project_id'], location=config['location'],
         )
     elif fmt == 'lazyllm':
-        source = config.get('source') or 'doubao'
+        source = config.get('source') or config.get('text_source', 'doubao')
         logger.info("Caption provider: LazyLLM, model=%s, source=%s", model, source)
         return LazyLLMTextProvider(source=source, model=model)
     else:

@@ -20,7 +20,8 @@ from services.ai_providers.image.baidu_inpainting_provider import create_baidu_i
 from services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm"}
+from services.ai_providers import LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -464,8 +465,9 @@ def verify_api_key():
                 # API key未配置
                 logger.warning(f"API key not configured: {str(ve)}")
                 provider_format = (settings.ai_provider_format or "").lower()
-                if provider_format == "lazyllm":
-                    source = current_app.config.get("TEXT_MODEL_SOURCE", Config.TEXT_MODEL_SOURCE).upper()
+                if provider_format == "lazyllm" or provider_format in LAZYLLM_VENDORS:
+                    source = (provider_format if provider_format in LAZYLLM_VENDORS
+                              else current_app.config.get("TEXT_MODEL_SOURCE") or Config.TEXT_MODEL_SOURCE or "unknown").upper()
                     message = f"LazyLLM API key 未配置，请设置 {source}_API_KEY"
                 else:
                     message = "API key 未配置，请在设置中配置 API key 和 API Base URL"
