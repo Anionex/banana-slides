@@ -78,11 +78,11 @@ test.describe('Markdown image size and DescriptionCard max height', () => {
     await expect(page.locator('text=第 1 页')).toBeVisible({ timeout: 10000 });
 
     const contentArea = page.getByTestId('description-card-content');
-    await expect(contentArea).toHaveClass(/max-h-64/);
+    await expect(contentArea).toHaveClass(/max-h-96/);
     await expect(contentArea).toHaveClass(/overflow-y-auto/);
 
-    // Verify actual computed max-height (max-h-64 = 16rem = 256px)
+    // Verify actual computed max-height (max-h-96 = 24rem = 384px)
     const maxHeight = await contentArea.evaluate((el) => getComputedStyle(el).maxHeight);
-    expect(maxHeight).toBe('256px');
+    expect(maxHeight).toBe('384px');
   });
 });

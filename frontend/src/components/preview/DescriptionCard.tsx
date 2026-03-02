@@ -130,7 +130,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
         </div>
 
         {/* 内容 */}
-        <div className="p-4 flex-1 max-h-64 overflow-y-auto desc-card-scroll" data-testid="description-card-content">
+        <div className="p-4 flex-1 max-h-96 overflow-y-auto desc-card-scroll" data-testid="description-card-content">
           {generating ? (
             <div className="space-y-2">
               <Skeleton className="h-4 w-full" />
