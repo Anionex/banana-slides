@@ -54,77 +54,31 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     await setupProjectMock(page)
   })
 
-  test('displays system presets as capsules', async ({ page }) => {
+  test('displays preset area with add button', async ({ page }) => {
     await page.goto(`/project/${PROJECT_ID}/outline`)
     await page.waitForLoadState('networkidle')
 
     const presets = page.locator('[data-testid="outline-presets"]')
     await expect(presets).toBeVisible()
-
-    // Should have 2 system presets (极简演示 + 忠于原文)
-    await expect(page.locator('[data-testid="outline-system-preset-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="outline-system-preset-1"]')).toBeVisible()
-
-    // Should have an add button
     await expect(page.locator('[data-testid="outline-add-preset"]')).toBeVisible()
-  })
-
-  test('clicking system preset appends content to textarea', async ({ page }) => {
-    await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForLoadState('networkidle')
-
-    const textarea = page.locator('[data-testid="outline-requirements-textarea"]')
-    await expect(textarea).toBeVisible()
-
-    // Click first system preset
-    await page.locator('[data-testid="outline-system-preset-0"]').click()
-
-    // Textarea should now contain the preset content
-    const value = await textarea.inputValue()
-    expect(value.length).toBeGreaterThan(0)
-
-    // Click second preset — should append with newline
-    await page.locator('[data-testid="outline-system-preset-1"]').click()
-    const value2 = await textarea.inputValue()
-    expect(value2).toContain('\n')
-    expect(value2.split('\n').length).toBe(2)
-  })
-
-  test('system presets show tooltip with content on hover', async ({ page }) => {
-    await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForLoadState('networkidle')
-
-    const preset = page.locator('[data-testid="outline-system-preset-0"]')
-    const title = await preset.getAttribute('title')
-    expect(title).toBeTruthy()
-    expect(title!.length).toBeGreaterThan(0)
   })
 
   test('can add custom preset', async ({ page }) => {
     await page.goto(`/project/${PROJECT_ID}/outline`)
     await page.waitForLoadState('networkidle')
 
-    // Click add button
     await page.locator('[data-testid="outline-add-preset"]').click()
-
-    // Fill in name and content
     await page.locator('[data-testid="outline-preset-name-input"]').fill('我的预设')
     await page.locator('[data-testid="outline-preset-content-input"]').fill('自定义提示词内容')
-
-    // Confirm
     await page.locator('[data-testid="outline-preset-confirm"]').click()
 
-    // Should now show the user preset
     const userPreset = page.locator('[data-testid="outline-user-preset-0"]')
     await expect(userPreset).toBeVisible()
     await expect(userPreset).toContainText('我的预设')
-
-    // Should have delete button
     await expect(page.locator('[data-testid="outline-delete-preset-0"]')).toBeVisible()
   })
 
   test('clicking custom preset appends content', async ({ page }) => {
-    // Pre-seed a custom preset
     await page.addInitScript(() => {
       localStorage.setItem('presetCapsules_outline', JSON.stringify([
         { name: '测试预设', content: '测试提示词' }
@@ -135,8 +89,6 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     await page.waitForLoadState('networkidle')
 
     const textarea = page.locator('[data-testid="outline-requirements-textarea"]')
-
-    // Click user preset
     const userPreset = page.locator('[data-testid="outline-user-preset-0"]')
     await expect(userPreset).toBeVisible()
     await userPreset.locator('button').first().click()
@@ -145,7 +97,6 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
   })
 
   test('can delete custom preset', async ({ page }) => {
-    // Pre-seed a custom preset
     await page.addInitScript(() => {
       localStorage.setItem('presetCapsules_outline', JSON.stringify([
         { name: '待删除', content: '内容' }
@@ -155,13 +106,8 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     await page.goto(`/project/${PROJECT_ID}/outline`)
     await page.waitForLoadState('networkidle')
 
-    // Verify it exists
     await expect(page.locator('[data-testid="outline-user-preset-0"]')).toBeVisible()
-
-    // Delete it
     await page.locator('[data-testid="outline-delete-preset-0"]').click()
-
-    // Should be gone
     await expect(page.locator('[data-testid="outline-user-preset-0"]')).not.toBeVisible()
   })
 
@@ -169,14 +115,11 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     await page.goto(`/project/${PROJECT_ID}/outline`)
     await page.waitForLoadState('networkidle')
 
-    // Click add
     await page.locator('[data-testid="outline-add-preset"]').click()
     await expect(page.locator('[data-testid="outline-preset-name-input"]')).toBeVisible()
 
-    // Press Escape
     await page.locator('[data-testid="outline-preset-name-input"]').press('Escape')
 
-    // Form should disappear, add button should be back
     await expect(page.locator('[data-testid="outline-preset-name-input"]')).not.toBeVisible()
     await expect(page.locator('[data-testid="outline-add-preset"]')).toBeVisible()
   })
@@ -190,11 +133,9 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     const confirmBtn = page.locator('[data-testid="outline-preset-confirm"]')
     await expect(confirmBtn).toBeDisabled()
 
-    // Fill only name
     await page.locator('[data-testid="outline-preset-name-input"]').fill('名称')
     await expect(confirmBtn).toBeDisabled()
 
-    // Fill content too
     await page.locator('[data-testid="outline-preset-content-input"]').fill('内容')
     await expect(confirmBtn).toBeEnabled()
   })
@@ -211,33 +152,16 @@ test.describe('Preset capsules - DetailEditor (mock)', () => {
     await setupProjectMock(page)
   })
 
-  test('displays description system presets', async ({ page }) => {
+  test('displays preset area with add button', async ({ page }) => {
     await page.goto(`/project/${PROJECT_ID}/detail`)
     await page.waitForLoadState('networkidle')
 
     const presets = page.locator('[data-testid="description-presets"]')
     await expect(presets).toBeVisible()
-
-    await expect(page.locator('[data-testid="description-system-preset-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="description-system-preset-1"]')).toBeVisible()
-    await expect(page.locator('[data-testid="description-system-preset-2"]')).toBeVisible()
-  })
-
-  test('clicking description preset appends to textarea', async ({ page }) => {
-    await page.goto(`/project/${PROJECT_ID}/detail`)
-    await page.waitForLoadState('networkidle')
-
-    const textarea = page.locator('[data-testid="desc-requirements-textarea"]')
-    await expect(textarea).toBeVisible()
-
-    // Click first system preset
-    await page.locator('[data-testid="description-system-preset-0"]').click()
-    const value = await textarea.inputValue()
-    expect(value.length).toBeGreaterThan(0)
+    await expect(page.locator('[data-testid="description-add-preset"]')).toBeVisible()
   })
 
   test('description custom presets are independent from outline presets', async ({ page }) => {
-    // Seed outline presets (should NOT appear in description)
     await page.addInitScript(() => {
       localStorage.setItem('presetCapsules_outline', JSON.stringify([
         { name: '大纲预设', content: '大纲内容' }
@@ -250,12 +174,9 @@ test.describe('Preset capsules - DetailEditor (mock)', () => {
     await page.goto(`/project/${PROJECT_ID}/detail`)
     await page.waitForLoadState('networkidle')
 
-    // Only description user preset should be visible
     const descPreset = page.locator('[data-testid="description-user-preset-0"]')
     await expect(descPreset).toBeVisible()
     await expect(descPreset).toContainText('描述预设')
-
-    // Outline user preset should not appear here
     await expect(page.locator('text=大纲预设')).not.toBeVisible()
   })
 })
@@ -272,7 +193,6 @@ test.describe('Preset capsules (integration)', () => {
     const body = await res.json()
     projectId = body.data.project_id
 
-    // Use goto + evaluate instead of addInitScript so it only runs once
     await page.goto('/')
     await page.evaluate(() => {
       localStorage.removeItem('presetCapsules_outline')
@@ -281,21 +201,25 @@ test.describe('Preset capsules (integration)', () => {
     })
   })
 
-  test('system preset click appends to outline requirements and saves', async ({ page }) => {
+  test('custom preset click appends to textarea and auto-saves', async ({ page }) => {
+    // Seed a preset
+    await page.evaluate(() => {
+      localStorage.setItem('presetCapsules_outline', JSON.stringify([
+        { name: '集成预设', content: '集成测试内容' }
+      ]))
+    })
+
     await page.goto(`/project/${projectId}/outline`)
     await page.waitForLoadState('networkidle')
 
     const textarea = page.locator('[data-testid="outline-requirements-textarea"]')
     await expect(textarea).toBeVisible()
 
-    // Click a system preset
-    await page.locator('[data-testid="outline-system-preset-0"]').click()
+    // Click user preset
+    await page.locator('[data-testid="outline-user-preset-0"]').locator('button').first().click()
+    await expect(textarea).toHaveValue('集成测试内容')
 
-    // Should have content now
-    const value = await textarea.inputValue()
-    expect(value.length).toBeGreaterThan(0)
-
-    // Wait for debounced auto-save (1s after state change)
+    // Wait for debounced auto-save
     const savePromise = page.waitForResponse(
       (resp) => resp.url().includes(`/api/projects/${projectId}`) && resp.request().method() === 'PUT'
     )
@@ -307,15 +231,13 @@ test.describe('Preset capsules (integration)', () => {
 
     const textareaAfter = page.locator('[data-testid="outline-requirements-textarea"]')
     await expect(textareaAfter).toBeVisible()
-    const persistedValue = await textareaAfter.inputValue()
-    expect(persistedValue).toBe(value)
+    await expect(textareaAfter).toHaveValue('集成测试内容')
   })
 
   test('custom presets persist in localStorage across page navigations', async ({ page }) => {
     await page.goto(`/project/${projectId}/outline`)
     await page.waitForLoadState('networkidle')
 
-    // Add a custom preset
     await page.locator('[data-testid="outline-add-preset"]').click()
     await page.locator('[data-testid="outline-preset-name-input"]').fill('集成测试预设')
     await page.locator('[data-testid="outline-preset-content-input"]').fill('集成测试内容')
@@ -327,7 +249,6 @@ test.describe('Preset capsules (integration)', () => {
     await page.goto(`/project/${projectId}/outline`)
     await page.waitForLoadState('networkidle')
 
-    // Custom preset should still be there
     const userPreset = page.locator('[data-testid="outline-user-preset-0"]')
     await expect(userPreset).toBeVisible()
     await expect(userPreset).toContainText('集成测试预设')
