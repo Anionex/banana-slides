@@ -292,9 +292,9 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     await fieldInput.fill('配图建议');
     await fieldInput.press('Enter');
 
-    // New field should appear as a checked checkbox
-    const newCheckbox = page.locator('label').filter({ hasText: '配图建议' }).locator('input[type="checkbox"]');
-    await expect(newCheckbox).toBeChecked({ timeout: 3000 });
+    // New field should appear as an active pill button
+    const newPill = page.locator('button').filter({ hasText: '配图建议' });
+    await expect(newPill).toBeVisible({ timeout: 3000 });
 
     // Wait for debounced save
     await page.waitForTimeout(1500);
@@ -305,15 +305,15 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     expect(settingsData.data?.description_extra_fields).toContain('配图建议');
     expect(settingsData.data?.description_extra_fields).toContain('排版布局');
 
-    // Uncheck 配图建议
-    await newCheckbox.uncheck();
+    // Toggle off 配图建议 by clicking the pill
+    await newPill.click();
     await page.waitForTimeout(1500);
 
     // Verify it's removed from active fields but still visible in pool
     const settingsResp2 = await page.request.get(`${BASE_URL}/api/settings`);
     const settingsData2 = await settingsResp2.json();
     expect(settingsData2.data?.description_extra_fields).not.toContain('配图建议');
-    await expect(page.locator('label').filter({ hasText: '配图建议' })).toBeVisible();
+    await expect(newPill).toBeVisible(); // Still in pool, just inactive
 
     // Clean up: reset extra fields
     await page.request.put(`${BASE_URL}/api/settings`, {

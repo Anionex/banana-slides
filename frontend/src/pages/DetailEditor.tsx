@@ -647,40 +647,43 @@ export const DetailEditor: React.FC = () => {
                   {/* 额外字段 */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">{t('detail.extraFields')}</label>
-                    <div className="space-y-1 mb-2">
+                    <div className="flex flex-wrap gap-1.5 mb-2">
                       {availableFields.map(name => {
-                        const checked = extraFieldNames.includes(name);
+                        const active = extraFieldNames.includes(name);
                         return (
-                          <label key={name} className="flex items-center gap-2 group cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                const next = checked
-                                  ? extraFieldNames.filter(f => f !== name)
-                                  : [...extraFieldNames, name];
-                                setExtraFieldNames(next);
-                                saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版布局', '视觉素材', '视觉焦点'] });
-                              }}
-                              className="rounded border-gray-300 dark:border-border-primary text-banana-500 focus:ring-banana-500/30 w-3.5 h-3.5"
-                            />
-                            <span className="text-xs text-gray-700 dark:text-foreground-secondary flex-1">{name}</span>
-                            {/* 从池中删除（仅未勾选时可删） */}
-                            {!checked && (
-                              <button
-                                type="button"
-                                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                          <button
+                            key={name}
+                            type="button"
+                            className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-all duration-150 ${
+                              active
+                                ? 'bg-banana-50 dark:bg-banana-900/20 border-banana-300 dark:border-banana-700 text-banana-700 dark:text-banana-400'
+                                : 'bg-gray-50 dark:bg-background-hover border-gray-200 dark:border-border-primary text-gray-400 dark:text-foreground-tertiary line-through'
+                            }`}
+                            onClick={() => {
+                              const next = active
+                                ? extraFieldNames.filter(f => f !== name)
+                                : [...extraFieldNames, name];
+                              setExtraFieldNames(next);
+                              saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版布局', '视觉素材', '视觉焦点'] });
+                            }}
+                          >
+                            {name}
+                            {/* 从池中删除（仅未激活时可删） */}
+                            {!active && (
+                              <span
+                                role="button"
+                                className="opacity-0 group-hover:opacity-100 ml-0.5 text-gray-400 hover:text-red-500 transition-all"
                                 onClick={e => {
-                                  e.preventDefault();
+                                  e.stopPropagation();
                                   const nextPool = availableFields.filter(f => f !== name);
                                   setAvailableFields(nextPool);
                                   localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
                                 }}
                               >
-                                <X size={12} />
-                              </button>
+                                <X size={10} />
+                              </span>
                             )}
-                          </label>
+                          </button>
                         );
                       })}
                     </div>
