@@ -127,6 +127,13 @@ export const DetailEditor: React.FC = () => {
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
   const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['排版建议']);
+  // 可选字段池（localStorage 持久化，包含所有已知字段名）
+  const [availableFields, setAvailableFields] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('banana-available-extra-fields');
+      return stored ? JSON.parse(stored) : ['排版建议'];
+    } catch { return ['排版建议']; }
+  });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [newFieldName, setNewFieldName] = useState('');
@@ -146,7 +153,14 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        setExtraFieldNames(s.description_extra_fields || ['排版建议']);
+        const activeFields = s.description_extra_fields || ['排版建议'];
+        setExtraFieldNames(activeFields);
+        // 合并活跃字段到可选池
+        setAvailableFields(prev => {
+          const merged = [...new Set([...prev, ...activeFields])];
+          localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
+          return merged;
+        });
         // Cache settings in sessionStorage for store to read
         sessionStorage.setItem('banana-settings', JSON.stringify(s));
       } catch { /* ignore */ }
@@ -633,24 +647,42 @@ export const DetailEditor: React.FC = () => {
                   {/* 额外字段 */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">{t('detail.extraFields')}</label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {extraFieldNames.map(name => (
-                        <span key={name} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-background-hover text-gray-700 dark:text-foreground-secondary rounded-md">
-                          {name}
-                          <button
-                            type="button"
-                            className="text-gray-400 hover:text-red-500 transition-colors"
-                            onClick={() => {
-                              const next = extraFieldNames.filter(f => f !== name);
-                              if (next.length === 0) return; // 至少保留一个
-                              setExtraFieldNames(next);
-                              saveSettingsDebounced({ description_extra_fields: next });
-                            }}
-                          >
-                            <X size={12} />
-                          </button>
-                        </span>
-                      ))}
+                    <div className="space-y-1 mb-2">
+                      {availableFields.map(name => {
+                        const checked = extraFieldNames.includes(name);
+                        return (
+                          <label key={name} className="flex items-center gap-2 group cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const next = checked
+                                  ? extraFieldNames.filter(f => f !== name)
+                                  : [...extraFieldNames, name];
+                                setExtraFieldNames(next);
+                                saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版建议'] });
+                              }}
+                              className="rounded border-gray-300 dark:border-border-primary text-banana-500 focus:ring-banana-500/30 w-3.5 h-3.5"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-foreground-secondary flex-1">{name}</span>
+                            {/* 从池中删除（仅未勾选时可删） */}
+                            {!checked && (
+                              <button
+                                type="button"
+                                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                                onClick={e => {
+                                  e.preventDefault();
+                                  const nextPool = availableFields.filter(f => f !== name);
+                                  setAvailableFields(nextPool);
+                                  localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                                }}
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </label>
+                        );
+                      })}
                     </div>
                     <div className="flex gap-1">
                       <input
@@ -663,10 +695,14 @@ export const DetailEditor: React.FC = () => {
                           if (e.key === 'Enter' && newFieldName.trim()) {
                             e.preventDefault();
                             const trimmed = newFieldName.trim();
-                            if (!extraFieldNames.includes(trimmed) && extraFieldNames.length < 10) {
-                              const next = [...extraFieldNames, trimmed];
-                              setExtraFieldNames(next);
-                              saveSettingsDebounced({ description_extra_fields: next });
+                            if (!availableFields.includes(trimmed) && availableFields.length < 10) {
+                              const nextPool = [...availableFields, trimmed];
+                              setAvailableFields(nextPool);
+                              localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                              // 新增字段默认勾选
+                              const nextActive = [...extraFieldNames, trimmed];
+                              setExtraFieldNames(nextActive);
+                              saveSettingsDebounced({ description_extra_fields: nextActive });
                               setNewFieldName('');
                             }
                           }
@@ -675,13 +711,16 @@ export const DetailEditor: React.FC = () => {
                       <button
                         type="button"
                         className="p-1 rounded-md text-gray-400 hover:text-banana-500 hover:bg-gray-100 dark:hover:bg-background-hover transition-colors disabled:opacity-40"
-                        disabled={!newFieldName.trim() || extraFieldNames.includes(newFieldName.trim()) || extraFieldNames.length >= 10}
+                        disabled={!newFieldName.trim() || availableFields.includes(newFieldName.trim()) || availableFields.length >= 10}
                         onClick={() => {
                           const trimmed = newFieldName.trim();
-                          if (trimmed && !extraFieldNames.includes(trimmed) && extraFieldNames.length < 10) {
-                            const next = [...extraFieldNames, trimmed];
-                            setExtraFieldNames(next);
-                            saveSettingsDebounced({ description_extra_fields: next });
+                          if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
+                            const nextPool = [...availableFields, trimmed];
+                            setAvailableFields(nextPool);
+                            localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                            const nextActive = [...extraFieldNames, trimmed];
+                            setExtraFieldNames(nextActive);
+                            saveSettingsDebounced({ description_extra_fields: nextActive });
                             setNewFieldName('');
                           }
                         }}

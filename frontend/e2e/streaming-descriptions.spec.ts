@@ -287,24 +287,40 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     const gearBtn = page.locator('button[title="描述设置"], button[title="Description Settings"]');
     await gearBtn.click();
 
-    // Add a new field
+    // Add a new field via input
     const fieldInput = page.locator('input[placeholder="添加字段"], input[placeholder="Add Field"]');
     await fieldInput.fill('配图建议');
     await fieldInput.press('Enter');
 
+    // New field should appear as a checked checkbox
+    const newCheckbox = page.locator('label').filter({ hasText: '配图建议' }).locator('input[type="checkbox"]');
+    await expect(newCheckbox).toBeChecked({ timeout: 3000 });
+
     // Wait for debounced save
     await page.waitForTimeout(1500);
 
-    // Verify via API
+    // Verify via API — both fields should be active
     const settingsResp = await page.request.get(`${BASE_URL}/api/settings`);
     const settingsData = await settingsResp.json();
     expect(settingsData.data?.description_extra_fields).toContain('配图建议');
     expect(settingsData.data?.description_extra_fields).toContain('排版建议');
 
+    // Uncheck 配图建议
+    await newCheckbox.uncheck();
+    await page.waitForTimeout(1500);
+
+    // Verify it's removed from active fields but still visible in pool
+    const settingsResp2 = await page.request.get(`${BASE_URL}/api/settings`);
+    const settingsData2 = await settingsResp2.json();
+    expect(settingsData2.data?.description_extra_fields).not.toContain('配图建议');
+    await expect(page.locator('label').filter({ hasText: '配图建议' })).toBeVisible();
+
     // Clean up: reset extra fields
     await page.request.put(`${BASE_URL}/api/settings`, {
       data: { description_extra_fields: ['排版建议'] },
     });
+    // Clean up localStorage pool
+    await page.evaluate(() => localStorage.removeItem('banana-available-extra-fields'));
   });
 
   test('edit dialog should preserve extra fields on save', async ({ page }) => {

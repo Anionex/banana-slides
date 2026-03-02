@@ -13,6 +13,18 @@ from PIL import Image
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
+
+
+def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    extra_fields = desc_content.get('extra_fields')
+    if not extra_fields or not isinstance(extra_fields, dict):
+        return desc_text
+    parts = [desc_text]
+    for name, value in extra_fields.items():
+        if value:
+            parts.append(f"\n{name}：{value}")
+    return ''.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
 
@@ -382,7 +394,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 desc_text = '\n'.join(text_content)
                             else:
                                 desc_text = str(text_content)
-                        
+
+                        # 将 extra_fields 拼入描述文本供图片生成使用
+                        desc_text = _append_extra_fields(desc_text, desc_content)
+
                         logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                         
                         # 从当前页面的描述内容中提取图片 URL
@@ -564,7 +579,10 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = '\n'.join(text_content)
                 else:
                     desc_text = str(text_content)
-            
+
+            # 将 extra_fields 拼入描述文本供图片生成使用
+            desc_text = _append_extra_fields(desc_text, desc_content)
+
             # 从描述文本中提取图片 URL
             additional_ref_images = []
             has_material_images = False
