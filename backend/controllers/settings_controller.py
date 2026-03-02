@@ -17,10 +17,10 @@ from services.ai_service import AIService
 from services.file_parser_service import FileParserService
 from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_accurate_ocr_provider
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
+from services.ai_providers import LAZYLLM_VENDORS
 from services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
-from services.ai_providers import LAZYLLM_VENDORS
 ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
