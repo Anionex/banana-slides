@@ -652,12 +652,12 @@ class AIService:
                 return 'continue'
 
             if stripped.startswith('## '):
-                if page_index >= 0 and current_lines:
-                    result = 'yield_and_reset'
-                else:
-                    result = 'continue'
-                page_index += 1
-                return result
+                if page_index < 0:
+                    # 第一个 ## 标记进入描述区域
+                    page_index = 0
+                # 后续 ## 行视为页面内容的一部分（如副标题），不分页
+                # 分页只靠 <!-- PAGE_END -->
+                return 'continue'
 
             # Check for extra field header
             if field_pattern:
@@ -694,18 +694,17 @@ class AIService:
                 if action == 'yield_page':
                     yield _build_page_result()
                     _reset_page_state()
-                elif action == 'yield_and_reset':
-                    yield _build_page_result()
-                    _reset_page_state()
+                    page_index += 1
 
         # Process remaining buffer
         if buffer.strip():
             for line in buffer.split('\n'):
                 stripped = line.strip()
                 action = _process_line(line, stripped)
-                if action in ('yield_page', 'yield_and_reset'):
+                if action == 'yield_page':
                     yield _build_page_result()
                     _reset_page_state()
+                    page_index += 1
 
         # Yield last page if not yet yielded
         if page_index >= 0 and current_lines:

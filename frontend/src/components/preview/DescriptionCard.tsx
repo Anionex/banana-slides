@@ -241,18 +241,17 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
           />
           {/* 额外字段编辑 */}
           {allFieldNames.map(name => (
-            <div key={name}>
-              <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-1">
-                {name}
-              </label>
-              <textarea
-                className="w-full rounded-md border border-gray-200 dark:border-border-primary bg-white dark:bg-background-primary px-3 py-2 text-sm text-gray-700 dark:text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-banana-500/20 focus:border-banana-500 resize-none"
-                rows={2}
-                value={editExtraFields[name] || ''}
-                onChange={e => setEditExtraFields(prev => ({ ...prev, [name]: e.target.value }))}
-                placeholder={name}
-              />
-            </div>
+            <MarkdownTextarea
+              key={name}
+              label={name}
+              value={editExtraFields[name] || ''}
+              onChange={v => setEditExtraFields(prev => ({ ...prev, [name]: v }))}
+              onPaste={handlePaste}
+              onFiles={handleFiles}
+              showUploadButton={false}
+              rows={2}
+              placeholder={name}
+            />
           ))}
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setIsEditing(false)}>

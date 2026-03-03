@@ -5,22 +5,11 @@ import json
 import logging
 
 
-# 额外字段的 prompt 指示：对特定字段给出专门说明
-_FIELD_INSTRUCTIONS: dict[str, str] = {
-    '视觉素材': '视觉素材：[建议使用的素材类型，如照片、图标、图表等，只说明素材种类，不描述素材的视觉风格]',
-}
-
-
 def _format_extra_field_instructions(extra_fields: list | None) -> str:
     """将额外字段列表格式化为 prompt 中的输出要求。"""
     if not extra_fields:
         return ''
-    parts = []
-    for f in extra_fields:
-        if f in _FIELD_INSTRUCTIONS:
-            parts.append(_FIELD_INSTRUCTIONS[f])
-        else:
-            parts.append(f'{f}：[关于{f}的建议]')
+    parts = [f'{f}：[关于{f}的建议]' for f in extra_fields]
     return '\n'.join([''] + parts)  # 前导换行
 from textwrap import dedent
 from typing import List, Dict, Optional, TYPE_CHECKING
