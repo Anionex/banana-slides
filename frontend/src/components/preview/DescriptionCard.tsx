@@ -246,8 +246,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
               label={name}
               value={editExtraFields[name] || ''}
               onChange={v => setEditExtraFields(prev => ({ ...prev, [name]: v }))}
-              onPaste={handlePaste}
-              onFiles={handleFiles}
               showUploadButton={false}
               rows={2}
               placeholder={name}
