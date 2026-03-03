@@ -742,7 +742,7 @@ const debouncedUpdatePage = debounce(
       // Concurrent queue + render loop (like outline streaming)
       const descQueue: api.DescriptionStreamEvent[] = [];
       let streamDone = false;
-      let doneData: { total: number; pages: any[] } | null = null;
+      let doneData: { total: number; pages: any[]; warning?: string } | null = null;
       const STAGGER_MS = 100;
 
       const renderPromise = new Promise<void>((resolve) => {
@@ -794,7 +794,11 @@ const debouncedUpdatePage = debounce(
           const { currentProject: proj } = get();
           if (proj) {
             const normalized = normalizeProject({ ...proj, pages: doneData.pages });
-            set({ currentProject: normalized, isDescriptionStreaming: false });
+            set({
+              currentProject: normalized,
+              isDescriptionStreaming: false,
+              ...(doneData.warning ? { error: doneData.warning } : {}),
+            });
           }
           devLog('[流式描述] 完成:', doneData.total, '个页面');
         } else {

@@ -900,7 +900,15 @@ def generate_descriptions_stream(project_id):
                         'extra_fields': result.get('extra_fields'),
                     })
 
-                # All done
+                # 检查是否所有页面都已生成描述
+                missing = [p for p in pages if p.status == 'GENERATING_DESCRIPTION']
+                if missing:
+                    for p in missing:
+                        # 有旧描述的保留，无描述的恢复 DRAFT
+                        p.status = 'DESCRIPTION_GENERATED' if p.description_content else 'DRAFT'
+                        p.updated_at = datetime.utcnow()
+                    logger.warning(f"流式描述生成不完整: {len(missing)}/{len(pages)} 页未生成")
+
                 proj.status = 'DESCRIPTIONS_GENERATED'
                 proj.updated_at = datetime.utcnow()
                 db.session.commit()
@@ -910,6 +918,7 @@ def generate_descriptions_stream(project_id):
                 yield _sse_event('done', {
                     'total': len(pages),
                     'pages': [p.to_dict() for p in pages],
+                    **(({'warning': f'{len(missing)} 页描述未生成，请重试'}) if missing else {}),
                 })
 
             except Exception as e:
