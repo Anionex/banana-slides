@@ -2,9 +2,11 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Edit2, FileText, RefreshCw } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
-import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
+import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
+import { getImageUrl } from '@/api/client';
+import type { Material } from '@/api/endpoints';
 import type { Page, DescriptionContent } from '@/types';
 
 // DescriptionCard 组件自包含翻译
@@ -69,6 +71,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const textareaRef = useRef<MarkdownTextareaRef>(null);
 
   // Callback to insert at cursor position in the textarea
@@ -82,6 +85,13 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     showToast: showToast,
     insertAtCursor,
   });
+
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = materials
+      .map(m => `![${m.original_filename || m.filename || 'image'}](${getImageUrl(m.url)})`)
+      .join('\n');
+    textareaRef.current?.insertAtCursor(markdown + '\n');
+  }, []);
 
   // 通过 page.status 驱动骨架屏，与图片生成的 GENERATING 状态互不干扰
   const generating = useDescriptionGeneratingState(page, isAiRefining);
@@ -190,6 +200,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
             onChange={setEditContent}
             onPaste={handlePaste}
             onFiles={handleFiles}
+            onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
             rows={12}
             placeholder={t('descriptionCard.descriptionPlaceholder')}
           />
@@ -203,6 +214,14 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
           </div>
         </div>
       </Modal>
+
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
+      />
     </>
   );
 }, (prev, next) =>
