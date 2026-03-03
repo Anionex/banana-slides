@@ -137,6 +137,8 @@ export const DetailEditor: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [newFieldName, setNewFieldName] = useState('');
+  const dragFieldRef = useRef<string | null>(null);
+  const [dragOverField, setDragOverField] = useState<string | null>(null);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -654,7 +656,38 @@ export const DetailEditor: React.FC = () => {
                           <button
                             key={name}
                             type="button"
-                            className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-all duration-150 ${
+                            draggable
+                            onDragStart={() => { dragFieldRef.current = name; }}
+                            onDragOver={e => { e.preventDefault(); setDragOverField(name); }}
+                            onDragLeave={() => { if (dragOverField === name) setDragOverField(null); }}
+                            onDrop={e => {
+                              e.preventDefault();
+                              setDragOverField(null);
+                              const from = dragFieldRef.current;
+                              dragFieldRef.current = null;
+                              if (!from || from === name) return;
+                              // Reorder availableFields
+                              const reorder = (arr: string[]) => {
+                                const next = arr.filter(f => f !== from);
+                                const targetIdx = next.indexOf(name);
+                                if (targetIdx === -1) return arr;
+                                next.splice(targetIdx, 0, from);
+                                return next;
+                              };
+                              const nextPool = reorder(availableFields);
+                              setAvailableFields(nextPool);
+                              localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                              // Also reorder extraFieldNames to match
+                              const nextActive = reorder(extraFieldNames);
+                              setExtraFieldNames(nextActive);
+                              saveSettingsDebounced({ description_extra_fields: nextActive });
+                            }}
+                            onDragEnd={() => { dragFieldRef.current = null; setDragOverField(null); }}
+                            className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-all duration-150 cursor-grab active:cursor-grabbing ${
+                              dragOverField === name
+                                ? 'ring-2 ring-banana-400/50'
+                                : ''
+                            } ${
                               active
                                 ? 'bg-banana-50 dark:bg-banana-900/20 border-banana-300 dark:border-banana-700 text-banana-700 dark:text-banana-400'
                                 : 'bg-gray-50 dark:bg-background-hover border-gray-200 dark:border-border-primary text-gray-400 dark:text-foreground-tertiary line-through'
