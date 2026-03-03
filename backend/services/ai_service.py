@@ -641,22 +641,21 @@ class AIService:
         def _process_line(line: str, stripped: str):
             nonlocal page_index, current_field, stream_complete
 
+            if stripped == '<!-- BEGIN -->':
+                if page_index < 0:
+                    page_index = 0
+                return 'continue'
+
             if stripped == '<!-- END -->':
                 stream_complete = True
                 return 'continue'
 
             if stripped == '<!-- PAGE_END -->':
-                if page_index >= 0 and current_lines:
+                if page_index >= 0 and (current_lines or extra_fields):
                     return 'yield_page'
-                _reset_page_state()
                 return 'continue'
 
-            if stripped.startswith('## '):
-                if page_index < 0:
-                    # 第一个 ## 标记进入描述区域
-                    page_index = 0
-                # 后续 ## 行视为页面内容的一部分（如副标题），不分页
-                # 分页只靠 <!-- PAGE_END -->
+            if page_index < 0:
                 return 'continue'
 
             # Check for extra field header
@@ -670,7 +669,7 @@ class AIService:
                         extra_fields[field_name] = value
                     return 'continue'
 
-            if not stripped or page_index < 0:
+            if not stripped:
                 return 'continue'
 
             if current_field:

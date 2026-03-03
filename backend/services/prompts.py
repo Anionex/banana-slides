@@ -358,7 +358,7 @@ Important rules:
 - Extract titles and points from the original text, keeping them exactly as written
 
 Now parse the outline text above into the structured format. Return only the JSON, don't include any other text.
-{get_language_instruction(language)}
+{get_language_instruction(language)} 
 """)
 
     final_prompt = files_xml + prompt
@@ -408,7 +408,8 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
             '忠于原文的基础上做到内容详实，逻辑清晰。',
     }
     
-    
+#     页面标题：[实际页面标题]
+# {"副标题：[实际副标题]" if page_index == 1 else ""}
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -416,16 +417,14 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 {_format_requirements(project_context.description_requirements)}现在请为第 {page_index} 页生成描述：
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
-
 ## 重要提示
 生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必不要包含任何额外的说明性文字或注释。
 
 ## 输出格式
-页面标题：[实际页面标题]
-{"副标题：[实际副标题]" if page_index == 1 else ""}
 
 页面文字：
-[此处输出页面文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
+
+[此处使用markdown直接放置正文文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
 图片素材:
 [如果文件中存在图片请积极添加； 否则忽略图片素材字段]
@@ -491,31 +490,30 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 完整大纲如下：
 {pages_outline_text}
 
-{_format_requirements(project_context.description_requirements)}请为每一页依次生成描述，使用以下 Markdown 格式逐页输出。每页之间用 `<!-- PAGE_END -->` 分隔，全部完成后输出 `<!-- END -->`。
+{_format_requirements(project_context.description_requirements)}请为每一页依次生成描述。先输出 `<!-- BEGIN -->` 标记开始，然后逐页输出内容，每页用 `<!-- PAGE_END -->` 结束，全部完成后输出 `<!-- END -->`。
 
 ## 重要提示
-- 生成的"页面文字"部分会直接渲染到PPT页面上，请务必不要包含任何额外的说明性文字或注释。
+- 生成的页面文字会直接渲染到PPT页面上，请务必不要包含任何额外的说明性文字或注释。
 - **第一页（封面页）保持极简**，只放标题、副标题、演讲人等信息，不添加任何素材。
 - 细致程度要求：{detail_level_specs[detail_level]}
 
-## 每页输出格式
+## 输出格式
 ```
-## [页面标题]
-页面标题：[实际页面标题]
-
-页面文字：
-[页面文字内容, 可包含latex公式、表格等]
-
-图片素材：
-[如果参考文件中存在图片请积极添加；否则忽略此字段]
+<!-- BEGIN -->
+[第1页文字内容，可包含标题、副标题、要点、latex公式、表格等]
 {_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
+[第2页文字内容]
+{_format_extra_field_instructions(extra_fields)}
+<!-- PAGE_END -->
+...
+<!-- END -->
 ```
 
 ## 关于图片
 如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。
 
-现在请开始依次为每一页生成描述，严格按照上述格式输出。最后一页的 `<!-- PAGE_END -->` 之后输出 `<!-- END -->`。
+现在请开始生成，严格按照上述格式输出。
 {get_language_instruction(language)}
 """)
 
