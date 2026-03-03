@@ -236,16 +236,15 @@ export const DetailEditor: React.FC = () => {
   const handleFieldDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const reorder = (arr: string[]) => {
-      const oldIdx = arr.indexOf(active.id as string);
-      const newIdx = arr.indexOf(over.id as string);
-      if (oldIdx === -1 || newIdx === -1) return arr;
-      return arrayMove(arr, oldIdx, newIdx);
-    };
-    const nextPool = reorder(availableFields);
+    const oldIdx = availableFields.indexOf(active.id as string);
+    const newIdx = availableFields.indexOf(over.id as string);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const nextPool = arrayMove(availableFields, oldIdx, newIdx);
     setAvailableFields(nextPool);
     localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
-    const nextActive = reorder(extraFieldNames);
+    // 激活字段按新池顺序重排
+    const activeSet = new Set(extraFieldNames);
+    const nextActive = nextPool.filter(f => activeSet.has(f));
     setExtraFieldNames(nextActive);
     saveSettingsDebounced({ description_extra_fields: nextActive });
   }, [availableFields, extraFieldNames, saveSettingsDebounced]);
