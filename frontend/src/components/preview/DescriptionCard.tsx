@@ -199,7 +199,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
                       <FieldIcon size={12} />
                       <span className="font-medium">{name}</span>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-foreground-tertiary">{value}</p>
+                    <div className="text-xs text-gray-500 dark:text-foreground-tertiary"><Markdown>{value}</Markdown></div>
                   </div>
                 );
               })}
