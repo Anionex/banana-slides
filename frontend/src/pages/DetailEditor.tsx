@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
@@ -34,9 +34,11 @@ const detailI18n = {
       detailLevel: { label: "详细程度", concise: "精简", default: "默认", detailed: "详细" },
       descSettings: "描述设置",
       generationMode: "生成模式",
+      generationModeHint: "流式：一次 AI 调用逐页输出，速度快且上下文连贯。并行：每页独立调用 AI，适合页数多时使用。",
       streaming: "流式",
       parallel: "并行",
       extraFields: "额外字段",
+      extraFieldsHint: "额外字段会随描述一起生成，作为排版和图片生成的参考。点击胶囊启用/禁用，拖拽调整顺序。",
       addField: "添加字段",
       descRequirements: "描述生成要求",
       descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
@@ -70,9 +72,11 @@ const detailI18n = {
       detailLevel: { label: "Detail Level", concise: "Concise", default: "Default", detailed: "Detailed" },
       descSettings: "Description Settings",
       generationMode: "Generation Mode",
+      generationModeHint: "Streaming: single AI call outputs pages sequentially, faster with coherent context. Parallel: each page calls AI independently, better for many pages.",
       streaming: "Streaming",
       parallel: "Parallel",
       extraFields: "Extra Fields",
+      extraFieldsHint: "Extra fields are generated alongside descriptions, serving as references for layout and image generation. Click pills to enable/disable, drag to reorder.",
       addField: "Add Field",
       descRequirements: "Generation Requirements",
       descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
@@ -96,20 +100,13 @@ import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
-/** 详细程度图标：用线条数量表示精简/标准/详细 */
-const DETAIL_LEVEL_LINES: Record<string, number[]> = {
-  concise:  [5, 8],
-  default:  [4, 7, 10],
-  detailed: [3.5, 5.5, 7.5, 9.5, 11.5],
-};
-const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-    <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-    {(DETAIL_LEVEL_LINES[level] ?? DETAIL_LEVEL_LINES.default).map((y) => (
-      <line key={y} x1="4.5" y1={y} x2="11.5" y2={y} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-    ))}
-  </svg>
-);
+// 详细程度图标 — 暂时屏蔽，效果不够理想
+// const DETAIL_LEVEL_LINES: Record<string, number[]> = {
+//   concise:  [5, 8],
+//   default:  [4, 7, 10],
+//   detailed: [3.5, 5.5, 7.5, 9.5, 11.5],
+// };
+// const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
 
 // 可拖拽排序的额外字段胶囊
 const SortableFieldPill: React.FC<{
@@ -668,7 +665,13 @@ export const DetailEditor: React.FC = () => {
                 <div className="absolute top-full left-0 mt-1 z-50 w-72 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
                   {/* 生成模式 */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">{t('detail.generationMode')}</label>
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
+                      {t('detail.generationMode')}
+                      <span className="relative group">
+                        <HelpCircle size={12} className="text-gray-400 cursor-help" />
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-52 px-2.5 py-1.5 text-[11px] leading-relaxed text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">{t('detail.generationModeHint')}</span>
+                      </span>
+                    </label>
                     <div className="flex gap-1">
                       {(['streaming', 'parallel'] as const).map(mode => (
                         <button
@@ -690,34 +693,17 @@ export const DetailEditor: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 详细程度 */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">{t('detail.detailLevel.label')}</label>
-                    <div className="flex gap-1">
-                      {(['concise', 'default', 'detailed'] as const).map(level => (
-                        <button
-                          key={level}
-                          type="button"
-                          className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${
-                            detailLevel === level
-                              ? 'bg-banana-500 text-white'
-                              : 'bg-gray-100 dark:bg-background-hover text-gray-600 dark:text-foreground-tertiary hover:bg-gray-200 dark:hover:bg-background-primary'
-                          }`}
-                          onClick={() => {
-                            setDetailLevel(level);
-                            sessionStorage.setItem('banana-detail-level', level);
-                          }}
-                        >
-                          <DetailLevelIcon level={level} />
-                          {t(`detail.detailLevel.${level}`)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* 详细程度 — 暂时屏蔽，效果不够理想，始终使用默认值 */}
 
                   {/* 额外字段 */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">{t('detail.extraFields')}</label>
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
+                      {t('detail.extraFields')}
+                      <span className="relative group">
+                        <HelpCircle size={12} className="text-gray-400 cursor-help" />
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-52 px-2.5 py-1.5 text-[11px] leading-relaxed text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">{t('detail.extraFieldsHint')}</span>
+                      </span>
+                    </label>
                     <DndContext sensors={fieldSensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
                       <SortableContext items={availableFields} strategy={rectSortingStrategy}>
                         <div className="flex flex-wrap gap-1.5 mb-2">
