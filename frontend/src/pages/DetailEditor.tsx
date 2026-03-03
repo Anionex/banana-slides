@@ -5,6 +5,14 @@ import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, useSortable, rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 组件内翻译
 const detailI18n = {
@@ -103,6 +111,47 @@ const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => (
   </svg>
 );
 
+// 可拖拽排序的额外字段胶囊
+const SortableFieldPill: React.FC<{
+  name: string;
+  active: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+}> = ({ name, active, onToggle, onRemove }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name });
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      type="button"
+      className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-all duration-150 cursor-grab active:cursor-grabbing ${
+        active
+          ? 'bg-banana-50 dark:bg-banana-900/20 border-banana-300 dark:border-banana-700 text-banana-700 dark:text-banana-400'
+          : 'bg-gray-50 dark:bg-background-hover border-gray-200 dark:border-border-primary text-gray-400 dark:text-foreground-tertiary line-through'
+      }`}
+      onClick={onToggle}
+    >
+      {name}
+      {!active && (
+        <span
+          role="button"
+          className="opacity-0 group-hover:opacity-100 ml-0.5 text-gray-400 hover:text-red-500 transition-all"
+          onClick={e => { e.stopPropagation(); onRemove(); }}
+        >
+          <X size={10} />
+        </span>
+      )}
+    </button>
+  );
+};
+
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -137,8 +186,6 @@ export const DetailEditor: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [newFieldName, setNewFieldName] = useState('');
-  const dragFieldRef = useRef<string | null>(null);
-  const [dragOverField, setDragOverField] = useState<string | null>(null);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -183,6 +230,26 @@ export const DetailEditor: React.FC = () => {
       }
     }, 800);
   }, []);
+
+  // 额外字段拖拽排序
+  const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleFieldDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const reorder = (arr: string[]) => {
+      const oldIdx = arr.indexOf(active.id as string);
+      const newIdx = arr.indexOf(over.id as string);
+      if (oldIdx === -1 || newIdx === -1) return arr;
+      return arrayMove(arr, oldIdx, newIdx);
+    };
+    const nextPool = reorder(availableFields);
+    setAvailableFields(nextPool);
+    localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+    const nextActive = reorder(extraFieldNames);
+    setExtraFieldNames(nextActive);
+    saveSettingsDebounced({ description_extra_fields: nextActive });
+  }, [availableFields, extraFieldNames, saveSettingsDebounced]);
+
   const [descRequirements, setDescRequirements] = useState('');
   const [isDescReqDirty, setIsDescReqDirty] = useState(false);
   const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
@@ -649,77 +716,34 @@ export const DetailEditor: React.FC = () => {
                   {/* 额外字段 */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">{t('detail.extraFields')}</label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {availableFields.map(name => {
-                        const active = extraFieldNames.includes(name);
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            draggable
-                            onDragStart={() => { dragFieldRef.current = name; }}
-                            onDragOver={e => { e.preventDefault(); setDragOverField(name); }}
-                            onDragLeave={() => { if (dragOverField === name) setDragOverField(null); }}
-                            onDrop={e => {
-                              e.preventDefault();
-                              setDragOverField(null);
-                              const from = dragFieldRef.current;
-                              dragFieldRef.current = null;
-                              if (!from || from === name) return;
-                              // Reorder availableFields
-                              const reorder = (arr: string[]) => {
-                                const next = arr.filter(f => f !== from);
-                                const targetIdx = next.indexOf(name);
-                                if (targetIdx === -1) return arr;
-                                next.splice(targetIdx, 0, from);
-                                return next;
-                              };
-                              const nextPool = reorder(availableFields);
-                              setAvailableFields(nextPool);
-                              localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
-                              // Also reorder extraFieldNames to match
-                              const nextActive = reorder(extraFieldNames);
-                              setExtraFieldNames(nextActive);
-                              saveSettingsDebounced({ description_extra_fields: nextActive });
-                            }}
-                            onDragEnd={() => { dragFieldRef.current = null; setDragOverField(null); }}
-                            className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-all duration-150 cursor-grab active:cursor-grabbing ${
-                              dragOverField === name
-                                ? 'ring-2 ring-banana-400/50'
-                                : ''
-                            } ${
-                              active
-                                ? 'bg-banana-50 dark:bg-banana-900/20 border-banana-300 dark:border-banana-700 text-banana-700 dark:text-banana-400'
-                                : 'bg-gray-50 dark:bg-background-hover border-gray-200 dark:border-border-primary text-gray-400 dark:text-foreground-tertiary line-through'
-                            }`}
-                            onClick={() => {
-                              const next = active
-                                ? extraFieldNames.filter(f => f !== name)
-                                : [...extraFieldNames, name];
-                              setExtraFieldNames(next);
-                              saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版布局', '视觉素材', '视觉焦点'] });
-                            }}
-                          >
-                            {name}
-                            {/* 从池中删除（仅未激活时可删） */}
-                            {!active && (
-                              <span
-                                role="button"
-                                className="opacity-0 group-hover:opacity-100 ml-0.5 text-gray-400 hover:text-red-500 transition-all"
-                                onClick={e => {
-                                  e.stopPropagation();
+                    <DndContext sensors={fieldSensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
+                      <SortableContext items={availableFields} strategy={rectSortingStrategy}>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availableFields.map(name => {
+                            const active = extraFieldNames.includes(name);
+                            return (
+                              <SortableFieldPill
+                                key={name}
+                                name={name}
+                                active={active}
+                                onToggle={() => {
+                                  const next = active
+                                    ? extraFieldNames.filter(f => f !== name)
+                                    : [...extraFieldNames, name];
+                                  setExtraFieldNames(next);
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版布局', '视觉素材', '视觉焦点'] });
+                                }}
+                                onRemove={() => {
                                   const nextPool = availableFields.filter(f => f !== name);
                                   setAvailableFields(nextPool);
                                   localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
                                 }}
-                              >
-                                <X size={10} />
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                              />
+                            );
+                          })}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
                     <div className="flex gap-1">
                       <input
                         type="text"
