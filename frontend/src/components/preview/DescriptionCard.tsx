@@ -89,18 +89,32 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   const [editContent, setEditContent] = useState('');
   const [editExtraFields, setEditExtraFields] = useState<Record<string, string>>({});
   const textareaRef = useRef<MarkdownTextareaRef>(null);
+  const extraFieldRefs = useRef<Record<string, MarkdownTextareaRef | null>>({});
 
-  // Callback to insert at cursor position in the textarea
-  const insertAtCursor = useCallback((markdown: string) => {
-    textareaRef.current?.insertAtCursor(markdown);
-  }, []);
+  // Active field target for image paste — switched via onFocus
+  const activeSetContent = useRef<(updater: (prev: string) => string) => void>(setEditContent);
+  const activeInsertAtCursor = useRef<((markdown: string) => void) | undefined>(
+    () => textareaRef.current?.insertAtCursor('')
+  );
 
   const { handlePaste, handleFiles, isUploading } = useImagePaste({
     projectId,
-    setContent: setEditContent,
+    setContent: (updater) => activeSetContent.current(updater),
     showToast: showToast,
-    insertAtCursor,
+    insertAtCursor: (md) => activeInsertAtCursor.current?.(md),
   });
+
+  // Focus handlers to switch paste target
+  const focusMainDesc = useCallback(() => {
+    activeSetContent.current = setEditContent;
+    activeInsertAtCursor.current = (md: string) => textareaRef.current?.insertAtCursor(md);
+  }, []);
+
+  const focusExtraField = useCallback((fieldName: string) => {
+    activeSetContent.current = (updater) =>
+      setEditExtraFields(prev => ({ ...prev, [fieldName]: updater(prev[fieldName] || '') }));
+    activeInsertAtCursor.current = (md: string) => extraFieldRefs.current[fieldName]?.insertAtCursor(md);
+  }, []);
 
   // 通过 page.status 驱动骨架屏，与图片生成的 GENERATING 状态互不干扰
   const generating = useDescriptionGeneratingState(page, isAiRefining);
@@ -236,6 +250,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
             onChange={setEditContent}
             onPaste={handlePaste}
             onFiles={handleFiles}
+            onFocus={focusMainDesc}
             rows={6}
             placeholder={t('descriptionCard.descriptionPlaceholder')}
           />
@@ -243,9 +258,13 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
           {allFieldNames.map(name => (
             <MarkdownTextarea
               key={name}
+              ref={el => { extraFieldRefs.current[name] = el; }}
               label={name}
               value={editExtraFields[name] || ''}
               onChange={v => setEditExtraFields(prev => ({ ...prev, [name]: v }))}
+              onPaste={handlePaste}
+              onFiles={handleFiles}
+              onFocus={() => focusExtraField(name)}
               showUploadButton={false}
               rows={2}
               placeholder={name}
