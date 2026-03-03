@@ -915,9 +915,32 @@ def generate_descriptions_stream(project_id):
             except Exception as e:
                 try:
                     db.session.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_exc:
+                    logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
                 logger.error(f"generate_descriptions_stream failed: {str(e)}", exc_info=True)
+
+                # 恢复未完成页面的状态：已生成描述的保留，未生成的恢复为 DRAFT
+                try:
+                    pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                    proj = db.session.get(Project, project_id)
+                    has_any_desc = False
+                    for page in pages:
+                        if page.status == 'GENERATING_DESCRIPTION':
+                            # 如果之前就有描述内容，恢复为 DESCRIPTION_GENERATED
+                            if page.description_content:
+                                page.status = 'DESCRIPTION_GENERATED'
+                                has_any_desc = True
+                            else:
+                                page.status = 'DRAFT'
+                        elif page.status == 'DESCRIPTION_GENERATED':
+                            has_any_desc = True
+                    if proj:
+                        proj.status = 'DESCRIPTIONS_GENERATED' if has_any_desc else 'OUTLINE_GENERATED'
+                        proj.updated_at = datetime.utcnow()
+                    db.session.commit()
+                except Exception as recover_exc:
+                    logger.warning(f"Failed to recover page statuses: {recover_exc}", exc_info=True)
+
                 yield _sse_event('error', {'message': '生成过程中发生内部错误'})
 
     return Response(

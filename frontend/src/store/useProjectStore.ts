@@ -782,7 +782,7 @@ const debouncedUpdatePage = debounce(
           onDone: (data) => { doneData = data; },
           onError: (message) => {
             console.error('[流式描述] 错误:', message);
-            set({ error: normalizeErrorMessage(message), isDescriptionStreaming: false });
+            set({ error: normalizeErrorMessage(message) });
             streamDone = true;
           },
         }, undefined, detailLevel);
@@ -798,6 +798,8 @@ const debouncedUpdatePage = debounce(
           }
           devLog('[流式描述] 完成:', doneData.total, '个页面');
         } else {
+          // 无 doneData（SSE error 或连接中断）→ 从后端恢复真实状态
+          await get().syncProject();
           set({ isDescriptionStreaming: false });
         }
       } catch (error: any) {
