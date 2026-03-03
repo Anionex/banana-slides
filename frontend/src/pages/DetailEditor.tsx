@@ -119,10 +119,11 @@ const SortableFieldPill: React.FC<{
   onRemove: () => void;
 }> = ({ name, active, onToggle, onRemove }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name });
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition,
+    transition: isDragging ? undefined : transition,
     opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 10 : undefined,
   };
   return (
     <button
@@ -131,7 +132,9 @@ const SortableFieldPill: React.FC<{
       {...attributes}
       {...listeners}
       type="button"
-      className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-all duration-150 cursor-grab active:cursor-grabbing ${
+      className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border cursor-grab active:cursor-grabbing ${
+        isDragging ? '' : 'transition-colors duration-150 '
+      }${
         active
           ? 'bg-banana-50 dark:bg-banana-900/20 border-banana-300 dark:border-banana-700 text-banana-700 dark:text-banana-400'
           : 'bg-gray-50 dark:bg-background-hover border-gray-200 dark:border-border-primary text-gray-400 dark:text-foreground-tertiary line-through'
