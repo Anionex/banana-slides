@@ -398,10 +398,10 @@ export const OutlineEditor: React.FC = () => {
         return;
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part }, i) =>
+      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
         addPage(projectId, {
           outline_content: { title, points },
-          description_content: desc ? { text: desc } : undefined,
+          description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
         })
