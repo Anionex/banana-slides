@@ -562,6 +562,16 @@ def generate_outline_stream(project_id):
                         'part': page_data.get('part'),
                     })
 
+                # Handle lock_page_count: pad with blank pages if needed
+                lock_page_count = data.get('lock_page_count', False)
+                if lock_page_count:
+                    old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                    old_count = len(old_pages)
+                    new_count = len(streamed_pages)
+                    if new_count < old_count:
+                        for _ in range(old_count - new_count):
+                            streamed_pages.append({'title': '', 'points': []})
+
                 # Save all pages to database
                 pages_list = _smart_merge_pages(project_id, streamed_pages)
 
