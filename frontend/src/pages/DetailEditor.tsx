@@ -762,7 +762,9 @@ export const DetailEditor: React.FC = () => {
                                       settings.description_extra_fields = toSave;
                                       sessionStorage.setItem('banana-settings', JSON.stringify(settings));
                                     }
-                                  } catch {}
+                                  } catch {
+                                    // Ignore sessionStorage errors
+                                  }
                                   saveSettingsDebounced({ description_extra_fields: toSave });
                                 }}
                                 inImagePrompt={imagePromptFields.includes(name)}
