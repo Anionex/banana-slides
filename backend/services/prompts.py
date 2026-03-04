@@ -57,24 +57,24 @@ DETAIL_LEVEL_SPECS = {
 
 _OUTLINE_JSON_FORMAT = """\
 1. Simple format (for short PPTs without major sections):
-[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
+[{"title": "title1", "points": ["point1", "point2"]}, {"title": "title2", "points": ["point1", "point2"]}]
 
 2. Part-based format (for longer PPTs with major sections):
 [
-    {{
+    {
     "part": "Part 1: Introduction",
     "pages": [
-        {{"title": "Welcome", "points": ["point1", "point2"]}},
-        {{"title": "Overview", "points": ["point1", "point2"]}}
+        {"title": "Welcome", "points": ["point1", "point2"]},
+        {"title": "Overview", "points": ["point1", "point2"]}
     ]
-    }},
-    {{
+    },
+    {
     "part": "Part 2: Main Content",
     "pages": [
-        {{"title": "Topic 1", "points": ["point1", "point2"]}},
-        {{"title": "Topic 2", "points": ["point1", "point2"]}}
+        {"title": "Topic 1", "points": ["point1", "point2"]},
+        {"title": "Topic 2", "points": ["point1", "point2"]}
     ]
-    }}
+    }
 ]"""
 
 
@@ -427,7 +427,26 @@ You are a helpful assistant that modifies PPT outlines based on user requirement
 
 输出格式可以选择：
 
-{_OUTLINE_JSON_FORMAT}
+1. 简单格式（适用于没有主要章节的短 PPT）：
+[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
+
+2. 基于章节的格式（适用于有明确主要章节的长 PPT）：
+[
+    {{
+    "part": "第一部分：引言",
+    "pages": [
+        {{"title": "欢迎", "points": ["point1", "point2"]}},
+        {{"title": "概述", "points": ["point1", "point2"]}}
+    ]
+    }},
+    {{
+    "part": "第二部分：主要内容",
+    "pages": [
+        {{"title": "主题1", "points": ["point1", "point2"]}},
+        {{"title": "主题2", "points": ["point1", "point2"]}}
+    ]
+    }}
+]
 
 选择最适合内容的格式。当 PPT 有清晰的主要章节时使用章节格式。
 
@@ -452,6 +471,13 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     """生成单个页面描述的 prompt"""
     original_input = _get_original_input(project_context)
 
+    # 单页版使用简短的 concise 描述（与流式版略有不同）
+    detail_level_specs = {
+        'concise': '文字极致地压缩和精简',
+        'default': '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
+        'detailed': '忠于原文的基础上做到内容详实，逻辑清晰。',
+    }
+
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -466,7 +492,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 页面文字：
 
-[此处使用markdown直接放置正文文字, 细致程度要求：{DETAIL_LEVEL_SPECS[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
+[此处使用markdown直接放置正文文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
 图片素材:
 [如果文件中存在图片请积极添加； 否则忽略图片素材字段]
