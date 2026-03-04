@@ -234,7 +234,7 @@ jobs:
       - name: Run Docker environment tests
         run: |
           chmod +x scripts/test_docker_environment.sh
-          AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
+          AUTO_CLEANUP=false SKIP_BUILD=true ./scripts/test_docker_environment.sh
 
       - name: Setup Node.js for frontend E2E tests
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'

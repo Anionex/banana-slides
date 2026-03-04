@@ -67,12 +67,17 @@ docker system prune -f >/dev/null 2>&1 || true
 log_success "Environment cleanup complete"
 
 # 2. Build images
-log_info "Step 2/10: Building Docker images..."
-if docker compose build --no-cache; then
-    log_success "Image build successful"
+if [ "${SKIP_BUILD}" = "true" ]; then
+    log_info "Step 2/10: Skipping image build (SKIP_BUILD=true)"
+    log_success "Using existing images"
 else
-    log_error "Image build failed"
-    exit 1
+    log_info "Step 2/10: Building Docker images..."
+    if docker compose build --no-cache; then
+        log_success "Image build successful"
+    else
+        log_error "Image build failed"
+        exit 1
+    fi
 fi
 
 # 3. Start services

@@ -1036,7 +1036,8 @@ export const Settings: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <div className="space-y-8">
-        {/* 默认 API 配置区块 */}
+        {/* 默认 API 配置区块 - 仅管理员或有权限的用户可见 */}
+        {(user?.is_admin || !editableFields || editableFields.some(f => ['ai_provider_format', 'api_base_url', 'api_key'].includes(f))) && (
         <div data-testid="global-api-config-section">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
             <Key size={20} />
@@ -1127,8 +1128,14 @@ export const Settings: React.FC = () => {
             </ol>
           </div>
         </div>
+        )}
 
-        {/* 模型配置区块 */}
+        {/* 模型配置区块 - 仅管理员或有权限的用户可见 */}
+        {(user?.is_admin || !editableFields || editableFields.some(f =>
+          ['text_model', 'text_model_source', 'text_api_key', 'text_api_base_url',
+           'image_model', 'image_model_source', 'image_api_key', 'image_api_base_url',
+           'image_caption_model', 'image_caption_model_source', 'image_caption_api_key', 'image_caption_api_base_url'].includes(f)
+        )) && (
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
             <FileText size={20} />
@@ -1138,6 +1145,7 @@ export const Settings: React.FC = () => {
             {modelConfigItems.map(renderModelConfigGroup)}
           </div>
         </div>
+        )}
 
         {/* 其余配置区块（配置驱动） */}
         <div className="space-y-8">
