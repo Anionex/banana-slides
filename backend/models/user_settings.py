@@ -48,6 +48,24 @@ class UserSettings(db.Model):
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
     lazyllm_api_keys = db.Column(db.Text, nullable=True)  # JSON: {"qwen": "key1", "doubao": "key2", ...}
 
+    # Description generation settings
+    description_generation_mode = db.Column(db.String(20), nullable=True)  # streaming / parallel
+    description_extra_fields = db.Column(db.Text, nullable=True)  # JSON array
+    image_prompt_extra_fields = db.Column(db.Text, nullable=True)  # JSON array
+
+    # Per-model provider source settings
+    text_model_source = db.Column(db.String(50), nullable=True)
+    image_model_source = db.Column(db.String(50), nullable=True)
+    image_caption_model_source = db.Column(db.String(50), nullable=True)
+
+    # Per-model API credentials
+    text_api_key = db.Column(db.String(500), nullable=True)
+    text_api_base_url = db.Column(db.String(500), nullable=True)
+    image_api_key = db.Column(db.String(500), nullable=True)
+    image_api_base_url = db.Column(db.String(500), nullable=True)
+    image_caption_api_key = db.Column(db.String(500), nullable=True)
+    image_caption_api_base_url = db.Column(db.String(500), nullable=True)
+
     # Timestamps
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), 
@@ -55,6 +73,33 @@ class UserSettings(db.Model):
 
     # Relationships
     user = db.relationship('User', back_populates='settings')
+
+    DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
+    DEFAULT_IMAGE_PROMPT_FIELDS = ['视觉元素', '视觉焦点', '排版布局']
+
+    def get_description_extra_fields(self):
+        """Return parsed extra fields list."""
+        import json
+        if self.description_extra_fields:
+            try:
+                fields = json.loads(self.description_extra_fields)
+                if isinstance(fields, list):
+                    return fields
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return list(self.DEFAULT_EXTRA_FIELDS)
+
+    def get_image_prompt_extra_fields(self):
+        """Return parsed list of extra fields to include in image prompts."""
+        import json
+        if self.image_prompt_extra_fields:
+            try:
+                fields = json.loads(self.image_prompt_extra_fields)
+                if isinstance(fields, list):
+                    return fields
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return list(self.DEFAULT_IMAGE_PROMPT_FIELDS)
 
     def to_dict(self):
         """Convert to dictionary (hide sensitive values)"""
@@ -78,6 +123,19 @@ class UserSettings(db.Model):
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
             'baidu_api_key_length': len(self.baidu_api_key) if self.baidu_api_key else 0,
+            'description_generation_mode': self.description_generation_mode or 'streaming',
+            'description_extra_fields': self.get_description_extra_fields(),
+            'image_prompt_extra_fields': self.get_image_prompt_extra_fields(),
+            'text_model_source': self.text_model_source,
+            'image_model_source': self.image_model_source,
+            'image_caption_model_source': self.image_caption_model_source,
+            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(),
+            'text_api_key_length': len(self.text_api_key) if self.text_api_key else 0,
+            'text_api_base_url': self.text_api_base_url,
+            'image_api_key_length': len(self.image_api_key) if self.image_api_key else 0,
+            'image_api_base_url': self.image_api_base_url,
+            'image_caption_api_key_length': len(self.image_caption_api_key) if self.image_caption_api_key else 0,
+            'image_caption_api_base_url': self.image_caption_api_base_url,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -89,6 +147,17 @@ class UserSettings(db.Model):
             return {}
         try:
             return json.loads(self.lazyllm_api_keys)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def _get_lazyllm_api_keys_info(self):
+        """Return vendor names and key lengths (no plaintext) for frontend display."""
+        import json
+        if not self.lazyllm_api_keys:
+            return {}
+        try:
+            keys = json.loads(self.lazyllm_api_keys)
+            return {vendor: len(key) for vendor, key in keys.items() if key}
         except (json.JSONDecodeError, TypeError):
             return {}
 
