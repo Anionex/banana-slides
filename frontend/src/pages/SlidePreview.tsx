@@ -299,6 +299,7 @@ export const SlidePreview: React.FC = () => {
   const { confirm, ConfirmDialog } = useConfirm();
 
   // Memoize pages with generated images to avoid re-computing in multiple places
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const pagesWithImages = useMemo(() => {
     return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
   }, [currentProject?.pages]);

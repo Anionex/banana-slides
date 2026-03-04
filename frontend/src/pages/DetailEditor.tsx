@@ -84,6 +84,7 @@ const DETAIL_LEVEL_LINES: Record<string, number[]> = {
   default:  [4, 7, 10],
   detailed: [3.5, 5.5, 7.5, 9.5, 11.5],
 };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
     <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
@@ -115,6 +116,7 @@ export const DetailEditor: React.FC = () => {
   const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, _setDetailLevel] = useState<string>(() => localStorage.getItem('detailLevel') || 'default');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const setDetailLevel = useCallback((level: string) => {
     _setDetailLevel(level);
     localStorage.setItem('detailLevel', level);
