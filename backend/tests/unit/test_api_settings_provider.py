@@ -7,6 +7,13 @@ from unittest.mock import patch
 
 def test_update_settings_accepts_lazyllm_provider(client, auth_headers):
     """`lazyllm` should be accepted as a valid provider format."""
+    # Make the test user an admin
+    from models import db, User
+    with client.application.app_context():
+        user = User.query.filter_by(email='testuser@example.com').first()
+        user.is_admin = True
+        db.session.commit()
+
     response = client.put('/api/settings',
                          headers=auth_headers,
                          json={'ai_provider_format': 'lazyllm'})
@@ -19,6 +26,13 @@ def test_update_settings_accepts_lazyllm_provider(client, auth_headers):
 
 def test_verify_uses_configured_text_model(client, auth_headers):
     """Verify endpoint should use configured text model, not a hardcoded gemini model."""
+    # Make the test user an admin
+    from models import db, User
+    with client.application.app_context():
+        user = User.query.filter_by(email='testuser@example.com').first()
+        user.is_admin = True
+        db.session.commit()
+
     # First set the text model to deepseek-chat
     client.put('/api/settings',
               headers=auth_headers,
