@@ -64,7 +64,7 @@ class Settings(db.Model):
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
 
-    DEFAULT_EXTRA_FIELDS = ['排版布局', '视觉素材', '视觉焦点']
+    DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局']
 
     def get_description_extra_fields(self):
         """Return parsed extra fields list."""

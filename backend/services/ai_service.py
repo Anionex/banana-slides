@@ -544,7 +544,7 @@ class AIService:
             settings = Settings.get_settings()
             return settings.get_description_extra_fields()
         except Exception:
-            return ['排版布局', '视觉素材', '视觉焦点']
+            return ['视觉元素', '视觉焦点', '排版布局']
 
     def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
                                  page_outline: Dict, page_index: int, language='zh',

@@ -498,20 +498,26 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 - 细致程度要求：{detail_level_specs[detail_level]}
 
 ## 输出格式
+每页默认包含"页面文字"和"图片素材"两个部分。图片素材用于引用参考文件中的图片（以 /files/ 开头的本地路径），如果参考文件中没有相关图片则省略该部分。
 ```
 <!-- BEGIN -->
-页面文字: [第1页文字内容，可包含标题、副标题、要点、latex公式、表格等，需要根据实际需求选择，避免堆砌和重复]
+页面文字：
+[第1页文字内容，可包含标题、副标题、要点、latex公式、表格等，根据实际需求选择，避免堆砌和重复]
+
+图片素材：
+[如果参考文件中存在相关图片，以markdown格式引用，如 ![描述](/files/xxx/image.png)；否则省略此部分]
 {_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
-页面文字: [第2页文字内容，可包含标题、副标题、要点、latex公式、表格等]
+页面文字：
+[第2页文字内容]
+
+图片素材：
+[同上]
 {_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
 ...
 <!-- END -->
 ```
-
-## 关于图片
-如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。
 
 现在请开始生成，严格按照上述格式输出。
 {get_language_instruction(language)}

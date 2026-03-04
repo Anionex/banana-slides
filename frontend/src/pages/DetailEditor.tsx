@@ -175,13 +175,13 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['排版布局', '视觉素材', '视觉焦点']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['排版布局', '视觉素材', '视觉焦点'];
-    } catch { return ['排版布局', '视觉素材', '视觉焦点']; }
+      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局'];
+    } catch { return ['视觉元素', '视觉焦点', '排版布局']; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -202,7 +202,7 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['排版布局', '视觉素材', '视觉焦点'];
+        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局'];
         setExtraFieldNames(activeFields);
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
@@ -719,7 +719,7 @@ export const DetailEditor: React.FC = () => {
                                     ? extraFieldNames.filter(f => f !== name)
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
-                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['排版布局', '视觉素材', '视觉焦点'] });
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局'] });
                                 }}
                                 onRemove={() => {
                                   const nextPool = availableFields.filter(f => f !== name);

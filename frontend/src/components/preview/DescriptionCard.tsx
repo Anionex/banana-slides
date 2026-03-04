@@ -191,7 +191,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
               {allFieldNames.map(name => {
                 const value = extraFields[name];
                 if (!value) return null;
-                const FIELD_ICONS: Record<string, typeof Tag> = { '排版布局': Layout, '视觉素材': Image, '视觉焦点': Focus };
+                const FIELD_ICONS: Record<string, typeof Tag> = { '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout };
                 const FieldIcon = FIELD_ICONS[name] || Tag;
                 return (
                   <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
