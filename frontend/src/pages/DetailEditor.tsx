@@ -222,7 +222,7 @@ export const DetailEditor: React.FC = () => {
         const res = await getSettings();
         const s = res.data;
         if (!s) return;
-        setDetailLevel(s.description_generation_mode === 'parallel' ? 'default' : 'default');
+        setDetailLevel('default');
         // detail level from sessionStorage (backwards compat, then from DB if we add it later)
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);

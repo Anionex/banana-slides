@@ -544,6 +544,7 @@ class AIService:
             settings = Settings.get_settings()
             return settings.get_description_extra_fields()
         except Exception:
+            logger.warning("Failed to get extra field names from settings", exc_info=True)
             return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
 
     def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
@@ -675,7 +676,7 @@ class AIService:
             if current_field:
                 # Append to current extra field (multi-line)
                 if current_field in extra_fields:
-                    extra_fields[current_field] += " " + stripped
+                    extra_fields[current_field] += "\n" + stripped
                 else:
                     extra_fields[current_field] = stripped
             else:
