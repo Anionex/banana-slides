@@ -20,6 +20,79 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _build_prompt(prompt_text: str, reference_files_content=None, *, tag: str = '') -> str:
+    """Prepend reference files XML and log the final prompt."""
+    files_xml = _format_reference_files_xml(reference_files_content)
+    final = files_xml + prompt_text
+    if tag:
+        logger.debug(f"[{tag}] Final prompt:\n{final}")
+    return final
+
+
+def _get_original_input(project_context: 'ProjectContext') -> str:
+    """Extract original user input from project context (shared across prompt builders)."""
+    if project_context.creation_type == 'idea' and project_context.idea_prompt:
+        return project_context.idea_prompt
+    if project_context.creation_type == 'outline' and project_context.outline_text:
+        return f"用户提供的大纲：\n{project_context.outline_text}"
+    if project_context.creation_type == 'descriptions' and project_context.description_text:
+        return f"用户提供的描述：\n{project_context.description_text}"
+    return project_context.idea_prompt or ""
+
+
+def _get_original_input_labeled(project_context: 'ProjectContext') -> str:
+    """Build labeled original input section for refinement prompts."""
+    text = "\n原始输入信息：\n"
+    if project_context.creation_type == 'idea' and project_context.idea_prompt:
+        text += f"- PPT构想：{project_context.idea_prompt}\n"
+    elif project_context.creation_type == 'outline' and project_context.outline_text:
+        text += f"- 用户提供的大纲文本：\n{project_context.outline_text}\n"
+    elif project_context.creation_type == 'descriptions' and project_context.description_text:
+        text += f"- 用户提供的页面描述文本：\n{project_context.description_text}\n"
+    elif project_context.idea_prompt:
+        text += f"- 用户输入：{project_context.idea_prompt}\n"
+    return text
+
+
+def _get_previous_requirements_text(previous_requirements: Optional[List[str]]) -> str:
+    """Format previous modification history."""
+    if not previous_requirements:
+        return ""
+    prev_list = "\n".join([f"- {req}" for req in previous_requirements])
+    return f"\n\n之前用户提出的修改要求：\n{prev_list}\n"
+
+
+# 详细程度配置（共享于单页和流式描述生成）
+DETAIL_LEVEL_SPECS = {
+    'concise': '文字极致地压缩和精简，每条要点用一个核心词语或数据代替，例如效率↑80%',
+    'default': '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
+    'detailed': '忠于原文的基础上做到内容详实，逻辑清晰。',
+}
+
+# JSON 大纲格式示例（共享于多个 prompt）
+_OUTLINE_JSON_FORMAT = """\
+1. Simple format (for short PPTs without major sections):
+[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
+
+2. Part-based format (for longer PPTs with major sections):
+[
+    {{
+    "part": "Part 1: Introduction",
+    "pages": [
+        {{"title": "Welcome", "points": ["point1", "point2"]}},
+        {{"title": "Overview", "points": ["point1", "point2"]}}
+    ]
+    }},
+    {{
+    "part": "Part 2: Main Content",
+    "pages": [
+        {{"title": "Topic 1", "points": ["point1", "point2"]}},
+        {{"title": "Topic 2", "points": ["point1", "point2"]}}
+    ]
+    }}
+]"""
+
+
 # 语言配置映射
 LANGUAGE_CONFIG = {
     'zh': {
@@ -154,34 +227,14 @@ def get_outline_generation_prompt(project_context: 'ProjectContext', language: s
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     idea_prompt = project_context.idea_prompt or ""
-    
+
     prompt = (f"""\
 You are a helpful assistant that generates an outline for a ppt.
 
 You can organize the content in two ways:
 
-1. Simple format (for short PPTs without major sections):
-[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
-
-2. Part-based format (for longer PPTs with major sections):
-[
-    {{
-    "part": "Part 1: Introduction",
-    "pages": [
-        {{"title": "Welcome", "points": ["point1", "point2"]}},
-        {{"title": "Overview", "points": ["point1", "point2"]}}
-    ]
-    }},
-    {{
-    "part": "Part 2: Main Content",
-    "pages": [
-        {{"title": "Topic 1", "points": ["point1", "point2"]}},
-        {{"title": "Topic 2", "points": ["point1", "point2"]}}
-    ]
-    }}
-]
+{_OUTLINE_JSON_FORMAT}
 
 Choose the format that best fits the content. Use parts when the PPT has clear major sections.
 Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
@@ -191,16 +244,13 @@ The user's request: {idea_prompt}.
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_outline_generation_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_generation_prompt')
 
 
 def get_outline_generation_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
     """
     生成 PPT 大纲的 prompt（Markdown 输出格式，用于流式生成）
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     idea_prompt = project_context.idea_prompt or ""
 
     prompt = (f"""\
@@ -238,24 +288,21 @@ You can organize the content in two ways:
 
 Constraints:
 - Title should not contain page number.
-- Choose the format that best fits the content. Use parts when the PPT has clear major sections. 
-- Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information. 
+- Choose the format that best fits the content. Use parts when the PPT has clear major sections.
+- Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
 
 The user's request: {idea_prompt}.
 {_format_requirements(project_context.outline_requirements)}Now generate the outline, strictly follow the format provided above, don't include any other text. Output `<!-- END -->` on the last line when finished.
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_outline_generation_prompt_markdown] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_generation_prompt_markdown')
 
 
 def get_outline_parsing_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
     """
     解析用户提供的大纲文本的 prompt（Markdown 输出格式，用于流式生成）
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     outline_text = project_context.outline_text or ""
 
     prompt = (f"""\
@@ -278,16 +325,13 @@ Now parse the outline text above into the Markdown format. Output `<!-- END -->`
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_outline_parsing_prompt_markdown] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_parsing_prompt_markdown')
 
 
 def get_description_to_outline_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
     """
     从描述文本解析出大纲的 prompt（Markdown 输出格式，用于流式生成）
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     description_text = project_context.description_text or ""
 
     prompt = (f"""\
@@ -310,9 +354,7 @@ Now extract the outline structure from the description text above. Output `<!-- 
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_description_to_outline_prompt_markdown] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_description_to_outline_prompt_markdown')
 
 
 def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str = None ) -> str:
@@ -325,9 +367,8 @@ def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str 
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     outline_text = project_context.outline_text or ""
-    
+
     prompt = (f"""\
 You are a helpful assistant that parses a user-provided PPT outline text into a structured format.
 
@@ -335,31 +376,12 @@ The user has provided the following outline text:
 
 {outline_text}
 
-Your task is to analyze this text and convert it into a structured JSON format WITHOUT modifying any of the original text content. 
+Your task is to analyze this text and convert it into a structured JSON format WITHOUT modifying any of the original text content.
 You should only reorganize and structure the existing content, preserving all titles, points, and text exactly as provided.
 
 You can organize the content in two ways:
 
-1. Simple format (for short PPTs without major sections):
-[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
-
-2. Part-based format (for longer PPTs with major sections):
-[
-    {{
-    "part": "Part 1: Introduction",
-    "pages": [
-        {{"title": "Welcome", "points": ["point1", "point2"]}},
-        {{"title": "Overview", "points": ["point1", "point2"]}}
-    ]
-    }},
-    {{
-    "part": "Part 2: Main Content",
-    "pages": [
-        {{"title": "Topic 1", "points": ["point1", "point2"]}},
-        {{"title": "Topic 2", "points": ["point1", "point2"]}}
-    ]
-    }}
-]
+{_OUTLINE_JSON_FORMAT}
 
 Important rules:
 - DO NOT modify, rewrite, or change any text from the original outline
@@ -371,12 +393,10 @@ Important rules:
 - Extract titles and points from the original text, keeping them exactly as written
 
 Now parse the outline text above into the structured format. Return only the JSON, don't include any other text.
-{get_language_instruction(language)} 
+{get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_outline_parsing_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_parsing_prompt')
 
 
 def get_page_description_prompt(project_context: 'ProjectContext', outline: list,
@@ -399,30 +419,8 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
-    # 根据项目类型选择最相关的原始输入
-    if project_context.creation_type == 'idea' and project_context.idea_prompt:
-        original_input = project_context.idea_prompt
-    elif project_context.creation_type == 'outline' and project_context.outline_text:
-        original_input = f"用户提供的大纲：\n{project_context.outline_text}"
-    elif project_context.creation_type == 'descriptions' and project_context.description_text:
-        original_input = f"用户提供的描述：\n{project_context.description_text}"
-    else:
-        original_input = project_context.idea_prompt or ""
-    
-    # 根据 detail_level 生成不同的详细程度要求和示例
-    # concise=演示型  default=标准型  detailed=阅读型(Slidedoc)
-    detail_level_specs = {
-        'concise': 
-            '文字极致地压缩和精简',
-        'default': 
-            '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
-        'detailed': 
-            '忠于原文的基础上做到内容详实，逻辑清晰。',
-    }
-    
-#     页面标题：[实际页面标题]
-# {"副标题：[实际副标题]" if page_index == 1 else ""}
+    original_input = _get_original_input(project_context)
+
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -437,7 +435,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 页面文字：
 
-[此处使用markdown直接放置正文文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
+[此处使用markdown直接放置正文文字, 细致程度要求：{DETAIL_LEVEL_SPECS[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
 图片素材:
 [如果文件中存在图片请积极添加； 否则忽略图片素材字段]
@@ -448,9 +446,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_page_description_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_page_description_prompt')
 
 
 def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
@@ -472,22 +468,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
-
-    if project_context.creation_type == 'idea' and project_context.idea_prompt:
-        original_input = project_context.idea_prompt
-    elif project_context.creation_type == 'outline' and project_context.outline_text:
-        original_input = f"用户提供的大纲：\n{project_context.outline_text}"
-    elif project_context.creation_type == 'descriptions' and project_context.description_text:
-        original_input = f"用户提供的描述：\n{project_context.description_text}"
-    else:
-        original_input = project_context.idea_prompt or ""
-
-    detail_level_specs = {
-        'concise': '文字极致地压缩和精简，每条要点用一个核心词语或数据代替，例如效率↑80%',
-        'default': '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
-        'detailed': '忠于原文的基础上做到内容详实，逻辑清晰。',
-    }
+    original_input = _get_original_input(project_context)
 
     # 构建页面大纲列表
     outline_lines = []
@@ -508,7 +489,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 ## 重要提示
 - 生成的页面文字会直接渲染到PPT页面上，请务必不要包含任何额外的说明性文字或注释。
 - **第一页（封面页）保持极简**，只放标题、副标题、演讲人等信息，不添加任何素材。
-- 细致程度要求：{detail_level_specs[detail_level]}
+- 细致程度要求：{DETAIL_LEVEL_SPECS[detail_level]}
 
 ## 输出格式
 每页默认包含"页面文字"和"图片素材"两个部分。图片素材用于引用参考文件中的图片（以 /files/ 开头的本地路径），如果参考文件中没有相关图片则省略该部分。
@@ -536,9 +517,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_all_descriptions_stream_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_all_descriptions_stream_prompt')
 
 
 def get_image_generation_prompt(page_desc: str, outline_text: str,
@@ -647,9 +626,8 @@ def get_description_to_outline_prompt(project_context: 'ProjectContext', languag
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
     description_text = project_context.description_text or ""
-    
+
     prompt = (f"""\
 You are a helpful assistant that analyzes a user-provided PPT description text and extracts the outline structure from it.
 
@@ -665,26 +643,7 @@ You should identify:
 
 You can organize the content in two ways:
 
-1. Simple format (for short PPTs without major sections):
-[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
-
-2. Part-based format (for longer PPTs with major sections):
-[
-    {{
-    "part": "Part 1: Introduction",
-    "pages": [
-        {{"title": "Welcome", "points": ["point1", "point2"]}},
-        {{"title": "Overview", "points": ["point1", "point2"]}}
-    ]
-    }},
-    {{
-    "part": "Part 2: Main Content",
-    "pages": [
-        {{"title": "Topic 1", "points": ["point1", "point2"]}},
-        {{"title": "Topic 2", "points": ["point1", "point2"]}}
-    ]
-    }}
-]
+{_OUTLINE_JSON_FORMAT}
 
 Important rules:
 - Extract the outline structure from the description text
@@ -697,9 +656,7 @@ Now extract the outline structure from the description text above. Return only t
 {get_language_instruction(language)}
 """)
 
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_description_to_outline_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_description_to_outline_prompt')
 
 
 def get_description_split_prompt(project_context: 'ProjectContext', 
@@ -783,38 +740,19 @@ def get_outline_refinement_prompt(current_outline: List[Dict], user_requirement:
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
-    
     # 处理空大纲的情况
     if not current_outline or len(current_outline) == 0:
         outline_text = "(当前没有内容)"
     else:
         outline_text = json.dumps(current_outline, ensure_ascii=False, indent=2)
-    
-    # 构建之前的修改历史记录
-    previous_req_text = ""
-    if previous_requirements and len(previous_requirements) > 0:
-        prev_list = "\n".join([f"- {req}" for req in previous_requirements])
-        previous_req_text = f"\n\n之前用户提出的修改要求：\n{prev_list}\n"
-    
-    # 构建原始输入信息（根据项目类型显示不同的原始内容）
-    original_input_text = "\n原始输入信息：\n"
-    if project_context.creation_type == 'idea' and project_context.idea_prompt:
-        original_input_text += f"- PPT构想：{project_context.idea_prompt}\n"
-    elif project_context.creation_type == 'outline' and project_context.outline_text:
-        original_input_text += f"- 用户提供的大纲文本：\n{project_context.outline_text}\n"
-    elif project_context.creation_type == 'descriptions' and project_context.description_text:
-        original_input_text += f"- 用户提供的页面描述文本：\n{project_context.description_text}\n"
-    elif project_context.idea_prompt:
-        original_input_text += f"- 用户输入：{project_context.idea_prompt}\n"
-    
+
     prompt = (f"""\
 You are a helpful assistant that modifies PPT outlines based on user requirements.
-{original_input_text}
+{_get_original_input_labeled(project_context)}
 当前的 PPT 大纲结构如下：
 
 {outline_text}
-{previous_req_text}
+{_get_previous_requirements_text(previous_requirements)}
 **用户现在提出新的要求：{user_requirement}**
 
 请根据用户的要求修改和调整大纲。你可以：
@@ -828,36 +766,15 @@ You are a helpful assistant that modifies PPT outlines based on user requirement
 
 输出格式可以选择：
 
-1. 简单格式（适用于没有主要章节的短 PPT）：
-[{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
-
-2. 基于章节的格式（适用于有明确主要章节的长 PPT）：
-[
-    {{
-    "part": "第一部分：引言",
-    "pages": [
-        {{"title": "欢迎", "points": ["point1", "point2"]}},
-        {{"title": "概述", "points": ["point1", "point2"]}}
-    ]
-    }},
-    {{
-    "part": "第二部分：主要内容",
-    "pages": [
-        {{"title": "主题1", "points": ["point1", "point2"]}},
-        {{"title": "主题2", "points": ["point1", "point2"]}}
-    ]
-    }}
-]
+{_OUTLINE_JSON_FORMAT}
 
 选择最适合内容的格式。当 PPT 有清晰的主要章节时使用章节格式。
 
 现在请根据用户要求修改大纲，只输出 JSON 格式的大纲，不要包含其他文字。
 {get_language_instruction(language)}
 """)
-    
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_outline_refinement_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_refinement_prompt')
 
 
 def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_requirement: str,
@@ -878,31 +795,12 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
     Returns:
         格式化后的 prompt 字符串
     """
-    files_xml = _format_reference_files_xml(project_context.reference_files_content)
-    
-    # 构建之前的修改历史记录
-    previous_req_text = ""
-    if previous_requirements and len(previous_requirements) > 0:
-        prev_list = "\n".join([f"- {req}" for req in previous_requirements])
-        previous_req_text = f"\n\n之前用户提出的修改要求：\n{prev_list}\n"
-    
-    # 构建原始输入信息
-    original_input_text = "\n原始输入信息：\n"
-    if project_context.creation_type == 'idea' and project_context.idea_prompt:
-        original_input_text += f"- PPT构想：{project_context.idea_prompt}\n"
-    elif project_context.creation_type == 'outline' and project_context.outline_text:
-        original_input_text += f"- 用户提供的大纲文本：\n{project_context.outline_text}\n"
-    elif project_context.creation_type == 'descriptions' and project_context.description_text:
-        original_input_text += f"- 用户提供的页面描述文本：\n{project_context.description_text}\n"
-    elif project_context.idea_prompt:
-        original_input_text += f"- 用户输入：{project_context.idea_prompt}\n"
-    
     # 构建大纲文本
     outline_text = ""
     if outline:
         outline_json = json.dumps(outline, ensure_ascii=False, indent=2)
         outline_text = f"\n\n完整的 PPT 大纲：\n{outline_json}\n"
-    
+
     # 构建所有页面描述的汇总
     all_descriptions_text = "当前所有页面的描述：\n\n"
     has_any_description = False
@@ -924,9 +822,9 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
     
     prompt = (f"""\
 You are a helpful assistant that modifies PPT page descriptions based on user requirements.
-{original_input_text}{outline_text}
+{_get_original_input_labeled(project_context)}{outline_text}
 {all_descriptions_text}
-{previous_req_text}
+{_get_previous_requirements_text(previous_requirements)}
 **用户现在提出新的要求：{user_requirement}**
 
 请根据用户的要求修改和调整所有页面的描述。你可以：
@@ -962,9 +860,7 @@ You are a helpful assistant that modifies PPT page descriptions based on user re
 {get_language_instruction(language)}
 """)
     
-    final_prompt = files_xml + prompt
-    logger.debug(f"[get_descriptions_refinement_prompt] Final prompt:\n{final_prompt}")
-    return final_prompt
+    return _build_prompt(prompt, project_context.reference_files_content, tag='get_descriptions_refinement_prompt')
 
 
 def get_clean_background_prompt() -> str:
