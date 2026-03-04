@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, ImageOff } from 'lucide-react';
+import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, Check, Square } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
@@ -233,10 +233,10 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
                       <button
                         type="button"
                         title={inImagePrompt ? t('descriptionCard.inImagePrompt') : t('descriptionCard.notInImagePrompt')}
-                        className={`p-0.5 rounded transition-colors ${inImagePrompt ? 'text-banana-500 hover:text-banana-600' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400'}`}
+                        className="p-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-gray-400 transition-colors"
                         onClick={() => toggleImageField(name)}
                       >
-                        {inImagePrompt ? <Image size={12} /> : <ImageOff size={12} />}
+                        {inImagePrompt ? <Check size={12} /> : <Square size={12} />}
                       </button>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-foreground-tertiary"><Markdown>{value}</Markdown></div>
