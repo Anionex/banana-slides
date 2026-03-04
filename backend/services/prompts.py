@@ -592,7 +592,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
 {template_style_guideline}
-- 根据内容自动设计最完美的构图，不重不漏地渲染"页面文字"段落中的文本。
+- 根据内容和要求自动设计最完美的构图，不重不漏地渲染"页面文字"段落中的文本。
 - 如非必要，禁止出现 markdown 格式符号（如 # 和 * 等）。
 {forbidden_template_text_guidline}
 </design_guidelines>
