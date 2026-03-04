@@ -664,33 +664,20 @@ def download_materials_zip():
     if len(ids) > MAX_BATCH:
         return bad_request(f"Too many materials requested (max {MAX_BATCH})")
 
-    rows = Material.query.filter(Material.id.in_(ids)).all()
+    user = get_current_user()
+    rows = Material.query.filter(
+        Material.user_id == user.id,
+        Material.id.in_(ids)
+    ).all()
     if not rows:
         return not_found('Materials')
 
     tmp = tempfile.SpooledTemporaryFile(max_size=64 * 1024 * 1024)
     try:
-<<<<<<< HEAD
-        user = get_current_user()
-        data = request.get_json() or {}
-        material_ids = data.get('material_ids', [])
-
-        if not material_ids or not isinstance(material_ids, list):
-            return bad_request("material_ids must be a non-empty array")
-
-        # Query materials (only user's materials)
-        materials = Material.query.filter(
-            Material.user_id == user.id,
-            Material.id.in_(material_ids)
-        ).all()
-
-        if not materials:
-            return not_found('Materials')
-
         fs = FileService(current_app.config['UPLOAD_FOLDER'])
 
         with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for row in materials:
+            for row in rows:
                 abs_path = Path(fs.get_absolute_path(row.relative_path))
                 if not abs_path.is_file():
                     current_app.logger.warning("Skipping missing file for material %s", row.id)

@@ -268,13 +268,11 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
 def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
     """Factory: return the appropriate image-generation provider.
 
-    Note: OpenAI format does NOT support 4K resolution — only 1K is available.
-    Use Gemini or Vertex AI for higher resolution output.
-    """
-<<<<<<< HEAD
-    Factory function to get image generation provider based on configuration.
     If image_provider_pool is configured with enabled channels, returns
     AggregatedImageProvider; otherwise falls back to single-provider logic.
+
+    Note: OpenAI format does NOT support 4K resolution — only 1K is available.
+    Use Gemini or Vertex AI for higher resolution output.
     """
     # Check pool config first
     try:
