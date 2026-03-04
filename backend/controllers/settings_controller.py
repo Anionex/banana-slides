@@ -24,7 +24,35 @@ settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
 
-# Fields that non-admin users can view and modify
+# 所有可能的设置字段（用于验证）
+ALL_SETTINGS_FIELDS = {
+    'ai_provider_format', 'api_base_url', 'api_key',
+    'text_model', 'image_model', 'image_caption_model',
+    'mineru_api_base', 'mineru_token',
+    'image_resolution', 'image_aspect_ratio',
+    'max_description_workers', 'max_image_workers',
+    'output_language',
+    'enable_text_reasoning', 'text_thinking_budget',
+    'enable_image_reasoning', 'image_thinking_budget',
+    'baidu_api_key'
+}
+
+# 敏感字段（不应泄露给用户请求）
+SENSITIVE_FIELDS = {'api_key', 'mineru_token', 'baidu_api_key'}
+
+
+def get_user_editable_fields():
+    """动态获取用户可编辑字段"""
+    try:
+        config = SystemConfig.get_instance()
+        return set(config.get_user_editable_fields())
+    except Exception as e:
+        logger.warning(f"Failed to get user editable fields from SystemConfig: {e}")
+        # 回退到默认值
+        return {'output_language', 'image_resolution', 'image_aspect_ratio'}
+
+
+# 保持向后兼容的静态变量（实际使用动态获取）
 USER_EDITABLE_FIELDS = {'output_language', 'image_resolution', 'image_aspect_ratio'}
 
 
@@ -841,8 +869,42 @@ def run_settings_test(test_name: str):
     """
     try:
         user = get_current_user()
-        # 获取请求体中的测试设置覆盖（如果有）
-        test_settings = request.get_json() or {}
+        # 从数据库加载用户已保存的设置作为基础
+        user_settings = UserSettings.get_or_create_for_user(user.id)
+
+        # 构建基础测试设置（使用数据库中已保存的值）
+        test_settings = {}
+        if user_settings.api_key:
+            test_settings["api_key"] = user_settings.api_key
+        if user_settings.api_base_url:
+            test_settings["api_base_url"] = user_settings.api_base_url
+        if user_settings.ai_provider_format:
+            test_settings["ai_provider_format"] = user_settings.ai_provider_format
+        if user_settings.text_model:
+            test_settings["text_model"] = user_settings.text_model
+        if user_settings.image_model:
+            test_settings["image_model"] = user_settings.image_model
+        if user_settings.image_caption_model:
+            test_settings["image_caption_model"] = user_settings.image_caption_model
+        if user_settings.mineru_api_base:
+            test_settings["mineru_api_base"] = user_settings.mineru_api_base
+        if user_settings.mineru_token:
+            test_settings["mineru_token"] = user_settings.mineru_token
+        if user_settings.baidu_api_key:
+            test_settings["baidu_api_key"] = user_settings.baidu_api_key
+        if user_settings.image_resolution:
+            test_settings["image_resolution"] = user_settings.image_resolution
+        # 推理模式设置
+        test_settings["enable_text_reasoning"] = user_settings.enable_text_reasoning
+        test_settings["text_thinking_budget"] = user_settings.text_thinking_budget
+        test_settings["enable_image_reasoning"] = user_settings.enable_image_reasoning
+        test_settings["image_thinking_budget"] = user_settings.image_thinking_budget
+
+        # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
+        override_settings = request.get_json() or {}
+        if override_settings:
+            logger.info(f"Applying test setting overrides: {list(override_settings.keys())}")
+            test_settings.update(override_settings)
 
         # 创建任务记录（使用特殊的 project_id='settings-test'）
         task = Task(

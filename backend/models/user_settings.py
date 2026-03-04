@@ -45,7 +45,7 @@ class UserSettings(db.Model):
     image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
     
     # Third-party API keys
-    baidu_ocr_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
+    baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
     
     # Timestamps
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -76,7 +76,7 @@ class UserSettings(db.Model):
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
-            'baidu_ocr_api_key_length': len(self.baidu_ocr_api_key) if self.baidu_ocr_api_key else 0,
+            'baidu_api_key_length': len(self.baidu_api_key) if self.baidu_api_key else 0,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -115,7 +115,7 @@ class UserSettings(db.Model):
                 mineru_token=Config.MINERU_TOKEN,
                 image_caption_model=Config.IMAGE_CAPTION_MODEL,
                 output_language='zh',
-                baidu_ocr_api_key=Config.BAIDU_API_KEY or None,
+                baidu_api_key=Config.BAIDU_API_KEY or None,
             )
             db.session.add(settings)
             db.session.commit()
