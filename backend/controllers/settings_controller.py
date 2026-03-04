@@ -274,6 +274,13 @@ def update_settings():
                 return bad_request("Each extra field must be a non-empty string")
             settings.description_extra_fields = json.dumps([f.strip() for f in fields], ensure_ascii=False)
 
+        if "image_prompt_extra_fields" in data:
+            fields = data["image_prompt_extra_fields"]
+            if not isinstance(fields, list):
+                return bad_request("image_prompt_extra_fields must be an array of strings")
+            # 空数组表示不传任何额外字段给图片生成
+            settings.image_prompt_extra_fields = json.dumps([f.strip() for f in fields if isinstance(f, str) and f.strip()], ensure_ascii=False)
+
         # Update reasoning mode configuration (separate for text and image)
         if "enable_text_reasoning" in data:
             settings.enable_text_reasoning = bool(data["enable_text_reasoning"])
@@ -375,6 +382,7 @@ def reset_settings():
         settings.image_thinking_budget = 1024
         settings.description_generation_mode = None
         settings.description_extra_fields = None
+        settings.image_prompt_extra_fields = None
         settings.baidu_api_key = None
         settings.text_model_source = None
         settings.image_model_source = None

@@ -16,7 +16,6 @@ export type DescriptionContent =
       // 格式1: 后端返回的纯文本格式
       text: string;
       extra_fields?: Record<string, string>;
-      image_prompt_fields?: string[]; // 哪些额外字段传入文生图（不设则全部传入）
       layout_suggestion?: string; // 向后兼容
     }
   | {
@@ -24,7 +23,6 @@ export type DescriptionContent =
       title: string;
       text_content: string[];
       extra_fields?: Record<string, string>;
-      image_prompt_fields?: string[]; // 哪些额外字段传入文生图（不设则全部传入）
       layout_suggestion?: string; // 向后兼容
     };
 
@@ -147,6 +145,7 @@ export interface Settings {
   description_generation_mode: 'streaming' | 'parallel';
   // 描述额外字段
   description_extra_fields?: string[];
+  image_prompt_extra_fields?: string[];
   // 推理模式配置（分别控制文本和图像）
   enable_text_reasoning: boolean;
   text_thinking_budget: number;

@@ -38,6 +38,7 @@ class Settings(db.Model):
 
     # 描述额外字段配置: JSON 数组如 ["排版布局", "视觉素材"] (NULL=默认 DEFAULT_EXTRA_FIELDS)
     description_extra_fields = db.Column(db.Text, nullable=True)
+    image_prompt_extra_fields = db.Column(db.Text, nullable=True)  # JSON array: 哪些额外字段传入文生图 prompt
 
     # 百度 API 配置
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 API Key
@@ -77,6 +78,18 @@ class Settings(db.Model):
                 pass
         return list(self.DEFAULT_EXTRA_FIELDS)
 
+    def get_image_prompt_extra_fields(self):
+        """Return parsed list of extra fields to include in image prompts."""
+        if self.image_prompt_extra_fields:
+            try:
+                fields = json.loads(self.image_prompt_extra_fields)
+                if isinstance(fields, list):
+                    return fields
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # 默认全部启用
+        return self.get_description_extra_fields()
+
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
         d = Settings._get_config_defaults()
@@ -103,6 +116,7 @@ class Settings(db.Model):
             'output_language': self._val('output_language', d),
             'description_generation_mode': self._val('description_generation_mode', d) or 'streaming',
             'description_extra_fields': self.get_description_extra_fields(),
+            'image_prompt_extra_fields': self.get_image_prompt_extra_fields(),
             'enable_text_reasoning': self.enable_text_reasoning,
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,

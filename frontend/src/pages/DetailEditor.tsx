@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
@@ -115,9 +115,11 @@ const SortableFieldPill: React.FC<{
   name: string;
   active: boolean;
   removable?: boolean;
+  inImagePrompt?: boolean;
   onToggle: () => void;
   onRemove: () => void;
-}> = ({ name, active, onToggle, onRemove, removable = true }) => {
+  onToggleImagePrompt?: () => void;
+}> = ({ name, active, onToggle, onRemove, removable = true, inImagePrompt, onToggleImagePrompt }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name });
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -142,6 +144,16 @@ const SortableFieldPill: React.FC<{
       onClick={onToggle}
     >
       {name}
+      {active && onToggleImagePrompt && (
+        <span
+          role="button"
+          title={inImagePrompt ? '已传入文生图' : '未传入文生图'}
+          className={`ml-0.5 transition-colors ${inImagePrompt ? 'text-banana-500' : 'text-gray-300 dark:text-gray-600'}`}
+          onClick={e => { e.stopPropagation(); onToggleImagePrompt(); }}
+        >
+          <ImageIcon size={10} />
+        </span>
+      )}
       {!active && removable && (
         <span
           role="button"
@@ -179,6 +191,7 @@ export const DetailEditor: React.FC = () => {
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
   const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
+  const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
@@ -207,6 +220,7 @@ export const DetailEditor: React.FC = () => {
         setGenerationMode(s.description_generation_mode || 'streaming');
         const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局'];
         setExtraFieldNames(activeFields);
+        if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
           const merged = [...new Set([...prev, ...activeFields])];
@@ -724,6 +738,14 @@ export const DetailEditor: React.FC = () => {
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
                                   saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局'] });
+                                }}
+                                inImagePrompt={imagePromptFields.includes(name)}
+                                onToggleImagePrompt={() => {
+                                  const next = imagePromptFields.includes(name)
+                                    ? imagePromptFields.filter(f => f !== name)
+                                    : [...imagePromptFields, name];
+                                  setImagePromptFields(next);
+                                  saveSettingsDebounced({ image_prompt_extra_fields: next });
                                 }}
                                 onRemove={() => {
                                   const nextPool = availableFields.filter(f => f !== name);

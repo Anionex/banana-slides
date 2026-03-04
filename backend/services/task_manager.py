@@ -15,22 +15,28 @@ from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
 
-def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
-    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。
+def _get_image_prompt_field_names() -> set | None:
+    """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
+    try:
+        from models import Settings
+        settings = Settings.get_settings()
+        if settings.image_prompt_extra_fields is None:
+            return None  # 未配置 → 全部允许
+        return set(settings.get_image_prompt_extra_fields())
+    except Exception:
+        return None
 
-    仅追加 image_prompt_fields 中列出的字段；若 image_prompt_fields 未设置则全部追加。
-    """
+
+def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
         return desc_text
-    image_prompt_fields = desc_content.get('image_prompt_fields')  # None = 全部, [] = 不追加
+    allowed = _get_image_prompt_field_names()
     parts = [desc_text]
     for name, value in extra_fields.items():
-        if not value:
-            continue
-        if image_prompt_fields is not None and name not in image_prompt_fields:
-            continue
-        parts.append(f"\n{name}：{value}")
+        if value and (allowed is None or name in allowed):
+            parts.append(f"\n{name}：{value}")
     return ''.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
