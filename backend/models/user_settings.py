@@ -46,7 +46,8 @@ class UserSettings(db.Model):
     
     # Third-party API keys
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
-    
+    lazyllm_api_keys = db.Column(db.Text, nullable=True)  # JSON: {"qwen": "key1", "doubao": "key2", ...}
+
     # Timestamps
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), 
@@ -80,6 +81,16 @@ class UserSettings(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
+
+    def get_lazyllm_api_keys_dict(self):
+        """Parse lazyllm_api_keys JSON into a dict."""
+        import json
+        if not self.lazyllm_api_keys:
+            return {}
+        try:
+            return json.loads(self.lazyllm_api_keys)
+        except (json.JSONDecodeError, TypeError):
+            return {}
 
     @staticmethod
     def get_or_create_for_user(user_id: str) -> 'UserSettings':
