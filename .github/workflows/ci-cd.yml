@@ -150,10 +150,17 @@ jobs:
           cd frontend
           npm run build
 
-  docker-test:
-    name: Docker Environment Tests
+  docker-build-test-push:
+    name: Docker Build, Test & Push
     runs-on: ubuntu-latest
     needs: [backend-integration-test, frontend-test]
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.tag }}
     env:
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
@@ -325,6 +332,41 @@ jobs:
           docker compose down -v
           docker system prune -f
 
+      # Push images to GHCR (only on main branch, after tests pass)
+      - name: Set image tag
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: image-tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push images
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          TAG="${{ steps.image-tag.outputs.tag }}"
+
+          # Tag backend
+          docker tag banana-slides-saas-backend:latest ${{ env.BACKEND_IMAGE }}:${TAG}
+          docker tag banana-slides-saas-backend:latest ${{ env.BACKEND_IMAGE }}:latest
+
+          # Tag frontend
+          docker tag banana-slides-saas-frontend:latest ${{ env.FRONTEND_IMAGE }}:${TAG}
+          docker tag banana-slides-saas-frontend:latest ${{ env.FRONTEND_IMAGE }}:latest
+
+          # Push all tags
+          docker push ${{ env.BACKEND_IMAGE }}:${TAG}
+          docker push ${{ env.BACKEND_IMAGE }}:latest
+          docker push ${{ env.FRONTEND_IMAGE }}:${TAG}
+          docker push ${{ env.FRONTEND_IMAGE }}:latest
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -353,7 +395,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [backend-unit-test, backend-integration-test, frontend-test, docker-test, security-scan]
+    needs: [backend-unit-test, backend-integration-test, frontend-test, docker-build-test-push, security-scan]
     if: always()
 
     steps:
@@ -362,14 +404,14 @@ jobs:
           needs.backend-unit-test.result != 'success' ||
           needs.backend-integration-test.result != 'success' ||
           needs.frontend-test.result != 'success' ||
-          needs.docker-test.result != 'success' ||
+          needs.docker-build-test-push.result != 'success' ||
           needs.security-scan.result == 'failure'
         run: |
           echo "Test Results:"
           echo "  Backend unit tests: ${{ needs.backend-unit-test.result }}"
           echo "  Backend integration tests: ${{ needs.backend-integration-test.result }}"
           echo "  Frontend tests: ${{ needs.frontend-test.result }}"
-          echo "  Docker environment tests: ${{ needs.docker-test.result }}"
+          echo "  Docker environment tests: ${{ needs.docker-build-test-push.result }}"
           echo "  Security scan: ${{ needs.security-scan.result }}"
           echo "Some tests failed!"
           exit 1
@@ -379,7 +421,7 @@ jobs:
           needs.backend-unit-test.result == 'success' &&
           needs.backend-integration-test.result == 'success' &&
           needs.frontend-test.result == 'success' &&
-          needs.docker-test.result == 'success' &&
+          needs.docker-build-test-push.result == 'success' &&
           needs.security-scan.result != 'failure'
         run: echo "All tests passed!"
 
@@ -459,13 +501,14 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ================================
-  # Stage 3: Deploy to Staging
-  # Only after successful build on main
+  # Stage 2: Deploy to Staging
+  # Only after successful tests on main
   # ================================
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [build-and-push]
+    needs: [test-summary]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
       - name: Deploy to staging via SSH
