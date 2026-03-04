@@ -471,7 +471,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
         original_input = project_context.idea_prompt or ""
 
     detail_level_specs = {
-        'concise': '文字极致地压缩和精简',
+        'concise': '文字极致地压缩和精简，每条要点用一个核心词语或数据代替，例如效率↑80%',
         'default': '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
         'detailed': '忠于原文的基础上做到内容详实，逻辑清晰。',
     }
@@ -500,10 +500,10 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 ## 输出格式
 ```
 <!-- BEGIN -->
-[第1页文字内容，可包含标题、副标题、要点、latex公式、表格等]
+页面文字: [第1页文字内容，可包含标题、副标题、要点、latex公式、表格等，需要根据实际需求选择，避免堆砌和重复]
 {_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
-[第2页文字内容]
+页面文字: [第2页文字内容，可包含标题、副标题、要点、latex公式、表格等]
 {_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
 ...
@@ -561,7 +561,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
     # 根据是否有模板生成不同的设计指南内容（保持原prompt要点顺序）
     template_style_guideline = "- 配色和设计语言和模板图片严格相似。" if has_template else "- 严格按照风格描述进行设计。"
     forbidden_template_text_guidline = "- 只参考风格设计，禁止出现模板中的文字。\n" if has_template else ""
-
+# - 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
     # 该处参考了@歸藏的A工具箱
     prompt = (f"""\
 你是一位专家级UI UX演示设计师，专注于生成设计良好的PPT页面。
@@ -573,9 +573,9 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
 {template_style_guideline}
-- 根据内容自动设计最完美的构图，不重不漏地渲染"页面描述"中的文本。
+- 根据内容自动设计最完美的构图，不重不漏地渲染"页面文字"段落中的文本。
 - 如非必要，禁止出现 markdown 格式符号（如 # 和 * 等）。
-{forbidden_template_text_guidline}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
+{forbidden_template_text_guidline}
 </design_guidelines>
 {get_ppt_language_instruction(language)}
 {material_images_note}{extra_req_text}
