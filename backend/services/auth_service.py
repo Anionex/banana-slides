@@ -9,7 +9,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
 from sqlalchemy.exc import IntegrityError
 
-from models import db, User
+from models import db, User, SystemConfig
+from models.credit_transaction import CreditTransaction
+from services.credits_service import CreditOperation
 from utils.security import (
     hash_password,
     verify_password,
@@ -111,8 +113,6 @@ class AuthService:
 
             # Record registration bonus transaction
             if registration_bonus > 0:
-                from models.credit_transaction import CreditTransaction
-                from services.credits_service import CreditOperation
                 transaction = CreditTransaction(
                     user_id=user.id,
                     operation=CreditOperation.REGISTRATION.value,
@@ -143,8 +143,6 @@ class AuthService:
                         .values(credits_balance=User.credits_balance + invitation_bonus)
                     )
                     db.session.refresh(user)
-                    from models.credit_transaction import CreditTransaction
-                    from services.credits_service import CreditOperation
                     invitee_transaction = CreditTransaction(
                         user_id=user.id,
                         operation=CreditOperation.INVITATION.value,
@@ -582,3 +580,87 @@ class AuthService:
             db.session.rollback()
             logger.error(f"Password change failed: {e}")
             return False, "修改失败，请稍后重试"
+
+    # ==================== OIDC Login ====================
+
+    @staticmethod
+    def login_or_create_oidc_user(provider: str, oidc_sub: str, email: str, username: Optional[str] = None) -> Tuple[Optional[User], Optional[str]]:
+        """
+        Find or create user from OIDC provider info
+
+        Args:
+            provider: OIDC provider name (e.g., 'google')
+            oidc_sub: OIDC subject ID (unique identifier from provider)
+            email: User's email from OIDC provider
+            username: Optional username from OIDC provider
+
+        Returns:
+            Tuple of (User, error_message)
+        """
+        email = email.lower().strip()
+
+        # Try to find existing OIDC user
+        user = User.query.filter_by(oidc_provider=provider, oidc_sub=oidc_sub).first()
+        if user:
+            if not user.is_active:
+                return None, "账户已被禁用"
+            user.last_login_at = datetime.now(timezone.utc)
+            db.session.commit()
+            logger.info(f"OIDC user logged in: {user.id} ({email})")
+            return user, None
+
+        # Check if email already exists (password-based account)
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return None, "该邮箱已使用密码注册，请使用密码登录"
+
+        # Create new OIDC user
+        try:
+            registration_bonus = 50
+            try:
+                config = SystemConfig.get_instance()
+                registration_bonus = config.registration_bonus
+            except Exception as e:
+                logger.warning(f"Failed to get registration bonus: {e}")
+
+            user = User(
+                email=email,
+                password_hash=None,
+                username=username,
+                oidc_provider=provider,
+                oidc_sub=oidc_sub,
+                email_verified=True,
+                subscription_plan='free',
+                credits_balance=registration_bonus,
+                ai_calls_reset_at=datetime.now(timezone.utc)
+            )
+
+            db.session.add(user)
+            db.session.flush()
+
+            if registration_bonus > 0:
+                transaction = CreditTransaction(
+                    user_id=user.id,
+                    operation=CreditOperation.REGISTRATION.value,
+                    amount=registration_bonus,
+                    balance_after=user.credits_balance,
+                    description="OIDC 注册奖励"
+                )
+                db.session.add(transaction)
+
+            db.session.commit()
+            logger.info(f"OIDC user created: {user.id} ({email}), provider={provider}")
+            return user, None
+
+        except IntegrityError:
+            db.session.rollback()
+            logger.warning(f"Race condition during OIDC user creation for {email}, retrying.")
+            user = User.query.filter_by(oidc_provider=provider, oidc_sub=oidc_sub).first()
+            if user:
+                return user, None
+            logger.error(f"OIDC user creation failed with IntegrityError but user not found: {email}")
+            return None, "登录失败，请稍后重试"
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"OIDC user creation failed: {e}")
+            return None, "登录失败，请稍后重试"

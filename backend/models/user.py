@@ -11,10 +11,17 @@ class User(db.Model):
     User model - represents a registered user
     """
     __tablename__ = 'users'
+    __table_args__ = (
+        db.Index('idx_oidc_provider_sub', 'oidc_provider', 'oidc_sub', unique=True),
+    )
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
+
+    # OIDC fields
+    oidc_provider = db.Column(db.String(50), nullable=True)
+    oidc_sub = db.Column(db.String(255), nullable=True)
     username = db.Column(db.String(100), nullable=True)
     avatar_url = db.Column(db.String(500), nullable=True)
     

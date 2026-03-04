@@ -21,6 +21,7 @@ import {
   VerifyEmailPage,
   ChangePasswordPage
 } from './pages/auth';
+import OIDCCallbackPage from './pages/auth/OIDCCallbackPage';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
 import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs, AdminAnnouncements } from './pages/admin';
@@ -91,6 +92,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/auth/oidc/callback" element={<OIDCCallbackPage />} />
         <Route path="/landing" element={<Landing />} />
 
         {/* Protected routes */}

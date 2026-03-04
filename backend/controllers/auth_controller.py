@@ -3,9 +3,11 @@ Authentication Controller - handles auth-related API endpoints
 """
 import os
 import logging
-from flask import Blueprint, request
+import secrets
+from flask import Blueprint, request, session
 
 from services.auth_service import AuthService
+from services.oidc_service import OIDCService
 from services.email_service import email_service
 from middlewares.auth import auth_required, get_current_user
 from utils.response import success_response, error_response, bad_request
@@ -487,3 +489,88 @@ def change_password():
     except Exception as e:
         logger.error(f"Change password error: {e}", exc_info=True)
         return error_response('SERVER_ERROR', '修改失败，请稍后重试', 500)
+
+
+@auth_bp.route('/oidc/login', methods=['GET'])
+@rate_limit(max_requests=10, window_seconds=900)
+def oidc_login():
+    """Initiate OIDC login flow"""
+    try:
+        provider = request.args.get('provider', 'google')
+
+        oidc = OIDCService(provider)
+        state = secrets.token_urlsafe(32)
+
+        # Save state in session for verification
+        session[f'oidc_state_{provider}'] = state
+
+        auth_url = oidc.get_authorization_url(state)
+
+        return success_response({'auth_url': auth_url, 'state': state})
+    except ValueError as e:
+        logger.error(f"OIDC configuration error: {e}", exc_info=True)
+        return error_response('OIDC_ERROR', 'OIDC 配置错误，请联系管理员', 500)
+    except Exception as e:
+        logger.error(f"OIDC login error: {e}", exc_info=True)
+        return error_response('OIDC_ERROR', '登录失败，请稍后重试', 500)
+
+
+@auth_bp.route('/oidc/callback', methods=['GET'])
+@rate_limit(max_requests=10, window_seconds=900)
+def oidc_callback():
+    """Handle OIDC callback"""
+    try:
+        code = request.args.get('code')
+        state = request.args.get('state')
+        provider = request.args.get('provider', 'google')
+
+        if not code:
+            return bad_request("缺少授权码")
+
+        # Verify state parameter (CSRF protection)
+        saved_state = session.pop(f'oidc_state_{provider}', None)
+        if not state or state != saved_state:
+            return error_response('CSRF_ERROR', '安全验证失败', 400)
+
+        oidc = OIDCService(provider)
+
+        token = oidc.exchange_code(code)
+        user_info = oidc.get_user_info(token['access_token'])
+
+        if not user_info:
+            return error_response('OIDC_ERROR', '获取用户信息失败', 400)
+
+        if not user_info.get('email_verified', False):
+            return error_response('OIDC_ERROR', '您的邮箱未在提供商处验证', 400)
+
+        oidc_sub = user_info.get('sub')
+        email = user_info.get('email')
+
+        if not oidc_sub or not email:
+            return error_response('OIDC_ERROR', '从 OIDC 提供商获取的用户信息不完整', 400)
+
+        user, error = AuthService.login_or_create_oidc_user(
+            provider=provider,
+            oidc_sub=oidc_sub,
+            email=email,
+            username=user_info.get('name')
+        )
+
+        if error:
+            return error_response('LOGIN_FAILED', error, 400)
+
+        access_token = AuthService.generate_access_token(user)
+        refresh_token = AuthService.generate_refresh_token(user, remember_me=True)
+
+        return success_response({
+            'user': user.to_dict(),
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'token_type': 'Bearer',
+            'expires_in': AuthService.ACCESS_TOKEN_EXPIRES
+        })
+
+    except Exception as e:
+        logger.error(f"OIDC callback error: {e}", exc_info=True)
+        return error_response('SERVER_ERROR', '登录失败，请稍后重试', 500)
+
