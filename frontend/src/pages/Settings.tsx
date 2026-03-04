@@ -429,6 +429,22 @@ export const Settings: React.FC = () => {
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
+  const copyToClipboard = (text: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    show({ message: '链接已复制到剪贴板', type: 'success' });
+  };
+
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -823,10 +839,7 @@ export const Settings: React.FC = () => {
                             点击此处访问 AIHubmix →
                           </a>
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText('https://aihubmix.com/?aff=17EC');
-                              show({ message: '链接已复制到剪贴板', type: 'success' });
-                            }}
+                            onClick={() => copyToClipboard('https://aihubmix.com/?aff=17EC')}
                             className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
                           >
                             复制链接
