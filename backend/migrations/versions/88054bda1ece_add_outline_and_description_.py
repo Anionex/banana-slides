@@ -1,7 +1,7 @@
 """add outline and description requirements to projects
 
 Revision ID: 88054bda1ece
-Revises: 015
+Revises: 127d2cf53e77
 Create Date: 2026-03-01 21:57:23.450061
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '88054bda1ece'
-down_revision = '015'
+down_revision = '127d2cf53e77'
 branch_labels = None
 depends_on = None
 

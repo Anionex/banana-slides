@@ -1,6 +1,6 @@
 """add lazyllm source fields to settings table
 
-Revision ID: 013
+Revision ID: 5dc8c97f6d9f
 Revises: 012
 Create Date: 2026-02-13
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '013'
+revision = '5dc8c97f6d9f'
 down_revision = '012'
 branch_labels = None
 depends_on = None

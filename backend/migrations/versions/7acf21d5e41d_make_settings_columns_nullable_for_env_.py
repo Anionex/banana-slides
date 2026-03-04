@@ -1,7 +1,7 @@
 """make settings columns nullable for env fallback
 
 Revision ID: 7acf21d5e41d
-Revises: 014
+Revises: 6f0b2879a67c
 Create Date: 2026-02-23 14:22:40.719334
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '7acf21d5e41d'
-down_revision = '014'
+down_revision = '6f0b2879a67c'
 branch_labels = None
 depends_on = None
 

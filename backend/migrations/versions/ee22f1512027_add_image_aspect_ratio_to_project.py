@@ -1,7 +1,7 @@
 """add image_aspect_ratio to project
 
 Revision ID: ee22f1512027
-Revises: 013
+Revises: 5dc8c97f6d9f
 Create Date: 2026-02-14 01:58:15.948064
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'ee22f1512027'
-down_revision = '013'
+down_revision = '5dc8c97f6d9f'
 branch_labels = None
 depends_on = None
 

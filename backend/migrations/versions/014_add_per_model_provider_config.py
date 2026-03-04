@@ -1,7 +1,7 @@
 """add per-model provider config fields to settings table
 
-Revision ID: 014
-Revises: 013
+Revision ID: 6f0b2879a67c
+Revises: ee22f1512027
 Create Date: 2026-02-16
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '014'
+revision = '6f0b2879a67c'
 down_revision = 'ee22f1512027'
 branch_labels = None
 depends_on = None

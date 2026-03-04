@@ -1,6 +1,6 @@
 """rename baidu_ocr_api_key to baidu_api_key
 
-Revision ID: 015
+Revision ID: 127d2cf53e77
 Revises: 7acf21d5e41d
 Create Date: 2026-02-26
 
@@ -9,7 +9,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = '015'
+revision = '127d2cf53e77'
 down_revision = '7acf21d5e41d'
 branch_labels = None
 depends_on = None
