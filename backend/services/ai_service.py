@@ -543,12 +543,13 @@ class AIService:
         result = "\n".join(text_parts)
         return dedent(result)
     
-    def generate_image_prompt(self, outline: List[Dict], page: Dict, 
-                            page_desc: str, page_index: int, 
+    def generate_image_prompt(self, outline: List[Dict], page: Dict,
+                            page_desc: str, page_index: int,
                             has_material_images: bool = False,
                             extra_requirements: Optional[str] = None,
                             language='zh',
-                            has_template: bool = True) -> str:
+                            has_template: bool = True,
+                            aspect_ratio: str = "16:9") -> str:
         """
         Generate image generation prompt for a page
         Based on demo.py gen_prompts()
@@ -586,7 +587,8 @@ class AIService:
             extra_requirements=extra_requirements,
             language=language,
             has_template=has_template,
-            page_index=page_index
+            page_index=page_index,
+            aspect_ratio=aspect_ratio
         )
         
         return prompt
