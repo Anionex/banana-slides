@@ -108,13 +108,16 @@ import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtil
 // };
 // const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
 
+const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局']);
+
 // 可拖拽排序的额外字段胶囊
 const SortableFieldPill: React.FC<{
   name: string;
   active: boolean;
+  removable?: boolean;
   onToggle: () => void;
   onRemove: () => void;
-}> = ({ name, active, onToggle, onRemove }) => {
+}> = ({ name, active, onToggle, onRemove, removable = true }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name });
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -139,7 +142,7 @@ const SortableFieldPill: React.FC<{
       onClick={onToggle}
     >
       {name}
-      {!active && (
+      {!active && removable && (
         <span
           role="button"
           className="opacity-0 group-hover:opacity-100 ml-0.5 text-gray-400 hover:text-red-500 transition-all"
@@ -714,6 +717,7 @@ export const DetailEditor: React.FC = () => {
                                 key={name}
                                 name={name}
                                 active={active}
+                                removable={!PRESET_EXTRA_FIELDS.has(name)}
                                 onToggle={() => {
                                   const next = active
                                     ? extraFieldNames.filter(f => f !== name)
