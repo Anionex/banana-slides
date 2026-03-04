@@ -114,18 +114,31 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
     return '\n'.join(xml_parts)
 
 
-def _format_requirements(requirements: str) -> str:
-    """格式化用户提供的生成要求，返回可直接拼接到 prompt 中的文本段"""
+def _format_requirements(requirements: str, context: str = "outline") -> str:
+    """格式化用户提供的生成要求，返回可直接拼接到 prompt 中的文本段。
+
+    context: "outline" 或 "description"，用于生成对应的结构标记示例。
+    """
     if requirements and requirements.strip():
+        if context == "description":
+            marker_example = (
+                "For example, if the user asks to avoid certain symbols, "
+                "do NOT use them in the page content, but still use structural markers "
+                "like '页面文字：', '图片素材：', and '<!-- PAGE_END -->' as-is."
+            )
+        else:
+            marker_example = (
+                "For example, if the user asks to avoid '#' symbols, "
+                "do NOT use '#' in the page content, but still use '## Title' as "
+                "the structural heading delimiter between pages."
+            )
         return (
             "<user_requirements>\n"
             f"{requirements.strip()}\n"
             "</user_requirements>\n"
             "Note: The requirements above apply to the generated content of each page and "
             "take precedence over other content-related instructions. The required output format "
-            "and structural markers must still be used as-is. For example, if the user asks to "
-            "avoid '#' symbols, do NOT use '#' in the page content, but still use '## Title' as "
-            "the structural heading delimiter between pages.\n\n"
+            f"and structural markers must still be used as-is. {marker_example}\n\n"
         )
     return ""
 
@@ -414,7 +427,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
 我们已经有了完整的大纲：\n{outline}\n{part_info}
-{_format_requirements(project_context.description_requirements)}现在请为第 {page_index} 页生成描述：
+{_format_requirements(project_context.description_requirements, "description")}现在请为第 {page_index} 页生成描述：
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
 ## 重要提示
@@ -490,7 +503,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 完整大纲如下：
 {pages_outline_text}
 
-{_format_requirements(project_context.description_requirements)}请为每一页依次生成描述。先输出 `<!-- BEGIN -->` 标记开始，然后逐页输出内容，每页用 `<!-- PAGE_END -->` 结束，全部完成后输出 `<!-- END -->`。
+{_format_requirements(project_context.description_requirements, "description")}请为每一页依次生成描述。先输出 `<!-- BEGIN -->` 标记开始，然后逐页输出内容，每页用 `<!-- PAGE_END -->` 结束，全部完成后输出 `<!-- END -->`。
 
 ## 重要提示
 - 生成的页面文字会直接渲染到PPT页面上，请务必不要包含任何额外的说明性文字或注释。
@@ -505,7 +518,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 [第1页文字内容，可包含标题、副标题、要点、latex公式、表格等，根据实际需求选择，避免堆砌和重复]
 
 图片素材：
-[如果参考文件中存在相关图片，以markdown格式引用，如 ![描述](/files/xxx/image.png)；否则省略此部分]
+[如果参考文件中存在相关图片，以markdown格式引用，如 ![描述](/files/xxx/image.png)；否则省略此部分。如果用户上传了图片素材请积极地添加]
 {_format_extra_field_instructions(extra_fields)}
 <!-- PAGE_END -->
 页面文字：
