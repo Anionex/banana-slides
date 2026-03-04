@@ -12,6 +12,7 @@ from utils import (
     error_response, not_found, bad_request, success_response,
     parse_page_ids_from_query, parse_page_ids_from_body, get_filtered_pages
 )
+from utils.config_utils import get_user_config
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
 
@@ -272,7 +273,13 @@ def export_editable_pptx(project_id):
         export_extractor_method = project.export_extractor_method or 'hybrid'
         export_inpaint_method = project.export_inpaint_method or 'hybrid'
         logger.info(f"Export settings: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
-        
+
+        # 在请求上下文中捕获用户配置，供后台任务使用（后台线程无请求上下文）
+        user_config = {
+            'MINERU_TOKEN': get_user_config('MINERU_TOKEN'),
+            'MINERU_API_BASE': get_user_config('MINERU_API_BASE'),
+        }
+
         # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
         task_manager.submit_task(
             task.id,
@@ -285,6 +292,7 @@ def export_editable_pptx(project_id):
             max_workers=max_workers,
             export_extractor_method=export_extractor_method,
             export_inpaint_method=export_inpaint_method,
+            user_config=user_config,
             app=app
         )
         

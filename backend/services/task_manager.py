@@ -1092,8 +1092,8 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
 
 
 def export_editable_pptx_with_recursive_analysis_task(
-    task_id: str, 
-    project_id: str, 
+    task_id: str,
+    project_id: str,
     filename: str,
     file_service,
     page_ids: list = None,
@@ -1101,6 +1101,7 @@ def export_editable_pptx_with_recursive_analysis_task(
     max_workers: int = 4,
     export_extractor_method: str = 'hybrid',
     export_inpaint_method: str = 'hybrid',
+    user_config: dict = None,
     app=None
 ):
     """
@@ -1263,7 +1264,8 @@ def export_editable_pptx_with_recursive_analysis_task(
                 progress_callback=progress_callback,
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
-                fail_fast=fail_fast
+                fail_fast=fail_fast,
+                user_config=user_config
             )
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")

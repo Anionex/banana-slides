@@ -1018,7 +1018,8 @@ class ExportService:
         progress_callback = None,  # 可选：进度回调函数 (step, message, percent) -> None
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
-        fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
+        fail_fast: bool = True,  # 是否在遇到错误时立即停止（False则收集警告继续）
+        user_config: dict = None  # 用户配置（后台任务中无请求上下文时传入）
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -1077,13 +1078,19 @@ class ExportService:
             logger.info(f"开始使用递归分析方法创建可编辑PPTX，共 {total_pages} 页")
             report_progress("开始", f"准备分析 {total_pages} 页幻灯片...", 0)
             
-            # 1. 创建ImageEditabilityService（配置自动从 Flask config 获取，使用项目导出设置）
+            # 1. 创建ImageEditabilityService（使用项目导出设置 + 用户配置）
             logger.info(f"使用导出设置: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
-            config = ServiceConfig.from_defaults(
+            service_kwargs = dict(
                 max_depth=max_depth,
                 extractor_method=export_extractor_method,
-                inpaint_method=export_inpaint_method
+                inpaint_method=export_inpaint_method,
             )
+            if user_config:
+                if user_config.get('MINERU_TOKEN'):
+                    service_kwargs['mineru_token'] = user_config['MINERU_TOKEN']
+                if user_config.get('MINERU_API_BASE'):
+                    service_kwargs['mineru_api_base'] = user_config['MINERU_API_BASE']
+            config = ServiceConfig.from_defaults(**service_kwargs)
             editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
