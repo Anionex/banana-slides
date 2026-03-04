@@ -425,7 +425,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             has_material_images=has_material_images,
                             extra_requirements=extra_requirements,
                             language=language,
-                            has_template=use_template
+                            has_template=use_template,
+                            aspect_ratio=aspect_ratio
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
@@ -621,7 +622,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 has_material_images=has_material_images,
                 extra_requirements=extra_requirements,
                 language=language,
-                has_template=use_template
+                has_template=use_template,
+                aspect_ratio=aspect_ratio
             )
             
             # Generate image
