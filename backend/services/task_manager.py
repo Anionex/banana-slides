@@ -16,14 +16,21 @@ from utils.image_utils import check_image_resolution
 
 
 def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
-    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。
+
+    仅追加 image_prompt_fields 中列出的字段；若 image_prompt_fields 未设置则全部追加。
+    """
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
         return desc_text
+    image_prompt_fields = desc_content.get('image_prompt_fields')  # None = 全部, [] = 不追加
     parts = [desc_text]
     for name, value in extra_fields.items():
-        if value:
-            parts.append(f"\n{name}：{value}")
+        if not value:
+            continue
+        if image_prompt_fields is not None and name not in image_prompt_fields:
+            continue
+        parts.append(f"\n{name}：{value}")
     return ''.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages

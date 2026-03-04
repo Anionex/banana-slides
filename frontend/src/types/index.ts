@@ -16,6 +16,7 @@ export type DescriptionContent =
       // 格式1: 后端返回的纯文本格式
       text: string;
       extra_fields?: Record<string, string>;
+      image_prompt_fields?: string[]; // 哪些额外字段传入文生图（不设则全部传入）
       layout_suggestion?: string; // 向后兼容
     }
   | {
@@ -23,6 +24,7 @@ export type DescriptionContent =
       title: string;
       text_content: string[];
       extra_fields?: Record<string, string>;
+      image_prompt_fields?: string[]; // 哪些额外字段传入文生图（不设则全部传入）
       layout_suggestion?: string; // 向后兼容
     };
 

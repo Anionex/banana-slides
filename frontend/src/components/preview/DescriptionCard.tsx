@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus } from 'lucide-react';
+import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, ImageOff } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
@@ -17,7 +17,9 @@ const descriptionCardI18n = {
       uploadingImage: "正在上传图片...",
       descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片",
       coverPage: "封面",
-      coverPageTooltip: "第一页为封面页，默认保持简洁风格"
+      coverPageTooltip: "第一页为封面页，默认保持简洁风格",
+      inImagePrompt: "此字段会传入文生图",
+      notInImagePrompt: "此字段不传入文生图"
     }
   },
   en: {
@@ -28,7 +30,9 @@ const descriptionCardI18n = {
       uploadingImage: "Uploading image...",
       descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images",
       coverPage: "Cover",
-      coverPageTooltip: "This is the cover page, default to keep simple style"
+      coverPageTooltip: "This is the cover page, default to keep simple style",
+      inImagePrompt: "Included in image generation",
+      notInImagePrompt: "Excluded from image generation"
     }
   }
 };
@@ -84,6 +88,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
 
   const text = getDescriptionText(page.description_content);
   const extraFields = getExtraFields(page.description_content);
+  const imagePromptFields: string[] | undefined = page.description_content && 'image_prompt_fields' in page.description_content
+    ? page.description_content.image_prompt_fields : undefined;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -140,9 +146,32 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
       description_content: {
         text: editContent,
         ...(Object.keys(filteredFields).length > 0 ? { extra_fields: filteredFields } : {}),
+        ...(imagePromptFields !== undefined ? { image_prompt_fields: imagePromptFields } : {}),
       } as DescriptionContent,
     });
     setIsEditing(false);
+  };
+
+  const toggleImageField = (fieldName: string) => {
+    const current = imagePromptFields; // undefined = all included
+    const allNames = Object.keys(extraFields);
+    let next: string[];
+    if (current === undefined) {
+      // 当前全部传入 → 去掉这个
+      next = allNames.filter(n => n !== fieldName);
+    } else if (current.includes(fieldName)) {
+      next = current.filter(n => n !== fieldName);
+    } else {
+      next = [...current, fieldName];
+    }
+    // 如果全选了就设为 undefined（删掉 image_prompt_fields 键）
+    const allSelected = allNames.length > 0 && allNames.every(n => next.includes(n));
+    onUpdate({
+      description_content: {
+        ...page.description_content,
+        ...(allSelected ? { image_prompt_fields: undefined } : { image_prompt_fields: next }),
+      } as DescriptionContent,
+    });
   };
 
   // 合并已有和配置中的字段名（按配置顺序，附加已有但不在配置中的）
@@ -193,11 +222,22 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
                 if (!value) return null;
                 const FIELD_ICONS: Record<string, typeof Tag> = { '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout };
                 const FieldIcon = FIELD_ICONS[name] || Tag;
+                const inImagePrompt = imagePromptFields === undefined || imagePromptFields.includes(name);
                 return (
                   <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
-                      <FieldIcon size={12} />
-                      <span className="font-medium">{name}</span>
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <FieldIcon size={12} />
+                        <span className="font-medium">{name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        title={inImagePrompt ? t('descriptionCard.inImagePrompt') : t('descriptionCard.notInImagePrompt')}
+                        className={`p-0.5 rounded transition-colors ${inImagePrompt ? 'text-banana-500 hover:text-banana-600' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400'}`}
+                        onClick={() => toggleImageField(name)}
+                      >
+                        {inImagePrompt ? <Image size={12} /> : <ImageOff size={12} />}
+                      </button>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-foreground-tertiary"><Markdown>{value}</Markdown></div>
                   </div>
