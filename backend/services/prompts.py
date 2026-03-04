@@ -106,6 +106,22 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
     return '\n'.join(xml_parts)
 
 
+def _format_requirements(requirements: str) -> str:
+    """格式化用户提供的生成要求，返回可直接拼接到 prompt 中的文本段"""
+    if requirements and requirements.strip():
+        return (
+            "<user_requirements>\n"
+            f"{requirements.strip()}\n"
+            "</user_requirements>\n"
+            "Note: The requirements above apply to the generated content of each page and "
+            "take precedence over other content-related instructions. The required output format "
+            "and structural markers must still be used as-is. For example, if the user asks to "
+            "avoid '#' symbols, do NOT use '#' in the page content, but still use '## Title' as "
+            "the structural heading delimiter between pages.\n\n"
+        )
+    return ""
+
+
 def get_outline_generation_prompt(project_context: 'ProjectContext', language: str = None) -> str:
     """
     生成 PPT 大纲的 prompt
@@ -149,12 +165,132 @@ You can organize the content in two ways:
 Choose the format that best fits the content. Use parts when the PPT has clear major sections.
 Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
 
-The user's request: {idea_prompt}. Now generate the outline, don't include any other text.
+The user's request: {idea_prompt}.
+{_format_requirements(project_context.outline_requirements)}Now generate the outline, don't include any other text.
 {get_language_instruction(language)}
 """)
-    
+
     final_prompt = files_xml + prompt
     logger.debug(f"[get_outline_generation_prompt] Final prompt:\n{final_prompt}")
+    return final_prompt
+
+
+def get_outline_generation_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
+    """
+    生成 PPT 大纲的 prompt（Markdown 输出格式，用于流式生成）
+    """
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    idea_prompt = project_context.idea_prompt or ""
+
+    prompt = (f"""\
+You are a helpful assistant that generates an outline for a ppt.
+
+You can organize the content in two ways:
+
+1. Simple format (for short PPTs without major sections):
+## title1
+- point1
+- point2
+
+## title2
+- point1
+- point2
+
+2. Part-based format (for longer PPTs with major sections):
+# Part 1: Introduction
+## Welcome
+- point1
+- point2
+
+## Overview
+- point1
+- point2
+
+# Part 2: Main Content
+## Topic 1
+- point1
+- point2
+
+## Topic 2
+- point1
+- point2
+
+Constraints:
+- Title should not contain page number.
+- Choose the format that best fits the content. Use parts when the PPT has clear major sections. 
+- Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information. 
+
+The user's request: {idea_prompt}.
+{_format_requirements(project_context.outline_requirements)}Now generate the outline, strictly follow the format provided above, don't include any other text. Output `<!-- END -->` on the last line when finished.
+{get_language_instruction(language)}
+""")
+
+    final_prompt = files_xml + prompt
+    logger.debug(f"[get_outline_generation_prompt_markdown] Final prompt:\n{final_prompt}")
+    return final_prompt
+
+
+def get_outline_parsing_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
+    """
+    解析用户提供的大纲文本的 prompt（Markdown 输出格式，用于流式生成）
+    """
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    outline_text = project_context.outline_text or ""
+
+    prompt = (f"""\
+You are a helpful assistant that parses a user-provided PPT outline text into a structured Markdown format.
+
+The user has provided the following outline text:
+
+{outline_text}
+
+Your task is to analyze this text and convert it into a structured Markdown outline WITHOUT modifying any of the original text content.
+
+Output rules:
+- Use `# Part Name` for major sections (only if the text has clear parts/chapters)
+- Use `## Page Title` for each page
+- Use `- ` bullet points for key points under each page
+- Preserve all titles, points, and text exactly as provided
+- Do NOT wrap in code blocks or add any extra text
+
+Now parse the outline text above into the Markdown format. Output `<!-- END -->` on the last line when finished.
+{get_language_instruction(language)}
+""")
+
+    final_prompt = files_xml + prompt
+    logger.debug(f"[get_outline_parsing_prompt_markdown] Final prompt:\n{final_prompt}")
+    return final_prompt
+
+
+def get_description_to_outline_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
+    """
+    从描述文本解析出大纲的 prompt（Markdown 输出格式，用于流式生成）
+    """
+    files_xml = _format_reference_files_xml(project_context.reference_files_content)
+    description_text = project_context.description_text or ""
+
+    prompt = (f"""\
+You are a helpful assistant that analyzes a user-provided PPT description text and extracts the outline structure.
+
+The user has provided the following description text:
+
+{description_text}
+
+Your task is to extract the outline structure (titles and key points) for each page.
+
+Output rules:
+- Use `# Part Name` for major sections (only if the text has clear parts/chapters)
+- Use `## Page Title` for each page
+- Use `- ` bullet points for key points under each page
+- Preserve the logical structure from the original text
+- Do NOT wrap in code blocks or add any extra text
+
+Now extract the outline structure from the description text above. Output `<!-- END -->` on the last line when finished.
+{get_language_instruction(language)}
+""")
+
+    final_prompt = files_xml + prompt
+    logger.debug(f"[get_description_to_outline_prompt_markdown] Final prompt:\n{final_prompt}")
     return final_prompt
 
 
@@ -216,26 +352,28 @@ Important rules:
 Now parse the outline text above into the structured format. Return only the JSON, don't include any other text.
 {get_language_instruction(language)}
 """)
-    
+
     final_prompt = files_xml + prompt
     logger.debug(f"[get_outline_parsing_prompt] Final prompt:\n{final_prompt}")
     return final_prompt
 
 
-def get_page_description_prompt(project_context: 'ProjectContext', outline: list, 
-                                page_outline: dict, page_index: int, 
+def get_page_description_prompt(project_context: 'ProjectContext', outline: list,
+                                page_outline: dict, page_index: int,
                                 part_info: str = "",
-                                language: str = None) -> str:
+                                language: str = None,
+                                detail_level: str = "default") -> str:
     """
     生成单个页面描述的 prompt
-    
+
     Args:
         project_context: 项目上下文对象，包含所有原始信息
         outline: 完整大纲
         page_outline: 当前页面的大纲
         page_index: 页面编号（从1开始）
         part_info: 可选的章节信息
-        
+        detail_level: 描述详细程度 (concise/default/detailed)
+
     Returns:
         格式化后的 prompt 字符串
     """
@@ -250,44 +388,50 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     else:
         original_input = project_context.idea_prompt or ""
     
+    # 根据 detail_level 生成不同的详细程度要求和示例
+    # concise=演示型  default=标准型  detailed=阅读型(Slidedoc)
+    detail_level_specs = {
+        'concise': 
+            '文字极致地压缩和精简',
+        'default': 
+            '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
+        'detailed': 
+            '忠于原文的基础上做到内容详实，逻辑清晰。',
+    }
+    
+    
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
 我们已经有了完整的大纲：\n{outline}\n{part_info}
-现在请为第 {page_index} 页生成描述：
+{_format_requirements(project_context.description_requirements)}现在请为第 {page_index} 页生成描述：
 {page_outline}
 {"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
 
-【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
-1. 文字内容要简洁精炼，每条要点控制在15-25字以内
-2. 条理清晰，使用列表形式组织内容
-3. 避免冗长的句子和复杂的表述
-4. 确保内容可读性强，适合在演示时展示
-5. 不要包含任何额外的说明性文字或注释
+## 重要提示
+生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必不要包含任何额外的说明性文字或注释。
 
-输出格式示例：
-页面标题：原始社会：与自然共生
-{"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
+## 输出格式
+页面标题：[实际页面标题]
+{"副标题：[实际副标题]" if page_index == 1 else ""}
 
 页面文字：
-- 狩猎采集文明：人类活动规模小，对环境影响有限
-- 依赖性强：生活完全依赖自然资源的直接供给
-- 适应而非改造：通过观察学习自然，发展生存技能
-- 影响特点：局部、短期、低强度，生态可自我恢复
+[此处输出页面文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
-其他页面素材（如果文件中存在请积极添加，包括markdown图片链接、公式、表格等）
+图片素材:
+[如果文件中存在图片请积极添加； 否则忽略图片素材字段]
 
-【关于图片】如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
-
+## 关于图片
+如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)。这些图片会被包含在PPT页面中。
 {get_language_instruction(language)}
 """)
-    
+
     final_prompt = files_xml + prompt
     logger.debug(f"[get_page_description_prompt] Final prompt:\n{final_prompt}")
     return final_prompt
 
 
-def get_image_generation_prompt(page_desc: str, outline_text: str, 
+def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 current_section: str,
                                 has_material_images: bool = False,
                                 extra_requirements: str = None,
@@ -299,7 +443,7 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
     
     Args:
         page_desc: 页面描述文本
-        outline_text: 大纲文本
+        outline_text: 大纲文本（NOTE: 当前未使用，保留供未来扩展）
         current_section: 当前章节
         has_material_images: 是否有素材图片
         extra_requirements: 额外的要求（可能包含风格描述）
@@ -334,14 +478,6 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 <page_description>
 {page_desc}
 </page_description>
-
-<reference_information>
-整个PPT的大纲为：
-{outline_text}
-
-当前位于章节：{current_section}
-</reference_information>
-
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
@@ -450,7 +586,7 @@ Important rules:
 Now extract the outline structure from the description text above. Return only the JSON, don't include any other text.
 {get_language_instruction(language)}
 """)
-    
+
     final_prompt = files_xml + prompt
     logger.debug(f"[get_description_to_outline_prompt] Final prompt:\n{final_prompt}")
     return final_prompt
@@ -929,4 +1065,112 @@ def get_quality_enhancement_prompt(inpainted_regions: list = None) -> str:
 # 你是一位专业的图像修复专家。请你修复上传的图像，去除其中的涂抹痕迹，消除所有的模糊、噪点、伪影，输出处理后的高清图像，其他区域保持和原图**完全相同**，颜色、布局、线条、装饰需要完全一致.
 # {regions_info}
 # """
+    return prompt
+
+
+def get_ppt_page_content_extraction_prompt(markdown_text: str, language: str = None) -> str:
+    """
+    从 fileparser 解析出的 markdown 文本中提取页面内容（title, points, description）
+
+    Args:
+        markdown_text: 单页 PDF 解析出的 markdown 文本
+        language: 输出语言
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = f"""\
+You are a helpful assistant that extracts structured PPT page content from parsed document text.
+
+The following markdown text was extracted from a single PPT slide:
+
+<slide_content>
+{markdown_text}
+</slide_content>
+
+Your task is to extract the following structured information from this slide:
+
+1. **title**: The main title/heading of the slide
+2. **points**: A list of key bullet points or content items on the slide
+3. **description**: A complete page description suitable for regenerating this slide, following this format:
+
+页面标题：[title]
+
+页面文字：
+- [point 1]
+- [point 2]
+...
+
+其他页面素材（如果有图表、表格、公式等描述，保留原文中的markdown图片完整形式）
+
+Rules:
+- Extract the title faithfully from the first heading in the markdown. Do NOT invent or rephrase it
+- Points must be extracted verbatim from the slide content, in their original order
+- In the description, 页面标题 and 页面文字 must be copied verbatim from the original text (punctuation may be normalized, but wording must be identical)
+- The description should capture ALL content on the slide including text, data, and visual element descriptions
+- If there are tables, charts, or formulas, describe them in the description under "其他页面素材"
+- Preserve the original language of the content
+
+Return a JSON object with exactly these three fields: "title", "points" (array of strings), "description" (string).
+Return only the JSON, no other text.
+{get_language_instruction(language)}
+"""
+    logger.debug(f"[get_ppt_page_content_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_layout_caption_prompt() -> str:
+    """
+    描述 PPT 页面的排版布局（给 caption model 用）
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = """\
+You are a professional PPT layout analyst. Describe the visual layout and composition of this PPT slide image in detail.
+
+Focus on:
+1. **Overall layout**: How elements are arranged (e.g., title at top, content in two columns, image on the right)
+2. **Text placement**: Where text blocks are positioned, their relative sizes, alignment
+3. **Visual elements**: Position and size of images, charts, icons, decorative elements
+4. **Spacing and proportions**: How space is distributed between elements
+
+Output a concise layout description in Chinese that can be used to recreate a similar layout. Format:
+
+排版布局：
+- 整体结构：[描述]
+- 标题位置：[描述]
+- 内容区域：[描述]
+- 视觉元素：[描述]
+
+Only describe the layout and spatial arrangement. Do not describe colors, text content, or style.
+"""
+    logger.debug(f"[get_layout_caption_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+def get_style_extraction_prompt() -> str:
+    """
+    从图片中提取风格描述（通用，可复用于所有创建模式）
+
+    Returns:
+        格式化后的 prompt 字符串
+    """
+    prompt = """\
+You are a professional PPT design analyst. Analyze this image and extract a detailed style description that can be used to generate PPT slides with a similar visual style.
+
+Focus on:
+1. **Color palette**: Primary colors, secondary colors, accent colors, background colors
+2. **Typography style**: Font style impression (serif/sans-serif, weight, size hierarchy)
+3. **Design elements**: Decorative patterns, shapes, icons style, borders, shadows
+4. **Overall mood**: Professional, playful, minimalist, corporate, creative, etc.
+5. **Layout tendencies**: How content is typically arranged, spacing preferences
+
+Output a concise style description in Chinese that can be directly used as a style prompt for PPT generation. Write it as a single paragraph, not a list. Example:
+
+"采用深蓝色渐变背景，搭配白色和金色文字。整体风格简约商务，使用无衬线字体，标题加粗突出。页面装饰以几何线条和半透明色块为主，配色统一协调。内容区域留白充足，视觉层次分明。"
+
+Only output the style description text, no other content.
+"""
+    logger.debug(f"[get_style_extraction_prompt] Final prompt:\n{prompt}")
     return prompt

@@ -40,7 +40,7 @@
 *.pyc
 .env
 
-# GCP 服务账户文件（包含敏感私钥）
+# GCP service-account key (sensitive — never commit)
 gcp-service-account.json
 *.ppt
 *.pptx

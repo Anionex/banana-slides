@@ -3,21 +3,27 @@ Project Controller - handles project-related endpoints
 """
 import json
 import logging
+import os
+import subprocess
 import traceback
 from datetime import datetime
+from pathlib import Path
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from sqlalchemy import desc
+from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
+from werkzeug.utils import secure_filename
 
 from models import db, Project, Page, Task, ReferenceFile, UserSettings
-from services import ProjectContext
+from services import ProjectContext, FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import (
     task_manager,
     generate_descriptions_task,
-    generate_images_task
+    generate_images_task,
+    process_ppt_renovation_task
 )
 from utils import (
     success_response, error_response, not_found, bad_request,
@@ -148,6 +154,46 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
     return outline
 
 
+def _smart_merge_pages(project_id, pages_data):
+    """Smart merge: match new pages to existing by title, update in place to preserve images/descriptions."""
+    old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+    old_by_title = {}
+    for p in old_pages:
+        outline = p.get_outline_content()
+        title = (outline.get('title') or '').strip() if outline else ''
+        if title and title not in old_by_title:
+            old_by_title[title] = p
+
+    matched_ids = set()
+    pages_list = []
+
+    for i, page_data in enumerate(pages_data):
+        title = (page_data.get('title') or '').strip()
+        old_page = old_by_title.get(title) if title else None
+
+        if old_page and old_page.id not in matched_ids:
+            matched_ids.add(old_page.id)
+            page = old_page
+        else:
+            page = Page(project_id=project_id, status='DRAFT')
+            db.session.add(page)
+
+        page.order_index = i
+        page.part = page_data.get('part')
+        page.set_outline_content({
+            'title': page_data.get('title'),
+            'points': page_data.get('points', [])
+        })
+        pages_list.append(page)
+
+    for p in old_pages:
+        if p.id not in matched_ids:
+            db.session.delete(p)
+
+    return pages_list
+
+
 @project_bp.route('', methods=['GET'])
 @auth_required
 def list_projects():
@@ -164,29 +210,26 @@ def list_projects():
         # Parameter validation
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        
+
         # Enforce limits to prevent performance issues
         limit = min(max(1, limit), 100)  # Between 1-100
         offset = max(0, offset)  # Non-negative
-        
-        # Fetch limit + 1 items to check for more pages efficiently
+
+        # Get total count for pagination (user's projects only)
+        total = Project.query.filter(Project.user_id == user.id).count()
+
         # Filter by current user's projects only
-        projects_with_extra = Project.query\
+        projects = Project.query\
             .filter(Project.user_id == user.id)\
             .options(joinedload(Project.pages))\
             .order_by(desc(Project.updated_at))\
-            .limit(limit + 1)\
+            .limit(limit)\
             .offset(offset)\
             .all()
-        
-        # Check if there are more items beyond the current page
-        has_more = len(projects_with_extra) > limit
-        # Return only the requested limit
-        projects = projects_with_extra[:limit]
-        
+
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'has_more': has_more,
+            'total': total,
             'limit': limit,
             'offset': offset
         })
@@ -227,6 +270,14 @@ def create_project():
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
         
+        # Validate and set aspect ratio if provided
+        image_aspect_ratio = '16:9'
+        if 'image_aspect_ratio' in data:
+            try:
+                image_aspect_ratio = normalize_aspect_ratio(data['image_aspect_ratio'])
+            except ValueError as e:
+                return bad_request(str(e))
+
         # Create project with user association
         project = Project(
             user_id=user.id,
@@ -235,6 +286,7 @@ def create_project():
             outline_text=data.get('outline_text'),
             description_text=data.get('description_text'),
             template_style=data.get('template_style'),
+            image_aspect_ratio=image_aspect_ratio,
             status='DRAFT'
         )
         
@@ -332,11 +384,24 @@ def update_project(project_id):
         # Update extra_requirements if provided
         if 'extra_requirements' in data:
             project.extra_requirements = data['extra_requirements']
+
+        # Update generation requirements if provided
+        if 'outline_requirements' in data:
+            project.outline_requirements = data['outline_requirements']
+        if 'description_requirements' in data:
+            project.description_requirements = data['description_requirements']
         
         # Update template_style if provided
         if 'template_style' in data:
             project.template_style = data['template_style']
         
+        # Update aspect ratio if provided
+        if 'image_aspect_ratio' in data:
+            try:
+                project.image_aspect_ratio = normalize_aspect_ratio(data['image_aspect_ratio'])
+            except ValueError as e:
+                return bad_request(str(e))
+
         # Update export settings if provided
         if 'export_extractor_method' in data:
             project.export_extractor_method = data['export_extractor_method']
@@ -480,34 +545,15 @@ def generate_outline(project_id):
             project_context = ProjectContext(project, reference_files_content)
             outline = ai_service.generate_outline(project_context, language=language)
         
-        # Flatten outline to pages
+        # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(outline)
-        
-        # Delete existing pages (using ORM session to trigger cascades)
-        # Note: Cannot use bulk delete as it bypasses ORM cascades for PageImageVersion
-        old_pages = Page.query.filter_by(project_id=project_id).all()
-        for old_page in old_pages:
-            db.session.delete(old_page)
-        
-        # Create pages from outline
-        pages_list = []
-        for i, page_data in enumerate(pages_data):
-            page = Page(
-                project_id=project_id,
-                order_index=i,
-                part=page_data.get('part'),
-                status='DRAFT'
-            )
-            page.set_outline_content({
-                'title': page_data.get('title'),
-                'points': page_data.get('points', [])
-            })
-            
-            db.session.add(page)
-            pages_list.append(page)
-        
-        # Update project status
-        project.status = 'OUTLINE_GENERATED'
+        pages_list = _smart_merge_pages(project_id, pages_data)
+
+        # Update project status (don't downgrade if all pages already have content)
+        if all(p.description_content for p in pages_list) and pages_list:
+            project.status = 'DESCRIPTIONS_GENERATED'
+        else:
+            project.status = 'OUTLINE_GENERATED'
         project.updated_at = datetime.utcnow()
 
         db.session.commit()
@@ -525,6 +571,115 @@ def generate_outline(project_id):
                                       description=str(e)[:200])
         logger.error(f"generate_outline failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@project_bp.route('/<project_id>/generate/outline/stream', methods=['POST'])
+def generate_outline_stream(project_id):
+    """
+    POST /api/projects/{project_id}/generate/outline/stream - Stream outline generation via SSE
+
+    Streams pages one-by-one as they are generated. Each page is sent as an SSE event.
+    After all pages are streamed, saves them to the database.
+
+    SSE events:
+      event: page    — a single page object {index, title, points, part?}
+      event: done    — generation complete {total, pages: [...with ids...]}
+      event: error   — error occurred {message}
+    """
+    # Validate project exists before entering the generator
+    project = Project.query.get(project_id)
+    if not project:
+        return not_found('Project')
+
+    data = request.get_json() or {}
+    language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+    # Capture app reference for use inside the generator (which runs outside request context)
+    app = current_app._get_current_object()
+
+    def sse_generate():
+        with app.app_context():
+            try:
+                # Re-fetch project inside app context to attach to this session
+                proj = db.session.get(Project, project_id)
+                ai_service = get_ai_service()
+                reference_files_content = _get_project_reference_files_content(project_id)
+
+                # Validate input based on creation type
+                if proj.creation_type == 'outline' and not proj.outline_text:
+                    yield _sse_event('error', {'message': 'outline_text is required'})
+                    return
+                if proj.creation_type == 'descriptions' and not proj.description_text:
+                    yield _sse_event('error', {'message': 'description_text is required'})
+                    return
+
+                # Update idea_prompt if provided
+                if proj.creation_type not in ('outline', 'descriptions'):
+                    idea_prompt = data.get('idea_prompt') or proj.idea_prompt
+                    if not idea_prompt:
+                        yield _sse_event('error', {'message': 'idea_prompt is required'})
+                        return
+                    proj.idea_prompt = idea_prompt
+
+                project_context = ProjectContext(proj, reference_files_content)
+
+                # Stream pages from AI
+                streamed_pages = []
+                stream_complete = False
+                for page_data in ai_service.generate_outline_stream(project_context, language=language):
+                    # Check for completion sentinel
+                    if '__stream_complete__' in page_data:
+                        stream_complete = page_data['__stream_complete__']
+                        continue
+                    i = len(streamed_pages)
+                    streamed_pages.append(page_data)
+                    yield _sse_event('page', {
+                        'index': i,
+                        'title': page_data.get('title', ''),
+                        'points': page_data.get('points', []),
+                        'part': page_data.get('part'),
+                    })
+
+                # Save all pages to database
+                pages_list = _smart_merge_pages(project_id, streamed_pages)
+
+                if all(p.description_content for p in pages_list) and pages_list:
+                    proj.status = 'DESCRIPTIONS_GENERATED'
+                else:
+                    proj.status = 'OUTLINE_GENERATED'
+                proj.updated_at = datetime.utcnow()
+                db.session.commit()
+
+                logger.info(f"流式大纲生成完成: 项目 {project_id}, {len(pages_list)} 个页面")
+
+                yield _sse_event('done', {
+                    'total': len(pages_list),
+                    'pages': [p.to_dict() for p in pages_list],
+                    'complete': stream_complete,
+                })
+
+            except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception as rollback_exc:
+                    logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
+                logger.error(f"generate_outline_stream failed: {str(e)}", exc_info=True)
+                yield _sse_event('error', {'message': '生成过程中发生内部错误'})
+
+    return Response(
+        stream_with_context(sse_generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache, no-transform',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
+
+def _sse_event(event: str, data: dict) -> str:
+    """Format a single SSE event."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
@@ -677,7 +832,7 @@ def generate_descriptions(project_id):
         if not project:
             return not_found('Project')
         
-        if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED']:
+        if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED', 'COMPLETED']:
             return bad_request("Project must have outline generated first")
         
         # IMPORTANT: Expire cached objects to ensure fresh data
@@ -701,6 +856,7 @@ def generate_descriptions(project_id):
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
         language = data.get('language', _get_user_output_language(user.id))
+        detail_level = data.get('detail_level', 'default')
         
         # Create task
         task = Task(
@@ -738,6 +894,7 @@ def generate_descriptions(project_id):
             max_workers,
             app,
             language,
+            detail_level,
             user_id=user.id
         )
         
@@ -844,6 +1001,12 @@ def generate_images(project_id):
             style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
             combined_requirements = combined_requirements + style_requirement
         
+        # Set all target pages to QUEUED before submitting background task
+        # This ensures the status is visible to frontend immediately after API returns
+        for page in pages:
+            page.status = 'QUEUED'
+        db.session.commit()
+
         # Get app instance for background task
         app = current_app._get_current_object()
 
@@ -981,73 +1144,16 @@ def refine_outline(project_id):
             language=language
         )
         
-        # Flatten outline to pages
+        # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(refined_outline)
-        
-        # 在删除旧页面之前，先保存已有的页面描述（按标题匹配）
-        old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
-        descriptions_map = {}  # {title: description_content}
-        old_status_map = {}  # {title: status} 用于保留状态
-        
-        for old_page in old_pages:
-            old_outline = old_page.get_outline_content()
-            if old_outline and old_outline.get('title'):
-                title = old_outline.get('title')
-                if old_page.description_content:
-                    descriptions_map[title] = old_page.description_content
-                # 如果旧页面已经有描述，保留状态
-                if old_page.status in ['DESCRIPTION_GENERATED', 'IMAGE_GENERATED']:
-                    old_status_map[title] = old_page.status
-        
-        # Delete existing pages (using ORM session to trigger cascades)
-        for old_page in old_pages:
-            db.session.delete(old_page)
-        
-        # Create pages from refined outline
-        pages_list = []
-        has_descriptions = False
-        preserved_count = 0
-        new_count = 0
-        
-        for i, page_data in enumerate(pages_data):
-            page = Page(
-                project_id=project_id,
-                order_index=i,
-                part=page_data.get('part'),
-                status='DRAFT'
-            )
-            page.set_outline_content({
-                'title': page_data.get('title'),
-                'points': page_data.get('points', [])
-            })
-            
-            # 尝试匹配并恢复已有的描述
-            title = page_data.get('title')
-            if title in descriptions_map:
-                # 恢复描述内容
-                page.description_content = descriptions_map[title]
-                # 恢复状态（如果有）
-                if title in old_status_map:
-                    page.status = old_status_map[title]
-                else:
-                    page.status = 'DESCRIPTION_GENERATED'
-                has_descriptions = True
-                preserved_count += 1
-            else:
-                # 新页面或标题改变的页面，描述为空
-                # 这包括：新增的页面、合并的页面、标题改变的页面
-                page.status = 'DRAFT'
-                new_count += 1
-            
-            db.session.add(page)
-            pages_list.append(page)
-        
+        pages_list = _smart_merge_pages(project_id, pages_data)
+
+        preserved_count = sum(1 for p in pages_list if p.description_content)
+        new_count = len(pages_list) - preserved_count
         logger.info(f"描述匹配完成: 保留了 {preserved_count} 个页面的描述, {new_count} 个页面需要重新生成描述")
-        
+
         # Update project status
-        # 如果所有页面都有描述，保持 DESCRIPTION_GENERATED 状态
-        # 否则降级为 OUTLINE_GENERATED
-        if has_descriptions and all(p.description_content for p in pages_list):
+        if preserved_count and all(p.description_content for p in pages_list):
             project.status = 'DESCRIPTIONS_GENERATED'
         else:
             project.status = 'OUTLINE_GENERATED'
@@ -1201,4 +1307,283 @@ def refine_descriptions(project_id):
         CreditsService.refund_credits(user.id, CreditOperation.REFINE_DESCRIPTION,
                                       description=str(e)[:200])
         logger.error(f"refine_descriptions failed: {str(e)}", exc_info=True)
+        return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@project_bp.route('/renovation', methods=['POST'])
+def create_ppt_renovation_project():
+    """
+    POST /api/projects/renovation - Create a PPT renovation project
+
+    Accepts a PDF/PPTX file upload, creates project with pages from PDF images,
+    then submits an async task to parse content and fill outline + descriptions.
+
+    Content-Type: multipart/form-data
+    Form:
+        file: PDF or PPTX file (required)
+        keep_layout: "true"/"false" - whether to preserve layout via caption model (optional, default false)
+        template_style: style description text (optional)
+
+    Returns:
+        {project_id, task_id, page_count}
+    """
+    try:
+        # Validate file
+        if 'file' not in request.files:
+            return bad_request("No file uploaded")
+
+        file = request.files['file']
+        if file.filename == '':
+            return bad_request("No file selected")
+
+        # Check file extension
+        filename = file.filename.lower()
+        if not (filename.endswith('.pdf') or filename.endswith('.pptx') or filename.endswith('.ppt')):
+            return bad_request("Only PDF and PPTX files are supported")
+
+        keep_layout = request.form.get('keep_layout', 'false').lower() == 'true'
+        template_style = request.form.get('template_style', '').strip() or None
+
+        # Create project
+        project = Project(
+            creation_type='ppt_renovation',
+            template_style=template_style,
+            status='DRAFT'
+        )
+        db.session.add(project)
+        db.session.commit()
+
+        project_id = project.id
+
+        # Save uploaded file
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        project_dir = Path(current_app.config['UPLOAD_FOLDER']) / project_id
+        template_dir = project_dir / "template"
+        template_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save original file
+        safe_name = secure_filename(file.filename)
+        safe_name = secure_filename(file.filename)
+        original_path = template_dir / safe_name
+        file.save(str(original_path))
+
+        # Convert PPTX to PDF if needed
+        pdf_path = str(original_path)
+        if safe_name.lower().endswith(('.pptx', '.ppt')):
+            try:
+                subprocess.run(
+                    ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', str(template_dir), str(original_path)],
+                    check=True, timeout=120, capture_output=True
+                )
+                pdf_name = safe_name.rsplit('.', 1)[0] + '.pdf'
+                pdf_path = str(template_dir / pdf_name)
+                if not os.path.exists(pdf_path):
+                    raise ValueError("PDF conversion failed - output file not found")
+                logger.info(f"Converted PPTX to PDF: {pdf_path}")
+            except subprocess.TimeoutExpired:
+                raise ValueError("PPTX to PDF conversion timed out")
+            except FileNotFoundError:
+                raise ValueError("PPTX conversion requires LibreOffice, which is not installed. Please convert your PPTX to PDF locally before uploading.")
+
+        # Convert PDF to page images using PyMuPDF or pdf2image
+        pages_dir = project_dir / "pages"
+        pages_dir.mkdir(parents=True, exist_ok=True)
+
+        page_image_paths = []
+        pdf_page_width = None
+        pdf_page_height = None
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(pdf_path)
+            # Extract page dimensions from the first page before rendering
+            if len(doc) > 0:
+                rect = doc[0].rect
+                pdf_page_width = rect.width
+                pdf_page_height = rect.height
+            for i, fitz_page in enumerate(doc):
+                try:
+                    mat = fitz.Matrix(2, 2)
+                    pix = fitz_page.get_pixmap(matrix=mat)
+                    img_path = str(pages_dir / f"page_{i + 1}_original.png")
+                    pix.save(img_path)
+                    page_image_paths.append(img_path)
+                except Exception as e:
+                    logger.error(f"Failed to render page {i + 1} with PyMuPDF: {e}")
+                    page_image_paths.append(None)
+            doc.close()
+        except ImportError:
+            # Fallback: use pdf2image
+            try:
+                from pdf2image import convert_from_path
+                images = convert_from_path(pdf_path, dpi=200)
+                for i, img in enumerate(images):
+                    try:
+                        # Extract page dimensions from the first image
+                        if pdf_page_width is None:
+                            pdf_page_width = img.width
+                            pdf_page_height = img.height
+                        img_path = str(pages_dir / f"page_{i + 1}_original.png")
+                        img.save(img_path, 'PNG')
+                        page_image_paths.append(img_path)
+                    except Exception as e:
+                        logger.error(f"Failed to render page {i + 1} with pdf2image: {e}")
+                        page_image_paths.append(None)
+            except ImportError:
+                raise ValueError("Neither PyMuPDF nor pdf2image is available for PDF rendering")
+
+        # Fail-fast if no pages rendered at all
+        valid_pages = [p for p in page_image_paths if p is not None]
+        if not valid_pages:
+            raise ValueError("All pages failed to render from PDF")
+
+        logger.info(f"Rendered {len(valid_pages)}/{len(page_image_paths)} page images from PDF")
+
+        # Set project aspect ratio from PDF page dimensions
+        if pdf_page_width and pdf_page_height and pdf_page_width > 0 and pdf_page_height > 0:
+            try:
+                raw_ratio = f"{int(round(pdf_page_width))}:{int(round(pdf_page_height))}"
+                project.image_aspect_ratio = normalize_aspect_ratio(raw_ratio)
+                logger.info(f"Set project aspect ratio from PDF: {pdf_page_width}x{pdf_page_height} -> {project.image_aspect_ratio}")
+            except (ValueError, OverflowError) as e:
+                logger.warning(f"Could not normalize PDF aspect ratio ({pdf_page_width}x{pdf_page_height}): {e}, keeping default 16:9")
+
+        # Create Page records with initial images
+        from services.task_manager import save_image_with_version
+        from PIL import Image as PILImage
+
+        pages_list = []
+        for i, img_path in enumerate(page_image_paths):
+            if img_path is None:
+                logger.warning(f"Skipping page {i + 1}: render failed")
+                continue
+
+            page = Page(
+                project_id=project_id,
+                order_index=len(pages_list),
+                status='DRAFT'
+            )
+            page.set_outline_content({
+                'title': f'Page {i + 1}',
+                'points': []
+            })
+            db.session.add(page)
+            db.session.flush()  # Get page.id
+
+            # Save the PDF page image as initial version
+            img = PILImage.open(img_path)
+            image_path, _version = save_image_with_version(
+                img, project_id, page.id, file_service, page_obj=page
+            )
+            img.close()
+
+            pages_list.append(page)
+
+        db.session.commit()
+
+        # Create async task
+        task = Task(
+            project_id=project_id,
+            task_type='PPT_RENOVATION',
+            status='PENDING'
+        )
+        task.set_progress({
+            'total': len(pages_list),
+            'completed': 0,
+            'failed': 0,
+            'current_step': 'queued'
+        })
+        db.session.add(task)
+        db.session.commit()
+
+        # Get services
+        ai_service = get_ai_service()
+        from services.file_parser_service import FileParserService
+        file_parser_service = FileParserService(
+            mineru_token=current_app.config['MINERU_TOKEN'],
+            mineru_api_base=current_app.config['MINERU_API_BASE'],
+            google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+            google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
+            openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+            openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
+            image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
+            provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
+        )
+
+        language = request.form.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        app = current_app._get_current_object()
+
+        # Submit async task
+        task_manager.submit_task(
+            task.id,
+            process_ppt_renovation_task,
+            project_id,
+            ai_service,
+            file_service,
+            file_parser_service,
+            keep_layout,
+            5,  # max_workers
+            app,
+            language
+        )
+
+        project.status = 'PROCESSING'
+        db.session.commit()
+
+        return success_response({
+            'project_id': project_id,
+            'task_id': task.id,
+            'page_count': len(pages_list)
+        }, status_code=202)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"create_ppt_renovation_project failed: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+# Style extraction blueprint (not bound to any project)
+style_bp = Blueprint('style', __name__, url_prefix='/api')
+
+
+@style_bp.route('/extract-style', methods=['POST'])
+def extract_style():
+    """
+    POST /api/extract-style - Extract style description from an image
+
+    Content-Type: multipart/form-data
+    Form:
+        image: Image file (required)
+
+    Returns:
+        {style_description: "..."}
+    """
+    try:
+        if 'image' not in request.files:
+            return bad_request("No image file uploaded")
+
+        file = request.files['image']
+        if file.filename == '':
+            return bad_request("No file selected")
+
+        # Save to temp location
+        import tempfile
+
+        ext = secure_filename(file.filename).rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
+        with tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+
+        try:
+            ai_service = get_ai_service()
+            style_description = ai_service.extract_style_description(tmp_path)
+
+            return success_response({
+                'style_description': style_description
+            })
+        finally:
+            os.unlink(tmp_path)
+
+    except Exception as e:
+        logger.error(f"extract_style failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)

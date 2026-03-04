@@ -1,0 +1,102 @@
+---
+title: "Configuration"
+description: "Environment variables and provider setup"
+---
+
+## AI Provider
+
+Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
+
+| Format | Description |
+|--------|-------------|
+| `gemini` | Google Gemini API (default) |
+| `openai` | OpenAI-compatible API |
+| `vertex` | Google Cloud Vertex AI |
+| `lazyllm` | Multi-vendor Chinese model routing |
+
+## Gemini (Default)
+
+```env
+AI_PROVIDER_FORMAT=gemini
+GOOGLE_API_KEY=your-api-key
+GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+```
+
+<Warning>
+  The free tier of Gemini API only supports text generation, not image generation.
+</Warning>
+
+## OpenAI-Compatible
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+## Vertex AI
+
+```env
+AI_PROVIDER_FORMAT=vertex
+VERTEX_PROJECT_ID=your-gcp-project-id
+VERTEX_LOCATION=global
+GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+```
+
+<Tip>
+  `gemini-3-*` series models require `VERTEX_LOCATION=global`.
+</Tip>
+
+## LazyLLM (Multi-Vendor)
+
+Routes requests to different Chinese AI vendors for text, image, and caption tasks:
+
+```env
+AI_PROVIDER_FORMAT=lazyllm
+TEXT_MODEL_SOURCE=deepseek
+IMAGE_MODEL_SOURCE=doubao
+IMAGE_CAPTION_MODEL_SOURCE=qwen
+```
+
+Set API keys for the vendors you use:
+
+```env
+DOUBAO_API_KEY=your-key       # Volcengine
+DEEPSEEK_API_KEY=your-key     # DeepSeek
+QWEN_API_KEY=your-key         # Alibaba Qwen
+GLM_API_KEY=your-key          # Zhipu GLM
+SILICONFLOW_API_KEY=your-key  # SiliconFlow
+SENSENOVA_API_KEY=your-key    # SenseNova
+MINIMAX_API_KEY=your-key      # MiniMax
+```
+
+## AIHubMix (Recommended Proxy)
+
+[AIHubMix](https://aihubmix.com/?aff=17EC) is a recommended API proxy that supports both Gemini and OpenAI API formats, with stable high-concurrency performance for text-to-image generation. [Apply for an AIHubMix API key here](https://aihubmix.com/token?aff=17EC).
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-aihubmix-key
+OPENAI_API_BASE=https://aihubmix.com/v1
+```
+
+## MinerU (PDF Parsing)
+
+[MinerU](https://mineru.net) provides high-quality PDF parsing for reference file uploads. [Apply for a MinerU token here](https://mineru.net/apiManage/token).
+
+```env
+MINERU_API_BASE=https://mineru.net
+MINERU_TOKEN=your-mineru-token
+```
+
+## Baidu API Key
+
+For enhanced editable PPTX export with OCR-based text extraction, apply for an [IAM API Key](https://console.bce.baidu.com/iam/#/iam/apikey/list) from Baidu Cloud (generous free tier available):
+
+```env
+BAIDU_API_KEY=your-baidu-api-key
+```
+
+## Runtime Settings Override
+
+All of the above can also be configured via the web UI's Settings page. Settings configured there are stored in the database and override `.env` values. Use "Reset to Default" in Settings to revert to `.env` values.

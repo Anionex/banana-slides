@@ -1,6 +1,52 @@
 import { getImageUrl } from '@/api/client';
 import type { Project, Page, DescriptionContent } from '@/types';
 import { downloadFile } from './index';
+import { getT } from './i18nHelper';
+import i18n from '@/i18n';
+
+const utilsI18n = {
+  zh: {
+    projectUtils: {
+      untitled: '未命名项目',
+      notStarted: '未开始',
+      completed: '已完成',
+      pendingImages: '待生成图片',
+      pendingDesc: '待生成描述',
+      pageNum: '第 {{num}} 页',
+      pageHeading: '## 第 {{num}} 页: {{title}}',
+      chapter: '章节',
+      outlinePoints: '**大纲要点：**',
+      noPoints: '*暂无要点*',
+      pageDesc: '**页面描述：**',
+      noDesc: '*暂无描述*',
+      generatedAt: '生成时间',
+      prefixDesc: '描述',
+      prefixOutline: '大纲',
+      prefixProject: '项目',
+    }
+  },
+  en: {
+    projectUtils: {
+      untitled: 'Untitled Project',
+      notStarted: 'Not Started',
+      completed: 'Completed',
+      pendingImages: 'Pending Images',
+      pendingDesc: 'Pending Descriptions',
+      pageNum: 'Page {{num}}',
+      pageHeading: '## Page {{num}}: {{title}}',
+      chapter: 'Chapter',
+      outlinePoints: '**Outline Points:**',
+      noPoints: '*No points yet*',
+      pageDesc: '**Page Description:**',
+      noDesc: '*No description yet*',
+      generatedAt: 'Generated at',
+      prefixDesc: 'Descriptions',
+      prefixOutline: 'Outline',
+      prefixProject: 'Project',
+    }
+  }
+};
+const t = getT(utilsI18n);
 
 /**
  * 获取项目标题
@@ -13,12 +59,13 @@ export const getProjectTitle = (project: Project): string => {
     );
     const firstPage = sortedPages[0];
 
-    if (firstPage?.outline_content?.title) {
-      return firstPage.outline_content.title;
+    const title = firstPage?.outline_content?.title;
+    if (title) {
+      return title;
     }
   }
 
-  return '未命名项目';
+  return t('projectUtils.untitled');
 };
 
 /**
@@ -43,7 +90,8 @@ export const getFirstPageImage = (project: Project): string | null => {
  */
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  return date.toLocaleString('zh-CN', {
+  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+  return date.toLocaleString(locale, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -52,33 +100,34 @@ export const formatDate = (dateString: string): string => {
   });
 };
 
+type StatusKey = 'notStarted' | 'completed' | 'pendingImages' | 'pendingDesc';
+
+const getStatusKey = (project: Project): StatusKey => {
+  if (!project.pages || project.pages.length === 0) return 'notStarted';
+  if (project.pages.some(p => p.generated_image_path)) return 'completed';
+  if (project.pages.some(p => p.description_content)) return 'pendingImages';
+  return 'pendingDesc';
+};
+
 /**
  * 获取项目状态文本
  */
 export const getStatusText = (project: Project): string => {
-  if (!project.pages || project.pages.length === 0) {
-    return '未开始';
-  }
-  const hasImages = project.pages.some(p => p.generated_image_path);
-  if (hasImages) {
-    return '已完成';
-  }
-  const hasDescriptions = project.pages.some(p => p.description_content);
-  if (hasDescriptions) {
-    return '待生成图片';
-  }
-  return '待生成描述';
+  return t(`projectUtils.${getStatusKey(project)}`);
+};
+
+const statusColorMap: Record<StatusKey, string> = {
+  completed: 'text-green-600 bg-green-50',
+  pendingImages: 'text-yellow-600 bg-yellow-50',
+  pendingDesc: 'text-blue-600 bg-blue-50',
+  notStarted: 'text-gray-600 bg-gray-50',
 };
 
 /**
  * 获取项目状态颜色样式
  */
 export const getStatusColor = (project: Project): string => {
-  const status = getStatusText(project);
-  if (status === '已完成') return 'text-green-600 bg-green-50';
-  if (status === '待生成图片') return 'text-yellow-600 bg-yellow-50';
-  if (status === '待生成描述') return 'text-blue-600 bg-blue-50';
-  return 'text-gray-600 bg-gray-50';
+  return statusColorMap[getStatusKey(project)];
 };
 
 /**
@@ -102,97 +151,127 @@ export const getProjectRoute = (project: Project): string => {
   return `/project/${projectId}/outline`;
 };
 
-// ========== Markdown 导出相关函数 ==========
+// ========== Markdown 导出/导入 ==========
 
-/**
- * 从描述内容中提取文本
- */
 export const getDescriptionText = (descContent: DescriptionContent | undefined | null): string => {
   if (!descContent) return '';
-  if ('text' in descContent) {
-    return (descContent.text as string) || '';
-  } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
-    return descContent.text_content.join('\n');
-  }
+  if ('text' in descContent) return (descContent.text as string) || '';
+  if ('text_content' in descContent && Array.isArray(descContent.text_content)) return descContent.text_content.join('\n');
   return '';
 };
 
-/**
- * 将页面大纲转换为 Markdown 格式
- */
-export const pageOutlineToMarkdown = (page: Page, index: number): string => {
-  const title = page.outline_content?.title || `第 ${index + 1} 页`;
+export interface ExportOptions {
+  outline?: boolean;
+  description?: boolean;
+}
+
+const pageToMarkdown = (page: Page, index: number, opts: ExportOptions = {}): string => {
+  const includeOutline = opts.outline !== false;
+  const includeDesc = opts.description !== false;
+  const title = page.outline_content?.title || t('projectUtils.pageNum', { num: index + 1 });
   const points = page.outline_content?.points || [];
-  
-  let markdown = `## 第 ${index + 1} 页: ${title}\n\n`;
-  
-  if (points.length > 0) {
-    points.forEach((point) => {
-      markdown += `- ${point}\n`;
-    });
-    markdown += '\n';
-  } else {
-    markdown += `*暂无要点*\n\n`;
-  }
-  
-  return markdown;
-};
-
-/**
- * 将页面描述转换为 Markdown 格式
- */
-export const pageDescriptionToMarkdown = (page: Page, index: number): string => {
-  const title = page.outline_content?.title || `第 ${index + 1} 页`;
   const descText = getDescriptionText(page.description_content);
-  
-  let markdown = `## 第 ${index + 1} 页: ${title}\n\n`;
-  
-  if (descText) {
-    markdown += `${descText}\n\n`;
-  } else {
-    markdown += `*暂无描述*\n\n`;
+
+  let md = t('projectUtils.pageHeading', { num: index + 1, title }) + '\n\n';
+  if (page.part) md += `> ${t('projectUtils.chapter')}: ${page.part}\n\n`;
+
+  if (includeOutline) {
+    md += `${t('projectUtils.outlinePoints')}\n`;
+    if (points.length > 0) {
+      points.forEach(p => { md += `- ${p}\n`; });
+    } else {
+      md += `${t('projectUtils.noPoints')}\n`;
+    }
+    md += '\n';
   }
-  
-  markdown += `---\n\n`;
-  
-  return markdown;
+
+  if (includeDesc) {
+    md += `${t('projectUtils.pageDesc')}\n`;
+    if (descText) {
+      md += `${descText}\n`;
+    } else {
+      md += `${t('projectUtils.noDesc')}\n`;
+    }
+    md += '\n';
+  }
+
+  md += '---\n\n';
+  return md;
 };
 
-/**
- * 将项目大纲导出为 Markdown 文件
- */
-export const exportOutlineToMarkdown = (project: Project): void => {
-  const projectTitle = getProjectTitle(project);
-  
-  let markdown = `# ${projectTitle}\n\n`;
-  markdown += `> 生成时间: ${new Date().toLocaleString('zh-CN')}\n\n`;
-  markdown += `---\n\n`;
-  
-  project.pages.forEach((page, index) => {
-    markdown += pageOutlineToMarkdown(page, index);
+export const exportProjectToMarkdown = (project: Project, opts?: ExportOptions): void => {
+  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+  let md = `# ${getProjectTitle(project)}\n\n`;
+  md += `> ${t('projectUtils.generatedAt')}: ${new Date().toLocaleString(locale)}\n\n---\n\n`;
+  project.pages.forEach((page, i) => { md += pageToMarkdown(page, i, opts); });
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const prefix = opts?.outline === false
+    ? t('projectUtils.prefixDesc')
+    : opts?.description === false
+      ? t('projectUtils.prefixOutline')
+      : t('projectUtils.prefixProject');
+  downloadFile(blob, `${prefix}_${project.id?.slice(0, 8) || 'export'}.md`);
+};
+
+// --- 导入 ---
+
+export interface ParsedPage {
+  title: string;
+  points: string[];
+  text: string;
+  part?: string;
+}
+
+const sanitize = (s: string) => s.replace(/<[^>]*>/g, '');
+
+const splitMarkdownPages = (markdown: string): string[] => {
+  // Support both Chinese "## 第 N 页:" and English "## Page N:" formats
+  return markdown.split(/^## (?:第 \d+ 页|Page \d+):/m).slice(1);
+};
+
+export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
+  return splitMarkdownPages(markdown).map(section => {
+    const lines = section.split('\n');
+    const title = sanitize(lines[0].trim());
+
+    // Extract metadata (support both Chinese and English)
+    const partLine = lines.find(l => l.startsWith('> 章节: ') || l.startsWith('> Chapter: '));
+    const part = partLine ? sanitize(partLine.replace(/^> (?:章节|Chapter): /, '').trim()) : undefined;
+
+    // Find section markers (support both Chinese and English)
+    const outlineIdx = lines.findIndex(l => l.trim() === '**大纲要点：**' || l.trim() === '**Outline Points:**');
+    const descIdx = lines.findIndex(l => l.trim() === '**页面描述：**' || l.trim() === '**Page Description:**');
+
+    let points: string[] = [];
+    let text = '';
+
+    const trailingPatterns = new Set(['---', '', '*暂无要点*', '*暂无描述*', '*No points yet*', '*No description yet*']);
+    const stripTrailing = (arr: string[]) => {
+      while (arr.length && trailingPatterns.has(arr[arr.length - 1].trim())) arr.pop();
+    };
+
+    if (outlineIdx >= 0) {
+      const end = descIdx >= 0 ? descIdx : lines.length;
+      points = lines.slice(outlineIdx + 1, end)
+        .filter(l => l.startsWith('- '))
+        .map(l => sanitize(l.slice(2).trim()));
+    }
+
+    if (descIdx >= 0) {
+      const descLines = lines.slice(descIdx + 1);
+      stripTrailing(descLines);
+      text = sanitize(descLines.join('\n').trim());
+    }
+
+    if (outlineIdx < 0 && descIdx < 0) {
+      // Legacy format: no markers
+      const contentLines = lines.slice(1);
+      while (contentLines.length && (contentLines[0].startsWith('> ') || contentLines[0].trim() === '')) contentLines.shift();
+      stripTrailing(contentLines);
+      points = contentLines.filter(l => l.startsWith('- ')).map(l => sanitize(l.slice(2).trim()));
+      text = sanitize(contentLines.filter(l => !l.startsWith('- ')).join('\n').trim());
+    }
+
+    return { title, points, text, part };
   });
-  
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-  const filename = `大纲_${project.id?.slice(0, 8) || 'export'}.md`;
-  downloadFile(blob, filename);
 };
-
-/**
- * 将项目页面描述导出为 Markdown 文件
- */
-export const exportDescriptionsToMarkdown = (project: Project): void => {
-  const projectTitle = getProjectTitle(project);
-  
-  let markdown = `# ${projectTitle}\n\n`;
-  markdown += `> 生成时间: ${new Date().toLocaleString('zh-CN')}\n\n`;
-  markdown += `---\n\n`;
-  
-  project.pages.forEach((page, index) => {
-    markdown += pageDescriptionToMarkdown(page, index);
-  });
-  
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-  const filename = `页面描述_${project.id?.slice(0, 8) || 'export'}.md`;
-  downloadFile(blob, filename);
-};
-

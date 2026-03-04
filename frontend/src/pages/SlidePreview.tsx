@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useT } from '@/hooks/useT';
+import { devLog } from '@/utils/logger';
 
 // 组件内翻译
 const previewI18n = {
@@ -14,12 +15,17 @@ const previewI18n = {
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
-      exportSettingsSaved: "导出设置已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功"
+      exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功",
+      saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
+      loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
+      versionSwitchFailed: "切换失败: {{error}}", unknownError: "未知错误",
+      regionCropSuccess: "已将选中区域添加为参考图片，可在下方\"上传图片\"中查看与删除",
+      regionCropFailed: "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。"
     },
     preview: {
       title: "预览", pageCount: "共 {{count}} 页", export: "导出",
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
-      exportEditablePptx: "导出可编辑 PPTX（Beta）",
+      exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportSelectedPages: "将导出选中的 {{count}} 页",
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
@@ -27,7 +33,7 @@ const previewI18n = {
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
-      generating: "正在生成中...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
+      generating: "正在生成中...", queued: "排队等待生成...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
@@ -41,11 +47,20 @@ const previewI18n = {
       editPromptPlaceholder: "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
       saveOutlineOnly: "仅保存大纲/描述", generateImage: "生成图片",
       templateModalDesc: "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
+      useTextStyle: "使用文字描述风格",
+      applyStyle: "应用风格",
+      styleSaved: "风格描述已保存",
       uploadingTemplate: "正在上传模板...",
       resolution1KWarning: "1K分辨率警告",
       resolution1KWarningText: "当前使用 1K 分辨率 生成图片，可能导致渲染的文字乱码或模糊。",
       resolution1KWarningHint: "建议在「项目设置 → 全局设置」中切换到 2K 或 4K 分辨率以获得更清晰的效果。",
       dontShowAgain: "不再提示", generateAnyway: "仍然生成",
+      confirmRegenerateSelected: "将重新生成选中的 {{count}} 页（历史记录将会保存），确定继续吗？",
+      confirmRegenerateAll: "将重新生成所有页面（历史记录将会保存），确定继续吗？",
+      confirmRegenerateTitle: "确认重新生成",
+      generationFailed: "生成失败",
+      disabledExportTip: "还有 {{count}} 页未生成图片，请先生成所有页面图片",
+      disabledEditTip: "请先生成该页图片",
       messages: {
         exportSuccess: "导出成功", exportFailed: "导出失败",
         regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
@@ -68,12 +83,17 @@ const previewI18n = {
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
-      exportSettingsSaved: "Export settings saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully"
+      exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully",
+      saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
+      loadMaterialFailed: "Failed to load material: {{error}}", templateChangeFailed: "Failed to change template: {{error}}",
+      versionSwitchFailed: "Switch failed: {{error}}", unknownError: "Unknown error",
+      regionCropSuccess: "Selected region added as reference image. You can view and delete it in \"Upload Images\" below.",
+      regionCropFailed: "Cannot crop from current image (browser security restriction). Try uploading a reference image manually."
     },
     preview: {
       title: "Preview", pageCount: "{{count}} pages", export: "Export",
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
-      exportEditablePptx: "Export Editable PPTX (Beta)",
+      exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
@@ -81,7 +101,7 @@ const previewI18n = {
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
-      generating: "Generating...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
+      generating: "Generating...", queued: "Queued for generation...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
@@ -95,11 +115,20 @@ const previewI18n = {
       editPromptPlaceholder: "e.g., Remove elements in selected area, change background to blue, increase title font size, change text box style to dashed...",
       saveOutlineOnly: "Save Outline/Description Only", generateImage: "Generate Image",
       templateModalDesc: "Selecting a new template will apply to future PPT page generation (won't affect already generated pages). You can choose preset templates, existing templates, or upload a new one.",
+      useTextStyle: "Use text description for style",
+      applyStyle: "Apply Style",
+      styleSaved: "Style description saved",
       uploadingTemplate: "Uploading template...",
       resolution1KWarning: "1K Resolution Warning",
       resolution1KWarningText: "Currently using 1K resolution for image generation, which may cause garbled or blurry text.",
       resolution1KWarningHint: "It's recommended to switch to 2K or 4K resolution in \"Project Settings → Global Settings\" for clearer results.",
       dontShowAgain: "Don't show again", generateAnyway: "Generate Anyway",
+      confirmRegenerateSelected: "Will regenerate {{count}} selected page(s) (history will be saved). Continue?",
+      confirmRegenerateAll: "Will regenerate all pages (history will be saved). Continue?",
+      confirmRegenerateTitle: "Confirm Regenerate",
+      generationFailed: "Generation failed",
+      disabledExportTip: "{{count}} page(s) have no images yet. Please generate all page images first",
+      disabledEditTip: "Please generate this page's image first",
       messages: {
         exportSuccess: "Export successful", exportFailed: "Export failed",
         regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
@@ -135,7 +164,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel } from '@/components/shared';
+import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
@@ -145,7 +174,7 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
@@ -178,6 +207,8 @@ export const SlidePreview: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [useTextStyleMode, setUseTextStyleMode] = useState(false);
+  const [draftTemplateStyle, setDraftTemplateStyle] = useState('');
   const [editPrompt, setEditPrompt] = useState('');
   // 大纲和描述编辑状态
   const [editOutlineTitle, setEditOutlineTitle] = useState('');
@@ -229,6 +260,21 @@ export const SlidePreview: React.FC = () => {
     currentProject?.export_allow_partial || false
   );
   const [isSavingExportSettings, setIsSavingExportSettings] = useState(false);
+  // 画面比例
+  const [aspectRatio, setAspectRatio] = useState<string>(
+    currentProject?.image_aspect_ratio || '16:9'
+  );
+  const [isSavingAspectRatio, setIsSavingAspectRatio] = useState(false);
+  // 根据画面比例计算 CSS aspect-ratio
+  const aspectRatioStyle = useMemo(() => {
+    const parts = aspectRatio.split(':');
+    if (parts.length === 2) {
+      const w = parseInt(parts[0], 10);
+      const h = parseInt(parts[1], 10);
+      if (w > 0 && h > 0) return `${w}/${h}`;
+    }
+    return '16/9';
+  }, [aspectRatio]);
   // 1K分辨率警告对话框状态
   const [show1KWarningDialog, setShow1KWarningDialog] = useState(false);
   const [skip1KWarningChecked, setSkip1KWarningChecked] = useState(false);
@@ -253,6 +299,7 @@ export const SlidePreview: React.FC = () => {
   const { confirm, ConfirmDialog } = useConfirm();
 
   // Memoize pages with generated images to avoid re-computing in multiple places
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const pagesWithImages = useMemo(() => {
     return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
   }, [currentProject?.pages]);
@@ -261,6 +308,11 @@ export const SlidePreview: React.FC = () => {
   const allPagesWithIds = useMemo(() => {
     return currentProject?.pages.filter(p => p.id) || [];
   }, [currentProject?.pages]);
+
+  const hasImages = useMemo(
+    () => currentProject?.pages?.some(p => p.generated_image_path) ?? false,
+    [currentProject?.pages]
+  );
 
   // 加载项目数据 & 用户模板
   useEffect(() => {
@@ -312,6 +364,7 @@ export const SlidePreview: React.FC = () => {
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
         setExportAllowPartial(currentProject.export_allow_partial || false);
+        setAspectRatio(currentProject.image_aspect_ratio || '16:9');
         lastProjectId.current = currentProject.id || null;
         isEditingRequirements.current = false;
         isEditingTemplateStyle.current = false;
@@ -323,10 +376,15 @@ export const SlidePreview: React.FC = () => {
         if (!isEditingTemplateStyle.current) {
           setTemplateStyle(currentProject.template_style || '');
         }
+        // 非文本输入的设置项，始终从服务器同步
+        setAspectRatio(currentProject.image_aspect_ratio || '16:9');
+        setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
+        setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
+        setExportAllowPartial(currentProject.export_allow_partial || false);
       }
       // 如果用户正在编辑，则不更新本地状态
     }
-  }, [currentProject?.id, currentProject?.extra_requirements, currentProject?.template_style]);
+  }, [currentProject?.id, currentProject?.extra_requirements, currentProject?.template_style, currentProject?.image_aspect_ratio, currentProject?.export_extractor_method, currentProject?.export_inpaint_method, currentProject?.export_allow_partial]);
 
   // 加载当前页面的历史版本
   useEffect(() => {
@@ -429,7 +487,7 @@ export const SlidePreview: React.FC = () => {
           console.error('错误响应:', error?.response?.data);
 
           // 提取后端返回的更具体错误信息
-          let errorMessage = '生成失败';
+          let errorMessage = t('preview.generationFailed');
           const respData = error?.response?.data;
 
           if (respData) {
@@ -447,12 +505,12 @@ export const SlidePreview: React.FC = () => {
             errorMessage = error.message;
           }
 
-          console.log('提取的错误消息:', errorMessage);
+          devLog('提取的错误消息:', errorMessage);
 
           // 使用统一的错误消息规范化函数
           errorMessage = normalizeErrorMessage(errorMessage);
 
-          console.log('规范化后的错误消息:', errorMessage);
+          devLog('规范化后的错误消息:', errorMessage);
 
           show({
             message: errorMessage,
@@ -463,12 +521,12 @@ export const SlidePreview: React.FC = () => {
 
       if (hasImages) {
         const message = isPartialGenerate
-          ? `将重新生成选中的 ${selectedPageIds.size} 页（历史记录将会保存），确定继续吗？`
-          : '将重新生成所有页面（历史记录将会保存），确定继续吗？';
+          ? t('preview.confirmRegenerateSelected', { count: selectedPageIds.size })
+          : t('preview.confirmRegenerateAll');
         confirm(
           message,
           executeGenerate,
-          { title: '确认重新生成', variant: 'warning' }
+          { title: t('preview.confirmRegenerateTitle'), variant: 'warning' }
         );
       } else {
         await executeGenerate();
@@ -534,7 +592,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.versionSwitched'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: `切换失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.versionSwitchFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     }
@@ -741,7 +799,7 @@ export const SlidePreview: React.FC = () => {
     } catch (error: any) {
       console.error('加载素材失败:', error);
       show({
-        message: '加载素材失败: ' + (error.message || '未知错误'),
+        message: t('slidePreview.loadMaterialFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error',
       });
     }
@@ -860,14 +918,14 @@ export const SlidePreview: React.FC = () => {
           }));
           // 给用户一个明显反馈：选区已作为图片加入下方“上传图片”
           show({
-            message: '已将选中区域添加为参考图片，可在下方“上传图片”中查看与删除',
+            message: t('slidePreview.regionCropSuccess'),
             type: 'success',
           });
         }, 'image/png');
       } catch (e: any) {
         console.error('裁剪选中区域失败（可能是跨域图片导致 canvas 被污染）:', e);
         show({
-          message: '无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。',
+          message: t('slidePreview.regionCropFailed'),
           type: 'error',
         });
       }
@@ -916,19 +974,18 @@ export const SlidePreview: React.FC = () => {
     return Array.from(selectedPageIds);
   };
 
-  const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx') => {
+  const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx' | 'images') => {
     setShowExportMenu(false);
     if (!projectId) return;
-    
+
     const pageIds = getSelectedPageIdsForExport();
     const exportTaskId = `export-${Date.now()}`;
-    
+
     try {
-      if (type === 'pptx' || type === 'pdf') {
+      if (type === 'pptx' || type === 'pdf' || type === 'images') {
         // Synchronous export - direct download, create completed task directly
-        const response = type === 'pptx' 
-          ? await apiExportPPTX(projectId, pageIds)
-          : await apiExportPDF(projectId, pageIds);
+        const exportApi = { pptx: apiExportPPTX, pdf: apiExportPDF, images: apiExportImages };
+        const response = await exportApi[type](projectId, pageIds);
         const downloadUrl = response.data?.download_url || response.data?.download_url_absolute;
         if (downloadUrl) {
           addTask({
@@ -981,7 +1038,7 @@ export const SlidePreview: React.FC = () => {
         projectId,
         type: type as ExportTaskType,
         status: 'FAILED',
-        errorMessage: normalizeErrorMessage(error.message || '导出失败'),
+        errorMessage: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')),
         pageIds: pageIds,
       });
       show({ message: normalizeErrorMessage(error.message || t('preview.messages.exportFailed')), type: 'error' });
@@ -1001,7 +1058,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.refreshSuccess'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: error.message || '刷新失败，请稍后重试', 
+        message: error.message || t('slidePreview.refreshFailed'),
         type: 'error' 
       });
     } finally {
@@ -1022,7 +1079,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.extraRequirementsSaved'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: `保存失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     } finally {
@@ -1043,7 +1100,7 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.styleDescSaved'), type: 'success' });
     } catch (error: any) {
       show({ 
-        message: `保存失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     } finally {
@@ -1066,13 +1123,31 @@ export const SlidePreview: React.FC = () => {
       show({ message: t('slidePreview.exportSettingsSaved'), type: 'success' });
     } catch (error: any) {
       show({
-        message: `保存失败: ${error.message || '未知错误'}`,
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error'
       });
     } finally {
       setIsSavingExportSettings(false);
     }
   }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, syncProject, show]);
+
+  const handleSaveAspectRatio = useCallback(async () => {
+    if (!currentProject || !projectId) return;
+
+    setIsSavingAspectRatio(true);
+    try {
+      await updateProject(projectId, { image_aspect_ratio: aspectRatio });
+      await syncProject(projectId);
+      show({ message: t('slidePreview.aspectRatioSaved'), type: 'success' });
+    } catch (error: any) {
+      show({
+        message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }),
+        type: 'error'
+      });
+    } finally {
+      setIsSavingAspectRatio(false);
+    }
+  }, [currentProject, projectId, aspectRatio, syncProject, show]);
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
@@ -1112,7 +1187,7 @@ export const SlidePreview: React.FC = () => {
       }
     } catch (error: any) {
       show({ 
-        message: `更换模板失败: ${error.message || '未知错误'}`, 
+        message: t('slidePreview.templateChangeFailed', { error: error.message || t('slidePreview.unknownError') }),
         type: 'error' 
       });
     } finally {
@@ -1160,6 +1235,7 @@ export const SlidePreview: React.FC = () => {
   const hasAllImages = currentProject.pages.every(
     (p) => p.generated_image_path
   );
+  const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
 
   return (
     <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
@@ -1211,7 +1287,7 @@ export const SlidePreview: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<Upload size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => setIsTemplateModalOpen(true)}
+              onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
               className="hidden lg:inline-flex"
             >
               <span className="hidden xl:inline">{t('preview.changeTemplate')}</span>
@@ -1288,6 +1364,7 @@ export const SlidePreview: React.FC = () => {
                 setShowExportTasksPanel(false);
               }}
               disabled={isMultiSelectMode ? selectedPageIds.size === 0 : !hasAllImages}
+              title={!isMultiSelectMode && !hasAllImages ? t('preview.disabledExportTip', { count: missingImageCount }) : undefined}
               className="text-xs md:text-sm"
             >
               <span className="hidden sm:inline">
@@ -1325,6 +1402,12 @@ export const SlidePreview: React.FC = () => {
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
                 >
                   {t('preview.exportPdf')}
+                </button>
+                <button
+                  onClick={() => handleExport('images')}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                >
+                  {t('preview.exportImages')}
                 </button>
               </div>
             )}
@@ -1464,6 +1547,7 @@ export const SlidePreview: React.FC = () => {
                       }}
                       onDelete={() => page.id && deletePageById(page.id)}
                       isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
+                      aspectRatio={aspectRatio}
                     />
                   </div>
                 </div>
@@ -1498,7 +1582,7 @@ export const SlidePreview: React.FC = () => {
               {/* 预览区 */}
               <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
-                  <div className="relative aspect-video bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation">
+                  <div className="relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation" style={{ aspectRatio: aspectRatioStyle }}>
                     {selectedPage?.generated_image_path ? (
                       <img
                         src={imageUrl}
@@ -1511,13 +1595,15 @@ export const SlidePreview: React.FC = () => {
                         <div className="text-center">
                           <div className="text-6xl mb-4">🍌</div>
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
-                            {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                              ? t('preview.generating')
-                              : selectedPage?.status === 'GENERATING'
+                            {selectedPage?.status === 'QUEUED'
+                              ? t('preview.queued')
+                              : (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
+                                selectedPage?.status === 'GENERATING'
                               ? t('preview.generating')
                               : t('preview.notGenerated')}
                           </p>
-                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) && 
+                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
+                           selectedPage?.status !== 'QUEUED' &&
                            selectedPage?.status !== 'GENERATING' && (
                             <Button
                               variant="primary"
@@ -1576,9 +1662,9 @@ export const SlidePreview: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       icon={<Upload size={16} />}
-                      onClick={() => setIsTemplateModalOpen(true)}
+                      onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
                       className="lg:hidden text-xs"
-                      title="更换模板"
+                      title={t('preview.changeTemplate')}
                     />
                     {/* 手机端：素材生成按钮 */}
                     <Button
@@ -1587,7 +1673,7 @@ export const SlidePreview: React.FC = () => {
                       icon={<ImagePlus size={16} />}
                       onClick={() => setIsMaterialModalOpen(true)}
                       className="lg:hidden text-xs"
-                      title="素材生成"
+                      title={t('nav.materialGenerate')}
                     />
                     {/* 手机端：刷新按钮 */}
                     <Button
@@ -1597,7 +1683,7 @@ export const SlidePreview: React.FC = () => {
                       onClick={handleRefresh}
                       disabled={isRefreshing}
                       className="md:hidden text-xs"
-                      title="刷新"
+                      title={t('preview.refresh')}
                     />
                     {imageVersions.length > 1 && (
                       <div className="relative">
@@ -1651,6 +1737,7 @@ export const SlidePreview: React.FC = () => {
                       size="sm"
                       onClick={handleEditPage}
                       disabled={!selectedPage?.generated_image_path}
+                      title={!selectedPage?.generated_image_path ? t('preview.disabledEditTip') : undefined}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {t('common.edit')}
@@ -1684,7 +1771,8 @@ export const SlidePreview: React.FC = () => {
         <div className="space-y-4">
           {/* 图片（支持矩形区域选择） */}
           <div
-            className="aspect-video bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative"
+            className="bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden relative"
+            style={{ aspectRatio: aspectRatioStyle }}
             onMouseDown={handleSelectionMouseDown}
             onMouseMove={handleSelectionMouseMove}
             onMouseUp={handleSelectionMouseUp}
@@ -1968,23 +2056,72 @@ export const SlidePreview: React.FC = () => {
           <p className="text-sm text-gray-600 dark:text-foreground-tertiary mb-4">
             {t('preview.templateModalDesc')}
           </p>
-          <TemplateSelector
-            onSelect={handleTemplateSelect}
-            selectedTemplateId={selectedTemplateId}
-            selectedPresetTemplateId={selectedPresetTemplateId}
-            showUpload={false} // 在预览页面上传的模板直接应用到项目，不上传到用户模板库
-            projectId={projectId || null}
-          />
-          {isUploadingTemplate && (
-            <div className="text-center py-2 text-sm text-gray-500 dark:text-foreground-tertiary">
-              {t('preview.uploadingTemplate')}
+          {/* 图片模板 / 文字风格 切换 */}
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+              {t('preview.useTextStyle')}
+            </span>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={useTextStyleMode}
+                onChange={(e) => setUseTextStyleMode(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
             </div>
+          </label>
+          {useTextStyleMode ? (
+            <TextStyleSelector
+              value={draftTemplateStyle}
+              onChange={setDraftTemplateStyle}
+              onToast={show}
+            />
+          ) : (
+            <>
+              <TemplateSelector
+                onSelect={handleTemplateSelect}
+                selectedTemplateId={selectedTemplateId}
+                selectedPresetTemplateId={selectedPresetTemplateId}
+                showUpload={false}
+                projectId={projectId || null}
+              />
+              {isUploadingTemplate && (
+                <div className="text-center py-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                  {t('preview.uploadingTemplate')}
+                </div>
+              )}
+            </>
           )}
           <div className="flex justify-end gap-3 pt-4 border-t">
+            {useTextStyleMode && (
+              <Button
+                variant="primary"
+                loading={isSavingTemplateStyle}
+                onClick={async () => {
+                  isEditingTemplateStyle.current = true;
+                  setTemplateStyle(draftTemplateStyle);
+                  setIsSavingTemplateStyle(true);
+                  try {
+                    await updateProject(projectId!, { template_style: draftTemplateStyle || '' });
+                    isEditingTemplateStyle.current = false;
+                    await syncProject(projectId!);
+                    show({ message: t('slidePreview.styleDescSaved'), type: 'success' });
+                    setIsTemplateModalOpen(false);
+                  } catch (error: any) {
+                    show({ message: t('slidePreview.saveFailed', { error: error.message || t('slidePreview.unknownError') }), type: 'error' });
+                  } finally {
+                    setIsSavingTemplateStyle(false);
+                  }
+                }}
+              >
+                {t('preview.applyStyle')}
+              </Button>
+            )}
             <Button
               variant="ghost"
               onClick={() => setIsTemplateModalOpen(false)}
-              disabled={isUploadingTemplate}
+              disabled={isUploadingTemplate || isSavingTemplateStyle}
             >
               {t('common.close')}
             </Button>
@@ -2034,6 +2171,12 @@ export const SlidePreview: React.FC = () => {
             onExportAllowPartialChange={setExportAllowPartial}
             onSaveExportSettings={handleSaveExportSettings}
             isSavingExportSettings={isSavingExportSettings}
+            // 画面比例
+            aspectRatio={aspectRatio}
+            onAspectRatioChange={setAspectRatio}
+            onSaveAspectRatio={handleSaveAspectRatio}
+            isSavingAspectRatio={isSavingAspectRatio}
+            hasImages={hasImages}
           />
         </>
       )}

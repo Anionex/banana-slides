@@ -1,5 +1,5 @@
 // 页面状态
-export type PageStatus = 'DRAFT' | 'DESCRIPTION_GENERATED' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+export type PageStatus = 'DRAFT' | 'GENERATING_DESCRIPTION' | 'DESCRIPTION_GENERATED' | 'QUEUED' | 'GENERATING' | 'COMPLETED' | 'FAILED';
 
 // 项目状态
 export type ProjectStatus = 'DRAFT' | 'OUTLINE_GENERATED' | 'DESCRIPTIONS_GENERATED' | 'COMPLETED';
@@ -40,7 +40,7 @@ export interface Page {
   id?: string;      // 前端使用的别名
   order_index: number;
   part?: string; // 章节名
-  outline_content: OutlineContent;
+  outline_content: OutlineContent | null;
   description_content?: DescriptionContent;
   generated_image_url?: string; // 后端返回 generated_image_url
   generated_image_path?: string; // 前端使用的别名
@@ -64,6 +64,8 @@ export interface Project {
   outline_text?: string;  // 用户输入的大纲文本（用于outline类型）
   description_text?: string;  // 用户输入的描述文本（用于description类型）
   extra_requirements?: string; // 额外要求，应用到每个页面的AI提示词
+  outline_requirements?: string; // 大纲生成要求
+  description_requirements?: string; // 页面描述生成要求
   creation_type?: string;
   template_image_url?: string; // 后端返回 template_image_url
   template_image_path?: string; // 前端使用的别名
@@ -72,6 +74,7 @@ export interface Project {
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法
   export_allow_partial?: boolean; // 是否允许返回半成品（导出出错时继续而非停止）
+  image_aspect_ratio?: string; // 画面比例（如 16:9, 4:3）
   status: ProjectStatus;
   pages: Page[];
   created_at: string;
@@ -107,6 +110,7 @@ export interface CreateProjectRequest {
   description_text?: string;
   template_image?: File;
   template_style?: string;
+  image_aspect_ratio?: string;
 }
 
 // API响应
@@ -121,7 +125,7 @@ export interface ApiResponse<T = any> {
 // 设置
 export interface Settings {
   id: number;
-  ai_provider_format: 'openai' | 'gemini';
+  ai_provider_format: string;
   api_base_url?: string;
   api_key_length: number;
   image_resolution: string;
@@ -140,9 +144,20 @@ export interface Settings {
   enable_image_reasoning: boolean;
   image_thinking_budget: number;
   baidu_ocr_api_key_length: number;
+  // LazyLLM 配置
+  text_model_source?: string;
+  image_model_source?: string;
+  image_caption_model_source?: string;
+  lazyllm_api_keys_info?: Record<string, number>;  // {vendor: key_length}
+  // Per-model API credentials (for gemini/openai per-model overrides)
+  text_api_key_length: number;
+  text_api_base_url?: string;
+  image_api_key_length: number;
+  image_api_base_url?: string;
+  image_caption_api_key_length: number;
+  image_caption_api_base_url?: string;
   _editable_fields?: string[];
   created_at?: string;
   updated_at?: string;
 }
-
 

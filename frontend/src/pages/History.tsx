@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Home, Trash2, Sun, Moon } from 'lucide-react';
-import { Button, Loading, Card, useToast, useConfirm } from '@/components/shared';
+import { Button, Loading, Card, Pagination, useToast, useConfirm } from '@/components/shared';
 import { ProjectCard } from '@/components/history/ProjectCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
@@ -36,6 +36,7 @@ const historyI18n = {
       deleteFailed: '删除项目失败',
       openFailed: '打开项目失败',
       loadFailed: '加载历史项目失败',
+      perPage: '条/页',
       titleEmpty: '项目名称不能为空',
       titleUpdated: '项目名称已更新',
       titleUpdateFailed: '更新项目名称失败',
@@ -63,6 +64,7 @@ const historyI18n = {
       deleteFailed: 'Failed to delete project',
       openFailed: 'Failed to open project',
       loadFailed: 'Failed to load project history',
+      perPage: '/ page',
       titleEmpty: 'Project name cannot be empty',
       titleUpdated: 'Project name updated',
       titleUpdateFailed: 'Failed to update project name',
@@ -70,14 +72,23 @@ const historyI18n = {
   },
 };
 
+const DEFAULT_PAGE_SIZE = 5;
+const PAGE_SIZE_KEY = 'history_page_size';
+
 export const History: React.FC = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
   const t = useT(historyI18n); // 组件内翻译 + 自动 fallback 到全局
   const { isDark, setTheme } = useTheme();
   const { syncProject, setCurrentProject } = useProjectStore();
-  
+
   const [projects, setProjects] = useState<Project[]>([]);
+  const [totalProjects, setTotalProjects] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = localStorage.getItem(PAGE_SIZE_KEY);
+    return saved ? Number(saved) : DEFAULT_PAGE_SIZE;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
@@ -87,20 +98,18 @@ export const History: React.FC = () => {
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
+  const totalPages = Math.ceil(totalProjects / pageSize);
 
-  // ===== 数据加载 =====
-
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (page: number) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.listProjects(50, 0);
+      const offset = (page - 1) * pageSize;
+      const response = await api.listProjects(pageSize, offset);
       if (response.data?.projects) {
         const normalizedProjects = response.data.projects.map(normalizeProject);
         setProjects(normalizedProjects);
+        setTotalProjects(response.data.total ?? 0);
       }
     } catch (err: any) {
       console.error('加载历史项目失败:', err);
@@ -108,7 +117,23 @@ export const History: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-     
+  }, [pageSize]);
+
+  useEffect(() => {
+    loadProjects(currentPage);
+  }, [currentPage, pageSize]);
+
+  const handlePageChange = useCallback((page: number) => {
+    setSelectedProjects(new Set());
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    localStorage.setItem(PAGE_SIZE_KEY, String(size));
+    setPageSize(size);
+    setCurrentPage(1);
+    setSelectedProjects(new Set());
   }, []);
 
   // ===== 项目选择与导航 =====
@@ -196,16 +221,20 @@ export const History: React.FC = () => {
         deletedCurrentProject = true;
       }
 
-      // 从列表中移除已成功删除的项目
-      if (successIds.length > 0) {
-        setProjects(prev => prev.filter(p => {
-          const id = p.id || p.project_id;
-          return id && !successIds.includes(id);
-        }));
-      }
-
       // 清空选择
       setSelectedProjects(new Set());
+
+      // Reload current page; if all items on this page were deleted, go back one page
+      if (successIds.length > 0) {
+        const remainingOnPage = projects.length - successIds.length;
+        const newPage = remainingOnPage <= 0 && currentPage > 1 ? currentPage - 1 : currentPage;
+        if (newPage !== currentPage) {
+          // setCurrentPage triggers the useEffect which calls loadProjects
+          setCurrentPage(newPage);
+        } else {
+          await loadProjects(newPage);
+        }
+      }
 
       if (failCount > 0 && successIds.length > 0) {
         show({
@@ -237,8 +266,7 @@ export const History: React.FC = () => {
     } finally {
       setIsDeleting(false);
     }
-   
-  }, [setCurrentProject, show]);
+  }, [setCurrentProject, show, projects, currentPage, loadProjects]);
 
   const handleDeleteProject = useCallback(async (e: React.MouseEvent, project: Project) => {
     e.stopPropagation(); // 阻止事件冒泡，避免触发项目选择
@@ -421,7 +449,7 @@ export const History: React.FC = () => {
           <Card className="p-8 text-center">
             <div className="text-6xl mb-4">⚠️</div>
             <p className="text-gray-600 dark:text-foreground-tertiary mb-4">{error}</p>
-            <Button variant="primary" onClick={loadProjects}>
+            <Button variant="primary" onClick={() => loadProjects(currentPage)}>
               {t('common.retry')}
             </Button>
           </Card>
@@ -460,7 +488,7 @@ export const History: React.FC = () => {
             {projects.map((project) => {
               const projectId = project.id || project.project_id;
               if (!projectId) return null;
-              
+
               return (
                 <ProjectCard
                   key={projectId}
@@ -479,6 +507,18 @@ export const History: React.FC = () => {
                 />
               );
             })}
+
+            {/* 分页 */}
+            <div className="pt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                pageSize={pageSize}
+                onPageSizeChange={handlePageSizeChange}
+                pageSizeLabel={t('history.perPage')}
+              />
+            </div>
           </div>
         )}
       </main>

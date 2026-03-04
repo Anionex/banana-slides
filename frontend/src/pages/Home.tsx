@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
+import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import UserMenu from '@/components/auth/UserMenu';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
+import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { useT } from '@/hooks/useT';
-import { PRESET_STYLES } from '@/config/presetStyles';
+import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
-type CreationType = 'idea' | 'outline' | 'description';
+type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -246,11 +247,27 @@ export const Home: React.FC = () => {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
-  const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
+  const [renovationFile, setRenovationFile] = useState<File | null>(null);
+  const [keepLayout, setKeepLayout] = useState(false);
+  const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
+  useEffect(() => {
+    if (content) {
+      sessionStorage.setItem('home-draft-content', content);
+    }
+  }, [content]);
+
+  useEffect(() => {
+    sessionStorage.setItem('home-draft-tab', activeTab);
+  }, [activeTab]);
 
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
@@ -412,14 +429,14 @@ export const Home: React.FC = () => {
       
       // 特殊处理413错误
       if (error?.response?.status === 413) {
-        show({ 
-          message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
-          type: 'error' 
+        show({
+          message: t('home.messages.fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
+          type: 'error'
         });
       } else {
-        show({ 
-          message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-          type: 'error' 
+        show({
+          message: `${t('home.messages.fileUploadFailed')}: ${error?.response?.data?.error?.message || error.message || ''}`.replace(/: $/, ''),
+          type: 'error'
         });
       }
     } finally {
@@ -500,6 +517,13 @@ export const Home: React.FC = () => {
       description: t('home.tabDescriptions.description'),
       example: t('home.examples.description'),
     },
+    ppt_renovation: {
+      icon: <RefreshCw size={20} />,
+      label: t('home.tabs.ppt_renovation'),
+      placeholder: '',
+      description: t('home.tabDescriptions.ppt_renovation'),
+      example: null as string | null,
+    },
   };
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
@@ -530,8 +554,16 @@ export const Home: React.FC = () => {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async () => {
-    if (!content.trim()) {
+    // For ppt_renovation, validate file instead of content
+    if (activeTab === 'ppt_renovation') {
+      if (!renovationFile) {
+        show({ message: t('home.renovation.uploadFile'), type: 'error' });
+        return;
+      }
+    } else if (!content.trim()) {
       show({ message: t('home.messages.enterContent'), type: 'error' });
       return;
     }
@@ -548,7 +580,38 @@ export const Home: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
+      // PPT 翻新模式：走独立的上传+异步解析流程
+      if (activeTab === 'ppt_renovation' && renovationFile) {
+        const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
+        const result = await createPptRenovationProject(renovationFile, {
+          keepLayout,
+          templateStyle: styleDesc,
+        });
+
+        const projectId = result.data?.project_id;
+        const taskId = result.data?.task_id;
+        if (!projectId) {
+          show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
+          return;
+        }
+
+        // Save project ID and task ID for DetailEditor to poll
+        localStorage.setItem('currentProjectId', projectId);
+        if (taskId) {
+          localStorage.setItem('renovationTaskId', taskId);
+        }
+
+        // Clear draft
+        sessionStorage.removeItem('home-draft-content');
+        sessionStorage.removeItem('home-draft-tab');
+
+        // Navigate to detail editor (will poll for task completion with skeleton UI)
+        navigate(`/project/${projectId}/detail`);
+        return;
+      }
+
       // 如果有模板ID但没有File，按需加载
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
@@ -566,7 +629,7 @@ export const Home: React.FC = () => {
         .filter(f => f.parse_status === 'completed')
         .map(f => f.id);
 
-      await initializeProject(activeTab, content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined);
+      await initializeProject(activeTab as 'idea' | 'outline' | 'description', content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined, aspectRatio);
       
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
@@ -579,7 +642,7 @@ export const Home: React.FC = () => {
       if (referenceFiles.length > 0) {
         const unassociatedFiles = referenceFiles.filter(f => f.parse_status !== 'completed');
         if (unassociatedFiles.length > 0) {
-          console.log(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
+          devLog(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
           try {
             await Promise.all(
               unassociatedFiles.map(async file => {
@@ -602,16 +665,16 @@ export const Home: React.FC = () => {
       }
       
       if (materialUrls.length > 0) {
-        console.log(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
+        devLog(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
         try {
           const response = await associateMaterialsToProject(projectId, materialUrls);
-          console.log('Materials associated successfully:', response);
+          devLog('Materials associated successfully:', response);
         } catch (error) {
           console.error('Failed to associate materials:', error);
           // 不影响主流程，继续执行
         }
       } else {
-        console.log('No materials to associate');
+        devLog('No materials to associate');
       }
       
       if (activeTab === 'idea' || activeTab === 'outline') {
@@ -622,7 +685,10 @@ export const Home: React.FC = () => {
       }
     } catch (error: any) {
       console.error('创建项目失败:', error);
-      // 错误已经在 store 中处理并显示
+      const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
+      show({ message: msg, type: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -876,6 +942,97 @@ export const Home: React.FC = () => {
 
           {/* 输入区 - 带工具栏 */}
           <div className="mb-2">
+            {activeTab === 'ppt_renovation' ? (
+              /* PPT 翻新：文件上传区 */
+              <div className="space-y-4">
+                <div
+                  className="border-2 border-dashed border-gray-300 dark:border-border-primary rounded-xl p-8 text-center cursor-pointer hover:border-banana-400 dark:hover:border-banana transition-colors duration-200"
+                  onClick={() => renovationFileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files[0];
+                    if (file && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt'))) {
+                      setRenovationFile(file);
+                      const ext = file.name.split('.').pop()?.toLowerCase();
+                      if (ext === 'ppt' || ext === 'pptx') {
+                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+                      }
+                    } else {
+                      show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
+                    }
+                  }}
+                >
+                  {renovationFile ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <FileText size={24} className="text-banana-600 dark:text-banana" />
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{renovationFile.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-foreground-tertiary">{(renovationFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setRenovationFile(null); }}
+                        className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Upload size={32} className="mx-auto text-gray-400 dark:text-foreground-tertiary" />
+                      <p className="text-sm text-gray-600 dark:text-foreground-secondary">{t('home.renovation.uploadHint')}</p>
+                      <p className="text-xs text-gray-400 dark:text-foreground-tertiary">{t('home.renovation.formatHint')}</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={renovationFileInputRef}
+                  type="file"
+                  accept=".pdf,.pptx,.ppt"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setRenovationFile(file);
+                      const ext = file.name.split('.').pop()?.toLowerCase();
+                      if (ext === 'ppt' || ext === 'pptx') {
+                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+                      }
+                    }
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+
+                {/* 保留布局 toggle */}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                      {t('home.renovation.keepLayout')}
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={keepLayout}
+                        onChange={(e) => setKeepLayout(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
+                    </div>
+                  </label>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    loading={isSubmitting || isGlobalLoading}
+                    disabled={!renovationFile}
+                    className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
+                  >
+                    {t('common.next')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <MarkdownTextarea
               ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
@@ -886,20 +1043,50 @@ export const Home: React.FC = () => {
               rows={activeTab === 'idea' ? 4 : 8}
               className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
               toolbarLeft={
-                <button
-                  type="button"
-                  onClick={handlePaperclipClick}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors active:scale-95 touch-manipulation"
-                  title={t('home.actions.selectFile')}
-                >
-                  <Paperclip size={18} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handlePaperclipClick}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors active:scale-95 touch-manipulation"
+                    title={t('home.actions.selectFile')}
+                  >
+                    <Paperclip size={18} />
+                  </button>
+                  {/* 画面比例选择 */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsAspectRatioOpen(!isAspectRatioOpen)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors"
+                      title={i18n.language?.startsWith('zh') ? '画面比例' : 'Aspect Ratio'}
+                    >
+                      <span>{aspectRatio}</span>
+                      <ChevronDown size={12} className={`transition-transform ${isAspectRatioOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isAspectRatioOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsAspectRatioOpen(false)} />
+                        <div className="absolute left-0 bottom-full mb-1 z-50 bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary rounded-lg shadow-lg dark:shadow-none py-1 min-w-[80px]">
+                          {ASPECT_RATIO_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => { setAspectRatio(opt.value); setIsAspectRatioOpen(false); }}
+                              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${aspectRatio === opt.value ? 'text-banana font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               }
               toolbarRight={
                 <Button
                   size="sm"
                   onClick={handleSubmit}
-                  loading={isGlobalLoading}
+                  loading={isSubmitting || isGlobalLoading}
                   disabled={
                     !content.trim() ||
                     isUploadingImage ||
@@ -913,6 +1100,7 @@ export const Home: React.FC = () => {
                 </Button>
               }
             />
+            )}
           </div>
 
           {/* 隐藏的文件输入 */}
@@ -932,6 +1120,7 @@ export const Home: React.FC = () => {
             onFileStatusChange={handleFileStatusChange}
             deleteMode="remove"
             className="mb-4"
+            showToast={show}
           />
 
           {/* 模板选择 */}
@@ -971,65 +1160,11 @@ export const Home: React.FC = () => {
             
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
-              <div className="space-y-3">
-                <Textarea
-                  placeholder={t('home.template.stylePlaceholder')}
-                  value={templateStyle}
-                  onChange={(e) => setTemplateStyle(e.target.value)}
-                  rows={3}
-                  className="text-sm border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200"
-                />
-
-                {/* 预设风格按钮 */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-600 dark:text-foreground-tertiary">
-                    {t('home.template.presetStyles')}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_STYLES.map((preset) => (
-                      <div key={preset.id} className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setTemplateStyle(t(preset.descriptionKey))}
-                          onMouseEnter={() => setHoveredPresetId(preset.id)}
-                          onMouseLeave={() => setHoveredPresetId(null)}
-                          className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none"
-                        >
-                          {t(preset.nameKey)}
-                        </button>
-                        
-                        {/* 悬停时显示预览图片 */}
-                        {hoveredPresetId === preset.id && preset.previewImage && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="bg-white dark:bg-background-secondary rounded-lg shadow-2xl dark:shadow-none border-2 border-banana-400 dark:border-banana p-2.5 w-72">
-                              <img
-                                src={preset.previewImage}
-                                alt={t(preset.nameKey)}
-                                className="w-full h-40 object-cover rounded"
-                                onError={(e) => {
-                                  // 如果图片加载失败，隐藏预览
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                              <p className="text-xs text-gray-600 dark:text-foreground-tertiary mt-2 px-1 line-clamp-3">
-                                {t(preset.descriptionKey)}
-                              </p>
-                            </div>
-                            {/* 小三角形指示器 */}
-                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                              <div className="w-3 h-3 bg-white dark:bg-background-secondary border-r-2 border-b-2 border-banana-400 dark:border-banana transform rotate-45"></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
-                  💡 {t('home.template.styleTip')}
-                </p>
-              </div>
+              <TextStyleSelector
+                value={templateStyle}
+                onChange={setTemplateStyle}
+                onToast={show}
+              />
             ) : (
               <TemplateSelector
                 onSelect={handleTemplateSelect}

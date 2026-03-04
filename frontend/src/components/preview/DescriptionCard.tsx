@@ -40,9 +40,20 @@ export interface DescriptionCardProps {
   showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
-  isGenerating?: boolean;
   isAiRefining?: boolean;
 }
+
+// 从 description_content 提取文本内容（提取到组件外部供 memo 比较器使用）
+const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
+  if (!descContent) return '';
+  if ('text' in descContent) {
+    return descContent.text;
+  } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
+    return descContent.text_content.join('\n');
+  }
+  return '';
+};
+
 
 export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   page,
@@ -51,20 +62,9 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   showToast,
   onUpdate,
   onRegenerate,
-  isGenerating = false,
   isAiRefining = false,
 }) => {
   const t = useT(descriptionCardI18n);
-  // 从 description_content 提取文本内容
-  const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
-    if (!descContent) return '';
-    if ('text' in descContent) {
-      return descContent.text;
-    } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
-      return descContent.text_content.join('\n');
-    }
-    return '';
-  };
 
   const text = getDescriptionText(page.description_content);
 
@@ -84,8 +84,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     insertAtCursor,
   });
 
-  // 使用专门的描述生成状态 hook，不受图片生成状态影响
-  const generating = useDescriptionGeneratingState(isGenerating, isAiRefining);
+  // 通过 page.status 驱动骨架屏，与图片生成的 GENERATING 状态互不干扰
+  const generating = useDescriptionGeneratingState(page, isAiRefining);
 
   const handleEdit = () => {
     // 在打开编辑对话框时，从当前的 page 获取最新值
@@ -131,7 +131,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
         </div>
 
         {/* 内容 */}
-        <div className="p-4 flex-1">
+        <div className="p-4 flex-1 max-h-96 overflow-y-auto desc-card-scroll" data-testid="description-card-content">
           {generating ? (
             <div className="space-y-2">
               <Skeleton className="h-4 w-full" />
@@ -206,4 +206,12 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
       </Modal>
     </>
   );
-});
+}, (prev, next) =>
+  prev.index === next.index &&
+  prev.isAiRefining === next.isAiRefining &&
+  prev.projectId === next.projectId &&
+  prev.page.id === next.page.id &&
+  prev.page.status === next.page.status &&
+  prev.page.part === next.page.part &&
+  getDescriptionText(prev.page.description_content) === getDescriptionText(next.page.description_content)
+);

@@ -37,7 +37,7 @@ services:
     image: ${DOCKER_IMAGE_FRONTEND:-anoinex/banana-slides-frontend:latest}
     container_name: banana-slides-frontend
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
       - backend
     restart: unless-stopped

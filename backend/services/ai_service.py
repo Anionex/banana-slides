@@ -21,9 +21,15 @@ from .prompts import (
     get_description_to_outline_prompt,
     get_description_split_prompt,
     get_outline_refinement_prompt,
-    get_descriptions_refinement_prompt
+    get_descriptions_refinement_prompt,
+    get_ppt_page_content_extraction_prompt,
+    get_layout_caption_prompt,
+    get_style_extraction_prompt,
+    get_outline_generation_prompt_markdown,
+    get_outline_parsing_prompt_markdown,
+    get_description_to_outline_prompt_markdown,
 )
-from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
+from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -45,15 +51,19 @@ class ProjectContext:
             self.outline_text = project_or_dict.outline_text
             self.description_text = project_or_dict.description_text
             self.creation_type = project_or_dict.creation_type or 'idea'
+            self.outline_requirements = project_or_dict.outline_requirements
+            self.description_requirements = project_or_dict.description_requirements
         else:
             # 是字典
             self.idea_prompt = project_or_dict.get('idea_prompt')
             self.outline_text = project_or_dict.get('outline_text')
             self.description_text = project_or_dict.get('description_text')
             self.creation_type = project_or_dict.get('creation_type', 'idea')
-        
+            self.outline_requirements = project_or_dict.get('outline_requirements')
+            self.description_requirements = project_or_dict.get('description_requirements')
+
         self.reference_files_content = reference_files_content or []
-    
+
     def to_dict(self) -> Dict:
         """转换为字典，方便传递"""
         return {
@@ -61,6 +71,8 @@ class ProjectContext:
             'outline_text': self.outline_text,
             'description_text': self.description_text,
             'creation_type': self.creation_type,
+            'outline_requirements': self.outline_requirements,
+            'description_requirements': self.description_requirements,
             'reference_files_content': self.reference_files_content
         }
 
@@ -68,7 +80,7 @@ class ProjectContext:
 class AIService:
     """Service for AI model interactions using pluggable providers"""
     
-    def __init__(self, text_provider: TextProvider = None, image_provider: ImageProvider = None):
+    def __init__(self, text_provider: TextProvider = None, image_provider: ImageProvider = None, caption_provider: TextProvider = None):
         """
         Initialize AI service with providers
         
@@ -101,9 +113,16 @@ class AIService:
             self.enable_image_reasoning = False
             self.image_thinking_budget = 1024
         
+        # Caption model for multimodal (image→text) tasks
+        if has_app_context() and current_app and hasattr(current_app, "config"):
+            self.caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
+        else:
+            self.caption_model = config.IMAGE_CAPTION_MODEL
+
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT (from Flask config or env var)
         self.text_provider = text_provider or get_text_provider(model=self.text_model)
         self.image_provider = image_provider or get_image_provider(model=self.image_model)
+        self.caption_provider = caption_provider or get_caption_provider(model=self.caption_model)
     
     def _get_text_thinking_budget(self) -> int:
         """
@@ -230,24 +249,25 @@ class AIService:
             
         Raises:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
-            ValueError: text_provider 不支持图片输入
+            ValueError: caption_provider 不支持图片输入
         """
-        # 调用AI生成文本（带图片），根据 enable_text_reasoning 配置调整 thinking_budget
+        # 使用 caption_provider（支持图片输入的多模态模型）
         actual_budget = self._get_text_thinking_budget()
-        if hasattr(self.text_provider, 'generate_with_image'):
-            response_text = self.text_provider.generate_with_image(
+        provider = self.caption_provider
+        if hasattr(provider, 'generate_with_image'):
+            response_text = provider.generate_with_image(
                 prompt=prompt,
                 image_path=image_path,
                 thinking_budget=actual_budget
             )
-        elif hasattr(self.text_provider, 'generate_text_with_images'):
-            response_text = self.text_provider.generate_text_with_images(
+        elif hasattr(provider, 'generate_text_with_images'):
+            response_text = provider.generate_text_with_images(
                 prompt=prompt,
                 images=[image_path],
                 thinking_budget=actual_budget
             )
         else:
-            raise ValueError("text_provider 不支持图片输入")
+            raise ValueError("caption_provider 不支持图片输入")
         
         # 清理响应文本：移除markdown代码块标记和多余空白
         cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -314,6 +334,132 @@ class AIService:
         outline_prompt = get_outline_generation_prompt(project_context, language)
         outline = self.generate_json(outline_prompt, thinking_budget=1000)
         return outline
+
+    @staticmethod
+    def parse_markdown_outline(markdown: str) -> List[Dict]:
+        """
+        Parse markdown outline into structured page data.
+
+        Format:
+          # Part Name        → sets current part
+          ## Page Title       → starts a new page
+          - Point text        → adds a bullet point to current page
+
+        Returns list of dicts: [{"title": ..., "points": [...], "part": ...}, ...]
+        """
+        pages = []
+        current_part = None
+        current_page = None
+
+        for line in markdown.split('\n'):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            if stripped.startswith('# ') and not stripped.startswith('## '):
+                # Part header
+                current_part = stripped[2:].strip()
+            elif stripped.startswith('## '):
+                # New page — flush previous
+                if current_page:
+                    pages.append(current_page)
+                current_page = {
+                    'title': stripped[3:].strip(),
+                    'points': [],
+                }
+                if current_part:
+                    current_page['part'] = current_part
+            elif stripped.startswith('- ') and current_page is not None:
+                current_page['points'].append(stripped[2:].strip())
+
+        # Flush last page
+        if current_page:
+            pages.append(current_page)
+
+        return pages
+
+    def generate_outline_stream(self, project_context: ProjectContext, language: str = None):
+        """
+        Stream outline generation, yielding each completed page as it's detected.
+
+        Yields dicts: {"title": ..., "points": [...], "part": ...}
+        """
+        creation_type = project_context.creation_type or 'idea'
+
+        if creation_type == 'outline':
+            prompt = get_outline_parsing_prompt_markdown(project_context, language)
+        elif creation_type == 'descriptions':
+            prompt = get_description_to_outline_prompt_markdown(project_context, language)
+        else:
+            prompt = get_outline_generation_prompt_markdown(project_context, language)
+
+        actual_budget = self._get_text_thinking_budget()
+        buffer = ""
+        current_part = None
+        current_page = None
+        stream_complete = False
+
+        for chunk in self.text_provider.generate_text_stream(prompt, thinking_budget=actual_budget):
+            buffer += chunk
+
+            # Process complete lines from buffer
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                stripped = line.strip()
+
+                if not stripped:
+                    continue
+
+                if stripped == '<!-- END -->':
+                    stream_complete = True
+                    continue
+
+                if stripped.startswith('# ') and not stripped.startswith('## '):
+                    current_part = stripped[2:].strip()
+                elif stripped.startswith('## '):
+                    # New page detected — yield previous page
+                    if current_page:
+                        yield current_page
+                    current_page = {
+                        'title': stripped[3:].strip(),
+                        'points': [],
+                    }
+                    if current_part:
+                        current_page['part'] = current_part
+                elif stripped.startswith('- ') and current_page is not None:
+                    current_page['points'].append(stripped[2:].strip())
+
+        # Process remaining buffer (same logic as main loop)
+        if buffer.strip():
+            buffer += '\n'
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped == '<!-- END -->':
+                    stream_complete = True
+                    continue
+                if stripped.startswith('# ') and not stripped.startswith('## '):
+                    current_part = stripped[2:].strip()
+                elif stripped.startswith('## '):
+                    if current_page:
+                        yield current_page
+                    current_page = {
+                        'title': stripped[3:].strip(),
+                        'points': [],
+                    }
+                    if current_part:
+                        current_page['part'] = current_part
+                elif stripped.startswith('- ') and current_page is not None:
+                    current_page['points'].append(stripped[2:].strip())
+
+        # Yield last page
+        if current_page:
+            yield current_page
+
+        # Yield completion sentinel
+        yield {'__stream_complete__': stream_complete}
     
     def parse_outline_text(self, project_context: ProjectContext, language: str = None) -> List[Dict]:
         """
@@ -348,30 +494,33 @@ class AIService:
                 pages.append(item)
         return pages
     
-    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict], 
-                                 page_outline: Dict, page_index: int, language='zh') -> str:
+    def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
+                                 page_outline: Dict, page_index: int, language='zh',
+                                 detail_level: str = 'default') -> str:
         """
         Generate description for a single page
         Based on demo.py gen_desc() logic
-        
+
         Args:
             project_context: 项目上下文对象，包含所有原始信息
             outline: Complete outline
             page_outline: Outline for this specific page
             page_index: Page number (1-indexed)
-        
+            detail_level: Description detail level (concise/default/detailed)
+
         Returns:
             Text description for the page
         """
         part_info = f"\nThis page belongs to: {page_outline['part']}" if 'part' in page_outline else ""
-        
+
         desc_prompt = get_page_description_prompt(
             project_context=project_context,
             outline=outline,
             page_outline=page_outline,
             page_index=page_index,
             part_info=part_info,
-            language=language
+            language=language,
+            detail_level=detail_level
         )
         
         # 根据 enable_text_reasoning 配置调整 thinking_budget
@@ -506,7 +655,7 @@ class AIService:
                                 logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
                         elif ref_img.startswith('/files/'):
                             # 通用 /files/ 路径（materials、项目文件等），转换为文件系统路径
-                            upload_folder = os.environ.get('UPLOAD_FOLDER', '')
+                            upload_folder = get_config().UPLOAD_FOLDER
                             relative_path = ref_img[len('/files/'):].lstrip('/')
                             local_path = os.path.abspath(os.path.join(upload_folder, relative_path))
                             if not local_path.startswith(os.path.abspath(upload_folder)):
@@ -653,10 +802,64 @@ class AIService:
             language=language
         )
         descriptions = self.generate_json(refinement_prompt, thinking_budget=1000)
-        
+
         # 确保返回的是字符串列表
         if isinstance(descriptions, list):
             return [str(desc) for desc in descriptions]
         else:
             raise ValueError("Expected a list of page descriptions, but got: " + str(type(descriptions)))
+
+    def extract_page_content(self, markdown_text: str, language: str = 'zh') -> Dict:
+        """
+        从 fileparser 解析出的 markdown 文本中提取页面结构化内容
+
+        Args:
+            markdown_text: 单页 PDF 解析出的 markdown 文本
+            language: 输出语言
+
+        Returns:
+            Dict with keys: title, points, description
+        """
+        prompt = get_ppt_page_content_extraction_prompt(markdown_text, language=language)
+        result = self.generate_json(prompt, thinking_budget=1000)
+
+        # Ensure required fields exist
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected dict, got {type(result)}")
+
+        result.setdefault('title', '')
+        result.setdefault('points', [])
+        result.setdefault('description', '')
+
+        return result
+
+    def _generate_text_from_image(self, prompt: str, image_path: str) -> str:
+        """Helper to generate text from a prompt and an image, using caption_provider."""
+        actual_budget = self._get_text_thinking_budget()
+        provider = self.caption_provider
+
+        if hasattr(provider, 'generate_with_image'):
+            response_text = provider.generate_with_image(
+                prompt=prompt,
+                image_path=image_path,
+                thinking_budget=actual_budget
+            )
+        elif hasattr(provider, 'generate_text_with_images'):
+            response_text = provider.generate_text_with_images(
+                prompt=prompt,
+                images=[image_path],
+                thinking_budget=actual_budget
+            )
+        else:
+            raise ValueError("caption_provider 不支持图片输入")
+
+        return response_text.strip()
+
+    def generate_layout_caption(self, image_path: str) -> str:
+        """使用 caption model 描述 PPT 页面的排版布局"""
+        return self._generate_text_from_image(get_layout_caption_prompt(), image_path)
+
+    def extract_style_description(self, image_path: str) -> str:
+        """从图片中提取风格描述"""
+        return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
 

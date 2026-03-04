@@ -101,7 +101,7 @@ export function generateId(): string {
 }
 
 /**
- * 将错误消息转换为友好的中文提示
+ * 将错误消息转换为友好的中英文提示
  */
 export function normalizeErrorMessage(errorMessage: string | null | undefined): string {
   const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh';
@@ -141,6 +141,10 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh ? '认证失败，请检查 API 密钥配置。' : 'Authentication failed. Please check API key settings.';
   } else if (message.includes('403') || message.includes('forbidden')) {
     return isZh ? '访问被拒绝，请检查 API 权限配置。' : 'Access denied. Please check API permissions.';
+  } else if (message.includes('aspect_ratio') || message.includes('aspect ratio')) {
+    return isZh
+      ? '当前画面比例不被该模型支持，请在项目设置中尝试其他画面比例后重试。'
+      : 'The selected aspect ratio is not supported by this model. Please try a different ratio in project settings.';
   } else if (message.includes('network error') || message.includes('econnrefused')) {
     return isZh ? '网络连接失败，请检查网络或后端服务是否正常运行。' : 'Network error. Please check your connection.';
   } else if (message.includes('timeout')) {
