@@ -57,3 +57,4 @@ uploads/
 _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
+.venv

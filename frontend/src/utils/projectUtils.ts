@@ -160,6 +160,19 @@ export const getDescriptionText = (descContent: DescriptionContent | undefined |
   return '';
 };
 
+const getExtraFields = (descContent: DescriptionContent | undefined | null): Record<string, string> | undefined => {
+  if (!descContent) return undefined;
+  // New format
+  if (descContent.extra_fields && typeof descContent.extra_fields === 'object') {
+    return descContent.extra_fields;
+  }
+  // Backward compat
+  if (descContent.layout_suggestion) {
+    return { '排版建议': descContent.layout_suggestion };
+  }
+  return undefined;
+};
+
 export interface ExportOptions {
   outline?: boolean;
   description?: boolean;
@@ -171,6 +184,7 @@ const pageToMarkdown = (page: Page, index: number, opts: ExportOptions = {}): st
   const title = page.outline_content?.title || t('projectUtils.pageNum', { num: index + 1 });
   const points = page.outline_content?.points || [];
   const descText = getDescriptionText(page.description_content);
+  const extraFields = getExtraFields(page.description_content);
 
   let md = t('projectUtils.pageHeading', { num: index + 1, title }) + '\n\n';
   if (page.part) md += `> ${t('projectUtils.chapter')}: ${page.part}\n\n`;
@@ -191,6 +205,13 @@ const pageToMarkdown = (page: Page, index: number, opts: ExportOptions = {}): st
       md += `${descText}\n`;
     } else {
       md += `${t('projectUtils.noDesc')}\n`;
+    }
+    // 额外字段
+    if (extraFields) {
+      md += '\n';
+      for (const [name, value] of Object.entries(extraFields)) {
+        if (value) md += `${name}：${value}\n`;
+      }
     }
     md += '\n';
   }
@@ -220,6 +241,7 @@ export interface ParsedPage {
   points: string[];
   text: string;
   part?: string;
+  extra_fields?: Record<string, string>;
 }
 
 const sanitize = (s: string) => s.replace(/<[^>]*>/g, '');
@@ -227,6 +249,28 @@ const sanitize = (s: string) => s.replace(/<[^>]*>/g, '');
 const splitMarkdownPages = (markdown: string): string[] => {
   // Support both Chinese "## 第 N 页:" and English "## Page N:" formats
   return markdown.split(/^## (?:第 \d+ 页|Page \d+):/m).slice(1);
+};
+
+// 额外字段行模式：短名称 + 中/英冒号 + 内容
+const EXTRA_FIELD_RE = /^([^\s：:]{1,20})[：:](.+)/;
+
+const splitDescAndExtraFields = (descLines: string[]): { text: string; extra_fields?: Record<string, string> } => {
+  // 从末尾向前扫描连续的额外字段行
+  const fields: Record<string, string> = {};
+  let i = descLines.length - 1;
+  while (i >= 0) {
+    const m = EXTRA_FIELD_RE.exec(descLines[i].trim());
+    if (m) {
+      fields[m[1]] = m[2].trim();
+      i--;
+    } else if (descLines[i].trim() === '') {
+      i--; // 跳过空行
+    } else {
+      break;
+    }
+  }
+  const text = descLines.slice(0, i + 1).join('\n').trim();
+  return Object.keys(fields).length > 0 ? { text, extra_fields: fields } : { text };
 };
 
 export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
@@ -244,6 +288,7 @@ export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
 
     let points: string[] = [];
     let text = '';
+    let extra_fields: Record<string, string> | undefined;
 
     const trailingPatterns = new Set(['---', '', '*暂无要点*', '*暂无描述*', '*No points yet*', '*No description yet*']);
     const stripTrailing = (arr: string[]) => {
@@ -260,7 +305,9 @@ export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
     if (descIdx >= 0) {
       const descLines = lines.slice(descIdx + 1);
       stripTrailing(descLines);
-      text = sanitize(descLines.join('\n').trim());
+      const parsed = splitDescAndExtraFields(descLines);
+      text = sanitize(parsed.text);
+      extra_fields = parsed.extra_fields;
     }
 
     if (outlineIdx < 0 && descIdx < 0) {
@@ -272,6 +319,6 @@ export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
       text = sanitize(contentLines.filter(l => !l.startsWith('- ')).join('\n').trim());
     }
 
-    return { title, points, text, part };
+    return { title, points, text, part, extra_fields };
   });
 };

@@ -54,3 +54,4 @@ def test_verify_uses_configured_text_model(client, auth_headers):
     assert data['success'] is True
     assert data['data']['available'] is True
     mock_get_provider.assert_called_once_with(model='deepseek-chat')
+    mock_provider.generate_text.assert_called_once()

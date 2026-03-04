@@ -75,6 +75,12 @@ export const useImagePaste = ({
   const [isUploading, setIsUploading] = useState(false);
   const pendingCount = useRef(0);
 
+  // Use refs so handleFiles always accesses the latest setContent/insertAtCursor
+  const setContentRef = useRef(setContent);
+  setContentRef.current = setContent;
+  const insertAtCursorRef = useRef(insertAtCursor);
+  insertAtCursorRef.current = insertAtCursor;
+
   /** Core: upload image files with placeholder insertion */
   const handleFiles = useCallback(async (files: File[]) => {
     const imageFiles = files.filter(f => ALLOWED_IMAGE_TYPES.includes(f.type));
@@ -97,10 +103,10 @@ export const useImagePaste = ({
 
     // Insert placeholders - use insertAtCursor if provided, otherwise append to end
     const placeholderInsert = placeholders.map(p => p.markdown).join('\n');
-    if (insertAtCursor) {
-      insertAtCursor(placeholderInsert + '\n');
+    if (insertAtCursorRef.current) {
+      insertAtCursorRef.current(placeholderInsert + '\n');
     } else {
-      setContent(prev => {
+      setContentRef.current(prev => {
         // Check if placeholders already exist (in case MarkdownTextarea inserted them)
         const newPlaceholders = placeholders.filter(p => !prev.includes(p.markdown));
         if (newPlaceholders.length === 0) {
@@ -127,10 +133,10 @@ export const useImagePaste = ({
           // Track whether caption generation was requested but failed
           const captionFailed = generateCaption && !response?.data?.caption;
 
-          setContent(prev => prev.replace(markdown, `![${caption}](${realUrl})`));
+          setContentRef.current(prev => prev.replace(markdown, `![${caption}](${realUrl})`));
           return { success: true, captionFailed };
         } catch {
-          setContent(prev => prev.replace(markdown + '\n', '').replace(markdown, ''));
+          setContentRef.current(prev => prev.replace(markdown + '\n', '').replace(markdown, ''));
           return { success: false };
         } finally {
           URL.revokeObjectURL(blobUrl);
@@ -169,7 +175,7 @@ export const useImagePaste = ({
     if (captionFailedCount > 0) {
       showToast({ message: t('imagePaste.captionFailed'), type: 'warning' });
     }
-  }, [projectId, generateCaption, warnUnsupportedTypes, setContent, insertAtCursor, showToast, t]);
+  }, [projectId, generateCaption, warnUnsupportedTypes, showToast, t]);
 
   /** Handle clipboard paste event */
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLElement>) => {

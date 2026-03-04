@@ -227,7 +227,7 @@ export const generateFromDescription = async (projectId: string, descriptionText
 };
 
 /**
- * 批量生成描述
+ * 批量生成描述（并行模式）
  * @param projectId 项目ID
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
@@ -238,6 +238,84 @@ export const generateDescriptions = async (projectId: string, language?: OutputL
     { language: lang, detail_level: detailLevel || 'default' }
   );
   return response.data;
+};
+
+/**
+ * 流式生成描述（SSE）
+ */
+export interface DescriptionStreamEvent {
+  page_index: number;
+  page_id: string;
+  text: string;
+  extra_fields?: Record<string, string>;
+}
+
+export interface DescriptionStreamCallbacks {
+  onDescription: (data: DescriptionStreamEvent) => void;
+  onDone: (data: { total: number; pages: Page[] }) => void;
+  onError: (message: string) => void;
+}
+
+export const generateDescriptionsStream = async (
+  projectId: string,
+  callbacks: DescriptionStreamCallbacks,
+  language?: OutputLanguage,
+  detailLevel?: string,
+): Promise<void> => {
+  const lang = language || await getStoredOutputLanguage();
+  const accessCode = localStorage.getItem('banana-access-code');
+
+  const response = await fetch(`/api/projects/${projectId}/generate/descriptions/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+    },
+    body: JSON.stringify({ language: lang, detail_level: detailLevel || 'default' }),
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError(`HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    const { value } = readResult;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let eventType = '';
+      let eventData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) eventData = line.slice(6);
+      }
+
+      if (!eventType || !eventData) continue;
+
+      try {
+        const parsed = JSON.parse(eventData);
+        if (eventType === 'description') callbacks.onDescription(parsed);
+        else if (eventType === 'done') callbacks.onDone(parsed);
+        else if (eventType === 'error') callbacks.onError(parsed.message);
+      } catch {
+        // Skip malformed events
+      }
+    }
+
+    readResult = await reader.read();
+  }
 };
 
 /**

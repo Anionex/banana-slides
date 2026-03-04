@@ -42,7 +42,9 @@ const settingsI18n = {
         mineruTokenDesc: "留空则保持当前设置不变，输入新值则更新",
         imageResolution: "图像清晰度（某些OpenAI格式中转调整该值无效）",
         imageResolutionDesc: "更高的清晰度会生成更详细的图像，但需要更长时间",
-        maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "同时生成描述的最大工作线程数 (1-20)，越大速度越快",
+        descriptionGenerationMode: "描述生成模式", descriptionGenerationModeDesc: "流式模式通过一次 AI 调用逐页生成，体验更流畅；并行模式为每页独立调用 AI，速度更快",
+        descriptionGenerationModeStreaming: "流式", descriptionGenerationModeParallel: "并行",
+        maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "并行模式下同时生成描述的最大工作线程数 (1-20)，越大速度越快",
         maxImageWorkers: "图像生成最大并发数", maxImageWorkersDesc: "同时生成图像的最大工作线程数 (1-20)，越大速度越快",
         defaultOutputLanguage: "默认输出语言", defaultOutputLanguageDesc: "AI 生成内容时使用的默认语言",
         enableTextReasoning: "启用文本推理", enableTextReasoningDesc: "开启后，文本生成（大纲、描述等）会使用 extended thinking 进行深度推理",
@@ -140,7 +142,9 @@ const settingsI18n = {
         mineruTokenDesc: "Leave empty to keep current setting, enter new value to update",
         imageResolution: "Image Resolution (may not work with some OpenAI format proxies)",
         imageResolutionDesc: "Higher resolution generates more detailed images but takes longer",
-        maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation (1-20), higher is faster",
+        descriptionGenerationMode: "Description Generation Mode", descriptionGenerationModeDesc: "Streaming mode generates all pages in a single AI call for a smoother experience; Parallel mode calls AI independently per page for faster speed",
+        descriptionGenerationModeStreaming: "Streaming", descriptionGenerationModeParallel: "Parallel",
+        maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation in parallel mode (1-20), higher is faster",
         maxImageWorkers: "Max Image Workers", maxImageWorkersDesc: "Maximum concurrent workers for image generation (1-20), higher is faster",
         defaultOutputLanguage: "Default Output Language", defaultOutputLanguageDesc: "Default language for AI-generated content",
         enableTextReasoning: "Enable Text Reasoning", enableTextReasoningDesc: "When enabled, text generation uses extended thinking for deeper reasoning",
@@ -537,6 +541,7 @@ export const Settings: React.FC = () => {
           setEditableFields(response.data._editable_fields);
         }
         setFormData(formDataFromSettings(response.data));
+        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -581,6 +586,7 @@ export const Settings: React.FC = () => {
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
+        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         // Clear all sensitive fields after save

@@ -311,6 +311,31 @@ def update_settings():
             else:
                 return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
 
+        # Update description generation mode
+        if "description_generation_mode" in data:
+            mode = data["description_generation_mode"]
+            if mode not in ("streaming", "parallel"):
+                return bad_request("description_generation_mode must be 'streaming' or 'parallel'")
+            settings.description_generation_mode = mode
+
+        # Update description extra fields
+        if "description_extra_fields" in data:
+            fields = data["description_extra_fields"]
+            if not isinstance(fields, list) or not fields:
+                return bad_request("description_extra_fields must be a non-empty array of strings")
+            if len(fields) > 10:
+                return bad_request("description_extra_fields allows at most 10 items")
+            if not all(isinstance(f, str) and f.strip() for f in fields):
+                return bad_request("Each extra field must be a non-empty string")
+            settings.description_extra_fields = json.dumps([f.strip() for f in fields], ensure_ascii=False)
+
+        if "image_prompt_extra_fields" in data:
+            fields = data["image_prompt_extra_fields"]
+            if not isinstance(fields, list):
+                return bad_request("image_prompt_extra_fields must be an array of strings")
+            # 空数组表示不传任何额外字段给图片生成
+            settings.image_prompt_extra_fields = json.dumps([f.strip() for f in fields if isinstance(f, str) and f.strip()], ensure_ascii=False)
+
         # Update reasoning mode configuration (separate for text and image)
         if "enable_text_reasoning" in data:
             settings.enable_text_reasoning = bool(data["enable_text_reasoning"])
@@ -420,6 +445,9 @@ def reset_settings():
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
+        settings.description_generation_mode = None
+        settings.description_extra_fields = None
+        settings.image_prompt_extra_fields = None
         settings.baidu_api_key = None
         settings.text_model_source = None
         settings.image_model_source = None
