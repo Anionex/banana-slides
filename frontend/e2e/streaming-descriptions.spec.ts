@@ -317,7 +317,7 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
 
     // Clean up: reset extra fields
     await page.request.put(`${BASE_URL}/api/settings`, {
-      data: { description_extra_fields: ['视觉元素', '视觉焦点', '排版布局'] },
+      data: { description_extra_fields: ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] },
     });
     // Clean up localStorage pool
     await page.evaluate(() => localStorage.removeItem('banana-available-extra-fields'));

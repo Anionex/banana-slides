@@ -65,7 +65,8 @@ class Settings(db.Model):
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
 
-    DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局']
+    DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
+    DEFAULT_IMAGE_PROMPT_FIELDS = ['视觉元素', '视觉焦点', '排版布局']  # 演讲者备注默认不传入图片生成
 
     def get_description_extra_fields(self):
         """Return parsed extra fields list."""
@@ -87,8 +88,7 @@ class Settings(db.Model):
                     return fields
             except (json.JSONDecodeError, TypeError):
                 pass
-        # 默认全部启用
-        return self.get_description_extra_fields()
+        return list(self.DEFAULT_IMAGE_PROMPT_FIELDS)
 
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""

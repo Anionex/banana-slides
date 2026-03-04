@@ -39,6 +39,8 @@ const detailI18n = {
       parallel: "并行",
       extraFields: "额外字段",
       extraFieldsHint: "启用后，AI 生成描述时会带上这些字段。可通过「描述生成要求」进一步约束字段输出的内容。点击胶囊启用/禁用，拖拽调整顺序。",
+      imagePromptOn: "该字段会影响生成的图片效果，点击可关闭",
+      imagePromptOff: "该字段不会影响生成的图片，点击可开启",
       addField: "添加字段",
       descRequirements: "描述生成要求",
       descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
@@ -77,6 +79,8 @@ const detailI18n = {
       parallel: "Parallel",
       extraFields: "Extra Fields",
       extraFieldsHint: "When enabled, AI will include these fields when generating descriptions. Use \"Generation Requirements\" to further constrain field output. Click pills to enable/disable, drag to reorder.",
+      imagePromptOn: "This field affects generated image results, click to disable",
+      imagePromptOff: "This field does not affect generated images, click to enable",
       addField: "Add Field",
       descRequirements: "Generation Requirements",
       descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
@@ -108,7 +112,7 @@ import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtil
 // };
 // const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
 
-const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局']);
+const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
 
 // 可拖拽排序的额外字段胶囊
 const SortableFieldPill: React.FC<{
@@ -116,10 +120,11 @@ const SortableFieldPill: React.FC<{
   active: boolean;
   removable?: boolean;
   inImagePrompt?: boolean;
+  imagePromptTooltip?: string;
   onToggle: () => void;
   onRemove: () => void;
   onToggleImagePrompt?: () => void;
-}> = ({ name, active, onToggle, onRemove, removable = true, inImagePrompt, onToggleImagePrompt }) => {
+}> = ({ name, active, onToggle, onRemove, removable = true, inImagePrompt, imagePromptTooltip, onToggleImagePrompt }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name });
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -147,11 +152,15 @@ const SortableFieldPill: React.FC<{
       {active && onToggleImagePrompt && (
         <span
           role="button"
-          title={inImagePrompt ? '已传入文生图' : '未传入文生图'}
-          className={`ml-0.5 transition-colors ${inImagePrompt ? 'text-banana-500' : 'text-gray-300 dark:text-gray-600'}`}
+          className={`relative group/img ml-0.5 transition-colors ${inImagePrompt ? 'text-banana-500' : 'text-gray-300 dark:text-gray-600'}`}
           onClick={e => { e.stopPropagation(); onToggleImagePrompt(); }}
         >
           <ImageIcon size={10} />
+          {imagePromptTooltip && (
+            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-40 px-2 py-1 text-[10px] leading-snug text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover/img:opacity-100 transition-opacity z-50">
+              {imagePromptTooltip}
+            </span>
+          )}
         </span>
       )}
       {!active && removable && (
@@ -190,14 +199,14 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
   const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局'];
-    } catch { return ['视觉元素', '视觉焦点', '排版布局']; }
+      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+    } catch { return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -218,7 +227,7 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局'];
+        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
         setExtraFieldNames(activeFields);
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
@@ -737,9 +746,10 @@ export const DetailEditor: React.FC = () => {
                                     ? extraFieldNames.filter(f => f !== name)
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
-                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局'] });
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] });
                                 }}
                                 inImagePrompt={imagePromptFields.includes(name)}
+                                imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
                                 onToggleImagePrompt={() => {
                                   const next = imagePromptFields.includes(name)
                                     ? imagePromptFields.filter(f => f !== name)
