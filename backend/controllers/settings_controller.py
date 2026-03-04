@@ -432,7 +432,7 @@ def reset_settings():
         settings = UserSettings.get_or_create_for_user(user.id)
 
         # Reset all fields to NULL so .env defaults take over via to_dict()
-        settings.ai_provider_format = None
+        settings.ai_provider_format = Config.AI_PROVIDER_FORMAT
         settings.api_base_url = None
         settings.api_key = None
         settings.text_model = None
