@@ -32,12 +32,14 @@ def test_update_settings_accepts_lazyllm_provider():
     app = Flask(__name__)
 
     settings = _build_settings()
+    mock_user = SimpleNamespace(id='test-user')
     with app.app_context():
         with app.test_request_context('/api/settings/', method='PUT', json={'ai_provider_format': 'lazyllm'}):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('controllers.settings_controller.db.session.commit'):
-                    with patch('controllers.settings_controller._sync_settings_to_config'):
-                        response, status_code = update_settings()
+            with patch('controllers.settings_controller.get_current_user', return_value=mock_user):
+                with patch('controllers.settings_controller.UserSettings.get_or_create_for_user', return_value=settings):
+                    with patch('controllers.settings_controller.db.session.commit'):
+                        with patch('controllers.settings_controller._sync_settings_to_config'):
+                            response, status_code = update_settings()
 
     assert status_code == 200
     data = response.get_json()
@@ -56,12 +58,14 @@ def test_verify_uses_configured_text_model():
     settings = _build_settings(ai_provider_format='lazyllm', text_model='deepseek-chat')
     mock_provider = MagicMock()
     mock_provider.generate_text.return_value = 'OK'
+    mock_user = SimpleNamespace(id='test-user')
 
     with app.app_context():
         with app.test_request_context('/api/settings/verify', method='POST'):
-            with patch('controllers.settings_controller.Settings.get_settings', return_value=settings):
-                with patch('services.ai_providers.get_text_provider', return_value=mock_provider) as mock_get_provider:
-                    response, status_code = verify_api_key()
+            with patch('controllers.settings_controller.get_current_user', return_value=mock_user):
+                with patch('controllers.settings_controller.UserSettings.get_or_create_for_user', return_value=settings):
+                    with patch('services.ai_providers.get_text_provider', return_value=mock_provider) as mock_get_provider:
+                        response, status_code = verify_api_key()
 
     assert status_code == 200
     data = response.get_json()
