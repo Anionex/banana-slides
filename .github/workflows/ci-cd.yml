@@ -197,7 +197,7 @@ jobs:
           FRONTEND_URL: http://localhost:3000
 
       - name: Build Docker images
-        run: docker compose build --no-cache
+        run: docker compose build
 
       - name: Start services
         run: |
