@@ -753,7 +753,17 @@ export const DetailEditor: React.FC = () => {
                                     ? extraFieldNames.filter(f => f !== name)
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
-                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] });
+                                  const toSave = next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+                                  // 立即更新 sessionStorage 以保持刷新前的状态
+                                  try {
+                                    const cached = sessionStorage.getItem('banana-settings');
+                                    if (cached) {
+                                      const settings = JSON.parse(cached);
+                                      settings.description_extra_fields = toSave;
+                                      sessionStorage.setItem('banana-settings', JSON.stringify(settings));
+                                    }
+                                  } catch {}
+                                  saveSettingsDebounced({ description_extra_fields: toSave });
                                 }}
                                 inImagePrompt={imagePromptFields.includes(name)}
                                 imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
