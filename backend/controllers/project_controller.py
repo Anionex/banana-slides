@@ -745,9 +745,9 @@ def generate_descriptions(project_id):
         if not project:
             return not_found('Project')
         
-        if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED', 'COMPLETED']:
+        if not project.pages:
             return bad_request("Project must have outline generated first")
-        
+
         # IMPORTANT: Expire cached objects to ensure fresh data
         db.session.expire_all()
         
@@ -837,7 +837,7 @@ def generate_descriptions_stream(project_id):
     if not project:
         return not_found('Project')
 
-    if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED', 'COMPLETED']:
+    if not project.pages:
         return bad_request("Project must have outline generated first")
 
     data = request.get_json() or {}

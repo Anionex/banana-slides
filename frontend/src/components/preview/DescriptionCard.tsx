@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, MessageSquare } from 'lucide-react';
+import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, MessageSquare, ImageOff } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
@@ -17,7 +17,8 @@ const descriptionCardI18n = {
       uploadingImage: "正在上传图片...",
       descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片",
       coverPage: "封面",
-      coverPageTooltip: "第一页为封面页，默认保持简洁风格"
+      coverPageTooltip: "第一页为封面页，默认保持简洁风格",
+      notInImagePrompt: "不影响图片生成"
     }
   },
   en: {
@@ -28,7 +29,8 @@ const descriptionCardI18n = {
       uploadingImage: "Uploading image...",
       descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images",
       coverPage: "Cover",
-      coverPageTooltip: "This is the cover page, default to keep simple style"
+      coverPageTooltip: "This is the cover page, default to keep simple style",
+      notInImagePrompt: "Not used in image generation"
     }
   }
 };
@@ -38,6 +40,7 @@ export interface DescriptionCardProps {
   index: number;
   projectId?: string;
   extraFieldNames?: string[];
+  imagePromptFields?: string[];
   showToast: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onUpdate: (data: Partial<Page>) => void;
   onRegenerate: () => void;
@@ -75,6 +78,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   index,
   projectId,
   extraFieldNames = [],
+  imagePromptFields,
   showToast,
   onUpdate,
   onRegenerate,
@@ -193,11 +197,20 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
                 if (!value) return null;
                 const FIELD_ICONS: Record<string, typeof Tag> = { '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout, '演讲者备注': MessageSquare };
                 const FieldIcon = FIELD_ICONS[name] || Tag;
+                const notInImagePrompt = imagePromptFields && !imagePromptFields.includes(name);
                 return (
                   <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-foreground-tertiary mb-1">
                       <FieldIcon size={12} />
                       <span className="font-medium">{name}</span>
+                      {notInImagePrompt && (
+                        <span className="relative group/nip">
+                          <ImageOff size={11} className="opacity-50" />
+                          <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-max max-w-40 px-2 py-1 text-[10px] leading-snug text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover/nip:opacity-100 transition-opacity z-50">
+                            {t('descriptionCard.notInImagePrompt')}
+                          </span>
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-foreground-tertiary"><Markdown>{value}</Markdown></div>
                   </div>
@@ -291,5 +304,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   prev.page.part === next.page.part &&
   getDescriptionText(prev.page.description_content) === getDescriptionText(next.page.description_content) &&
   getExtraFieldsKey(prev.page.description_content) === getExtraFieldsKey(next.page.description_content) &&
-  JSON.stringify(prev.extraFieldNames) === JSON.stringify(next.extraFieldNames)
+  JSON.stringify(prev.extraFieldNames) === JSON.stringify(next.extraFieldNames) &&
+  JSON.stringify(prev.imagePromptFields) === JSON.stringify(next.imagePromptFields)
 );

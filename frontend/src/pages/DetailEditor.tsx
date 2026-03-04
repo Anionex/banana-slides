@@ -955,6 +955,7 @@ export const DetailEditor: React.FC = () => {
                     index={index}
                     projectId={currentProject.id}
                     extraFieldNames={extraFieldNames}
+                    imagePromptFields={imagePromptFields}
                     showToast={show}
                     onUpdate={() => {}}
                     onRegenerate={() => {}}
@@ -977,6 +978,7 @@ export const DetailEditor: React.FC = () => {
                     index={index}
                     projectId={currentProject.id}
                     extraFieldNames={extraFieldNames}
+                    imagePromptFields={imagePromptFields}
                     showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => stableHandleRegeneratePage(pageId)}
