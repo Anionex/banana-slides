@@ -331,5 +331,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   prev.page.part === next.page.part &&
   getDescriptionText(prev.page.description_content) === getDescriptionText(next.page.description_content) &&
   getExtraFieldsKey(prev.page.description_content) === getExtraFieldsKey(next.page.description_content) &&
-  JSON.stringify(prev.extraFieldNames) === JSON.stringify(next.extraFieldNames)
+  JSON.stringify(prev.extraFieldNames) === JSON.stringify(next.extraFieldNames) &&
+  JSON.stringify((prev.page.description_content as any)?.image_prompt_fields) === JSON.stringify((next.page.description_content as any)?.image_prompt_fields)
 );
