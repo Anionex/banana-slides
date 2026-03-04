@@ -4,6 +4,9 @@ ARG GHCR_REGISTRY=ghcr.io/
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
 
+# Force rebuild to clear migration cache
+ARG CACHE_BUST=2026-03-05
+
 # 安装 uv（使用中间阶段避免 COPY --from 的变量展开问题）
 FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
 
