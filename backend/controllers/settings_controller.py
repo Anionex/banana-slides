@@ -38,11 +38,11 @@ ALL_SETTINGS_FIELDS = {
     'output_language',
     'enable_text_reasoning', 'text_thinking_budget',
     'enable_image_reasoning', 'image_thinking_budget',
-    'baidu_ocr_api_key'
+    'baidu_api_key'
 }
 
 # 敏感字段（不应泄露给用户请求）
-SENSITIVE_FIELDS = {'api_key', 'mineru_token', 'baidu_ocr_api_key'}
+SENSITIVE_FIELDS = {'api_key', 'mineru_token', 'baidu_api_key'}
 
 
 def get_user_editable_fields():
@@ -1060,8 +1060,8 @@ def run_settings_test(test_name: str):
             test_settings["mineru_api_base"] = user_settings.mineru_api_base
         if user_settings.mineru_token:
             test_settings["mineru_token"] = user_settings.mineru_token
-        if user_settings.baidu_ocr_api_key:
-            test_settings["baidu_ocr_api_key"] = user_settings.baidu_ocr_api_key
+        if user_settings.baidu_api_key:
+            test_settings["baidu_api_key"] = user_settings.baidu_api_key
         if user_settings.image_resolution:
             test_settings["image_resolution"] = user_settings.image_resolution
         # 推理模式设置

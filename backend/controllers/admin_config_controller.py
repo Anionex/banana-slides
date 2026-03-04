@@ -82,7 +82,7 @@ def update_system_config():
                 'output_language',
                 'enable_text_reasoning', 'text_thinking_budget',
                 'enable_image_reasoning', 'image_thinking_budget',
-                'baidu_ocr_api_key'
+                'baidu_api_key'
             }
             invalid_fields = set(fields) - valid_fields
             if invalid_fields:
@@ -244,7 +244,7 @@ def get_user_policy():
             {'key': 'text_thinking_budget', 'label': '文本思考负载', 'category': 'reasoning'},
             {'key': 'enable_image_reasoning', 'label': '图像推理模式', 'category': 'reasoning'},
             {'key': 'image_thinking_budget', 'label': '图像思考负载', 'category': 'reasoning'},
-            {'key': 'baidu_ocr_api_key', 'label': '百度 OCR API Key', 'category': 'ocr', 'sensitive': True},
+            {'key': 'baidu_api_key', 'label': '百度 OCR API Key', 'category': 'ocr', 'sensitive': True},
         ]
 
         editable_fields = set(config.get_user_editable_fields())
