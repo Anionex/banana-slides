@@ -4,10 +4,19 @@ Settings controller tests for provider format handling.
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from functools import wraps
 
 from flask import Flask
 
 from controllers.settings_controller import update_settings, verify_api_key
+
+
+def _mock_auth_required(f):
+    """Mock auth decorator that bypasses authentication."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        return f(*args, **kwargs)
+    return decorated
 
 
 def _build_settings(**overrides):
@@ -35,11 +44,12 @@ def test_update_settings_accepts_lazyllm_provider():
     mock_user = SimpleNamespace(id='test-user')
     with app.app_context():
         with app.test_request_context('/api/settings/', method='PUT', json={'ai_provider_format': 'lazyllm'}):
-            with patch('controllers.settings_controller.get_current_user', return_value=mock_user):
-                with patch('controllers.settings_controller.UserSettings.get_or_create_for_user', return_value=settings):
-                    with patch('controllers.settings_controller.db.session.commit'):
-                        with patch('controllers.settings_controller._sync_settings_to_config'):
-                            response, status_code = update_settings()
+            with patch('middlewares.auth.auth_required', _mock_auth_required):
+                with patch('controllers.settings_controller.get_current_user', return_value=mock_user):
+                    with patch('controllers.settings_controller.UserSettings.get_or_create_for_user', return_value=settings):
+                        with patch('controllers.settings_controller.db.session.commit'):
+                            with patch('controllers.settings_controller._sync_settings_to_config'):
+                                response, status_code = update_settings()
 
     assert status_code == 200
     data = response.get_json()
@@ -62,10 +72,11 @@ def test_verify_uses_configured_text_model():
 
     with app.app_context():
         with app.test_request_context('/api/settings/verify', method='POST'):
-            with patch('controllers.settings_controller.get_current_user', return_value=mock_user):
-                with patch('controllers.settings_controller.UserSettings.get_or_create_for_user', return_value=settings):
-                    with patch('services.ai_providers.get_text_provider', return_value=mock_provider) as mock_get_provider:
-                        response, status_code = verify_api_key()
+            with patch('middlewares.auth.auth_required', _mock_auth_required):
+                with patch('controllers.settings_controller.get_current_user', return_value=mock_user):
+                    with patch('controllers.settings_controller.UserSettings.get_or_create_for_user', return_value=settings):
+                        with patch('services.ai_providers.get_text_provider', return_value=mock_provider) as mock_get_provider:
+                            response, status_code = verify_api_key()
 
     assert status_code == 200
     data = response.get_json()
