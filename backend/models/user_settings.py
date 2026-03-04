@@ -115,7 +115,7 @@ class UserSettings(db.Model):
                 mineru_token=Config.MINERU_TOKEN,
                 image_caption_model=Config.IMAGE_CAPTION_MODEL,
                 output_language='zh',
-                baidu_ocr_api_key=Config.BAIDU_OCR_API_KEY or None,
+                baidu_ocr_api_key=Config.BAIDU_API_KEY or None,
             )
             db.session.add(settings)
             db.session.commit()
