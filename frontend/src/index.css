@@ -118,6 +118,27 @@ body {
   background: var(--banana-yellow-dark);
 }
 
+/* 描述卡片极轻滚动条 */
+.desc-card-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+.desc-card-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.desc-card-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+.desc-card-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+.dark .desc-card-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+.dark .desc-card-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* 移动端触摸优化 */
 .touch-manipulation {
   touch-action: manipulation;

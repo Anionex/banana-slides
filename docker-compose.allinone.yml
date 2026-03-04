@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.allinone
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-}
+        GHCR_REGISTRY: ${GHCR_REGISTRY:-ghcr.io/}
+        APT_MIRROR: ${APT_MIRROR:-}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    container_name: banana-slides
+    ports:
+      - "${PORT:-3000}:80"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/instance:/app/backend/instance
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

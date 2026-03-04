@@ -4,6 +4,12 @@ Thank you for your interest in contributing to Banana-slides ("Project").
 
 By signing this Contributor License Agreement ("CLA"), you accept and agree to the following terms and conditions for your present and future Contributions submitted to the Project.
 
+## 0. Acceptance (How this CLA becomes effective)
+
+By submitting a Contribution to the Project (including via a Pull Request or any other form of submission intended for inclusion), you acknowledge that you have read and agree to be bound by the terms of this CLA.
+
+If you do not agree to these terms, do not submit any Contribution.
+
 ## 1. Definitions
 
 - **"Contribution"** means any code, documentation, or other original work of authorship, including any modifications or additions to existing work, that is intentionally submitted by you to the Project for inclusion in the Project.
@@ -14,7 +20,7 @@ By signing this Contributor License Agreement ("CLA"), you accept and agree to t
 
 ## 2. Grant of Copyright License
 
-You hereby grant to the Project Maintainer a perpetual, worldwide, non-exclusive, royalty-free, irrevocable copyright license to:
+You retain all right, title, and interest in your Contributions. You hereby grant to the Project Maintainer a perpetual, worldwide, non-exclusive, royalty-free, irrevocable copyright license to:
 
 - Reproduce, prepare derivative works of, publicly display, publicly perform, and distribute your Contributions and such derivative works.
 - Sublicense and relicense your Contributions under any license, **including for commercial purposes**.
@@ -37,12 +43,13 @@ You represent and warrant that:
 
 You are not expected to provide support for your Contributions, except to the extent you desire to provide support. You may provide support for free, for a fee, or not at all.
 
-## 6. Open Source Commitment
+## 6. Open Source Availability
 
-The Project Maintainer commits to:
+The Project Maintainer will continue to make an open-source edition of the Project publicly available, under an OSI-approved open-source license.
 
-- Keeping an open-source version of the Project freely available to the community.
-- The GitHub repository will remain publicly accessible and free to use under its open-source license.
+For clarity:
+- The Maintainer may also distribute separate commercial/proprietary editions and/or offer alternative licenses for Contributions.
+- The code will be published in a publicly accessible source repository (not necessarily GitHub).
 
 ## 7. No Warranty
 
@@ -50,18 +57,12 @@ Your Contributions are provided "AS IS" without warranty of any kind, express or
 
 ---
 
-## How to Sign
+## How to Agree
 
-To sign this CLA, please include the following statement in your Pull Request description or as a comment:
+When you open a Pull Request, the PR template includes a CLA checkbox. Check the box to indicate that you have read and agree to this CLA.
 
-> I have read the [Contributor License Agreement](CLA.md) and I hereby sign the CLA by my submission of this contribution.
-
-Or simply reply with:
-
-> I agree to the CLA.
-
-Your agreement will be recorded and associated with your GitHub account.
+Your agreement will remain publicly visible in the Pull Request description and be associated with your GitHub account.
 
 ---
 
-*Last updated: January 2026*
+*Last updated: February 2026*

@@ -61,7 +61,8 @@ vi.mock('@/hooks/useT', () => ({
 
 // Mock useGeneratingState hook
 vi.mock('@/hooks/useGeneratingState', () => ({
-  useDescriptionGeneratingState: (isGenerating: boolean) => isGenerating,
+  useDescriptionGeneratingState: (page: any, isAiRefining: boolean) =>
+    page.status === 'GENERATING_DESCRIPTION' || isAiRefining,
 }))
 
 // jsdom doesn't have URL.createObjectURL
@@ -199,8 +200,9 @@ describe('DescriptionCard', () => {
     expect(screen.getByText('descriptionCard.noDescription')).toBeInTheDocument()
   })
 
-  it('shows generating state when isGenerating is true', () => {
-    render(<DescriptionCard {...defaultProps} isGenerating={true} />)
+  it('shows generating state when page status is GENERATING_DESCRIPTION', () => {
+    const generatingPage = { ...mockPage, status: 'GENERATING_DESCRIPTION' as const }
+    render(<DescriptionCard {...defaultProps} page={generatingPage} />)
     // "common.generating" appears both in skeleton area and regenerate button
     const generatingElements = screen.getAllByText('common.generating')
     expect(generatingElements.length).toBeGreaterThanOrEqual(1)

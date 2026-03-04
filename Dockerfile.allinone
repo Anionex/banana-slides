@@ -1,0 +1,83 @@
+# 镜像源配置参数（可通过 build args 覆盖）
+ARG DOCKER_REGISTRY=
+ARG GHCR_REGISTRY=ghcr.io/
+ARG NPM_REGISTRY=
+ARG APT_MIRROR=
+ARG PYPI_INDEX_URL=
+
+# ── Stage 1: 构建前端 ──────────────────────────────────────────
+FROM ${DOCKER_REGISTRY:-}node:18-alpine AS frontend-builder
+
+ARG NPM_REGISTRY=
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN if [ -n "$NPM_REGISTRY" ]; then \
+        npm config set registry "$NPM_REGISTRY"; \
+    fi && \
+    (npm install --frozen-lockfile || npm install)
+
+COPY frontend/ ./
+RUN npm run build
+
+# ── Stage 2: 获取 uv ──────────────────────────────────────────
+FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
+
+# ── Stage 3: 最终一体镜像 ──────────────────────────────────────
+FROM ${DOCKER_REGISTRY:-}python:3.10-slim
+
+ARG APT_MIRROR=
+ARG PYPI_INDEX_URL=
+
+WORKDIR /app
+
+# 安装系统依赖：nginx + supervisor + curl
+RUN if [ -n "$APT_MIRROR" ]; then \
+        if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+            sed -i "s@deb.debian.org@$APT_MIRROR@g" /etc/apt/sources.list.d/debian.sources; \
+        fi; \
+    fi && \
+    apt-get update && apt-get install -y \
+        curl \
+        nginx \
+        supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制 uv
+COPY --from=uv /uv /usr/local/bin/uv
+RUN chmod +x /usr/local/bin/uv
+
+# 安装 Python 依赖
+COPY pyproject.toml uv.lock* ./
+ENV UV_INDEX_URL=${PYPI_INDEX_URL}
+ENV UV_HTTP_TIMEOUT=300
+RUN if [ -f uv.lock ]; then uv sync --frozen; else uv sync; fi
+
+# 复制后端代码和资源
+COPY backend/ ./backend/
+COPY assets/ ./assets/
+COPY docker/ ./docker/
+
+# 复制前端构建产物
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+
+# 配置 nginx
+COPY docker/nginx-allinone.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/sites-enabled/default
+
+# 启动脚本可执行
+RUN chmod +x /app/docker/start-backend.sh
+
+# 创建必要目录
+RUN mkdir -p /app/backend/instance /app/uploads
+
+ENV PYTHONPATH=/app
+ENV FLASK_APP=backend/app.py
+ENV IN_DOCKER=1
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+CMD ["/usr/bin/supervisord", "-c", "/app/docker/supervisord.conf"]

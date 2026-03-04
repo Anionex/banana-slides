@@ -353,20 +353,20 @@ def create_baidu_accurate_ocr_provider(
     Returns:
         BaiduAccurateOCRProvider实例，如果api_key不可用则返回None
     """
-    import os
+    from config import Config
 
     if not api_key:
-        # 优先从 Flask config 读取（数据库设置），然后从环境变量读取
+        # 优先从 Flask config 读取（数据库设置），然后从 Config（含 env 回退）
         try:
             from flask import current_app
-            api_key = current_app.config.get('BAIDU_OCR_API_KEY')
+            api_key = current_app.config.get('BAIDU_API_KEY')
         except RuntimeError:
             pass  # 不在 Flask 上下文中
         if not api_key:
-            api_key = os.getenv('BAIDU_OCR_API_KEY')
+            api_key = Config.BAIDU_API_KEY
 
     if not api_key:
-        logger.warning("⚠️ 未配置百度OCR API Key, 跳过百度高精度OCR")
+        logger.warning("⚠️ 未配置百度API Key, 跳过百度高精度OCR")
         return None
 
     return BaiduAccurateOCRProvider(api_key)

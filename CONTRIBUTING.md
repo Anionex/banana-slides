@@ -6,19 +6,18 @@ Thank you for your interest in contributing to Banana-slides! We welcome contrib
 
 ### Contributor License Agreement (CLA)
 
-Before we can accept your contribution, you must sign our [Contributor License Agreement (CLA)](CLA.md).
+By submitting a Pull Request (or any other Contribution intended for inclusion) to this repository, you confirm that you have read and agree to the terms of our [Contributor License Agreement (CLA)](CLA.md).
+If you do not agree to the CLA, please do not submit a Pull Request.
 
 **Why do we need a CLA?**
 
 - To ensure we have the necessary rights to use, modify, and distribute contributions
-- To allow the project to explore sustainable commercial models while keeping the open-source version free
+- To allow the project to explore sustainable commercial models while keeping the open-source edition available
 - To protect both contributors and the project legally
 
-**How to sign:**
+**How to agree:**
 
-When you submit a Pull Request, please include in your PR description or as a comment:
-
-> I have read the [Contributor License Agreement](CLA.md) and I hereby sign the CLA by my submission of this contribution.
+When you open a Pull Request, the PR template includes a CLA checkbox. Simply check it to indicate your agreement. PRs without the CLA checkbox checked may be delayed or closed.
 
 ## How to Contribute
 
@@ -49,7 +48,7 @@ When you submit a Pull Request, please include in your PR description or as a co
 7. Open a Pull Request with:
    - A clear description of the changes
    - Reference to any related issues
-   - **Your CLA agreement statement**
+   - **CLA checkbox checked** (PRs without this may be delayed/closed) (PRs without this statement may be delayed/closed)
 
 ## Development Setup
 

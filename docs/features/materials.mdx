@@ -1,0 +1,75 @@
+---
+title: "Materials & Files"
+description: "Upload reference files, paste images, or generate custom materials with AI"
+---
+
+## Reference Files
+
+Upload documents as source material — AI references the extracted content when generating outlines, descriptions, and images.
+
+### Supported Formats
+
+| Format | Extracted Content |
+|--------|-----------------|
+| PDF | Text + embedded images |
+| DOCX / DOC | Document content and structure |
+| PPTX / PPT | Slide content |
+| XLSX / XLS / CSV | Spreadsheet data |
+| Markdown / TXT | Plain text |
+
+<Tip>
+  PDF parsing uses [MinerU](https://mineru.net) for high-quality extraction. Configure a MinerU token for better results — see [Configuration](/configuration#mineru-pdf-parsing).
+</Tip>
+
+### Upload Methods
+
+- Click the **paperclip icon** next to the input area to open a file picker
+- **Drag and drop** files into the input area
+- **Paste** (Ctrl+V) files or images from clipboard
+- Click **Material Center** to select from previously uploaded files
+
+File size limit: **200MB**. Files parse automatically after upload and show "Parsing" status until complete.
+
+### Where to Upload
+
+| Location | Notes |
+|----------|-------|
+| Home page | Upload before creating a project — applies to the whole project |
+| Outline Editor | Manage files in the left panel |
+| Description Editor | View and manage files in the top section |
+| Slide Preview (single-page edit) | Attach a reference image to one specific page |
+
+## Pasting Images
+
+Paste an image anywhere (Ctrl+V) in the home page, Outline Editor, or Description Cards:
+
+1. Copy an image (screenshot, copy from web, etc.)
+2. Press **Ctrl+V** in the input area
+3. The image uploads automatically — AI recognizes its content and inserts it as a Markdown image reference at the cursor position
+
+## Style References
+
+Upload an image as a visual style reference — AI will match its color palette, layout patterns, and design language.
+
+Upload in the **Select Style Template** section on the home page, or in the **Upload Images** section of single-page editing.
+
+## Material Generator
+
+Click **Generate Material** in the top navigation bar to create custom AI-generated images:
+
+1. Describe the image you want, e.g.: `Blue-purple gradient background with geometric shapes and tech-style lines`
+2. Select an aspect ratio
+3. Optionally upload a reference image to guide the style
+4. Click **Generate Material**
+
+Generated images are automatically saved to the material library and available for reuse in projects.
+
+## Material Center
+
+Click **Material Center** in the top navigation bar to manage all materials:
+
+- **Filter**: By project, or view all / unassociated materials
+- **Preview**: Click the eye icon for fullscreen preview
+- **Download**: Select items and download — multiple files are packaged as ZIP
+- **Delete**: Individual or batch delete
+- **Upload**: Add new images directly from Material Center

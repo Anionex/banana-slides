@@ -6,6 +6,8 @@ import { Textarea } from './Textarea';
 import { Button } from './Button';
 import { useToast } from './Toast';
 import { MaterialSelector, materialUrlToFile } from './MaterialSelector';
+import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
+import { useProjectStore } from '@/store/useProjectStore';
 
 // MaterialGeneratorModal 组件自包含翻译
 const materialGeneratorI18n = {
@@ -15,6 +17,7 @@ const materialGeneratorI18n = {
       generatedResult: "生成结果", generatedMaterial: "生成的素材", generatedPreview: "生成的素材会展示在这里",
       promptLabel: "提示词（原样发送给文生图模型）",
       promptPlaceholder: "例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页...",
+      aspectRatioLabel: "生成比例",
       referenceImages: "参考图片（可选）", mainReference: "主参考图（可选）", extraReference: "额外参考图（可选，多张）",
       clickToUpload: "点击上传", selectFromLibrary: "从素材库选择", generateMaterial: "生成素材",
       messages: {
@@ -32,6 +35,7 @@ const materialGeneratorI18n = {
       generatedResult: "Generated Result", generatedMaterial: "Generated Material", generatedPreview: "Generated materials will be displayed here",
       promptLabel: "Prompt (sent directly to text-to-image model)",
       promptPlaceholder: "e.g., Blue-purple gradient background with geometric shapes and tech-style lines for a tech-themed title page...",
+      aspectRatioLabel: "Aspect Ratio",
       referenceImages: "Reference Images (Optional)", mainReference: "Main Reference (Optional)", extraReference: "Extra References (Optional, multiple)",
       clickToUpload: "Click to upload", selectFromLibrary: "Select from Library", generateMaterial: "Generate Material",
       messages: {
@@ -64,7 +68,21 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
 }) => {
   const t = useT(materialGeneratorI18n);
   const { show } = useToast();
+  const currentProject = useProjectStore((s) => s.currentProject);
   const [prompt, setPrompt] = useState('');
+  const [aspectRatio, setAspectRatio] = useState('16:9');
+
+  // Reset aspect ratio to project default when modal opens,
+  // so newly opened modals always reflect current project settings.
+  // Verify the store's currentProject matches the projectId prop to avoid
+  // using a stale/wrong project's aspect ratio.
+  useEffect(() => {
+    if (isOpen) {
+      const projectAspectRatio =
+        (projectId && currentProject?.id === projectId && currentProject.image_aspect_ratio) || '16:9';
+      setAspectRatio(projectAspectRatio);
+    }
+  }, [isOpen, projectId, currentProject]);
   const [refImage, setRefImage] = useState<File | null>(null);
   const [extraImages, setExtraImages] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -236,7 +254,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
     setIsGenerating(true);
     try {
       const targetProjectId = projectId || 'none';
-      const resp = await generateMaterialImage(targetProjectId, prompt.trim(), refImage as File, extraImages);
+      const resp = await generateMaterialImage(targetProjectId, prompt.trim(), refImage as File, extraImages, aspectRatio);
       const taskId = resp.data?.task_id;
       refreshCredits();
       
@@ -283,11 +301,11 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
               {t('material.generatedResult')}
             </h4>
             {isGenerating ? (
-              <div className="aspect-video rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner">
+              <div className="rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
                 <Skeleton className="w-full h-full" />
               </div>
             ) : previewUrl ? (
-              <div className="aspect-video bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
+              <div className="bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
                 <img
                   src={previewUrl}
                   alt={t('material.generatedMaterial')}
@@ -295,7 +313,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                 />
               </div>
             ) : (
-              <div className="aspect-video bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm">
+              <div className="bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
                 <ImageIcon size={48} className="mb-3 animate-pulse opacity-50" />
                 <div className="font-medium">{t('material.generatedPreview')}</div>
               </div>
@@ -313,6 +331,27 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           }}
           rows={3}
         />
+
+        {/* 生成比例选择 */}
+        <div>
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('material.aspectRatioLabel')}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {ASPECT_RATIO_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { setAspectRatio(opt.value); if (isCompleted) setIsCompleted(false); }}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                  aspectRatio === opt.value
+                    ? 'border-banana-500 bg-banana-50 dark:bg-banana-900/30 text-banana-700 dark:text-banana'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* 参考图片上传区域 - 现代渐变设计 */}
         <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-indigo-50/30 via-white/80 to-purple-50/30 dark:from-indigo-950/20 dark:via-gray-800/40 dark:to-purple-950/20 backdrop-blur-xl shadow-lg">

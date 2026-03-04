@@ -1,0 +1,29 @@
+---
+title: "Export Options"
+description: "Export presentations as PPTX, PDF, or images"
+---
+
+## Formats
+
+| Format | Description |
+|--------|-------------|
+| PPTX | Slides are embedded as images in the PPT file. You can play and reorder pages in PowerPoint, but the text inside images cannot be directly edited |
+| Editable PPTX (Beta) | Extracts text from slide images and rebuilds it as native PowerPoint text boxes, enabling direct text editing in PowerPoint |
+| PDF | Pixel-perfect output, ready for presentation |
+| Images | Each page exported as an individual image file |
+
+## Aspect Ratio
+
+Defaults to 16:9. You can change the ratio when creating a project or in **Project Settings** on the preview page. Supports 16:9, 4:3, 21:9, 1:1, 9:16, and more. Images must be regenerated after changing the ratio.
+
+## Editable PPTX (Beta)
+
+The extraction process preserves font size, color, bold styling, text positioning, and table content. However, due to OCR accuracy limits and current model capabilities, complex layouts may have discrepancies from the original slide appearance.
+
+<Note>
+  For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).
+</Note>
+
+## Page Selection
+
+You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.

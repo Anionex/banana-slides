@@ -1,0 +1,114 @@
+---
+title: "Import & Export Format"
+description: "Markdown format for importing and exporting outlines and descriptions"
+---
+
+Banana Slides uses Markdown files (`.md` / `.txt`) to import and export outlines and page descriptions. The format is human-readable and easy to edit in any text editor.
+
+## Format Structure
+
+```markdown
+# Project Title
+
+> 生成时间: 2025/1/1 12:00:00
+
+---
+
+## 第 1 页: Cover Page
+
+> 章节: Introduction
+
+**大纲要点：**
+- Company name and logo
+- Presentation date
+
+**页面描述：**
+A clean cover page with the company logo centered, title in bold white text on a dark blue gradient background.
+
+---
+
+## 第 2 页: Market Overview
+
+> 章节: Analysis
+
+**大纲要点：**
+- Industry growth trends
+- Key market segments
+
+**页面描述：**
+A data-driven page showing a bar chart of market growth over the past 5 years, with key statistics highlighted in callout boxes.
+
+---
+```
+
+## Field Reference
+
+| Field | Syntax | Required |
+|-------|--------|----------|
+| Page header | `## 第 N 页: Title` | Yes |
+| Chapter | `> 章节: Name` | No |
+| Key points | `**大纲要点：**` followed by `- point` lines | No |
+| Description | `**页面描述：**` followed by free text | No |
+
+Pages are separated by `---`.
+
+## Export Options
+
+You can export from both the Outline Editor and Detail Editor:
+
+| Source | Content |
+|--------|---------|
+| Outline Editor | Key points only (no descriptions) |
+| Detail Editor | Both key points and descriptions |
+
+## Import Behavior
+
+- Imported pages are **appended** to the existing project — they do not replace current pages.
+- Both `**大纲要点：**` and `**页面描述：**` markers are optional. If omitted, bullet lines (`- ...`) are treated as key points.
+- HTML tags in imported content are automatically stripped.
+- Accepts `.md` and `.txt` files.
+
+## Minimal Example
+
+A valid import file can be as simple as:
+
+```markdown
+## 第 1 页: Introduction
+- Welcome and agenda
+- Speaker introduction
+
+## 第 2 页: Summary
+- Key takeaways
+```
+
+## Generate with AI
+
+Copy the prompt below into any AI assistant (ChatGPT, Claude, etc.), replace the placeholders, and import the output directly into Banana Slides.
+
+<Tip>
+  For outline-only import, remove the `**页面描述：**` requirement from the prompt.
+</Tip>
+
+<Accordion title="AI Prompt Template">
+
+```text
+Generate a presentation outline in the following Markdown format.
+
+Topic: [YOUR TOPIC]
+Number of pages: [NUMBER, e.g. 8]
+Language: [Chinese / English]
+Style notes: [e.g. "professional and data-driven" or "playful and visual"]
+
+Rules:
+1. Each page starts with "## 第 N 页: Title"
+2. Group pages into chapters using "> 章节: Chapter Name"
+3. Under "**大纲要点：**", list 2-4 key points as "- point"
+4. Under "**页面描述：**", write 1-2 sentences describing the visual layout,
+   colors, charts, or imagery for that slide
+5. Separate pages with "---"
+6. First page should be a cover, last page should be a closing/thank-you page
+
+Output ONLY the Markdown, no extra explanation.
+```
+
+</Accordion>

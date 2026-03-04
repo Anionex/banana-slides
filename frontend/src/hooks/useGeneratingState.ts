@@ -2,17 +2,13 @@ import type { Page } from '@/types';
 
 /**
  * 判断页面描述是否处于生成状态
- * 只检查与描述生成相关的状态：
- * 1. 描述生成任务（isGenerating）
- * 2. AI 修改时的全局状态（isAiRefining）
- * 
- * 注意：不检查 page.status === 'GENERATING'，因为该状态在图片生成时也会被设置
+ * 通过 page.status === 'GENERATING_DESCRIPTION' 驱动，与图片生成的 'GENERATING' 状态互不干扰
  */
 export const useDescriptionGeneratingState = (
-  isGenerating: boolean,
+  page: Page,
   isAiRefining: boolean
 ): boolean => {
-  return isGenerating || isAiRefining;
+  return page.status === 'GENERATING_DESCRIPTION' || isAiRefining;
 };
 
 /**
@@ -25,7 +21,7 @@ export const useImageGeneratingState = (
   page: Page,
   isGenerating: boolean
 ): boolean => {
-  return isGenerating || page.status === 'GENERATING';
+  return isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
 };
 
 /**
@@ -38,7 +34,7 @@ export const useGeneratingState = (
   isGenerating: boolean,
   isAiRefining: boolean
 ): boolean => {
-  return isGenerating || page.status === 'GENERATING' || isAiRefining;
+  return isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING' || isAiRefining;
 };
 
 /**
@@ -48,7 +44,7 @@ export const usePageGeneratingState = (
   page: Page,
   isGenerating: boolean
 ): boolean => {
-  return isGenerating || page.status === 'GENERATING';
+  return isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
 };
 
 

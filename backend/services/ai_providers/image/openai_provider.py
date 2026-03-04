@@ -281,7 +281,8 @@ class OpenAIImageProvider(ImageProvider):
             # Log raw response for debugging
             logger.warning(f"Unable to extract image. Raw message type: {type(message)}")
             logger.warning(f"Message content type: {type(getattr(message, 'content', None))}")
-            logger.warning(f"Message content: {getattr(message, 'content', 'N/A')}")
+            raw = str(getattr(message, 'content', 'N/A'))
+            logger.warning(f"Message content: {raw[:300]}{'...(truncated)' if len(raw) > 300 else ''}")
             
             raise ValueError("No valid multimodal response received from OpenAI API")
             
