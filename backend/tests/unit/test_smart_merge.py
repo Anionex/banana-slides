@@ -41,8 +41,14 @@ def ctx(merge_app):
 
 
 def _make_project(pid='test-proj'):
-    from models import db, Project
-    p = Project(id=pid, creation_type='idea', idea_prompt='test')
+    from models import db, Project, User
+    # Create test user if not exists
+    user = User.query.filter_by(email='test@example.com').first()
+    if not user:
+        user = User(id='test-user-id', email='test@example.com', password_hash='test')
+        db.session.add(user)
+        db.session.commit()
+    p = Project(id=pid, user_id=user.id, creation_type='idea', idea_prompt='test')
     db.session.add(p)
     db.session.commit()
     return pid
