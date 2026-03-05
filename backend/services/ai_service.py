@@ -831,7 +831,12 @@ class AIService:
                     elif isinstance(ref_img, str):
                         # 可能是本地路径或 URL
                         if os.path.exists(ref_img):
-                            # 本地路径
+                            # 本地路径 — 验证路径在 upload 目录内
+                            upload_folder = get_config().UPLOAD_FOLDER
+                            abs_ref = os.path.abspath(ref_img)
+                            if not abs_ref.startswith(os.path.abspath(upload_folder)):
+                                logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
+                                continue
                             img = Image.open(ref_img)
                             _opened_images.append(img)
                             ref_images.append(img)
@@ -846,6 +851,11 @@ class AIService:
                             # MinerU 本地文件路径，需要转换为文件系统路径（支持前缀匹配）
                             local_path = self._convert_mineru_path_to_local(ref_img)
                             if local_path and os.path.exists(local_path):
+                                # Verify the resolved path is within the upload directory
+                                upload_folder = get_config().UPLOAD_FOLDER
+                                if not os.path.abspath(local_path).startswith(os.path.abspath(upload_folder)):
+                                    logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
+                                    continue
                                 img = Image.open(local_path)
                                 _opened_images.append(img)
                                 ref_images.append(img)
@@ -891,8 +901,8 @@ class AIService:
             for img in _opened_images:
                 try:
                     img.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.warning(f"Failed to close image resource: {close_err}")
     
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",

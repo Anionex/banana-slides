@@ -482,8 +482,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
                         try:
                             db.session.rollback()
-                        except Exception:
-                            pass
+                        except Exception as db_err:
+                            logger.warning(f"Failed to rollback session for page {page_id}: {db_err}")
                         return (page_id, None, str(e), None)
             
             # Use ThreadPoolExecutor for parallel generation
@@ -762,8 +762,7 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             # Clean up temp directory on error
             if temp_dir:
                 import shutil
-                from pathlib import Path as _Path
-                temp_path = _Path(temp_dir)
+                temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir)
 
