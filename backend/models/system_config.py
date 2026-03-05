@@ -16,7 +16,7 @@ class SystemConfig(db.Model):
     # ==================== 用户策略 ====================
     # 哪些设置字段允许用户自定义（JSON 数组）
     # 例如: ["api_key", "api_base_url", "text_model", "image_model"]
-    user_editable_fields = db.Column(db.Text, default='["output_language", "image_resolution", "image_aspect_ratio"]')
+    user_editable_fields = db.Column(db.Text, default='["output_language", "image_resolution", "image_aspect_ratio", "description_generation_mode", "description_extra_fields", "image_prompt_extra_fields"]')
 
     # ==================== 积分定价配置 ====================
     # 注册奖励积分
