@@ -3,12 +3,15 @@ File Service - handles all file operations
 """
 import os
 import uuid
+import logging
 from pathlib import Path
 from typing import Optional
 from werkzeug.utils import secure_filename
 from PIL import Image
 from models import Project
 from models import db
+
+logger = logging.getLogger(__name__)
 
 
 def convert_image_to_rgb(image: Image.Image) -> Image.Image:
@@ -264,7 +267,10 @@ class FileService:
         Returns:
             True if deleted successfully
         """
-        filepath = self.upload_folder / image_path.replace('\\', '/')
+        filepath = (self.upload_folder / image_path.replace('\\', '/')).resolve()
+        if not str(filepath).startswith(str(self.upload_folder.resolve())):
+            logger.warning(f"Path traversal attempt blocked in delete_page_image_version: {image_path}")
+            return False
         deleted = False
 
         if filepath.exists() and filepath.is_file():
@@ -502,6 +508,7 @@ class FileService:
             image.close()
 
             return thumb_filepath.relative_to(self.upload_folder).as_posix()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to save user template thumbnail: {e}")
             return None
     
