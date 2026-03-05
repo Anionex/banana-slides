@@ -1101,6 +1101,8 @@ class ExportService:
                     os.environ['BAIDU_API_KEY'] = user_config['BAIDU_API_KEY']
                 if user_config.get('BAIDU_OCR_API_KEY'):
                     import os
+                    key_preview = user_config['BAIDU_OCR_API_KEY'][:20] if user_config['BAIDU_OCR_API_KEY'] else 'None'
+                    logger.info(f"🔑 设置BAIDU_OCR_API_KEY环境变量: {key_preview}... (长度: {len(user_config['BAIDU_OCR_API_KEY'])})")
                     os.environ['BAIDU_OCR_API_KEY'] = user_config['BAIDU_OCR_API_KEY']
             config = ServiceConfig.from_defaults(**service_kwargs)
             editability_service = ImageEditabilityService(config)
