@@ -3,6 +3,7 @@ Simplified Flask Application Entry Point
 """
 import os
 import sys
+import hmac
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
@@ -24,7 +25,7 @@ from config import Config
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
-from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp
+from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp, style_bp
 
 
 # Enable SQLite WAL mode for all connections
@@ -91,6 +92,7 @@ def create_app():
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('werkzeug').setLevel(logging.INFO)  # Flask开发服务器日志保持INFO
+    logging.getLogger('volcenginesdkarkruntime').setLevel(logging.WARNING)
 
     # Initialize extensions
     db.init_app(app)
@@ -109,15 +111,51 @@ def create_app():
     app.register_blueprint(material_global_bp)
     app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
     app.register_blueprint(settings_bp)
+    app.register_blueprint(style_bp)
 
     with app.app_context():
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
+    # Access code enforcement on all /api/ routes
+    @app.before_request
+    def _enforce_access_code():
+        from flask import request, jsonify
+        expected = os.getenv('ACCESS_CODE', '').strip()
+        if not expected:
+            return  # not enabled
+        if not request.path.startswith('/api/'):
+            return  # non-API routes (health, static, etc.)
+        if request.path.startswith('/api/access-code/'):
+            return  # allow check/verify endpoints
+        code = request.headers.get('X-Access-Code', '')
+        if hmac.compare_digest(code, expected):
+            return
+        return jsonify({'error': 'Access code required'}), 403
+
     # Health check endpoint
     @app.route('/health')
     def health_check():
         return {'status': 'ok', 'message': 'Banana Slides API is running'}
+
+    # Access code verification
+    @app.route('/api/access-code/check', methods=['GET'])
+    def check_access_code():
+        """Check if access code protection is enabled"""
+        enabled = bool(os.getenv('ACCESS_CODE', '').strip())
+        return {'data': {'enabled': enabled}}
+
+    @app.route('/api/access-code/verify', methods=['POST'])
+    def verify_access_code():
+        """Verify the provided access code"""
+        from flask import request, jsonify
+        expected = os.getenv('ACCESS_CODE', '').strip()
+        if not expected:
+            return {'data': {'valid': True}}
+        code = (request.json or {}).get('code', '')
+        if hmac.compare_digest(code, expected):
+            return {'data': {'valid': True}}
+        return jsonify({'error': 'Invalid access code'}), 403
     
     # Output language endpoint
     @app.route('/api/output-language', methods=['GET'])
@@ -129,7 +167,7 @@ def create_app():
         from models import Settings
         try:
             settings = Settings.get_settings()
-            return {'data': {'language': settings.output_language}}
+            return {'data': {'language': settings.output_language or Config.OUTPUT_LANGUAGE}}
         except SQLAlchemyError as db_error:
             logging.warning(f"Failed to load output language from settings: {db_error}")
             return {'data': {'language': Config.OUTPUT_LANGUAGE}}  # 默认中文
@@ -183,30 +221,131 @@ def _load_settings_to_config(app):
             else:
                 logging.info("API key is empty in settings, using env var or default")
 
-        # Load image generation settings
-        app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
-        app.config['DEFAULT_ASPECT_RATIO'] = settings.image_aspect_ratio
-        logging.info(f"Loaded image settings: {settings.image_resolution}, {settings.image_aspect_ratio}")
+        # Load image generation settings (fall back to .env/Config when NULL)
+        resolution = settings.image_resolution or Config.DEFAULT_RESOLUTION
+        aspect_ratio = settings.image_aspect_ratio or Config.DEFAULT_ASPECT_RATIO
+        app.config['DEFAULT_RESOLUTION'] = resolution
+        app.config['DEFAULT_ASPECT_RATIO'] = aspect_ratio
+        logging.info(f"Loaded image settings: {resolution}, {aspect_ratio}")
 
-        # Load worker settings
-        app.config['MAX_DESCRIPTION_WORKERS'] = settings.max_description_workers
-        app.config['MAX_IMAGE_WORKERS'] = settings.max_image_workers
-        logging.info(f"Loaded worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
+        # Load worker settings (fall back to .env/Config when NULL)
+        desc_workers = settings.max_description_workers or Config.MAX_DESCRIPTION_WORKERS
+        img_workers = settings.max_image_workers or Config.MAX_IMAGE_WORKERS
+        app.config['MAX_DESCRIPTION_WORKERS'] = desc_workers
+        app.config['MAX_IMAGE_WORKERS'] = img_workers
+        logging.info(f"Loaded worker settings: desc={desc_workers}, img={img_workers}")
+
+        # Load model settings (FIX for Issue #136: these were missing before)
+        if settings.text_model:
+            app.config['TEXT_MODEL'] = settings.text_model
+            logging.info(f"Loaded TEXT_MODEL from settings: {settings.text_model}")
+        
+        if settings.image_model:
+            app.config['IMAGE_MODEL'] = settings.image_model
+            logging.info(f"Loaded IMAGE_MODEL from settings: {settings.image_model}")
+        
+        # Load MinerU settings
+        if settings.mineru_api_base:
+            app.config['MINERU_API_BASE'] = settings.mineru_api_base
+            logging.info(f"Loaded MINERU_API_BASE from settings: {settings.mineru_api_base}")
+        
+        if settings.mineru_token:
+            app.config['MINERU_TOKEN'] = settings.mineru_token
+            logging.info("Loaded MINERU_TOKEN from settings")
+        
+        # Load image caption model
+        if settings.image_caption_model:
+            app.config['IMAGE_CAPTION_MODEL'] = settings.image_caption_model
+            logging.info(f"Loaded IMAGE_CAPTION_MODEL from settings: {settings.image_caption_model}")
+        
+        # Load output language
+        if settings.output_language:
+            app.config['OUTPUT_LANGUAGE'] = settings.output_language
+            logging.info(f"Loaded OUTPUT_LANGUAGE from settings: {settings.output_language}")
+        
+        # Load reasoning mode settings (separate for text and image)
+        app.config['ENABLE_TEXT_REASONING'] = settings.enable_text_reasoning
+        app.config['TEXT_THINKING_BUDGET'] = settings.text_thinking_budget
+        app.config['ENABLE_IMAGE_REASONING'] = settings.enable_image_reasoning
+        app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget
+        logging.info(f"Loaded reasoning config: text={settings.enable_text_reasoning}(budget={settings.text_thinking_budget}), image={settings.enable_image_reasoning}(budget={settings.image_thinking_budget})")
+        
+        # Load Baidu API settings
+        if settings.baidu_api_key:
+            app.config['BAIDU_API_KEY'] = settings.baidu_api_key
+            logging.info("Loaded BAIDU_API_KEY from settings")
+
+        # Load LazyLLM source settings
+        if settings.text_model_source:
+            app.config['TEXT_MODEL_SOURCE'] = settings.text_model_source
+            logging.info(f"Loaded TEXT_MODEL_SOURCE from settings: {settings.text_model_source}")
+        if settings.image_model_source:
+            app.config['IMAGE_MODEL_SOURCE'] = settings.image_model_source
+            logging.info(f"Loaded IMAGE_MODEL_SOURCE from settings: {settings.image_model_source}")
+        if settings.image_caption_model_source:
+            app.config['IMAGE_CAPTION_MODEL_SOURCE'] = settings.image_caption_model_source
+            logging.info(f"Loaded IMAGE_CAPTION_MODEL_SOURCE from settings: {settings.image_caption_model_source}")
+
+        # Load per-model API credentials (for gemini/openai per-model overrides)
+        for model_type in ('text', 'image', 'image_caption'):
+            prefix = model_type.upper()
+            for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
+                config_key = f'{prefix}{suffix}'
+                val = getattr(settings, f'{model_type}{setting_suffix}', None)
+                if val:
+                    app.config[config_key] = val
+                    if suffix == '_API_BASE':
+                        logging.info(f"Loaded {config_key} from settings: {val}")
+                    else:
+                        logging.info(f"Loaded {config_key} from settings")
+
+        # Sync LazyLLM vendor API keys to environment variables
+        # Only allow known vendor names to prevent environment variable injection
+        from services.ai_providers.lazyllm_env import ALLOWED_LAZYLLM_VENDORS
+        if settings.lazyllm_api_keys:
+            import json
+            try:
+                keys = json.loads(settings.lazyllm_api_keys)
+                for vendor, key in keys.items():
+                    if key and vendor.lower() in ALLOWED_LAZYLLM_VENDORS:
+                        os.environ[f"{vendor.upper()}_API_KEY"] = key
+                    elif key:
+                        logging.warning(f"Ignoring unknown lazyllm vendor: {vendor}")
+                logging.info(f"Loaded LazyLLM API keys for vendors: {[v for v, k in keys.items() if k and v.lower() in ALLOWED_LAZYLLM_VENDORS]}")
+            except (json.JSONDecodeError, TypeError):
+                logging.warning("Failed to parse lazyllm_api_keys from settings")
 
     except Exception as e:
-        logging.warning(f"Could not load settings from database: {e}")
+        if isinstance(e, SQLAlchemyError) and "no such table: settings" in str(e):
+            logging.debug(f"Settings table not yet created (expected on first boot): {e}")
+        else:
+            logging.warning(f"Could not load settings from database: {e}")
 
 
 # Create app instance
 app = create_app()
 
 
+def _compute_worktree_port(base_port: int) -> int:
+    """Compute a deterministic port from the worktree directory name.
+
+    Uses MD5 of the project root basename so each worktree gets a unique,
+    stable port pair (backend 5xxx, frontend 3xxx) without manual config.
+    """
+    import hashlib
+    basename = _project_root.name
+    offset = int(hashlib.md5(basename.encode()).hexdigest()[:8], 16) % 500
+    return base_port + offset
+
+
 if __name__ == '__main__':
     # Run development server
     if os.getenv("IN_DOCKER", "0") == "1":
-        port = 5000 # 在 docker 内部部署时始终使用 5000 端口.
+        port = 5000  # Docker 容器内部固定使用 5000 端口
+    elif os.getenv('BACKEND_PORT'):
+        port = int(os.getenv('BACKEND_PORT'))
     else:
-        port = int(os.getenv('PORT', 5000))
+        port = _compute_worktree_port(5000)
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
     
     logging.info(
@@ -224,4 +363,4 @@ if __name__ == '__main__':
     )
     
     # Using absolute paths for database, so WSL path issues should not occur
-    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=False)
+    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

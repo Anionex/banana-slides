@@ -38,7 +38,7 @@ def gen_image(prompt: str, ref_image_path: str, aspect_ratio: str = DEFAULT_ASPE
                 image = part.as_image()
                 if image:
                     return image
-            except:
+            except Exception:
                 pass
     
     return None

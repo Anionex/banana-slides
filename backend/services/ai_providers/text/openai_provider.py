@@ -2,8 +2,9 @@
 OpenAI SDK implementation for text generation
 """
 import logging
+from typing import Generator
 from openai import OpenAI
-from .base import TextProvider
+from .base import TextProvider, strip_think_tags
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -29,13 +30,13 @@ class OpenAITextProvider(TextProvider):
         )
         self.model = model
     
-    def generate_text(self, prompt: str, thinking_budget: int = 1000) -> str:
+    def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
         Generate text using OpenAI SDK
         
         Args:
             prompt: The input prompt
-            thinking_budget: Not used in OpenAI format, kept for interface compatibility
+            thinking_budget: Not used in OpenAI format, kept for interface compatibility (0 = default)
             
         Returns:
             Generated text
@@ -46,4 +47,16 @@ class OpenAITextProvider(TextProvider):
                 {"role": "user", "content": prompt}
             ]
         )
-        return response.choices[0].message.content
+        return strip_think_tags(response.choices[0].message.content)
+
+    def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
+        """Stream text using OpenAI SDK with stream=True."""
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+        )
+        for chunk in response:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta and delta.content:
+                yield delta.content

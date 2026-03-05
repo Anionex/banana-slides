@@ -4,6 +4,7 @@ Based on OpenDCAI/DataFlow-Agent's implementation
 """
 import os
 import logging
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from pptx import Presentation
@@ -149,7 +150,22 @@ class PPTXBuilder:
         self.prs = Presentation()
         self.prs.slide_width = Inches(self.slide_width_inches)
         self.prs.slide_height = Inches(self.slide_height_inches)
+        self._set_core_properties(self.prs)
         return self.prs
+
+    @staticmethod
+    def _set_core_properties(prs: Presentation) -> None:
+        """Set author/date metadata for exported PPTX."""
+        try:
+            core = prs.core_properties
+            now = datetime.now(timezone.utc)
+            core.author = "banana-slides"
+            core.last_modified_by = "banana-slides"
+            core.created = now
+            core.modified = now
+            core.last_printed = None
+        except Exception as e:
+            logger.warning(f"Failed to set core properties: {e}")
     
     def setup_presentation_size(self, width_pixels: int, height_pixels: int, dpi: int = None):
         """

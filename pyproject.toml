@@ -26,6 +26,10 @@ dependencies = [
     "lxml>=4.9.0",
     "latex2mathml>=3.75.0",
     "volcengine>=1.0.0",
+    "lazyllm>=0.7.3",
+    "volcengine-python-sdk[ark]>=5.0.9",
+    "PyPDF2>=3.0.0",
+    "PyMuPDF>=1.24.0",
 ]
 
 [project.optional-dependencies]

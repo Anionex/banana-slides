@@ -1,0 +1,87 @@
+---
+title: "Generate & Refine Images"
+description: "Generate slide images and fine-tune them page by page"
+---
+
+The Slide Preview is the final editing step. Generate images, refine details, browse version history, then export.
+
+## Batch Generate All Images
+
+Click **Batch Generate Images** — AI generates all pages in parallel. Each card shows a progress animation; previews appear as they complete.
+
+<Note>
+  If the current resolution is 1K, a warning dialog recommends switching to 2K or 4K — the difference in text clarity is significant. Change this in **Project Settings → Global Settings**.
+</Note>
+
+## Single-Page Refinement
+
+When one slide doesn't look right, no need to regenerate everything:
+
+1. Click the **Edit** icon (pencil) on the slide card
+2. Update the **page description** or add an **edit instruction** in the right panel
+3. Click **Generate Image** — only this page regenerates
+
+**Edit instruction examples:**
+- `Change the background to a dark gradient`
+- `Move the title to the top and increase font size`
+- `Replace the right side with a bar chart, keep the data`
+- `Change the overall style to hand-drawn illustration`
+
+<Tip>
+  To save description changes without regenerating the image, click **Save Outline/Description Only**.
+</Tip>
+
+## Region Editing: Change Only Part of a Slide
+
+Want to adjust a specific area without touching the rest:
+
+1. Enter single-page edit mode, then click **Region Select** above the image
+2. **Click and drag** to select the area you want to modify
+3. The selected region is cropped and added as a reference image
+4. Describe the change in the edit instruction box, then click **Generate Image**
+
+AI redraws the full slide with extra focus on the selected region.
+
+## Version History
+
+Every regeneration automatically saves the previous version — nothing is lost.
+
+1. Enter single-page edit mode
+2. Click **History Versions** in the bottom-left of the image
+3. Select any historical version to restore it
+
+<Tip>
+  Experiment freely with different prompts — you can always roll back to a version you liked.
+</Tip>
+
+## Batch Regenerate Selected Pages
+
+To regenerate only a subset of pages:
+
+1. Click **Multi-select** at the top
+2. Check the pages you want to regenerate
+3. Click **Generate Selected (N)**
+
+## Project Settings
+
+Click the gear icon **Project Settings** in the top-right — three tabs:
+
+### Project Settings Tab
+
+| Setting | Notes |
+|---------|-------|
+| Aspect Ratio | Changes take effect after regenerating images |
+| Extra Requirements | Applied to all image generation, e.g. "avoid real human photos" |
+| Style Description | Visual constraints, e.g. "minimalist, white background, thin lines" |
+| Change Template | Affects only future generations, not existing images |
+
+### Export Settings Tab
+
+Configure **Editable PPTX** extraction behavior:
+- **Text Extractor**: OCR / Vision model / Hybrid — each has quality vs. speed tradeoffs
+- **Image Inpainting**: Pixel-based / AI-based / Hybrid
+- **Error Handling**: Enable **Allow Partial Results** to get output even when errors occur
+
+### Global Settings Tab
+
+Change API provider, model names, image resolution (1K / 2K / 4K), max concurrent workers. Run **Service Test** here to verify your configuration is working.

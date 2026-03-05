@@ -1,0 +1,83 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Banana Slides",
+  "colors": {
+    "primary": "#F59E0B",
+    "light": "#FBBF24",
+    "dark": "#D97706"
+  },
+  "favicon": "/logo/banana.svg",
+  "navigation": {
+    "languages": [
+      {
+        "language": "zh",
+        "groups": [
+          {
+            "group": "快速上手",
+            "pages": ["zh/index", "zh/quickstart", "zh/configuration"]
+          },
+          {
+            "group": "创作流程",
+            "pages": [
+              "zh/features/creation",
+              "zh/features/outline",
+              "zh/features/descriptions",
+              "zh/features/images"
+            ]
+          },
+          {
+            "group": "素材与导出",
+            "pages": [
+              "zh/features/materials",
+              "zh/features/export",
+              "zh/features/import-export"
+            ]
+          },
+          {
+            "group": "其他",
+            "pages": [
+              "zh/history",
+              "zh/features/overview",
+              "zh/faq"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "en",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["index", "quickstart", "configuration"]
+          },
+          {
+            "group": "Creation Flow",
+            "pages": [
+              "features/creation",
+              "features/outline",
+              "features/descriptions",
+              "features/images"
+            ]
+          },
+          {
+            "group": "Materials & Export",
+            "pages": [
+              "features/materials",
+              "features/export",
+              "features/import-export"
+            ]
+          },
+          {
+            "group": "More",
+            "pages": [
+              "history",
+              "features/overview",
+              "faq"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

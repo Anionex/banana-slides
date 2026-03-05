@@ -3,14 +3,43 @@ Task Manager - handles background tasks using ThreadPoolExecutor
 No need for Celery or Redis, uses in-memory task tracking
 """
 import logging
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, List, Dict, Any
+from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy import func
+from PIL import Image
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
+from utils.image_utils import check_image_resolution
+
+
+def _get_image_prompt_field_names() -> set | None:
+    """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
+    try:
+        from models import Settings
+        settings = Settings.get_settings()
+        if settings.image_prompt_extra_fields is None:
+            return None  # 未配置 → 全部允许
+        return set(settings.get_image_prompt_extra_fields())
+    except Exception:
+        return None
+
+
+def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    extra_fields = desc_content.get('extra_fields')
+    if not extra_fields or not isinstance(extra_fields, dict):
+        return desc_text
+    allowed = _get_image_prompt_field_names()
+    parts = [desc_text]
+    for name, value in extra_fields.items():
+        if value and (allowed is None or name in allowed):
+            parts.append(f"\n{name}：{value}")
+    return ''.join(parts)
 from pathlib import Path
+from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +95,11 @@ class TaskManager:
 task_manager = TaskManager(max_workers=4)
 
 
-def save_image_with_version(image, project_id: str, page_id: str, file_service, 
+def save_image_with_version(image, project_id: str, page_id: str, file_service,
                             page_obj=None, image_format: str = 'PNG') -> tuple[str, int]:
     """
     保存图片并创建历史版本记录的公共函数
-    
+
     Args:
         image: PIL Image 对象
         project_id: 项目ID
@@ -78,31 +107,39 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         file_service: FileService 实例
         page_obj: Page 对象（可选，如果提供则更新页面状态）
         image_format: 图片格式，默认 PNG
-    
+
     Returns:
         tuple: (image_path, version_number) - 图片路径和版本号
-    
+
     这个函数会：
     1. 计算下一个版本号（使用 MAX 查询确保安全）
     2. 标记所有旧版本为非当前版本
     3. 保存图片到最终位置
-    4. 创建新版本记录
-    5. 如果提供了 page_obj，更新页面状态和图片路径
+    4. 生成并保存压缩的缓存图片
+    5. 创建新版本记录
+    6. 如果提供了 page_obj，更新页面状态和图片路径
     """
     # 使用 MAX 查询确保版本号安全（即使有版本被删除也不会重复）
     max_version = db.session.query(func.max(PageImageVersion.version_number)).filter_by(page_id=page_id).scalar() or 0
     next_version = max_version + 1
-    
+
     # 批量更新：标记所有旧版本为非当前版本（使用单条 SQL 更高效）
     PageImageVersion.query.filter_by(page_id=page_id).update({'is_current': False})
-    
-    # 保存图片到最终位置（使用版本号）
+
+    # 保存原图到最终位置（使用版本号）
     image_path = file_service.save_generated_image(
         image, project_id, page_id,
         version_number=next_version,
         image_format=image_format
     )
-    
+
+    # 生成并保存压缩的缓存图片（用于前端快速显示）
+    cached_image_path = file_service.save_cached_image(
+        image, project_id, page_id,
+        version_number=next_version,
+        quality=85
+    )
+
     # 创建新版本记录
     new_version = PageImageVersion(
         page_id=page_id,
@@ -111,31 +148,33 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         is_current=True
     )
     db.session.add(new_version)
-    
+
     # 如果提供了 page_obj，更新页面状态和图片路径
     if page_obj:
         page_obj.generated_image_path = image_path
+        page_obj.cached_image_path = cached_image_path
         page_obj.status = 'COMPLETED'
         page_obj.updated_at = datetime.utcnow()
-    
+
     # 提交事务
     db.session.commit()
-    
-    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}")
-    
+
+    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}, cached: {cached_image_path}")
+
     return image_path, next_version
 
 
-def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
-                               project_context, outline: List[Dict], 
+def generate_descriptions_task(task_id: str, project_id: str, ai_service,
+                               project_context, outline: List[Dict],
                                max_workers: int = 5, app=None,
-                               language: str = None):
+                               language: str = None,
+                               detail_level: str = 'default'):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
-    
+
     Note: app instance MUST be passed from the request context
-    
+
     Args:
         task_id: Task ID
         project_id: Project ID
@@ -145,6 +184,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         max_workers: Maximum number of parallel workers
         app: Flask app instance
         language: Output language (zh, en, ja, auto)
+        detail_level: Description detail level (concise/default/detailed)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -171,6 +211,10 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             if len(pages) != len(pages_data):
                 raise ValueError("Page count mismatch")
             
+            # Mark all pages as GENERATING_DESCRIPTION before starting
+            for page in pages:
+                page.status = 'GENERATING_DESCRIPTION'
+
             # Initialize progress
             task.set_progress({
                 "total": len(pages),
@@ -178,7 +222,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 "failed": 0
             })
             db.session.commit()
-            
+
             # Generate descriptions in parallel
             completed = 0
             failed = 0
@@ -195,17 +239,19 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         from services.ai_service_manager import get_ai_service
                         ai_service = get_ai_service()
                         
-                        desc_text = ai_service.generate_page_description(
+                        desc_result = ai_service.generate_page_description(
                             project_context, outline, page_outline, page_index,
-                            language=language
+                            language=language,
+                            detail_level=detail_level
                         )
-                        
-                        # Parse description into structured format
-                        # This is a simplified version - you may want more sophisticated parsing
+
+                        # generate_page_description returns dict with text + optional extra_fields
                         desc_content = {
-                            "text": desc_text,
+                            "text": desc_result['text'],
                             "generated_at": datetime.utcnow().isoformat()
                         }
+                        if desc_result.get('extra_fields'):
+                            desc_content['extra_fields'] = desc_result['extra_fields']
                         
                         return (page_id, desc_content, None)
                     except Exception as e:
@@ -306,7 +352,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
-            pages_data = ai_service.flatten_outline(outline)
+            all_pages_data = ai_service.flatten_outline(outline)
+
+            # Build mapping from order_index to page_data so filtered pages
+            # get matched to the correct outline entry (not just first N)
+            pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
             
             # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
             # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
@@ -322,6 +372,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Generate images in parallel
             completed = 0
             failed = 0
+            resolution_mismatched = 0  # Count of resolution mismatches
             
             def generate_single_image(page_id, page_data, page_index):
                 """
@@ -356,7 +407,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 desc_text = '\n'.join(text_content)
                             else:
                                 desc_text = str(text_content)
-                        
+
+                        # 将 extra_fields 拼入描述文本供图片生成使用
+                        desc_text = _append_extra_fields(desc_text, desc_content)
+
                         logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                         
                         # 从当前页面的描述内容中提取图片 URL
@@ -384,7 +438,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             has_material_images=has_material_images,
                             extra_requirements=extra_requirements,
                             language=language,
-                            has_template=use_template
+                            has_template=use_template,
+                            aspect_ratio=aspect_ratio
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
@@ -399,31 +454,42 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not image:
                             raise ValueError("Failed to generate image")
                         
+                        # Check resolution for all providers
+                        actual_res, is_match = check_image_resolution(image, resolution)
+                        if not is_match:
+                            logger.warning(f"Resolution mismatch for page {page_index}: requested {resolution}, got {actual_res}")
+                        
                         # 优化：直接在子线程中计算版本号并保存到最终位置
                         # 每个页面独立，使用数据库事务保证版本号原子性，避免临时文件
                         image_path, next_version = save_image_with_version(
                             image, project_id, page_id, file_service, page_obj=page_obj
                         )
                         
-                        return (page_id, image_path, None)
+                        return (page_id, image_path, None, not is_match)
                         
                     except Exception as e:
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e))
+                        return (page_id, None, str(e), None)
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(generate_single_image, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
+                    executor.submit(
+                        generate_single_image, page.id,
+                        pages_data_by_index.get(page.order_index, {}), i
+                    )
+                    for i, page in enumerate(pages, 1)
                 ]
                 
                 # Process results as they complete
                 for future in as_completed(futures):
-                    page_id, image_path, error = future.result()
+                    page_id, image_path, error, is_mismatched = future.result()
+                    
+                    if is_mismatched:
+                        resolution_mismatched += 1
                     
                     db.session.expire_all()
                     
@@ -443,7 +509,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                     # Update task progress
                     task = Task.query.get(task_id)
                     if task:
-                        task.update_progress(completed=completed, failed=failed)
+                        progress = task.get_progress()
+                        progress['completed'] = completed
+                        progress['failed'] = failed
+                        # 第一次检测到不匹配时设置警告
+                        if resolution_mismatched > 0 and 'warning_message' not in progress:
+                            progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
+                        task.set_progress(progress)
                         db.session.commit()
                         logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
             
@@ -452,6 +524,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             if task:
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
+                if resolution_mismatched > 0:
+                    logger.warning(f"Task {task_id} has {resolution_mismatched} resolution mismatches")
                 db.session.commit()
                 logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
             
@@ -519,7 +593,10 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = '\n'.join(text_content)
                 else:
                     desc_text = str(text_content)
-            
+
+            # 将 extra_fields 拼入描述文本供图片生成使用
+            desc_text = _append_extra_fields(desc_text, desc_content)
+
             # 从描述文本中提取图片 URL
             additional_ref_images = []
             has_material_images = False
@@ -548,7 +625,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 has_material_images=has_material_images,
                 extra_requirements=extra_requirements,
                 language=language,
-                has_template=use_template
+                has_template=use_template,
+                aspect_ratio=aspect_ratio
             )
             
             # Generate image
@@ -802,9 +880,256 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
+                                file_service, file_parser_service,
+                                keep_layout: bool = False,
+                                max_workers: int = 5, app=None,
+                                language: str = 'zh'):
+    """
+    Background task for PPT renovation: parse PDF pages → extract content → fill outline + description
+
+    Flow:
+    1. Split PDF → per-page PDFs
+    2. Parallel: parse each page PDF → markdown via fileparser
+    3. Parallel: AI extract {title, points, description} from each markdown
+    4. If keep_layout: parallel caption model describe layout → append to description
+    5. Update page.outline_content + page.description_content
+    6. Concatenate descriptions → project.description_text
+    7. project.status = DESCRIPTIONS_GENERATED
+
+    Args:
+        task_id: Task ID
+        project_id: Project ID
+        ai_service: AI service instance
+        file_service: FileService instance
+        file_parser_service: FileParserService instance
+        keep_layout: Whether to preserve original layout via caption model
+        max_workers: Maximum parallel workers
+        app: Flask app instance
+        language: Output language
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            from models import Project
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+
+            # Get the PDF path from project
+            pdf_path = None
+            project_dir = Path(app.config['UPLOAD_FOLDER']) / project_id
+            # Look for the uploaded PDF file
+            for f in (project_dir / "template").iterdir() if (project_dir / "template").exists() else []:
+                if f.suffix.lower() == '.pdf':
+                    pdf_path = str(f)
+                    break
+
+            if not pdf_path:
+                raise ValueError("No PDF file found for renovation project")
+
+            # Step 1: Split PDF into per-page PDFs
+            split_dir = str(project_dir / "split_pages")
+            page_pdfs = split_pdf_to_pages(pdf_path, split_dir)
+            logger.info(f"Split PDF into {len(page_pdfs)} pages")
+
+            # Get existing pages
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+            # Ensure page count matches
+            if len(pages) != len(page_pdfs):
+                logger.warning(f"Page count mismatch: {len(pages)} pages vs {len(page_pdfs)} PDFs. Using min.")
+            page_count = min(len(pages), len(page_pdfs))
+            if page_count == 0:
+                raise ValueError("No pages to process")
+
+            task.set_progress({
+                "total": page_count,
+                "completed": 0,
+                "failed": 0,
+                "current_step": "parsing"
+            })
+            db.session.commit()
+
+            # Process each page as an independent pipeline:
+            # parse markdown → AI extract content → (optional layout caption) → write to DB
+            logger.info("Processing pages (parse → extract → save pipeline)...")
+            import threading
+            progress_lock = threading.Lock()
+            completed = 0
+            failed = 0
+            extraction_errors = []
+            content_results = {}  # index -> {title, points, description}
+
+            def process_single_page(idx, page_pdf_path):
+                nonlocal completed, failed
+                with app.app_context():
+                    try:
+                        # Step A: Parse page PDF → markdown
+                        filename = os.path.basename(page_pdf_path)
+                        _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
+                        if error_msg:
+                            logger.warning(f"Page {idx} parse warning: {error_msg}")
+                        md_text = md_text or ''
+
+                        # Supplement with header/footer from layout.json
+                        if extract_id:
+                            hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
+                            if hf_text:
+                                md_text = hf_text + '\n\n' + md_text
+
+                        if not md_text.strip():
+                            content = {'title': f'Page {idx + 1}', 'points': [], 'description': ''}
+                            error = 'empty_input'
+                        else:
+                            # Step B: AI extract structured content
+                            content = ai_service.extract_page_content(md_text, language=language)
+                            error = None
+
+                        # Step C: Optional layout caption
+                        if keep_layout and not error:
+                            try:
+                                page_obj = pages[idx] if idx < len(pages) else None
+                                if page_obj:
+                                    image_path = None
+                                    if page_obj.cached_image_path:
+                                        image_path = file_service.get_absolute_path(page_obj.cached_image_path)
+                                    elif page_obj.generated_image_path:
+                                        image_path = file_service.get_absolute_path(page_obj.generated_image_path)
+                                    if image_path and Path(image_path).exists():
+                                        caption = ai_service.generate_layout_caption(image_path)
+                                        if caption:
+                                            content['description'] += f"\n\n{caption}"
+                            except Exception as e:
+                                logger.error(f"Layout caption failed for page {idx}: {e}")
+
+                        # Step D: Write to DB immediately
+                        content_results[idx] = content
+                        page_obj = Page.query.get(pages[idx].id)
+                        if page_obj:
+                            title = content.get('title', f'Page {idx + 1}')
+                            points = content.get('points', [])
+                            description = content.get('description', '')
+
+                            page_obj.set_outline_content({
+                                'title': title,
+                                'points': points
+                            })
+                            page_obj.set_description_content({
+                                "text": description,
+                                "generated_at": datetime.utcnow().isoformat()
+                            })
+                            page_obj.status = 'DESCRIPTION_GENERATED'
+                            db.session.commit()
+
+                        with progress_lock:
+                            if error and error != 'empty_input':
+                                failed += 1
+                                extraction_errors.append(error)
+                            else:
+                                completed += 1
+                            task_obj = Task.query.get(task_id)
+                            if task_obj:
+                                task_obj.update_progress(completed=completed, failed=failed)
+                                db.session.commit()
+
+                        logger.info(f"Page {idx} pipeline done (completed={completed}, failed={failed})")
+
+                    except Exception as e:
+                        logger.error(f"Pipeline failed for page {idx}: {e}")
+                        with progress_lock:
+                            failed += 1
+                            extraction_errors.append(str(e))
+                            task_obj = Task.query.get(task_id)
+                            if task_obj:
+                                task_obj.update_progress(completed=completed, failed=failed)
+                                db.session.commit()
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(process_single_page, i, page_pdfs[i])
+                    for i in range(page_count)
+                ]
+                for future in as_completed(futures):
+                    future.result()  # propagate any unexpected exceptions
+
+            logger.info(f"All pages processed: {completed} completed, {failed} failed")
+
+            # Fail-fast: any extraction failure aborts the entire task
+            if failed > 0:
+                reason = extraction_errors[0] if extraction_errors else "empty page content"
+                raise ValueError(f"{failed}/{page_count} 页内容提取失败: {reason}")
+
+            # Update project-level aggregated text
+            project = Project.query.get(project_id)
+            if project:
+                all_outlines = []
+                all_descriptions = []
+                for i in range(page_count):
+                    content = content_results.get(i, {})
+                    title = content.get('title', '')
+                    points = content.get('points', [])
+                    description = content.get('description', '')
+                    header = f"第{i + 1}页：{title}"
+                    if points:
+                        all_outlines.append(f"{header}\n" + "\n".join(f"- {p}" for p in points))
+                    else:
+                        all_outlines.append(header)
+                    all_descriptions.append(f"--- 第{i + 1}页 ---\n{description}")
+                project.outline_text = "\n\n".join(all_outlines)
+                project.description_text = "\n\n".join(all_descriptions)
+                project.status = 'DESCRIPTIONS_GENERATED'
+                project.updated_at = datetime.utcnow()
+
+            db.session.commit()
+
+            # Mark task as completed
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": page_count,
+                    "completed": completed,
+                    "failed": failed,
+                    "current_step": "done"
+                })
+                db.session.commit()
+
+            logger.info(f"Task {task_id} COMPLETED - PPT renovation processed {page_count} pages")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+
+            # Reset project status so user can retry
+            project = Project.query.get(project_id)
+            if project:
+                project.status = 'DRAFT'
+
+            db.session.commit()
+
+
 def export_editable_pptx_with_recursive_analysis_task(
-    task_id: str, 
-    project_id: str, 
+    task_id: str,
+    project_id: str,
     filename: str,
     file_service,
     page_ids: list = None,
@@ -847,16 +1172,25 @@ def export_editable_pptx_with_recursive_analysis_task(
         from datetime import datetime
         from PIL import Image
         from models import Project
-        from services.export_service import ExportService
-        
+        from services.export_service import ExportService, ExportError
+
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
-        
+
         try:
             # Get project
             project = Project.query.get(project_id)
             if not project:
                 raise ValueError(f'Project {project_id} not found')
-            
+
+            # 读取项目的导出设置：是否允许返回半成品
+            export_allow_partial = project.export_allow_partial or False
+            fail_fast = not export_allow_partial
+            logger.info(f"导出设置: export_allow_partial={export_allow_partial}, fail_fast={fail_fast}")
+
+            # IMPORTANT: Expire cached objects to ensure fresh data from database
+            # This prevents reading stale generated_image_path after page regeneration
+            db.session.expire_all()
+
             # Get pages (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             if not pages:
@@ -951,9 +1285,9 @@ def export_editable_pptx_with_recursive_analysis_task(
             progress_callback("准备", "文字属性提取器已初始化", 5)
             
             # Step 3: 调用导出方法（使用项目的导出设置）
-            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method})...")
+            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, fail_fast={fail_fast})...")
             progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
-            
+
             _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
                 image_paths=image_paths,
                 output_file=output_path,
@@ -964,7 +1298,8 @@ def export_editable_pptx_with_recursive_analysis_task(
                 text_attribute_extractor=text_attribute_extractor,
                 progress_callback=progress_callback,
                 export_extractor_method=export_extractor_method,
-                export_inpaint_method=export_inpaint_method
+                export_inpaint_method=export_inpaint_method,
+                fail_fast=fail_fast
             )
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
@@ -1002,7 +1337,37 @@ def export_editable_pptx_with_recursive_analysis_task(
                 })
                 db.session.commit()
                 logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
-        
+
+        except ExportError as e:
+            # 导出错误（fail_fast 模式下的详细错误）
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"✗ 任务 {task_id} 导出失败: {e.message}")
+            logger.error(f"错误类型: {e.error_type}, 详情: {e.details}")
+
+            # 标记任务失败，包含详细错误信息
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                # 构建详细的错误消息
+                error_message = f"{e.message}"
+                if e.help_text:
+                    error_message += f"\n\n💡 {e.help_text}"
+                task.error_message = error_message
+                task.completed_at = datetime.utcnow()
+                # 在 progress 中保存详细错误信息
+                task.set_progress({
+                    "total": 100,
+                    "completed": 0,
+                    "failed": 1,
+                    "current_step": "导出失败",
+                    "percent": 0,
+                    "error_type": e.error_type,
+                    "error_details": e.details,
+                    "help_text": e.help_text
+                })
+                db.session.commit()
+
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()

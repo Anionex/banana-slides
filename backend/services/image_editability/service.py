@@ -122,7 +122,11 @@ class ImageEditabilityService:
             element_type=element_type,
             depth=depth
         )
-        
+
+        # 检查提取是否有错误（根层级必须成功，否则报错）
+        if extraction_result.has_error and depth == 0:
+            raise RuntimeError(f"版面分析失败: {extraction_result.error}")
+
         # 从context获取image_size（提取器自己获取）
         extracted_image_size = extraction_result.context.metadata.get('image_size', (width, height))
         

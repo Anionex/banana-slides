@@ -48,7 +48,7 @@ def translate_readme(source_file: str, target_file: str):
         
         # 获取文本提供者（使用环境变量中的配置）
         logger.info("初始化AI文本提供者...")
-        text_model = os.getenv('TEXT_MODEL', 'gemini-2.0-flash-exp')
+        text_model = os.getenv('TEXT_MODEL', 'gemini-3-flash-preview')
         text_provider = get_text_provider(model=text_model)
         logger.info(f"使用模型: {text_model}")
         

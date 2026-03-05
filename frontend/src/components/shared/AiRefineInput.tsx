@@ -1,5 +1,24 @@
 import React, { useState, memo } from 'react';
 import { Sparkles, History, ChevronDown, ChevronUp, Send } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+
+// AiRefineInput 组件自包含翻译
+const aiRefineI18n = {
+  zh: {
+    aiRefine: {
+      ctrlEnterSubmit: "（Ctrl+Enter 提交）", history: "历史",
+      viewHistory: "查看 {{count}} 条历史修改", previousRequirements: "之前的修改要求：",
+      submitTooltip: "提交 (Ctrl+Enter)"
+    }
+  },
+  en: {
+    aiRefine: {
+      ctrlEnterSubmit: "(Ctrl+Enter to submit)", history: "History",
+      viewHistory: "View {{count}} previous edits", previousRequirements: "Previous edit requests:",
+      submitTooltip: "Submit (Ctrl+Enter)"
+    }
+  }
+};
 
 export interface AiRefineInputProps {
   /** 标题文字 */
@@ -24,6 +43,7 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
   className = '',
   onStatusChange,
 }) => {
+  const t = useT(aiRefineI18n);
   const [requirement, setRequirement] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
@@ -69,8 +89,8 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
         <div className="flex items-center justify-between mb-2 md:mb-3">
           <div className="flex items-center gap-2">
             <Sparkles size={16} className="text-purple-600 md:w-[18px] md:h-[18px]" />
-            <h3 className="text-xs md:text-sm font-semibold text-gray-800">{title}</h3>
-            <span className="text-xs text-gray-500 hidden sm:inline">（Ctrl+Enter 提交）</span>
+            <h3 className="text-xs md:text-sm font-semibold text-gray-800 dark:text-foreground-primary">{title}</h3>
+            <span className="text-xs text-gray-500 dark:text-foreground-tertiary hidden sm:inline">{t('aiRefine.ctrlEnterSubmit')}</span>
           </div>
           {history.length > 0 && (
             <button
@@ -78,7 +98,7 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
               className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 transition-colors"
             >
               <History size={14} />
-              <span className="hidden sm:inline">历史 ({history.length})</span>
+              <span className="hidden sm:inline">{t('aiRefine.history')} ({history.length})</span>
               <span className="sm:hidden">{history.length}</span>
               {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
@@ -88,11 +108,11 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
       
       {/* 历史记录展示 */}
       {showHistory && history.length > 0 && (
-        <div className={`${isCompactMode ? 'mb-2' : 'mb-3'} p-2 bg-white rounded border ${isCompactMode ? 'border-gray-200 shadow-sm' : 'bg-white/60 border-purple-100'} max-h-32 overflow-y-auto`}>
-          <div className="text-xs text-gray-500 mb-1">之前的修改要求：</div>
+        <div className={`${isCompactMode ? 'mb-2' : 'mb-3'} p-2 bg-white dark:bg-background-secondary rounded border ${isCompactMode ? 'border-gray-200 dark:border-border-primary shadow-sm dark:shadow-background-primary/30' : 'bg-white/60 border-purple-100'} max-h-32 overflow-y-auto`}>
+          <div className="text-xs text-gray-500 dark:text-foreground-tertiary mb-1">{t('aiRefine.previousRequirements')}</div>
           <ul className="space-y-1">
             {history.map((req, idx) => (
-              <li key={idx} className="text-xs text-gray-700 flex items-start gap-1">
+              <li key={idx} className="text-xs text-gray-700 dark:text-foreground-secondary flex items-start gap-1">
                 <span className="text-purple-400 flex-shrink-0">{idx + 1}.</span>
                 <span className="break-all">{req}</span>
               </li>
@@ -109,8 +129,8 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
             {history.length > 0 && (
               <button
                 onClick={() => setShowHistory(!showHistory)}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-purple-600 transition-colors flex-shrink-0"
-                title={`查看 ${history.length} 条历史修改`}
+                className="flex items-center gap-1 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-purple-600 transition-colors flex-shrink-0"
+                title={t('aiRefine.viewHistory', { count: history.length })}
               >
                 <History size={14} />
                 <span className="hidden sm:inline">{history.length}</span>
@@ -126,8 +146,8 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
             onChange={(e) => setRequirement(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className={`w-full px-3 py-1.5 text-sm border ${isCompactMode ? 'border-gray-200' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-              isSubmitting ? 'animate-gradient-x bg-gradient-to-r from-purple-100 via-purple-200 to-purple-100 bg-[length:200%_100%]' : 'bg-white'
+            className={`w-full px-3 py-1.5 text-sm border ${isCompactMode ? 'border-gray-200 dark:border-border-primary' : 'border-gray-300 dark:border-border-primary'} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+              isSubmitting ? 'animate-gradient-x bg-gradient-to-r from-purple-100 via-purple-200 to-purple-100 bg-[length:200%_100%]' : 'bg-white dark:bg-background-secondary'
             }`}
             disabled={isSubmitting}
           />
@@ -148,7 +168,7 @@ const AiRefineInputComponent: React.FC<AiRefineInputProps> = ({
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
               : 'bg-purple-500 text-white hover:bg-purple-600 active:scale-95'
           } md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100`}
-          title="提交 (Ctrl+Enter)"
+          title={t('aiRefine.submitTooltip')}
         >
           <Send size={16} className={isSubmitting ? 'animate-pulse' : ''} />
         </button>

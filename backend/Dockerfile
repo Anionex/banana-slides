@@ -55,17 +55,23 @@ RUN if [ -f uv.lock ]; then \
 # 复制后端代码
 COPY backend/ ./backend/
 
+# 复制测试资源
+COPY assets/ ./assets/
+
 # 创建必要的目录
 RUN mkdir -p /app/backend/instance /app/uploads
 
 ENV PYTHONPATH=/app
 ENV FLASK_APP=backend/app.py
+# 容器内固定监听 5000；宿主机端口由 docker-compose 的 BACKEND_PORT 控制
+ENV IN_DOCKER=1
 
 # 暴露端口
 EXPOSE 5000
 
+# 容器内部固定使用 5000 端口
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD ["sh", "-c", "curl -f http://localhost:${PORT:-5000}/health || exit 1"]
+    CMD ["sh", "-c", "curl -f http://localhost:5000/health || exit 1"]
 
 # 启动应用
 CMD ["sh", "-c", "uv run --directory backend alembic upgrade head && uv run --directory backend python app.py"]

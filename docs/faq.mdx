@@ -1,0 +1,88 @@
+---
+title: "FAQ"
+description: "Frequently asked questions"
+---
+
+## Generated text is garbled or blurry
+
+- Check if you're on 1K low-resolution mode. Switch to 2K or 4K in **Project Settings → Global Settings** — the difference in text clarity is significant. Note: some OpenAI-format proxy services don't support higher resolutions; use Gemini format instead.
+- Include the specific text you want rendered in the page description — AI renders it more accurately when given explicit content.
+
+## Editable PPTX export has overlapping text or missing styles
+
+Usually an API configuration issue. Make sure `BAIDU_API_KEY` is set correctly — see [Configuration](/configuration#baidu-api-key).
+
+You can also try adjusting the text extraction method in **Project Settings → Export Settings** (OCR / Vision model / Hybrid). Different methods perform differently depending on the layout.
+
+## The regular PPTX export has text I can't edit in PowerPoint
+
+Regular PPTX embeds slides as images — text inside images is not editable. Use **Export Editable PPTX (Beta)** if you need editable text.
+
+## Does the free Gemini API tier work?
+
+Text generation (outlines, descriptions) works on the free tier, but image generation requires a paid tier.
+
+## Getting 503 errors or repeated retry failures
+
+Usually caused by incorrect model configuration. Run the **Service Test** at the bottom of the Settings page first to pinpoint the issue.
+
+Check backend logs for details:
+```bash
+docker logs --tail 200 banana-slides-backend
+```
+
+## Environment variable changes not taking effect
+
+- Docker deployments require a container restart after editing `.env`.
+- If you've configured settings via the web UI, those database values override `.env`. Click **Reset to Default** in Settings to clear them.
+
+## PPT Renovation didn't parse correctly
+
+- Upload PDF instead of PPTX for more stable results. Direct PPTX upload requires server-side LibreOffice conversion, which may fail due to missing fonts (Arial, Calibri, etc.).
+- Docker users who need PPTX support inside the container:
+  ```bash
+  docker exec -it banana-slides-backend bash -c "apt-get update && apt-get install -y libreoffice-impress"
+  ```
+
+## How do I change the aspect ratio?
+
+Select a ratio on the home page before creating, or change it in **Project Settings** on the preview page. Images must be regenerated after changing the ratio.
+
+Note: some image generation models don't support certain aspect ratios. If generation fails, try switching to 16:9.
+
+## Generation is slow
+
+- Increase **Max description workers** and **Max image workers** in Settings to speed up parallel generation.
+- If you're on a free API tier, rate limits may apply. Consider upgrading or using a relay service like [AIHubMix](https://aihubmix.com/?aff=17EC).
+
+## How do I regenerate just one page?
+
+On the Slide Preview page, click the edit icon (pencil) on that slide, update the description or add an edit instruction, then click **Generate Image**. You can also use multi-select to batch regenerate several pages.
+
+## Can I include bar charts, line charts, or tree diagrams in slides?
+
+Two approaches:
+
+**Option 1: Describe in text + generation requirements (recommended)**
+Write the chart content directly in the page description using plain text or Markdown, and specify the chart style in **Extra Requirements** or **Description Requirements**. AI can usually render it directly. Example:
+```
+Right side of the page shows a 5-year revenue bar chart with data: 2020: $1.2M, 2021: $1.8M, 2022: $2.4M, 2023: $3.1M, 2024: $4.2M. Bars in blue gradient, white background.
+```
+
+**Option 2: Create the chart as an image first**
+Generate the chart with Excel, Python (matplotlib), or similar tools, then paste it (Ctrl+V) into the description card as a reference image. AI will draw in a similar style.
+
+## How do I keep chart styles consistent across all slides?
+
+Use **text-based style description** rather than uploading a reference image — tests show text gives better generation consistency.
+
+Write explicit style rules in **Extra Requirements** or **Style Description**, for example:
+- `All charts use blue color scheme (#2563EB as primary), white background, no borders`
+- `Chart fonts are always sans-serif, data labels always shown above bars`
+- `Line charts use circular data point markers, line weight 2px`
+
+The more specific the constraints, the more consistent the output across pages. If you care about letter spacing or font sizes, include those too.
+
+## Where is the AI input bar for editing outlines and descriptions?
+
+It's in the **top navigation bar** of the Outline Editor and Description Editor — fill in your instruction and press **Ctrl+Enter**. Example: `Add a case study section after page 3`.

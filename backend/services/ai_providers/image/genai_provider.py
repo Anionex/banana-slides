@@ -1,73 +1,49 @@
 """
-Google GenAI SDK implementation for image generation
+Google GenAI SDK — image generation provider
 
-Supports two modes:
-- Google AI Studio: Uses API key authentication
-- Vertex AI: Uses GCP service account authentication
+Operates in two authentication modes selected at construction time:
+  * API-key mode  (Google AI Studio or compatible proxy)
+  * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
 from typing import Optional, List
 from google import genai
 from google.genai import types
 from PIL import Image
+from io import BytesIO
 from tenacity import retry, stop_after_attempt, wait_exponential
 from .base import ImageProvider
 from config import get_config
+from ..genai_client import make_genai_client
 
 logger = logging.getLogger(__name__)
 
 
 class GenAIImageProvider(ImageProvider):
-    """Image generation using Google GenAI SDK (supports both AI Studio and Vertex AI)"""
+    """Image generation via Google GenAI SDK (AI Studio / Vertex AI)"""
 
     def __init__(
         self,
+        model: str = "gemini-3-pro-image-preview",
         api_key: str = None,
         api_base: str = None,
-        model: str = "gemini-3-pro-image-preview",
         vertexai: bool = False,
         project_id: str = None,
-        location: str = None
+        location: str = None,
     ):
-        """
-        Initialize GenAI image provider
-
-        Args:
-            api_key: Google API key (for AI Studio mode)
-            api_base: API base URL (for proxies like aihubmix, AI Studio mode only)
-            model: Model name to use
-            vertexai: If True, use Vertex AI instead of AI Studio
-            project_id: GCP project ID (required for Vertex AI mode)
-            location: GCP region (for Vertex AI mode, default: us-central1)
-        """
-        timeout_ms = int(get_config().GENAI_TIMEOUT * 1000)
-
-        if vertexai:
-            # Vertex AI mode - uses service account credentials from GOOGLE_APPLICATION_CREDENTIALS
-            logger.info(f"Initializing GenAI image provider in Vertex AI mode, project: {project_id}, location: {location}")
-            self.client = genai.Client(
-                vertexai=True,
-                project=project_id,
-                location=location or 'us-central1',
-                http_options=types.HttpOptions(timeout=timeout_ms)
-            )
-        else:
-            # AI Studio mode - uses API key
-            http_options = types.HttpOptions(
-                base_url=api_base,
-                timeout=timeout_ms
-            ) if api_base else types.HttpOptions(timeout=timeout_ms)
-
-            self.client = genai.Client(
-                http_options=http_options,
-                api_key=api_key
-            )
-
+        self.client = make_genai_client(
+            vertexai=vertexai,
+            api_key=api_key,
+            api_base=api_base,
+            project_id=project_id,
+            location=location,
+        )
         self.model = model
-    
+
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True
     )
     def generate_image(
         self,
@@ -75,7 +51,8 @@ class GenAIImageProvider(ImageProvider):
         ref_images: Optional[List[Image.Image]] = None,
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
-        enable_thinking: bool = True
+        enable_thinking: bool = True,
+        thinking_budget: int = 1024
     ) -> Optional[Image.Image]:
         """
         Generate image using Google GenAI SDK
@@ -86,6 +63,7 @@ class GenAIImageProvider(ImageProvider):
             aspect_ratio: Image aspect ratio
             resolution: Image resolution (supports "1K", "2K", "4K")
             enable_thinking: If True, enable thinking chain mode (may generate multiple images)
+            thinking_budget: Thinking budget for the model
             
         Returns:
             Generated PIL Image object, or None if failed
@@ -116,8 +94,10 @@ class GenAIImageProvider(ImageProvider):
             
             # Add thinking config if enabled
             if enable_thinking:
-                config_params['thinking_config'] = types.ThinkingConfig(
-                    include_thoughts=True
+                # In Vertex AI (Gemini) Thinking mode, enabling include_thoughts=True requires explicitly setting thinking_budget
+                config_params['thinking_config'] = types.ThinkingConfig(  
+                    thinking_budget=thinking_budget, 
+                    include_thoughts=True  
                 )
             
             response = self.client.models.generate_content(
@@ -141,10 +121,20 @@ class GenAIImageProvider(ImageProvider):
                         logger.debug(f"Part {i}: Attempting to extract image...")
                         image = part.as_image()
                         if image:
+                            # as_image() should return PIL Image directly (official SDK)
+                            # But proxy may return custom Image object, so we need fallbacks
+                            if isinstance(image, Image.Image):
+                                last_image = image
+                            elif hasattr(image, 'image_bytes') and image.image_bytes:
+                                last_image = Image.open(BytesIO(image.image_bytes))
+                            elif hasattr(image, '_pil_image') and image._pil_image:
+                                last_image = image._pil_image
+                            else:
+                                logger.warning(f"Part {i}: Image object type {type(image)} has no usable conversion method")
+                                continue
                             logger.debug(f"Successfully extracted image from part {i}")
-                            last_image = image
                     except Exception as e:
-                        logger.debug(f"Part {i}: Failed to extract image - {str(e)}")
+                        logger.warning(f"Part {i}: Failed to extract image - {type(e).__name__}: {str(e)}")
             
             # Return the last image found (highest quality in thinking chain scenarios)
             if last_image:

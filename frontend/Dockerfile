@@ -11,9 +11,6 @@ ARG NPM_REGISTRY=
 
 WORKDIR /app
 
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-
 # 复制 package.json
 COPY frontend/package.json ./
 
