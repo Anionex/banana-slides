@@ -340,7 +340,7 @@ def update_project(project_id):
         # Update template_style if provided
         if 'template_style' in data:
             project.template_style = data['template_style']
-        
+
         # Update aspect ratio if provided
         if 'image_aspect_ratio' in data:
             try:
@@ -1036,9 +1036,10 @@ def generate_images(project_id):
         
         # 合并额外要求和风格描述
         combined_requirements = project.extra_requirements or ""
+        if project.template_image_style:
+            combined_requirements += f"\n\n模板图片风格描述：\n\n{project.template_image_style}"
         if project.template_style:
-            style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
-            combined_requirements = combined_requirements + style_requirement
+            combined_requirements += f"\n\nppt页面风格描述：\n\n{project.template_style}"
         
         # Set all target pages to QUEUED before submitting background task
         # This ensures the status is visible to frontend immediately after API returns
