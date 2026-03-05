@@ -17,6 +17,7 @@ from PIL import Image
 import io
 import tempfile
 import img2pdf
+from services.ai_service import AIService
 logger = logging.getLogger(__name__)
 
 
@@ -1080,10 +1081,14 @@ class ExportService:
             
             # 1. 创建ImageEditabilityService（使用项目导出设置 + 用户配置）
             logger.info(f"使用导出设置: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
+            # 创建新的 AIService 实例以使用最新的配置（而非缓存的 singleton）
+            # 这确保导出功能使用用户在设置页面配置的最新 API key
+            ai_service = AIService()
             service_kwargs = dict(
                 max_depth=max_depth,
                 extractor_method=export_extractor_method,
                 inpaint_method=export_inpaint_method,
+                ai_service=ai_service,
             )
             if user_config:
                 if user_config.get('MINERU_TOKEN'):
