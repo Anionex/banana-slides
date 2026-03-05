@@ -18,11 +18,11 @@ apiClient.interceptors.request.use(
     const deviceId = getDeviceId();
     if (config.headers) {
       config.headers['X-Device-ID'] = deviceId;
-
-    // Attach access code header for backend enforcement
-    const accessCode = localStorage.getItem('banana-access-code');
-    if (accessCode) {
-      config.headers['X-Access-Code'] = accessCode;
+      // Attach access code header for backend enforcement
+      const accessCode = localStorage.getItem('banana-access-code');
+      if (accessCode) {
+        config.headers['X-Access-Code'] = accessCode;
+      }
     }
 
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置
