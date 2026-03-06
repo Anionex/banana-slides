@@ -86,10 +86,18 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   });
 
   const handleMaterialSelect = useCallback(async (materials: Material[]) => {
-    const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
-    const markdown = await materialsToMarkdownWithCaption(materials);
-    textareaRef.current?.insertAtCursor(markdown + '\n');
-  }, []);
+    try {
+      console.log('[DescriptionCard] handleMaterialSelect called with', materials.length, 'materials');
+      const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
+      const markdown = await materialsToMarkdownWithCaption(materials);
+      console.log('[DescriptionCard] Generated markdown:', markdown);
+      textareaRef.current?.insertAtCursor(markdown + '\n');
+      console.log('[DescriptionCard] Inserted markdown into textarea');
+    } catch (error) {
+      console.error('[DescriptionCard] Error in handleMaterialSelect:', error);
+      showToast({ message: t('descriptionCard.uploadingImage'), type: 'error' });
+    }
+  }, [showToast, t]);
 
   // 通过 page.status 驱动骨架屏，与图片生成的 GENERATING 状态互不干扰
   const generating = useDescriptionGeneratingState(page, isAiRefining);

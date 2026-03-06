@@ -79,10 +79,18 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   });
 
   const handleMaterialSelect = useCallback(async (materials: Material[]) => {
-    const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
-    const markdown = await materialsToMarkdownWithCaption(materials);
-    textareaRef.current?.insertAtCursor(markdown + '\n');
-  }, []);
+    try {
+      console.log('[OutlineCard] handleMaterialSelect called with', materials.length, 'materials');
+      const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
+      const markdown = await materialsToMarkdownWithCaption(materials);
+      console.log('[OutlineCard] Generated markdown:', markdown);
+      textareaRef.current?.insertAtCursor(markdown + '\n');
+      console.log('[OutlineCard] Inserted markdown into textarea');
+    } catch (error) {
+      console.error('[OutlineCard] Error in handleMaterialSelect:', error);
+      showToast({ message: t('outlineCard.uploadingImage'), type: 'error' });
+    }
+  }, [showToast, t]);
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {
