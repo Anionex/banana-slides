@@ -1,5 +1,5 @@
 import React, { useReducer, useEffect, useCallback } from 'react';
-import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye } from 'lucide-react';
+import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye, ArrowUpDown } from 'lucide-react';
 import { Button } from './Button';
 import { useT } from '@/hooks/useT';
 import { useToast } from './Toast';
@@ -234,49 +234,24 @@ const ToolbarSection: React.FC<{
           ))}
         </select>
 
-        {/* 排序按钮组 */}
-        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
-          <button
-            onClick={() => dispatch({ type: 'SET_SORT', value: 'newest' })}
-            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-              state.sortBy === 'newest'
-                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-            }`}
-          >
-            从新到旧
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'SET_SORT', value: 'oldest' })}
-            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-              state.sortBy === 'oldest'
-                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-            }`}
-          >
-            从旧到新
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'SET_SORT', value: 'name-asc' })}
-            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-              state.sortBy === 'name-asc'
-                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-            }`}
-          >
-            A-Z
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'SET_SORT', value: 'name-desc' })}
-            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-              state.sortBy === 'name-desc'
-                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-            }`}
-          >
-            Z-A
-          </button>
-        </div>
+        {/* 排序循环按钮 */}
+        <button
+          onClick={() => {
+            const order: Array<State['sortBy']> = ['newest', 'oldest', 'name-asc', 'name-desc'];
+            const currentIndex = order.indexOf(state.sortBy);
+            const nextIndex = (currentIndex + 1) % order.length;
+            dispatch({ type: 'SET_SORT', value: order[nextIndex] });
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+        >
+          <ArrowUpDown size={14} />
+          <span>
+            {state.sortBy === 'newest' && '从新到旧'}
+            {state.sortBy === 'oldest' && '从旧到新'}
+            {state.sortBy === 'name-asc' && 'A-Z'}
+            {state.sortBy === 'name-desc' && 'Z-A'}
+          </span>
+        </button>
 
         <Button variant="ghost" size="sm" icon={<RefreshCw size={16} />} onClick={onRefresh} disabled={state.loading}>
           {t('common.refresh')}

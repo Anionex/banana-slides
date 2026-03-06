@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, useToast, Modal } from '@/components/shared';
 
@@ -512,49 +512,24 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
               ))}
             </select>
 
-            {/* 排序按钮组 */}
-            <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
-              <button
-                onClick={() => setSortBy('newest')}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                  sortBy === 'newest'
-                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                }`}
-              >
-                {t('referenceFile.sortNewest')}
-              </button>
-              <button
-                onClick={() => setSortBy('oldest')}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                  sortBy === 'oldest'
-                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                }`}
-              >
-                {t('referenceFile.sortOldest')}
-              </button>
-              <button
-                onClick={() => setSortBy('name-asc')}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                  sortBy === 'name-asc'
-                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                }`}
-              >
-                A-Z
-              </button>
-              <button
-                onClick={() => setSortBy('name-desc')}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                  sortBy === 'name-desc'
-                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                }`}
-              >
-                Z-A
-              </button>
-            </div>
+            {/* 排序循环按钮 */}
+            <button
+              onClick={() => {
+                const order: Array<typeof sortBy> = ['newest', 'oldest', 'name-asc', 'name-desc'];
+                const currentIndex = order.indexOf(sortBy);
+                const nextIndex = (currentIndex + 1) % order.length;
+                setSortBy(order[nextIndex]);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+            >
+              <ArrowUpDown size={14} />
+              <span>
+                {sortBy === 'newest' && t('referenceFile.sortNewest')}
+                {sortBy === 'oldest' && t('referenceFile.sortOldest')}
+                {sortBy === 'name-asc' && 'A-Z'}
+                {sortBy === 'name-desc' && 'Z-A'}
+              </span>
+            </button>
 
             <Button
               variant="ghost"
