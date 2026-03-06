@@ -18,7 +18,7 @@ const referenceFileSelectorI18n = {
       parseOnConfirm: "(确定后解析)", imageCaptionFailed: "{{count}} 张图片未能生成描述",
       autoParseHint: "选择未解析的文件将自动开始解析",
       cancel: "取消", confirm: "确定",
-      sortBy: "排序", sortNewest: "最新优先", sortOldest: "最旧优先", sortNameAsc: "文件名 A-Z", sortNameDesc: "文件名 Z-A",
+      sortBy: "排序", sortNewest: "从新到旧", sortOldest: "从旧到新", sortNameAsc: "文件名 A-Z", sortNameDesc: "文件名 Z-A",
       messages: {
         loadFailed: "加载参考文件列表失败", uploadSuccess: "成功上传 {{count}} 个文件", uploadFailed: "上传文件失败",
         cannotDelete: "无法删除：缺少文件ID", deleteSuccess: "文件删除成功", deleteFailed: "删除文件失败",

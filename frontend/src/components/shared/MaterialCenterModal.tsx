@@ -244,7 +244,7 @@ const ToolbarSection: React.FC<{
                 : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
             }`}
           >
-            最新
+            从新到旧
           </button>
           <button
             onClick={() => dispatch({ type: 'SET_SORT', value: 'oldest' })}
@@ -254,7 +254,7 @@ const ToolbarSection: React.FC<{
                 : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
             }`}
           >
-            最旧
+            从旧到新
           </button>
           <button
             onClick={() => dispatch({ type: 'SET_SORT', value: 'name-asc' })}
