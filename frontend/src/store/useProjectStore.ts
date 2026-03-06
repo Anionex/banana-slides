@@ -601,7 +601,7 @@ const debouncedUpdatePage = debounce(
   },
 
   // 流式生成大纲（SSE，逐页渲染）
-  generateOutlineStream: async () => {
+  generateOutlineStream: async (lockPageCount?: boolean) => {
     const { currentProject } = get();
     if (!currentProject) return;
 
@@ -656,7 +656,7 @@ const debouncedUpdatePage = debounce(
           set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
           streamDone = true;
         },
-      });
+      }, undefined /* language */, lockPageCount);
 
       streamDone = true;
       await renderPromise;

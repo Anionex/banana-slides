@@ -121,26 +121,20 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
 
 
 def _smart_merge_pages(project_id, pages_data):
-    """Smart merge: match new pages to existing by title, update in place to preserve images/descriptions."""
+    """Position-based merge: reuse existing pages by index to preserve descriptions/images.
+
+    For each new page at index i:
+      - If an old page exists at the same position, update its outline (title/points/part)
+        in place, keeping description_content and image fields untouched.
+      - If no old page at that position, create a new page.
+    Old pages beyond the new page count are deleted.
+    """
     old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
-
-    old_by_title = {}
-    for p in old_pages:
-        outline = p.get_outline_content()
-        title = (outline.get('title') or '').strip() if outline else ''
-        if title and title not in old_by_title:
-            old_by_title[title] = p
-
-    matched_ids = set()
     pages_list = []
 
     for i, page_data in enumerate(pages_data):
-        title = (page_data.get('title') or '').strip()
-        old_page = old_by_title.get(title) if title else None
-
-        if old_page and old_page.id not in matched_ids:
-            matched_ids.add(old_page.id)
-            page = old_page
+        if i < len(old_pages):
+            page = old_pages[i]
         else:
             page = Page(project_id=project_id, status='DRAFT')
             db.session.add(page)
@@ -153,9 +147,8 @@ def _smart_merge_pages(project_id, pages_data):
         })
         pages_list.append(page)
 
-    for p in old_pages:
-        if p.id not in matched_ids:
-            db.session.delete(p)
+    for p in old_pages[len(pages_data):]:
+        db.session.delete(p)
 
     return pages_list
 
@@ -568,6 +561,16 @@ def generate_outline_stream(project_id):
                         'points': page_data.get('points', []),
                         'part': page_data.get('part'),
                     })
+
+                # Handle lock_page_count: pad with blank pages if needed
+                lock_page_count = data.get('lock_page_count', False)
+                if lock_page_count:
+                    old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                    old_count = len(old_pages)
+                    new_count = len(streamed_pages)
+                    if new_count < old_count:
+                        for _ in range(old_count - new_count):
+                            streamed_pages.append({'title': '', 'points': []})
 
                 # Save all pages to database
                 pages_list = _smart_merge_pages(project_id, streamed_pages)
