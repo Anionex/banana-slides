@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, useToast, Modal } from '@/components/shared';
 
@@ -18,6 +18,7 @@ const referenceFileSelectorI18n = {
       parseOnConfirm: "(确定后解析)", imageCaptionFailed: "{{count}} 张图片未能生成描述",
       autoParseHint: "选择未解析的文件将自动开始解析",
       cancel: "取消", confirm: "确定",
+      sortBy: "排序", sortNewest: "从新到旧", sortOldest: "从旧到新", sortNameAsc: "文件名 A-Z", sortNameDesc: "文件名 Z-A",
       messages: {
         loadFailed: "加载参考文件列表失败", uploadSuccess: "成功上传 {{count}} 个文件", uploadFailed: "上传文件失败",
         cannotDelete: "无法删除：缺少文件ID", deleteSuccess: "文件删除成功", deleteFailed: "删除文件失败",
@@ -41,6 +42,7 @@ const referenceFileSelectorI18n = {
       parseOnConfirm: "(parse on confirm)", imageCaptionFailed: "{{count}} image(s) failed to generate captions",
       autoParseHint: "Selecting unparsed files will automatically start parsing",
       cancel: "Cancel", confirm: "Confirm",
+      sortBy: "Sort", sortNewest: "Newest First", sortOldest: "Oldest First", sortNameAsc: "Name A-Z", sortNameDesc: "Name Z-A",
       messages: {
         loadFailed: "Failed to load reference file list", uploadSuccess: "Successfully uploaded {{count}} file(s)", uploadFailed: "Failed to upload file",
         cannotDelete: "Cannot delete: Missing file ID", deleteSuccess: "File deleted successfully", deleteFailed: "Failed to delete file",
@@ -58,8 +60,10 @@ import {
   deleteReferenceFile,
   getReferenceFile,
   triggerFileParse,
+  listProjects,
   type ReferenceFile,
 } from '@/api/endpoints';
+import type { Project } from '@/types';
 
 interface ReferenceFileSelectorProps {
   projectId?: string | null; // 可选，如果不提供则使用全局文件
@@ -80,7 +84,7 @@ interface ReferenceFileSelectorProps {
  * - 支持删除文件
  */
 export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React.memo(({
-  projectId,
+  projectId: _projectId,
   isOpen,
   onClose,
   onSelect,
@@ -96,7 +100,9 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [parsingIds, setParsingIds] = useState<Set<string>>(new Set());
-  const [filterProjectId, setFilterProjectId] = useState<string>('all'); // 始终默认显示所有附件
+  const [filterProjectId, setFilterProjectId] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
+  const [projects, setProjects] = useState<Project[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialSelectedIdsRef = useRef(initialSelectedIds);
   const showRef = useRef(show);
@@ -149,10 +155,22 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     }
   }, [filterProjectId, parsingIds]);
 
+  // Load projects list
+  useEffect(() => {
+    if (isOpen) {
+      listProjects().then(response => {
+        if (response.data?.projects) {
+          setProjects(response.data.projects);
+        }
+      }).catch(error => {
+        console.error('Failed to load projects:', error);
+      });
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       loadFiles();
-      // 恢复初始选择
       setSelectedFiles(new Set(initialSelectedIdsRef.current));
     }
   }, [isOpen, filterProjectId, loadFiles]);
@@ -449,6 +467,21 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     }
   };
 
+  const sortedFiles = [...files].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'name-asc':
+        return a.filename.localeCompare(b.filename);
+      case 'name-desc':
+        return b.filename.localeCompare(a.filename);
+      default:
+        return 0;
+    }
+  });
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('referenceFile.title')} size="lg">
       <div className="space-y-4">
@@ -466,19 +499,38 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 项目筛选下拉菜单 */}
+            {/* 项目筛选下拉框 */}
             <select
               value={filterProjectId}
               onChange={(e) => setFilterProjectId(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary bg-transparent hover:bg-gray-100 dark:hover:bg-background-hover rounded-md focus:outline-none transition-colors cursor-pointer"
             >
               <option value="all">{t('referenceFile.allAttachments')}</option>
               <option value="none">{t('referenceFile.unclassified')}</option>
-              {projectId && projectId !== 'global' && projectId !== 'none' && (
-                <option value={projectId}>{t('referenceFile.currentProjectAttachments')}</option>
-              )}
+              {projects.map(project => (
+                <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
+              ))}
             </select>
-            
+
+            {/* 排序循环按钮 */}
+            <button
+              onClick={() => {
+                const order: Array<typeof sortBy> = ['newest', 'oldest', 'name-asc', 'name-desc'];
+                const currentIndex = order.indexOf(sortBy);
+                const nextIndex = (currentIndex + 1) % order.length;
+                setSortBy(order[nextIndex]);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-md transition-colors"
+            >
+              <ArrowUpDown size={14} />
+              <span>
+                {sortBy === 'newest' && t('referenceFile.sortNewest')}
+                {sortBy === 'oldest' && t('referenceFile.sortOldest')}
+                {sortBy === 'name-asc' && 'A-Z'}
+                {sortBy === 'name-desc' && 'Z-A'}
+              </span>
+            </button>
+
             <Button
               variant="ghost"
               size="sm"
@@ -532,7 +584,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-border-primary">
-              {files.map((file) => {
+              {sortedFiles.map((file) => {
                 const isSelected = selectedFiles.has(file.id);
                 const isDeleting = deletingIds.has(file.id);
                 const isPending = file.parse_status === 'pending';

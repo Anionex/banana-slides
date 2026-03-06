@@ -17,16 +17,18 @@ interface MarkdownProps {
  * Preprocess LaTeX delimiters that remark-math doesn't support natively.
  * Converts \[...\] to $$...$$ and \(...\) to $...$
  */
-function preprocessMath(content: string): string {
+function preprocessMarkdown(content: string): string {
   // Convert \[...\] block math to $$...$$
   content = content.replace(/\\\[([\s\S]*?)\\\]/g, (_, math) => `$$${math}$$`);
   // Convert \(...\) inline math to $...$
   content = content.replace(/\\\(([\s\S]*?)\\\)/g, (_, math) => `$${math}$`);
+  // 表格前必须有空行才能被解析，自动补空行
+  content = content.replace(/([^\n])\n(\|[^\n]+\|\s*\n\|[\s:|-]+\|\s*\n)/g, '$1\n\n$2');
   return content;
 }
 
 export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) => {
-  const processedContent = useMemo(() => preprocessMath(children), [children]);
+  const processedContent = useMemo(() => preprocessMarkdown(children), [children]);
 
   // Create sanitize schema that allows KaTeX classes and spans
   const sanitizeSchema = useMemo(() => ({

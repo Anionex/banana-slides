@@ -16,6 +16,7 @@ from .prompts import (
     get_outline_generation_prompt,
     get_outline_parsing_prompt,
     get_page_description_prompt,
+    get_all_descriptions_stream_prompt,
     get_image_generation_prompt,
     get_image_edit_prompt,
     get_description_to_outline_prompt,
@@ -494,9 +495,61 @@ class AIService:
                 pages.append(item)
         return pages
     
+    @staticmethod
+    def _parse_extra_fields(text: str, field_names: list) -> tuple:
+        """
+        从描述文本中解析额外字段，返回 (cleaned_text, extra_fields_dict)。
+
+        遍历 field_names，按出现顺序依次提取每个字段的内容。
+        两个相邻字段之间的文本属于前一个字段。
+        """
+        if not field_names:
+            return text, {}
+
+        extra_fields = {}
+        # 找到所有字段在文本中的起始位置
+        positions = []
+        for name in field_names:
+            match = re.search(rf'\n{re.escape(name)}[：:]\s*', text)
+            if match:
+                positions.append((match.start(), match.end(), name))
+
+        if not positions:
+            return text, {}
+
+        # 按位置排序
+        positions.sort(key=lambda x: x[0])
+
+        # 提取每个字段的值
+        for i, (start, end, name) in enumerate(positions):
+            if i + 1 < len(positions):
+                value = text[end:positions[i + 1][0]].strip()
+            else:
+                value = text[end:].strip()
+            # 清理 HTML 注释标记
+            value = re.sub(r'<!--.*?-->', '', value).strip()
+            if value:
+                extra_fields[name] = value
+
+        # 清理后的描述文本（截取到第一个字段之前）
+        cleaned_text = text[:positions[0][0]].strip()
+
+        return cleaned_text, extra_fields
+
+    @staticmethod
+    def _get_extra_field_names() -> list:
+        """从 Settings 读取配置的额外字段名列表。"""
+        try:
+            from models import Settings
+            settings = Settings.get_settings()
+            return settings.get_description_extra_fields()
+        except Exception:
+            logger.warning("Failed to get extra field names from settings", exc_info=True)
+            return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
+
     def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
                                  page_outline: Dict, page_index: int, language='zh',
-                                 detail_level: str = 'default') -> str:
+                                 detail_level: str = 'default') -> Dict:
         """
         Generate description for a single page
         Based on demo.py gen_desc() logic
@@ -509,8 +562,9 @@ class AIService:
             detail_level: Description detail level (concise/default/detailed)
 
         Returns:
-            Text description for the page
+            Dict with 'text' and optional 'extra_fields'
         """
+        extra_field_names = self._get_extra_field_names()
         part_info = f"\nThis page belongs to: {page_outline['part']}" if 'part' in page_outline else ""
 
         desc_prompt = get_page_description_prompt(
@@ -520,14 +574,151 @@ class AIService:
             page_index=page_index,
             part_info=part_info,
             language=language,
-            detail_level=detail_level
+            detail_level=detail_level,
+            extra_fields=extra_field_names,
         )
-        
+
         # 根据 enable_text_reasoning 配置调整 thinking_budget
         actual_budget = self._get_text_thinking_budget()
         response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=actual_budget)
-        
-        return dedent(response_text)
+
+        text = dedent(response_text)
+        description_text, extra_fields = self._parse_extra_fields(text, extra_field_names)
+
+        result = {'text': description_text}
+        if extra_fields:
+            result['extra_fields'] = extra_fields
+        return result
+
+    def generate_descriptions_stream(self, project_context: ProjectContext,
+                                     outline: List[Dict], flat_pages: List[Dict],
+                                     language: str = 'zh',
+                                     detail_level: str = 'default'):
+        """
+        Stream description generation for all pages, yielding each page as it's completed.
+
+        Yields dicts: {page_index, description_text, extra_fields}
+        Final yield: {__stream_complete__: bool}
+        """
+        extra_field_names = self._get_extra_field_names()
+
+        prompt = get_all_descriptions_stream_prompt(
+            project_context=project_context,
+            outline=outline,
+            flat_pages=flat_pages,
+            language=language,
+            detail_level=detail_level,
+            extra_fields=extra_field_names,
+        )
+
+        # Build regex pattern to detect any configured extra field header
+        field_pattern = self._build_extra_field_pattern(extra_field_names)
+
+        actual_budget = self._get_text_thinking_budget()
+        buffer = ""
+        page_index = -1
+        current_lines: list = []
+        current_field: Optional[str] = None  # None = description, str = field name
+        extra_fields: Dict[str, str] = {}
+        stream_complete = False
+
+        def _build_page_result():
+            """Build result dict from accumulated state."""
+            desc_text = "\n".join(current_lines).strip()
+            result: Dict = {
+                'page_index': page_index,
+                'description_text': desc_text,
+            }
+            if extra_fields:
+                result['extra_fields'] = dict(extra_fields)
+            return result
+
+        def _reset_page_state():
+            nonlocal current_lines, current_field, extra_fields
+            current_lines = []
+            current_field = None
+            extra_fields = {}
+
+        def _process_line(line: str, stripped: str):
+            nonlocal page_index, current_field, stream_complete
+
+            if stripped == '<!-- BEGIN -->':
+                if page_index < 0:
+                    page_index = 0
+                return 'continue'
+
+            if stripped == '<!-- END -->':
+                stream_complete = True
+                return 'continue'
+
+            if stripped == '<!-- PAGE_END -->':
+                if page_index >= 0 and (current_lines or extra_fields):
+                    return 'yield_page'
+                return 'continue'
+
+            if page_index < 0:
+                return 'continue'
+
+            # Check for extra field header
+            if field_pattern:
+                field_match = field_pattern.match(stripped)
+                if field_match:
+                    field_name = field_match.group(1)
+                    current_field = field_name
+                    value = field_match.group(2).strip()
+                    if value:
+                        extra_fields[field_name] = value
+                    return 'continue'
+
+            if not stripped:
+                return 'continue'
+
+            if current_field:
+                # Append to current extra field (multi-line)
+                if current_field in extra_fields:
+                    extra_fields[current_field] += "\n" + stripped
+                else:
+                    extra_fields[current_field] = stripped
+            else:
+                current_lines.append(line.rstrip())
+            return 'continue'
+
+        for chunk in self.text_provider.generate_text_stream(prompt, thinking_budget=actual_budget):
+            buffer += chunk
+
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                stripped = line.strip()
+                action = _process_line(line, stripped)
+
+                if action == 'yield_page':
+                    yield _build_page_result()
+                    _reset_page_state()
+                    page_index += 1
+
+        # Process remaining buffer
+        if buffer.strip():
+            for line in buffer.split('\n'):
+                stripped = line.strip()
+                action = _process_line(line, stripped)
+                if action == 'yield_page':
+                    yield _build_page_result()
+                    _reset_page_state()
+                    page_index += 1
+
+        # Yield last page if not yet yielded
+        if page_index >= 0 and current_lines:
+            yield _build_page_result()
+
+        yield {'__stream_complete__': stream_complete}
+
+    @staticmethod
+    def _build_extra_field_pattern(field_names: list):
+        """Build a compiled regex pattern that matches any extra field header."""
+        if not field_names:
+            return None
+        escaped = '|'.join(re.escape(name) for name in field_names)
+        return re.compile(rf'^({escaped})[：:]\s*(.*)')
     
     def generate_outline_text(self, outline: List[Dict]) -> str:
         """
@@ -543,12 +734,13 @@ class AIService:
         result = "\n".join(text_parts)
         return dedent(result)
     
-    def generate_image_prompt(self, outline: List[Dict], page: Dict, 
-                            page_desc: str, page_index: int, 
+    def generate_image_prompt(self, outline: List[Dict], page: Dict,
+                            page_desc: str, page_index: int,
                             has_material_images: bool = False,
                             extra_requirements: Optional[str] = None,
                             language='zh',
-                            has_template: bool = True) -> str:
+                            has_template: bool = True,
+                            aspect_ratio: str = "16:9") -> str:
         """
         Generate image generation prompt for a page
         Based on demo.py gen_prompts()
@@ -586,7 +778,8 @@ class AIService:
             extra_requirements=extra_requirements,
             language=language,
             has_template=has_template,
-            page_index=page_index
+            page_index=page_index,
+            aspect_ratio=aspect_ratio
         )
         
         return prompt

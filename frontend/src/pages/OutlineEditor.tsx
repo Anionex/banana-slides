@@ -28,8 +28,10 @@ const outlineI18n = {
       messages: {
         outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
         generateIncomplete: "大纲生成可能不完整，请检查后重试",
-        confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
-        confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
+        confirmRegenerate: "重新生成将更新所有页面标题。已有的描述和图片会按位置保留，但如果新大纲页数减少，多出的页面及其内容将被删除。确定继续吗？",
+        confirmRegenerateTitle: "确认重新生成",
+        lockPageCount: "锁定页面数量（不允许减少，用空白页填补）",
+        refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
         importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
@@ -59,8 +61,10 @@ const outlineI18n = {
       messages: {
         outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
         generateIncomplete: "Outline generation may be incomplete, please review and retry",
-        confirmRegenerate: "Existing outline will be overwritten. Continue?",
-        confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
+        confirmRegenerate: "Regenerating will update all page titles. Existing descriptions and images are preserved by position, but if the new outline has fewer pages, extra pages and their content will be removed. Continue?",
+        confirmRegenerateTitle: "Confirm Regenerate",
+        lockPageCount: "Lock page count (prevent reduction, fill with blank pages)",
+        refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
         importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
@@ -331,9 +335,9 @@ export const OutlineEditor: React.FC = () => {
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
 
-    const doGenerate = async () => {
+    const doGenerate = async (lockPageCount?: boolean) => {
       try {
-        const result = await generateOutlineStream();
+        const result = await generateOutlineStream(lockPageCount);
         const { currentProject: updatedProject } = useProjectStore.getState();
         const pageCount = updatedProject?.pages.length ?? 0;
         if (result && (!result.complete || pageCount === 0)) {
@@ -350,7 +354,12 @@ export const OutlineEditor: React.FC = () => {
       confirm(
         t('outline.messages.confirmRegenerate'),
         doGenerate,
-        { title: t('outline.messages.confirmRegenerateTitle'), variant: 'warning' }
+        {
+          title: t('outline.messages.confirmRegenerateTitle'),
+          variant: 'warning',
+          checkboxLabel: t('outline.messages.lockPageCount'),
+          checkboxDefaultChecked: false
+        }
       );
       return;
     }
@@ -398,10 +407,10 @@ export const OutlineEditor: React.FC = () => {
         return;
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part }, i) =>
+      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
         addPage(projectId, {
           outline_content: { title, points },
-          description_content: desc ? { text: desc } : undefined,
+          description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
         })

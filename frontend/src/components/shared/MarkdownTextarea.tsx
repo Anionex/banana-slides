@@ -39,6 +39,7 @@ interface MarkdownTextareaProps {
   /** Called when files are dropped or selected via upload button */
   onFiles?: (files: File[]) => void;
   onBlur?: () => void;
+  onFocus?: () => void;
   placeholder?: string;
   label?: string;
   error?: string;
@@ -247,6 +248,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
   onPaste,
   onFiles,
   onBlur,
+  onFocus,
   placeholder,
   label,
   error,
@@ -636,6 +638,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onBlur={onBlur}
+            onFocus={onFocus}
             style={{ minHeight: `${minHeight}px` }}
             className="w-full px-4 py-3 outline-none overflow-y-auto resize-y whitespace-pre-wrap break-words text-gray-900 dark:text-foreground-primary"
           />

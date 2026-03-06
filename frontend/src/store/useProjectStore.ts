@@ -86,6 +86,8 @@ interface ProjectState {
   warningMessage: string | null;
   // 流式大纲生成中
   isOutlineStreaming: boolean;
+  // 流式描述生成中
+  isDescriptionStreaming: boolean;
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -187,6 +189,7 @@ const debouncedUpdatePage = debounce(
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
+  isDescriptionStreaming: false,
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -598,7 +601,7 @@ const debouncedUpdatePage = debounce(
   },
 
   // 流式生成大纲（SSE，逐页渲染）
-  generateOutlineStream: async () => {
+  generateOutlineStream: async (lockPageCount?: boolean) => {
     const { currentProject } = get();
     if (!currentProject) return;
 
@@ -653,7 +656,7 @@ const debouncedUpdatePage = debounce(
           set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
           streamDone = true;
         },
-      });
+      }, undefined /* language */, lockPageCount);
 
       streamDone = true;
       await renderPromise;
@@ -707,7 +710,7 @@ const debouncedUpdatePage = debounce(
     }
   },
 
-  // 生成描述（使用异步任务，实时显示进度）
+  // 生成描述（根据设置选择流式或并行模式）
   generateDescriptions: async (detailLevel?: string) => {
     const { currentProject } = get();
     if (!currentProject || !currentProject.id) return;
@@ -715,82 +718,179 @@ const debouncedUpdatePage = debounce(
     const pages = currentProject.pages.filter((p) => p.id);
     if (pages.length === 0) return;
 
-    set({ error: null });
-
-    // 乐观更新：将所有页面状态设为 GENERATING_DESCRIPTION，骨架屏由 page.status 驱动
-    const updatedPages = currentProject.pages.map((page) =>
-      page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
-    );
-    set({ currentProject: { ...currentProject, pages: updatedPages } });
-
+    // 检查描述生成模式，优先从 sessionStorage 缓存读取以避免额外 API 调用
+    let mode: string = 'streaming';
     try {
-      const projectId = currentProject.id;
-      if (!projectId) {
-        throw new Error(t('store.projectIdMissing'));
+      const cached = sessionStorage.getItem('banana-settings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.description_generation_mode) {
+          mode = parsed.description_generation_mode;
+        }
       }
+    } catch { /* ignore */ }
 
-      const response = await api.generateDescriptions(projectId, undefined, detailLevel);
-      const taskId = response.data?.task_id;
+    if (mode === 'streaming') {
+      // 流式模式
+      set({ isDescriptionStreaming: true, error: null });
 
-      if (!taskId) {
-        throw new Error(t('store.noTaskId'));
-      }
+      const updatedPages = currentProject.pages.map((page) =>
+        page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
+      );
+      set({ currentProject: { ...currentProject, pages: updatedPages } });
 
-      // 启动轮询任务状态和定期同步项目数据
-      let pollErrors = 0;
-      const pollAndSync = async () => {
-        try {
-          const taskResponse = await api.getTaskStatus(projectId, taskId);
-          const task = taskResponse.data;
+      // Concurrent queue + render loop (like outline streaming)
+      const descQueue: api.DescriptionStreamEvent[] = [];
+      let streamDone = false;
+      let doneData: { total: number; pages: any[]; warning?: string } | null = null;
+      const STAGGER_MS = 100;
 
-          if (task) {
-            if (task.progress) {
-              set({ taskProgress: task.progress });
+      const renderPromise = new Promise<void>((resolve) => {
+        const tick = () => {
+          if (descQueue.length > 0) {
+            const desc = descQueue.shift()!;
+            const { currentProject: proj } = get();
+            if (proj) {
+              const updatedPages = proj.pages.map((page) => {
+                if (page.id === desc.page_id) {
+                  return {
+                    ...page,
+                    status: 'DESCRIPTION_GENERATED' as const,
+                    description_content: {
+                      text: desc.text,
+                      ...(desc.extra_fields ? { extra_fields: desc.extra_fields } : {}),
+                    },
+                  };
+                }
+                return page;
+              });
+              set({ currentProject: { ...proj, pages: updatedPages } });
             }
+            setTimeout(tick, STAGGER_MS);
+          } else if (streamDone) {
+            resolve();
+          } else {
+            setTimeout(tick, 30);
+          }
+        };
+        tick();
+      });
 
-            // 同步项目数据，后端会为每页设置真实的 status（GENERATING_DESCRIPTION → DESCRIPTION_GENERATED）
-            await get().syncProject();
+      try {
+        await api.generateDescriptionsStream(currentProject.id, {
+          onDescription: (data) => { descQueue.push(data); },
+          onDone: (data) => { doneData = data; },
+          onError: (message) => {
+            console.error('[流式描述] 错误:', message);
+            set({ error: normalizeErrorMessage(message) });
+            streamDone = true;
+          },
+        }, undefined, detailLevel);
 
-            if (task.status === 'COMPLETED') {
-              set({ taskProgress: null, activeTaskId: null });
+        streamDone = true;
+        await renderPromise;
+
+        if (doneData) {
+          const { currentProject: proj } = get();
+          if (proj) {
+            const normalized = normalizeProject({ ...proj, pages: doneData.pages });
+            set({
+              currentProject: normalized,
+              isDescriptionStreaming: false,
+              ...(doneData.warning ? { error: doneData.warning } : {}),
+            });
+          }
+          devLog('[流式描述] 完成:', doneData.total, '个页面');
+        } else {
+          // 无 doneData（SSE error 或连接中断）→ 从后端恢复真实状态
+          await get().syncProject();
+          set({ isDescriptionStreaming: false });
+        }
+      } catch (error: any) {
+        console.error('[流式描述] 错误:', error);
+        streamDone = true;
+        await get().syncProject();
+        set({
+          error: normalizeErrorMessage(error.message || t('store.generateDescFailed')),
+          isDescriptionStreaming: false,
+        });
+        throw error;
+      }
+    } else {
+      // 并行模式（原有逻辑）
+      set({ error: null });
+
+      const updatedPages = currentProject.pages.map((page) =>
+        page.id ? { ...page, status: 'GENERATING_DESCRIPTION' as const } : page
+      );
+      set({ currentProject: { ...currentProject, pages: updatedPages } });
+
+      try {
+        const projectId = currentProject.id;
+        if (!projectId) {
+          throw new Error(t('store.projectIdMissing'));
+        }
+
+        const response = await api.generateDescriptions(projectId, undefined, detailLevel);
+        const taskId = response.data?.task_id;
+
+        if (!taskId) {
+          throw new Error(t('store.noTaskId'));
+        }
+
+        let pollErrors = 0;
+        const pollAndSync = async () => {
+          try {
+            const taskResponse = await api.getTaskStatus(projectId, taskId);
+            const task = taskResponse.data;
+
+            if (task) {
+              if (task.progress) {
+                set({ taskProgress: task.progress });
+              }
+
               await get().syncProject();
-            } else if (task.status === 'FAILED') {
+
+              if (task.status === 'COMPLETED') {
+                set({ taskProgress: null, activeTaskId: null });
+                await get().syncProject();
+              } else if (task.status === 'FAILED') {
+                set({
+                  taskProgress: null,
+                  activeTaskId: null,
+                  error: normalizeErrorMessage(task.error_message || task.error || t('store.generateDescFailed'))
+                });
+                await get().syncProject();
+              } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
+                setTimeout(pollAndSync, 2000);
+              }
+            }
+          } catch (error: any) {
+            console.error('[生成描述] 轮询错误:', error);
+            pollErrors++;
+            if (pollErrors >= 10) {
+              console.error('[生成描述] 轮询错误次数过多，停止轮询');
               set({
                 taskProgress: null,
                 activeTaskId: null,
-                error: normalizeErrorMessage(task.error_message || task.error || t('store.generateDescFailed'))
+                error: normalizeErrorMessage(error.message || t('store.generateDescTimeout'))
               });
               await get().syncProject();
-            } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
-              setTimeout(pollAndSync, 2000);
+              return;
             }
-          }
-        } catch (error: any) {
-          console.error('[生成描述] 轮询错误:', error);
-          pollErrors++;
-          if (pollErrors >= 10) {
-            console.error('[生成描述] 轮询错误次数过多，停止轮询');
-            set({
-              taskProgress: null,
-              activeTaskId: null,
-              error: normalizeErrorMessage(error.message || t('store.generateDescTimeout'))
-            });
             await get().syncProject();
-            return;
+            setTimeout(pollAndSync, 2000);
           }
-          await get().syncProject();
-          setTimeout(pollAndSync, 2000);
-        }
-      };
+        };
 
-      setTimeout(pollAndSync, 2000);
+        setTimeout(pollAndSync, 2000);
 
-    } catch (error: any) {
-      console.error('[生成描述] 启动任务失败:', error);
-      // 恢复页面状态
-      await get().syncProject();
-      set({ error: normalizeErrorMessage(error.message || t('store.startGenerationFailed')) });
-      throw error;
+      } catch (error: any) {
+        console.error('[生成描述] 启动任务失败:', error);
+        await get().syncProject();
+        set({ error: normalizeErrorMessage(error.message || t('store.startGenerationFailed')) });
+        throw error;
+      }
     }
   },
 

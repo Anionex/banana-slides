@@ -1,10 +1,18 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, useSortable, rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 组件内翻译
 const detailI18n = {
@@ -24,6 +32,16 @@ const detailI18n = {
       renovationPollFailed: "与服务器通信失败，请检查网络后刷新页面重试",
       disabledNextTip: "还有 {{count}} 页缺少描述，请先完成所有页面的描述",
       detailLevel: { label: "详细程度", concise: "精简", default: "默认", detailed: "详细" },
+      descSettings: "描述设置",
+      generationMode: "生成模式",
+      generationModeHint: "流式：AI 从第一页开始逐页输出，速度慢但效果更好。并行：AI 根据大纲并行生成每页描述，速度快但可能不够细致。",
+      streaming: "流式",
+      parallel: "并行",
+      extraFields: "额外字段",
+      extraFieldsHint: "启用后，AI 生成描述时会带上这些字段。可通过「描述生成要求」进一步约束字段输出的内容。点击胶囊启用/禁用，拖拽调整顺序。",
+      imagePromptOn: "该字段会影响生成的图片效果，点击可关闭",
+      imagePromptOff: "该字段不会影响生成的图片，点击可开启",
+      addField: "添加字段",
       descRequirements: "描述生成要求",
       descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
       messages: {
@@ -54,6 +72,16 @@ const detailI18n = {
       renovationPollFailed: "Lost connection to server. Please check your network and refresh the page.",
       disabledNextTip: "{{count}} page(s) are missing descriptions. Please complete all page descriptions first",
       detailLevel: { label: "Detail Level", concise: "Concise", default: "Default", detailed: "Detailed" },
+      descSettings: "Description Settings",
+      generationMode: "Generation Mode",
+      generationModeHint: "Streaming: AI outputs pages sequentially from first to last, slower but better quality. Parallel: AI generates each page independently based on the outline, faster but may be less detailed.",
+      streaming: "Streaming",
+      parallel: "Parallel",
+      extraFields: "Extra Fields",
+      extraFieldsHint: "When enabled, AI will include these fields when generating descriptions. Use \"Generation Requirements\" to further constrain field output. Click pills to enable/disable, drag to reorder.",
+      imagePromptOn: "This field affects generated image results, click to disable",
+      imagePromptOff: "This field does not affect generated images, click to enable",
+      addField: "Add Field",
       descRequirements: "Generation Requirements",
       descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
       messages: {
@@ -73,23 +101,80 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPage, updateProject } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
-/** 详细程度图标：用线条数量表示精简/标准/详细 */
-const DETAIL_LEVEL_LINES: Record<string, number[]> = {
-  concise:  [5, 8],
-  default:  [4, 7, 10],
-  detailed: [3.5, 5.5, 7.5, 9.5, 11.5],
+// 详细程度图标 — 暂时屏蔽，效果不够理想
+// const DETAIL_LEVEL_LINES: Record<string, number[]> = {
+//   concise:  [5, 8],
+//   default:  [4, 7, 10],
+//   detailed: [3.5, 5.5, 7.5, 9.5, 11.5],
+// };
+// const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
+
+const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
+
+// 可拖拽排序的额外字段胶囊
+const SortableFieldPill: React.FC<{
+  name: string;
+  active: boolean;
+  removable?: boolean;
+  inImagePrompt?: boolean;
+  imagePromptTooltip?: string;
+  onToggle: () => void;
+  onRemove: () => void;
+  onToggleImagePrompt?: () => void;
+}> = ({ name, active, onToggle, onRemove, removable = true, inImagePrompt, imagePromptTooltip, onToggleImagePrompt }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name });
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? undefined : transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      type="button"
+      className={`group inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border cursor-grab active:cursor-grabbing ${
+        isDragging ? '' : 'transition-colors duration-150 '
+      }${
+        active
+          ? 'bg-banana-50 dark:bg-banana-900/20 border-banana-300 dark:border-banana-700 text-banana-700 dark:text-banana-400'
+          : 'bg-gray-50 dark:bg-background-hover border-gray-200 dark:border-border-primary text-gray-400 dark:text-foreground-tertiary line-through'
+      }`}
+      onClick={onToggle}
+    >
+      {name}
+      {active && onToggleImagePrompt && (
+        <span
+          role="button"
+          className={`relative group/img ml-0.5 transition-colors ${inImagePrompt ? 'text-banana-500' : 'text-gray-300 dark:text-gray-600'}`}
+          onClick={e => { e.stopPropagation(); onToggleImagePrompt(); }}
+        >
+          <ImageIcon size={10} />
+          {imagePromptTooltip && (
+            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-40 px-2 py-1 text-[10px] leading-snug text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover/img:opacity-100 transition-opacity z-50">
+              {imagePromptTooltip}
+            </span>
+          )}
+        </span>
+      )}
+      {!active && removable && (
+        <span
+          role="button"
+          className="opacity-0 group-hover:opacity-100 ml-0.5 text-gray-400 hover:text-red-500 transition-all"
+          onClick={e => { e.stopPropagation(); onRemove(); }}
+        >
+          <X size={10} />
+        </span>
+      )}
+    </button>
+  );
 };
-const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-    <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-    {(DETAIL_LEVEL_LINES[level] ?? DETAIL_LEVEL_LINES.default).map((y) => (
-      <line key={y} x1="4.5" y1={y} x2="11.5" y2={y} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-    ))}
-  </svg>
-);
 
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -112,15 +197,84 @@ export const DetailEditor: React.FC = () => {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
-  const [detailLevel, _setDetailLevel] = useState<string>(() => localStorage.getItem('detailLevel') || 'default');
-  const setDetailLevel = useCallback((level: string) => {
-    _setDetailLevel(level);
-    localStorage.setItem('detailLevel', level);
-  }, []);
-  const [detailLevelOpen, setDetailLevelOpen] = useState(false);
-  const detailLevelRef = useRef<HTMLDivElement>(null);
+  const [detailLevel, setDetailLevel] = useState<string>('default');
+  const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
+  const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
+  // 可选字段池（localStorage 持久化，包含所有已知字段名）
+  const [availableFields, setAvailableFields] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('banana-available-extra-fields');
+      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+    } catch { return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']; }
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const [newFieldName, setNewFieldName] = useState('');
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Load settings from DB on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getSettings();
+        const s = res.data;
+        if (!s) return;
+        setDetailLevel('default');
+        // detail level from sessionStorage (backwards compat, then from DB if we add it later)
+        const storedLevel = sessionStorage.getItem('banana-detail-level');
+        if (storedLevel) setDetailLevel(storedLevel);
+        setGenerationMode(s.description_generation_mode || 'streaming');
+        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+        setExtraFieldNames(activeFields);
+        if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
+        // 合并活跃字段到可选池
+        setAvailableFields(prev => {
+          const merged = [...new Set([...prev, ...activeFields])];
+          localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
+          return merged;
+        });
+        // Cache settings in sessionStorage for store to read
+        sessionStorage.setItem('banana-settings', JSON.stringify(s));
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  // Debounced save settings to DB
+  const saveSettingsDebounced = useCallback((updates: Record<string, unknown>) => {
+    if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
+    settingsSaveTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await updateSettings(updates as any);
+        if (res.data) {
+          sessionStorage.setItem('banana-settings', JSON.stringify(res.data));
+        }
+      } catch (e) {
+        console.error('Failed to save settings:', e);
+      }
+    }, 800);
+  }, []);
+
+  // 额外字段拖拽排序
+  const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleFieldDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = availableFields.indexOf(active.id as string);
+    const newIdx = availableFields.indexOf(over.id as string);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const nextPool = arrayMove(availableFields, oldIdx, newIdx);
+    setAvailableFields(nextPool);
+    localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+    // 激活字段按新池顺序重排
+    const activeSet = new Set(extraFieldNames);
+    const nextActive = nextPool.filter(f => activeSet.has(f));
+    setExtraFieldNames(nextActive);
+    saveSettingsDebounced({ description_extra_fields: nextActive });
+  }, [availableFields, extraFieldNames, saveSettingsDebounced]);
+
   const [descRequirements, setDescRequirements] = useState('');
   const [isDescReqDirty, setIsDescReqDirty] = useState(false);
   const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
@@ -131,18 +285,18 @@ export const DetailEditor: React.FC = () => {
   // 点击外部关闭下拉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (detailLevelRef.current && !detailLevelRef.current.contains(e.target as Node)) {
-        setDetailLevelOpen(false);
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
       }
       if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
         setFileMenuOpen(false);
       }
     };
-    if (detailLevelOpen || fileMenuOpen) {
+    if (settingsOpen || fileMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [detailLevelOpen, fileMenuOpen]);
+  }, [settingsOpen, fileMenuOpen]);
 
   // PPT 翻新：异步任务轮询
   useEffect(() => {
@@ -377,10 +531,10 @@ export const DetailEditor: React.FC = () => {
         return;
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part }, i) =>
+      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
         addPage(projectId, {
           outline_content: { title, points },
-          description_content: desc ? { text: desc } : undefined,
+          description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
         })
@@ -523,7 +677,146 @@ export const DetailEditor: React.FC = () => {
             >
               {t('detail.batchGenerate')}
             </Button>
-            <div className="hidden" ref={detailLevelRef} />
+
+            {/* 描述设置面板 */}
+            <div className="relative" ref={settingsRef}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                icon={<Settings2 size={16} />}
+                title={t('detail.descSettings')}
+              />
+              {settingsOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-72 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
+                  {/* 生成模式 */}
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
+                      {t('detail.generationMode')}
+                      <span className="relative group">
+                        <HelpCircle size={12} className="text-gray-400 cursor-help" />
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-52 px-2.5 py-1.5 text-[11px] leading-relaxed text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">{t('detail.generationModeHint')}</span>
+                      </span>
+                    </label>
+                    <div className="flex gap-1">
+                      {(['streaming', 'parallel'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          type="button"
+                          className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                            generationMode === mode
+                              ? 'bg-banana-500 text-white'
+                              : 'bg-gray-100 dark:bg-background-hover text-gray-600 dark:text-foreground-tertiary hover:bg-gray-200 dark:hover:bg-background-primary'
+                          }`}
+                          onClick={() => {
+                            setGenerationMode(mode);
+                            saveSettingsDebounced({ description_generation_mode: mode });
+                          }}
+                        >
+                          {t(`detail.${mode}`)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 详细程度 — 暂时屏蔽，效果不够理想，始终使用默认值 */}
+
+                  {/* 额外字段 */}
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
+                      {t('detail.extraFields')}
+                      <span className="relative group">
+                        <HelpCircle size={12} className="text-gray-400 cursor-help" />
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-52 px-2.5 py-1.5 text-[11px] leading-relaxed text-gray-600 dark:text-foreground-secondary bg-white dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-md shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">{t('detail.extraFieldsHint')}</span>
+                      </span>
+                    </label>
+                    <DndContext sensors={fieldSensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
+                      <SortableContext items={availableFields} strategy={rectSortingStrategy}>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {availableFields.map(name => {
+                            const active = extraFieldNames.includes(name);
+                            return (
+                              <SortableFieldPill
+                                key={name}
+                                name={name}
+                                active={active}
+                                removable={!PRESET_EXTRA_FIELDS.has(name)}
+                                onToggle={() => {
+                                  const next = active
+                                    ? extraFieldNames.filter(f => f !== name)
+                                    : [...extraFieldNames, name];
+                                  setExtraFieldNames(next);
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] });
+                                }}
+                                inImagePrompt={imagePromptFields.includes(name)}
+                                imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
+                                onToggleImagePrompt={() => {
+                                  const next = imagePromptFields.includes(name)
+                                    ? imagePromptFields.filter(f => f !== name)
+                                    : [...imagePromptFields, name];
+                                  setImagePromptFields(next);
+                                  saveSettingsDebounced({ image_prompt_extra_fields: next });
+                                }}
+                                onRemove={() => {
+                                  const nextPool = availableFields.filter(f => f !== name);
+                                  setAvailableFields(nextPool);
+                                  localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        className="flex-1 min-w-0 px-2 py-1 text-xs rounded-md border border-gray-200 dark:border-border-primary bg-white dark:bg-background-primary text-gray-700 dark:text-foreground-secondary focus:outline-none focus:ring-1 focus:ring-banana-500/30"
+                        placeholder={t('detail.addField')}
+                        value={newFieldName}
+                        onChange={e => setNewFieldName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newFieldName.trim()) {
+                            e.preventDefault();
+                            const trimmed = newFieldName.trim();
+                            if (!availableFields.includes(trimmed) && availableFields.length < 10) {
+                              const nextPool = [...availableFields, trimmed];
+                              setAvailableFields(nextPool);
+                              localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                              // 新增字段默认勾选
+                              const nextActive = [...extraFieldNames, trimmed];
+                              setExtraFieldNames(nextActive);
+                              saveSettingsDebounced({ description_extra_fields: nextActive });
+                              setNewFieldName('');
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="p-1 rounded-md text-gray-400 hover:text-banana-500 hover:bg-gray-100 dark:hover:bg-background-hover transition-colors disabled:opacity-40"
+                        disabled={!newFieldName.trim() || availableFields.includes(newFieldName.trim()) || availableFields.length >= 10}
+                        onClick={() => {
+                          const trimmed = newFieldName.trim();
+                          if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
+                            const nextPool = [...availableFields, trimmed];
+                            setAvailableFields(nextPool);
+                            localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                            const nextActive = [...extraFieldNames, trimmed];
+                            setExtraFieldNames(nextActive);
+                            saveSettingsDebounced({ description_extra_fields: nextActive });
+                            setNewFieldName('');
+                          }
+                        }}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="w-px h-6 bg-gray-200 dark:bg-border-primary flex-shrink-0" />
             {/* 导入导出下拉菜单 */}
             <div className="relative" ref={fileMenuRef}>
@@ -661,6 +954,8 @@ export const DetailEditor: React.FC = () => {
                     page={{ id: `skeleton-${index}`, title: '', sort_order: index, status: 'GENERATING_DESCRIPTION' } as any}
                     index={index}
                     projectId={currentProject.id}
+                    extraFieldNames={extraFieldNames}
+                    imagePromptFields={imagePromptFields}
                     showToast={show}
                     onUpdate={() => {}}
                     onRegenerate={() => {}}
@@ -671,8 +966,7 @@ export const DetailEditor: React.FC = () => {
                 const pageId = page.id || page.page_id;
                 // Renovation processing: treat pages without description as generating
                 const hasDescription = page.description_content && (
-                  (typeof page.description_content === 'string' && page.description_content.trim()) ||
-                  (typeof page.description_content === 'object' && page.description_content.text?.trim())
+                  (typeof page.description_content === 'object' && 'text' in page.description_content && page.description_content.text?.trim())
                 );
                 const effectivePage = (isRenovationProcessing && !hasDescription)
                   ? { ...page, status: 'GENERATING_DESCRIPTION' as const }
@@ -683,6 +977,8 @@ export const DetailEditor: React.FC = () => {
                     page={effectivePage}
                     index={index}
                     projectId={currentProject.id}
+                    extraFieldNames={extraFieldNames}
+                    imagePromptFields={imagePromptFields}
                     showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => stableHandleRegeneratePage(pageId)}

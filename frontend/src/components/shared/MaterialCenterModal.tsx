@@ -1,5 +1,5 @@
 import React, { useReducer, useEffect, useCallback } from 'react';
-import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye } from 'lucide-react';
+import { ImageIcon, RefreshCw, Upload, Download, X, FolderOpen, Eye, ArrowUpDown } from 'lucide-react';
 import { Button } from './Button';
 import { useT } from '@/hooks/useT';
 import { useToast } from './Toast';
@@ -83,9 +83,9 @@ interface State {
   uploading: boolean;
   downloading: boolean;
   filter: string;
+  sortBy: 'newest' | 'oldest' | 'name-asc' | 'name-desc';
   projects: Project[];
   projectsReady: boolean;
-  showAllProjects: boolean;
   preview: { url: string; label: string } | null;
 }
 
@@ -98,8 +98,8 @@ type Action =
   | { type: 'SET_UPLOADING'; on: boolean }
   | { type: 'SET_DOWNLOADING'; on: boolean }
   | { type: 'SET_FILTER'; value: string }
+  | { type: 'SET_SORT'; value: State['sortBy'] }
   | { type: 'SET_PROJECTS'; list: Project[] }
-  | { type: 'EXPAND_PROJECTS' }
   | { type: 'REMOVE_ITEM'; key: string }
   | { type: 'ADD_DELETING'; id: string }
   | { type: 'REMOVE_DELETING'; id: string }
@@ -114,9 +114,9 @@ const initial: State = {
   uploading: false,
   downloading: false,
   filter: 'all',
+  sortBy: 'newest',
   projects: [],
   projectsReady: false,
-  showAllProjects: false,
   preview: null,
 };
 
@@ -141,10 +141,10 @@ function reducer(s: State, a: Action): State {
       return { ...s, downloading: a.on };
     case 'SET_FILTER':
       return { ...s, filter: a.value };
+    case 'SET_SORT':
+      return { ...s, sortBy: a.value };
     case 'SET_PROJECTS':
       return { ...s, projects: a.list, projectsReady: true };
-    case 'EXPAND_PROJECTS':
-      return { ...s, showAllProjects: true };
     case 'REMOVE_ITEM': {
       const items = s.items.filter((m) => m.id !== a.key);
       const selected = new Set(s.selected);
@@ -219,32 +219,39 @@ const ToolbarSection: React.FC<{
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
+        {/* 项目筛选下拉框 */}
         <select
           value={state.filter}
-          onChange={(e) => {
-            if (e.target.value === '_expand') {
-              dispatch({ type: 'EXPAND_PROJECTS' });
-              return;
-            }
-            dispatch({ type: 'SET_FILTER', value: e.target.value });
-          }}
-          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 w-40 sm:w-48 max-w-[200px] truncate"
+          onChange={(e) => dispatch({ type: 'SET_FILTER', value: e.target.value })}
+          className="px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary bg-transparent hover:bg-gray-100 dark:hover:bg-background-hover rounded-md focus:outline-none transition-colors cursor-pointer"
         >
           <option value="all">{t('mc.filterAll')}</option>
           <option value="none">{t('mc.filterNone')}</option>
-          {state.showAllProjects ? (
-            <>
-              <option disabled>───────────</option>
-              {state.projects.map((p) => (
-                <option key={p.project_id} value={p.project_id} title={p.idea_prompt || p.outline_text}>
-                  {projectLabel(p)}
-                </option>
-              ))}
-            </>
-          ) : (
-            state.projects.length > 0 && <option value="_expand">{t('mc.moreProjects')}</option>
-          )}
+          {state.projects.map((p) => (
+            <option key={p.project_id} value={p.project_id} title={p.idea_prompt || p.outline_text}>
+              {projectLabel(p)}
+            </option>
+          ))}
         </select>
+
+        {/* 排序循环按钮 */}
+        <button
+          onClick={() => {
+            const order: Array<State['sortBy']> = ['newest', 'oldest', 'name-asc', 'name-desc'];
+            const currentIndex = order.indexOf(state.sortBy);
+            const nextIndex = (currentIndex + 1) % order.length;
+            dispatch({ type: 'SET_SORT', value: order[nextIndex] });
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-md transition-colors"
+        >
+          <ArrowUpDown size={14} />
+          <span>
+            {state.sortBy === 'newest' && '从新到旧'}
+            {state.sortBy === 'oldest' && '从旧到新'}
+            {state.sortBy === 'name-asc' && 'A-Z'}
+            {state.sortBy === 'name-desc' && 'Z-A'}
+          </span>
+        </button>
 
         <Button variant="ghost" size="sm" icon={<RefreshCw size={16} />} onClick={onRefresh} disabled={state.loading}>
           {t('common.refresh')}
@@ -497,6 +504,21 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
     dispatch({ type: 'SET_PREVIEW', preview: { url: getImageUrl(m.url), label: displayName(m) } });
   };
 
+  const sortedItems = [...s.items].sort((a, b) => {
+    switch (s.sortBy) {
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'name-asc':
+        return displayName(a).localeCompare(displayName(b));
+      case 'name-desc':
+        return displayName(b).localeCompare(displayName(a));
+      default:
+        return 0;
+    }
+  });
+
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={t('mc.title')} size="lg">
@@ -515,7 +537,7 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
             </div>
           ) : (
             <MaterialGrid
-              items={s.items}
+              items={sortedItems}
               selected={s.selected}
               deleting={s.deleting}
               t={t}

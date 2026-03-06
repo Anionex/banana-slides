@@ -19,7 +19,7 @@ vi.mock('@/components/shared/MarkdownTextarea', () => {
   const React = require('react')
   return {
     MarkdownTextarea: React.forwardRef(
-      ({ value, onChange, onPaste, placeholder, label }: any, ref: any) => {
+      ({ value, onChange, onPaste, onFocus, placeholder, label }: any, ref: any) => {
         const textareaRef = React.useRef<HTMLTextAreaElement>(null)
         React.useImperativeHandle(ref, () => ({
           insertAtCursor: (text: string) => {
@@ -36,6 +36,7 @@ vi.mock('@/components/shared/MarkdownTextarea', () => {
               value={value}
               onChange={(e: any) => onChange(e.target.value)}
               onPaste={onPaste}
+              onFocus={onFocus}
               placeholder={placeholder}
             />
           </div>
@@ -140,8 +141,9 @@ describe('DescriptionCard', () => {
     // Open edit modal
     fireEvent.click(screen.getByText('common.edit'))
 
-    // Get the textarea
+    // Get the textarea and focus it (triggers focusMainDesc to set up paste target)
     const textarea = screen.getByDisplayValue('Test description content')
+    fireEvent.focus(textarea)
 
     // Create a mock paste event with an image file
     const file = new File(['image-data'], 'screenshot.png', { type: 'image/png' })
