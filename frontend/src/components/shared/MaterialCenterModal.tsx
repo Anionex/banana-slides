@@ -223,7 +223,7 @@ const ToolbarSection: React.FC<{
         <select
           value={state.filter}
           onChange={(e) => dispatch({ type: 'SET_FILTER', value: e.target.value })}
-          className="px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary bg-transparent hover:bg-gray-100 dark:hover:bg-background-hover rounded-md focus:outline-none focus:ring-2 focus:ring-banana-500 transition-colors cursor-pointer"
+          className="px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary bg-transparent hover:bg-gray-100 dark:hover:bg-background-hover rounded-md focus:outline-none transition-colors cursor-pointer"
         >
           <option value="all">{t('mc.filterAll')}</option>
           <option value="none">{t('mc.filterNone')}</option>
