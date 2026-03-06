@@ -499,55 +499,18 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 项目筛选按钮组 */}
-            <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
-              <button
-                onClick={() => setFilterProjectId('all')}
-                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                  filterProjectId === 'all'
-                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                }`}
-              >
-                {t('referenceFile.allAttachments')}
-              </button>
-              <button
-                onClick={() => setFilterProjectId('none')}
-                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                  filterProjectId === 'none'
-                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                }`}
-              >
-                {t('referenceFile.unclassified')}
-              </button>
-              {projects.slice(0, 3).map(project => (
-                <button
-                  key={project.project_id}
-                  onClick={() => setFilterProjectId(project.project_id)}
-                  className={`px-3 py-1 text-xs font-medium rounded transition-colors truncate max-w-[120px] ${
-                    filterProjectId === project.project_id
-                      ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                      : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-                  }`}
-                  title={project.idea_prompt}
-                >
-                  {project.idea_prompt}
-                </button>
+            {/* 项目筛选下拉框 */}
+            <select
+              value={filterProjectId}
+              onChange={(e) => setFilterProjectId(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
+            >
+              <option value="all">{t('referenceFile.allAttachments')}</option>
+              <option value="none">{t('referenceFile.unclassified')}</option>
+              {projects.map(project => (
+                <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
               ))}
-              {projects.length > 3 && (
-                <select
-                  value={filterProjectId}
-                  onChange={(e) => setFilterProjectId(e.target.value)}
-                  className="px-2 py-1 text-xs bg-transparent border-0 focus:outline-none text-gray-600 dark:text-foreground-tertiary cursor-pointer"
-                >
-                  <option value="">+{projects.length - 3}</option>
-                  {projects.slice(3).map(project => (
-                    <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
-                  ))}
-                </select>
-              )}
-            </div>
+            </select>
 
             {/* 排序按钮组 */}
             <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">

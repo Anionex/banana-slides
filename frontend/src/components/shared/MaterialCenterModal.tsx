@@ -219,55 +219,20 @@ const ToolbarSection: React.FC<{
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        {/* 项目筛选按钮组 */}
-        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
-          <button
-            onClick={() => dispatch({ type: 'SET_FILTER', value: 'all' })}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-              state.filter === 'all'
-                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-            }`}
-          >
-            {t('mc.filterAll')}
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'SET_FILTER', value: 'none' })}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-              state.filter === 'none'
-                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-            }`}
-          >
-            {t('mc.filterNone')}
-          </button>
-          {state.projects.slice(0, 3).map((p) => (
-            <button
-              key={p.project_id}
-              onClick={() => dispatch({ type: 'SET_FILTER', value: p.project_id })}
-              className={`px-3 py-1 text-xs font-medium rounded transition-colors truncate max-w-[120px] ${
-                state.filter === p.project_id
-                  ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
-                  : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
-              }`}
-              title={p.idea_prompt || p.outline_text}
-            >
+        {/* 项目筛选下拉框 */}
+        <select
+          value={state.filter}
+          onChange={(e) => dispatch({ type: 'SET_FILTER', value: e.target.value })}
+          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
+        >
+          <option value="all">{t('mc.filterAll')}</option>
+          <option value="none">{t('mc.filterNone')}</option>
+          {state.projects.map((p) => (
+            <option key={p.project_id} value={p.project_id} title={p.idea_prompt || p.outline_text}>
               {projectLabel(p)}
-            </button>
+            </option>
           ))}
-          {state.projects.length > 3 && (
-            <select
-              value={state.filter}
-              onChange={(e) => dispatch({ type: 'SET_FILTER', value: e.target.value })}
-              className="px-2 py-1 text-xs bg-transparent border-0 focus:outline-none text-gray-600 dark:text-foreground-tertiary cursor-pointer"
-            >
-              <option value="">+{state.projects.length - 3}</option>
-              {state.projects.slice(3).map((p) => (
-                <option key={p.project_id} value={p.project_id}>{projectLabel(p)}</option>
-              ))}
-            </select>
-          )}
-        </div>
+        </select>
 
         {/* 排序按钮组 */}
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
