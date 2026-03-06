@@ -84,7 +84,7 @@ interface ReferenceFileSelectorProps {
  * - 支持删除文件
  */
 export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React.memo(({
-  projectId,
+  projectId: _projectId,
   isOpen,
   onClose,
   onSelect,
@@ -508,7 +508,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
               <option value="all">{t('referenceFile.allAttachments')}</option>
               <option value="none">{t('referenceFile.unclassified')}</option>
               {projects.map(project => (
-                <option key={project.id} value={project.id}>{project.title}</option>
+                <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
               ))}
             </select>
 
