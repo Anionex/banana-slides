@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import { useMaterialSelect } from '@/hooks/useMaterialSelect';
 import { Card, useConfirm, Markdown, ShimmerOverlay, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
-import type { Material } from '@/api/endpoints';
 import type { Page } from '@/types';
 
 // OutlineCard 组件自包含翻译
@@ -78,46 +78,13 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
     insertAtCursor,
   });
 
-  const handleMaterialSelect = useCallback(async (materials: Material[]) => {
-    try {
-      const { getImageUrl } = await import('@/api/client');
-      const { getMaterialCaption } = await import('@/api/endpoints');
-      const { escapeMarkdown } = await import('@/hooks/useImagePaste');
-
-      // 立即插入占位符（使用 uploading: 前缀显示 loading 状态）
-      const placeholders = materials.map(m => {
-        const filename = m.original_filename || m.filename || 'image';
-        const realUrl = getImageUrl(m.url);
-        return {
-          material: m,
-          placeholder: `![${filename}](uploading:${realUrl})`,
-          realUrl
-        };
-      });
-
-      const placeholderText = placeholders.map(p => p.placeholder).join('\n');
-      textareaRef.current?.insertAtCursor(placeholderText + '\n');
-
-      // 后台生成 caption 并替换
-      await Promise.all(placeholders.map(async ({ material, placeholder, realUrl }) => {
-        try {
-          const response = await getMaterialCaption(material.id);
-          const rawCaption = response.data?.caption || material.original_filename || material.filename || 'image';
-          const caption = escapeMarkdown(rawCaption);
-          const finalMarkdown = `![${caption}](${realUrl})`;
-          setEditPoints(prev => prev.replace(placeholder, finalMarkdown));
-        } catch (error) {
-          console.error('[OutlineCard] Failed to generate caption for', material.id, error);
-          const fallback = escapeMarkdown(material.original_filename || material.filename || 'image');
-          const fallbackMarkdown = `![${fallback}](${realUrl})`;
-          setEditPoints(prev => prev.replace(placeholder, fallbackMarkdown));
-        }
-      }));
-    } catch (error) {
-      console.error('[OutlineCard] Error in handleMaterialSelect:', error);
+  const handleMaterialSelect = useMaterialSelect({
+    insertAtCursor: (text) => textareaRef.current?.insertAtCursor(text),
+    setContent: setEditPoints,
+    onError: () => {
       showToast({ message: t('outlineCard.uploadingImage'), type: 'error' });
     }
-  }, [showToast, t, setEditPoints]);
+  });
 
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {

@@ -5,11 +5,12 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, type Material, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import { useMaterialSelect } from '@/hooks/useMaterialSelect';
 import { useT } from '@/hooks/useT';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
@@ -271,47 +272,13 @@ export const Home: React.FC = () => {
     insertAtCursor,
   });
 
-  const handleMaterialSelect = useCallback(async (materials: Material[]) => {
-    try {
-      const { getImageUrl } = await import('@/api/client');
-      const { getMaterialCaption } = await import('@/api/endpoints');
-      const { escapeMarkdown } = await import('@/hooks/useImagePaste');
-
-      // 立即插入占位符（使用 uploading: 前缀显示 loading 状态）
-      const placeholders = materials.map(m => {
-        const filename = m.original_filename || m.filename || 'image';
-        const realUrl = getImageUrl(m.url);
-        return {
-          material: m,
-          placeholder: `![${filename}](uploading:${realUrl})`,
-          realUrl
-        };
-      });
-
-      const placeholderText = placeholders.map(p => p.placeholder).join('\n');
-      textareaRef.current?.insertAtCursor(placeholderText + '\n');
-
-      // 后台异步生成 caption 并替换
-      await Promise.all(placeholders.map(async ({ material, placeholder, realUrl }) => {
-        try {
-          const response = await getMaterialCaption(material.id);
-          const rawCaption = response.data?.caption || material.original_filename || material.filename || 'image';
-          const caption = escapeMarkdown(rawCaption);
-          const finalMarkdown = `![${caption}](${realUrl})`;
-          setContent(prev => prev.replace(placeholder, finalMarkdown));
-        } catch (error) {
-          console.error('[Home] Failed to generate caption for', material.id, error);
-          // 失败时移除 uploading: 前缀
-          const fallback = escapeMarkdown(material.original_filename || material.filename || 'image');
-          const fallbackMarkdown = `![${fallback}](${realUrl})`;
-          setContent(prev => prev.replace(placeholder, fallbackMarkdown));
-        }
-      }));
-    } catch (error) {
-      console.error('[Home] Error in handleMaterialSelect:', error);
+  const handleMaterialSelect = useMaterialSelect({
+    insertAtCursor: (text) => textareaRef.current?.insertAtCursor(text),
+    setContent: setContent,
+    onError: () => {
       show({ message: '插入素材失败', type: 'error' });
     }
-  }, [show, setContent]);
+  });
 
   // 检测粘贴事件，图片走 hook，文档走独立逻辑
   const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {

@@ -2,10 +2,10 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, MessageSquare, ImageOff } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import { useMaterialSelect } from '@/hooks/useMaterialSelect';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
-import type { Material } from '@/api/endpoints';
 import type { Page, DescriptionContent } from '@/types';
 
 // DescriptionCard 组件自包含翻译
@@ -110,46 +110,13 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     insertAtCursor: (md) => activeInsertAtCursor.current?.(md),
   });
 
-  const handleMaterialSelect = useCallback(async (materials: Material[]) => {
-    try {
-      const { getImageUrl } = await import('@/api/client');
-      const { getMaterialCaption } = await import('@/api/endpoints');
-      const { escapeMarkdown } = await import('@/hooks/useImagePaste');
-
-      // 立即插入占位符（使用 uploading: 前缀显示 loading 状态）
-      const placeholders = materials.map(m => {
-        const filename = m.original_filename || m.filename || 'image';
-        const realUrl = getImageUrl(m.url);
-        return {
-          material: m,
-          placeholder: `![${filename}](uploading:${realUrl})`,
-          realUrl
-        };
-      });
-
-      const placeholderText = placeholders.map(p => p.placeholder).join('\n');
-      activeInsertAtCursor.current?.(placeholderText + '\n');
-
-      // 后台生成 caption 并替换
-      await Promise.all(placeholders.map(async ({ material, placeholder, realUrl }) => {
-        try {
-          const response = await getMaterialCaption(material.id);
-          const rawCaption = response.data?.caption || material.original_filename || material.filename || 'image';
-          const caption = escapeMarkdown(rawCaption);
-          const finalMarkdown = `![${caption}](${realUrl})`;
-          activeSetContent.current(prev => prev.replace(placeholder, finalMarkdown));
-        } catch (error) {
-          console.error('[DescriptionCard] Failed to generate caption for', material.id, error);
-          const fallback = escapeMarkdown(material.original_filename || material.filename || 'image');
-          const fallbackMarkdown = `![${fallback}](${realUrl})`;
-          activeSetContent.current(prev => prev.replace(placeholder, fallbackMarkdown));
-        }
-      }));
-    } catch (error) {
-      console.error('[DescriptionCard] Error in handleMaterialSelect:', error);
+  const handleMaterialSelect = useMaterialSelect({
+    insertAtCursor: (text) => activeInsertAtCursor.current?.(text),
+    setContent: (updater) => activeSetContent.current(updater),
+    onError: () => {
       showToast({ message: t('descriptionCard.uploadingImage'), type: 'error' });
     }
-  }, [showToast, t]);
+  });
 
   // Focus handlers to switch paste target
   const focusMainDesc = useCallback(() => {
