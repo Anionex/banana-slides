@@ -46,9 +46,6 @@ JWT_SECRET_KEY=your_jwt_secret_key_here_change_this
 # 支付配置 (可选)
 # XUNHUPAY_APP_ID=your_app_id
 # XUNHUPAY_APP_SECRET=your_app_secret
-
-# Docker Hub 用户名
-DOCKERHUB_USERNAME=anoinex
 EOF
 
 echo "📝 Created .env template. Please edit it with your configuration:"
