@@ -6,7 +6,6 @@ import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, Ma
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, type Material, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
-import { getImageUrl } from '@/api/client';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
@@ -272,10 +271,9 @@ export const Home: React.FC = () => {
     insertAtCursor,
   });
 
-  const handleMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials
-      .map(m => `![${m.original_filename || m.filename || 'image'}](${getImageUrl(m.url)})`)
-      .join('\n');
+  const handleMaterialSelect = useCallback(async (materials: Material[]) => {
+    const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
+    const markdown = await materialsToMarkdownWithCaption(materials);
     textareaRef.current?.insertAtCursor(markdown + '\n');
   }, []);
 

@@ -4,7 +4,6 @@ import { useT } from '@/hooks/useT';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, useConfirm, Markdown, ShimmerOverlay, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
-import { getImageUrl } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import type { Page } from '@/types';
 
@@ -79,10 +78,9 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
     insertAtCursor,
   });
 
-  const handleMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials
-      .map(m => `![${m.original_filename || m.filename || 'image'}](${getImageUrl(m.url)})`)
-      .join('\n');
+  const handleMaterialSelect = useCallback(async (materials: Material[]) => {
+    const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
+    const markdown = await materialsToMarkdownWithCaption(materials);
     textareaRef.current?.insertAtCursor(markdown + '\n');
   }, []);
 

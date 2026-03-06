@@ -561,3 +561,17 @@ def download_materials_zip():
         current_app.logger.exception("Failed to build materials zip")
         return error_response('SERVER_ERROR', 'Failed to create zip archive', 500)
 
+
+@material_global_bp.route('/<material_id>/caption', methods=['GET'])
+def get_material_caption(material_id):
+    """Generate caption for an existing material"""
+    material = Material.query.get(material_id)
+    if not material:
+        return not_found('Material')
+
+    file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+    filepath = file_service.get_absolute_path(material.relative_path)
+
+    caption = _generate_image_caption(filepath)
+    return success_response({'caption': caption})
+

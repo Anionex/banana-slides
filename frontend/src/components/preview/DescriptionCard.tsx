@@ -5,7 +5,6 @@ import { useImagePaste } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
-import { getImageUrl } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import type { Page, DescriptionContent } from '@/types';
 
@@ -86,10 +85,9 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     insertAtCursor,
   });
 
-  const handleMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials
-      .map(m => `![${m.original_filename || m.filename || 'image'}](${getImageUrl(m.url)})`)
-      .join('\n');
+  const handleMaterialSelect = useCallback(async (materials: Material[]) => {
+    const { materialsToMarkdownWithCaption } = await import('@/utils/markdown');
+    const markdown = await materialsToMarkdownWithCaption(materials);
     textareaRef.current?.insertAtCursor(markdown + '\n');
   }, []);
 
