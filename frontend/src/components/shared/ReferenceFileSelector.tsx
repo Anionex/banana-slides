@@ -18,6 +18,7 @@ const referenceFileSelectorI18n = {
       parseOnConfirm: "(确定后解析)", imageCaptionFailed: "{{count}} 张图片未能生成描述",
       autoParseHint: "选择未解析的文件将自动开始解析",
       cancel: "取消", confirm: "确定",
+      sortBy: "排序", sortNewest: "最新优先", sortOldest: "最旧优先", sortNameAsc: "文件名 A-Z", sortNameDesc: "文件名 Z-A",
       messages: {
         loadFailed: "加载参考文件列表失败", uploadSuccess: "成功上传 {{count}} 个文件", uploadFailed: "上传文件失败",
         cannotDelete: "无法删除：缺少文件ID", deleteSuccess: "文件删除成功", deleteFailed: "删除文件失败",
@@ -41,6 +42,7 @@ const referenceFileSelectorI18n = {
       parseOnConfirm: "(parse on confirm)", imageCaptionFailed: "{{count}} image(s) failed to generate captions",
       autoParseHint: "Selecting unparsed files will automatically start parsing",
       cancel: "Cancel", confirm: "Confirm",
+      sortBy: "Sort", sortNewest: "Newest First", sortOldest: "Oldest First", sortNameAsc: "Name A-Z", sortNameDesc: "Name Z-A",
       messages: {
         loadFailed: "Failed to load reference file list", uploadSuccess: "Successfully uploaded {{count}} file(s)", uploadFailed: "Failed to upload file",
         cannotDelete: "Cannot delete: Missing file ID", deleteSuccess: "File deleted successfully", deleteFailed: "Failed to delete file",
@@ -58,8 +60,10 @@ import {
   deleteReferenceFile,
   getReferenceFile,
   triggerFileParse,
+  listProjects,
   type ReferenceFile,
 } from '@/api/endpoints';
+import type { Project } from '@/types';
 
 interface ReferenceFileSelectorProps {
   projectId?: string | null; // 可选，如果不提供则使用全局文件
@@ -96,7 +100,9 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [parsingIds, setParsingIds] = useState<Set<string>>(new Set());
-  const [filterProjectId, setFilterProjectId] = useState<string>('all'); // 始终默认显示所有附件
+  const [filterProjectId, setFilterProjectId] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
+  const [projects, setProjects] = useState<Project[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialSelectedIdsRef = useRef(initialSelectedIds);
   const showRef = useRef(show);
@@ -149,10 +155,22 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     }
   }, [filterProjectId, parsingIds]);
 
+  // Load projects list
+  useEffect(() => {
+    if (isOpen) {
+      listProjects().then(response => {
+        if (response.data?.projects) {
+          setProjects(response.data.projects);
+        }
+      }).catch(error => {
+        console.error('Failed to load projects:', error);
+      });
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       loadFiles();
-      // 恢复初始选择
       setSelectedFiles(new Set(initialSelectedIdsRef.current));
     }
   }, [isOpen, filterProjectId, loadFiles]);
@@ -449,6 +467,21 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     }
   };
 
+  const sortedFiles = [...files].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'name-asc':
+        return a.filename.localeCompare(b.filename);
+      case 'name-desc':
+        return b.filename.localeCompare(a.filename);
+      default:
+        return 0;
+    }
+  });
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('referenceFile.title')} size="lg">
       <div className="space-y-4">
@@ -474,11 +507,23 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             >
               <option value="all">{t('referenceFile.allAttachments')}</option>
               <option value="none">{t('referenceFile.unclassified')}</option>
-              {projectId && projectId !== 'global' && projectId !== 'none' && (
-                <option value={projectId}>{t('referenceFile.currentProjectAttachments')}</option>
-              )}
+              {projects.map(project => (
+                <option key={project.id} value={project.id}>{project.title}</option>
+              ))}
             </select>
-            
+
+            {/* 排序下拉菜单 */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
+            >
+              <option value="newest">{t('referenceFile.sortNewest')}</option>
+              <option value="oldest">{t('referenceFile.sortOldest')}</option>
+              <option value="name-asc">{t('referenceFile.sortNameAsc')}</option>
+              <option value="name-desc">{t('referenceFile.sortNameDesc')}</option>
+            </select>
+
             <Button
               variant="ghost"
               size="sm"
@@ -532,7 +577,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-border-primary">
-              {files.map((file) => {
+              {sortedFiles.map((file) => {
                 const isSelected = selectedFiles.has(file.id);
                 const isDeleting = deletingIds.has(file.id);
                 const isPending = file.parse_status === 'pending';
