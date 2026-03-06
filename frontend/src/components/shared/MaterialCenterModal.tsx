@@ -242,7 +242,7 @@ const ToolbarSection: React.FC<{
             const nextIndex = (currentIndex + 1) % order.length;
             dispatch({ type: 'SET_SORT', value: order[nextIndex] });
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary hover:bg-gray-100 dark:hover:bg-background-hover rounded-md transition-colors"
         >
           <ArrowUpDown size={14} />
           <span>
