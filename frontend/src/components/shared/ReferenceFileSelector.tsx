@@ -499,30 +499,99 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 项目筛选下拉菜单 */}
-            <select
-              value={filterProjectId}
-              onChange={(e) => setFilterProjectId(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
-            >
-              <option value="all">{t('referenceFile.allAttachments')}</option>
-              <option value="none">{t('referenceFile.unclassified')}</option>
-              {projects.map(project => (
-                <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
+            {/* 项目筛选按钮组 */}
+            <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
+              <button
+                onClick={() => setFilterProjectId('all')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  filterProjectId === 'all'
+                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                }`}
+              >
+                {t('referenceFile.allAttachments')}
+              </button>
+              <button
+                onClick={() => setFilterProjectId('none')}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  filterProjectId === 'none'
+                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                }`}
+              >
+                {t('referenceFile.unclassified')}
+              </button>
+              {projects.slice(0, 3).map(project => (
+                <button
+                  key={project.project_id}
+                  onClick={() => setFilterProjectId(project.project_id)}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors truncate max-w-[120px] ${
+                    filterProjectId === project.project_id
+                      ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                      : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                  }`}
+                  title={project.idea_prompt}
+                >
+                  {project.idea_prompt}
+                </button>
               ))}
-            </select>
+              {projects.length > 3 && (
+                <select
+                  value={filterProjectId}
+                  onChange={(e) => setFilterProjectId(e.target.value)}
+                  className="px-2 py-1 text-xs bg-transparent border-0 focus:outline-none text-gray-600 dark:text-foreground-tertiary cursor-pointer"
+                >
+                  <option value="">+{projects.length - 3}</option>
+                  {projects.slice(3).map(project => (
+                    <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
+                  ))}
+                </select>
+              )}
+            </div>
 
-            {/* 排序下拉菜单 */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
-            >
-              <option value="newest">{t('referenceFile.sortNewest')}</option>
-              <option value="oldest">{t('referenceFile.sortOldest')}</option>
-              <option value="name-asc">{t('referenceFile.sortNameAsc')}</option>
-              <option value="name-desc">{t('referenceFile.sortNameDesc')}</option>
-            </select>
+            {/* 排序按钮组 */}
+            <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
+              <button
+                onClick={() => setSortBy('newest')}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  sortBy === 'newest'
+                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                }`}
+              >
+                {t('referenceFile.sortNewest')}
+              </button>
+              <button
+                onClick={() => setSortBy('oldest')}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  sortBy === 'oldest'
+                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                }`}
+              >
+                {t('referenceFile.sortOldest')}
+              </button>
+              <button
+                onClick={() => setSortBy('name-asc')}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  sortBy === 'name-asc'
+                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                }`}
+              >
+                A-Z
+              </button>
+              <button
+                onClick={() => setSortBy('name-desc')}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  sortBy === 'name-desc'
+                    ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                    : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+                }`}
+              >
+                Z-A
+              </button>
+            </div>
 
             <Button
               variant="ghost"

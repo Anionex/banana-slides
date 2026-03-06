@@ -83,9 +83,9 @@ interface State {
   uploading: boolean;
   downloading: boolean;
   filter: string;
+  sortBy: 'newest' | 'oldest' | 'name-asc' | 'name-desc';
   projects: Project[];
   projectsReady: boolean;
-  showAllProjects: boolean;
   preview: { url: string; label: string } | null;
 }
 
@@ -98,8 +98,8 @@ type Action =
   | { type: 'SET_UPLOADING'; on: boolean }
   | { type: 'SET_DOWNLOADING'; on: boolean }
   | { type: 'SET_FILTER'; value: string }
+  | { type: 'SET_SORT'; value: State['sortBy'] }
   | { type: 'SET_PROJECTS'; list: Project[] }
-  | { type: 'EXPAND_PROJECTS' }
   | { type: 'REMOVE_ITEM'; key: string }
   | { type: 'ADD_DELETING'; id: string }
   | { type: 'REMOVE_DELETING'; id: string }
@@ -114,9 +114,9 @@ const initial: State = {
   uploading: false,
   downloading: false,
   filter: 'all',
+  sortBy: 'newest',
   projects: [],
   projectsReady: false,
-  showAllProjects: false,
   preview: null,
 };
 
@@ -141,10 +141,10 @@ function reducer(s: State, a: Action): State {
       return { ...s, downloading: a.on };
     case 'SET_FILTER':
       return { ...s, filter: a.value };
+    case 'SET_SORT':
+      return { ...s, sortBy: a.value };
     case 'SET_PROJECTS':
       return { ...s, projects: a.list, projectsReady: true };
-    case 'EXPAND_PROJECTS':
-      return { ...s, showAllProjects: true };
     case 'REMOVE_ITEM': {
       const items = s.items.filter((m) => m.id !== a.key);
       const selected = new Set(s.selected);
@@ -219,32 +219,99 @@ const ToolbarSection: React.FC<{
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <select
-          value={state.filter}
-          onChange={(e) => {
-            if (e.target.value === '_expand') {
-              dispatch({ type: 'EXPAND_PROJECTS' });
-              return;
-            }
-            dispatch({ type: 'SET_FILTER', value: e.target.value });
-          }}
-          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 w-40 sm:w-48 max-w-[200px] truncate"
-        >
-          <option value="all">{t('mc.filterAll')}</option>
-          <option value="none">{t('mc.filterNone')}</option>
-          {state.showAllProjects ? (
-            <>
-              <option disabled>───────────</option>
-              {state.projects.map((p) => (
-                <option key={p.project_id} value={p.project_id} title={p.idea_prompt || p.outline_text}>
-                  {projectLabel(p)}
-                </option>
+        {/* 项目筛选按钮组 */}
+        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
+          <button
+            onClick={() => dispatch({ type: 'SET_FILTER', value: 'all' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              state.filter === 'all'
+                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+            }`}
+          >
+            {t('mc.filterAll')}
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'SET_FILTER', value: 'none' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              state.filter === 'none'
+                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+            }`}
+          >
+            {t('mc.filterNone')}
+          </button>
+          {state.projects.slice(0, 3).map((p) => (
+            <button
+              key={p.project_id}
+              onClick={() => dispatch({ type: 'SET_FILTER', value: p.project_id })}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors truncate max-w-[120px] ${
+                state.filter === p.project_id
+                  ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                  : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+              }`}
+              title={p.idea_prompt || p.outline_text}
+            >
+              {projectLabel(p)}
+            </button>
+          ))}
+          {state.projects.length > 3 && (
+            <select
+              value={state.filter}
+              onChange={(e) => dispatch({ type: 'SET_FILTER', value: e.target.value })}
+              className="px-2 py-1 text-xs bg-transparent border-0 focus:outline-none text-gray-600 dark:text-foreground-tertiary cursor-pointer"
+            >
+              <option value="">+{state.projects.length - 3}</option>
+              {state.projects.slice(3).map((p) => (
+                <option key={p.project_id} value={p.project_id}>{projectLabel(p)}</option>
               ))}
-            </>
-          ) : (
-            state.projects.length > 0 && <option value="_expand">{t('mc.moreProjects')}</option>
+            </select>
           )}
-        </select>
+        </div>
+
+        {/* 排序按钮组 */}
+        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-background-secondary rounded-lg">
+          <button
+            onClick={() => dispatch({ type: 'SET_SORT', value: 'newest' })}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              state.sortBy === 'newest'
+                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+            }`}
+          >
+            最新
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'SET_SORT', value: 'oldest' })}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              state.sortBy === 'oldest'
+                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+            }`}
+          >
+            最旧
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'SET_SORT', value: 'name-asc' })}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              state.sortBy === 'name-asc'
+                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+            }`}
+          >
+            A-Z
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'SET_SORT', value: 'name-desc' })}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              state.sortBy === 'name-desc'
+                ? 'bg-white dark:bg-background-primary text-banana-600 shadow-sm'
+                : 'text-gray-600 dark:text-foreground-tertiary hover:text-gray-900 dark:hover:text-foreground-primary'
+            }`}
+          >
+            Z-A
+          </button>
+        </div>
 
         <Button variant="ghost" size="sm" icon={<RefreshCw size={16} />} onClick={onRefresh} disabled={state.loading}>
           {t('common.refresh')}
@@ -497,6 +564,21 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
     dispatch({ type: 'SET_PREVIEW', preview: { url: getImageUrl(m.url), label: displayName(m) } });
   };
 
+  const sortedItems = [...s.items].sort((a, b) => {
+    switch (s.sortBy) {
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'name-asc':
+        return displayName(a).localeCompare(displayName(b));
+      case 'name-desc':
+        return displayName(b).localeCompare(displayName(a));
+      default:
+        return 0;
+    }
+  });
+
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={t('mc.title')} size="lg">
@@ -515,7 +597,7 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
             </div>
           ) : (
             <MaterialGrid
-              items={s.items}
+              items={sortedItems}
               selected={s.selected}
               deleting={s.deleting}
               t={t}
