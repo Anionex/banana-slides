@@ -125,9 +125,9 @@ export const useConfirm = () => {
     setConfig(null);
   }, []);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback((checkboxValue?: boolean) => {
     if (config?.onConfirm) {
-      config.onConfirm(config.checkboxLabel ? undefined : undefined);
+      config.onConfirm(checkboxValue);
     }
     close();
   }, [config, close]);

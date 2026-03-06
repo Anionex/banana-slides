@@ -656,7 +656,7 @@ const debouncedUpdatePage = debounce(
           set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
           streamDone = true;
         },
-      }, undefined, lockPageCount);
+      }, undefined /* language */, lockPageCount);
 
       streamDone = true;
       await renderPromise;
