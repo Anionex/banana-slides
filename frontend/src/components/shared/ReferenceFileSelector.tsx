@@ -503,7 +503,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             <select
               value={filterProjectId}
               onChange={(e) => setFilterProjectId(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-foreground-secondary bg-transparent hover:bg-gray-100 dark:hover:bg-background-hover rounded-md focus:outline-none focus:ring-2 focus:ring-banana-500 transition-colors cursor-pointer"
             >
               <option value="all">{t('referenceFile.allAttachments')}</option>
               <option value="none">{t('referenceFile.unclassified')}</option>
