@@ -5,6 +5,7 @@ import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import { useMaterialSelect } from '@/hooks/useMaterialSelect';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -98,7 +99,7 @@ const detailI18n = {
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
@@ -281,6 +282,15 @@ export const DetailEditor: React.FC = () => {
   const [isDescReqOpen, setIsDescReqOpen] = useState(
     () => localStorage.getItem('descReqOpen') !== 'false'
   );
+
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+  const handleMaterialSelect = useMaterialSelect({
+    insertAtCursor: (text) => reqTextareaRef.current?.insertAtCursor(text),
+    setContent: setDescRequirements,
+    onError: () => {
+      show({ message: t('detail.uploadingImage') || '插入素材失败', type: 'error' });
+    }
+  });
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -901,6 +911,7 @@ export const DetailEditor: React.FC = () => {
                 onChange={(val) => { setDescRequirements(val); setIsDescReqDirty(true); }}
                 onPaste={handleReqImagePaste}
                 onFiles={handleReqImageFiles}
+                onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
                 placeholder={t('detail.descRequirementsPlaceholder')}
                 className="ring-inset"
                 rows={2}
@@ -994,6 +1005,13 @@ export const DetailEditor: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
+      />
     </div>
   );
 };
