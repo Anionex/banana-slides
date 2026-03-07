@@ -44,6 +44,20 @@ from services.pdf_service import split_pdf_to_pages
 logger = logging.getLogger(__name__)
 
 
+def _mark_task_failed(task_id: str, error: Exception):
+    """Safely mark a task as FAILED in the database, handling DB errors gracefully."""
+    try:
+        db.session.rollback()
+        task = Task.query.get(task_id)
+        if task:
+            task.status = 'FAILED'
+            task.error_message = str(error)
+            task.completed_at = datetime.utcnow()
+            db.session.commit()
+    except Exception as db_err:
+        logger.error(f"Failed to mark task {task_id} as FAILED in DB: {db_err}")
+
+
 class TaskManager:
     """Simple task manager using ThreadPoolExecutor"""
     
@@ -311,13 +325,8 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 logger.info(f"Project {project_id} status updated to DESCRIPTIONS_GENERATED")
         
         except Exception as e:
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
+            logger.error(f"Task {task_id} FAILED: {e}", exc_info=True)
+            _mark_task_failed(task_id, e)
 
 
 def generate_images_task(task_id: str, project_id: str, ai_service, file_service,
@@ -471,6 +480,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
+                        try:
+                            db.session.rollback()
+                        except Exception as db_err:
+                            logger.warning(f"Failed to rollback session for page {page_id}: {db_err}")
                         return (page_id, None, str(e), None)
             
             # Use ThreadPoolExecutor for parallel generation
@@ -538,13 +551,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 logger.info(f"Project {project_id} status updated to COMPLETED")
         
         except Exception as e:
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
+            logger.error(f"Task {task_id} FAILED: {e}", exc_info=True)
+            _mark_task_failed(task_id, e)
 
 
 def generate_single_page_image_task(task_id: str, project_id: str, page_id: str, 
@@ -657,23 +665,16 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
         
         except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"Task {task_id} FAILED: {error_detail}")
-            
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
-            
-            # Update page status
-            page = Page.query.get(page_id)
-            if page:
-                page.status = 'FAILED'
-                db.session.commit()
+            logger.error(f"Task {task_id} FAILED: {e}", exc_info=True)
+            _mark_task_failed(task_id, e)
+
+            try:
+                page = Page.query.get(page_id)
+                if page:
+                    page.status = 'FAILED'
+                    db.session.commit()
+            except Exception:
+                pass
 
 
 def edit_page_image_task(task_id: str, project_id: str, page_id: str,
@@ -756,31 +757,24 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
         
         except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"Task {task_id} FAILED: {error_detail}")
-            
+            logger.error(f"Task {task_id} FAILED: {e}", exc_info=True)
+
             # Clean up temp directory on error
             if temp_dir:
                 import shutil
-                from pathlib import Path
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir)
-            
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
-            
-            # Update page status
-            page = Page.query.get(page_id)
-            if page:
-                page.status = 'FAILED'
-                db.session.commit()
+
+            _mark_task_failed(task_id, e)
+
+            try:
+                page = Page.query.get(page_id)
+                if page:
+                    page.status = 'FAILED'
+                    db.session.commit()
+            except Exception:
+                pass
 
 
 def generate_material_image_task(task_id: str, project_id: str, prompt: str,
@@ -859,18 +853,9 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
             logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} generated")
         
         except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"Task {task_id} FAILED: {error_detail}")
-            
-            # Mark task as failed
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
-        
+            logger.error(f"Task {task_id} FAILED: {e}", exc_info=True)
+            _mark_task_failed(task_id, e)
+
         finally:
             # Clean up temp directory
             if temp_dir:
@@ -1109,22 +1094,16 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             logger.info(f"Task {task_id} COMPLETED - PPT renovation processed {page_count} pages")
 
         except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"Task {task_id} FAILED: {error_detail}")
+            logger.error(f"Task {task_id} FAILED: {e}", exc_info=True)
+            _mark_task_failed(task_id, e)
 
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-
-            # Reset project status so user can retry
-            project = Project.query.get(project_id)
-            if project:
-                project.status = 'DRAFT'
-
-            db.session.commit()
+            try:
+                project = Project.query.get(project_id)
+                if project:
+                    project.status = 'DRAFT'
+                    db.session.commit()
+            except Exception:
+                pass
 
 
 def export_editable_pptx_with_recursive_analysis_task(
@@ -1339,44 +1318,31 @@ def export_editable_pptx_with_recursive_analysis_task(
                 logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")
 
         except ExportError as e:
-            # 导出错误（fail_fast 模式下的详细错误）
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"✗ 任务 {task_id} 导出失败: {e.message}")
-            logger.error(f"错误类型: {e.error_type}, 详情: {e.details}")
-
-            # 标记任务失败，包含详细错误信息
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                # 构建详细的错误消息
-                error_message = f"{e.message}"
-                if e.help_text:
-                    error_message += f"\n\n💡 {e.help_text}"
-                task.error_message = error_message
-                task.completed_at = datetime.utcnow()
-                # 在 progress 中保存详细错误信息
-                task.set_progress({
-                    "total": 100,
-                    "completed": 0,
-                    "failed": 1,
-                    "current_step": "导出失败",
-                    "percent": 0,
-                    "error_type": e.error_type,
-                    "error_details": e.details,
-                    "help_text": e.help_text
-                })
-                db.session.commit()
+            logger.error(f"✗ 任务 {task_id} 导出失败: {e.message}, 类型: {e.error_type}")
+            try:
+                db.session.rollback()
+                task = Task.query.get(task_id)
+                if task:
+                    task.status = 'FAILED'
+                    error_message = f"{e.message}"
+                    if e.help_text:
+                        error_message += f"\n\n💡 {e.help_text}"
+                    task.error_message = error_message
+                    task.completed_at = datetime.utcnow()
+                    task.set_progress({
+                        "total": 100,
+                        "completed": 0,
+                        "failed": 1,
+                        "current_step": "导出失败",
+                        "percent": 0,
+                        "error_type": e.error_type,
+                        "error_details": e.details,
+                        "help_text": e.help_text
+                    })
+                    db.session.commit()
+            except Exception as db_err:
+                logger.error(f"Failed to mark export task {task_id} as FAILED: {db_err}")
 
         except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
-            
-            # 标记任务失败
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
+            logger.error(f"✗ 任务 {task_id} 失败: {e}", exc_info=True)
+            _mark_task_failed(task_id, e)
