@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown } from 'lucide-react';
+import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, ArrowUpDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, useToast, Modal } from '@/components/shared';
 
@@ -98,7 +98,6 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [parsingIds, setParsingIds] = useState<Set<string>>(new Set());
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
@@ -502,9 +501,6 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                 {t('referenceFile.selectedCount', { count: selectedFiles.size })}
               </span>
             )}
-            {isLoading && files.length > 0 && (
-              <RefreshCw size={14} className="animate-spin text-gray-400" />
-            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* 项目筛选下拉框 */}
@@ -569,12 +565,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
         {/* 文件列表 */}
         <div className="border border-gray-200 dark:border-border-primary rounded-lg max-h-96 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-              <span className="ml-2 text-gray-500 dark:text-foreground-tertiary">{t('referenceFile.loading')}</span>
-            </div>
-          ) : files.length === 0 ? (
+          {files.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
               <FileText className="w-12 h-12 mb-2" />
               <p>{t('referenceFile.noRefFiles')}</p>
