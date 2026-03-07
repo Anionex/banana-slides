@@ -195,10 +195,9 @@ const ToolbarSection: React.FC<{
   t: ReturnType<typeof useT>;
   state: State;
   dispatch: React.Dispatch<Action>;
-  onRefresh: () => void;
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDownload: () => void;
-}> = ({ t, state, dispatch, onRefresh, onUpload, onDownload }) => (
+}> = ({ t, state, dispatch, onUpload, onDownload }) => (
   <div className="space-y-2">
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -252,10 +251,6 @@ const ToolbarSection: React.FC<{
             {state.sortBy === 'name-desc' && 'Z-A'}
           </span>
         </button>
-
-        <Button variant="ghost" size="sm" icon={<RefreshCw size={16} />} onClick={onRefresh} disabled={state.loading}>
-          {t('common.refresh')}
-        </Button>
 
         <label className="inline-block cursor-pointer">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-foreground-secondary bg-white dark:bg-background-secondary border border-gray-300 dark:border-border-primary rounded-md hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-50 disabled:cursor-not-allowed">
@@ -523,7 +518,7 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={t('mc.title')} size="lg">
         <div className="space-y-4">
-          <ToolbarSection t={t} state={s} dispatch={dispatch} onRefresh={fetchItems} onUpload={handleUpload} onDownload={handleDownload} />
+          <ToolbarSection t={t} state={s} dispatch={dispatch} onUpload={handleUpload} onDownload={handleDownload} />
 
           {s.loading && s.items.length === 0 ? (
             <div className="flex items-center justify-center py-12">
