@@ -100,8 +100,8 @@ test.describe('MarkdownTextarea upload dropdown - Home (mock)', () => {
     await imageBtn.click()
     await expect(page.getByText(/Local upload|本地上传/)).toBeVisible()
 
-    // Click on the editor area to dismiss
-    await page.locator('[contenteditable="true"]').first().click()
+    // Click on the backdrop to dismiss
+    await page.locator('.fixed.inset-0').first().click()
     await expect(page.getByText(/Local upload|本地上传/)).not.toBeVisible()
   })
 
