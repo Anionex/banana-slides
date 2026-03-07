@@ -69,6 +69,16 @@ export const getProjectTitle = (project: Project): string => {
 };
 
 /**
+ * 获取项目标题（带长度限制）
+ * @param project 项目对象
+ * @param maxLength 最大长度，默认30
+ */
+export const getProjectTitleTruncated = (project: Project, maxLength: number = 30): string => {
+  const title = getProjectTitle(project);
+  return title.length > maxLength ? `${title.slice(0, maxLength)}…` : title;
+};
+
+/**
  * 获取第一页图片URL
  */
 export const getFirstPageImage = (project: Project): string | null => {

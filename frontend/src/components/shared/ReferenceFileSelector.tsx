@@ -58,8 +58,11 @@ import {
   deleteReferenceFile,
   getReferenceFile,
   triggerFileParse,
+  listProjects,
   type ReferenceFile,
 } from '@/api/endpoints';
+import type { Project } from '@/types';
+import { getProjectTitleTruncated } from '@/utils/projectUtils';
 
 interface ReferenceFileSelectorProps {
   projectId?: string | null; // 可选，如果不提供则使用全局文件
@@ -96,7 +99,9 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [parsingIds, setParsingIds] = useState<Set<string>>(new Set());
-  const [filterProjectId, setFilterProjectId] = useState<string>('all'); // 始终默认显示所有附件
+  const [filterProjectId, setFilterProjectId] = useState<string>('all');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialSelectedIdsRef = useRef(initialSelectedIds);
   const showRef = useRef(show);
@@ -149,13 +154,32 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
     }
   }, [filterProjectId, parsingIds]);
 
+  const loadProjects = async () => {
+    try {
+      const response = await listProjects(100, 0);
+      if (response.data?.projects) {
+        setProjects(response.data.projects);
+        setProjectsLoaded(true);
+      }
+    } catch (error: any) {
+      console.error('Failed to load projects:', error);
+    }
+  };
+
+  const renderProjectLabel = (p: Project) => {
+    return getProjectTitleTruncated(p, 30);
+  };
+
   useEffect(() => {
     if (isOpen) {
+      if (!projectsLoaded) {
+        loadProjects();
+      }
       loadFiles();
       // 恢复初始选择
       setSelectedFiles(new Set(initialSelectedIdsRef.current));
     }
-  }, [isOpen, filterProjectId, loadFiles]);
+  }, [isOpen, filterProjectId, loadFiles, projectsLoaded]);
 
   // 轮询解析状态
   useEffect(() => {
@@ -470,12 +494,14 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
             <select
               value={filterProjectId}
               onChange={(e) => setFilterProjectId(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500"
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-border-primary rounded-md bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 max-w-[200px] truncate"
             >
               <option value="all">{t('referenceFile.allAttachments')}</option>
               <option value="none">{t('referenceFile.unclassified')}</option>
               {projectId && projectId !== 'global' && projectId !== 'none' && (
-                <option value={projectId}>{t('referenceFile.currentProjectAttachments')}</option>
+                <option value={projectId}>
+                  {t('referenceFile.currentProjectAttachments')}{projects.find(p => p.project_id === projectId) ? `: ${renderProjectLabel(projects.find(p => p.project_id === projectId)!)}` : ''}
+                </option>
               )}
             </select>
             

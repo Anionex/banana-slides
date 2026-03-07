@@ -44,6 +44,7 @@ const materialSelectorI18n = {
 import type { Project } from '@/types';
 import { getImageUrl } from '@/api/client';
 import { MaterialGeneratorModal } from './MaterialGeneratorModal';
+import { getProjectTitleTruncated } from '@/utils/projectUtils';
 
 interface MaterialSelectorProps {
   projectId?: string;
@@ -250,8 +251,7 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
   };
 
   const renderProjectLabel = (p: Project) => {
-    const text = p.idea_prompt || p.outline_text || `Project ${p.project_id.slice(0, 8)}`;
-    return text.length > 20 ? `${text.slice(0, 20)}…` : text;
+    return getProjectTitleTruncated(p, 30);
   };
 
   return (

@@ -35,10 +35,13 @@ export interface SeededProject {
 /**
  * Create a project with N pages, each having a real image on disk.
  * @param baseUrl - Backend base URL, e.g. "http://localhost:5441"
+ * @param pageCount - Number of pages to create
+ * @param customTitle - Optional custom title for the first page
  */
 export async function seedProjectWithImages(
   baseUrl: string,
-  pageCount = 1
+  pageCount = 1,
+  customTitle?: string
 ): Promise<SeededProject> {
   const post = async (urlPath: string, body: object) => {
     const resp = await fetch(`${baseUrl}${urlPath}`, {
@@ -57,8 +60,9 @@ export async function seedProjectWithImages(
   fs.mkdirSync(path.join(UPLOADS, projectId, 'pages'), { recursive: true })
 
   for (let i = 0; i < pageCount; i++) {
+    const title = (i === 0 && customTitle) ? customTitle : `Slide ${i + 1}`;
     const pageId = (await post(`/api/projects/${projectId}/pages`, {
-      order_index: i, outline_content: { title: `Slide ${i + 1}` },
+      order_index: i, outline_content: { title },
     })).data?.page_id
     pageIds.push(pageId)
 
