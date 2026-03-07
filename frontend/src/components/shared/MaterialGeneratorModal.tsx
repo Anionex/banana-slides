@@ -5,7 +5,7 @@ import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
 import { Button } from './Button';
 import { useToast } from './Toast';
-import { MaterialSelector, materialUrlToFile } from './MaterialSelector';
+import { MaterialModal, materialUrlToFile } from './MaterialModal';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { useProjectStore } from '@/store/useProjectStore';
 
@@ -466,7 +466,8 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           </Button>
         </div>
       </div>
-      <MaterialSelector
+      <MaterialModal
+        mode="select"
         projectId={projectId}
         isOpen={isMaterialSelectorOpen}
         onClose={() => setIsMaterialSelectorOpen(false)}
