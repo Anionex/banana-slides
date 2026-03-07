@@ -164,11 +164,11 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialModal, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
-import { materialUrlToFile } from '@/components/shared/MaterialSelector';
+import { materialUrlToFile } from '@/components/shared';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -2131,7 +2131,8 @@ export const SlidePreview: React.FC = () => {
             onClose={() => setIsMaterialModalOpen(false)}
           />
           {/* 素材选择器 */}
-          <MaterialSelector
+          <MaterialModal
+            mode="select"
             projectId={projectId}
             isOpen={isMaterialSelectorOpen}
             onClose={() => setIsMaterialSelectorOpen(false)}
