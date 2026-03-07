@@ -643,7 +643,7 @@ export const OutlineEditor: React.FC = () => {
           />
         </button>
         <div
-          className="overflow-hidden transition-all duration-200 ease-in-out"
+          className={`transition-all duration-200 ease-in-out ${isRequirementsOpen ? 'overflow-visible' : 'overflow-hidden'}`}
           style={{ maxHeight: isRequirementsOpen ? '600px' : '0px' }}
         >
           <div className="px-3 md:px-6 pb-3">
