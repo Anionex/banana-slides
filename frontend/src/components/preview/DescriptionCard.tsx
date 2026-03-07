@@ -1,11 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, MessageSquare, ImageOff } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { useImagePaste } from '@/hooks/useImagePaste';
-import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown } from '@/components/shared';
+import { useImagePaste, escapeMarkdown } from '@/hooks/useImagePaste';
+import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
-import type { Page, DescriptionContent } from '@/types';
+import type { Page, DescriptionContent, Material } from '@/types';
 
 // DescriptionCard 组件自包含翻译
 const descriptionCardI18n = {
@@ -91,6 +91,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [editExtraFields, setEditExtraFields] = useState<Record<string, string>>({});
   const textareaRef = useRef<MarkdownTextareaRef>(null);
   const extraFieldRefs = useRef<Record<string, MarkdownTextareaRef | null>>({});
@@ -107,6 +108,14 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
     showToast: showToast,
     insertAtCursor: (md) => activeInsertAtCursor.current?.(md),
   });
+
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = materials.map(m => {
+      const caption = m.caption || m.original_filename || m.filename || 'image';
+      return `![${escapeMarkdown(caption)}](${m.url})`;
+    }).join('\n');
+    activeInsertAtCursor.current?.(markdown + '\n');
+  }, []);
 
   // Focus handlers to switch paste target
   const focusMainDesc = useCallback(() => {
@@ -263,6 +272,7 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
             onChange={setEditContent}
             onPaste={handlePaste}
             onFiles={handleFiles}
+            onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
             onFocus={focusMainDesc}
             rows={6}
             placeholder={t('descriptionCard.descriptionPlaceholder')}
@@ -293,6 +303,14 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
           </div>
         </div>
       </Modal>
+
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
+      />
     </>
   );
 }, (prev, next) =>

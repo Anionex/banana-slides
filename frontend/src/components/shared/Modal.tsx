@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
 
@@ -70,12 +71,12 @@ export const Modal: React.FC<ModalProps> = ({
     full: 'max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-4rem)]',
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
       {/* 遮罩 */}
       <div
         className={cn(
-          'fixed inset-0 transition-all duration-300',
+          'fixed inset-0 z-0 transition-all duration-300',
           'bg-gradient-to-br from-black/50 via-black/40 to-black/50',
           'backdrop-blur-md',
           isAnimating ? 'opacity-100' : 'opacity-0'
@@ -86,7 +87,7 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* 容器 */}
       <div
-        className="relative flex min-h-full items-center justify-center p-4 sm:p-6"
+        className="relative z-10 flex min-h-full items-center justify-center p-4 sm:p-6"
         onClick={handleBackdropClick}
       >
         <div
@@ -176,6 +177,7 @@ export const Modal: React.FC<ModalProps> = ({
           <div className="absolute -bottom-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent" />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

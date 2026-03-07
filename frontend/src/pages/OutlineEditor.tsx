@@ -90,12 +90,14 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineOutline, updateProject, addPage } from '@/api/endpoints';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import { escapeMarkdown } from '@/hooks/useImagePaste';
+import type { Material } from '@/types';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import type { Page } from '@/types';
 
@@ -193,6 +195,29 @@ export const OutlineEditor: React.FC = () => {
   const [isRequirementsOpen, setIsRequirementsOpen] = useState(
     () => localStorage.getItem('outlineReqOpen') !== 'false'
   );
+
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+  const [activeMaterialTarget, setActiveMaterialTarget] = useState<'input' | 'requirements'>('input');
+
+  const handleInputMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = materials.map(m => {
+      const caption = m.caption || m.original_filename || m.filename || 'image';
+      return `![${escapeMarkdown(caption)}](${m.url})`;
+    }).join('\n');
+    if (window.innerWidth >= 768) {
+      desktopTextareaRef.current?.insertAtCursor(markdown + '\n');
+    } else {
+      mobileTextareaRef.current?.insertAtCursor(markdown + '\n');
+    }
+  }, []);
+
+  const handleReqMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = materials.map(m => {
+      const caption = m.caption || m.original_filename || m.filename || 'image';
+      return `![${escapeMarkdown(caption)}](${m.url})`;
+    }).join('\n');
+    reqTextareaRef.current?.insertAtCursor(markdown + '\n');
+  }, []);
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -617,7 +642,7 @@ export const OutlineEditor: React.FC = () => {
           />
         </button>
         <div
-          className="overflow-hidden transition-all duration-200 ease-in-out"
+          className={`transition-all duration-200 ease-in-out ${isRequirementsOpen ? 'overflow-visible' : 'overflow-hidden'}`}
           style={{ maxHeight: isRequirementsOpen ? '600px' : '0px' }}
         >
           <div className="px-3 md:px-6 pb-3">
@@ -628,6 +653,7 @@ export const OutlineEditor: React.FC = () => {
                 onChange={(val) => { setOutlineRequirements(val); setIsRequirementsDirty(true); }}
                 onPaste={handleReqImagePaste}
                 onFiles={handleReqImageFiles}
+                onSelectFromLibrary={() => { setActiveMaterialTarget('requirements'); setIsMaterialSelectorOpen(true); }}
                 placeholder={t('outline.outlineRequirementsPlaceholder')}
                 className="ring-inset"
                 rows={2}
@@ -683,6 +709,7 @@ export const OutlineEditor: React.FC = () => {
                 onBlur={handleSaveInputText}
                 onPaste={handleImagePaste}
                 onFiles={handleImageFiles}
+                onSelectFromLibrary={() => { setActiveMaterialTarget('input'); setIsMaterialSelectorOpen(true); }}
                 placeholder={inputPlaceholder}
                 rows={12}
                 className="border-0 rounded-none shadow-none"
@@ -724,6 +751,7 @@ export const OutlineEditor: React.FC = () => {
               onBlur={handleSaveInputText}
               onPaste={handleImagePaste}
               onFiles={handleImageFiles}
+              onSelectFromLibrary={() => { setActiveMaterialTarget('input'); setIsMaterialSelectorOpen(true); }}
               placeholder={inputPlaceholder}
               rows={6}
               className="border-0 rounded-none shadow-none"
@@ -816,6 +844,13 @@ export const OutlineEditor: React.FC = () => {
       {ConfirmDialog}
       <ToastContainer />
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={activeMaterialTarget === 'input' ? handleInputMaterialSelect : handleReqMaterialSelect}
+        multiple
+      />
     </div>
   );
 };
