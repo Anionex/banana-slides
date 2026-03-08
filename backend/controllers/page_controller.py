@@ -782,7 +782,7 @@ def regenerate_renovation_page(project_id, page_id):
             ai_provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
             openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
             openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-            image_caption_model=current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview'),
+            image_caption_model=current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3.1-flash-image-preview'),
             lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', ''),
             upload_folder=current_app.config.get('UPLOAD_FOLDER', 'uploads')
         )

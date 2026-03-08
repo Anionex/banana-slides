@@ -474,7 +474,7 @@ def verify_api_key():
                 settings.text_model
                 or current_app.config.get("TEXT_MODEL")
                 or Config.TEXT_MODEL
-                or "gemini-3-flash-preview"
+                or "gemini-3.1-flash-image-preview"
             )
 
             # 尝试创建provider并调用一个简单的测试请求

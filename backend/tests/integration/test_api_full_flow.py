@@ -20,6 +20,7 @@ import requests
 import time
 import os
 import io
+import hashlib
 from pathlib import Path
 from PIL import Image
 
@@ -31,8 +32,39 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-BASE_URL = "http://localhost:5000"
+FAST_TEST_MODEL = os.environ.get("TEST_GEMINI_MODEL", "gemini-3.1-flash-image-preview")
+
+
+def _compute_worktree_port(base_port: int) -> int:
+    repo_root = Path(__file__).resolve().parents[3]
+    basename = repo_root.name
+    offset = int(hashlib.md5(basename.encode()).hexdigest()[:8], 16) % 500
+    return base_port + offset
+
+
+BASE_URL = os.environ.get("BACKEND_BASE_URL") or f"http://localhost:{os.environ.get('BACKEND_PORT') or _compute_worktree_port(5000)}"
 API_TIMEOUT = 180  # 3 minutes timeout for AI operations
+
+
+def configure_fast_test_models():
+    """Pin the real-service integration test to a low-cost Gemini model."""
+    response = requests.put(
+        f"{BASE_URL}/api/settings",
+        json={
+            "text_model": FAST_TEST_MODEL,
+            "image_model": FAST_TEST_MODEL,
+            "image_caption_model": FAST_TEST_MODEL,
+            "image_resolution": "1K",
+            "max_description_workers": 1,
+            "max_image_workers": 1,
+            "enable_text_reasoning": False,
+            "enable_image_reasoning": False,
+        },
+        timeout=30,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
 
 
 def wait_for_project_status(project_id: str, expected_status: str, timeout: int = 180):
@@ -180,6 +212,10 @@ class TestAPIFullFlow:
         print('\n' + '=' * 40)
         print('🚀 Starting API full flow integration test')
         print('=' * 40 + '\n')
+
+        print(f'⚙️  Using backend: {BASE_URL}')
+        print(f'⚙️  Pinning test model: {FAST_TEST_MODEL}')
+        configure_fast_test_models()
         
         # Step 1: Create project
         print('📝 Step 1: Creating project...')
@@ -187,7 +223,7 @@ class TestAPIFullFlow:
             f"{BASE_URL}/api/projects",
             json={
                 'creation_type': 'idea',
-                'idea_prompt': '创建一份关于人工智能基础的简短PPT，包含3页内容：什么是AI、AI的应用、AI的未来'
+                'idea_prompt': '严格只创建2页PPT，主题是人工智能基础入门。第1页讲什么是人工智能，第2页讲人工智能的典型应用。不要生成第3页及以上内容。'
             },
             timeout=30
         )
@@ -243,7 +279,7 @@ class TestAPIFullFlow:
         pages = data['data']['pages']
         
         assert pages is not None
-        assert len(pages) > 0
+        assert len(pages) >= 2
         print(f"✓ Outline generated successfully, contains {len(pages)} pages\n")
         
         # Step 4: Generate descriptions
@@ -272,8 +308,9 @@ class TestAPIFullFlow:
             f"{BASE_URL}/api/projects/{pid}/generate/images",
             json={
                 'use_template': True,  # Use the uploaded template
+                'max_workers': 1,
                 'aspect_ratio': '16:9',
-                'resolution': '1080p'
+                'resolution': '1K'
             },
             timeout=30
         )
@@ -385,4 +422,3 @@ class TestAPIFullFlow:
         response = requests.delete(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         assert response.status_code == 200
         print('✓ Project deleted successfully\n')
-

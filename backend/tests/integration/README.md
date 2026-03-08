@@ -26,9 +26,10 @@ uv run pytest tests/integration/test_full_workflow.py -v
 
 **特点**：
 - ⏱️ 较慢（需要真实 HTTP 请求）
-- 🔧 需要服务运行在 `http://localhost:5000`
+- 🔧 默认连接当前 worktree 对应的后端端口；也可用 `BACKEND_BASE_URL` 显式指定
 - 🏗️ 在 CI 的 `docker-test` 阶段运行（服务已启动）
 - 🔑 完整流程测试需要真实 AI API key
+- 🤖 测试启动时会把 text / image / image caption 模型统一固定为 `gemini-3.1-flash-image-preview`
 
 **标记**: `@pytest.mark.requires_service`
 
@@ -40,6 +41,11 @@ docker compose up -d
 # 2. 运行测试
 cd backend
 uv run pytest tests/integration/test_api_full_flow.py -v -m "requires_service"
+```
+
+如果要显式指定后端地址：
+```bash
+BACKEND_BASE_URL=http://localhost:5260 uv run pytest tests/integration/test_api_full_flow.py -v -m "requires_service"
 ```
 
 ## CI/CD 策略
@@ -137,7 +143,7 @@ uv run pytest tests/integration/test_api_full_flow.py::TestAPIFullFlow::test_api
 
 ### 问题：`ConnectionRefusedError: [Errno 111] Connection refused`
 
-**原因**: 测试尝试连接 `localhost:5000`，但服务未运行。
+**原因**: 测试尝试连接当前 worktree 默认后端地址（或 `BACKEND_BASE_URL` 指定地址），但服务未运行。
 
 **解决方案**:
 1. 启动服务：`docker compose up -d`
@@ -174,4 +180,3 @@ pytest tests/integration -v -m "not requires_service"
 
 **更新日期**: 2025-12-22  
 **维护者**: Banana Slides Team
-

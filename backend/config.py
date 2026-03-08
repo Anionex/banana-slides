@@ -68,15 +68,15 @@ class Config:
     IMAGE_CAPTION_MODEL_SOURCE = os.getenv('IMAGE_CAPTION_MODEL_SOURCE', '')   # 图片识别模型厂商（留空则跟随全局 AI_PROVIDER_FORMAT）
     
     # AI 模型配置
-    TEXT_MODEL = os.getenv('TEXT_MODEL', 'gemini-3-flash-preview')
-    IMAGE_MODEL = os.getenv('IMAGE_MODEL', 'gemini-3-pro-image-preview')
+    TEXT_MODEL = os.getenv('TEXT_MODEL', 'gemini-3.1-flash-image-preview')
+    IMAGE_MODEL = os.getenv('IMAGE_MODEL', 'gemini-3.1-flash-image-preview')
 
     # MinerU 文件解析服务配置
     MINERU_TOKEN = os.getenv('MINERU_TOKEN', '')
     MINERU_API_BASE = os.getenv('MINERU_API_BASE', 'https://mineru.net')
     
     # 图片识别模型配置
-    IMAGE_CAPTION_MODEL = os.getenv('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
+    IMAGE_CAPTION_MODEL = os.getenv('IMAGE_CAPTION_MODEL', 'gemini-3.1-flash-image-preview')
     
     # 并发配置
     MAX_DESCRIPTION_WORKERS = int(os.getenv('MAX_DESCRIPTION_WORKERS', '5'))
