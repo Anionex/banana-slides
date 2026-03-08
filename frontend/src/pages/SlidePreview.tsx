@@ -198,6 +198,7 @@ export const SlidePreview: React.FC = () => {
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
+  const notifiedFailedExportTaskIds = useRef<Set<string>>(new Set());
 
   // 页面挂载时恢复正在进行的导出任务（页面刷新后）
   useEffect(() => {
@@ -297,6 +298,22 @@ export const SlidePreview: React.FC = () => {
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+
+  useEffect(() => {
+    exportTasks
+      .filter(task => task.projectId === projectId && task.status === 'FAILED' && task.taskId)
+      .forEach(task => {
+        if (notifiedFailedExportTaskIds.current.has(task.id)) {
+          return;
+        }
+        notifiedFailedExportTaskIds.current.add(task.id);
+        show({
+          message: normalizeErrorMessage(task.errorMessage || t('preview.messages.exportFailed')),
+          type: 'error',
+          duration: 5000,
+        });
+      });
+  }, [exportTasks, projectId, show, t]);
 
   // Memoize pages with generated images to avoid re-computing in multiple places
   const pagesWithImages = useMemo(() => {
@@ -2219,4 +2236,3 @@ export const SlidePreview: React.FC = () => {
     </div>
   );
 };
-

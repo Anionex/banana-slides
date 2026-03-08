@@ -323,14 +323,10 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
             return result if isinstance(result, dict) else {}
         
         except ValueError as e:
-            # text_provider 不支持图片输入
-            logger.warning(f"text_provider不支持图片输入: {e}")
-            return {}
+            raise RuntimeError(f"当前图片样式提取模型不支持图片输入: {e}") from e
         
         except Exception as e:
-            # JSON 解析失败（重试3次后仍失败）
-            logger.error(f"生成JSON失败（已重试3次）: {e}")
-            return {}
+            raise RuntimeError(f"调用视觉模型提取文本样式失败: {e}") from e
         
         finally:
             if os.path.exists(tmp_path):
@@ -378,7 +374,10 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
             TextStyleResult对象
         """
         if not result_json:
-            return TextStyleResult(confidence=0.0)
+            return TextStyleResult(
+                confidence=0.0,
+                metadata={'error': '视觉模型未返回可解析的样式结果'}
+            )
         
         try:
             # 解析 colored_segments（新格式：支持一行多颜色）
@@ -507,12 +506,10 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
                 return self._parse_batch_result(result_list, text_elements)
             
             except ValueError as e:
-                logger.warning(f"text_provider不支持图片输入: {e}")
-                return {}
+                raise RuntimeError(f"当前图片样式提取模型不支持图片输入: {e}") from e
             
             except Exception as e:
-                logger.error(f"批量提取JSON生成失败（已重试3次）: {e}")
-                return {}
+                raise RuntimeError(f"批量调用视觉模型提取文本样式失败: {e}") from e
                 
             finally:
                 if need_cleanup:
@@ -522,7 +519,7 @@ class CaptionModelTextAttributeExtractor(TextAttributeExtractor):
         
         except Exception as e:
             logger.error(f"批量提取文字属性失败: {e}", exc_info=True)
-            return {}
+            raise
     
     def _parse_batch_result(
         self,
@@ -724,4 +721,3 @@ class TextAttributeExtractorRegistry:
                    f"默认提取器->{caption_extractor.__class__.__name__}")
         
         return registry
-
