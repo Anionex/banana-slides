@@ -54,6 +54,9 @@ def configure_fast_test_models():
             "text_model": FAST_TEST_MODEL,
             "image_model": FAST_TEST_MODEL,
             "image_caption_model": FAST_TEST_MODEL,
+            "image_resolution": "1K",
+            "max_description_workers": 1,
+            "max_image_workers": 1,
             "enable_text_reasoning": False,
             "enable_image_reasoning": False,
         },
@@ -220,7 +223,7 @@ class TestAPIFullFlow:
             f"{BASE_URL}/api/projects",
             json={
                 'creation_type': 'idea',
-                'idea_prompt': '创建一份关于人工智能基础的简短PPT，包含3页内容：什么是AI、AI的应用、AI的未来'
+                'idea_prompt': '严格只创建1页PPT，主题是人工智能基础入门，只输出一个单页章节，内容简短。'
             },
             timeout=30
         )
@@ -305,8 +308,9 @@ class TestAPIFullFlow:
             f"{BASE_URL}/api/projects/{pid}/generate/images",
             json={
                 'use_template': True,  # Use the uploaded template
+                'max_workers': 1,
                 'aspect_ratio': '16:9',
-                'resolution': '1080p'
+                'resolution': '1K'
             },
             timeout=30
         )

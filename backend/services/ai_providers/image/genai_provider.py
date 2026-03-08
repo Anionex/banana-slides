@@ -24,7 +24,7 @@ class GenAIImageProvider(ImageProvider):
 
     def __init__(
         self,
-        model: str = "gemini-3-pro-image-preview",
+        model: str = "gemini-3.1-flash-image-preview",
         api_key: str = None,
         api_base: str = None,
         vertexai: bool = False,

@@ -215,7 +215,7 @@ def get_image_caption_provider_config() -> Dict[str, Any]:
     return _get_model_type_provider_config('image_caption')
 
 
-def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
+def get_caption_provider(model: str = "gemini-3.1-flash-image-preview") -> TextProvider:
     """Factory: return a TextProvider for image caption (multimodal) tasks."""
     config = _get_model_type_provider_config('image_caption')
     fmt = config['format']
@@ -238,7 +238,7 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
-def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
+def get_text_provider(model: str = "gemini-3.1-flash-image-preview") -> TextProvider:
     """Factory: return the appropriate text-generation provider."""
     config = _get_model_type_provider_config('text')
     fmt = config['format']
@@ -265,7 +265,7 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
-def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
+def get_image_provider(model: str = "gemini-3.1-flash-image-preview") -> ImageProvider:
     """Factory: return the appropriate image-generation provider.
 
     Note: OpenAI format does NOT support 4K resolution — only 1K is available.
