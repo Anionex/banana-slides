@@ -223,7 +223,7 @@ class TestAPIFullFlow:
             f"{BASE_URL}/api/projects",
             json={
                 'creation_type': 'idea',
-                'idea_prompt': '严格只创建1页PPT，主题是人工智能基础入门，只输出一个单页章节，内容简短。'
+                'idea_prompt': '严格只创建2页PPT，主题是人工智能基础入门。第1页讲什么是人工智能，第2页讲人工智能的典型应用。不要生成第3页及以上内容。'
             },
             timeout=30
         )
@@ -279,7 +279,7 @@ class TestAPIFullFlow:
         pages = data['data']['pages']
         
         assert pages is not None
-        assert len(pages) > 0
+        assert len(pages) >= 2
         print(f"✓ Outline generated successfully, contains {len(pages)} pages\n")
         
         # Step 4: Generate descriptions
