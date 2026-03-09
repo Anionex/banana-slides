@@ -131,6 +131,29 @@ def _calculate_image_dimensions(
     return w, h, f"{w}{sep}{h}"
 
 
+def _patch_doubao_remove_guidance_scale(client):
+    """
+    Monkey-patch the underlying images.generate() call to strip 'guidance_scale'.
+
+    Seedream 5.0 models (e.g. doubao-seedream-5-0-260128) do not support the
+    'guidance_scale' parameter. The upstream lazyllm library hardcodes it as a
+    named argument (default 2.5) in DoubaoText2Image._forward, then passes it
+    directly into api_params dict for _client.images.generate(**api_params).
+    Since it's a named parameter (not in **kwargs), we cannot strip it by
+    patching _forward. Instead, we patch _client.images.generate to intercept
+    and remove 'guidance_scale' right before the actual API call.
+    """
+    images_resource = client._client.images
+    original_generate = images_resource.generate
+
+    def patched_generate(*args, **kwargs):
+        kwargs.pop('guidance_scale', None)
+        return original_generate(*args, **kwargs)
+
+    images_resource.generate = patched_generate
+    logger.info('[LazyLLM] Patched _client.images.generate: removed guidance_scale for Seedream 5.0+')
+
+
 class LazyLLMImageProvider(ImageProvider):
     """Image generation using Lazyllm framework"""
     def __init__(self, source: str = 'doubao', model: str = 'doubao-seedream-4-0-250828'):
@@ -157,6 +180,10 @@ class LazyLLMImageProvider(ImageProvider):
             model=model,
             type='image_editing',
         )
+
+        # Patch: remove 'guidance_scale' for Seedream 5.0+ models that don't support it
+        if source == 'doubao' and 'seedream-5' in model:
+            _patch_doubao_remove_guidance_scale(self.client)
 
     def generate_image(self, prompt: str = None,
                        ref_images: Optional[List[Image.Image]] = None,
