@@ -111,7 +111,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
         
         {/* 状态标签 */}
         <div className="absolute bottom-2 right-2">
-          <StatusBadge status={page.status} />
+          <StatusBadge status={generating ? 'GENERATING' : page.status} />
         </div>
       </div>
 

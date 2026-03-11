@@ -195,6 +195,8 @@ export const SlidePreview: React.FC = () => {
     taskProgress,
     pageGeneratingTasks,
     warningMessage,
+    error: storeError,
+    setError,
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
@@ -297,6 +299,14 @@ export const SlidePreview: React.FC = () => {
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+
+  // Show toast when store error changes (e.g. pollImageTask failure)
+  useEffect(() => {
+    if (storeError) {
+      show({ message: storeError, type: 'error' });
+      setError(null);
+    }
+  }, [storeError, setError, show]);
 
   // Memoize pages with generated images to avoid re-computing in multiple places
   const pagesWithImages = useMemo(() => {

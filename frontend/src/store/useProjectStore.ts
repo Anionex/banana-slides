@@ -316,6 +316,26 @@ const debouncedUpdatePage = debounce(
         set({ currentProject: project });
         // 确保 localStorage 中保存了项目ID
         localStorage.setItem('currentProjectId', project.id!);
+
+        // Resume polling for active image generation tasks (e.g. after page refresh)
+        const activeTasks = response.data.active_image_tasks as Array<{ task_id: string; page_ids: string[] }> | undefined;
+        if (activeTasks?.length) {
+          const newPageTasks = { ...get().pageGeneratingTasks };
+          const tasksToPoll: Record<string, string[]> = {};
+          for (const t of activeTasks) {
+            const newPageIds = t.page_ids.filter(id => !newPageTasks[id]);
+            if (newPageIds.length) {
+              tasksToPoll[t.task_id] = newPageIds;
+              newPageIds.forEach(id => { newPageTasks[id] = t.task_id; });
+            }
+          }
+          if (Object.keys(tasksToPoll).length) {
+            set({ pageGeneratingTasks: newPageTasks });
+            for (const taskId in tasksToPoll) {
+              get().pollImageTask(taskId, tasksToPoll[taskId]);
+            }
+          }
+        }
       }
     } catch (error: any) {
       // 提取更详细的错误信息
