@@ -125,6 +125,13 @@
 - 相关更新见 https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 
+### 6. TTS 讲解视频导出
+- **一键将幻灯片转换为带 AI 语音旁白和字幕的讲解视频（MP4）**
+- AI 自动将页面描述转为口语化旁白，通过 edge-tts 合成语音
+- 支持中/英/日三种语言，多种音色可选（晓晓、云希、Jenny、Guy 等）
+- 逐句滚动字幕，自动按语音节奏切换，支持中文字体渲染
+- 可选 Ken Burns 画面动效（缩放/平移），丰富视觉表现
+
 <br>
 
 **🌟和notebooklm slide deck功能对比**
@@ -133,7 +140,7 @@
 | 页数上限 | 15页 | **无限制** | 
 | 二次编辑 | 提示词修改 | **框选编辑+口头编辑** |
 | 素材添加 | 生成后无法添加 | **生成后自由添加** |
-| 导出格式 | 支持导出为 PDF、（不可编辑图片）pptx | **导出为PDF、(图片or可编辑)pptx** |
+| 导出格式 | 支持导出为 PDF、（不可编辑图片）pptx | **导出为PDF、(图片or可编辑)pptx、讲解视频** |
 | 水印 | 免费版有水印 | **无水印，自由增删元素** |
 
 > 注：随着新功能添加,对比可能过时
@@ -177,6 +184,7 @@
 | 🔄 进行中 | 支持多层次、精确抠图的可编辑pptx导出 |
 | 🔄 进行中 | 网络搜索 |
 | 🔄 进行中 | Agent 模式 |
+| ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕、Ken Burns 动效） |
 | 🚍 部分 | 优化前端加载速度 |
 | 🧭 规划中 | 在线播放功能 |
 | 🧭 规划中 | 简单的动画和页面切换效果 |
@@ -492,6 +500,8 @@ npm run dev
 - **AI能力**：Google Gemini API
 - **PPT处理**：python-pptx
 - **图片处理**：Pillow
+- **TTS语音**：edge-tts
+- **视频合成**：FFmpeg
 - **并发处理**：ThreadPoolExecutor
 - **跨域支持**：Flask-CORS
 
@@ -561,6 +571,7 @@ banana-slides/
 │   │   ├── file_service.py     # 文件管理服务
 │   │   ├── file_parser_service.py # 文件解析服务
 │   │   ├── export_service.py   # PPTX/PDF导出服务
+│   │   ├── tts_video_service.py # TTS讲解视频导出服务
 │   │   ├── task_manager.py     # 异步任务管理
 │   │   ├── prompts.py          # AI提示词模板
 │   ├── controllers/            # API控制器

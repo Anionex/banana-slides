@@ -26,6 +26,12 @@ const previewI18n = {
       title: "预览", pageCount: "共 {{count}} 页", export: "导出",
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
+      exportVideo: "导出为讲解视频",
+      videoExportTitle: "讲解视频导出设置",
+      videoVoiceLabel: "语音音色",
+      videoEnableKenBurns: "启用画面动效（Ken Burns）",
+      videoStartExport: "开始导出",
+      videoCancel: "取消",
       exportSelectedPages: "将导出选中的 {{count}} 页",
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
@@ -94,6 +100,12 @@ const previewI18n = {
       title: "Preview", pageCount: "{{count}} pages", export: "Export",
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
+      exportVideo: "Export as Narration Video",
+      videoExportTitle: "Narration Video Export Settings",
+      videoVoiceLabel: "Voice",
+      videoEnableKenBurns: "Enable Ken Burns effect (zoom/pan animation)",
+      videoStartExport: "Start Export",
+      videoCancel: "Cancel",
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
@@ -174,9 +186,28 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
+
+const VIDEO_VOICE_OPTIONS = [
+  { group: '中文', voices: [
+    { id: 'zh-CN-XiaoxiaoNeural', label: '晓晓（女声）', lang: 'zh' },
+    { id: 'zh-CN-YunxiNeural', label: '云希（男声）', lang: 'zh' },
+    { id: 'zh-CN-YunjianNeural', label: '云健（男声）', lang: 'zh' },
+    { id: 'zh-CN-XiaoyiNeural', label: '晓伊（女声）', lang: 'zh' },
+  ]},
+  { group: 'English', voices: [
+    { id: 'en-US-JennyNeural', label: 'Jenny (Female)', lang: 'en' },
+    { id: 'en-US-GuyNeural', label: 'Guy (Male)', lang: 'en' },
+    { id: 'en-US-AriaNeural', label: 'Aria (Female)', lang: 'en' },
+    { id: 'en-US-DavisNeural', label: 'Davis (Male)', lang: 'en' },
+  ]},
+  { group: '日本語', voices: [
+    { id: 'ja-JP-NanamiNeural', label: 'Nanami（女声）', lang: 'ja' },
+    { id: 'ja-JP-KeitaNeural', label: 'Keita（男声）', lang: 'ja' },
+  ]},
+];
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
@@ -216,6 +247,9 @@ export const SlidePreview: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
+  const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
+  const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
+  const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
   // 多选导出相关状态
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
@@ -968,7 +1002,7 @@ export const SlidePreview: React.FC = () => {
     return Array.from(selectedPageIds);
   };
 
-  const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx' | 'images') => {
+  const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx' | 'images' | 'video') => {
     setShowExportMenu(false);
     if (!projectId) return;
 
@@ -1021,6 +1055,40 @@ export const SlidePreview: React.FC = () => {
           });
           
           // Start polling in background (non-blocking)
+          pollExportTask(exportTaskId, projectId, taskId);
+        }
+      } else if (type === 'video') {
+        // Async export - create processing task and start polling
+        addTask({
+          id: exportTaskId,
+          taskId: '',
+          projectId,
+          type: 'video',
+          status: 'PROCESSING',
+          pageIds: pageIds,
+        });
+
+        show({ message: t('slidePreview.exportStarted'), type: 'success' });
+
+        const voiceLang = VIDEO_VOICE_OPTIONS.flatMap(g => g.voices).find(v => v.id === videoVoice)?.lang || 'zh';
+        const response = await apiExportVideo(projectId, {
+          pageIds,
+          enableKenBurns: videoEnableKenBurns,
+          voice: videoVoice,
+          language: voiceLang,
+        });
+        const taskId = response.data?.task_id;
+
+        if (taskId) {
+          addTask({
+            id: exportTaskId,
+            taskId,
+            projectId,
+            type: 'video',
+            status: 'PROCESSING',
+            pageIds: pageIds,
+          });
+
           pollExportTask(exportTaskId, projectId, taskId);
         }
       }
@@ -1357,7 +1425,7 @@ export const SlidePreview: React.FC = () => {
                 setShowExportMenu(!showExportMenu);
                 setShowExportTasksPanel(false);
               }}
-              disabled={isMultiSelectMode ? selectedPageIds.size === 0 : !hasAllImages}
+              disabled={isMultiSelectMode && selectedPageIds.size === 0}
               title={!isMultiSelectMode && !hasAllImages ? t('preview.disabledExportTip', { count: missingImageCount }) : undefined}
               className="text-xs md:text-sm"
             >
@@ -1381,33 +1449,95 @@ export const SlidePreview: React.FC = () => {
                 )}
                 <button
                   onClick={() => handleExport('pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  disabled={!hasAllImages}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportPptx')}
                 </button>
                 <button
                   onClick={() => handleExport('editable-pptx')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  disabled={!hasAllImages}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportEditablePptx')}
                 </button>
                 <button
                   onClick={() => handleExport('pdf')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  disabled={!hasAllImages}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportPdf')}
                 </button>
                 <button
                   onClick={() => handleExport('images')}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  disabled={!hasAllImages}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportImages')}
+                </button>
+                <button
+                  onClick={() => { setShowExportMenu(false); setShowVideoExportDialog(true); }}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                >
+                  {t('preview.exportVideo')}
                 </button>
               </div>
             )}
           </div>
         </div>
       </header>
+
+      {/* 视频导出设置弹窗 */}
+      {showVideoExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowVideoExportDialog(false)}>
+          <div className="bg-white dark:bg-background-secondary rounded-xl shadow-xl p-6 w-[420px] max-w-[90vw]" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-5">{t('preview.videoExportTitle')}</h3>
+            <div className="space-y-4">
+              {/* 语音选择 */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5">{t('preview.videoVoiceLabel')}</label>
+                <select
+                  value={videoVoice}
+                  onChange={e => setVideoVoice(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                >
+                  {VIDEO_VOICE_OPTIONS.map(group => (
+                    <optgroup key={group.group} label={group.group}>
+                      {group.voices.map(v => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+              {/* Ken Burns 动效 */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={videoEnableKenBurns}
+                  onChange={e => setVideoEnableKenBurns(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                />
+                <span className="text-sm">{t('preview.videoEnableKenBurns')}</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowVideoExportDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
+              >
+                {t('preview.videoCancel')}
+              </button>
+              <button
+                onClick={() => { setShowVideoExportDialog(false); handleExport('video'); }}
+                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
+              >
+                {t('preview.videoStartExport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-w-0 min-h-0">

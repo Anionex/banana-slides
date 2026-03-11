@@ -374,3 +374,110 @@ def export_editable_pptx(project_id):
     except Exception as e:
         logger.exception("Error creating export task")
         return error_response('SERVER_ERROR', str(e), 500)
+
+
+@export_bp.route('/<project_id>/export/video', methods=['POST'])
+def export_video(project_id):
+    """
+    POST /api/projects/{project_id}/export/video - 导出讲解视频（异步）
+
+    将幻灯片图片 + TTS 旁白合成为 MP4 视频，含 Ken Burns 动效。
+
+    Request body (JSON):
+        {
+            "filename": "optional_custom_name.mp4",
+            "page_ids": ["id1", "id2"],          // 可选
+            "voice": "zh-CN-XiaoxiaoNeural",     // 可选 TTS 语音
+            "rate": "+0%",                        // 可选语速
+            "generate_narration": true,            // 是否自动生成缺失旁白（默认 true）
+            "language": "zh"                       // 可选输出语言
+        }
+
+    Returns:
+        JSON with task_id for polling via /api/projects/{project_id}/tasks/{task_id}
+    """
+    try:
+        project = Project.query.get(project_id)
+
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json() or {}
+
+        # 获取页面
+        selected_page_ids = data.get('page_ids')
+        from utils import parse_page_ids_from_body
+        if not selected_page_ids:
+            selected_page_ids = parse_page_ids_from_body(data)
+
+        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+
+        if not pages:
+            return bad_request("No pages found for project")
+
+        has_images = any(page.generated_image_path for page in pages)
+        if not has_images:
+            return bad_request("No generated images found for project")
+
+        # 参数
+        filename = data.get('filename', f'narration_{project_id}.mp4')
+        if not filename.endswith('.mp4'):
+            filename += '.mp4'
+
+        voice = data.get('voice', current_app.config.get('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural'))
+        rate = data.get('rate', current_app.config.get('TTS_DEFAULT_RATE', '+0%'))
+        generate_narration = data.get('generate_narration', True)
+        enable_ken_burns = data.get('enable_ken_burns', False)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+        # 根据语言自动选择默认语音
+        if 'voice' not in data:
+            from services.tts_video_service import get_default_voice
+            voice = get_default_voice(language, dict(current_app.config))
+
+        # 创建任务
+        task = Task(
+            project_id=project_id,
+            task_type='EXPORT_VIDEO',
+            status='PENDING',
+        )
+        db.session.add(task)
+        db.session.commit()
+
+        logger.info(f"Created video export task {task.id} for project {project_id}")
+
+        # 提交后台任务
+        from services.file_service import FileService
+        from services.task_manager import task_manager, export_video_task
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        app = current_app._get_current_object()
+
+        task_manager.submit_task(
+            task.id,
+            export_video_task,
+            project_id=project_id,
+            filename=filename,
+            file_service=file_service,
+            voice=voice,
+            rate=rate,
+            generate_narration=generate_narration,
+            enable_ken_burns=enable_ken_burns,
+            page_ids=selected_page_ids if selected_page_ids else None,
+            language=language,
+            app=app,
+        )
+
+        return success_response(
+            data={
+                "task_id": task.id,
+                "voice": voice,
+                "generate_narration": generate_narration,
+                "enable_ken_burns": enable_ken_burns,
+            },
+            message="Video export task created"
+        )
+
+    except Exception as e:
+        logger.exception("Error creating video export task")
+        return error_response('SERVER_ERROR', str(e), 500)

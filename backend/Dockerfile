@@ -28,6 +28,8 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     fi && \
     apt-get update && apt-get install -y \
     curl \
+    ffmpeg \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # 从 uv 阶段复制二进制文件

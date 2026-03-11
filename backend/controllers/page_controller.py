@@ -854,3 +854,221 @@ def regenerate_renovation_page(project_id, page_id):
         db.session.rollback()
         logger.error(f"Failed to regenerate renovation page: {e}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 旁白 (Narration) 相关接口 — TTS 播报视频
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@page_bp.route('/<project_id>/pages/<page_id>/narration', methods=['PUT'])
+def update_page_narration(project_id, page_id):
+    """
+    PUT /api/projects/{project_id}/pages/{page_id}/narration - Edit narration text
+
+    Request body:
+    {
+        "narration_text": "这段内容介绍了……"
+    }
+    """
+    try:
+        page = Page.query.get(page_id)
+
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        data = request.get_json()
+
+        if not data or 'narration_text' not in data:
+            return bad_request("narration_text is required")
+
+        page.set_narration_text(data['narration_text'])
+        page.updated_at = datetime.utcnow()
+
+        project = Project.query.get(project_id)
+        if project:
+            project.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return success_response(page.to_dict())
+
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@page_bp.route('/<project_id>/pages/<page_id>/generate/narration', methods=['POST'])
+def generate_page_narration(project_id, page_id):
+    """
+    POST /api/projects/{project_id}/pages/{page_id}/generate/narration
+    Generate narration text from description using AI.
+
+    Request body:
+    {
+        "language": "zh",            // optional
+        "force_regenerate": false     // optional
+    }
+    """
+    try:
+        page = Page.query.get(page_id)
+
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json() or {}
+        force_regenerate = data.get('force_regenerate', False)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+        if page.narration_text and not force_regenerate:
+            return bad_request("Narration already exists. Set force_regenerate=true to regenerate")
+
+        # Need description content to generate narration
+        desc_content = page.get_description_content()
+        desc_text = ''
+        if desc_content:
+            desc_text = desc_content.get('text', '')
+            if not desc_text and desc_content.get('text_content'):
+                text_content = desc_content.get('text_content', [])
+                desc_text = '\n'.join(text_content) if isinstance(text_content, list) else str(text_content)
+
+        outline_content = page.get_outline_content() or {}
+
+        # Fallback: if no description, use outline
+        if not desc_text:
+            title = outline_content.get('title', '')
+            points = outline_content.get('points', [])
+            if title or points:
+                desc_text = f"{title}\n" + '\n'.join(f'- {p}' for p in points)
+            else:
+                return bad_request("Page must have description or outline content to generate narration")
+
+        # Get total page count for prompt context
+        total_pages = Page.query.filter_by(project_id=project_id).count()
+
+        # Generate narration using AI
+        ai_service = get_ai_service()
+        from services.prompts import get_narration_generation_prompt
+        prompt = get_narration_generation_prompt(
+            description_text=desc_text,
+            outline=outline_content,
+            page_index=page.order_index + 1,
+            total_pages=total_pages,
+            language=language,
+        )
+
+        narration = ai_service.text_provider.generate_text(prompt)
+
+        if not narration or not narration.strip():
+            return error_response('AI_SERVICE_ERROR', 'AI returned empty narration', 503)
+
+        page.set_narration_text(narration.strip())
+        page.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return success_response(page.to_dict())
+
+    except Exception as e:
+        db.session.rollback()
+        return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@page_bp.route('/<project_id>/generate/narrations', methods=['POST'])
+def generate_all_narrations(project_id):
+    """
+    POST /api/projects/{project_id}/generate/narrations
+    Batch generate narration text for all pages that have descriptions.
+
+    Request body:
+    {
+        "language": "zh",            // optional
+        "force_regenerate": false     // optional
+    }
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json() or {}
+        force_regenerate = data.get('force_regenerate', False)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+        pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        if not pages:
+            return bad_request("No pages found for project")
+
+        total_pages = len(pages)
+        ai_service = get_ai_service()
+        from services.prompts import get_narration_generation_prompt
+
+        generated = 0
+        skipped = 0
+        failed = 0
+
+        for page in pages:
+            # Skip if already has narration and not forcing
+            if page.narration_text and not force_regenerate:
+                skipped += 1
+                continue
+
+            # Get description text
+            desc_content = page.get_description_content()
+            desc_text = ''
+            if desc_content:
+                desc_text = desc_content.get('text', '')
+                if not desc_text and desc_content.get('text_content'):
+                    text_content = desc_content.get('text_content', [])
+                    desc_text = '\n'.join(text_content) if isinstance(text_content, list) else str(text_content)
+
+            outline_content = page.get_outline_content() or {}
+
+            if not desc_text:
+                title = outline_content.get('title', '')
+                points = outline_content.get('points', [])
+                if title or points:
+                    desc_text = f"{title}\n" + '\n'.join(f'- {p}' for p in points)
+                else:
+                    skipped += 1
+                    continue
+
+            try:
+                prompt = get_narration_generation_prompt(
+                    description_text=desc_text,
+                    outline=outline_content,
+                    page_index=page.order_index + 1,
+                    total_pages=total_pages,
+                    language=language,
+                )
+                narration = ai_service.text_provider.generate_text(prompt)
+
+                if narration and narration.strip():
+                    page.set_narration_text(narration.strip())
+                    page.updated_at = datetime.utcnow()
+                    generated += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                logger.error(f"Failed to generate narration for page {page.id}: {e}")
+                failed += 1
+
+        db.session.commit()
+
+        return success_response(
+            data={
+                "total": total_pages,
+                "generated": generated,
+                "skipped": skipped,
+                "failed": failed,
+                "pages": [p.to_dict() for p in pages],
+            },
+            message=f"Generated narration for {generated}/{total_pages} pages"
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)

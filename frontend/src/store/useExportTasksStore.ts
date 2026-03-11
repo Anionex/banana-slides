@@ -12,7 +12,7 @@ const t = getT(exportI18n);
 
 // Note: Backend uses 'RUNNING' but we also accept 'PROCESSING' for compatibility
 export type ExportTaskStatus = 'PENDING' | 'PROCESSING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-export type ExportTaskType = 'pptx' | 'pdf' | 'editable-pptx' | 'images';
+export type ExportTaskType = 'pptx' | 'pdf' | 'editable-pptx' | 'images' | 'video';
 
 export interface ExportTask {
   id: string;

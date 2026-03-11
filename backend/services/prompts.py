@@ -8,6 +8,7 @@ AI Service Prompts - 集中管理所有 AI 服务的 prompt 模板
   4. 图片生成 Prompts   — 文生图、图片编辑
   5. 图片处理 Prompts   — 背景提取、画质修复
   6. 内容提取 Prompts   — 文字属性、页面内容、排版分析、风格提取
+  7. 旁白 Prompts        — TTS 播报视频旁白生成
 """
 import json
 import logging
@@ -1032,4 +1033,63 @@ Output a concise style description in Chinese that can be directly used as a sty
 Only output the style description text, no other content.
 """
     logger.debug(f"[get_style_extraction_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. 旁白 Prompts — TTS 播报视频旁白生成
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def get_narration_generation_prompt(
+    description_text: str,
+    outline: dict,
+    page_index: int,
+    total_pages: int,
+    language: str = 'zh',
+) -> str:
+    """
+    生成旁白 prompt：将页面描述转换为适合 TTS 播报的口语化旁白。
+
+    Args:
+        description_text: 页面的详细描述文本
+        outline: 该页的大纲内容 {title, points}
+        page_index: 页码（从 1 开始）
+        total_pages: 总页数
+        language: 输出语言
+    """
+    lang_cfg = LANGUAGE_CONFIG.get(language, LANGUAGE_CONFIG['zh'])
+    lang_instruction = lang_cfg['instruction']
+
+    title = outline.get('title', '')
+    points = outline.get('points', [])
+    points_text = '\n'.join(f'- {p}' for p in points) if points else '(无)'
+
+    prompt = f"""\
+You are a professional presentation narrator. Convert the following slide description into
+natural spoken narration suitable for text-to-speech synthesis.
+
+{lang_instruction}
+
+Rules:
+- Write in a conversational, presenter-like tone as if speaking to an audience
+- Do NOT include any Markdown formatting, bullet symbols, or special characters
+- Do NOT say "as you can see on the slide" or reference visual elements directly
+- Do NOT include slide numbers or repeat the slide title verbatim at the start
+- Keep the narration between 50 and 200 words
+- The narration should clearly explain the key points and flow naturally when read aloud
+- Use appropriate transition phrases for the slide's position in the presentation
+  (e.g. opening remarks for slide 1, concluding remarks for the last slide)
+
+Slide {page_index} of {total_pages}
+Title: {title}
+Key points:
+{points_text}
+
+Detailed description:
+{description_text}
+
+Output ONLY the narration text, nothing else."""
+
+    logger.debug(f"[get_narration_generation_prompt] page {page_index}/{total_pages}, lang={language}")
     return prompt

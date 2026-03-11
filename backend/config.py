@@ -110,6 +110,16 @@ class Config:
     # 百度 API 配置（用于 OCR 和图像修复）
     BAIDU_API_KEY = os.getenv('BAIDU_API_KEY', '') or os.getenv('BAIDU_OCR_API_KEY', '')
 
+    # TTS 视频导出配置
+    TTS_DEFAULT_VOICE_ZH = os.getenv('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural')
+    TTS_DEFAULT_VOICE_EN = os.getenv('TTS_DEFAULT_VOICE_EN', 'en-US-JennyNeural')
+    TTS_DEFAULT_VOICE_JA = os.getenv('TTS_DEFAULT_VOICE_JA', 'ja-JP-NanamiNeural')
+    TTS_DEFAULT_RATE = os.getenv('TTS_DEFAULT_RATE', '+0%')
+    VIDEO_OUTPUT_WIDTH = int(os.getenv('VIDEO_OUTPUT_WIDTH', '1920'))
+    VIDEO_OUTPUT_HEIGHT = int(os.getenv('VIDEO_OUTPUT_HEIGHT', '1080'))
+    VIDEO_FPS = int(os.getenv('VIDEO_FPS', '25'))
+    FFMPEG_PATH = os.getenv('FFMPEG_PATH', 'ffmpeg')
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

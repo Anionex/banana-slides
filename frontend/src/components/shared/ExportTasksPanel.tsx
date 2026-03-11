@@ -11,7 +11,7 @@ const exportI18n = {
   zh: {
     export: {
       tasks: "导出任务", inProgress: "{{count}} 进行中", clearHistory: "清除",
-      exportPptx: "PPTX", exportPdf: "PDF", exportEditablePptx: "可编辑 PPTX", exportImages: "图片",
+      exportPptx: "PPTX", exportPdf: "PDF", exportEditablePptx: "可编辑 PPTX", exportImages: "图片", exportVideo: "讲解视频",
       allPages: "全部", pageRange: "第{{start}}-{{end}}页", singlePage: "第{{num}}页", pagesCount: "{{count}}页",
       warnings: "{{count}} 条警告", clickToView: "点击查看", warningsTitle: "导出警告",
       warningsCount: "导出警告 ({{count}} 条)", detailInfo: "详细信息",
@@ -24,7 +24,7 @@ const exportI18n = {
   en: {
     export: {
       tasks: "Export Tasks", inProgress: "{{count}} in progress", clearHistory: "Clear",
-      exportPptx: "PPTX", exportPdf: "PDF", exportEditablePptx: "Editable PPTX", exportImages: "Images",
+      exportPptx: "PPTX", exportPdf: "PDF", exportEditablePptx: "Editable PPTX", exportImages: "Images", exportVideo: "Narration Video",
       allPages: "All", pageRange: "Pages {{start}}-{{end}}", singlePage: "Page {{num}}", pagesCount: "{{count}} pages",
       warnings: "{{count}} warnings", clickToView: "Click to view", warningsTitle: "Export Warnings",
       warningsCount: "Export Warnings ({{count}})", detailInfo: "Details",
@@ -190,6 +190,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
     'pdf': t('export.exportPdf'),
     'editable-pptx': t('export.exportEditablePptx'),
     'images': t('export.exportImages'),
+    'video': t('export.exportVideo'),
   };
   
   const formatTime = (isoString: string) => {

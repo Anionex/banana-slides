@@ -594,6 +594,55 @@ export const getTaskStatus = async (projectId: string, taskId: string): Promise<
   return response.data;
 };
 
+// ===== 旁白 (Narration) =====
+
+/**
+ * 更新页面旁白文本
+ */
+export const updatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  narrationText: string
+): Promise<ApiResponse<Page>> => {
+  const response = await apiClient.put<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/narration`,
+    { narration_text: narrationText }
+  );
+  return response.data;
+};
+
+/**
+ * AI 生成单页旁白
+ */
+export const generatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  language?: OutputLanguage
+): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/generate/narration`,
+    { language: lang }
+  );
+  return response.data;
+};
+
+/**
+ * 批量生成所有页面旁白
+ */
+export const generateAllNarrations = async (
+  projectId: string,
+  language?: OutputLanguage,
+  forceRegenerate?: boolean
+): Promise<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>>(
+    `/api/projects/${projectId}/generate/narrations`,
+    { language: lang, force_regenerate: forceRegenerate || false }
+  );
+  return response.data;
+};
+
 // ===== 导出 =====
 
 /**
@@ -668,6 +717,37 @@ export const exportEditablePPTX = async (
   >(`/api/projects/${projectId}/export/editable-pptx`, {
     filename,
     page_ids: pageIds
+  });
+  return response.data;
+};
+
+/**
+ * 导出为讲解视频（异步任务）
+ * @param projectId 项目ID
+ * @param options 导出选项
+ */
+export const exportVideo = async (
+  projectId: string,
+  options?: {
+    filename?: string;
+    pageIds?: string[];
+    voice?: string;
+    rate?: string;
+    language?: string;
+    generateNarration?: boolean;
+    enableKenBurns?: boolean;
+  }
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<
+    ApiResponse<{ task_id: string }>
+  >(`/api/projects/${projectId}/export/video`, {
+    filename: options?.filename,
+    page_ids: options?.pageIds,
+    voice: options?.voice,
+    rate: options?.rate,
+    language: options?.language,
+    generate_narration: options?.generateNarration ?? true,
+    enable_ken_burns: options?.enableKenBurns ?? false,
   });
   return response.data;
 };
