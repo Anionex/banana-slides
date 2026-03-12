@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, RefreshCw, ArrowUpDown } from 'lucide-react';
+import { FileText, Upload, X, Loader2, CheckCircle2, XCircle, ArrowUpDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, useToast, Modal } from '@/components/shared';
 
@@ -64,6 +64,7 @@ import {
   type ReferenceFile,
 } from '@/api/endpoints';
 import type { Project } from '@/types';
+import { getProjectTitleTruncated } from '@/utils/projectUtils';
 
 interface ReferenceFileSelectorProps {
   projectId?: string | null; // 可选，如果不提供则使用全局文件
@@ -97,12 +98,12 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [parsingIds, setParsingIds] = useState<Set<string>>(new Set());
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialSelectedIdsRef = useRef(initialSelectedIds);
   const showRef = useRef(show);
@@ -114,7 +115,6 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
   }, [initialSelectedIds, show]);
 
   const loadFiles = useCallback(async () => {
-    setIsLoading(true);
     try {
       // 根据 filterProjectId 决定查询哪些文件
       // 'all' - 所有文件（全局 + 项目）
@@ -122,25 +122,25 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
       // 项目ID - 只查询该项目的文件
       const targetProjectId = filterProjectId === 'all' ? 'all' : filterProjectId === 'none' ? 'none' : filterProjectId;
       const response = await listProjectReferenceFiles(targetProjectId);
-      
+
       if (response.data?.files) {
         // 合并新旧文件列表，避免丢失正在解析的文件
         setFiles(prev => {
           const fileMap = new Map<string, ReferenceFile>();
           const serverFiles = response.data!.files; // 已经检查过 response.data?.files
-          
+
           // 先添加服务器返回的文件（这些是权威数据）
           serverFiles.forEach((f: ReferenceFile) => {
             fileMap.set(f.id, f);
           });
-          
+
           // 然后添加正在解析的文件（可能服务器还没更新状态）
           prev.forEach(f => {
             if (parsingIds.has(f.id) && !fileMap.has(f.id)) {
               fileMap.set(f.id, f);
             }
           });
-          
+
           return Array.from(fileMap.values());
         });
       }
@@ -150,23 +150,30 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
         message: error?.response?.data?.error?.message || error.message || t('referenceFile.messages.loadFailed'),
         type: 'error',
       });
-    } finally {
-      setIsLoading(false);
     }
   }, [filterProjectId, parsingIds]);
 
-  // Load projects list
-  useEffect(() => {
-    if (isOpen) {
-      listProjects().then(response => {
-        if (response.data?.projects) {
-          setProjects(response.data.projects);
-        }
-      }).catch(error => {
-        console.error('Failed to load projects:', error);
-      });
+  const loadProjects = async () => {
+    try {
+      const response = await listProjects(100, 0);
+      if (response.data?.projects) {
+        setProjects(response.data.projects);
+        setProjectsLoaded(true);
+      }
+    } catch (error: any) {
+      console.error('Failed to load projects:', error);
     }
-  }, [isOpen]);
+  };
+
+  const renderProjectLabel = (p: Project) => {
+    return getProjectTitleTruncated(p, 30);
+  };
+
+  useEffect(() => {
+    if (isOpen && !projectsLoaded) {
+      loadProjects();
+    }
+  }, [isOpen, projectsLoaded]);
 
   useEffect(() => {
     if (isOpen) {
@@ -494,9 +501,6 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
                 {t('referenceFile.selectedCount', { count: selectedFiles.size })}
               </span>
             )}
-            {isLoading && files.length > 0 && (
-              <RefreshCw size={14} className="animate-spin text-gray-400" />
-            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* 项目筛选下拉框 */}
@@ -508,7 +512,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
               <option value="all">{t('referenceFile.allAttachments')}</option>
               <option value="none">{t('referenceFile.unclassified')}</option>
               {projects.map(project => (
-                <option key={project.project_id} value={project.project_id}>{project.idea_prompt}</option>
+                <option key={project.project_id} value={project.project_id}>{renderProjectLabel(project)}</option>
               ))}
             </select>
 
@@ -531,16 +535,6 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
               </span>
             </button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<RefreshCw size={16} />}
-              onClick={loadFiles}
-              disabled={isLoading}
-            >
-              {t('referenceFile.refreshList')}
-            </Button>
-            
             <Button
               variant="ghost"
               size="sm"
@@ -571,12 +565,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
         {/* 文件列表 */}
         <div className="border border-gray-200 dark:border-border-primary rounded-lg max-h-96 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-              <span className="ml-2 text-gray-500 dark:text-foreground-tertiary">{t('referenceFile.loading')}</span>
-            </div>
-          ) : files.length === 0 ? (
+          {files.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
               <FileText className="w-12 h-12 mb-2" />
               <p>{t('referenceFile.noRefFiles')}</p>
