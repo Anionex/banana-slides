@@ -793,6 +793,22 @@ export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ 
 };
 
 /**
+ * Generate caption for an existing material
+ */
+export const getMaterialCaption = async (materialId: string): Promise<ApiResponse<{ caption: string }>> => {
+  const response = await apiClient.get<ApiResponse<{ caption: string }>>(`/api/materials/${materialId}/caption`);
+  return response.data;
+};
+
+/**
+ * Get material by URL and ensure it has a caption
+ */
+export const getMaterialByUrl = async (url: string): Promise<ApiResponse<Material>> => {
+  const response = await apiClient.get<ApiResponse<Material>>(`/api/materials/by-url`, { params: { url } });
+  return response.data;
+};
+
+/**
  * Download selected materials bundled as a zip archive.
  */
 export const downloadMaterialsZip = async (

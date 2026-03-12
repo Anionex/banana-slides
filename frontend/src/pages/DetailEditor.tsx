@@ -5,6 +5,8 @@ import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 import { useImagePaste } from '@/hooks/useImagePaste';
+import { escapeMarkdown } from '@/hooks/useImagePaste';
+import type { Material } from '@/types';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -98,7 +100,7 @@ const detailI18n = {
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
@@ -281,6 +283,15 @@ export const DetailEditor: React.FC = () => {
   const [isDescReqOpen, setIsDescReqOpen] = useState(
     () => localStorage.getItem('descReqOpen') !== 'false'
   );
+
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = materials.map(m => {
+      const caption = m.caption || m.original_filename || m.filename || 'image';
+      return `![${escapeMarkdown(caption)}](${m.url})`;
+    }).join('\n');
+    reqTextareaRef.current?.insertAtCursor(markdown + '\n');
+  }, []);
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -890,7 +901,7 @@ export const DetailEditor: React.FC = () => {
           />
         </button>
         <div
-          className="overflow-hidden transition-all duration-200 ease-in-out"
+          className={`transition-all duration-200 ease-in-out ${isDescReqOpen ? 'overflow-visible' : 'overflow-hidden'}`}
           style={{ maxHeight: isDescReqOpen ? '600px' : '0px' }}
         >
           <div className="px-3 md:px-6 pb-3">
@@ -901,6 +912,7 @@ export const DetailEditor: React.FC = () => {
                 onChange={(val) => { setDescRequirements(val); setIsDescReqDirty(true); }}
                 onPaste={handleReqImagePaste}
                 onFiles={handleReqImageFiles}
+                onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
                 placeholder={t('detail.descRequirementsPlaceholder')}
                 className="ring-inset"
                 rows={2}
@@ -994,6 +1006,13 @@ export const DetailEditor: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
+      />
     </div>
   );
 };

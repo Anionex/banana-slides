@@ -17,7 +17,7 @@ export const getUploadingPreviewUrl = (url: string) =>
   isUploadingUrl(url) ? url.slice(UPLOADING_PREFIX.length) : url;
 
 /** Escape markdown special characters in alt text to prevent injection */
-const escapeMarkdown = (text: string): string => {
+export const escapeMarkdown = (text: string): string => {
   return text.replace(/[[\]()]/g, '\\$&');
 };
 
@@ -177,6 +177,22 @@ export const useImagePaste = ({
     }
   }, [projectId, generateCaption, warnUnsupportedTypes, showToast, t]);
 
+  /** Extract markdown images from text */
+  const extractMarkdownImages = useCallback((text: string): Array<{alt: string; url: string; match: string}> => {
+    const regex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const images: Array<{alt: string; url: string; match: string}> = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      images.push({ alt: match[1], url: match[2], match: match[0] });
+    }
+    return images;
+  }, []);
+
+  /** Check if URL is internal material */
+  const isInternalMaterialUrl = useCallback((url: string): boolean => {
+    return url.startsWith('/files/materials/') || url.includes('/files/projects/') && url.includes('/materials/');
+  }, []);
+
   /** Handle clipboard paste event */
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
@@ -205,12 +221,37 @@ export const useImagePaste = ({
           type: 'warning',
         });
       }
+      // No image files, check for markdown images
+      const text = e.clipboardData?.getData('text/plain');
+      if (text) {
+        const markdownImages = extractMarkdownImages(text);
+        const internalImages = markdownImages.filter(img => isInternalMaterialUrl(img.url));
+        if (internalImages.length > 0) {
+          e.preventDefault();
+          // Process internal material images
+          (async () => {
+            const { getMaterialByUrl } = await import('@/api/endpoints');
+            for (const img of internalImages) {
+              try {
+                const response = await getMaterialByUrl(img.url);
+                const material = response.data;
+                if (material?.caption) {
+                  const newMarkdown = `![${escapeMarkdown(material.caption)}](${img.url})`;
+                  setContentRef.current(prev => prev.replace(img.match, newMarkdown));
+                }
+              } catch (error) {
+                console.error('Failed to get material caption:', error);
+              }
+            }
+          })();
+        }
+      }
       return;
     }
 
     e.preventDefault();
     await handleFiles(imageFiles);
-  }, [handleFiles, warnUnsupportedTypes, showToast, t]);
+  }, [handleFiles, warnUnsupportedTypes, showToast, t, extractMarkdownImages, isInternalMaterialUrl]);
 
   return { handlePaste, handleFiles, isUploading };
 };
