@@ -405,10 +405,7 @@ def export_video(project_id):
         data = request.get_json() or {}
 
         # 获取页面
-        selected_page_ids = data.get('page_ids')
-        from utils import parse_page_ids_from_body
-        if not selected_page_ids:
-            selected_page_ids = parse_page_ids_from_body(data)
+        selected_page_ids = parse_page_ids_from_body(data)
 
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
 
@@ -419,8 +416,11 @@ def export_video(project_id):
         if not has_images:
             return bad_request("No generated images found for project")
 
-        # 参数
-        filename = data.get('filename', f'narration_{project_id}.mp4')
+        # 参数 — 使用 secure_filename 防止路径遍历
+        raw_filename = data.get('filename', f'narration_{project_id}.mp4')
+        filename = secure_filename(raw_filename)
+        if not filename:
+            filename = f'narration_{project_id}.mp4'
         if not filename.endswith('.mp4'):
             filename += '.mp4'
 

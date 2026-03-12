@@ -1416,6 +1416,7 @@ def export_video_task(
         max_messages = 10
 
         def progress_callback(step: str, message: str, percent: int):
+            """进度回调 — percent 范围对应 generate_narration_video 的内部进度 (20-95%)"""
             nonlocal progress_messages
             try:
                 new_message = f"[{step}] {message}"
@@ -1423,14 +1424,18 @@ def export_video_task(
                 if len(progress_messages) > max_messages:
                     progress_messages = progress_messages[-max_messages:]
 
+                # 将内部 0-100% 映射到总体 20-95%
+                mapped_pct = int(20 + percent * 0.75)
+                mapped_pct = min(mapped_pct, 95)
+
                 task = Task.query.get(task_id)
                 if task:
                     task.set_progress({
                         "total": 100,
-                        "completed": percent,
+                        "completed": mapped_pct,
                         "failed": 0,
                         "current_step": message,
-                        "percent": percent,
+                        "percent": mapped_pct,
                         "messages": progress_messages.copy(),
                     })
                     db.session.commit()
@@ -1561,6 +1566,7 @@ def export_video_task(
             video_width = app.config.get('VIDEO_OUTPUT_WIDTH', 1920)
             video_height = app.config.get('VIDEO_OUTPUT_HEIGHT', 1080)
             video_fps = app.config.get('VIDEO_FPS', 25)
+            silent_duration = app.config.get('DEFAULT_SILENT_CLIP_DURATION', 3.0)
 
             generate_narration_video(
                 pages_data=pages_data,
@@ -1573,6 +1579,7 @@ def export_video_task(
                 enable_ken_burns=enable_ken_burns,
                 ffmpeg_path=ffmpeg_path,
                 progress_callback=progress_callback,
+                silent_duration=silent_duration,
             )
 
             # ── Step 4: 标记完成 ──

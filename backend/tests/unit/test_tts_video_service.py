@@ -50,12 +50,24 @@ composite_video = _tts_mod.composite_video
 _split_narration_to_sentences = _tts_mod._split_narration_to_sentences
 _build_timed_subtitle_entries = _tts_mod._build_timed_subtitle_entries
 generate_ass_subtitle = _tts_mod.generate_ass_subtitle
+_MAX_SUBTITLE_SEGMENT_LENGTH = _tts_mod._MAX_SUBTITLE_SEGMENT_LENGTH
+_DEFAULT_SILENT_DURATION = _tts_mod._DEFAULT_SILENT_DURATION
 get_narration_generation_prompt = _prompts_mod.get_narration_generation_prompt
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 纯单元测试（无外部依赖）
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestModuleConstants:
+    """测试模块级常量"""
+
+    def test_max_subtitle_segment_length(self):
+        assert _MAX_SUBTITLE_SEGMENT_LENGTH == 30
+
+    def test_default_silent_duration(self):
+        assert _DEFAULT_SILENT_DURATION == 3.0
 
 
 class TestGetDefaultVoice:
@@ -188,6 +200,12 @@ class TestCompositeVideoConcatFile:
         assert '-f' in cmd
         assert 'concat' in cmd
 
+    def test_concat_rejects_newline_in_path(self):
+        """路径含换行符时应抛出 ValueError（防止 concat 注入）"""
+        clips = ['/fake/clip1.mp4', '/fake/clip\n2.mp4']
+        with pytest.raises(ValueError, match="newline"):
+            composite_video(clips, '/tmp/test_output.mp4')
+
 
 class TestSubtitleSplitting:
     """测试字幕拆分与时间分配"""
@@ -262,6 +280,10 @@ class TestNarrationPrompt:
         assert '2' in prompt
         assert '10' in prompt
         assert '中文' in prompt or '全中文' in prompt
+        # 验证用户输入被 XML 标签隔离（防止 prompt injection）
+        assert '<slide_description>' in prompt
+        assert '</slide_description>' in prompt
+        assert '<slide_title>' in prompt
 
     def test_english_prompt(self):
         prompt = get_narration_generation_prompt(

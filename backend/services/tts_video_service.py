@@ -10,11 +10,22 @@ TTS Video Service — 将 PPT 页面转换为带旁白的播报视频
 import asyncio
 import logging
 import os
+import re
 import shutil
 import subprocess
 from typing import List, Optional, Callable
 
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 模块级常量
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# 字幕单段最大字符数，超过此长度的句子将按次级标点二次拆分
+_MAX_SUBTITLE_SEGMENT_LENGTH = 30
+
+# 无旁白页面的默认静音片段时长（秒）
+_DEFAULT_SILENT_DURATION = 3.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -184,10 +195,12 @@ def create_ken_burns_clip(
         '-i', image_path,
         '-vf', vf,
         '-t', str(duration),
+        '-r', str(fps),
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
         '-preset', 'medium',
         '-crf', '23',
+        '-movflags', '+faststart',
         output_path,
     ]
 
@@ -226,12 +239,14 @@ def create_silent_clip(
         '-f', 'lavfi', '-i', f'anullsrc=r=44100:cl=stereo',
         '-vf', vf,
         '-t', str(duration),
+        '-r', str(fps),
         '-c:v', 'libx264',
         '-c:a', 'aac',
         '-pix_fmt', 'yuv420p',
         '-preset', 'medium',
         '-crf', '23',
         '-shortest',
+        '-movflags', '+faststart',
         output_path,
     ]
 
@@ -259,10 +274,12 @@ def create_static_clip(
         '-i', image_path,
         '-vf', vf,
         '-t', str(duration),
+        '-r', str(fps),
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
         '-preset', 'medium',
         '-crf', '23',
+        '-movflags', '+faststart',
         output_path,
     ]
 
@@ -292,31 +309,29 @@ def _split_narration_to_sentences(text: str) -> List[str]:
     优先按中/英文句号、问号、叹号等断句，
     过长的分句再按逗号/顿号二次拆分。
     """
-    import re
     # 先按主要句末标点断句（保留标点在前一句末尾）
     raw_parts = re.split(r'(?<=[。！？!?\n])', text.strip())
     sentences = [p.strip() for p in raw_parts if p.strip()]
 
     # 对超长句子按逗号等次级标点二次拆分
-    MAX_SEGMENT = 30
     result = []
     for sent in sentences:
-        if len(sent) <= MAX_SEGMENT:
+        if len(sent) <= _MAX_SUBTITLE_SEGMENT_LENGTH:
             result.append(sent)
             continue
         # 按逗号、分号、顿号拆分
         sub_parts = re.split(r'(?<=[，；、,;])', sent)
         current = ''
         for part in sub_parts:
-            if len(current) + len(part) <= MAX_SEGMENT:
+            if len(current) + len(part) <= _MAX_SUBTITLE_SEGMENT_LENGTH:
                 current += part
             else:
                 if current:
                     result.append(current)
                 # 单段还是超长就硬切
-                while len(part) > MAX_SEGMENT:
-                    result.append(part[:MAX_SEGMENT])
-                    part = part[MAX_SEGMENT:]
+                while len(part) > _MAX_SUBTITLE_SEGMENT_LENGTH:
+                    result.append(part[:_MAX_SUBTITLE_SEGMENT_LENGTH])
+                    part = part[_MAX_SUBTITLE_SEGMENT_LENGTH:]
                 current = part
         if current:
             result.append(current)
@@ -469,6 +484,7 @@ def burn_subtitles(
         '-pix_fmt', 'yuv420p',
         '-preset', 'medium',
         '-crf', '23',
+        '-movflags', '+faststart',
         output_path,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -496,6 +512,7 @@ def mux_video_audio(
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-shortest',
+        '-movflags', '+faststart',
         output_path,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -506,6 +523,7 @@ def mux_video_audio(
 def composite_video(
     clip_paths: List[str],
     output_path: str,
+    fps: int = 25,
     ffmpeg_path: str = 'ffmpeg',
     timeout: int = 300,
 ) -> None:
@@ -515,6 +533,7 @@ def composite_video(
     Args:
         clip_paths: 各页合并后的视频片段路径列表
         output_path: 最终输出 MP4 路径
+        fps: 帧率（确保拼接后一致）
         ffmpeg_path: ffmpeg 路径
         timeout: 超时秒数
     """
@@ -523,13 +542,17 @@ def composite_video(
         shutil.copy2(clip_paths[0], output_path)
         return
 
-    # 创建 concat 列表文件
+    # 创建 concat 列表文件 — 使用绝对路径并验证文件确实存在于临时目录
     concat_file = output_path + '.concat.txt'
     try:
         with open(concat_file, 'w') as f:
             for path in clip_paths:
+                # 安全检查：路径不能包含换行符（防止 concat 文件注入）
+                safe_path = os.path.abspath(path)
+                if '\n' in safe_path or '\r' in safe_path:
+                    raise ValueError(f"Invalid clip path contains newline: {safe_path}")
                 # 转义单引号
-                escaped = path.replace("'", "'\\''")
+                escaped = safe_path.replace("'", "'\\''")
                 f.write(f"file '{escaped}'\n")
 
         cmd = [
@@ -537,7 +560,13 @@ def composite_video(
             '-f', 'concat',
             '-safe', '0',
             '-i', concat_file,
-            '-c', 'copy',
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-r', str(fps),
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'medium',
+            '-crf', '23',
+            '-movflags', '+faststart',
             output_path,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -566,6 +595,7 @@ def generate_narration_video(
     enable_ken_burns: bool = False,
     ffmpeg_path: str = 'ffmpeg',
     progress_callback: Optional[Callable[[str, str, int], None]] = None,
+    silent_duration: float = 0,
 ) -> None:
     """
     完整的播报视频生成流水线。
@@ -584,6 +614,7 @@ def generate_narration_video(
         enable_ken_burns: 是否启用 Ken Burns 动效（默认关闭）
         ffmpeg_path: ffmpeg 路径
         progress_callback: 进度回调 (step, message, percent)
+        silent_duration: 无旁白页面的静音时长（秒），0 表示使用默认值
     """
     if not pages_data:
         raise ValueError("No pages to process")
@@ -595,6 +626,9 @@ def generate_narration_video(
             "Please install FFmpeg to use video export."
         )
 
+    if silent_duration <= 0:
+        silent_duration = _DEFAULT_SILENT_DURATION
+
     tmp_dir = output_path + '_tmp'
     os.makedirs(tmp_dir, exist_ok=True)
 
@@ -604,14 +638,16 @@ def generate_narration_video(
         subtitle_entries: List[dict] = []
         cumulative_time = 0.0
 
-        for i, page in enumerate(pages_data):
-            image_path = page['image_path']
-            narration = page.get('narration_text')
-            page_idx = page.get('page_index', i)
-            effect = KEN_BURNS_EFFECTS[page_idx % len(KEN_BURNS_EFFECTS)]
+        # ── Phase A: TTS 音频生成 ──
+        # 先统一生成所有 TTS 音频，获取每页实际时长
+        page_durations: List[float] = []
+        audio_paths: List[Optional[str]] = []
 
-            # ── Step A: TTS 音频 ──
+        for i, page in enumerate(pages_data):
+            narration = page.get('narration_text')
+
             audio_path = None
+            duration = silent_duration
             if narration and narration.strip():
                 audio_path = os.path.join(tmp_dir, f'audio_{i:03d}.mp3')
                 try:
@@ -619,28 +655,34 @@ def generate_narration_video(
                         narration, audio_path, voice=voice, rate=rate, ffmpeg_path=ffmpeg_path,
                     )
                 except Exception as e:
-                    logger.warning(f"TTS failed for page {page_idx}: {e}, using silent clip")
-                    narration = None  # fallback to silent
+                    logger.warning(f"TTS failed for page {page.get('page_index', i)}: {e}, using silent clip")
                     audio_path = None
+                    duration = silent_duration
 
-                if progress_callback:
-                    pct = int(20 + (i + 1) / total * 30)  # 20-50%
-                    progress_callback("TTS", f"已生成第 {i+1}/{total} 页音频", pct)
+            page_durations.append(duration)
+            audio_paths.append(audio_path)
 
-            if not narration or not narration.strip():
-                # 无旁白 → 3 秒静音片段
-                duration = 3.0
-                audio_path = None
+            if progress_callback:
+                pct = int(20 + (i + 1) / total * 30)  # 20-50%
+                progress_callback("TTS", f"已生成第 {i+1}/{total} 页音频", pct)
 
-            # 收集字幕条目（按句拆分，均匀分配时长）
-            if narration and narration.strip():
+        # ── Phase B: 视频片段 + 字幕条目 ──
+        for i, page in enumerate(pages_data):
+            image_path = page['image_path']
+            narration = page.get('narration_text')
+            page_idx = page.get('page_index', i)
+            effect = KEN_BURNS_EFFECTS[page_idx % len(KEN_BURNS_EFFECTS)]
+            duration = page_durations[i]
+            audio_path = audio_paths[i]
+
+            # 收集字幕条目
+            if narration and narration.strip() and audio_path:
                 page_subs = _build_timed_subtitle_entries(
                     narration.strip(), cumulative_time, duration,
                 )
                 subtitle_entries.extend(page_subs)
             cumulative_time += duration
 
-            # ── Step B: 视频片段 ──
             if audio_path:
                 video_clip = os.path.join(tmp_dir, f'video_{i:03d}.mp4')
                 if enable_ken_burns:
@@ -656,7 +698,7 @@ def generate_narration_video(
                         ffmpeg_path=ffmpeg_path,
                     )
 
-                # ── Step C: Mux video + audio ──
+                # Mux video + audio
                 muxed_path = os.path.join(tmp_dir, f'muxed_{i:03d}.mp4')
                 mux_video_audio(video_clip, audio_path, muxed_path, ffmpeg_path=ffmpeg_path)
                 muxed_clips.append(muxed_path)
@@ -675,14 +717,14 @@ def generate_narration_video(
                 pct = int(50 + (i + 1) / total * 30)  # 50-80%
                 progress_callback("视频", f"已生成第 {i+1}/{total} 页视频片段", pct)
 
-        # ── Step D: 拼接视频 ──
+        # ── Phase C: 拼接视频 ──
         if progress_callback:
             progress_callback("合成", "正在拼接视频…", 82)
 
         raw_video = os.path.join(tmp_dir, 'raw_composite.mp4')
-        composite_video(muxed_clips, raw_video, ffmpeg_path=ffmpeg_path)
+        composite_video(muxed_clips, raw_video, fps=fps, ffmpeg_path=ffmpeg_path)
 
-        # ── Step E: 烧录字幕 ──
+        # ── Phase D: 烧录字幕 ──
         if subtitle_entries:
             if progress_callback:
                 progress_callback("字幕", "正在烧录字幕…", 88)

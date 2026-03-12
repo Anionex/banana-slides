@@ -119,6 +119,7 @@ class Config:
     VIDEO_OUTPUT_HEIGHT = int(os.getenv('VIDEO_OUTPUT_HEIGHT', '1080'))
     VIDEO_FPS = int(os.getenv('VIDEO_FPS', '25'))
     FFMPEG_PATH = os.getenv('FFMPEG_PATH', 'ffmpeg')
+    DEFAULT_SILENT_CLIP_DURATION = float(os.getenv('DEFAULT_SILENT_CLIP_DURATION', '3.0'))
 
 
 class DevelopmentConfig(Config):
