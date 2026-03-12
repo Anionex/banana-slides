@@ -1391,6 +1391,7 @@ def export_video_task(
     rate: str = '+0%',
     generate_narration: bool = True,
     enable_ken_burns: bool = False,
+    include_no_image_pages: bool = False,
     page_ids: list = None,
     language: str = 'zh',
     app=None,
@@ -1410,7 +1411,7 @@ def export_video_task(
     with app.app_context():
         import os
         from models import Project
-        from services.tts_video_service import generate_narration_video, check_ffmpeg_available
+        from services.tts_video_service import generate_narration_video, check_ffmpeg_available, create_placeholder_frame
 
         progress_messages = ["🚀 开始导出讲解视频..."]
         max_messages = 10
@@ -1473,16 +1474,40 @@ def export_video_task(
             if not pages:
                 raise ValueError("没有找到可导出的页面")
 
-            # 过滤出有图片的页面
+            # 构建页面列表：有图片的用实际图片，无图片的根据选项处理
             valid_pages = []
+            placeholder_dir = None
+
+            if include_no_image_pages:
+                video_width = app.config.get('VIDEO_OUTPUT_WIDTH', 1920)
+                video_height = app.config.get('VIDEO_OUTPUT_HEIGHT', 1080)
+                placeholder_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports', '_placeholder_tmp')
+                os.makedirs(placeholder_dir, exist_ok=True)
+
             for page in pages:
                 if page.generated_image_path:
                     img_path = file_service.get_absolute_path(page.generated_image_path)
                     if os.path.exists(img_path):
                         valid_pages.append((page, img_path))
+                        continue
+
+                if include_no_image_pages:
+                    # 为无图页面生成占位帧
+                    outline_content = page.get_outline_content() or {}
+                    title = outline_content.get('title', f'Page {page.order_index + 1}')
+                    placeholder_path = os.path.join(placeholder_dir, f'placeholder_{page.order_index:03d}.png')
+                    try:
+                        create_placeholder_frame(
+                            placeholder_path, title=title,
+                            width=video_width, height=video_height,
+                            ffmpeg_path=ffmpeg_path,
+                        )
+                        valid_pages.append((page, placeholder_path))
+                    except Exception as e:
+                        logger.warning(f"生成占位帧失败 (page {page.id}): {e}")
 
             if not valid_pages:
-                raise ValueError("没有找到已生成图片的页面")
+                raise ValueError("没有找到可导出的页面（无图片且未启用占位帧）")
 
             progress_callback("准备", f"找到 {len(valid_pages)} 页幻灯片", 5)
 
@@ -1522,7 +1547,7 @@ def export_video_task(
                         prompt = get_narration_generation_prompt(
                             description_text=desc_text,
                             outline=outline_content,
-                            page_index=page.order_index + 1,
+                            page_index=i + 1,
                             total_pages=total_pages,
                             language=language,
                         )
@@ -1543,9 +1568,16 @@ def export_video_task(
             pages_data = []
             for page, img_path in valid_pages:
                 db.session.refresh(page)
+                narration = page.narration_text
+                logger.info(
+                    f"[视频导出] 页面 {page.order_index + 1}: "
+                    f"title={((page.get_outline_content() or {}).get('title', ''))[:30]}, "
+                    f"narration={narration[:50] if narration else '(无)'}, "
+                    f"image={'有图' if page.generated_image_path else '占位帧'}"
+                )
                 pages_data.append({
                     'image_path': img_path,
-                    'narration_text': page.narration_text,
+                    'narration_text': narration,
                     'page_index': page.order_index,
                 })
 
@@ -1614,3 +1646,9 @@ def export_video_task(
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
+
+        finally:
+            # 清理占位帧临时目录
+            if placeholder_dir and os.path.exists(placeholder_dir):
+                import shutil
+                shutil.rmtree(placeholder_dir, ignore_errors=True)

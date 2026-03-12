@@ -23,6 +23,57 @@ logger = logging.getLogger(__name__)
 export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
 
 
+@export_bp.route('/<project_id>/exports', methods=['GET'])
+def list_exports(project_id):
+    """
+    GET /api/projects/{project_id}/exports - 列出项目已导出的文件
+
+    返回 exports 目录下的文件列表（名称、大小、修改时间、下载链接）。
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        exports_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], project_id, 'exports')
+
+        if not os.path.isdir(exports_dir):
+            return success_response(data={"files": []})
+
+        files = []
+        for name in sorted(os.listdir(exports_dir)):
+            filepath = os.path.join(exports_dir, name)
+            if not os.path.isfile(filepath):
+                continue
+            # 跳过临时目录和隐藏文件
+            if name.startswith('.') or name.startswith('_'):
+                continue
+
+            stat = os.stat(filepath)
+            ext = os.path.splitext(name)[1].lower()
+            file_type = {
+                '.mp4': 'video', '.pptx': 'pptx', '.pdf': 'pdf',
+                '.zip': 'images', '.png': 'image', '.jpg': 'image',
+            }.get(ext, 'other')
+
+            files.append({
+                "filename": name,
+                "type": file_type,
+                "size": stat.st_size,
+                "modified_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(stat.st_mtime)),
+                "download_url": f"/files/{project_id}/exports/{name}",
+            })
+
+        # 按修改时间倒序
+        files.sort(key=lambda f: f['modified_at'], reverse=True)
+
+        return success_response(data={"files": files})
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
 def export_pptx(project_id):
     """
@@ -413,8 +464,8 @@ def export_video(project_id):
             return bad_request("No pages found for project")
 
         has_images = any(page.generated_image_path for page in pages)
-        if not has_images:
-            return bad_request("No generated images found for project")
+        if not has_images and not include_no_image_pages:
+            return bad_request("No generated images found for project. Enable 'include pages without images' to export all pages.")
 
         # 参数 — 使用 secure_filename 防止路径遍历
         raw_filename = data.get('filename', f'narration_{project_id}.mp4')
@@ -428,6 +479,7 @@ def export_video(project_id):
         rate = data.get('rate', current_app.config.get('TTS_DEFAULT_RATE', '+0%'))
         generate_narration = data.get('generate_narration', True)
         enable_ken_burns = data.get('enable_ken_burns', False)
+        include_no_image_pages = data.get('include_no_image_pages', False)
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
 
         # 根据语言自动选择默认语音
@@ -463,6 +515,7 @@ def export_video(project_id):
             rate=rate,
             generate_narration=generate_narration,
             enable_ken_burns=enable_ken_burns,
+            include_no_image_pages=include_no_image_pages,
             page_ids=selected_page_ids if selected_page_ids else None,
             language=language,
             app=app,
@@ -474,6 +527,7 @@ def export_video(project_id):
                 "voice": voice,
                 "generate_narration": generate_narration,
                 "enable_ken_burns": enable_ken_burns,
+                "include_no_image_pages": include_no_image_pages,
             },
             message="Video export task created"
         )

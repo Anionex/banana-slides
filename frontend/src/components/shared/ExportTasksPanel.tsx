@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings } from 'lucide-react';
+import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings, Film, FileSpreadsheet, Image } from 'lucide-react';
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
 import { useT } from '@/hooks/useT';
 import type { Page } from '@/types';
 import { Button } from './Button';
 import { cn } from '@/utils';
+import * as api from '@/api/endpoints';
 
 // Export 组件自包含翻译
 const exportI18n = {
@@ -17,7 +18,8 @@ const exportI18n = {
       warningsCount: "导出警告 ({{count}} 条)", detailInfo: "详细信息",
       styleExtractionFailed: "样式提取失败 ({{count}} 个)", textRenderFailed: "文本渲染失败 ({{count}} 个)",
       moreItems: "... 还有 {{count}} 条", exportFailed: "导出失败", preparing: "准备中...",
-      settingsTip: "可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项"
+      settingsTip: "可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项",
+      exportedFiles: "已导出文件",
     },
     shared: { historyRecords: "历史记录" }
   },
@@ -30,7 +32,8 @@ const exportI18n = {
       warningsCount: "Export Warnings ({{count}})", detailInfo: "Details",
       styleExtractionFailed: "Style extraction failed ({{count}})", textRenderFailed: "Text render failed ({{count}})",
       moreItems: "... {{count}} more", exportFailed: "Export Failed", preparing: "Preparing...",
-      settingsTip: "Adjust settings in \"Project Settings → Export Settings\" or enable \"Allow Partial Results\""
+      settingsTip: "Adjust settings in \"Project Settings → Export Settings\" or enable \"Allow Partial Results\"",
+      exportedFiles: "Exported Files",
     },
     shared: { historyRecords: "History Records" }
   }
@@ -341,7 +344,14 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             variant="primary"
             size="sm"
             icon={<Download size={14} />}
-            onClick={() => window.open(task.downloadUrl, '_blank')}
+            onClick={() => {
+              const a = document.createElement('a');
+              a.href = task.downloadUrl!;
+              a.download = task.filename || '';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }}
             className="text-xs px-2 py-1"
           >
             {t('common.download')}
@@ -366,33 +376,67 @@ interface ExportTasksPanelProps {
   className?: string;
 }
 
+interface ExportedFile {
+  filename: string;
+  type: string;
+  size: number;
+  modified_at: string;
+  download_url: string;
+}
+
+const FileTypeIcon: React.FC<{ type: string }> = ({ type }) => {
+  switch (type) {
+    case 'video': return <Film size={14} className="text-red-500" />;
+    case 'pptx': return <FileSpreadsheet size={14} className="text-orange-500" />;
+    case 'pdf': return <FileText size={14} className="text-blue-500" />;
+    case 'images': case 'image': return <Image size={14} className="text-green-500" />;
+    default: return <FileText size={14} className="text-gray-400" />;
+  }
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, pages = [], className }) => {
   const t = useT(exportI18n);
   const [isExpanded, setIsExpanded] = useState(true);
   const { tasks, removeTask, clearCompleted, restoreActiveTasks } = useExportTasksStore();
-  
-  const filteredTasks = projectId 
+  const [exportedFiles, setExportedFiles] = useState<ExportedFile[]>([]);
+
+  const filteredTasks = projectId
     ? tasks.filter(task => task.projectId === projectId)
     : tasks;
-  
+
   const activeTasks = filteredTasks.filter(
     task => task.status === 'PENDING' || task.status === 'PROCESSING' || task.status === 'RUNNING'
   );
   const completedTasks = filteredTasks.filter(
     task => task.status === 'COMPLETED' || task.status === 'FAILED'
   );
-  
+
   useEffect(() => {
     restoreActiveTasks();
   }, []);
-  
+
+  // 从服务端加载已导出文件列表
+  useEffect(() => {
+    if (!projectId) return;
+    api.listExports(projectId)
+      .then(res => setExportedFiles(res.data?.files || []))
+      .catch(() => {});
+  }, [projectId, completedTasks.length]);
+
   useEffect(() => {
     if (activeTasks.length > 0 && !isExpanded) {
       setIsExpanded(true);
     }
   }, [activeTasks.length, isExpanded]);
-  
-  if (filteredTasks.length === 0) {
+
+  // 同时没有任务也没有文件时隐藏面板
+  if (filteredTasks.length === 0 && exportedFiles.length === 0) {
     return null;
   }
   
@@ -446,12 +490,50 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                 </button>
               </div>
               {completedTasks.map(task => (
-                <TaskItem 
-                  key={task.id} 
+                <TaskItem
+                  key={task.id}
                   task={task}
                   pages={pages}
                   onRemove={() => removeTask(task.id)}
                 />
+              ))}
+            </div>
+          )}
+
+          {/* 服务端已导出文件 */}
+          {exportedFiles.length > 0 && (
+            <div className="p-2 border-t border-gray-100 dark:border-border-primary">
+              <div className="px-3 py-1 mb-1">
+                <span className="text-xs text-gray-400">{t('export.exportedFiles')}</span>
+              </div>
+              {exportedFiles.map(file => (
+                <div key={file.filename} className="flex items-center gap-3 py-2 px-3 hover:bg-gray-50 dark:hover:bg-background-hover rounded-lg transition-colors">
+                  <FileTypeIcon type={file.type} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-700 dark:text-foreground-secondary truncate" title={file.filename}>
+                      {file.filename}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatFileSize(file.size)} · {new Date(file.modified_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<Download size={14} />}
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = file.download_url;
+                      a.download = file.filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}
+                    className="text-xs px-2 py-1"
+                  >
+                    {t('common.download')}
+                  </Button>
+                </div>
               ))}
             </div>
           )}

@@ -28,6 +28,102 @@ _MAX_SUBTITLE_SEGMENT_LENGTH = 30
 _DEFAULT_SILENT_DURATION = 3.0
 
 
+def create_placeholder_frame(
+    output_path: str,
+    title: str = '',
+    width: int = 1920,
+    height: int = 1080,
+    ffmpeg_path: str = 'ffmpeg',
+) -> None:
+    """
+    为没有图片的页面生成占位帧图片（深色渐变背景 + 标题文字）。
+
+    使用 FFmpeg 纯滤镜生成，不需要外部图片资源。
+    """
+    # 清理标题中的特殊字符，防止 FFmpeg drawtext 解析错误
+    safe_title = title.replace("'", "'").replace(":", "\\:").replace("\\", "\\\\")
+    safe_title = safe_title[:60]  # 限制长度
+
+    font_size = max(36, int(height / 20))
+
+    # 检测可用的 CJK 字体文件路径
+    font_file = _detect_cjk_font_file()
+    if font_file:
+        drawtext = (
+            f"drawtext=text='{safe_title}':"
+            f"fontfile='{font_file}':"
+            f"fontsize={font_size}:fontcolor=white:"
+            f"x=(w-text_w)/2:y=(h-text_h)/2"
+        )
+    else:
+        drawtext = (
+            f"drawtext=text='{safe_title}':"
+            f"fontsize={font_size}:fontcolor=white:"
+            f"x=(w-text_w)/2:y=(h-text_h)/2"
+        )
+
+    # 渐变深色背景 + 居中白色标题
+    vf = (
+        f"color=c=#1a1a2e:s={width}x{height}:d=1,"
+        f"format=rgb24,{drawtext}"
+    )
+
+    cmd = [
+        ffmpeg_path, '-y',
+        '-f', 'lavfi',
+        '-i', vf,
+        '-frames:v', '1',
+        '-update', '1',
+        output_path,
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    if result.returncode != 0:
+        # fallback: 纯色背景（无文字）
+        logger.warning(f"Placeholder with text failed, using plain background: {result.stderr[-200:]}")
+        vf_plain = f"color=c=#1a1a2e:s={width}x{height}:d=1"
+        cmd_plain = [
+            ffmpeg_path, '-y',
+            '-f', 'lavfi',
+            '-i', vf_plain,
+            '-frames:v', '1',
+            '-update', '1',
+            output_path,
+        ]
+        result2 = subprocess.run(cmd_plain, capture_output=True, text=True, timeout=15)
+        if result2.returncode != 0:
+            raise RuntimeError(f"FFmpeg placeholder frame failed: {result2.stderr[-300:]}")
+
+
+def _detect_cjk_font_file() -> Optional[str]:
+    """检测系统中 CJK 字体文件路径（用于 FFmpeg drawtext fontfile）"""
+    # 常见 CJK 字体文件路径
+    candidates = [
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    # 用 fc-match 查找
+    try:
+        result = subprocess.run(
+            ['fc-match', '-f', '%{file}', ':lang=zh'],
+            capture_output=True, text=True, timeout=5,
+        )
+        path = result.stdout.strip()
+        if path and os.path.exists(path):
+            return path
+    except Exception:
+        pass
+
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 辅助函数
 # ═══════════════════════════════════════════════════════════════════════════════

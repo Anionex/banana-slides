@@ -30,6 +30,7 @@ const previewI18n = {
       videoExportTitle: "讲解视频导出设置",
       videoVoiceLabel: "语音音色",
       videoEnableKenBurns: "启用画面动效（Ken Burns）",
+      videoIncludeNoImage: "包含未配图页面（生成占位帧）",
       videoStartExport: "开始导出",
       videoCancel: "取消",
       exportSelectedPages: "将导出选中的 {{count}} 页",
@@ -104,6 +105,7 @@ const previewI18n = {
       videoExportTitle: "Narration Video Export Settings",
       videoVoiceLabel: "Voice",
       videoEnableKenBurns: "Enable Ken Burns effect (zoom/pan animation)",
+      videoIncludeNoImage: "Include pages without images (placeholder frames)",
       videoStartExport: "Start Export",
       videoCancel: "Cancel",
       exportSelectedPages: "Will export {{count}} selected page(s)",
@@ -249,6 +251,7 @@ export const SlidePreview: React.FC = () => {
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
   const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
+  const [videoIncludeNoImage, setVideoIncludeNoImage] = useState(false);
   const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
   // 多选导出相关状态
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -1074,6 +1077,7 @@ export const SlidePreview: React.FC = () => {
         const response = await apiExportVideo(projectId, {
           pageIds,
           enableKenBurns: videoEnableKenBurns,
+          includeNoImagePages: videoIncludeNoImage,
           voice: videoVoice,
           language: voiceLang,
         });
@@ -1383,9 +1387,8 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden lg:inline">{t('preview.refresh')}</span>
             </Button>
           
-          {/* 导出任务按钮 */}
-          {exportTasks.filter(t => t.projectId === projectId).length > 0 && (
-            <div className="relative">
+          {/* 导出任务按钮 — 始终显示，面板内部决定是否有内容 */}
+          <div className="relative">
               <Button
                 variant="ghost"
                 size="sm"
@@ -1400,21 +1403,22 @@ export const SlidePreview: React.FC = () => {
                 ) : (
                   <FileText size={16} />
                 )}
-                <span className="ml-1 text-xs">
-                  {exportTasks.filter(t => t.projectId === projectId).length}
-                </span>
+                {exportTasks.filter(t => t.projectId === projectId).length > 0 && (
+                  <span className="ml-1 text-xs">
+                    {exportTasks.filter(t => t.projectId === projectId).length}
+                  </span>
+                )}
               </Button>
               {showExportTasksPanel && (
                 <div className="absolute right-0 mt-2 z-20">
-                  <ExportTasksPanel 
-                    projectId={projectId} 
+                  <ExportTasksPanel
+                    projectId={projectId}
                     pages={currentProject?.pages || []}
-                    className="w-96 max-h-[28rem] shadow-lg" 
+                    className="w-96 max-h-[28rem] shadow-lg"
                   />
                 </div>
               )}
             </div>
-          )}
           
           <div className="relative">
             <Button
@@ -1519,6 +1523,16 @@ export const SlidePreview: React.FC = () => {
                   className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
                 />
                 <span className="text-sm">{t('preview.videoEnableKenBurns')}</span>
+              </label>
+              {/* 包含未配图页面 */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={videoIncludeNoImage}
+                  onChange={e => setVideoIncludeNoImage(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                />
+                <span className="text-sm">{t('preview.videoIncludeNoImage')}</span>
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">

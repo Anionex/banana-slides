@@ -722,6 +722,22 @@ export const exportEditablePPTX = async (
 };
 
 /**
+ * 列出项目已导出的文件
+ */
+export const listExports = async (
+  projectId: string,
+): Promise<ApiResponse<{ files: Array<{
+  filename: string;
+  type: string;
+  size: number;
+  modified_at: string;
+  download_url: string;
+}> }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+/**
  * 导出为讲解视频（异步任务）
  * @param projectId 项目ID
  * @param options 导出选项
@@ -736,6 +752,7 @@ export const exportVideo = async (
     language?: string;
     generateNarration?: boolean;
     enableKenBurns?: boolean;
+    includeNoImagePages?: boolean;
   }
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
@@ -748,6 +765,7 @@ export const exportVideo = async (
     language: options?.language,
     generate_narration: options?.generateNarration ?? true,
     enable_ken_burns: options?.enableKenBurns ?? false,
+    include_no_image_pages: options?.includeNoImagePages ?? false,
   });
   return response.data;
 };
