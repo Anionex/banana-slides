@@ -14,7 +14,8 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 # Flask配置
 class Config:
     """Base configuration"""
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+    _default_secret = 'your-secret-key-change-this'
+    SECRET_KEY = os.getenv('SECRET_KEY', _default_secret)
     
     # 数据库配置
     # Use absolute path to avoid WSL path issues
