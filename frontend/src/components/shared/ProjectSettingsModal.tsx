@@ -23,6 +23,7 @@ const projectSettingsI18n = {
       styleDescriptionPlaceholder: "例如：简约商务风格，使用深蓝色和白色配色，字体清晰大方，布局整洁...",
       saveStyleDescription: "保存风格描述",
       styleTip: "风格描述会在生成图片时自动添加到提示词中。如果同时上传了模板图片，风格描述会作为补充说明。",
+      templateImageStyle: "模板图片风格", templateImageStyleDesc: "上传模板图片后自动提取的风格描述，用于指导 AI 生成与模板风格一致的页面。", templateImageStyleEmpty: "尚未上传模板图片，或风格提取未完成。",
       editablePptxExport: "可编辑 PPTX 导出设置", editablePptxExportDesc: "配置「导出可编辑 PPTX」功能的处理方式。这些设置影响导出质量和API调用成本。",
       extractorMethod: "组件提取方法", extractorMethodDesc: "选择如何从PPT图片中提取文字、表格等可编辑组件",
       extractorHybrid: "混合提取（推荐）", extractorHybridDesc: "MinerU版面分析 + 百度高精度OCR，文字识别更精确",
@@ -56,6 +57,7 @@ const projectSettingsI18n = {
       styleDescriptionPlaceholder: "e.g., Simple business style, use navy blue and white colors, clear fonts, clean layout...",
       saveStyleDescription: "Save Style Description",
       styleTip: "Style description will be automatically added to the prompt when generating images. If a template image is also uploaded, the style description will serve as supplementary notes.",
+      templateImageStyle: "Template Image Style", templateImageStyleDesc: "Style description auto-extracted from the uploaded template image, guiding AI to generate pages matching the template style.", templateImageStyleEmpty: "No template image uploaded, or style extraction not completed.",
       editablePptxExport: "Editable PPTX Export Settings", editablePptxExportDesc: "Configure how \"Export Editable PPTX\" works. These settings affect export quality and API call costs.",
       extractorMethod: "Component Extraction Method", extractorMethodDesc: "Choose how to extract editable components like text and tables from PPT images",
       extractorHybrid: "Hybrid Extraction (Recommended)", extractorHybridDesc: "MinerU layout analysis + Baidu high-precision OCR for more accurate text recognition",
@@ -81,6 +83,7 @@ interface ProjectSettingsModalProps {
   onClose: () => void;
   extraRequirements: string;
   templateStyle: string;
+  templateImageStyle?: string;
   onExtraRequirementsChange: (value: string) => void;
   onTemplateStyleChange: (value: string) => void;
   onSaveExtraRequirements: () => void;
@@ -109,6 +112,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   onClose,
   extraRequirements,
   templateStyle,
+  templateImageStyle,
   onExtraRequirementsChange,
   onTemplateStyleChange,
   onSaveExtraRequirements,
@@ -280,6 +284,20 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     {isSavingRequirements ? t('shared.saving') : t('projectSettings.saveExtraRequirements')}
                   </Button>
                 </div>
+
+                {templateImageStyle && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-6 space-y-4">
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.templateImageStyle')}</h4>
+                      <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
+                        {t('projectSettings.templateImageStyleDesc')}
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-background-secondary rounded-md p-4 text-sm text-gray-700 dark:text-foreground-secondary whitespace-pre-wrap border border-purple-200 dark:border-purple-700">
+                      {templateImageStyle}
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-6 space-y-4">
                   <div>

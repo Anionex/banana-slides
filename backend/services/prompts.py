@@ -1016,20 +1016,29 @@ Only describe the layout and spatial arrangement. Do not describe colors, text c
 def get_style_extraction_prompt() -> str:
     """从图片中提取风格描述（通用，可复用于所有创建模式）"""
     prompt = """\
-You are a professional PPT design analyst. Analyze this image and extract a detailed style description that can be used to generate PPT slides with a similar visual style.
+You are a professional PPT design analyst. Analyze this image and extract a detailed style description following the structured format below. This description will be used to generate PPT slides with a similar visual style.
 
-Focus on:
-1. **Color palette**: Primary colors, secondary colors, accent colors, background colors
-2. **Typography style**: Font style impression (serif/sans-serif, weight, size hierarchy)
-3. **Design elements**: Decorative patterns, shapes, icons style, borders, shadows
-4. **Overall mood**: Professional, playful, minimalist, corporate, creative, etc.
-5. **Layout tendencies**: How content is typically arranged, spacing preferences
+Output format (in Chinese, use exact section headers):
 
-Output a concise style description in Chinese that can be directly used as a style prompt for PPT generation. Write it as a single paragraph, not a list. Example:
+视觉描述：[Overall visual language, atmosphere, mood, lighting style]
 
-"采用深蓝色渐变背景，搭配白色和金色文字。整体风格简约商务，使用无衬线字体，标题加粗突出。页面装饰以几何线条和半透明色块为主，配色统一协调。内容区域留白充足，视觉层次分明。"
+配色与材质：[Background color with hex code, foreground/accent colors with hex codes, material textures]
 
-Only output the style description text, no other content.
+内容与排版：[Typography choices (serif/sans-serif, weight), layout structure, decorative elements, spacing, visual hierarchy]
+
+渲染要求：[Rendering style, clarity requirements, special effects]
+
+Example output:
+
+视觉描述：全局视觉语言体现简约商务的专业与稳重。整体风格追求扁平化与秩序感，光照环境为均匀的漫射光，画面干净透亮。
+
+配色与材质：背景色为深沉的海军蓝（#0B1F3B），前景使用纯白（#FFFFFF）和天蓝色（#38BDF8）点缀。材质采用哑光纸张质感。
+
+内容与排版：排版遵循模块化网格系统，使用粗壮无衬线字体作为标题，正文纤细清晰。装饰以细线条和浅灰色块划分内容区域。
+
+渲染要求：矢量插画风格，极高清晰度，文字和图形边缘锐利无锯齿。
+
+Only output the style description text with the four sections, no other content.
 """
     logger.debug(f"[get_style_extraction_prompt] Final prompt:\n{prompt}")
     return prompt

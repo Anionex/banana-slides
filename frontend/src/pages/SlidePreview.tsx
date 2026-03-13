@@ -2144,6 +2144,7 @@ export const SlidePreview: React.FC = () => {
             onClose={() => setIsProjectSettingsOpen(false)}
             extraRequirements={extraRequirements}
             templateStyle={templateStyle}
+            templateImageStyle={currentProject?.template_image_style}
             onExtraRequirementsChange={(value) => {
               isEditingRequirements.current = true;
               setExtraRequirements(value);
