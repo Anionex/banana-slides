@@ -144,14 +144,24 @@ def _patch_doubao_remove_guidance_scale(client):
     and remove 'guidance_scale' right before the actual API call.
     """
     images_resource = client._client.images
+
+    # Prevent re-patching if this function is called multiple times.
+    if getattr(images_resource.generate, '__is_patched_for_seedream5__', False):
+        return
+
     original_generate = images_resource.generate
 
     def patched_generate(*args, **kwargs):
-        kwargs.pop('guidance_scale', None)
+        # Conditionally remove guidance_scale only for seedream-5 models.
+        # This is safer if the underlying client is shared across different model versions.
+        model_name = kwargs.get('model', '')
+        if 'seedream-5' in model_name:
+            kwargs.pop('guidance_scale', None)
         return original_generate(*args, **kwargs)
 
+    patched_generate.__is_patched_for_seedream5__ = True
     images_resource.generate = patched_generate
-    logger.info('[LazyLLM] Patched _client.images.generate: removed guidance_scale for Seedream 5.0+')
+    logger.info('[LazyLLM] Patched _client.images.generate to conditionally remove guidance_scale for Seedream 5.0+')
 
 
 class LazyLLMImageProvider(ImageProvider):
