@@ -45,6 +45,7 @@ export interface Page {
   part?: string; // 章节名
   outline_content: OutlineContent | null;
   description_content?: DescriptionContent;
+  narration_text?: string; // TTS 旁白文本
   generated_image_url?: string; // 后端返回 generated_image_url
   generated_image_path?: string; // 前端使用的别名
   status: PageStatus;

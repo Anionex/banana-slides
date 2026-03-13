@@ -125,6 +125,13 @@ No longer restricted by complex menu buttons, issue modification commands direct
 - See https://github.com/Anionex/banana-slides/issues/121 for relevant updates
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 
+### 6. TTS Narration Video Export
+- **One-click conversion of slides into narrated videos (MP4) with AI-generated voiceover and subtitles**
+- AI automatically converts page descriptions into natural spoken narration via edge-tts
+- Supports Chinese, English, and Japanese with multiple voice options (Xiaoxiao, Yunxi, Jenny, Guy, etc.)
+- Sentence-by-sentence scrolling subtitles, synchronized with speech rhythm, with CJK font rendering support
+- Optional Ken Burns animation effect (zoom/pan) for richer visual presentation
+
 <br>
 
 **🌟 Comparison with NotebookLM slide deck features**
@@ -133,7 +140,7 @@ No longer restricted by complex menu buttons, issue modification commands direct
 | Page Limit | 15 pages | **Unlimited** | 
 | Re-editing | Prompt-based modification | **Selection editing + Verbal editing** |
 | Asset Addition | Cannot add after generation | **Freely add after generation** |
-| Export Formats | Supports PDF, (non-editable image) pptx | **Export as PDF, (image or editable) pptx** |
+| Export Formats | Supports PDF, (non-editable image) pptx | **Export as PDF, (image or editable) pptx, narration video** |
 | Watermark | Watermarked in free version | **No watermark, freely add/remove elements** |
 
 > Note: As new features are added, this comparison may become outdated.
@@ -175,6 +182,7 @@ No longer restricted by complex menu buttons, issue modification commands direct
 | 🔄 In Progress | Support multi-layer, precision-masked editable .pptx export |
 | 🔄 In Progress | Web search |
 | 🔄 In Progress | Agent mode |
+| ✅ Completed | TTS narration video export (Chinese/English/Japanese, multiple voices, subtitles, Ken Burns effect) |
 | 🚍 Partial | Optimize frontend loading speed |
 | 🧭 Planned | Online presentation feature |
 | 🧭 Planned | Simple animations and page transitions |

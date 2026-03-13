@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check } from 'lucide-react';
+import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from './Modal';
 import { Button } from './Button';
@@ -43,6 +43,7 @@ const i18nDict = {
         parse: { t: '强大的素材解析能力', d: '上传多种格式文件，自动解析内容，为生成提供丰富素材。', items: ['多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容', '智能提取：自动识别文本中的关键点、图片链接和图表信息', '风格参考：支持上传参考图片或模板，定制 PPT 风格'] },
         vibe: { t: '「Vibe」式自然语言修改', d: '不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。', items: ['局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）', '整页优化：基于 nano banana pro🍌 生成高清、风格统一的页面'] },
         export: { t: '开箱即用的格式导出', d: '一键导出标准格式，直接演示无需调整。', items: ['多格式支持：一键导出标准 PPTX 或 PDF 文件', '完美适配：默认 16:9 比例，排版无需二次调整'] },
+        video: { t: 'TTS 讲解视频导出', d: '一键将幻灯片转换为带 AI 语音旁白和字幕的讲解视频。', items: ['AI 自动将页面描述转为口语化旁白，通过 edge-tts 合成语音', '支持中/英/日三种语言，多种音色可选', '逐句滚动字幕，自动按语音节奏切换', '可选 Ken Burns 画面动效（缩放/平移）'] },
       },
     },
   },
@@ -79,6 +80,7 @@ const i18nDict = {
         parse: { t: 'Powerful Material Parsing', d: 'Upload multiple format files, automatically parse content to provide rich materials for generation.', items: ['Multi-format support: Upload PDF/Docx/MD/Txt files, backend automatically parses content', 'Smart extraction: Automatically identify key points, image links and chart information in text', 'Style reference: Support uploading reference images or templates to customize PPT style'] },
         vibe: { t: '"Vibe" Style Natural Language Editing', d: 'No longer limited by complex menu buttons, directly issue modification commands through natural language.', items: ['Partial redraw: Make verbal modifications to unsatisfying areas (e.g., "Change this chart to a pie chart")', 'Full page optimization: Generate HD, style-consistent pages based on nano banana pro🍌'] },
         export: { t: 'Ready-to-Use Format Export', d: 'One-click export to standard formats, present directly without adjustments.', items: ['Multi-format support: One-click export to standard PPTX or PDF files', 'Perfect fit: Default 16:9 ratio, no secondary layout adjustments needed'] },
+        video: { t: 'TTS Narration Video Export', d: 'One-click conversion of slides into narrated videos with AI voiceover and subtitles.', items: ['AI converts page descriptions into natural spoken narration via edge-tts', 'Supports Chinese, English, and Japanese with multiple voice options', 'Sentence-by-sentence scrolling subtitles synchronized with speech', 'Optional Ken Burns animation effect (zoom/pan)'] },
       },
     },
   },
@@ -99,6 +101,7 @@ const FEATURES: { key: string; icon: React.ReactNode }[] = [
   { key: 'parse', icon: <FileText className="text-blue-500" size={24} /> },
   { key: 'vibe', icon: <MessageSquare className="text-green-500" size={24} /> },
   { key: 'export', icon: <Download className="text-purple-500" size={24} /> },
+  { key: 'video', icon: <Video className="text-red-500" size={24} /> },
 ];
 
 // ---------------------------------------------------------------------------
