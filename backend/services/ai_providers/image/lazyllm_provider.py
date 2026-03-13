@@ -131,6 +131,39 @@ def _calculate_image_dimensions(
     return w, h, f"{w}{sep}{h}"
 
 
+def _patch_doubao_remove_guidance_scale(client, model: str):
+    """
+    Monkey-patch the underlying images.generate() call to strip 'guidance_scale'.
+
+    Seedream 5.0 models (e.g. doubao-seedream-5-0-260128) do not support the
+    'guidance_scale' parameter. The upstream lazyllm library hardcodes it as a
+    named argument (default 2.5) in DoubaoText2Image._forward, then passes it
+    directly into api_params dict for _client.images.generate(**api_params).
+    Since it's a named parameter (not in **kwargs), we cannot strip it by
+    patching _forward. Instead, we patch _client.images.generate to intercept
+    and remove 'guidance_scale' right before the actual API call.
+    """
+    images_resource = client._client.images
+
+    # Prevent re-patching if this function is called multiple times.
+    if getattr(images_resource.generate, '__is_patched_for_seedream5__', False):
+        return
+
+    original_generate = images_resource.generate
+
+    def patched_generate(*args, **kwargs):
+        # Conditionally remove guidance_scale only for seedream-5 models.
+        # This is safer if the underlying client is shared across different model versions.
+        model_name = kwargs.get('model', '')
+        if 'seedream-5' in model_name:
+            kwargs.pop('guidance_scale', None)
+        return original_generate(*args, **kwargs)
+
+    patched_generate.__is_patched_for_seedream5__ = True
+    images_resource.generate = patched_generate
+    logger.info('[LazyLLM] Patched _client.images.generate to conditionally remove guidance_scale for Seedream 5.0+')
+
+
 class LazyLLMImageProvider(ImageProvider):
     """Image generation using Lazyllm framework"""
     def __init__(self, source: str = 'doubao', model: str = 'doubao-seedream-4-0-250828'):
@@ -152,11 +185,16 @@ class LazyLLMImageProvider(ImageProvider):
 
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
         self._source = source
+        self._model = model
         self.client = lazyllm.namespace('BANANA').OnlineModule(
             source=source,
             model=model,
             type='image_editing',
         )
+
+        # Apply monkey-patch for Seedream 5.0+ models to remove unsupported guidance_scale
+        if source == 'doubao' and 'seedream-5' in model:
+            _patch_doubao_remove_guidance_scale(self.client, model)
 
     def generate_image(self, prompt: str = None,
                        ref_images: Optional[List[Image.Image]] = None,
