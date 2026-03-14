@@ -14,7 +14,7 @@ class TestSeedream5GuidanceScalePatch:
     @pytest.fixture
     def mock_lazyllm(self):
         """Mock the lazyllm module and its dependencies."""
-        with patch('backend.services.ai_providers.image.lazyllm_provider.ensure_lazyllm_namespace_key'):
+        with patch('services.ai_providers.image.lazyllm_provider.ensure_lazyllm_namespace_key'):
             # Create mock lazyllm module structure
             mock_lazyllm_module = MagicMock()
             mock_namespace = MagicMock()
@@ -48,7 +48,7 @@ class TestSeedream5GuidanceScalePatch:
 
     def test_seedream5_removes_guidance_scale(self, mock_lazyllm):
         """Test that guidance_scale is removed for Seedream 5.0 models."""
-        from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
 
         # Initialize provider with Seedream 5.0 model
         provider = LazyLLMImageProvider(
@@ -80,7 +80,7 @@ class TestSeedream5GuidanceScalePatch:
 
     def test_seedream4_preserves_guidance_scale(self, mock_lazyllm):
         """Test that guidance_scale is preserved for Seedream 4.0 models."""
-        from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
 
         # Initialize provider with Seedream 4.0 model (should NOT apply patch)
         provider = LazyLLMImageProvider(
@@ -109,7 +109,7 @@ class TestSeedream5GuidanceScalePatch:
 
     def test_patch_idempotency(self, mock_lazyllm):
         """Test that the patch is only applied once even if called multiple times."""
-        from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
 
         # Create first provider instance
         provider1 = LazyLLMImageProvider(
@@ -131,7 +131,7 @@ class TestSeedream5GuidanceScalePatch:
 
     def test_conditional_removal_based_on_runtime_model(self, mock_lazyllm):
         """Test that guidance_scale removal is conditional based on runtime model parameter."""
-        from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
 
         # Initialize with Seedream 5.0 to apply the patch
         provider = LazyLLMImageProvider(
