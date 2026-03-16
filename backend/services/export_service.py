@@ -18,7 +18,7 @@ from PIL import Image
 import io
 import tempfile
 import img2pdf
-from PyPDF2 import PdfReader, PdfWriter
+import fitz  # PyMuPDF
 logger = logging.getLogger(__name__)
 
 
@@ -342,22 +342,15 @@ class ExportService:
 
     @staticmethod
     def _add_pdf_metadata(pdf_bytes: bytes) -> bytes:
-        """Add author metadata to PDF"""
+        """Add author metadata to PDF (including XMP for Windows compatibility)"""
         try:
-            reader = PdfReader(io.BytesIO(pdf_bytes))
-            writer = PdfWriter()
-
-            writer.append(reader)
-
-            writer.add_metadata({
-                '/Author': 'banana-slides',
-                '/Producer': 'banana-slides',
-                '/Creator': 'banana-slides'
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            doc.set_metadata({
+                "author": "banana-slides",
+                "producer": "banana-slides",
+                "creator": "banana-slides"
             })
-
-            output = io.BytesIO()
-            writer.write(output)
-            return output.getvalue()
+            return doc.tobytes()
         except Exception as e:
             logger.warning(f"Failed to add PDF metadata: {e}")
             return pdf_bytes
