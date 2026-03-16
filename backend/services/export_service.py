@@ -359,26 +359,27 @@ class ExportService:
 
             content_hash = hashlib.md5(pdf_bytes[:1024]).hexdigest()
 
-            xmp = f'''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
-      <dc:creator><rdf:Seq><rdf:li>banana-slides</rdf:li></rdf:Seq></dc:creator>
-    </rdf:Description>
-    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
-      <pdf:Producer>banana-slides</pdf:Producer>
-    </rdf:Description>
-    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
-      <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
-      <xmp:CreateDate>{iso_time}</xmp:CreateDate>
-      <xmp:MetadataDate>{iso_time}</xmp:MetadataDate>
-    </rdf:Description>
-    <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/">
-      <xmpMM:DocumentID>uuid:{content_hash}</xmpMM:DocumentID>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>'''
+            xmp = dedent(f'''\
+                <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+                <x:xmpmeta xmlns:x="adobe:ns:meta/">
+                  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+                      <dc:creator><rdf:Seq><rdf:li>banana-slides</rdf:li></rdf:Seq></dc:creator>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+                      <pdf:Producer>banana-slides</pdf:Producer>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                      <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
+                      <xmp:CreateDate>{iso_time}</xmp:CreateDate>
+                      <xmp:MetadataDate>{iso_time}</xmp:MetadataDate>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/">
+                      <xmpMM:DocumentID>uuid:{content_hash}</xmpMM:DocumentID>
+                    </rdf:Description>
+                  </rdf:RDF>
+                </x:xmpmeta>
+                <?xpacket end="w"?>''')
             doc.set_xml_metadata(xmp)
 
             return doc.tobytes()
