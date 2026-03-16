@@ -345,11 +345,32 @@ class ExportService:
         """Add author metadata to PDF (including XMP for Windows compatibility)"""
         try:
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            # Set traditional metadata
             doc.set_metadata({
                 "author": "banana-slides",
                 "producer": "banana-slides",
                 "creator": "banana-slides"
             })
+
+            # Add XMP metadata for Windows compatibility
+            xmp = '''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:creator><rdf:Seq><rdf:li>banana-slides</rdf:li></rdf:Seq></dc:creator>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+      <pdf:Producer>banana-slides</pdf:Producer>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+      <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>'''
+            doc.set_xml_metadata(xmp)
+
             return doc.tobytes()
         except Exception as e:
             logger.warning(f"Failed to add PDF metadata: {e}")
