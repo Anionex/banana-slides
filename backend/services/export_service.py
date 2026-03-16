@@ -18,6 +18,7 @@ from PIL import Image
 import io
 import tempfile
 import img2pdf
+from PyPDF2 import PdfReader, PdfWriter
 logger = logging.getLogger(__name__)
 
 
@@ -320,11 +321,14 @@ class ExportService:
             page_w, page_h = _get_page_size_inches(aspect_ratio)
             layout_fun = img2pdf.get_layout_fun(
                 pagesize=(img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h)),
-                fit=img2pdf.FitMode.exact,
+                fit=img2pdf.FitMode.into,
             )
 
             # Convert images to PDF
             pdf_bytes = img2pdf.convert(valid_paths, layout_fun=layout_fun)
+
+            # Add metadata
+            pdf_bytes = ExportService._add_pdf_metadata(pdf_bytes)
 
             if output_file:
                 with open(output_file, "wb") as f:
@@ -335,6 +339,29 @@ class ExportService:
         except (img2pdf.ImageOpenError, ValueError, IOError) as e:
             logger.warning(f"img2pdf conversion failed: {e}. Falling back to Pillow (high memory usage).")
             return ExportService.create_pdf_from_images_pillow(valid_paths, output_file, aspect_ratio)
+
+    @staticmethod
+    def _add_pdf_metadata(pdf_bytes: bytes) -> bytes:
+        """Add author metadata to PDF"""
+        try:
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            writer = PdfWriter()
+
+            for page in reader.pages:
+                writer.add_page(page)
+
+            writer.add_metadata({
+                '/Author': 'banana-slides',
+                '/Producer': 'banana-slides',
+                '/Creator': 'banana-slides'
+            })
+
+            output = io.BytesIO()
+            writer.write(output)
+            return output.getvalue()
+        except Exception as e:
+            logger.warning(f"Failed to add PDF metadata: {e}")
+            return pdf_bytes
 
     @staticmethod
     def create_pdf_from_images_pillow(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> Optional[bytes]:
@@ -393,7 +420,7 @@ class ExportService:
                 format='PDF'
             )
             pdf_bytes.seek(0)
-            return pdf_bytes.getvalue()
+            return ExportService._add_pdf_metadata(pdf_bytes.getvalue())
        
     @staticmethod
     def _add_mineru_text_to_slide(builder, slide, text_item: Dict[str, Any], scale_x: float = 1.0, scale_y: float = 1.0):
