@@ -355,9 +355,7 @@ class ExportService:
             })
 
             now = datetime.now(timezone.utc)
-            # Normalize timestamp precision for consistency
-            normalized_time = now.replace(microsecond=(now.day * 13 + now.month * 7) * 1000)
-            iso_time = normalized_time.isoformat()
+            iso_time = now.isoformat()
 
             content_hash = hashlib.md5(pdf_bytes[:1024]).hexdigest()
 
