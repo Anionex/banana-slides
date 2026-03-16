@@ -7,6 +7,8 @@ import os
 import json
 import logging
 import tempfile
+import base64
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -18,6 +20,7 @@ from PIL import Image
 import io
 import tempfile
 import img2pdf
+import fitz  # PyMuPDF
 logger = logging.getLogger(__name__)
 
 
@@ -320,11 +323,14 @@ class ExportService:
             page_w, page_h = _get_page_size_inches(aspect_ratio)
             layout_fun = img2pdf.get_layout_fun(
                 pagesize=(img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h)),
-                fit=img2pdf.FitMode.exact,
+                fit=img2pdf.FitMode.fill,
             )
 
             # Convert images to PDF
             pdf_bytes = img2pdf.convert(valid_paths, layout_fun=layout_fun)
+
+            # Add metadata
+            pdf_bytes = ExportService._add_pdf_metadata(pdf_bytes)
 
             if output_file:
                 with open(output_file, "wb") as f:
@@ -335,6 +341,51 @@ class ExportService:
         except (img2pdf.ImageOpenError, ValueError, IOError) as e:
             logger.warning(f"img2pdf conversion failed: {e}. Falling back to Pillow (high memory usage).")
             return ExportService.create_pdf_from_images_pillow(valid_paths, output_file, aspect_ratio)
+
+    @staticmethod
+    def _add_pdf_metadata(pdf_bytes: bytes) -> bytes:
+        """Add author metadata to PDF (including XMP for Windows compatibility)"""
+        try:
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            doc.set_metadata({
+                "author": "banana-slides",
+                "producer": "banana-slides",
+                "creator": "banana-slides"
+            })
+
+            now = datetime.now(timezone.utc)
+            iso_time = now.isoformat()
+
+            content_hash = hashlib.md5(pdf_bytes[:1024]).hexdigest()
+
+            xmp = dedent(f'''\
+                <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+                <x:xmpmeta xmlns:x="adobe:ns:meta/">
+                  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+                      <dc:creator><rdf:Seq><rdf:li>banana-slides</rdf:li></rdf:Seq></dc:creator>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+                      <pdf:Producer>banana-slides</pdf:Producer>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                      <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
+                      <xmp:CreateDate>{iso_time}</xmp:CreateDate>
+                      <xmp:MetadataDate>{iso_time}</xmp:MetadataDate>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/">
+                      <xmpMM:DocumentID>uuid:{content_hash}</xmpMM:DocumentID>
+                    </rdf:Description>
+                  </rdf:RDF>
+                </x:xmpmeta>
+                <?xpacket end="w"?>''')
+            doc.set_xml_metadata(xmp)
+
+            return doc.tobytes()
+        except Exception as e:
+            logger.warning(f"Failed to add PDF metadata: {e}")
+            return pdf_bytes
 
     @staticmethod
     def create_pdf_from_images_pillow(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> Optional[bytes]:
@@ -393,7 +444,7 @@ class ExportService:
                 format='PDF'
             )
             pdf_bytes.seek(0)
-            return pdf_bytes.getvalue()
+            return ExportService._add_pdf_metadata(pdf_bytes.getvalue())
        
     @staticmethod
     def _add_mineru_text_to_slide(builder, slide, text_item: Dict[str, Any], scale_x: float = 1.0, scale_y: float = 1.0):
