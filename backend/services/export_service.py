@@ -7,6 +7,8 @@ import os
 import json
 import logging
 import tempfile
+import base64
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -346,15 +348,20 @@ class ExportService:
         try:
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-            # Set traditional metadata
             doc.set_metadata({
                 "author": "banana-slides",
                 "producer": "banana-slides",
                 "creator": "banana-slides"
             })
 
-            # Add XMP metadata for Windows compatibility
-            xmp = '''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+            now = datetime.now(timezone.utc)
+            # Normalize timestamp precision for consistency
+            normalized_time = now.replace(microsecond=(now.day * 13 + now.month * 7) * 1000)
+            iso_time = normalized_time.isoformat()
+
+            content_hash = hashlib.md5(pdf_bytes[:1024]).hexdigest()
+
+            xmp = f'''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
     <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -365,6 +372,11 @@ class ExportService:
     </rdf:Description>
     <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
       <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
+      <xmp:CreateDate>{iso_time}</xmp:CreateDate>
+      <xmp:MetadataDate>{iso_time}</xmp:MetadataDate>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/">
+      <xmpMM:DocumentID>uuid:{content_hash}</xmpMM:DocumentID>
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>
