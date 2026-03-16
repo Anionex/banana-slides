@@ -188,9 +188,8 @@ def _load_settings_to_config(app):
             app.config['AI_PROVIDER_FORMAT'] = settings.ai_provider_format
             logging.info(f"Loaded AI_PROVIDER_FORMAT from settings: {settings.ai_provider_format}")
         
-        # Load API configuration
-        # Note: We load even if value is None/empty to allow clearing settings
-        # But we only log if there's an actual value
+        # Load API base configuration.
+        # Sensitive credentials are intentionally NOT loaded from the first settings row.
         if settings.api_base_url is not None:
             # 将数据库中的统一 API Base 同步到 Google/OpenAI 两个配置，确保覆盖环境变量
             app.config['GOOGLE_API_BASE'] = settings.api_base_url
@@ -199,15 +198,6 @@ def _load_settings_to_config(app):
                 logging.info(f"Loaded API_BASE from settings: {settings.api_base_url}")
             else:
                 logging.info("API_BASE is empty in settings, using env var or default")
-
-        if settings.api_key is not None:
-            # 同步到两个提供商的 key，数据库优先于环境变量
-            app.config['GOOGLE_API_KEY'] = settings.api_key
-            app.config['OPENAI_API_KEY'] = settings.api_key
-            if settings.api_key:
-                logging.info("Loaded API key from settings")
-            else:
-                logging.info("API key is empty in settings, using env var or default")
 
         # Load image generation settings
         app.config['DEFAULT_RESOLUTION'] = settings.image_resolution
@@ -228,14 +218,10 @@ def _load_settings_to_config(app):
             app.config['IMAGE_MODEL'] = settings.image_model
             logging.info(f"Loaded IMAGE_MODEL from settings: {settings.image_model}")
         
-        # Load MinerU settings
+        # Load MinerU base settings
         if settings.mineru_api_base:
             app.config['MINERU_API_BASE'] = settings.mineru_api_base
             logging.info(f"Loaded MINERU_API_BASE from settings: {settings.mineru_api_base}")
-        
-        if settings.mineru_token:
-            app.config['MINERU_TOKEN'] = settings.mineru_token
-            logging.info("Loaded MINERU_TOKEN from settings")
         
         # Load image caption model
         if settings.image_caption_model:
@@ -254,11 +240,6 @@ def _load_settings_to_config(app):
         app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget
         logging.info(f"Loaded reasoning config: text={settings.enable_text_reasoning}(budget={settings.text_thinking_budget}), image={settings.enable_image_reasoning}(budget={settings.image_thinking_budget})")
         
-        # Load Baidu OCR settings
-        if settings.baidu_ocr_api_key:
-            app.config['BAIDU_OCR_API_KEY'] = settings.baidu_ocr_api_key
-            logging.info("Loaded BAIDU_OCR_API_KEY from settings")
-
     except Exception as e:
         logging.warning(f"Could not load settings from database (this is normal during migration): {e}")
 

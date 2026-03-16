@@ -24,6 +24,14 @@ settings_bp = Blueprint(
 )
 
 
+def _normalize_optional_secret(value):
+    """Normalize secret-like fields so blank input falls back to .env instead of persisting empty strings."""
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
 def _get_current_user_settings() -> Settings:
     """
     获取当前请求用户的设置
@@ -154,7 +162,7 @@ def update_settings():
                 settings.api_base_url = value if value != "" else None
 
         if "api_key" in data:
-            settings.api_key = data["api_key"]
+            settings.api_key = _normalize_optional_secret(data["api_key"])
 
         # Update image generation configuration
         if "image_resolution" in data:
@@ -195,7 +203,7 @@ def update_settings():
             settings.mineru_api_base = (data["mineru_api_base"] or "").strip() or None
 
         if "mineru_token" in data:
-            settings.mineru_token = data["mineru_token"]
+            settings.mineru_token = _normalize_optional_secret(data["mineru_token"])
 
         if "image_caption_model" in data:
             settings.image_caption_model = (data["image_caption_model"] or "").strip() or None
@@ -228,7 +236,7 @@ def update_settings():
 
         # Update Baidu OCR configuration
         if "baidu_ocr_api_key" in data:
-            settings.baidu_ocr_api_key = data["baidu_ocr_api_key"] or None
+            settings.baidu_ocr_api_key = _normalize_optional_secret(data["baidu_ocr_api_key"])
 
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
@@ -267,17 +275,15 @@ def reset_settings():
 
         if (Config.AI_PROVIDER_FORMAT or "").lower() == "openai":
             default_api_base = Config.OPENAI_API_BASE or None
-            default_api_key = Config.OPENAI_API_KEY or None
         else:
             default_api_base = Config.GOOGLE_API_BASE or None
-            default_api_key = Config.GOOGLE_API_KEY or None
 
         settings.api_base_url = default_api_base
-        settings.api_key = default_api_key
+        settings.api_key = None
         settings.text_model = Config.TEXT_MODEL
         settings.image_model = Config.IMAGE_MODEL
         settings.mineru_api_base = Config.MINERU_API_BASE
-        settings.mineru_token = Config.MINERU_TOKEN
+        settings.mineru_token = None
         settings.image_caption_model = Config.IMAGE_CAPTION_MODEL
         settings.output_language = 'zh'  # 重置为默认中文
         # 重置推理模式配置
@@ -285,7 +291,7 @@ def reset_settings():
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
-        settings.baidu_ocr_api_key = Config.BAIDU_OCR_API_KEY or None
+        settings.baidu_ocr_api_key = None
         settings.image_resolution = Config.DEFAULT_RESOLUTION
         settings.image_aspect_ratio = Config.DEFAULT_ASPECT_RATIO
         settings.max_description_workers = Config.MAX_DESCRIPTION_WORKERS

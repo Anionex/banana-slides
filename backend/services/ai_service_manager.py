@@ -16,8 +16,6 @@ Usage:
 """
 
 import logging
-from typing import Optional
-from flask import g
 from .ai_service import AIService
 from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
 

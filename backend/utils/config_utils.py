@@ -9,10 +9,20 @@ Thread-safe: g is per-app-context; current_app.config is only
 read (never mutated per-request).
 """
 import os
-import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+_SENSITIVE_KEYS = {
+    'GOOGLE_API_KEY',
+    'OPENAI_API_KEY',
+    'MINERU_TOKEN',
+    'BAIDU_API_KEY',
+    'BAIDU_OCR_API_KEY',
+}
+
+
+def _has_explicit_value(value: Any) -> bool:
+    """Treat None/empty string as not configured so callers can fall back safely."""
+    return value is not None and not (isinstance(value, str) and value == "")
 
 # Mapping: Flask config key -> Settings model attribute name
 _CONFIG_KEY_TO_SETTINGS_ATTR = {
@@ -59,30 +69,32 @@ def get_user_config(key: str, default: Any = None) -> Any:
     """
     # Step 1: Try g.user_settings (per-app-context, thread-safe)
     settings_attr = _CONFIG_KEY_TO_SETTINGS_ATTR.get(key)
+
     if settings_attr:
         try:
             from flask import g, has_app_context
             if has_app_context() and hasattr(g, 'user_settings') and g.user_settings is not None:
                 value = getattr(g.user_settings, settings_attr, None)
-                if value is not None:
+                if _has_explicit_value(value):
                     return value
         except RuntimeError:
             pass
 
-    # Step 2: Try current_app.config (startup defaults)
-    try:
-        from flask import current_app, has_app_context
-        if has_app_context() and current_app and hasattr(current_app, 'config'):
-            if key in current_app.config:
-                value = current_app.config[key]
-                if value is not None:
-                    return value
-    except RuntimeError:
-        pass
+    # Step 2: Sensitive keys only fall back to .env, never to app.config.
+    if key not in _SENSITIVE_KEYS:
+        try:
+            from flask import current_app, has_app_context
+            if has_app_context() and current_app and hasattr(current_app, 'config'):
+                if key in current_app.config:
+                    value = current_app.config[key]
+                    if _has_explicit_value(value):
+                        return value
+        except RuntimeError:
+            pass
 
     # Step 3: Try environment variable
     env_value = os.getenv(key)
-    if env_value is not None:
+    if _has_explicit_value(env_value):
         return env_value
 
     # Step 4: Default

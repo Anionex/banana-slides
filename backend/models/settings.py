@@ -87,20 +87,17 @@ class Settings(db.Model):
             # 用户首次访问，创建默认配置
             from config import Config
 
-            # 根据 AI_PROVIDER_FORMAT 选择默认 Provider 的 env 配置
+            # 新用户设置不持久化服务器默认密钥；敏感项通过 get_user_config() 回退到 .env
             if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
                 default_api_base = Config.OPENAI_API_BASE or None
-                default_api_key = Config.OPENAI_API_KEY or None
             else:
-                # 默认为 gemini（Google）
                 default_api_base = Config.GOOGLE_API_BASE or None
-                default_api_key = Config.GOOGLE_API_KEY or None
 
             settings = Settings(
                 user_token=user_token,
                 ai_provider_format=Config.AI_PROVIDER_FORMAT,
                 api_base_url=default_api_base,
-                api_key=default_api_key,
+                api_key=None,
                 image_resolution=Config.DEFAULT_RESOLUTION,
                 image_aspect_ratio=Config.DEFAULT_ASPECT_RATIO,
                 max_description_workers=Config.MAX_DESCRIPTION_WORKERS,
@@ -108,10 +105,10 @@ class Settings(db.Model):
                 text_model=Config.TEXT_MODEL,
                 image_model=Config.IMAGE_MODEL,
                 mineru_api_base=Config.MINERU_API_BASE,
-                mineru_token=Config.MINERU_TOKEN,
+                mineru_token=None,
                 image_caption_model=Config.IMAGE_CAPTION_MODEL,
                 output_language='zh',  # 默认中文
-                baidu_ocr_api_key=Config.BAIDU_OCR_API_KEY or None,
+                baidu_ocr_api_key=None,
             )
             db.session.add(settings)
             db.session.commit()
