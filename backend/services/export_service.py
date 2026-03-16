@@ -321,7 +321,7 @@ class ExportService:
             page_w, page_h = _get_page_size_inches(aspect_ratio)
             layout_fun = img2pdf.get_layout_fun(
                 pagesize=(img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h)),
-                fit=img2pdf.FitMode.stretch,
+                fit=img2pdf.FitMode.fill,
             )
 
             # Convert images to PDF
