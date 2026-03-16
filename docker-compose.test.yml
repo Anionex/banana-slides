@@ -1,0 +1,50 @@
+services:
+  backend-test:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-}
+        GHCR_REGISTRY: ${GHCR_REGISTRY:-ghcr.io/}
+        APT_MIRROR: ${APT_MIRROR:-}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-}
+    container_name: banana-slides-backend-test
+    ports:
+      - "5888:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend/instance:/app/backend/instance
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - banana-slides-test-network
+
+  frontend-test:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        DOCKER_BUILDKIT: 1
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    container_name: banana-slides-frontend-test
+    ports:
+      - "3888:80"
+    volumes:
+      - ./nginx.test.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend-test
+    restart: unless-stopped
+    networks:
+      - banana-slides-test-network
+
+networks:
+  banana-slides-test-network:
+    driver: bridge

@@ -210,6 +210,12 @@ def export_editable_pptx(project_id):
     轮询 /api/projects/{project_id}/tasks/{task_id} 获取进度和下载链接
     """
     try:
+        return error_response(
+            'FEATURE_DISABLED',
+            'Editable PPTX export is temporarily unavailable in the hosted version. Standard PPTX export is still available, and editable PPTX export can be used in a local deployment.',
+            503
+        )
+
         project = Project.query.get(project_id)
         
         if not project:

@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 3000,
+      port: Number(env.FRONTEND_PORT) || 3000,
       host: true, // 监听所有地址
       watch: {
         usePolling: true, // WSL 环境下需要启用轮询

@@ -13,10 +13,12 @@ const helpI18n = {
       showcases: "结果案例", showcasesDesc: "以下是使用蕉幻生成的 PPT 案例展示", viewMoreCases: "查看更多使用案例",
       welcome: "欢迎使用蕉幻！", welcomeDesc: "在开始前，让我们先完成基础配置",
       step1Title: "配置 API Key", step1Desc: "前往设置页面，配置项目需要使用的API服务，包括：",
-      step1Items: { apiConfig: "您的 AI 服务提供商的 API Base 和 API Key", modelConfig: "配置文本、图像生成模型(banana pro)和图像描述模型", mineruConfig: "若需要文件解析功能，请配置 MinerU Token", editableExport: "若需要可编辑导出功能，请配置MinerU TOKEN 和 Baidu API KEY" },
+      step1Items: { apiConfig: "您的 AI 服务提供商的 API Base 和 API Key", modelConfig: "配置文本、图像生成模型(banana pro)和图像描述模型", mineruConfig: "若需要文件解析功能，请配置 MinerU Token", editableExport: "若后续使用本地部署的可编辑导出功能，请额外配置 MinerU TOKEN 和 Baidu API KEY" },
       step2Title: "保存并测试", step2Desc: "配置完成后，务必点击「保存设置」按钮，然后在页面底部进行服务测试，确保各项服务正常工作。",
       step3Title: "开始创作", step3Desc: "配置成功后，返回首页即可开始使用 AI 生成精美的 PPT！",
       step4Title: "*问题反馈", step4Desc: "若使用过程中遇到问题，可在github issue提出",
+      editableExportNoticeTitle: "可编辑 PPTX 导出说明",
+      editableExportNoticeDesc: "当前线上版本的可编辑 PPTX 导出因功能问题暂时下架。页面里的 PPTX 导出为标准 PPTX；如果你需要可编辑 PPTX，请使用本地部署版本。",
       goToGithubIssue: "前往Github issue", goToSettings: "前往设置页面",
       tip: "提示", tipContent: "如果您还没有 API Key，可以前往对应服务商官网注册获取。配置完成后，建议先进行服务测试，避免后续使用出现问题。",
       prevPage: "上一页", nextPage: "下一页", guidePage: "引导页",
@@ -36,10 +38,12 @@ const helpI18n = {
       showcases: "Showcases", showcasesDesc: "Here are PPT examples generated with Banana Slides", viewMoreCases: "View more examples",
       welcome: "Welcome to Banana Slides!", welcomeDesc: "Let's complete the basic configuration before you start",
       step1Title: "Configure API Key", step1Desc: "Go to settings page to configure the API services needed for the project, including:",
-      step1Items: { apiConfig: "Your AI service provider's API Base and API Key", modelConfig: "Configure text, image generation model (banana pro) and image caption model", mineruConfig: "If you need file parsing, configure MinerU Token", editableExport: "If you need editable export, configure MinerU TOKEN and Baidu API KEY" },
+      step1Items: { apiConfig: "Your AI service provider's API Base and API Key", modelConfig: "Configure text, image generation model (banana pro) and image caption model", mineruConfig: "If you need file parsing, configure MinerU Token", editableExport: "If you plan to use editable export in a local deployment later, also configure MinerU TOKEN and Baidu API KEY" },
       step2Title: "Save and Test", step2Desc: "After configuration, be sure to click \"Save Settings\" button, then test services at the bottom of the page to ensure everything works properly.",
       step3Title: "Start Creating", step3Desc: "After successful configuration, return to home page to start using AI to generate beautiful PPT!",
       step4Title: "*Feedback", step4Desc: "If you encounter issues while using, please raise them on GitHub issues",
+      editableExportNoticeTitle: "Editable PPTX export notice",
+      editableExportNoticeDesc: "Editable PPTX export is temporarily unavailable in the hosted version due to ongoing issues. The PPTX export in the menu is the standard PPTX export. If you need editable PPTX, use a local deployment.",
       goToGithubIssue: "Go to GitHub Issues", goToSettings: "Go to Settings",
       tip: "Tip", tipContent: "If you don't have an API Key yet, you can register on the corresponding service provider's website. After configuration, it's recommended to test services first to avoid issues later.",
       prevPage: "Previous", nextPage: "Next", guidePage: "Guide",
@@ -151,6 +155,18 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.step2Title')}</h4>
             <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
               {t('help.step2Desc')}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700">
+          <div className="flex-shrink-0 w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">
+            !
+          </div>
+          <div className="flex-1 space-y-2">
+            <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.editableExportNoticeTitle')}</h4>
+            <p className="text-sm text-gray-700 dark:text-foreground-secondary">
+              {t('help.editableExportNoticeDesc')}
             </p>
           </div>
         </div>
