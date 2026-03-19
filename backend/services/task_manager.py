@@ -45,6 +45,8 @@ def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
 from pathlib import Path
 from services.credits_service import CreditsService, CreditOperation
 from services.pdf_service import split_pdf_to_pages
+from services.ai_service_manager import get_ai_service
+from services.runtime_settings import build_effective_settings_override, use_settings_override, use_user_settings
 
 # 导入队列抽象层
 from services.queue import get_queue, TaskQueue
@@ -178,108 +180,100 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
     
     # 在整个任务中保持应用上下文
     with app.app_context():
+        settings_override = build_effective_settings_override(user_id)
         try:
-            # 重要：在后台线程开始时就获取task和设置状态
-            task = Task.query.get(task_id)
-            if not task:
-                logger.error(f"Task {task_id} not found")
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            logger.info(f"Task {task_id} status updated to PROCESSING")
-            
-            # Flatten outline to get pages
-            pages_data = ai_service.flatten_outline(outline)
-            
-            # Get all pages for this project
-            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
-            
-            if len(pages) != len(pages_data):
-                raise ValueError("Page count mismatch")
-            
-            # Mark all pages as GENERATING_DESCRIPTION before starting
-            for page in pages:
-                page.status = 'GENERATING_DESCRIPTION'
-
-            # Initialize progress
-            task.set_progress({
-                "total": len(pages),
-                "completed": 0,
-                "failed": 0
-            })
-            db.session.commit()
-
-            # Generate descriptions in parallel
-            completed = 0
-            failed = 0
-            
-            def generate_single_desc(page_id, page_outline, page_index):
-                """
-                Generate description for a single page
-                注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
-                """
-                # 关键修复：在子线程中也需要应用上下文
-                with app.app_context():
-                    try:
-                        # Get singleton AI service instance
-                        from services.ai_service_manager import get_ai_service
-                        ai_service = get_ai_service()
-                        
-                        desc_result = ai_service.generate_page_description(
-                            project_context, outline, page_outline, page_index,
-                            language=language,
-                            detail_level=detail_level
-                        )
-
-                        # generate_page_description returns dict with text + optional extra_fields
-                        desc_content = {
-                            "text": desc_result['text'],
-                            "generated_at": datetime.utcnow().isoformat()
-                        }
-                        if desc_result.get('extra_fields'):
-                            desc_content['extra_fields'] = desc_result['extra_fields']
-                        
-                        return (page_id, desc_content, None)
-                    except Exception as e:
-                        import traceback
-                        error_detail = traceback.format_exc()
-                        logger.error(f"Failed to generate description for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e))
-            
-            # Use ThreadPoolExecutor for parallel generation
-            # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(generate_single_desc, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
-                ]
+            with use_settings_override(settings_override, scope=f"generate_descriptions_task:{task_id}"):
+                ai_service = get_ai_service(force_new=True)
+                # 重要：在后台线程开始时就获取task和设置状态
+                task = Task.query.get(task_id)
+                if not task:
+                    logger.error(f"Task {task_id} not found")
+                    return
                 
-                # Process results as they complete
-                for future in as_completed(futures):
-                    page_id, desc_content, error = future.result()
+                task.status = 'PROCESSING'
+                db.session.commit()
+                logger.info(f"Task {task_id} status updated to PROCESSING")
+                
+                # Flatten outline to get pages
+                pages_data = ai_service.flatten_outline(outline)
+                
+                # Get all pages for this project
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                
+                if len(pages) != len(pages_data):
+                    raise ValueError("Page count mismatch")
+
+                for page in pages:
+                    page.status = 'GENERATING_DESCRIPTION'
+                
+                # Initialize progress
+                task.set_progress({
+                    "total": len(pages),
+                    "completed": 0,
+                    "failed": 0
+                })
+                db.session.commit()
+                
+                # Generate descriptions in parallel
+                completed = 0
+                failed = 0
+                
+                def generate_single_desc(page_id, page_outline, page_index):
+                    """
+                    Generate description for a single page
+                    注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
+                    """
+                    # 关键修复：在子线程中也需要应用上下文
+                    with app.app_context():
+                        with use_settings_override(settings_override, scope=f"generate_descriptions_page:{page_id}"):
+                            try:
+                                ai_service = get_ai_service(force_new=True)
+                                
+                                desc_text = ai_service.generate_page_description(
+                                    project_context, outline, page_outline, page_index,
+                                    language=language
+                                )
+                                
+                                desc_content = {
+                                    "text": desc_text,
+                                    "generated_at": datetime.utcnow().isoformat()
+                                }
+                                
+                                return (page_id, desc_content, None)
+                            except Exception as e:
+                                import traceback
+                                error_detail = traceback.format_exc()
+                                logger.error(f"Failed to generate description for page {page_id}: {error_detail}")
+                                return (page_id, None, str(e))
+                
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(generate_single_desc, page.id, page_data, i)
+                        for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
+                    ]
                     
-                    db.session.expire_all()
-                    
-                    # Update page in database
-                    page = Page.query.get(page_id)
-                    if page:
-                        if error:
-                            page.status = 'FAILED'
-                            failed += 1
-                        else:
-                            page.set_description_content(desc_content)
-                            page.status = 'DESCRIPTION_GENERATED'
-                            completed += 1
+                    for future in as_completed(futures):
+                        page_id, desc_content, error = future.result()
                         
-                        db.session.commit()
-                    
-                    # Update task progress
-                    task = Task.query.get(task_id)
-                    if task:
-                        task.update_progress(completed=completed, failed=failed)
-                        db.session.commit()
-                        logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
+                        db.session.expire_all()
+                        
+                        page = Page.query.get(page_id)
+                        if page:
+                            if error:
+                                page.status = 'FAILED'
+                                failed += 1
+                            else:
+                                page.set_description_content(desc_content)
+                                page.status = 'DESCRIPTION_GENERATED'
+                                completed += 1
+                            
+                            db.session.commit()
+                        
+                        task = Task.query.get(task_id)
+                        if task:
+                            task.update_progress(completed=completed, failed=failed)
+                            db.session.commit()
+                            logger.info(f"Description Progress: {completed}/{len(pages)} pages completed")
             
             # Mark task as completed
             task = Task.query.get(task_id)
@@ -341,183 +335,151 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
         raise ValueError("Flask app instance must be provided")
     
     with app.app_context():
+        settings_override = build_effective_settings_override(user_id)
         try:
-            # Update task status to PROCESSING
-            task = Task.query.get(task_id)
-            if not task:
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            
-            # Get pages for this project (filtered by page_ids if provided)
-            pages = get_filtered_pages(project_id, page_ids)
-            all_pages_data = ai_service.flatten_outline(outline)
-
-            # Build mapping from order_index to page_data so filtered pages
-            # get matched to the correct outline entry (not just first N)
-            pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
-            
-            # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
-            # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
-            
-            # Initialize progress
-            task.set_progress({
-                "total": len(pages),
-                "completed": 0,
-                "failed": 0
-            })
-            db.session.commit()
-            
-            # Generate images in parallel
-            completed = 0
-            failed = 0
-            resolution_mismatched = 0  # Count of resolution mismatches
-            
-            def generate_single_image(page_id, page_data, page_index):
-                """
-                Generate image for a single page
-                注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
-                """
-                # 关键修复：在子线程中也需要应用上下文
-                with app.app_context():
-                    try:
-                        logger.debug(f"Starting image generation for page {page_id}, index {page_index}")
-                        # Get page from database in this thread
-                        page_obj = Page.query.get(page_id)
-                        if not page_obj:
-                            raise ValueError(f"Page {page_id} not found")
-                        
-                        # Update page status
-                        page_obj.status = 'GENERATING'
-                        db.session.commit()
-                        logger.debug(f"Page {page_id} status updated to GENERATING")
-                        
-                        # Get description content
-                        desc_content = page_obj.get_description_content()
-                        if not desc_content:
-                            raise ValueError("No description content for page")
-                        
-                        # 获取描述文本（可能是 text 字段或 text_content 数组）
-                        desc_text = desc_content.get('text', '')
-                        if not desc_text and desc_content.get('text_content'):
-                            # 如果 text 字段不存在，尝试从 text_content 数组获取
-                            text_content = desc_content.get('text_content', [])
-                            if isinstance(text_content, list):
-                                desc_text = '\n'.join(text_content)
-                            else:
-                                desc_text = str(text_content)
-
-                        # 将 extra_fields 拼入描述文本供图片生成使用
-                        desc_text = _append_extra_fields(desc_text, desc_content)
-
-                        logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
-                        
-                        # 从当前页面的描述内容中提取图片 URL
-                        page_additional_ref_images = []
-                        has_material_images = False
-                        
-                        # 从描述文本中提取图片
-                        if desc_text:
-                            image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
-                            if image_urls:
-                                logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
-                                page_additional_ref_images = image_urls
-                                has_material_images = True
-                        
-                        # 在子线程中动态获取模板路径，确保使用最新模板
-                        page_ref_image_path = None
-                        if use_template:
-                            page_ref_image_path = file_service.get_template_path(project_id)
-                            # 注意：如果有风格描述，即使没有模板图片也允许生成
-                            # 这个检查已经在 controller 层完成，这里不再检查
-                        
-                        # Generate image prompt
-                        prompt = ai_service.generate_image_prompt(
-                            outline, page_data, desc_text, page_index,
-                            has_material_images=has_material_images,
-                            extra_requirements=extra_requirements,
-                            language=language,
-                            has_template=use_template,
-                            aspect_ratio=aspect_ratio
-                        )
-                        logger.debug(f"Generated image prompt for page {page_id}")
-                        
-                        # Generate image
-                        logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
-                        image = ai_service.generate_image(
-                            prompt, page_ref_image_path, aspect_ratio, resolution,
-                            additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
-                        )
-                        logger.info(f"✅ Image generated successfully for page {page_index}")
-                        
-                        if not image:
-                            raise ValueError("Failed to generate image")
-                        
-                        # Check resolution for all providers
-                        actual_res, is_match = check_image_resolution(image, resolution)
-                        if not is_match:
-                            logger.warning(f"Resolution mismatch for page {page_index}: requested {resolution}, got {actual_res}")
-                        
-                        # 优化：直接在子线程中计算版本号并保存到最终位置
-                        # 每个页面独立，使用数据库事务保证版本号原子性，避免临时文件
-                        image_path, next_version = save_image_with_version(
-                            image, project_id, page_id, file_service, page_obj=page_obj
-                        )
-                        
-                        return (page_id, image_path, None, not is_match)
-                        
-                    except Exception as e:
-                        import traceback
-                        error_detail = traceback.format_exc()
-                        logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e), None)
-            
-            # Use ThreadPoolExecutor for parallel generation
-            # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(
-                        generate_single_image, page.id,
-                        pages_data_by_index.get(page.order_index, {}), i
-                    )
-                    for i, page in enumerate(pages, 1)
-                ]
+            with use_settings_override(settings_override, scope=f"generate_images_task:{task_id}"):
+                ai_service = get_ai_service(force_new=True)
+                task = Task.query.get(task_id)
+                if not task:
+                    return
                 
-                # Process results as they complete
-                for future in as_completed(futures):
-                    page_id, image_path, error, is_mismatched = future.result()
+                task.status = 'PROCESSING'
+                db.session.commit()
+                
+                pages = get_filtered_pages(project_id, page_ids)
+                all_pages_data = ai_service.flatten_outline(outline)
+
+                pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
+                
+                task.set_progress({
+                    "total": len(pages),
+                    "completed": 0,
+                    "failed": 0
+                })
+                db.session.commit()
+                
+                completed = 0
+                failed = 0
+                resolution_mismatched = 0
+                
+                def generate_single_image(page_id, page_data, page_index):
+                    """
+                    Generate image for a single page
+                    注意：只传递 page_id（字符串），不传递 ORM 对象，避免跨线程会话问题
+                    """
+                    with app.app_context():
+                        with use_settings_override(settings_override, scope=f"generate_image_page:{page_id}"):
+                            try:
+                                ai_service = get_ai_service(force_new=True)
+                                logger.debug(f"Starting image generation for page {page_id}, index {page_index}")
+                                page_obj = Page.query.get(page_id)
+                                if not page_obj:
+                                    raise ValueError(f"Page {page_id} not found")
+
+                                page_obj.status = 'GENERATING'
+                                db.session.commit()
+                                logger.debug(f"Page {page_id} status updated to GENERATING")
+
+                                desc_content = page_obj.get_description_content()
+                                if not desc_content:
+                                    raise ValueError("No description content for page")
+
+                                desc_text = desc_content.get('text', '')
+                                if not desc_text and desc_content.get('text_content'):
+                                    text_content = desc_content.get('text_content', [])
+                                    if isinstance(text_content, list):
+                                        desc_text = '\n'.join(text_content)
+                                    else:
+                                        desc_text = str(text_content)
+
+                                desc_text = _append_extra_fields(desc_text, desc_content)
+                                logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
+
+                                page_additional_ref_images = []
+                                has_material_images = False
+                                if desc_text:
+                                    image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
+                                    if image_urls:
+                                        logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
+                                        page_additional_ref_images = image_urls
+                                        has_material_images = True
+
+                                page_ref_image_path = None
+                                if use_template:
+                                    page_ref_image_path = file_service.get_template_path(project_id)
+
+                                prompt = ai_service.generate_image_prompt(
+                                    outline, page_data, desc_text, page_index,
+                                    has_material_images=has_material_images,
+                                    extra_requirements=extra_requirements,
+                                    language=language,
+                                    has_template=use_template,
+                                    aspect_ratio=aspect_ratio
+                                )
+                                logger.debug(f"Generated image prompt for page {page_id}")
+
+                                logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
+                                image = ai_service.generate_image(
+                                    prompt, page_ref_image_path, aspect_ratio, resolution,
+                                    additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
+                                )
+                                logger.info(f"✅ Image generated successfully for page {page_index}")
+
+                                if not image:
+                                    raise ValueError("Failed to generate image")
+
+                                actual_res, is_match = check_image_resolution(image, resolution)
+                                if not is_match:
+                                    logger.warning(f"Resolution mismatch for page {page_index}: requested {resolution}, got {actual_res}")
+
+                                image_path, _next_version = save_image_with_version(
+                                    image, project_id, page_id, file_service, page_obj=page_obj
+                                )
+
+                                return (page_id, image_path, None, not is_match)
+                            except Exception as e:
+                                import traceback
+                                error_detail = traceback.format_exc()
+                                logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
+                                return (page_id, None, str(e), None)
+                
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(
+                            generate_single_image, page.id,
+                            pages_data_by_index.get(page.order_index, {}), i
+                        )
+                        for i, page in enumerate(pages, 1)
+                    ]
                     
-                    if is_mismatched:
-                        resolution_mismatched += 1
-                    
-                    db.session.expire_all()
-                    
-                    # Update page in database (主要是为了更新失败状态)
-                    page = Page.query.get(page_id)
-                    if page:
-                        if error:
-                            page.status = 'FAILED'
-                            failed += 1
+                    for future in as_completed(futures):
+                        page_id, image_path, error, is_mismatched = future.result()
+                        
+                        if is_mismatched:
+                            resolution_mismatched += 1
+                        
+                        db.session.expire_all()
+                        
+                        page = Page.query.get(page_id)
+                        if page:
+                            if error:
+                                page.status = 'FAILED'
+                                failed += 1
+                                db.session.commit()
+                            else:
+                                completed += 1
+                                db.session.refresh(page)
+                        
+                        task = Task.query.get(task_id)
+                        if task:
+                            progress = task.get_progress()
+                            progress['completed'] = completed
+                            progress['failed'] = failed
+                            if resolution_mismatched > 0 and 'warning_message' not in progress:
+                                progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
+                            task.set_progress(progress)
                             db.session.commit()
-                        else:
-                            # 图片已在子线程中保存并创建版本记录，这里只需要更新计数
-                            completed += 1
-                            # 刷新页面对象以获取最新状态
-                            db.session.refresh(page)
-                    
-                    # Update task progress
-                    task = Task.query.get(task_id)
-                    if task:
-                        progress = task.get_progress()
-                        progress['completed'] = completed
-                        progress['failed'] = failed
-                        # 第一次检测到不匹配时设置警告
-                        if resolution_mismatched > 0 and 'warning_message' not in progress:
-                            progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
-                        task.set_progress(progress)
-                        db.session.commit()
-                        logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+                            logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
             
             # Mark task as completed
             task = Task.query.get(task_id)
@@ -577,98 +539,83 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
     
     with app.app_context():
         try:
-            # Update task status to PROCESSING
-            task = Task.query.get(task_id)
-            if not task:
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            
-            # Get page from database
-            page = Page.query.get(page_id)
-            if not page or page.project_id != project_id:
-                raise ValueError(f"Page {page_id} not found")
-            
-            # Update page status
-            page.status = 'GENERATING'
-            db.session.commit()
-            
-            # Get description content
-            desc_content = page.get_description_content()
-            if not desc_content:
-                raise ValueError("No description content for page")
-            
-            # 获取描述文本（可能是 text 字段或 text_content 数组）
-            desc_text = desc_content.get('text', '')
-            if not desc_text and desc_content.get('text_content'):
-                text_content = desc_content.get('text_content', [])
-                if isinstance(text_content, list):
-                    desc_text = '\n'.join(text_content)
-                else:
-                    desc_text = str(text_content)
+            with use_user_settings(user_id, scope=f"generate_single_page_image_task:{task_id}"):
+                ai_service = get_ai_service(force_new=True)
+                task = Task.query.get(task_id)
+                if not task:
+                    return
+                
+                task.status = 'PROCESSING'
+                db.session.commit()
 
-            # 将 extra_fields 拼入描述文本供图片生成使用
-            desc_text = _append_extra_fields(desc_text, desc_content)
+                page = Page.query.get(page_id)
+                if not page or page.project_id != project_id:
+                    raise ValueError(f"Page {page_id} not found")
 
-            # 从描述文本中提取图片 URL
-            additional_ref_images = []
-            has_material_images = False
-            
-            if desc_text:
-                image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
-                if image_urls:
-                    logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
-                    additional_ref_images = image_urls
-                    has_material_images = True
-            
-            # Get template path if use_template
-            ref_image_path = None
-            if use_template:
-                ref_image_path = file_service.get_template_path(project_id)
-                # 注意：如果有风格描述，即使没有模板图片也允许生成
-                # 这个检查已经在 controller 层完成，这里不再检查
-            
-            # Generate image prompt
-            page_data = page.get_outline_content() or {}
-            if page.part:
-                page_data['part'] = page.part
-            
-            prompt = ai_service.generate_image_prompt(
-                outline, page_data, desc_text, page.order_index + 1,
-                has_material_images=has_material_images,
-                extra_requirements=extra_requirements,
-                language=language,
-                has_template=use_template,
-                aspect_ratio=aspect_ratio
-            )
-            
-            # Generate image
-            logger.info(f"🎨 Generating image for page {page_id}...")
-            image = ai_service.generate_image(
-                prompt, ref_image_path, aspect_ratio, resolution,
-                additional_ref_images=additional_ref_images if additional_ref_images else None
-            )
-            
-            if not image:
-                raise ValueError("Failed to generate image")
-            
-            # 保存图片并创建历史版本记录
-            image_path, next_version = save_image_with_version(
-                image, project_id, page_id, file_service, page_obj=page
-            )
-            
-            # Mark task as completed
-            task.status = 'COMPLETED'
-            task.completed_at = datetime.utcnow()
-            task.set_progress({
-                "total": 1,
-                "completed": 1,
-                "failed": 0
-            })
-            db.session.commit()
-            
-            logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
+                page.status = 'GENERATING'
+                db.session.commit()
+
+                desc_content = page.get_description_content()
+                if not desc_content:
+                    raise ValueError("No description content for page")
+
+                desc_text = desc_content.get('text', '')
+                if not desc_text and desc_content.get('text_content'):
+                    text_content = desc_content.get('text_content', [])
+                    if isinstance(text_content, list):
+                        desc_text = '\n'.join(text_content)
+                    else:
+                        desc_text = str(text_content)
+
+                desc_text = _append_extra_fields(desc_text, desc_content)
+
+                additional_ref_images = []
+                has_material_images = False
+                if desc_text:
+                    image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
+                    if image_urls:
+                        logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
+                        additional_ref_images = image_urls
+                        has_material_images = True
+
+                ref_image_path = file_service.get_template_path(project_id) if use_template else None
+
+                page_data = page.get_outline_content() or {}
+                if page.part:
+                    page_data['part'] = page.part
+
+                prompt = ai_service.generate_image_prompt(
+                    outline, page_data, desc_text, page.order_index + 1,
+                    has_material_images=has_material_images,
+                    extra_requirements=extra_requirements,
+                    language=language,
+                    has_template=use_template,
+                    aspect_ratio=aspect_ratio
+                )
+
+                logger.info(f"🎨 Generating image for page {page_id}...")
+                image = ai_service.generate_image(
+                    prompt, ref_image_path, aspect_ratio, resolution,
+                    additional_ref_images=additional_ref_images if additional_ref_images else None
+                )
+
+                if not image:
+                    raise ValueError("Failed to generate image")
+
+                save_image_with_version(
+                    image, project_id, page_id, file_service, page_obj=page
+                )
+
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": 1,
+                    "completed": 1,
+                    "failed": 0
+                })
+                db.session.commit()
+                
+                logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
         
         except Exception as e:
             import traceback
@@ -713,68 +660,62 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
     
     with app.app_context():
         try:
-            # Update task status to PROCESSING
-            task = Task.query.get(task_id)
-            if not task:
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            
-            # Get page from database
-            page = Page.query.get(page_id)
-            if not page or page.project_id != project_id:
-                raise ValueError(f"Page {page_id} not found")
-            
-            if not page.generated_image_path:
-                raise ValueError("Page must have generated image first")
-            
-            # Update page status
-            page.status = 'GENERATING'
-            db.session.commit()
-            
-            # Get current image path
-            current_image_path = file_service.get_absolute_path(page.generated_image_path)
-            
-            # Edit image
-            logger.info(f"🎨 Editing image for page {page_id}...")
-            try:
-                image = ai_service.edit_image(
-                    edit_instruction,
-                    current_image_path,
-                    aspect_ratio,
-                    resolution,
-                    original_description=original_description,
-                    additional_ref_images=additional_ref_images if additional_ref_images else None
+            with use_user_settings(user_id, scope=f"edit_page_image_task:{task_id}"):
+                ai_service = get_ai_service(force_new=True)
+                task = Task.query.get(task_id)
+                if not task:
+                    return
+                
+                task.status = 'PROCESSING'
+                db.session.commit()
+
+                page = Page.query.get(page_id)
+                if not page or page.project_id != project_id:
+                    raise ValueError(f"Page {page_id} not found")
+
+                if not page.generated_image_path:
+                    raise ValueError("Page must have generated image first")
+
+                page.status = 'GENERATING'
+                db.session.commit()
+
+                current_image_path = file_service.get_absolute_path(page.generated_image_path)
+
+                logger.info(f"🎨 Editing image for page {page_id}...")
+                try:
+                    image = ai_service.edit_image(
+                        edit_instruction,
+                        current_image_path,
+                        aspect_ratio,
+                        resolution,
+                        original_description=original_description,
+                        additional_ref_images=additional_ref_images if additional_ref_images else None
+                    )
+                finally:
+                    if temp_dir:
+                        import shutil
+                        from pathlib import Path
+                        temp_path = Path(temp_dir)
+                        if temp_path.exists():
+                            shutil.rmtree(temp_dir)
+
+                if not image:
+                    raise ValueError("Failed to edit image")
+
+                save_image_with_version(
+                    image, project_id, page_id, file_service, page_obj=page
                 )
-            finally:
-                # Clean up temp directory if created
-                if temp_dir:
-                    import shutil
-                    from pathlib import Path
-                    temp_path = Path(temp_dir)
-                    if temp_path.exists():
-                        shutil.rmtree(temp_dir)
-            
-            if not image:
-                raise ValueError("Failed to edit image")
-            
-            # 保存编辑后的图片并创建历史版本记录
-            image_path, next_version = save_image_with_version(
-                image, project_id, page_id, file_service, page_obj=page
-            )
-            
-            # Mark task as completed
-            task.status = 'COMPLETED'
-            task.completed_at = datetime.utcnow()
-            task.set_progress({
-                "total": 1,
-                "completed": 1,
-                "failed": 0
-            })
-            db.session.commit()
-            
-            logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
+
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": 1,
+                    "completed": 1,
+                    "failed": 0
+                })
+                db.session.commit()
+                
+                logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
         
         except Exception as e:
             import traceback
@@ -831,60 +772,53 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
     
     with app.app_context():
         try:
-            # Update task status to PROCESSING
-            task = Task.query.get(task_id)
-            if not task:
-                return
-            
-            task.status = 'PROCESSING'
-            db.session.commit()
-            
-            # Generate image (复用核心逻辑)
-            logger.info(f"🎨 Generating material image with prompt: {prompt[:100]}...")
-            image = ai_service.generate_image(
-                prompt=prompt,
-                ref_image_path=ref_image_path,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-                additional_ref_images=additional_ref_images or None,
-            )
-            
-            if not image:
-                raise ValueError("Failed to generate image")
-            
-            # 处理project_id：如果为'global'或None，转换为None
-            actual_project_id = None if (project_id == 'global' or project_id is None) else project_id
-            
-            # Save generated material image
-            relative_path = file_service.save_material_image(image, actual_project_id)
-            relative = Path(relative_path)
-            filename = relative.name
-            
-            # Construct frontend-accessible URL
-            image_url = file_service.get_file_url(actual_project_id, 'materials', filename)
-            
-            # Save material info to database
-            material = Material(
-                project_id=actual_project_id,
-                filename=filename,
-                relative_path=relative_path,
-                url=image_url
-            )
-            db.session.add(material)
-            
-            # Mark task as completed
-            task.status = 'COMPLETED'
-            task.completed_at = datetime.utcnow()
-            task.set_progress({
-                "total": 1,
-                "completed": 1,
-                "failed": 0,
-                "material_id": material.id,
-                "image_url": image_url
-            })
-            db.session.commit()
-            
-            logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} generated")
+            with use_user_settings(user_id, scope=f"generate_material_image_task:{task_id}"):
+                ai_service = get_ai_service(force_new=True)
+                task = Task.query.get(task_id)
+                if not task:
+                    return
+                
+                task.status = 'PROCESSING'
+                db.session.commit()
+
+                logger.info(f"🎨 Generating material image with prompt: {prompt[:100]}...")
+                image = ai_service.generate_image(
+                    prompt=prompt,
+                    ref_image_path=ref_image_path,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=additional_ref_images or None,
+                )
+
+                if not image:
+                    raise ValueError("Failed to generate image")
+
+                actual_project_id = None if (project_id == 'global' or project_id is None) else project_id
+                relative_path = file_service.save_material_image(image, actual_project_id)
+                relative = Path(relative_path)
+                filename = relative.name
+                image_url = file_service.get_file_url(actual_project_id, 'materials', filename)
+
+                material = Material(
+                    project_id=actual_project_id,
+                    filename=filename,
+                    relative_path=relative_path,
+                    url=image_url
+                )
+                db.session.add(material)
+
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": 1,
+                    "completed": 1,
+                    "failed": 0,
+                    "material_id": material.id,
+                    "image_url": image_url
+                })
+                db.session.commit()
+                
+                logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} generated")
         
         except Exception as e:
             import traceback

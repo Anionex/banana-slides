@@ -25,6 +25,7 @@ from services.task_manager import (
     generate_images_task,
     process_ppt_renovation_task
 )
+from services.runtime_settings import use_user_settings
 from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
@@ -500,50 +501,37 @@ def generate_outline(project_id):
         if not success:
             return error_response('INSUFFICIENT_CREDITS', err, 402)
 
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
-        
-        # Get request data and language parameter
-        data = request.get_json() or {}
-        language = data.get('language', _get_user_output_language(user.id))
-        
-        # Get reference files content and create project context
-        reference_files_content = _get_project_reference_files_content(project_id)
-        if reference_files_content:
-            logger.info(f"Found {len(reference_files_content)} reference files for project {project_id}")
-            for rf in reference_files_content:
-                logger.info(f"  - {rf['filename']}: {len(rf['content'])} characters")
-        else:
-            logger.info(f"No reference files found for project {project_id}")
-        
-        # 根据项目类型选择不同的处理方式
-        if project.creation_type == 'outline':
-            # 从大纲生成：解析用户输入的大纲文本
-            if not project.outline_text:
-                return bad_request("outline_text is required for outline type project")
+        with use_user_settings(user.id, scope=f"generate_outline:{project_id}"):
+            ai_service = get_ai_service(force_new=True)
             
-            # Create project context and parse outline text into structured format
-            project_context = ProjectContext(project, reference_files_content)
-            outline = ai_service.parse_outline_text(project_context, language=language)
-        elif project.creation_type == 'descriptions':
-            # 从描述生成：从 description_text 提取大纲结构（仅大纲，不含页面描述）
-            if not project.description_text:
-                return bad_request("description_text is required for descriptions type project")
-
-            project_context = ProjectContext(project, reference_files_content)
-            outline = ai_service.parse_description_to_outline(project_context, language=language)
-        else:
-            # 一句话生成：从idea生成大纲
-            idea_prompt = data.get('idea_prompt') or project.idea_prompt
+            data = request.get_json() or {}
+            language = data.get('language', _get_user_output_language(user.id))
             
-            if not idea_prompt:
-                return bad_request("idea_prompt is required")
+            reference_files_content = _get_project_reference_files_content(project_id)
+            if reference_files_content:
+                logger.info(f"Found {len(reference_files_content)} reference files for project {project_id}")
+                for rf in reference_files_content:
+                    logger.info(f"  - {rf['filename']}: {len(rf['content'])} characters")
+            else:
+                logger.info(f"No reference files found for project {project_id}")
             
-            project.idea_prompt = idea_prompt
-            
-            # Create project context and generate outline from idea
-            project_context = ProjectContext(project, reference_files_content)
-            outline = ai_service.generate_outline(project_context, language=language)
+            if project.creation_type == 'outline':
+                if not project.outline_text:
+                    return bad_request("outline_text is required for outline type project")
+                project_context = ProjectContext(project, reference_files_content)
+                outline = ai_service.parse_outline_text(project_context, language=language)
+            elif project.creation_type == 'descriptions':
+                if not project.description_text:
+                    return bad_request("description_text is required for descriptions type project")
+                project_context = ProjectContext(project, reference_files_content)
+                outline = ai_service.parse_description_to_outline(project_context, language=language)
+            else:
+                idea_prompt = data.get('idea_prompt') or project.idea_prompt
+                if not idea_prompt:
+                    return bad_request("idea_prompt is required")
+                project.idea_prompt = idea_prompt
+                project_context = ProjectContext(project, reference_files_content)
+                outline = ai_service.generate_outline(project_context, language=language)
         
         # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(outline)
@@ -727,24 +715,19 @@ def generate_from_description(project_id):
         
         project.description_text = description_text
         
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
-        
-        # Get reference files content and create project context
-        reference_files_content = _get_project_reference_files_content(project_id)
-        project_context = ProjectContext(project, reference_files_content)
-        
-        logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}")
-        
-        # Step 1: Parse description to outline
-        logger.info("Step 1: 解析描述文本到大纲结构...")
-        outline = ai_service.parse_description_to_outline(project_context, language=language)
-        logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
-        
-        # Step 2: Split description into page descriptions
-        logger.info("Step 2: 切分描述文本到每页描述...")
-        page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
-        logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
+        with use_user_settings(user.id, scope=f"generate_from_description:{project_id}"):
+            ai_service = get_ai_service(force_new=True)
+            reference_files_content = _get_project_reference_files_content(project_id)
+            project_context = ProjectContext(project, reference_files_content)
+            
+            logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}")
+            logger.info("Step 1: 解析描述文本到大纲结构...")
+            outline = ai_service.parse_description_to_outline(project_context, language=language)
+            logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
+            
+            logger.info("Step 2: 切分描述文本到每页描述...")
+            page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
+            logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
         
         # Step 3: Flatten outline to pages
         pages_data = ai_service.flatten_outline(outline)
@@ -873,12 +856,8 @@ def generate_descriptions(project_id):
         db.session.add(task)
         db.session.commit()
         
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
-        
-        # Get reference files content and create project context
-        reference_files_content = _get_project_reference_files_content(project_id)
-        project_context = ProjectContext(project, reference_files_content)
+        with use_user_settings(user.id, scope=f"generate_descriptions:{project_id}"):
+            ai_service = get_ai_service(force_new=True)
         
         # Get app instance for background task
         app = current_app._get_current_object()
@@ -1134,8 +1113,8 @@ def generate_images(project_id):
         db.session.add(task)
         db.session.commit()
         
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
+        with use_user_settings(user.id, scope=f"generate_images:{project_id}"):
+            ai_service = get_ai_service(force_new=True)
         
         # 合并额外要求和风格描述
         combined_requirements = project.extra_requirements or ""
@@ -1258,8 +1237,8 @@ def refine_outline(project_id):
         else:
             current_outline = _reconstruct_outline_from_pages(pages)
         
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
+        with use_user_settings(user.id, scope=f"refine_outline:{project_id}"):
+            ai_service = get_ai_service(force_new=True)
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -1276,7 +1255,6 @@ def refine_outline(project_id):
         previous_requirements = data.get('previous_requirements', [])
         language = data.get('language', _get_user_output_language(user.id))
         
-        # Refine outline
         logger.info(f"开始修改大纲: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
         refined_outline = ai_service.refine_outline(
             current_outline=current_outline,

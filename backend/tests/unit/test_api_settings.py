@@ -141,6 +141,31 @@ class TestUpdateSettings:
         }, headers={'Authorization': f'Bearer {token}'})
         assert response.status_code == 400
 
+    def test_new_user_settings_inherit_global_settings(self, client):
+        """新建的 UserSettings 应继承当前全局 Settings，而不是回退到 .env"""
+        _register_admin(client)
+
+        from models import db, Settings, User, UserSettings
+        with client.application.app_context():
+            global_settings = Settings.get_settings()
+            global_settings.ai_provider_format = 'openai'
+            global_settings.api_base_url = 'https://global.example.test/v1'
+            global_settings.api_key = 'global-key'
+            global_settings.text_model = 'global-text-model'
+            global_settings.image_model = 'global-image-model'
+            db.session.commit()
+
+        _register_user(client, 'inherits-global@example.com')
+
+        with client.application.app_context():
+            user = User.query.filter_by(email='inherits-global@example.com').first()
+            settings = UserSettings.get_or_create_for_user(user.id)
+            assert settings.ai_provider_format == 'openai'
+            assert settings.api_base_url == 'https://global.example.test/v1'
+            assert settings.api_key == 'global-key'
+            assert settings.text_model == 'global-text-model'
+            assert settings.image_model == 'global-image-model'
+
 
 class TestResetSettings:
     """重置设置测试"""

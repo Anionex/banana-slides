@@ -166,36 +166,48 @@ class UserSettings(db.Model):
         """
         Get or create settings for a user.
         
-        If settings don't exist, create with defaults from Config (env vars).
+        If settings don't exist, inherit from the current global Settings row so
+        runtime behavior stays consistent across restart and new-user creation.
         """
         settings = UserSettings.query.filter_by(user_id=user_id).first()
         if not settings:
-            from config import Config
+            from .settings import Settings
 
-            # Determine default API configuration based on provider format
-            if (Config.AI_PROVIDER_FORMAT or '').lower() == 'openai':
-                default_api_base = Config.OPENAI_API_BASE or None
-                default_api_key = Config.OPENAI_API_KEY or None
-            else:
-                default_api_base = Config.GOOGLE_API_BASE or None
-                default_api_key = Config.GOOGLE_API_KEY or None
+            global_settings = Settings.get_settings()
 
             settings = UserSettings(
                 user_id=user_id,
-                ai_provider_format=Config.AI_PROVIDER_FORMAT,
-                api_base_url=default_api_base,
-                api_key=default_api_key,
-                image_resolution=Config.DEFAULT_RESOLUTION,
-                image_aspect_ratio=Config.DEFAULT_ASPECT_RATIO,
-                max_description_workers=Config.MAX_DESCRIPTION_WORKERS,
-                max_image_workers=Config.MAX_IMAGE_WORKERS,
-                text_model=Config.TEXT_MODEL,
-                image_model=Config.IMAGE_MODEL,
-                mineru_api_base=Config.MINERU_API_BASE,
-                mineru_token=Config.MINERU_TOKEN,
-                image_caption_model=Config.IMAGE_CAPTION_MODEL,
-                output_language='zh',
-                baidu_api_key=Config.BAIDU_API_KEY or None,
+                ai_provider_format=global_settings.ai_provider_format,
+                api_base_url=global_settings.api_base_url,
+                api_key=global_settings.api_key,
+                image_resolution=global_settings.image_resolution,
+                image_aspect_ratio=global_settings.image_aspect_ratio,
+                max_description_workers=global_settings.max_description_workers,
+                max_image_workers=global_settings.max_image_workers,
+                text_model=global_settings.text_model,
+                image_model=global_settings.image_model,
+                mineru_api_base=global_settings.mineru_api_base,
+                mineru_token=global_settings.mineru_token,
+                image_caption_model=global_settings.image_caption_model,
+                output_language=global_settings.output_language,
+                enable_text_reasoning=global_settings.enable_text_reasoning,
+                text_thinking_budget=global_settings.text_thinking_budget,
+                enable_image_reasoning=global_settings.enable_image_reasoning,
+                image_thinking_budget=global_settings.image_thinking_budget,
+                baidu_api_key=global_settings.baidu_api_key,
+                description_generation_mode=global_settings.description_generation_mode,
+                description_extra_fields=global_settings.description_extra_fields,
+                image_prompt_extra_fields=global_settings.image_prompt_extra_fields,
+                text_model_source=global_settings.text_model_source,
+                image_model_source=global_settings.image_model_source,
+                image_caption_model_source=global_settings.image_caption_model_source,
+                lazyllm_api_keys=global_settings.lazyllm_api_keys,
+                text_api_key=global_settings.text_api_key,
+                text_api_base_url=global_settings.text_api_base_url,
+                image_api_key=global_settings.image_api_key,
+                image_api_base_url=global_settings.image_api_base_url,
+                image_caption_api_key=global_settings.image_caption_api_key,
+                image_caption_api_base_url=global_settings.image_caption_api_base_url,
             )
             db.session.add(settings)
             db.session.commit()

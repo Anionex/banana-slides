@@ -16,11 +16,13 @@ Supported provider formats:
     lazyllm — LazyLLM multi-vendor framework
 """
 import os
+import hashlib
 import logging
 from typing import Any, Dict, Optional
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider, LazyLLMTextProvider
 from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, LazyLLMImageProvider, AggregatedImageProvider
+from services.runtime_settings import get_runtime_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ __all__ = [
     'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'LazyLLMImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format',
     'get_caption_provider', 'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
+    'get_provider_cache_signature',
 ]
 
 # LazyLLM vendor names (used to distinguish from gemini/openai formats)
@@ -49,6 +52,10 @@ def get_provider_format() -> str:
         (e.g., "doubao", "qwen", "deepseek")
     """
     # Try to get from Flask app config first (database settings)
+    runtime_value = get_runtime_config_value('AI_PROVIDER_FORMAT')
+    if runtime_value:
+        return str(runtime_value).lower()
+
     try:
         from flask import current_app
         if current_app and hasattr(current_app, 'config'):
@@ -71,6 +78,11 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         2. OS environment variable
         3. *fallback* argument (may be ``None``)
     """
+    runtime_value = get_runtime_config_value(key)
+    if runtime_value is not None:
+        logger.debug(f"[CONFIG] Using {key} from runtime override")
+        return str(runtime_value)
+
     # 1) Try Flask app.config
     try:
         from flask import current_app
@@ -236,6 +248,29 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
     else:
         logger.info("Caption provider: Gemini, model=%s", model)
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+
+
+def get_provider_cache_signature() -> tuple:
+    """
+    Build a cache signature that changes when provider credentials/endpoints change.
+    """
+    config = _get_provider_config()
+    provider_format = config['format']
+
+    if provider_format == 'vertex':
+        return (
+            'vertex',
+            config.get('project_id') or '',
+            config.get('location') or '',
+        )
+
+    api_key = config.get('api_key') or ''
+    key_hash = hashlib.sha256(api_key.encode('utf-8')).hexdigest() if api_key else ''
+    return (
+        provider_format,
+        config.get('api_base') or '',
+        key_hash,
+    )
 
 
 def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:

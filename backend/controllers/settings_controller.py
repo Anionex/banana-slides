@@ -19,6 +19,7 @@ from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_a
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.ai_providers import LAZYLLM_VENDORS
 from services.task_manager import task_manager
+from services.runtime_settings import use_user_settings
 from middlewares.auth import auth_required, admin_required, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,52 @@ def get_user_editable_fields():
 
 # 保持向后兼容的静态变量（实际使用动态获取）
 USER_EDITABLE_FIELDS = {'output_language', 'image_resolution', 'image_aspect_ratio'}
+
+
+def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
+    """
+    Persist an admin user's settings to the global Settings row.
+
+    Runtime AI requests read from app.config, which is rebuilt from the global
+    Settings table on restart. If admin updates only live in UserSettings,
+    verification/tests can pass while post-restart runtime still uses stale
+    global credentials.
+    """
+    global_settings = Settings.get_settings()
+
+    field_names = [
+        "ai_provider_format",
+        "api_base_url",
+        "api_key",
+        "image_resolution",
+        "image_aspect_ratio",
+        "max_description_workers",
+        "max_image_workers",
+        "text_model",
+        "image_model",
+        "mineru_api_base",
+        "mineru_token",
+        "image_caption_model",
+        "output_language",
+        "enable_text_reasoning",
+        "text_thinking_budget",
+        "enable_image_reasoning",
+        "image_thinking_budget",
+        "baidu_ocr_api_key",
+    ]
+
+    for field_name in field_names:
+        setattr(global_settings, field_name, getattr(user_settings, field_name))
+
+    global_settings.updated_at = datetime.now(timezone.utc)
+    logger.info(
+        "Synced admin user settings to global Settings: provider=%s, api_base=%s, text_model=%s, image_model=%s",
+        global_settings.ai_provider_format,
+        global_settings.api_base_url,
+        global_settings.text_model,
+        global_settings.image_model,
+    )
+    return global_settings
 
 
 @contextmanager
@@ -393,6 +440,8 @@ def update_settings():
                 settings.lazyllm_api_keys = None
 
         settings.updated_at = datetime.now(timezone.utc)
+        if user.is_admin:
+            _copy_user_settings_to_global(settings)
         db.session.commit()
 
         # Sync to app.config
@@ -461,6 +510,8 @@ def reset_settings():
         settings.max_description_workers = None
         settings.max_image_workers = None
         settings.updated_at = datetime.now(timezone.utc)
+        if user.is_admin:
+            _copy_user_settings_to_global(settings)
 
         db.session.commit()
 
@@ -515,27 +566,13 @@ def verify_api_key():
     """
     try:
         user = get_current_user()
-        # 获取当前用户设置
         settings = UserSettings.get_or_create_for_user(user.id)
         if not settings:
             return success_response({
                 "available": False,
                 "message": "用户设置未找到"
             })
-
-        # 准备设置覆盖字典
-        settings_override = {}
-        if settings.api_key:
-            settings_override["api_key"] = settings.api_key
-        if settings.api_base_url:
-            settings_override["api_base_url"] = settings.api_base_url
-        if settings.ai_provider_format:
-            settings_override["ai_provider_format"] = settings.ai_provider_format
-        if settings.text_model:
-            settings_override["text_model"] = settings.text_model
-
-        # 使用上下文管理器临时应用用户配置进行验证
-        with temporary_settings_override(settings_override):
+        with use_user_settings(user.id, scope=f"verify_api_key:{user.id}"):
             from services.ai_providers import get_text_provider
 
             verification_model = (

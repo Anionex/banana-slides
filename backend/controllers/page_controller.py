@@ -8,6 +8,7 @@ from utils import success_response, error_response, not_found, bad_request
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
+from services.runtime_settings import use_user_settings
 from middlewares.auth import auth_required, get_current_user
 from services.credits_service import CreditsService, CreditOperation
 from datetime import datetime
@@ -339,27 +340,22 @@ def generate_page_description(project_id, page_id):
                     page_data['part'] = p.part
                 outline.append(page_data)
         
-        # Initialize AI service
-        ai_service = get_ai_service()
-        
-        # Get reference files content and create project context
-        from controllers.project_controller import _get_project_reference_files_content
-        reference_files_content = _get_project_reference_files_content(project_id)
-        project_context = ProjectContext(project, reference_files_content)
-        
-        # Generate description
-        page_data = outline_content.copy()
-        if page.part:
-            page_data['part'] = page.part
-        
-        desc_result = ai_service.generate_page_description(
-            project_context,
-            outline,
-            page_data,
-            page.order_index + 1,
-            language=language,
-            detail_level=detail_level
-        )
+        with use_user_settings(user.id, scope=f"generate_page_description:{project_id}:{page_id}"):
+            ai_service = get_ai_service(force_new=True)
+            from controllers.project_controller import _get_project_reference_files_content
+            reference_files_content = _get_project_reference_files_content(project_id)
+            project_context = ProjectContext(project, reference_files_content)
+            page_data = outline_content.copy()
+            if page.part:
+                page_data['part'] = page.part
+            desc_result = ai_service.generate_page_description(
+                project_context,
+                outline,
+                page_data,
+                page.order_index + 1,
+                language=language,
+                detail_level=detail_level
+            )
 
         # Save description (generate_page_description returns dict with text + optional extra_fields)
         desc_content = {
@@ -468,8 +464,8 @@ def generate_page_image(project_id, page_id):
                 "pages": current_part_pages
             })
         
-        # Initialize services
-        ai_service = get_ai_service()
+        with use_user_settings(user.id, scope=f"generate_page_image:{project_id}:{page_id}"):
+            ai_service = get_ai_service(force_new=True)
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
@@ -608,8 +604,8 @@ def edit_page_image(project_id, page_id):
         if not page.generated_image_path:
             return bad_request("Page must have generated image first")
 
-        # Initialize services
-        ai_service = get_ai_service()
+        with use_user_settings(user.id, scope=f"edit_page_image:{project_id}:{page_id}"):
+            ai_service = get_ai_service(force_new=True)
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         

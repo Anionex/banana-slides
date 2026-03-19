@@ -7,6 +7,7 @@ from utils import success_response, error_response, not_found, bad_request
 from services import FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
+from services.runtime_settings import use_user_settings
 from middlewares.auth import auth_required, get_current_user
 from services.credits_service import CreditsService, CreditOperation
 from pathlib import Path
@@ -303,8 +304,8 @@ def generate_material_image(project_id):
             if not project:
                 return not_found('Project')
 
-        # Initialize services
-        ai_service = get_ai_service()
+        with use_user_settings(user.id, scope=f"generate_material:{task_project_id}"):
+            ai_service = get_ai_service(force_new=True)
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
         # 创建临时目录保存参考图片（后台任务会清理）
@@ -621,4 +622,3 @@ def download_materials_zip():
         tmp.close()
         current_app.logger.exception("Failed to build materials zip")
         return error_response('SERVER_ERROR', 'Failed to create zip archive', 500)
-

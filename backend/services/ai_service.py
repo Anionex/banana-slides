@@ -32,6 +32,7 @@ from .prompts import (
 )
 from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
+from services.runtime_settings import get_runtime_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -99,20 +100,34 @@ class AIService:
             has_app_context = lambda: False  # type: ignore
 
         if has_app_context() and current_app and hasattr(current_app, "config"):
-            self.text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
-            self.image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
-            # 分离的文本和图像推理配置
-            self.enable_text_reasoning = current_app.config.get("ENABLE_TEXT_REASONING", False)
-            self.text_thinking_budget = current_app.config.get("TEXT_THINKING_BUDGET", 1024)
-            self.enable_image_reasoning = current_app.config.get("ENABLE_IMAGE_REASONING", False)
-            self.image_thinking_budget = current_app.config.get("IMAGE_THINKING_BUDGET", 1024)
+            app_config = current_app.config
         else:
-            self.text_model = config.TEXT_MODEL
-            self.image_model = config.IMAGE_MODEL
-            self.enable_text_reasoning = False
-            self.text_thinking_budget = 1024
-            self.enable_image_reasoning = False
-            self.image_thinking_budget = 1024
+            app_config = {}
+
+        self.text_model = get_runtime_config_value(
+            "TEXT_MODEL",
+            app_config.get("TEXT_MODEL", config.TEXT_MODEL),
+        )
+        self.image_model = get_runtime_config_value(
+            "IMAGE_MODEL",
+            app_config.get("IMAGE_MODEL", config.IMAGE_MODEL),
+        )
+        self.enable_text_reasoning = bool(get_runtime_config_value(
+            "ENABLE_TEXT_REASONING",
+            app_config.get("ENABLE_TEXT_REASONING", False),
+        ))
+        self.text_thinking_budget = int(get_runtime_config_value(
+            "TEXT_THINKING_BUDGET",
+            app_config.get("TEXT_THINKING_BUDGET", 1024),
+        ))
+        self.enable_image_reasoning = bool(get_runtime_config_value(
+            "ENABLE_IMAGE_REASONING",
+            app_config.get("ENABLE_IMAGE_REASONING", False),
+        ))
+        self.image_thinking_budget = int(get_runtime_config_value(
+            "IMAGE_THINKING_BUDGET",
+            app_config.get("IMAGE_THINKING_BUDGET", 1024),
+        ))
         
         # Caption model for multimodal (image→text) tasks
         if has_app_context() and current_app and hasattr(current_app, "config"):
@@ -1055,4 +1070,3 @@ class AIService:
     def extract_style_description(self, image_path: str) -> str:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
-
