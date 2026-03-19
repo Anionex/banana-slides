@@ -30,6 +30,7 @@ const settingsI18n = {
         apiKey: "API Key", apiKeyPlaceholder: "输入新的 API Key",
         apiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
         apiKeySet: "已设置（长度: {{length}}）",
+        apiKeySetWithoutLength: "已设置",
         textModel: "文本大模型", textModelPlaceholder: "留空使用环境变量配置 (如: gemini-3-flash-preview)",
         textModelDesc: "用于生成大纲、描述等文本内容的模型名称",
         imageModel: "图像生成模型", imageModelPlaceholder: "留空使用环境变量配置 (如: imagen-3.0-generate-001)",
@@ -130,6 +131,7 @@ const settingsI18n = {
         apiKey: "API Key", apiKeyPlaceholder: "Enter new API Key",
         apiKeyDesc: "Leave empty to keep current setting, enter new value to update",
         apiKeySet: "Set (length: {{length}})",
+        apiKeySetWithoutLength: "Set",
         textModel: "Text Model", textModelPlaceholder: "Leave empty to use env config (e.g., gemini-3-flash-preview)",
         textModelDesc: "Model name for generating outlines, descriptions, etc.",
         imageModel: "Image Generation Model", imageModelPlaceholder: "Leave empty to use env config (e.g., imagen-3.0-generate-001)",
@@ -270,6 +272,14 @@ const API_KEY_PROVIDERS = new Set(['gemini', 'openai']);
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
+
+interface ServiceTestConfig {
+  key: string;
+  titleKey: string;
+  descriptionKey: string;
+  action: (settings?: any) => Promise<any>;
+  formatDetail: (data: any) => string;
+}
 
 // 初始表单数据
 const initialFormData = {
@@ -527,6 +537,55 @@ export const Settings: React.FC = () => {
     },
   ];
 
+  const serviceTests: ServiceTestConfig[] = [
+    {
+      key: 'baidu-ocr',
+      titleKey: 'settings.serviceTest.tests.baiduOcr.title',
+      descriptionKey: 'settings.serviceTest.tests.baiduOcr.description',
+      action: api.testBaiduOcr,
+      formatDetail: (data: any) => (data?.recognized_text ? t('settings.serviceTest.results.recognizedText', { text: data.recognized_text }) : ''),
+    },
+    {
+      key: 'text-model',
+      titleKey: 'settings.serviceTest.tests.textModel.title',
+      descriptionKey: 'settings.serviceTest.tests.textModel.description',
+      action: api.testTextModel,
+      formatDetail: (data: any) => (data?.reply ? t('settings.serviceTest.results.modelReply', { reply: data.reply }) : ''),
+    },
+    {
+      key: 'caption-model',
+      titleKey: 'settings.serviceTest.tests.captionModel.title',
+      descriptionKey: 'settings.serviceTest.tests.captionModel.description',
+      action: api.testCaptionModel,
+      formatDetail: (data: any) => (data?.caption ? t('settings.serviceTest.results.captionDesc', { caption: data.caption }) : ''),
+    },
+    {
+      key: 'baidu-inpaint',
+      titleKey: 'settings.serviceTest.tests.baiduInpaint.title',
+      descriptionKey: 'settings.serviceTest.tests.baiduInpaint.description',
+      action: api.testBaiduInpaint,
+      formatDetail: (data: any) => (data?.image_size ? t('settings.serviceTest.results.imageSize', { width: data.image_size[0], height: data.image_size[1] }) : ''),
+    },
+    {
+      key: 'image-model',
+      titleKey: 'settings.serviceTest.tests.imageModel.title',
+      descriptionKey: 'settings.serviceTest.tests.imageModel.description',
+      action: api.testImageModel,
+      formatDetail: (data: any) => (data?.image_size ? t('settings.serviceTest.results.imageSize', { width: data.image_size[0], height: data.image_size[1] }) : ''),
+    },
+    {
+      key: 'mineru-pdf',
+      titleKey: 'settings.serviceTest.tests.mineruPdf.title',
+      descriptionKey: 'settings.serviceTest.tests.mineruPdf.description',
+      action: api.testMineruPdf,
+      formatDetail: (data: any) => (data?.content_preview ? t('settings.serviceTest.results.parsePreview', { preview: data.content_preview }) : data?.message || ''),
+    },
+  ];
+
+  const visibleServiceTests = user?.is_admin
+    ? serviceTests
+    : serviceTests.filter((item) => settings?._available_service_tests?.includes(item.key));
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -647,6 +706,29 @@ export const Settings: React.FC = () => {
     setServiceTestStates(prev => ({ ...prev, [key]: nextState }));
   };
 
+  const getSensitivePlaceholder = (field: FieldConfig) => {
+    if (!field.sensitiveField || !settings || !field.lengthKey) {
+      return field.placeholder || '';
+    }
+
+    const lengthValue = settings[field.lengthKey];
+    if (typeof lengthValue === 'number' && lengthValue > 0) {
+      return t('settings.fields.apiKeySet', { length: lengthValue });
+    }
+
+    const currentValue = formData[field.key];
+    if (typeof currentValue === 'string' && currentValue.length > 0) {
+      return t('settings.fields.apiKeySet', { length: currentValue.length });
+    }
+
+    const valueSource = settings._value_sources?.[field.key];
+    if (valueSource === 'user') {
+      return t('settings.fields.apiKeySetWithoutLength');
+    }
+
+    return field.placeholder || '';
+  };
+
   const handleServiceTest = async (
     key: string,
     action: (settings?: any) => Promise<any>,
@@ -658,7 +740,7 @@ export const Settings: React.FC = () => {
       const testSettings: any = {};
 
       // 只传递用户已填写的非空值
-      if (formData.api_key) testSettings.api_key = formData.api_key;
+      if (user?.is_admin && formData.api_key) testSettings.api_key = formData.api_key;
       if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
       if (formData.ai_provider_format) {
         testSettings.ai_provider_format = formData.ai_provider_format;
@@ -667,8 +749,8 @@ export const Settings: React.FC = () => {
       if (formData.image_model) testSettings.image_model = formData.image_model;
       if (formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
       if (formData.mineru_api_base) testSettings.mineru_api_base = formData.mineru_api_base;
-      if (formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
-      if (formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
+      if (user?.is_admin && formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
+      if (user?.is_admin && formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
       if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
 
       // Per-model provider source overrides (always send, even empty, to clear saved values)
@@ -706,17 +788,21 @@ export const Settings: React.FC = () => {
       const pollInterval = setInterval(async () => {
         try {
           const statusResponse = await api.getTestStatus(taskId);
-          const taskStatus = statusResponse.data.status;
+          const statusData = statusResponse.data;
+          if (!statusData) {
+            throw new Error(t('settings.serviceTest.testFailed'));
+          }
+          const taskStatus = statusData.status;
 
           if (taskStatus === 'COMPLETED') {
             clearInterval(pollInterval);
-            const detail = formatDetail(statusResponse.data.result || {});
-            const message = statusResponse.data.message || t('settings.messages.testSuccess');
+            const detail = formatDetail(statusData.result || {});
+            const message = statusData.message || t('settings.messages.testSuccess');
             updateServiceTest(key, { status: 'success', message, detail });
             show({ message, type: 'success' });
           } else if (taskStatus === 'FAILED') {
             clearInterval(pollInterval);
-            const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
+            const errorMessage = statusData.error || t('settings.serviceTest.testFailed');
             updateServiceTest(key, { status: 'error', message: errorMessage });
             show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
           }
@@ -841,9 +927,7 @@ export const Settings: React.FC = () => {
     }
 
     // text, password, number 类型
-    const placeholder = field.sensitiveField && settings && field.lengthKey && (settings[field.lengthKey] as number) > 0
-      ? t('settings.fields.apiKeySet', { length: settings[field.lengthKey] as string | number })
-      : field.placeholder || '';
+    const placeholder = getSensitivePlaceholder(field);
 
     // 判断是否禁用（思考负载字段在对应开关关闭时禁用）
     let isDisabled = false;
@@ -1172,8 +1256,8 @@ export const Settings: React.FC = () => {
           ))}
         </div>
 
-        {/* 服务测试区 - 仅管理员可见 */}
-        {user?.is_admin && (
+        {/* 服务测试区 */}
+        {visibleServiceTests.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-2 flex items-center">
             <FileText size={20} />
@@ -1188,56 +1272,7 @@ export const Settings: React.FC = () => {
             </p>
           </div>
           <div className="space-y-4">
-            {[
-              {
-                key: 'baidu-ocr',
-                titleKey: 'settings.serviceTest.tests.baiduOcr.title',
-                descriptionKey: 'settings.serviceTest.tests.baiduOcr.description',
-                resultKey: 'settings.serviceTest.results.recognizedText',
-                action: api.testBaiduOcr,
-                formatDetail: (data: any) => (data?.recognized_text ? t('settings.serviceTest.results.recognizedText', { text: data.recognized_text }) : ''),
-              },
-              {
-                key: 'text-model',
-                titleKey: 'settings.serviceTest.tests.textModel.title',
-                descriptionKey: 'settings.serviceTest.tests.textModel.description',
-                resultKey: 'settings.serviceTest.results.modelReply',
-                action: api.testTextModel,
-                formatDetail: (data: any) => (data?.reply ? t('settings.serviceTest.results.modelReply', { reply: data.reply }) : ''),
-              },
-              {
-                key: 'caption-model',
-                titleKey: 'settings.serviceTest.tests.captionModel.title',
-                descriptionKey: 'settings.serviceTest.tests.captionModel.description',
-                resultKey: 'settings.serviceTest.results.captionDesc',
-                action: api.testCaptionModel,
-                formatDetail: (data: any) => (data?.caption ? t('settings.serviceTest.results.captionDesc', { caption: data.caption }) : ''),
-              },
-              {
-                key: 'baidu-inpaint',
-                titleKey: 'settings.serviceTest.tests.baiduInpaint.title',
-                descriptionKey: 'settings.serviceTest.tests.baiduInpaint.description',
-                resultKey: 'settings.serviceTest.results.imageSize',
-                action: api.testBaiduInpaint,
-                formatDetail: (data: any) => (data?.image_size ? t('settings.serviceTest.results.imageSize', { width: data.image_size[0], height: data.image_size[1] }) : ''),
-              },
-              {
-                key: 'image-model',
-                titleKey: 'settings.serviceTest.tests.imageModel.title',
-                descriptionKey: 'settings.serviceTest.tests.imageModel.description',
-                resultKey: 'settings.serviceTest.results.imageSize',
-                action: api.testImageModel,
-                formatDetail: (data: any) => (data?.image_size ? t('settings.serviceTest.results.imageSize', { width: data.image_size[0], height: data.image_size[1] }) : ''),
-              },
-              {
-                key: 'mineru-pdf',
-                titleKey: 'settings.serviceTest.tests.mineruPdf.title',
-                descriptionKey: 'settings.serviceTest.tests.mineruPdf.description',
-                resultKey: 'settings.serviceTest.results.parsePreview',
-                action: api.testMineruPdf,
-                formatDetail: (data: any) => (data?.content_preview ? t('settings.serviceTest.results.parsePreview', { preview: data.content_preview }) : data?.message || ''),
-              },
-            ].map((item) => {
+            {visibleServiceTests.map((item) => {
               const testState = serviceTestStates[item.key] || { status: 'idle' as TestStatus };
               const isLoadingTest = testState.status === 'loading';
               return (

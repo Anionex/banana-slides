@@ -130,7 +130,7 @@ export interface Settings {
   id: number;
   ai_provider_format: string;
   api_base_url?: string;
-  api_key_length: number;
+  api_key_length?: number;
   image_resolution: string;
   image_aspect_ratio: string;
   max_description_workers: number;
@@ -138,7 +138,7 @@ export interface Settings {
   text_model?: string;
   image_model?: string;
   mineru_api_base?: string;
-  mineru_token_length: number;
+  mineru_token_length?: number;
   image_caption_model?: string;
   output_language: 'zh' | 'en' | 'ja' | 'auto';
   // 描述生成模式
@@ -151,7 +151,7 @@ export interface Settings {
   text_thinking_budget: number;
   enable_image_reasoning: boolean;
   image_thinking_budget: number;
-  baidu_ocr_api_key_length: number;
+  baidu_api_key_length?: number;
   // LazyLLM 配置
   text_model_source?: string;
   image_model_source?: string;
@@ -165,7 +165,8 @@ export interface Settings {
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
   _editable_fields?: string[];
+  _available_service_tests?: string[];
+  _value_sources?: Record<string, 'user' | 'global'>;
   created_at?: string;
   updated_at?: string;
 }
-

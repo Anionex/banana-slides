@@ -44,6 +44,19 @@ ALL_SETTINGS_FIELDS = {
 
 # 敏感字段（不应泄露给用户请求）
 SENSITIVE_FIELDS = {'api_key', 'mineru_token', 'baidu_api_key'}
+SENSITIVE_LENGTH_FIELDS = {
+    'api_key': 'api_key_length',
+    'mineru_token': 'mineru_token_length',
+    'baidu_api_key': 'baidu_api_key_length',
+}
+TEST_REQUIREMENTS = {
+    'text-model': {'editable_fields': {'api_key'}},
+    'caption-model': {'editable_fields': {'api_key'}},
+    'image-model': {'editable_fields': {'api_key'}},
+    'mineru-pdf': {'editable_fields': {'mineru_token'}},
+    'baidu-ocr': {'editable_fields': {'baidu_api_key'}},
+    'baidu-inpaint': {'editable_fields': {'baidu_api_key'}},
+}
 
 
 def get_user_editable_fields():
@@ -91,12 +104,72 @@ def _build_non_admin_settings_response(user_settings: UserSettings) -> dict:
 
         response[field_name] = global_value if uses_global_fallback else user_value
 
+        if field_name in SENSITIVE_LENGTH_FIELDS:
+            response[SENSITIVE_LENGTH_FIELDS[field_name]] = len(user_value) if user_value else 0
+
     response["_editable_fields"] = sorted(user_fields)
+    response["_available_service_tests"] = _get_available_service_tests(
+        user_settings=user_settings,
+        editable_fields=user_fields,
+    )
     response["_value_sources"] = value_sources
     response["_inherits_global_fields"] = sorted(
         [field for field, source in value_sources.items() if source == "global"]
     )
     return response
+
+
+def _get_available_service_tests(user_settings: UserSettings, editable_fields: set[str]) -> list[str]:
+    """Return settings tests a non-admin user may run with saved private config."""
+    available_tests = []
+
+    for test_name, requirement in TEST_REQUIREMENTS.items():
+        required_fields = requirement['editable_fields']
+        if not required_fields.issubset(editable_fields):
+            continue
+
+        if all(getattr(user_settings, field_name, None) for field_name in required_fields):
+            available_tests.append(test_name)
+
+    return sorted(available_tests)
+
+
+def _filter_test_override_settings(data: dict) -> tuple[dict, str | None]:
+    """
+    Restrict non-admin test overrides to editable non-sensitive fields and only
+    allow tests for services backed by saved private credentials.
+    """
+    if not data:
+        return {}, None
+
+    user = get_current_user()
+    if user.is_admin:
+        return data, None
+
+    editable_fields = get_user_editable_fields()
+    forbidden_fields = [key for key in data.keys() if key not in editable_fields]
+    if forbidden_fields:
+        return {}, f"测试参数包含未授权字段: {', '.join(sorted(forbidden_fields))}"
+
+    forbidden_sensitive_overrides = [key for key in data.keys() if key in SENSITIVE_FIELDS]
+    if forbidden_sensitive_overrides:
+        return {}, "敏感密钥必须先保存到个人设置后才能测试"
+
+    return data, None
+
+
+def _ensure_non_admin_test_allowed(test_name: str, user_settings: UserSettings) -> str | None:
+    """Check whether a non-admin user may run the requested settings test."""
+    user = get_current_user()
+    if user.is_admin:
+        return None
+
+    editable_fields = get_user_editable_fields()
+    available_tests = _get_available_service_tests(user_settings, editable_fields)
+    if test_name not in available_tests:
+        return "只有在已保存该服务的个人配置后，才允许执行对应测试"
+
+    return None
 
 
 def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
@@ -128,7 +201,7 @@ def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
         "text_thinking_budget",
         "enable_image_reasoning",
         "image_thinking_budget",
-        "baidu_ocr_api_key",
+        "baidu_api_key",
     ]
 
     for field_name in field_names:
@@ -1086,9 +1159,11 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
                 # 更新任务状态为完成
                 task = Task.query.get(task_id)
                 if task:
+                    owner_user_id = task.get_progress().get('owner_user_id')
                     task.status = 'COMPLETED'
                     task.completed_at = datetime.now(timezone.utc)
                     task.set_progress({
+                        'owner_user_id': owner_user_id,
                         'result': result_data,
                         'message': message
                     })
@@ -1109,7 +1184,6 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
 
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
 @auth_required
-@admin_required
 def run_settings_test(test_name: str):
     """
     POST /api/settings/tests/<test_name> - 启动异步服务测试
@@ -1135,6 +1209,9 @@ def run_settings_test(test_name: str):
         user = get_current_user()
         # 从数据库加载用户已保存的设置作为基础
         user_settings = UserSettings.get_or_create_for_user(user.id)
+        permission_error = _ensure_non_admin_test_allowed(test_name, user_settings)
+        if permission_error:
+            return error_response("SETTINGS_TEST_FORBIDDEN", permission_error, 403)
 
         # 构建基础测试设置（使用数据库中已保存的值）
         test_settings = {}
@@ -1167,6 +1244,9 @@ def run_settings_test(test_name: str):
         # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
         override_settings = request.get_json() or {}
         if override_settings:
+            override_settings, override_error = _filter_test_override_settings(override_settings)
+            if override_error:
+                return error_response("SETTINGS_TEST_FORBIDDEN", override_error, 403)
             logger.info(f"Applying test setting overrides: {list(override_settings.keys())}")
             test_settings.update(override_settings)
 
@@ -1176,6 +1256,7 @@ def run_settings_test(test_name: str):
             task_type=f'TEST_{test_name.upper().replace("-", "_")}',
             status='PENDING'
         )
+        task.set_progress({'owner_user_id': user.id})
         db.session.add(task)
         db.session.commit()
 
@@ -1208,7 +1289,6 @@ def run_settings_test(test_name: str):
 
 @settings_bp.route("/tests/<task_id>/status", methods=["GET"], strict_slashes=False)
 @auth_required
-@admin_required
 def get_test_status(task_id: str):
     """
     GET /api/settings/tests/<task_id>/status - 查询测试任务状态
@@ -1224,8 +1304,13 @@ def get_test_status(task_id: str):
         }
     """
     try:
+        user = get_current_user()
         task = Task.query.get(task_id)
         if not task:
+            return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
+
+        progress = task.get_progress()
+        if not user.is_admin and progress.get('owner_user_id') != user.id:
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
         # 构建响应数据
@@ -1238,7 +1323,6 @@ def get_test_status(task_id: str):
 
         # 如果任务完成，包含结果和消息
         if task.status == 'COMPLETED':
-            progress = task.get_progress()
             response_data['result'] = progress.get('result', {})
             response_data['message'] = progress.get('message', '测试完成')
 
