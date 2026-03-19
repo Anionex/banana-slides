@@ -26,6 +26,7 @@ from services.task_manager import (
     process_ppt_renovation_task
 )
 from services.runtime_settings import use_user_settings
+from services.runtime_settings import get_user_effective_config_value
 from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
@@ -837,7 +838,7 @@ def generate_descriptions(project_id):
         
         data = request.get_json() or {}
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
+        max_workers = data.get('max_workers', get_user_effective_config_value(user.id, 'MAX_DESCRIPTION_WORKERS', 5))
         language = data.get('language', _get_user_output_language(user.id))
         detail_level = data.get('detail_level', 'default')
         
@@ -1094,7 +1095,7 @@ def generate_images(project_id):
         outline = _reconstruct_outline_from_pages(pages)
         
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
+        max_workers = data.get('max_workers', get_user_effective_config_value(user.id, 'MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
         language = data.get('language', _get_user_output_language(user.id))
         

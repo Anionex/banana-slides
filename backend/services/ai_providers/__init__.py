@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider, LazyLLMTextProvider
 from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, LazyLLMImageProvider, AggregatedImageProvider
-from services.runtime_settings import get_runtime_config_value
+from services.runtime_settings import get_effective_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -51,23 +51,7 @@ def get_provider_format() -> str:
         "gemini", "openai", "vertex", "lazyllm", or a lazyllm vendor name
         (e.g., "doubao", "qwen", "deepseek")
     """
-    # Try to get from Flask app config first (database settings)
-    runtime_value = get_runtime_config_value('AI_PROVIDER_FORMAT')
-    if runtime_value:
-        return str(runtime_value).lower()
-
-    try:
-        from flask import current_app
-        if current_app and hasattr(current_app, 'config'):
-            config_value = current_app.config.get('AI_PROVIDER_FORMAT')
-            if config_value:
-                return str(config_value).lower()
-    except RuntimeError:
-        # Not in Flask application context
-        pass
-
-    # Fallback to environment variable
-    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
+    return str(get_effective_config_value('AI_PROVIDER_FORMAT', 'gemini')).lower()
 
 
 def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
@@ -78,32 +62,11 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         2. OS environment variable
         3. *fallback* argument (may be ``None``)
     """
-    runtime_value = get_runtime_config_value(key)
-    if runtime_value is not None:
-        logger.debug(f"[CONFIG] Using {key} from runtime override")
-        return str(runtime_value)
-
-    # 1) Try Flask app.config
-    try:
-        from flask import current_app
-        if current_app and hasattr(current_app, 'config') and key in current_app.config:
-            val = current_app.config[key]
-            if val is not None:
-                logger.debug("Setting %s resolved from app.config", key)
-                return str(val)
-    except RuntimeError:
-        pass  # outside Flask request context
-
-    # 2) Try environment
-    env_val = os.getenv(key)
-    if env_val is not None:
-        logger.debug("Setting %s resolved from environment", key)
-        return env_val
-
-    # 3) Fallback
-    if fallback is not None:
-        logger.debug("Setting %s using fallback: %s", key, fallback)
-    return fallback
+    value = get_effective_config_value(key, fallback)
+    if value is None:
+        logger.debug(f"[CONFIG] No value found for {key}, returning None")
+        return None
+    return str(value)
 
 
 def _build_provider_config() -> Dict[str, Any]:

@@ -31,7 +31,7 @@ from .ai_providers import (
     TextProvider,
     ImageProvider,
 )
-from .runtime_settings import has_runtime_settings_override
+from .runtime_settings import get_effective_config_value, has_runtime_settings_override
 
 logger = logging.getLogger(__name__)
 
@@ -124,16 +124,9 @@ def get_ai_service(force_new: bool = False) -> AIService:
     
     # Request/task scoped overrides must not reuse a process-wide singleton.
     if has_runtime_settings_override():
-        from config import get_config
-        config = get_config()
-        if has_app_context() and current_app and hasattr(current_app, "config"):
-            text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
-            image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
-            caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
-        else:
-            text_model = config.TEXT_MODEL
-            image_model = config.IMAGE_MODEL
-            caption_model = config.IMAGE_CAPTION_MODEL
+        text_model = get_effective_config_value("TEXT_MODEL")
+        image_model = get_effective_config_value("IMAGE_MODEL")
+        caption_model = get_effective_config_value("IMAGE_CAPTION_MODEL")
         signature = get_provider_cache_signature()
         text_provider = _get_cached_text_provider(text_model, signature)
         image_provider = _get_cached_image_provider(image_model, signature)
@@ -159,19 +152,9 @@ def get_ai_service(force_new: bool = False) -> AIService:
             if _ai_service_instance is None or _ai_service_signature != current_signature:
                 logger.info("Initializing AIService singleton with provider caching")
                 
-                # Get model names from Flask config or use defaults
-                from config import get_config
-                config = get_config()
-                
-                if has_app_context() and current_app and hasattr(current_app, "config"):
-                    text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
-                    image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
-                    caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
-                else:
-                    text_model = config.TEXT_MODEL
-                    image_model = config.IMAGE_MODEL
-                    caption_model = config.IMAGE_CAPTION_MODEL
-
+                text_model = get_effective_config_value("TEXT_MODEL")
+                image_model = get_effective_config_value("IMAGE_MODEL")
+                caption_model = get_effective_config_value("IMAGE_CAPTION_MODEL")
                 # Get cached providers
                 text_provider = _get_cached_text_provider(text_model, current_signature)
                 image_provider = _get_cached_image_provider(image_model, current_signature)

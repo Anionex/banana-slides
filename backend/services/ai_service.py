@@ -32,7 +32,7 @@ from .prompts import (
 )
 from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
-from services.runtime_settings import get_runtime_config_value
+from services.runtime_settings import get_effective_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -92,42 +92,20 @@ class AIService:
         """
         config = get_config()
 
-        # 优先使用 Flask app.config（可由 Settings 覆盖），否则回退到 Config 默认值
-        try:
-            from flask import current_app, has_app_context
-        except ImportError:
-            current_app = None  # type: ignore
-            has_app_context = lambda: False  # type: ignore
-
-        if has_app_context() and current_app and hasattr(current_app, "config"):
-            app_config = current_app.config
-        else:
-            app_config = {}
-
-        self.text_model = get_runtime_config_value(
-            "TEXT_MODEL",
-            app_config.get("TEXT_MODEL", config.TEXT_MODEL),
+        self.text_model = get_effective_config_value("TEXT_MODEL", config.TEXT_MODEL)
+        self.image_model = get_effective_config_value("IMAGE_MODEL", config.IMAGE_MODEL)
+        self.enable_text_reasoning = bool(
+            get_effective_config_value("ENABLE_TEXT_REASONING", False)
         )
-        self.image_model = get_runtime_config_value(
-            "IMAGE_MODEL",
-            app_config.get("IMAGE_MODEL", config.IMAGE_MODEL),
+        self.text_thinking_budget = int(
+            get_effective_config_value("TEXT_THINKING_BUDGET", 1024)
         )
-        self.enable_text_reasoning = bool(get_runtime_config_value(
-            "ENABLE_TEXT_REASONING",
-            app_config.get("ENABLE_TEXT_REASONING", False),
-        ))
-        self.text_thinking_budget = int(get_runtime_config_value(
-            "TEXT_THINKING_BUDGET",
-            app_config.get("TEXT_THINKING_BUDGET", 1024),
-        ))
-        self.enable_image_reasoning = bool(get_runtime_config_value(
-            "ENABLE_IMAGE_REASONING",
-            app_config.get("ENABLE_IMAGE_REASONING", False),
-        ))
-        self.image_thinking_budget = int(get_runtime_config_value(
-            "IMAGE_THINKING_BUDGET",
-            app_config.get("IMAGE_THINKING_BUDGET", 1024),
-        ))
+        self.enable_image_reasoning = bool(
+            get_effective_config_value("ENABLE_IMAGE_REASONING", False)
+        )
+        self.image_thinking_budget = int(
+            get_effective_config_value("IMAGE_THINKING_BUDGET", 1024)
+        )
         
         # Caption model for multimodal (image→text) tasks
         if has_app_context() and current_app and hasattr(current_app, "config"):

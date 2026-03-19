@@ -19,7 +19,12 @@ from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_a
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.ai_providers import LAZYLLM_VENDORS
 from services.task_manager import task_manager
-from services.runtime_settings import use_user_settings
+from services.runtime_settings import (
+    build_effective_settings_payload,
+    build_file_parser_config,
+    get_effective_config_value,
+    use_user_settings,
+)
 from middlewares.auth import auth_required, admin_required, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -944,64 +949,15 @@ def _get_test_image_path() -> Path:
 
 def _get_baidu_credentials():
     """获取百度 API 凭证"""
-    api_key = current_app.config.get("BAIDU_API_KEY") or Config.BAIDU_API_KEY
+    api_key = get_effective_config_value("BAIDU_API_KEY")
     if not api_key:
         raise ValueError("未配置 BAIDU_API_KEY")
     return api_key
 
 
 def _create_file_parser():
-    """创建 FileParserService 实例，根据 per-model caption 配置解析正确的凭证"""
-    from services.ai_providers import LAZYLLM_VENDORS
-
-    caption_source = current_app.config.get("IMAGE_CAPTION_MODEL_SOURCE")
-    global_format = current_app.config.get("AI_PROVIDER_FORMAT", "gemini")
-
-    # Determine effective caption provider format
-    if caption_source:
-        source_lower = caption_source.lower()
-        if source_lower == 'gemini':
-            caption_format = 'gemini'
-        elif source_lower == 'openai':
-            caption_format = 'openai'
-        elif source_lower in LAZYLLM_VENDORS:
-            caption_format = 'lazyllm'
-        else:
-            caption_format = global_format
-    else:
-        caption_format = global_format
-
-    # Resolve API credentials based on caption format
-    if caption_format == 'gemini':
-        google_key = current_app.config.get("IMAGE_CAPTION_API_KEY") or current_app.config.get("GOOGLE_API_KEY", "")
-        google_base = current_app.config.get("IMAGE_CAPTION_API_BASE") or current_app.config.get("GOOGLE_API_BASE", "")
-        openai_key = ""
-        openai_base = ""
-    elif caption_format == 'openai':
-        google_key = ""
-        google_base = ""
-        openai_key = current_app.config.get("IMAGE_CAPTION_API_KEY") or current_app.config.get("OPENAI_API_KEY", "")
-        openai_base = current_app.config.get("IMAGE_CAPTION_API_BASE") or current_app.config.get("OPENAI_API_BASE", "")
-    else:
-        # lazyllm or global fallback
-        google_key = current_app.config.get("GOOGLE_API_KEY", "")
-        google_base = current_app.config.get("GOOGLE_API_BASE", "")
-        openai_key = current_app.config.get("OPENAI_API_KEY", "")
-        openai_base = current_app.config.get("OPENAI_API_BASE", "")
-
-    return FileParserService(
-        mineru_token=current_app.config.get("MINERU_TOKEN", ""),
-        mineru_api_base=current_app.config.get("MINERU_API_BASE", ""),
-        google_api_key=google_key,
-        google_api_base=google_base,
-        openai_api_key=openai_key,
-        openai_api_base=openai_base,
-        image_caption_model=current_app.config.get("IMAGE_CAPTION_MODEL", Config.IMAGE_CAPTION_MODEL),
-        lazyllm_image_caption_source=caption_source or getattr(
-            Config, 'IMAGE_CAPTION_MODEL_SOURCE', None
-        ),
-        provider_format=caption_format,
-    )
+    """创建 FileParserService 实例"""
+    return FileParserService(**build_file_parser_config())
 
 
 # 测试函数 - 每个测试一个独立函数
@@ -1110,7 +1066,7 @@ def _test_image_model():
 
 def _test_mineru_pdf():
     """测试 MinerU PDF 解析"""
-    mineru_token = current_app.config.get("MINERU_TOKEN", "")
+    mineru_token = get_effective_config_value("MINERU_TOKEN", "")
     if not mineru_token:
         raise ValueError("未配置 MINERU_TOKEN")
 
@@ -1257,33 +1213,8 @@ def run_settings_test(test_name: str):
         if permission_error:
             return error_response("SETTINGS_TEST_FORBIDDEN", permission_error, 403)
 
-        # 构建基础测试设置（使用数据库中已保存的值）
-        test_settings = {}
-        if user_settings.api_key:
-            test_settings["api_key"] = user_settings.api_key
-        if user_settings.api_base_url:
-            test_settings["api_base_url"] = user_settings.api_base_url
-        if user_settings.ai_provider_format:
-            test_settings["ai_provider_format"] = user_settings.ai_provider_format
-        if user_settings.text_model:
-            test_settings["text_model"] = user_settings.text_model
-        if user_settings.image_model:
-            test_settings["image_model"] = user_settings.image_model
-        if user_settings.image_caption_model:
-            test_settings["image_caption_model"] = user_settings.image_caption_model
-        if user_settings.mineru_api_base:
-            test_settings["mineru_api_base"] = user_settings.mineru_api_base
-        if user_settings.mineru_token:
-            test_settings["mineru_token"] = user_settings.mineru_token
-        if user_settings.baidu_api_key:
-            test_settings["baidu_api_key"] = user_settings.baidu_api_key
-        if user_settings.image_resolution:
-            test_settings["image_resolution"] = user_settings.image_resolution
-        # 推理模式设置
-        test_settings["enable_text_reasoning"] = user_settings.enable_text_reasoning
-        test_settings["text_thinking_budget"] = user_settings.text_thinking_budget
-        test_settings["enable_image_reasoning"] = user_settings.enable_image_reasoning
-        test_settings["image_thinking_budget"] = user_settings.image_thinking_budget
+        # 构建基础测试设置，统一走设置仲裁逻辑。
+        test_settings = build_effective_settings_payload(user.id)
 
         # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
         override_settings = request.get_json() or {}

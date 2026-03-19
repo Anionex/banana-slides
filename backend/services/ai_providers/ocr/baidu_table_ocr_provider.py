@@ -263,21 +263,13 @@ def create_baidu_table_ocr_provider(
     Returns:
         BaiduTableOCRProvider实例，如果api_key不可用则返回None
     """
-    from config import Config
+    from services.runtime_settings import get_effective_config_value
 
     if not api_key:
-        # 优先从 Flask config 读取（数据库设置），然后从 Config（含 env 回退）
-        try:
-            from flask import current_app
-            api_key = current_app.config.get('BAIDU_API_KEY')
-        except RuntimeError:
-            pass  # 不在 Flask 上下文中
-        if not api_key:
-            api_key = Config.BAIDU_API_KEY
+        api_key = get_effective_config_value('BAIDU_API_KEY')
 
     if not api_key:
         logger.warning("⚠️ 未配置百度API Key, 跳过百度表格识别")
         return None
 
     return BaiduTableOCRProvider(api_key)
-

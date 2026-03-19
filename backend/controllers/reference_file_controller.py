@@ -17,7 +17,7 @@ from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
 from services.credits_service import CreditsService, CreditOperation
-from services.runtime_settings import use_user_settings
+from services.runtime_settings import build_file_parser_config, use_user_settings
 from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -70,17 +70,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, user_id: str,
             with use_user_settings(user_id, scope=f"parse_reference_file:{file_id}"):
                 # Reference-file parsing must use the effective user settings so
                 # personal MinerU/API credentials apply during upload parsing.
-                parser = FileParserService(
-                    mineru_token=current_app.config['MINERU_TOKEN'],
-                    mineru_api_base=current_app.config['MINERU_API_BASE'],
-                    google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-                    google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
-                    openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
-                    openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-                    image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-                    provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
-                    lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
-                )
+                parser = FileParserService(**build_file_parser_config())
 
                 # Parse file
                 logger.info(f"Starting to parse file: {filename}")

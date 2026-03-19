@@ -11,6 +11,7 @@ from PIL import Image
 
 from services.ai_providers.image.volcengine_inpainting_provider import VolcengineInpaintingProvider
 from services.ai_providers.image.gemini_inpainting_provider import GeminiInpaintingProvider
+from services.runtime_settings import get_effective_config_value
 from utils.mask_utils import (
     create_mask_from_bboxes,
     create_inverse_mask_from_bboxes,
@@ -50,8 +51,8 @@ class InpaintingService:
             
             if provider_type == "gemini":
                 # 使用 Gemini Inpainting Provider
-                api_key = config.GOOGLE_API_KEY
-                api_base = config.GOOGLE_API_BASE
+                api_key = get_effective_config_value("GOOGLE_API_KEY", config.GOOGLE_API_KEY)
+                api_base = get_effective_config_value("GOOGLE_API_BASE", config.GOOGLE_API_BASE)
                 timeout = config.GENAI_TIMEOUT
                 
                 if not api_key:
@@ -331,4 +332,3 @@ def regenerate_background(
     """
     service = get_inpainting_service()
     return service.regenerate_background(image, foreground_bboxes, **kwargs)
-

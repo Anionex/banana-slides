@@ -16,6 +16,7 @@ from PIL import Image
 from markitdown import MarkItDown
 from services.ai_providers.lazyllm_env import ensure_lazyllm_namespace_key, get_lazyllm_api_key
 from services.ai_providers.text import strip_think_tags
+from services.runtime_settings import get_effective_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -34,20 +35,8 @@ def _get_ai_provider_format(provider_format: str = None) -> str:
     """
     if provider_format:
         return provider_format.lower()
-    
-    # Try to get from Flask app config first (database settings)
-    try:
-        from flask import current_app
-        if current_app and hasattr(current_app, 'config'):
-            config_value = current_app.config.get('AI_PROVIDER_FORMAT')
-            if config_value:
-                return str(config_value).lower()
-    except RuntimeError:
-        # Not in Flask application context
-        pass
-    
-    # Fallback to environment variable
-    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
+
+    return str(get_effective_config_value('AI_PROVIDER_FORMAT', 'gemini')).lower()
 
 
 class FileParserService:

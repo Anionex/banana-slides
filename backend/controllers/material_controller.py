@@ -2,12 +2,12 @@
 Material Controller - handles standalone material image generation
 """
 from flask import Blueprint, request, current_app, send_file
-from models import db, Project, Material, Task, UserSettings
+from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
-from services.runtime_settings import use_user_settings
+from services.runtime_settings import get_effective_config_value, get_user_effective_config_value, use_user_settings
 from middlewares.auth import auth_required, get_current_user
 from services.credits_service import CreditsService, CreditOperation
 from pathlib import Path
@@ -40,23 +40,23 @@ def _generate_image_caption(filepath: str) -> str:
         image = Image.open(filepath)
         image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
 
-        output_lang = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
+        output_lang = get_effective_config_value('OUTPUT_LANGUAGE', 'zh')
         if output_lang == 'en':
             prompt = "Please provide a short description of the main content of this image. Return only the description text without any other explanation."
         else:
             prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
 
-        provider_format = (current_app.config.get('AI_PROVIDER_FORMAT') or 'gemini').lower()
-        caption_model = current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
+        provider_format = str(get_effective_config_value('AI_PROVIDER_FORMAT', 'gemini')).lower()
+        caption_model = get_effective_config_value('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
 
         if provider_format == 'openai':
             from openai import OpenAI
-            api_key = current_app.config.get('OPENAI_API_KEY', '')
+            api_key = get_effective_config_value('OPENAI_API_KEY', '')
             if not api_key:
                 return ""
             client = OpenAI(
                 api_key=api_key,
-                base_url=current_app.config.get('OPENAI_API_BASE') or None
+                base_url=get_effective_config_value('OPENAI_API_BASE') or None
             )
 
             buffered = io.BytesIO()
@@ -83,10 +83,10 @@ def _generate_image_caption(filepath: str) -> str:
             # Gemini (default)
             from google import genai
             from google.genai import types
-            api_key = current_app.config.get('GOOGLE_API_KEY', '')
+            api_key = get_effective_config_value('GOOGLE_API_KEY', '')
             if not api_key:
                 return ""
-            api_base = current_app.config.get('GOOGLE_API_BASE', '')
+            api_base = get_effective_config_value('GOOGLE_API_BASE', '')
             client = genai.Client(
                 http_options=types.HttpOptions(base_url=api_base) if api_base else None,
                 api_key=api_key
@@ -103,11 +103,10 @@ def _generate_image_caption(filepath: str) -> str:
 
 
 def _get_user_image_settings(user_id: str) -> tuple:
-    """Get (image_resolution, image_aspect_ratio) from the current user's settings."""
-    settings = UserSettings.get_or_create_for_user(user_id)
+    """Get effective (image_resolution, image_aspect_ratio) for the user."""
     return (
-        settings.image_resolution or '2K',
-        settings.image_aspect_ratio or '16:9',
+        get_user_effective_config_value(user_id, 'DEFAULT_RESOLUTION', '2K'),
+        get_user_effective_config_value(user_id, 'DEFAULT_ASPECT_RATIO', '16:9'),
     )
 
 
@@ -174,7 +173,8 @@ def _handle_material_upload(user_id: str, default_project_id: Optional[str] = No
         if generate_caption:
             file_service = FileService(current_app.config['UPLOAD_FOLDER'])
             filepath = file_service.get_absolute_path(material.relative_path)
-            caption = _generate_image_caption(filepath)
+            with use_user_settings(user_id, scope=f"generate_material_caption:{material.id}"):
+                caption = _generate_image_caption(filepath)
             result['caption'] = caption
 
         return success_response(result, status_code=201)
