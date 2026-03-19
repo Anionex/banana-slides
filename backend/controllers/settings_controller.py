@@ -61,6 +61,44 @@ def get_user_editable_fields():
 USER_EDITABLE_FIELDS = {'output_language', 'image_resolution', 'image_aspect_ratio'}
 
 
+def _build_non_admin_settings_response(user_settings: UserSettings) -> dict:
+    """
+    Build the settings payload for a non-admin user.
+
+    Returned values follow the effective runtime priority:
+    UserSettings > global Settings > .env/Config (indirectly via Settings init).
+
+    Sensitive fields never expose inherited global secrets. The frontend can use
+    `_value_sources` to show whether a field is using the user's own override or
+    a global fallback.
+    """
+    global_settings = Settings.get_settings()
+    user_fields = get_user_editable_fields()
+
+    response = {}
+    value_sources = {}
+
+    for field_name in user_fields:
+        user_value = getattr(user_settings, field_name, None)
+        global_value = getattr(global_settings, field_name, None)
+        uses_global_fallback = user_value is None and global_value is not None
+
+        value_sources[field_name] = "global" if uses_global_fallback else "user"
+
+        if field_name in SENSITIVE_FIELDS and uses_global_fallback:
+            response[field_name] = None
+            continue
+
+        response[field_name] = global_value if uses_global_fallback else user_value
+
+    response["_editable_fields"] = sorted(user_fields)
+    response["_value_sources"] = value_sources
+    response["_inherits_global_fields"] = sorted(
+        [field for field, source in value_sources.items() if source == "global"]
+    )
+    return response
+
+
 def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
     """
     Persist an admin user's settings to the global Settings row.
@@ -239,12 +277,7 @@ def get_settings():
         settings_dict = settings.to_dict()
 
         if not user.is_admin:
-            user_fields = get_user_editable_fields()
-            settings_dict = {
-                k: v for k, v in settings_dict.items()
-                if k in user_fields
-            }
-            settings_dict['_editable_fields'] = list(user_fields)
+            settings_dict = _build_non_admin_settings_response(settings)
 
         return success_response(settings_dict)
     except Exception as e:
@@ -450,11 +483,7 @@ def update_settings():
         logger.info("Settings updated successfully")
         response_dict = settings.to_dict()
         if not user.is_admin:
-            user_fields = get_user_editable_fields()
-            response_dict = {
-                k: v for k, v in response_dict.items()
-                if k in user_fields
-            }
+            response_dict = _build_non_admin_settings_response(settings)
         return success_response(
             response_dict, "Settings updated successfully"
         )

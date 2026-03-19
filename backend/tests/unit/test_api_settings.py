@@ -56,6 +56,55 @@ class TestGetSettings:
         # Admin should see all settings
         assert 'data' in data
 
+    def test_non_admin_gets_effective_values_with_global_fallback(self, client):
+        admin_token = _register_admin(client)
+
+        client.put('/api/admin/config/', json={
+            'user_editable_fields': ['text_model', 'image_resolution']
+        }, headers={'Authorization': f'Bearer {admin_token}'})
+
+        from models import db, Settings
+        with client.application.app_context():
+            global_settings = Settings.get_settings()
+            global_settings.text_model = 'global-text-model'
+            global_settings.image_resolution = '4K'
+            db.session.commit()
+
+        user_token = _register_user(client, 'effective-values@example.com')
+        response = client.get('/api/settings/', headers={
+            'Authorization': f'Bearer {user_token}'
+        })
+        data = assert_success_response(response)
+
+        assert data['data']['text_model'] == 'global-text-model'
+        assert data['data']['image_resolution'] == '4K'
+        assert data['data']['_value_sources']['text_model'] == 'global'
+        assert data['data']['_value_sources']['image_resolution'] == 'user'
+        assert 'text_model' in data['data']['_inherits_global_fields']
+
+    def test_non_admin_does_not_receive_inherited_global_sensitive_values(self, client):
+        admin_token = _register_admin(client)
+
+        client.put('/api/admin/config/', json={
+            'user_editable_fields': ['api_key']
+        }, headers={'Authorization': f'Bearer {admin_token}'})
+
+        from models import db, Settings
+        with client.application.app_context():
+            global_settings = Settings.get_settings()
+            global_settings.api_key = 'global-secret-key'
+            db.session.commit()
+
+        user_token = _register_user(client, 'sensitive-fallback@example.com')
+        response = client.get('/api/settings/', headers={
+            'Authorization': f'Bearer {user_token}'
+        })
+        data = assert_success_response(response)
+
+        assert data['data']['api_key'] is None
+        assert data['data']['_value_sources']['api_key'] == 'global'
+        assert 'api_key' in data['data']['_inherits_global_fields']
+
 
 class TestUpdateSettings:
     """更新设置测试"""
@@ -165,6 +214,27 @@ class TestUpdateSettings:
             assert settings.api_key == 'global-key'
             assert settings.text_model == 'global-text-model'
             assert settings.image_model == 'global-image-model'
+
+    def test_non_admin_update_response_uses_effective_values(self, client):
+        admin_token = _register_admin(client)
+        client.put('/api/admin/config/', json={
+            'user_editable_fields': ['text_model']
+        }, headers={'Authorization': f'Bearer {admin_token}'})
+
+        from models import db, Settings
+        with client.application.app_context():
+            global_settings = Settings.get_settings()
+            global_settings.text_model = 'global-text-model'
+            db.session.commit()
+
+        user_token = _register_user(client, 'update-effective@example.com')
+        response = client.put('/api/settings/', json={
+            'text_model': None
+        }, headers={'Authorization': f'Bearer {user_token}'})
+        data = assert_success_response(response)
+
+        assert data['data']['text_model'] == 'global-text-model'
+        assert data['data']['_value_sources']['text_model'] == 'global'
 
 
 class TestResetSettings:
