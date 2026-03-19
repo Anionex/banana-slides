@@ -786,7 +786,10 @@ export const Settings: React.FC = () => {
 
       // 启动异步测试，获取任务ID
       const response = await action(testSettings);
-      const taskId = response.data.task_id;
+      const taskId = response.data?.task_id;
+      if (!taskId) {
+        throw new Error(t('settings.serviceTest.testFailed'));
+      }
 
       // 开始轮询任务状态
       const pollInterval = setInterval(async () => {
@@ -1290,6 +1293,7 @@ export const Settings: React.FC = () => {
                       <div className="text-sm text-gray-500 dark:text-foreground-tertiary">{t(item.descriptionKey)}</div>
                     </div>
                     <Button
+                      type="button"
                       variant="secondary"
                       size="sm"
                       loading={isLoadingTest}
@@ -1319,6 +1323,7 @@ export const Settings: React.FC = () => {
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-border-primary">
           {(user?.is_admin || editableFields?.length) ? (
             <Button
+              type="button"
               variant="secondary"
               icon={<RotateCcw size={18} />}
               onClick={handleReset}
@@ -1330,6 +1335,7 @@ export const Settings: React.FC = () => {
             <div />
           )}
           <Button
+            type="button"
             variant="primary"
             icon={<Save size={18} />}
             onClick={handleSave}
@@ -1366,6 +1372,7 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-border-primary">
               <div className="flex items-center">
                 <Button
+                  type="button"
                   variant="secondary"
                   icon={<Home size={18} />}
                   onClick={() => navigate('/app')}
