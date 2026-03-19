@@ -44,6 +44,16 @@ ALL_SETTINGS_FIELDS = {
 
 # 敏感字段（不应泄露给用户请求）
 SENSITIVE_FIELDS = {'api_key', 'mineru_token', 'baidu_api_key'}
+NULLABLE_USER_FIELDS = {
+    'api_base_url',
+    'api_key',
+    'text_model',
+    'image_model',
+    'image_caption_model',
+    'mineru_api_base',
+    'mineru_token',
+    'baidu_api_key',
+}
 SENSITIVE_LENGTH_FIELDS = {
     'api_key': 'api_key_length',
     'mineru_token': 'mineru_token_length',
@@ -213,6 +223,28 @@ def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
         global_settings.image_model,
     )
     return global_settings
+
+
+def _restore_user_settings_to_global_defaults(user_settings: UserSettings) -> UserSettings:
+    """
+    Clear a user's editable overrides so the user returns to the admin/global
+    configuration without mutating the global Settings row.
+    """
+    global_settings = Settings.get_settings()
+    user_fields = get_user_editable_fields()
+
+    for field_name in user_fields:
+        if field_name in NULLABLE_USER_FIELDS:
+            setattr(user_settings, field_name, None)
+        else:
+            setattr(user_settings, field_name, getattr(global_settings, field_name))
+
+    user_settings.updated_at = datetime.now(timezone.utc)
+    logger.info(
+        "Restored non-admin user settings to global defaults for fields: %s",
+        ", ".join(sorted(user_fields)),
+    )
+    return user_settings
 
 
 @contextmanager
@@ -547,8 +579,9 @@ def update_settings():
             _copy_user_settings_to_global(settings)
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        if user.is_admin:
+            # Only the global/admin settings row should drive app.config.
+            _sync_settings_to_config(settings)
 
         logger.info("Settings updated successfully")
         response_dict = settings.to_dict()
@@ -570,57 +603,63 @@ def update_settings():
 
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
 @auth_required
-@admin_required
 def reset_settings():
     """
-    POST /api/settings/reset - Reset user settings to default values
+    POST /api/settings/reset
+    - Admin: reset global settings to system/env defaults
+    - Non-admin: clear personal overrides and restore admin/global settings
     """
     try:
         user = get_current_user()
         settings = UserSettings.get_or_create_for_user(user.id)
 
-        # Reset all fields to NULL so .env defaults take over via to_dict()
-        settings.ai_provider_format = Config.AI_PROVIDER_FORMAT
-        settings.api_base_url = None
-        settings.api_key = None
-        settings.text_model = None
-        settings.image_model = None
-        settings.mineru_api_base = None
-        settings.mineru_token = None
-        settings.image_caption_model = None
-        settings.output_language = None
-        settings.enable_text_reasoning = False
-        settings.text_thinking_budget = 1024
-        settings.enable_image_reasoning = False
-        settings.image_thinking_budget = 1024
-        settings.description_generation_mode = None
-        settings.description_extra_fields = None
-        settings.image_prompt_extra_fields = None
-        settings.baidu_api_key = None
-        settings.text_model_source = None
-        settings.image_model_source = None
-        settings.image_caption_model_source = None
-        settings.lazyllm_api_keys = None
-        for model_type in ('text', 'image', 'image_caption'):
-            setattr(settings, f'{model_type}_api_key', None)
-            setattr(settings, f'{model_type}_api_base_url', None)
-        settings.image_resolution = None
-        settings.image_aspect_ratio = None
-        settings.max_description_workers = None
-        settings.max_image_workers = None
-        settings.updated_at = datetime.now(timezone.utc)
         if user.is_admin:
+            # Reset to default values from Config / .env
+            # Priority logic:
+            # - Check AI_PROVIDER_FORMAT
+            # - If "openai" -> use OPENAI_API_BASE / OPENAI_API_KEY
+            # - Otherwise (default "gemini") -> use GOOGLE_API_BASE / GOOGLE_API_KEY
+            settings.ai_provider_format = Config.AI_PROVIDER_FORMAT
+
+            if (Config.AI_PROVIDER_FORMAT or "").lower() == "openai":
+                default_api_base = Config.OPENAI_API_BASE or None
+                default_api_key = Config.OPENAI_API_KEY or None
+            else:
+                default_api_base = Config.GOOGLE_API_BASE or None
+                default_api_key = Config.GOOGLE_API_KEY or None
+
+            settings.api_base_url = default_api_base
+            settings.api_key = default_api_key
+            settings.text_model = Config.TEXT_MODEL
+            settings.image_model = Config.IMAGE_MODEL
+            settings.mineru_api_base = Config.MINERU_API_BASE
+            settings.mineru_token = Config.MINERU_TOKEN
+            settings.image_caption_model = Config.IMAGE_CAPTION_MODEL
+            settings.output_language = 'zh'
+            settings.enable_text_reasoning = False
+            settings.text_thinking_budget = 1024
+            settings.enable_image_reasoning = False
+            settings.image_thinking_budget = 1024
+            settings.baidu_api_key = Config.BAIDU_API_KEY or None
+            settings.image_resolution = Config.DEFAULT_RESOLUTION
+            settings.image_aspect_ratio = Config.DEFAULT_ASPECT_RATIO
+            settings.max_description_workers = Config.MAX_DESCRIPTION_WORKERS
+            settings.max_image_workers = Config.MAX_IMAGE_WORKERS
+            settings.updated_at = datetime.now(timezone.utc)
             _copy_user_settings_to_global(settings)
+        else:
+            _restore_user_settings_to_global_defaults(settings)
 
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        if user.is_admin:
+            _sync_settings_to_config(settings)
 
-        logger.info("Settings reset to defaults")
-        return success_response(
-            settings.to_dict(), "Settings reset to defaults"
-        )
+        logger.info("Settings reset completed for user %s (admin=%s)", user.id, user.is_admin)
+        response_dict = settings.to_dict()
+        if not user.is_admin:
+            response_dict = _build_non_admin_settings_response(settings)
+        return success_response(response_dict, "Settings reset successfully")
 
     except Exception as e:
         db.session.rollback()
