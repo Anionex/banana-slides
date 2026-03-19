@@ -1349,9 +1349,10 @@ def get_test_status(task_id: str):
         if not task:
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
-        progress = task.get_progress()
-        if not user.is_admin and progress.get('owner_user_id') != user.id:
+        if task.project_id != 'settings-test':
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
+
+        progress = task.get_progress()
 
         # 构建响应数据
         response_data = {
