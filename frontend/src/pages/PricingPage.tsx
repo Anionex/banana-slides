@@ -101,6 +101,20 @@ const USAGE_ITEMS: { key: keyof CreditCosts; label: string }[] = [
   { key: 'export_editable', label: 'exportEditable' },
 ];
 
+const DEFAULT_CREDIT_COSTS: CreditCosts = {
+  generate_outline: 5,
+  generate_description: 1,
+  generate_image_1k: 8,
+  generate_image_2k: 8,
+  generate_image_4k: 8,
+  edit_image: 8,
+  generate_material: 10,
+  refine_outline: 2,
+  refine_description: 1,
+  parse_file: 5,
+  export_editable: 15,
+};
+
 // 套餐图标映射
 const packageIcons: Record<string, React.ReactNode> = {
   starter: <Coins className="w-8 h-8" />,
@@ -117,7 +131,7 @@ export const PricingPage: React.FC = () => {
   const creditsBalance = useCreditsBalance();
   
   const [packages, setPackages] = useState<CreditPackage[]>([]);
-  const [creditCosts, setCreditCosts] = useState<CreditCosts | null>(null);
+  const [creditCosts, setCreditCosts] = useState<CreditCosts>(DEFAULT_CREDIT_COSTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
@@ -141,18 +155,18 @@ export const PricingPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const [pkgs, costs] = await Promise.all([
+        const [data, costs] = await Promise.all([
           paymentApi.getPackages(),
-          paymentApi.getCreditCosts(),
+          paymentApi.getCreditCosts().catch(() => DEFAULT_CREDIT_COSTS),
         ]);
-        setPackages(pkgs);
+        setPackages(data);
         setCreditCosts(costs);
-        const popularPackage = pkgs.find(p => p.id === 'standard');
+        const popularPackage = data.find(p => p.id === 'standard');
         if (popularPackage) {
           setSelectedPackage(popularPackage.id);
         }
       } catch (err: any) {
-        console.error('Failed to load data:', err);
+        console.error('Failed to load packages:', err);
         setError(err.response?.data?.message || err.message || t('loadError'));
       } finally {
         setLoading(false);
@@ -394,30 +408,28 @@ export const PricingPage: React.FC = () => {
         )}
 
         {/* 积分消耗说明 */}
-        {creditCosts && (
-          <Card className="max-w-2xl mx-auto p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Sparkles size={20} className="text-banana" />
-              {t('usageGuide')}
-            </h3>
+        <Card className="max-w-2xl mx-auto p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Sparkles size={20} className="text-banana" />
+            {t('usageGuide')}
+          </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {USAGE_ITEMS.map(({ key, label }) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-background-tertiary rounded-lg"
-                >
-                  <span className="text-gray-700 dark:text-foreground-secondary">
-                    {t(`usageItems.${label}`)}
-                  </span>
-                  <span className="font-medium text-amber-600 dark:text-amber-400">
-                    {creditCosts[key]} {t('credits')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {USAGE_ITEMS.map(({ key, label }) => (
+              <div
+                key={key}
+                className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-background-tertiary rounded-lg"
+              >
+                <span className="text-gray-700 dark:text-foreground-secondary">
+                  {t(`usageItems.${label}`)}
+                </span>
+                <span className="font-medium text-amber-600 dark:text-amber-400">
+                  {creditCosts[key]} {t('credits')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
       </main>
 
       <ToastContainer />
