@@ -1,7 +1,6 @@
 """
 Settings controller API unit tests
 """
-import pytest
 from conftest import assert_success_response
 
 
@@ -190,30 +189,44 @@ class TestUpdateSettings:
         }, headers={'Authorization': f'Bearer {token}'})
         assert response.status_code == 400
 
-    def test_new_user_settings_inherit_global_settings(self, client):
-        """新建的 UserSettings 应继承当前全局 Settings，而不是回退到 .env"""
-        _register_admin(client)
+    def test_new_user_settings_inherit_admin_defaults_before_global_settings(self, client):
+        """新建用户应优先继承管理员当前默认配置，而不是落到旧全局 Settings。"""
+        admin_token = _register_admin(client)
 
         from models import db, Settings, User, UserSettings
         with client.application.app_context():
             global_settings = Settings.get_settings()
-            global_settings.ai_provider_format = 'openai'
-            global_settings.api_base_url = 'https://global.example.test/v1'
+            global_settings.ai_provider_format = 'gemini'
+            global_settings.api_base_url = 'https://global.example.test/gemini'
             global_settings.api_key = 'global-key'
             global_settings.text_model = 'global-text-model'
             global_settings.image_model = 'global-image-model'
             db.session.commit()
 
-        _register_user(client, 'inherits-global@example.com')
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            admin_settings.ai_provider_format = 'openai'
+            admin_settings.api_base_url = 'https://admin.example.test/v1'
+            admin_settings.api_key = 'admin-key'
+            admin_settings.text_model = 'admin-text-model'
+            admin_settings.image_model = 'admin-image-model'
+            db.session.commit()
+
+        response = client.put('/api/settings/', json={
+            'text_model': 'admin-text-model'
+        }, headers={'Authorization': f'Bearer {admin_token}'})
+        assert response.status_code == 200
+
+        _register_user(client, 'inherits-admin-default@example.com')
 
         with client.application.app_context():
-            user = User.query.filter_by(email='inherits-global@example.com').first()
+            user = User.query.filter_by(email='inherits-admin-default@example.com').first()
             settings = UserSettings.get_or_create_for_user(user.id)
             assert settings.ai_provider_format == 'openai'
-            assert settings.api_base_url == 'https://global.example.test/v1'
-            assert settings.api_key == 'global-key'
-            assert settings.text_model == 'global-text-model'
-            assert settings.image_model == 'global-image-model'
+            assert settings.api_base_url == 'https://admin.example.test/v1'
+            assert settings.api_key == 'admin-key'
+            assert settings.text_model == 'admin-text-model'
+            assert settings.image_model == 'admin-image-model'
 
     def test_non_admin_update_response_uses_effective_values(self, client):
         admin_token = _register_admin(client)
@@ -240,6 +253,42 @@ class TestUpdateSettings:
 class TestResetSettings:
     """重置设置测试"""
 
+    def test_admin_reset_restores_env_defaults_and_updates_global_settings(self, client):
+        admin_token = _register_admin(client)
+
+        from models import Settings, User, UserSettings
+        from config import Config
+
+        with client.application.app_context():
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            admin_settings.ai_provider_format = 'openai'
+            admin_settings.api_base_url = 'https://admin.example.test/v1'
+            admin_settings.api_key = 'admin-key'
+            admin_settings.text_model = 'admin-text-model'
+            settings = Settings.get_settings()
+            settings.ai_provider_format = 'openai'
+            settings.api_base_url = 'https://stale-global.example.test/v1'
+            settings.api_key = 'stale-global-key'
+            settings.text_model = 'stale-global-text-model'
+
+        response = client.post('/api/settings/reset', headers={
+            'Authorization': f'Bearer {admin_token}'
+        })
+        data = assert_success_response(response)
+
+        with client.application.app_context():
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            settings = Settings.get_settings()
+
+            assert admin_settings.ai_provider_format == Config.AI_PROVIDER_FORMAT
+            assert settings.ai_provider_format == Config.AI_PROVIDER_FORMAT
+            assert admin_settings.api_base_url == settings.api_base_url
+            assert admin_settings.api_key == settings.api_key
+            assert admin_settings.text_model == settings.text_model
+            assert data['data']['ai_provider_format'] == Config.AI_PROVIDER_FORMAT
+
     def test_non_admin_reset_restores_admin_defaults(self, client):
         """普通用户重置后应回到管理员配置，而不是保留隐藏旧覆盖"""
         admin_token = _register_admin(client)
@@ -255,6 +304,14 @@ class TestResetSettings:
             global_settings.api_base_url = 'https://global.example.test/gemini'
             global_settings.api_key = 'global-secret-key'
             global_settings.text_model = 'global-text-model'
+            db.session.commit()
+
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            admin_settings.ai_provider_format = 'openai'
+            admin_settings.api_base_url = 'https://admin.example.test/v1'
+            admin_settings.api_key = 'admin-secret-key'
+            admin_settings.text_model = 'admin-text-model'
             db.session.commit()
 
         token = _register_user(client, 'reset-user@example.com')
@@ -275,14 +332,78 @@ class TestResetSettings:
 
         assert data['data']['api_key'] is None
         assert data['data']['_value_sources']['api_key'] == 'global'
+        assert data['data']['ai_provider_format'] == 'openai'
+        assert data['data']['api_base_url'] == 'https://admin.example.test/v1'
+        assert data['data']['text_model'] == 'admin-text-model'
 
         with client.application.app_context():
             user = User.query.filter_by(email='reset-user@example.com').first()
             settings = UserSettings.get_or_create_for_user(user.id)
-            assert settings.ai_provider_format == 'gemini'
+            assert settings.ai_provider_format == 'openai'
             assert settings.api_base_url is None
             assert settings.api_key is None
             assert settings.text_model is None
+
+    def test_non_admin_reset_does_not_change_global_or_other_user_settings(self, client):
+        admin_token = _register_admin(client)
+        client.put('/api/admin/config/', json={
+            'user_editable_fields': ['api_key', 'api_base_url', 'text_model']
+        }, headers={'Authorization': f'Bearer {admin_token}'})
+
+        from models import db, Settings, User, UserSettings
+        with client.application.app_context():
+            settings = Settings.get_settings()
+            settings.ai_provider_format = 'gemini'
+            settings.api_base_url = 'https://global.example.test/gemini'
+            settings.api_key = 'global-key'
+            settings.text_model = 'global-text-model'
+            db.session.commit()
+
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            admin_settings.ai_provider_format = 'openai'
+            admin_settings.api_base_url = 'https://admin.example.test/v1'
+            admin_settings.api_key = 'admin-key'
+            admin_settings.text_model = 'admin-text-model'
+            db.session.commit()
+
+        token_a = _register_user(client, 'reset-a@example.com')
+        token_b = _register_user(client, 'reset-b@example.com')
+
+        with client.application.app_context():
+            user_a = User.query.filter_by(email='reset-a@example.com').first()
+            user_b = User.query.filter_by(email='reset-b@example.com').first()
+            settings_a = UserSettings.get_or_create_for_user(user_a.id)
+            settings_b = UserSettings.get_or_create_for_user(user_b.id)
+            settings_a.api_base_url = 'https://user-a.example.test/v1'
+            settings_a.api_key = 'user-a-key'
+            settings_a.text_model = 'user-a-text-model'
+            settings_b.api_base_url = 'https://user-b.example.test/v1'
+            settings_b.api_key = 'user-b-key'
+            settings_b.text_model = 'user-b-text-model'
+            db.session.commit()
+
+        response = client.post('/api/settings/reset', headers={
+            'Authorization': f'Bearer {token_a}'
+        })
+        assert response.status_code == 200
+
+        with client.application.app_context():
+            settings = Settings.get_settings()
+            user_a = User.query.filter_by(email='reset-a@example.com').first()
+            user_b = User.query.filter_by(email='reset-b@example.com').first()
+            settings_a = UserSettings.get_or_create_for_user(user_a.id)
+            settings_b = UserSettings.get_or_create_for_user(user_b.id)
+
+            assert settings.api_base_url == 'https://global.example.test/gemini'
+            assert settings.api_key == 'global-key'
+            assert settings.text_model == 'global-text-model'
+            assert settings_a.api_base_url is None
+            assert settings_a.api_key is None
+            assert settings_a.text_model is None
+            assert settings_b.api_base_url == 'https://user-b.example.test/v1'
+            assert settings_b.api_key == 'user-b-key'
+            assert settings_b.text_model == 'user-b-text-model'
 
     def test_reset_unauthorized(self, client):
         response = client.post('/api/settings/reset')
