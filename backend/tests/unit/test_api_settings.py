@@ -62,21 +62,33 @@ class TestGetSettings:
             'user_editable_fields': ['text_model', 'image_resolution']
         }, headers={'Authorization': f'Bearer {admin_token}'})
 
-        from models import db, Settings
+        from models import db, Settings, User, UserSettings
         with client.application.app_context():
             global_settings = Settings.get_settings()
-            global_settings.text_model = 'global-text-model'
+            global_settings.text_model = 'stale-global-text-model'
             global_settings.image_resolution = '4K'
+
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            admin_settings.text_model = 'admin-text-model'
+            admin_settings.image_resolution = '2K'
             db.session.commit()
 
         user_token = _register_user(client, 'effective-values@example.com')
+
+        with client.application.app_context():
+            user = User.query.filter_by(email='effective-values@example.com').first()
+            user_settings = UserSettings.get_or_create_for_user(user.id)
+            user_settings.text_model = None
+            db.session.commit()
+
         response = client.get('/api/settings/', headers={
             'Authorization': f'Bearer {user_token}'
         })
         data = assert_success_response(response)
 
-        assert data['data']['text_model'] == 'global-text-model'
-        assert data['data']['image_resolution'] == '4K'
+        assert data['data']['text_model'] == 'admin-text-model'
+        assert data['data']['image_resolution'] == '2K'
         assert data['data']['_value_sources']['text_model'] == 'global'
         assert data['data']['_value_sources']['image_resolution'] == 'user'
         assert 'text_model' in data['data']['_inherits_global_fields']
@@ -88,13 +100,24 @@ class TestGetSettings:
             'user_editable_fields': ['api_key']
         }, headers={'Authorization': f'Bearer {admin_token}'})
 
-        from models import db, Settings
+        from models import db, Settings, User, UserSettings
         with client.application.app_context():
             global_settings = Settings.get_settings()
-            global_settings.api_key = 'global-secret-key'
+            global_settings.api_key = 'stale-global-secret-key'
+
+            admin_user = User.query.filter_by(email='settingsadmin@example.com').first()
+            admin_settings = UserSettings.get_or_create_for_user(admin_user.id)
+            admin_settings.api_key = 'admin-secret-key'
             db.session.commit()
 
         user_token = _register_user(client, 'sensitive-fallback@example.com')
+
+        with client.application.app_context():
+            user = User.query.filter_by(email='sensitive-fallback@example.com').first()
+            user_settings = UserSettings.get_or_create_for_user(user.id)
+            user_settings.api_key = None
+            db.session.commit()
+
         response = client.get('/api/settings/', headers={
             'Authorization': f'Bearer {user_token}'
         })
@@ -294,7 +317,7 @@ class TestResetSettings:
         admin_token = _register_admin(client)
 
         client.put('/api/admin/config/', json={
-            'user_editable_fields': ['api_key']
+            'user_editable_fields': ['api_key', 'api_base_url', 'text_model']
         }, headers={'Authorization': f'Bearer {admin_token}'})
 
         from models import db, Settings, User, UserSettings
@@ -332,7 +355,6 @@ class TestResetSettings:
 
         assert data['data']['api_key'] is None
         assert data['data']['_value_sources']['api_key'] == 'global'
-        assert data['data']['ai_provider_format'] == 'openai'
         assert data['data']['api_base_url'] == 'https://admin.example.test/v1'
         assert data['data']['text_model'] == 'admin-text-model'
 

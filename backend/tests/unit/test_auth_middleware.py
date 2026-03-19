@@ -93,7 +93,7 @@ class TestAdminRequired:
 
     def test_non_admin_rejected(self, client, auth_headers):
         """普通用户应被拒绝访问管理端点"""
-        response = client.post('/api/settings/reset', headers=auth_headers)
+        response = client.get('/api/admin/config/', headers=auth_headers)
         assert response.status_code == 403
 
     def test_admin_allowed(self, client):
@@ -111,7 +111,7 @@ class TestAdminRequired:
             user.is_admin = True
             db.session.commit()
 
-        response = client.post('/api/settings/reset', headers={
+        response = client.get('/api/admin/config/', headers={
             'Authorization': f'Bearer {token}'
         })
         # Should not be 403 (may fail for other reasons, but auth should pass)

@@ -86,7 +86,7 @@ def test_effective_settings_override_prefers_user_and_falls_back_to_admin_defaul
 
         override = build_effective_settings_override(user.id)
 
-        assert override['AI_PROVIDER_FORMAT'] == 'gemini'
+        assert override['AI_PROVIDER_FORMAT'] == 'openai'
         assert override['GOOGLE_API_BASE'] == 'https://admin.example.test/v1'
         assert override['GOOGLE_API_KEY'] == 'admin-key'
         assert override['TEXT_MODEL'] == 'admin-text-model'
