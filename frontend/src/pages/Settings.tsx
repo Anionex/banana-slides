@@ -95,15 +95,15 @@ const settingsI18n = {
           parsePreview: "解析预览：{{preview}}"
         }
       },
-      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置", restoreAdminConfig: "恢复管理员配置" },
+      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置" },
       messages: {
         loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
         resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
         resetTitle: "确认重置为默认配置", resetSuccess: "设置已重置", resetFailed: "重置设置失败",
-        restoreConfirm: "将清除你自己的设置覆盖，并恢复为管理员当前配置，确定继续吗？",
-        restoreTitle: "确认恢复管理员配置",
-        restoreSuccess: "已恢复为管理员配置",
-        restoreFailed: "恢复管理员配置失败",
+        restoreConfirm: "将清除你自己的设置覆盖，并恢复为默认配置，确定继续吗？",
+        restoreTitle: "确认重置为默认配置",
+        restoreSuccess: "设置已重置",
+        restoreFailed: "重置设置失败",
         testServiceTip: "建议在本页底部进行服务测试，验证关键配置",
         resetConfirmBtn: "确定重置", resetCancelBtn: "取消", unknownError: "未知错误",
         testSuccess: "测试成功"
@@ -200,15 +200,15 @@ const settingsI18n = {
           parsePreview: "Parse preview: {{preview}}"
         }
       },
-      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default", restoreAdminConfig: "Restore Admin Settings" },
+      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default" },
       messages: {
         loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
         resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
         resetTitle: "Confirm Reset to Default", resetSuccess: "Settings reset successfully", resetFailed: "Failed to reset settings",
-        restoreConfirm: "This clears your personal overrides and restores the admin's current settings. Continue?",
-        restoreTitle: "Confirm Restore Admin Settings",
-        restoreSuccess: "Restored admin settings successfully",
-        restoreFailed: "Failed to restore admin settings",
+        restoreConfirm: "This clears your personal overrides and restores the default configuration. Continue?",
+        restoreTitle: "Confirm Reset to Default",
+        restoreSuccess: "Settings reset successfully",
+        restoreFailed: "Failed to reset settings",
         testServiceTip: "It's recommended to test services at the bottom of this page to verify configurations",
         resetConfirmBtn: "Confirm Reset", resetCancelBtn: "Cancel", unknownError: "Unknown error",
         testSuccess: "Test passed"
@@ -701,8 +701,8 @@ export const Settings: React.FC = () => {
       },
       {
         title: t(isAdmin ? 'settings.messages.resetTitle' : 'settings.messages.restoreTitle'),
-        confirmText: t(isAdmin ? 'settings.messages.resetConfirmBtn' : 'settings.actions.restoreAdminConfig'),
-        cancelText: t('settings.messages.resetCancelBtn'),
+        confirmText: t('settings.actions.resetToDefault'),
+        cancelText: t('common.cancel'),
         variant: 'warning',
       }
     );
@@ -1330,7 +1330,7 @@ export const Settings: React.FC = () => {
               onClick={handleReset}
               disabled={isSaving}
             >
-              {user?.is_admin ? t('settings.actions.resetToDefault') : t('settings.actions.restoreAdminConfig')}
+              {t('settings.actions.resetToDefault')}
             </Button>
           ) : (
             <div />
