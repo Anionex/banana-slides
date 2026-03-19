@@ -146,16 +146,13 @@ def _filter_test_override_settings(data: dict) -> tuple[dict, str | None]:
     if user.is_admin:
         return data, None
 
-    editable_fields = get_user_editable_fields()
-    forbidden_fields = [key for key in data.keys() if key not in editable_fields]
-    if forbidden_fields:
-        return {}, f"测试参数包含未授权字段: {', '.join(sorted(forbidden_fields))}"
-
     forbidden_sensitive_overrides = [key for key in data.keys() if key in SENSITIVE_FIELDS]
     if forbidden_sensitive_overrides:
         return {}, "敏感密钥必须先保存到个人设置后才能测试"
 
-    return data, None
+    editable_fields = get_user_editable_fields()
+    allowed_data = {key: value for key, value in data.items() if key in editable_fields}
+    return allowed_data, None
 
 
 def _ensure_non_admin_test_allowed(test_name: str, user_settings: UserSettings) -> str | None:

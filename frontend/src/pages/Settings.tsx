@@ -738,20 +738,20 @@ export const Settings: React.FC = () => {
     try {
       // 准备测试时要使用的设置（包括未保存的修改）
       const testSettings: any = {};
+      const canOverrideField = (fieldKey: string) =>
+        Boolean(user?.is_admin || editableFields?.includes(fieldKey));
 
       // 只传递用户已填写的非空值
       if (user?.is_admin && formData.api_key) testSettings.api_key = formData.api_key;
-      if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
-      if (formData.ai_provider_format) {
-        testSettings.ai_provider_format = formData.ai_provider_format;
-      }
-      if (formData.text_model) testSettings.text_model = formData.text_model;
-      if (formData.image_model) testSettings.image_model = formData.image_model;
-      if (formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
-      if (formData.mineru_api_base) testSettings.mineru_api_base = formData.mineru_api_base;
+      if (canOverrideField('api_base_url') && formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
+      if (canOverrideField('ai_provider_format') && formData.ai_provider_format) testSettings.ai_provider_format = formData.ai_provider_format;
+      if (canOverrideField('text_model') && formData.text_model) testSettings.text_model = formData.text_model;
+      if (canOverrideField('image_model') && formData.image_model) testSettings.image_model = formData.image_model;
+      if (canOverrideField('image_caption_model') && formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
+      if (canOverrideField('mineru_api_base') && formData.mineru_api_base) testSettings.mineru_api_base = formData.mineru_api_base;
       if (user?.is_admin && formData.mineru_token) testSettings.mineru_token = formData.mineru_token;
       if (user?.is_admin && formData.baidu_api_key) testSettings.baidu_api_key = formData.baidu_api_key;
-      if (formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
+      if (canOverrideField('image_resolution') && formData.image_resolution) testSettings.image_resolution = formData.image_resolution;
 
       // Per-model provider source overrides (always send, even empty, to clear saved values)
       testSettings.text_model_source = formData.text_model_source || '';
@@ -767,16 +767,16 @@ export const Settings: React.FC = () => {
       if (formData.image_caption_api_base_url) testSettings.image_caption_api_base_url = formData.image_caption_api_base_url;
 
       // 推理模式设置
-      if (formData.enable_text_reasoning !== undefined) {
+      if (canOverrideField('enable_text_reasoning') && formData.enable_text_reasoning !== undefined) {
         testSettings.enable_text_reasoning = formData.enable_text_reasoning;
       }
-      if (formData.text_thinking_budget !== undefined) {
+      if (canOverrideField('text_thinking_budget') && formData.text_thinking_budget !== undefined) {
         testSettings.text_thinking_budget = formData.text_thinking_budget;
       }
-      if (formData.enable_image_reasoning !== undefined) {
+      if (canOverrideField('enable_image_reasoning') && formData.enable_image_reasoning !== undefined) {
         testSettings.enable_image_reasoning = formData.enable_image_reasoning;
       }
-      if (formData.image_thinking_budget !== undefined) {
+      if (canOverrideField('image_thinking_budget') && formData.image_thinking_budget !== undefined) {
         testSettings.image_thinking_budget = formData.image_thinking_budget;
       }
 
