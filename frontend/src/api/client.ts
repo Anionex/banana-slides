@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from '../store/useAuthStore';
 
 // 开发环境：通过 Vite proxy 转发
 // 生产环境：通过 nginx proxy 转发
@@ -69,17 +70,32 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
   }
   // 使用相对路径（确保以 / 开头）
   let url = path.startsWith('/') ? path : '/' + path;
-  
+
+  const params = new URLSearchParams();
+
+  // Private file routes need a token because plain <img> requests do not carry
+  // the Authorization header from the axios interceptor.
+  if (url.startsWith('/files/')) {
+    const tokens = useAuthStore.getState().tokens;
+    if (tokens?.access_token) {
+      params.set('access_token', tokens.access_token);
+    }
+  }
+
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
-    const ts = typeof timestamp === 'string' 
-      ? new Date(timestamp).getTime() 
+    const ts = typeof timestamp === 'string'
+      ? new Date(timestamp).getTime()
       : timestamp;
-    url += `?v=${ts}`;
+    params.set('v', String(ts));
   }
-  
+
+  const query = params.toString();
+  if (query) {
+    url += `${url.includes('?') ? '&' : '?'}${query}`;
+  }
+
   return url;
 };
 
 export default apiClient;
-

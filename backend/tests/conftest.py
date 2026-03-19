@@ -69,13 +69,18 @@ def client(app):
     with app.test_client() as test_client:
         with app.app_context():
             from models import db
+            from utils.rate_limiter import clear_rate_limit_storage
             # 清理旧数据，保持测试隔离
+            clear_rate_limit_storage()
             db.session.rollback()
+            db.session.remove()
             for table in reversed(db.metadata.sorted_tables):
                 db.session.execute(table.delete())
             db.session.commit()
+            db.session.remove()
             yield test_client
             db.session.rollback()
+            db.session.remove()
 
 
 @pytest.fixture(scope='function')
@@ -88,6 +93,8 @@ def auth_headers(client):
             response = client.get('/api/projects', headers=auth_headers)
     """
     # 注册用户
+    from models import db
+
     register_response = client.post('/api/auth/register', json={
         'email': 'testuser@example.com',
         'password': 'testpassword123',
@@ -99,6 +106,7 @@ def auth_headers(client):
         data = register_response.get_json()
         if 'access_token' in data.get('data', {}):
             token = data['data']['access_token']
+            db.session.remove()
             return {'Authorization': f'Bearer {token}'}
 
     # 如果注册没返回token，尝试登录
@@ -109,9 +117,11 @@ def auth_headers(client):
 
     if login_response.status_code == 200:
         token = login_response.get_json()['data']['access_token']
+        db.session.remove()
         return {'Authorization': f'Bearer {token}'}
 
     # 失败时返回空headers，测试应该会失败
+    db.session.remove()
     return {}
 
 
@@ -260,4 +270,3 @@ def assert_error_response(response, expected_status=None):
     assert data is not None
     assert data.get('success') is False or 'error' in data
     return data
-

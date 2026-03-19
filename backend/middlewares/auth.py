@@ -1,6 +1,4 @@
-"""
-Authentication middleware for protecting API routes
-"""
+"""Authentication middleware for protecting API routes."""
 import logging
 from functools import wraps
 from typing import Optional
@@ -9,6 +7,55 @@ from flask import g, request
 from utils.response import error_response
 
 logger = logging.getLogger(__name__)
+
+
+def extract_access_token(allow_query: bool = False) -> str:
+    """
+    Extract access token from request.
+
+    By default, only the Authorization header is accepted. Query-string tokens
+    are allowed for private file/image requests where browsers cannot attach a
+    Bearer header to plain <img src> requests.
+    """
+    auth_header = request.headers.get('Authorization', '')
+
+    if auth_header:
+        if auth_header.startswith('Bearer '):
+            return auth_header[7:]
+        return auth_header
+
+    if allow_query:
+        return (request.args.get('access_token', '') or '').strip()
+
+    return ''
+
+
+def authenticate_request(allow_query: bool = False):
+    """
+    Authenticate current request and return (user, error_response).
+
+    The response item is None on success.
+    """
+    from services.auth_service import AuthService
+
+    token = extract_access_token(allow_query=allow_query)
+
+    if not token:
+        logger.debug("No access token provided")
+        return None, error_response('UNAUTHORIZED', '请先登录', 401)
+
+    user = AuthService.verify_access_token(token)
+
+    if not user:
+        logger.debug("Invalid or expired token")
+        return None, error_response('UNAUTHORIZED', '登录已过期，请重新登录', 401)
+
+    if not user.is_active:
+        logger.warning(f"Inactive user attempted access: {user.id}")
+        return None, error_response('FORBIDDEN', '账户已被禁用', 403)
+
+    g.current_user = user
+    return user, None
 
 
 def get_current_user():
@@ -34,39 +81,9 @@ def auth_required(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        from services.auth_service import AuthService
-        
-        # Extract token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        
-        if not auth_header:
-            logger.debug("No Authorization header provided")
-            return error_response('UNAUTHORIZED', '请先登录', 401)
-        
-        # Support "Bearer <token>" format
-        if auth_header.startswith('Bearer '):
-            token = auth_header[7:]
-        else:
-            token = auth_header
-        
-        if not token:
-            logger.debug("Empty token in Authorization header")
-            return error_response('UNAUTHORIZED', '请先登录', 401)
-        
-        # Verify token and get user
-        user = AuthService.verify_access_token(token)
-        
-        if not user:
-            logger.debug("Invalid or expired token")
-            return error_response('UNAUTHORIZED', '登录已过期，请重新登录', 401)
-        
-        if not user.is_active:
-            logger.warning(f"Inactive user attempted access: {user.id}")
-            return error_response('FORBIDDEN', '账户已被禁用', 403)
-        
-        # Store user in Flask's g object for access in route handlers
-        g.current_user = user
-        
+        _, auth_error = authenticate_request(allow_query=False)
+        if auth_error:
+            return auth_error
         return f(*args, **kwargs)
     
     return decorated
@@ -86,21 +103,9 @@ def optional_auth(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        from services.auth_service import AuthService
-        
-        # Extract token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        
-        if auth_header:
-            if auth_header.startswith('Bearer '):
-                token = auth_header[7:]
-            else:
-                token = auth_header
-            
-            if token:
-                user = AuthService.verify_access_token(token)
-                if user and user.is_active:
-                    g.current_user = user
+        user, _ = authenticate_request(allow_query=False)
+        if user:
+            g.current_user = user
         
         return f(*args, **kwargs)
     

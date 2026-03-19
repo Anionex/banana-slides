@@ -33,6 +33,16 @@ else
 fi
 
 # --- Step 3: Start the application ---
-echo "[start] Starting Flask application ..."
+echo "[start] Starting Gunicorn application server ..."
 cd /app
-exec uv run --directory backend python app.py
+exec uv run --directory backend gunicorn \
+    --workers "${GUNICORN_WORKERS:-2}" \
+    --worker-class "${GUNICORN_WORKER_CLASS:-gthread}" \
+    --threads "${GUNICORN_THREADS:-8}" \
+    --bind "0.0.0.0:5000" \
+    --timeout "${GUNICORN_TIMEOUT:-300}" \
+    --graceful-timeout "${GUNICORN_GRACEFUL_TIMEOUT:-30}" \
+    --keep-alive "${GUNICORN_KEEPALIVE:-5}" \
+    --access-logfile - \
+    --error-logfile - \
+    app:app

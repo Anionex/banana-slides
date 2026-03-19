@@ -429,7 +429,7 @@ def _compute_worktree_port(base_port: int) -> int:
 
 
 if __name__ == '__main__':
-    # Run development server
+    # Local development entrypoint. Production containers should use Gunicorn.
     if os.getenv("IN_DOCKER", "0") == "1":
         port = 5000  # Docker 容器内部固定使用 5000 端口
     elif os.getenv('BACKEND_PORT'):

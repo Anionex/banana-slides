@@ -1,14 +1,23 @@
-"""
-File Controller - handles static file serving
-"""
-from flask import Blueprint, send_from_directory, current_app
+"""File Controller - handles static file serving."""
+from pathlib import Path
+import os
+
+from flask import Blueprint, current_app, send_from_directory
+
+from middlewares.auth import authenticate_request
+from models import Material, Project, UserTemplate
 from utils import error_response, not_found
 from utils.path_utils import find_file_with_prefix
-import os
-from pathlib import Path
 from werkzeug.utils import secure_filename
 
 file_bp = Blueprint('files', __name__, url_prefix='/files')
+
+
+def _get_owned_project(project_id, user_id):
+    return Project.query.filter(
+        Project.id == project_id,
+        Project.user_id == user_id,
+    ).first()
 
 
 @file_bp.route('/<project_id>/<file_type>/<filename>', methods=['GET'])
@@ -22,7 +31,15 @@ def serve_file(project_id, file_type, filename):
         filename: File name
     """
     try:
+        user, auth_error = authenticate_request(allow_query=True)
+        if auth_error:
+            return auth_error
+
         if file_type not in ['template', 'pages', 'materials', 'exports']:
+            return not_found('File')
+
+        project = _get_owned_project(project_id, user.id)
+        if not project:
             return not_found('File')
         
         # Construct file path
@@ -58,24 +75,33 @@ def serve_user_template(template_id, filename):
         filename: File name
     """
     try:
-        # Construct file path
-        file_dir = os.path.join(
-            current_app.config['UPLOAD_FOLDER'],
-            'user-templates',
-            template_id
-        )
-        
-        # Check if directory exists
-        if not os.path.exists(file_dir):
+        user, auth_error = authenticate_request(allow_query=True)
+        if auth_error:
+            return auth_error
+
+        template = UserTemplate.query.filter(
+            UserTemplate.id == template_id,
+            UserTemplate.user_id == user.id,
+        ).first()
+        if not template:
             return not_found('File')
-        
-        # Check if file exists
-        file_path = os.path.join(file_dir, filename)
-        if not os.path.exists(file_path):
+
+        requested_name = secure_filename(filename)
+        original_name = os.path.basename(template.file_path)
+        thumb_name = os.path.basename(template.thumb_path) if template.thumb_path else None
+
+        if requested_name == original_name:
+            relative_path = template.file_path
+        elif thumb_name and requested_name == thumb_name:
+            relative_path = template.thumb_path
+        else:
             return not_found('File')
-        
-        # Serve file
-        return send_from_directory(file_dir, filename)
+
+        absolute_path = Path(current_app.config['UPLOAD_FOLDER']) / relative_path
+        if not absolute_path.exists():
+            return not_found('File')
+
+        return send_from_directory(str(absolute_path.parent), absolute_path.name)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -90,24 +116,24 @@ def serve_global_material(filename):
         filename: File name
     """
     try:
+        user, auth_error = authenticate_request(allow_query=True)
+        if auth_error:
+            return auth_error
+
         safe_filename = secure_filename(filename)
-        # Construct file path
-        file_dir = os.path.join(
-            current_app.config['UPLOAD_FOLDER'],
-            'materials'
-        )
-        
-        # Check if directory exists
-        if not os.path.exists(file_dir):
+        material = Material.query.filter(
+            Material.user_id == user.id,
+            Material.project_id.is_(None),
+            Material.filename == safe_filename,
+        ).first()
+        if not material:
             return not_found('File')
-        
-        # Check if file exists
-        file_path = os.path.join(file_dir, safe_filename)
-        if not os.path.exists(file_path):
+
+        absolute_path = Path(current_app.config['UPLOAD_FOLDER']) / material.relative_path
+        if not absolute_path.exists():
             return not_found('File')
-        
-        # Serve file
-        return send_from_directory(file_dir, safe_filename)
+
+        return send_from_directory(str(absolute_path.parent), absolute_path.name)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -159,4 +185,3 @@ def serve_mineru_file(extract_id, filepath):
         return not_found('File')
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
-

@@ -7,6 +7,7 @@ import secrets
 import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
+from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 
 from models import db, User, SystemConfig
@@ -226,11 +227,20 @@ class AuthService:
             logger.debug(f"Login failed: email not verified for {email}")
             return None, "请先验证您的邮箱"
         
-        # Update last login time
-        user.last_login_at = datetime.now(timezone.utc)
+        user_id = user.id
+
+        # Update last login time with a direct UPDATE so detached/stale ORM
+        # instances from prior request flows do not break authentication.
+        last_login_at = datetime.now(timezone.utc)
+        db.session.query(User).filter_by(id=user_id).update(
+            {'last_login_at': last_login_at},
+            synchronize_session=False,
+        )
         db.session.commit()
+        db.session.refresh(user)
+        user.last_login_at = last_login_at
         
-        logger.info(f"User logged in: {user.id} ({email})")
+        logger.info(f"User logged in: {user_id} ({email})")
         return user, None
     
     # ==================== JWT Token Management ====================
@@ -570,10 +580,15 @@ class AuthService:
             return False, "新密码长度不能少于8位"
         
         try:
-            user.password_hash = hash_password(new_password)
+            user_id = user.id
+            password_hash = hash_password(new_password)
+            db.session.query(User).filter_by(id=user_id).update(
+                {'password_hash': password_hash},
+                synchronize_session=False,
+            )
             db.session.commit()
             
-            logger.info(f"Password changed for user: {user.id}")
+            logger.info(f"Password changed for user: {user_id}")
             return True, None
             
         except Exception as e:
