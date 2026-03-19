@@ -598,17 +598,21 @@ export const Settings: React.FC = () => {
     loadSettings();
   }, []);
 
+  const applySettingsToForm = (nextSettings: SettingsType) => {
+    setSettings(nextSettings);
+    if (nextSettings._editable_fields) {
+      setEditableFields(nextSettings._editable_fields);
+    }
+    setFormData(formDataFromSettings(nextSettings));
+    sessionStorage.setItem('banana-settings', JSON.stringify(nextSettings));
+  };
+
   const loadSettings = async () => {
     setIsLoading(true);
     try {
       const response = await api.getSettings();
       if (response.data) {
-        setSettings(response.data);
-        if (response.data._editable_fields) {
-          setEditableFields(response.data._editable_fields);
-        }
-        setFormData(formDataFromSettings(response.data));
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+        applySettingsToForm(response.data);
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -652,17 +656,9 @@ export const Settings: React.FC = () => {
 
       const response = await api.updateSettings(payload);
       if (response.data) {
-        setSettings(response.data);
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+        applySettingsToForm(response.data);
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
-        // Clear all sensitive fields after save
-        setFormData(prev => ({
-          ...prev,
-          api_key: '', mineru_token: '', baidu_api_key: '',
-          lazyllm_api_keys: {},
-          text_api_key: '', image_api_key: '', image_caption_api_key: '',
-        }));
       }
     } catch (error: any) {
       console.error('保存设置失败:', error);
@@ -684,9 +680,7 @@ export const Settings: React.FC = () => {
         try {
           const response = await api.resetSettings();
           if (response.data) {
-            setSettings(response.data);
-            setFormData(formDataFromSettings(response.data));
-            sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+            applySettingsToForm(response.data);
             show({ message: t(isAdmin ? 'settings.messages.resetSuccess' : 'settings.messages.restoreSuccess'), type: 'success' });
           }
         } catch (error: any) {
