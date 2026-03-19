@@ -166,48 +166,49 @@ class UserSettings(db.Model):
         """
         Get or create settings for a user.
         
-        If settings don't exist, inherit from the current global Settings row so
-        runtime behavior stays consistent across restart and new-user creation.
+        If settings don't exist, inherit from the current admin/site default
+        source so new users start from the same defaults exposed in the UI and
+        used by runtime fallback.
         """
         settings = UserSettings.query.filter_by(user_id=user_id).first()
         if not settings:
-            from .settings import Settings
+            from services.runtime_settings import get_default_settings_source
 
-            global_settings = Settings.get_settings()
+            default_settings = get_default_settings_source()
 
             settings = UserSettings(
                 user_id=user_id,
-                ai_provider_format=global_settings.ai_provider_format,
-                api_base_url=global_settings.api_base_url,
-                api_key=global_settings.api_key,
-                image_resolution=global_settings.image_resolution,
-                image_aspect_ratio=global_settings.image_aspect_ratio,
-                max_description_workers=global_settings.max_description_workers,
-                max_image_workers=global_settings.max_image_workers,
-                text_model=global_settings.text_model,
-                image_model=global_settings.image_model,
-                mineru_api_base=global_settings.mineru_api_base,
-                mineru_token=global_settings.mineru_token,
-                image_caption_model=global_settings.image_caption_model,
-                output_language=global_settings.output_language,
-                enable_text_reasoning=global_settings.enable_text_reasoning,
-                text_thinking_budget=global_settings.text_thinking_budget,
-                enable_image_reasoning=global_settings.enable_image_reasoning,
-                image_thinking_budget=global_settings.image_thinking_budget,
-                baidu_api_key=global_settings.baidu_api_key,
-                description_generation_mode=global_settings.description_generation_mode,
-                description_extra_fields=global_settings.description_extra_fields,
-                image_prompt_extra_fields=global_settings.image_prompt_extra_fields,
-                text_model_source=global_settings.text_model_source,
-                image_model_source=global_settings.image_model_source,
-                image_caption_model_source=global_settings.image_caption_model_source,
-                lazyllm_api_keys=global_settings.lazyllm_api_keys,
-                text_api_key=global_settings.text_api_key,
-                text_api_base_url=global_settings.text_api_base_url,
-                image_api_key=global_settings.image_api_key,
-                image_api_base_url=global_settings.image_api_base_url,
-                image_caption_api_key=global_settings.image_caption_api_key,
-                image_caption_api_base_url=global_settings.image_caption_api_base_url,
+                ai_provider_format=default_settings.ai_provider_format,
+                api_base_url=default_settings.api_base_url,
+                api_key=default_settings.api_key,
+                image_resolution=default_settings.image_resolution,
+                image_aspect_ratio=default_settings.image_aspect_ratio,
+                max_description_workers=default_settings.max_description_workers,
+                max_image_workers=default_settings.max_image_workers,
+                text_model=default_settings.text_model,
+                image_model=default_settings.image_model,
+                mineru_api_base=default_settings.mineru_api_base,
+                mineru_token=default_settings.mineru_token,
+                image_caption_model=default_settings.image_caption_model,
+                output_language=default_settings.output_language,
+                enable_text_reasoning=default_settings.enable_text_reasoning,
+                text_thinking_budget=default_settings.text_thinking_budget,
+                enable_image_reasoning=default_settings.enable_image_reasoning,
+                image_thinking_budget=default_settings.image_thinking_budget,
+                baidu_api_key=default_settings.baidu_api_key,
+                description_generation_mode=default_settings.description_generation_mode,
+                description_extra_fields=default_settings.description_extra_fields,
+                image_prompt_extra_fields=default_settings.image_prompt_extra_fields,
+                text_model_source=default_settings.text_model_source,
+                image_model_source=default_settings.image_model_source,
+                image_caption_model_source=default_settings.image_caption_model_source,
+                lazyllm_api_keys=default_settings.lazyllm_api_keys,
+                text_api_key=default_settings.text_api_key,
+                text_api_base_url=default_settings.text_api_base_url,
+                image_api_key=default_settings.image_api_key,
+                image_api_base_url=default_settings.image_api_base_url,
+                image_caption_api_key=default_settings.image_caption_api_key,
+                image_caption_api_base_url=default_settings.image_caption_api_base_url,
             )
             db.session.add(settings)
             db.session.commit()

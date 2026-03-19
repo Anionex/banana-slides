@@ -237,6 +237,30 @@ def _settings_row_to_runtime_override(settings_row) -> Dict[str, object]:
     }
 
 
+def get_default_settings_source():
+    """
+    Return the canonical site-default settings source.
+
+    Priority:
+    1. The most recently updated admin user's UserSettings
+    2. Global Settings row
+
+    This matches the product meaning of "管理员给用户的默认配置".
+    """
+    from models import Settings, User, UserSettings
+
+    admin_settings = (
+        UserSettings.query.join(User, User.id == UserSettings.user_id)
+        .filter(User.is_admin.is_(True))
+        .order_by(UserSettings.updated_at.desc(), UserSettings.id.desc())
+        .first()
+    )
+    if admin_settings:
+        return admin_settings
+
+    return Settings.get_settings()
+
+
 def build_effective_settings_override(user_id: str | None = None) -> Dict[str, object]:
     """
     Build the effective runtime settings for a request/task.
@@ -259,9 +283,9 @@ def build_effective_settings_override(user_id: str | None = None) -> Dict[str, o
 
     for field in _SETTINGS_FIELDS:
         user_value = getattr(user_settings, field)
-        global_value = getattr(default_settings, field)
+        default_value = getattr(default_settings, field)
         if field in _NULLABLE_FIELDS and user_value is None:
-            effective_values[field] = global_value
+            effective_values[field] = default_value
         else:
             effective_values[field] = user_value
 

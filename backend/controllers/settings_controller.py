@@ -23,6 +23,7 @@ from services.runtime_settings import (
     build_effective_settings_payload,
     build_file_parser_config,
     get_effective_config_value,
+    get_default_settings_source,
     use_user_settings,
 )
 from middlewares.auth import auth_required, admin_required, get_current_user
@@ -100,7 +101,7 @@ def _build_non_admin_settings_response(user_settings: UserSettings) -> dict:
     `_value_sources` to show whether a field is using the user's own override or
     a global fallback.
     """
-    global_settings = Settings.get_settings()
+    default_settings = get_default_settings_source()
     user_fields = get_user_editable_fields()
 
     response = {}
@@ -108,7 +109,7 @@ def _build_non_admin_settings_response(user_settings: UserSettings) -> dict:
 
     for field_name in user_fields:
         user_value = getattr(user_settings, field_name, None)
-        global_value = getattr(global_settings, field_name, None)
+        global_value = getattr(default_settings, field_name, None)
         uses_global_fallback = user_value is None and global_value is not None
 
         value_sources[field_name] = "global" if uses_global_fallback else "user"
@@ -239,14 +240,14 @@ def _restore_user_settings_to_global_defaults(user_settings: UserSettings) -> Us
     currently editable in the UI. Otherwise stale hidden overrides can continue
     to affect generation after the user clicks "reset to default configuration".
     """
-    global_settings = Settings.get_settings()
+    default_settings = get_default_settings_source()
     reset_fields = set(ALL_SETTINGS_FIELDS)
 
     for field_name in reset_fields:
         if field_name in NULLABLE_USER_FIELDS:
             setattr(user_settings, field_name, None)
         else:
-            setattr(user_settings, field_name, getattr(global_settings, field_name))
+            setattr(user_settings, field_name, getattr(default_settings, field_name))
 
     user_settings.updated_at = datetime.now(timezone.utc)
     logger.info(

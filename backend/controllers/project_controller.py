@@ -16,7 +16,7 @@ from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
 from werkzeug.utils import secure_filename
 
-from models import db, Project, Page, Task, ReferenceFile, UserSettings
+from models import db, Project, Page, Task, ReferenceFile
 from services import ProjectContext, FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import (
@@ -25,8 +25,7 @@ from services.task_manager import (
     generate_images_task,
     process_ppt_renovation_task
 )
-from services.runtime_settings import use_user_settings
-from services.runtime_settings import get_user_effective_config_value
+from services.runtime_settings import get_user_effective_config_value, use_user_settings
 from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
@@ -40,17 +39,15 @@ project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
 
 def _get_user_output_language(user_id: str) -> str:
-    """Get the output_language from the current user's settings."""
-    settings = UserSettings.get_or_create_for_user(user_id)
-    return settings.output_language or 'zh'
+    """Get the effective output_language for the current user."""
+    return get_user_effective_config_value(user_id, 'OUTPUT_LANGUAGE', 'zh')
 
 
 def _get_user_image_settings(user_id: str) -> tuple:
-    """Get (image_resolution, image_aspect_ratio) from the current user's settings."""
-    settings = UserSettings.get_or_create_for_user(user_id)
+    """Get effective (image_resolution, image_aspect_ratio) for the current user."""
     return (
-        settings.image_resolution or '2K',
-        settings.image_aspect_ratio or '16:9',
+        get_user_effective_config_value(user_id, 'DEFAULT_RESOLUTION', '2K'),
+        get_user_effective_config_value(user_id, 'DEFAULT_ASPECT_RATIO', '16:9'),
     )
 
 
