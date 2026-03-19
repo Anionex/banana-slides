@@ -1211,9 +1211,13 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
             logger.error(f"Test task {task_id} failed: {error_msg}", exc_info=True)
             task = Task.query.get(task_id)
             if task:
+                owner_user_id = task.get_progress().get('owner_user_id')
                 task.status = 'FAILED'
                 task.error_message = error_msg
                 task.completed_at = datetime.now(timezone.utc)
+                task.set_progress({
+                    'owner_user_id': owner_user_id,
+                })
                 db.session.commit()
 
 
