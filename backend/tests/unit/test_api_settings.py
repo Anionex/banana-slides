@@ -240,13 +240,49 @@ class TestUpdateSettings:
 class TestResetSettings:
     """重置设置测试"""
 
-    def test_reset_admin_only(self, client):
-        """非管理员不能重置设置"""
-        token = _register_user(client, 'noreset@example.com')
+    def test_non_admin_reset_restores_admin_defaults(self, client):
+        """普通用户重置后应回到管理员配置，而不是保留隐藏旧覆盖"""
+        admin_token = _register_admin(client)
+
+        client.put('/api/admin/config/', json={
+            'user_editable_fields': ['api_key']
+        }, headers={'Authorization': f'Bearer {admin_token}'})
+
+        from models import db, Settings, User, UserSettings
+        with client.application.app_context():
+            global_settings = Settings.get_settings()
+            global_settings.ai_provider_format = 'gemini'
+            global_settings.api_base_url = 'https://global.example.test/gemini'
+            global_settings.api_key = 'global-secret-key'
+            global_settings.text_model = 'global-text-model'
+            db.session.commit()
+
+        token = _register_user(client, 'reset-user@example.com')
+
+        with client.application.app_context():
+            user = User.query.filter_by(email='reset-user@example.com').first()
+            settings = UserSettings.get_or_create_for_user(user.id)
+            settings.ai_provider_format = 'openai'
+            settings.api_base_url = 'https://user.example.test/v1'
+            settings.api_key = 'user-secret-key'
+            settings.text_model = 'user-text-model'
+            db.session.commit()
+
         response = client.post('/api/settings/reset', headers={
             'Authorization': f'Bearer {token}'
         })
-        assert response.status_code == 403
+        data = assert_success_response(response)
+
+        assert data['data']['api_key'] is None
+        assert data['data']['_value_sources']['api_key'] == 'global'
+
+        with client.application.app_context():
+            user = User.query.filter_by(email='reset-user@example.com').first()
+            settings = UserSettings.get_or_create_for_user(user.id)
+            assert settings.ai_provider_format == 'gemini'
+            assert settings.api_base_url is None
+            assert settings.api_key is None
+            assert settings.text_model is None
 
     def test_reset_unauthorized(self, client):
         response = client.post('/api/settings/reset')

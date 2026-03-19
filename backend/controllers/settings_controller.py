@@ -227,13 +227,17 @@ def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
 
 def _restore_user_settings_to_global_defaults(user_settings: UserSettings) -> UserSettings:
     """
-    Clear a user's editable overrides so the user returns to the admin/global
+    Clear a user's personal overrides so the user returns to the admin/global
     configuration without mutating the global Settings row.
+
+    This must reset all runtime-relevant fields, not only fields that are
+    currently editable in the UI. Otherwise stale hidden overrides can continue
+    to affect generation after the user clicks "reset to default configuration".
     """
     global_settings = Settings.get_settings()
-    user_fields = get_user_editable_fields()
+    reset_fields = set(ALL_SETTINGS_FIELDS)
 
-    for field_name in user_fields:
+    for field_name in reset_fields:
         if field_name in NULLABLE_USER_FIELDS:
             setattr(user_settings, field_name, None)
         else:
@@ -242,7 +246,7 @@ def _restore_user_settings_to_global_defaults(user_settings: UserSettings) -> Us
     user_settings.updated_at = datetime.now(timezone.utc)
     logger.info(
         "Restored non-admin user settings to global defaults for fields: %s",
-        ", ".join(sorted(user_fields)),
+        ", ".join(sorted(reset_fields)),
     )
     return user_settings
 

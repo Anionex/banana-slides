@@ -17,6 +17,7 @@ from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
 from services.credits_service import CreditsService, CreditOperation
+from services.runtime_settings import use_user_settings
 from middlewares.auth import auth_required, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def _get_file_type(filename: str) -> str:
     return 'unknown'
 
 
-def _parse_file_async(file_id: str, file_path: str, filename: str, app):
+def _parse_file_async(file_id: str, file_path: str, filename: str, user_id: str, app):
     """
     Parse file asynchronously in background
     
@@ -66,22 +67,24 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             reference_file.parse_status = 'parsing'
             db.session.commit()
             
-            # Initialize parser service
-            parser = FileParserService(
-                mineru_token=current_app.config['MINERU_TOKEN'],
-                mineru_api_base=current_app.config['MINERU_API_BASE'],
-                google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-                google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
-                openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
-                openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-                image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
-                lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
-            )
-            
-            # Parse file
-            logger.info(f"Starting to parse file: {filename}")
-            batch_id, markdown_content, extract_id, error_message, failed_image_count = parser.parse_file(file_path, filename)
+            with use_user_settings(user_id, scope=f"parse_reference_file:{file_id}"):
+                # Reference-file parsing must use the effective user settings so
+                # personal MinerU/API credentials apply during upload parsing.
+                parser = FileParserService(
+                    mineru_token=current_app.config['MINERU_TOKEN'],
+                    mineru_api_base=current_app.config['MINERU_API_BASE'],
+                    google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+                    google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
+                    openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+                    openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
+                    image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
+                    provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+                    lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
+                )
+
+                # Parse file
+                logger.info(f"Starting to parse file: {filename}")
+                batch_id, markdown_content, extract_id, error_message, failed_image_count = parser.parse_file(file_path, filename)
             
             # Update database
             reference_file.mineru_batch_id = batch_id
@@ -395,7 +398,7 @@ def trigger_file_parse(file_id):
         # 启动异步解析
         thread = threading.Thread(
             target=_parse_file_async,
-            args=(reference_file.id, str(file_path), reference_file.filename, current_app._get_current_object())
+            args=(reference_file.id, str(file_path), reference_file.filename, user.id, current_app._get_current_object())
         )
         thread.daemon = True
         thread.start()
@@ -499,4 +502,3 @@ def dissociate_file_from_project(file_id):
     except Exception as e:
         logger.error(f"Error dissociating reference file: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
-

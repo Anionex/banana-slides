@@ -123,3 +123,69 @@ def test_user_template_and_global_material_are_owner_scoped(client, app):
 
     forbidden_material = client.get(f'/files/materials/material_1.png?access_token={other_token}')
     assert forbidden_material.status_code == 404
+
+
+def test_reference_file_parse_uses_effective_user_mineru_settings(client, app, monkeypatch, tmp_path):
+    _register_and_login(client, 'mineru-owner@example.com')
+
+    with app.app_context():
+        from models import db, ReferenceFile, Settings, User, UserSettings
+
+        owner = User.query.filter_by(email='mineru-owner@example.com').first()
+        owner_id = owner.id
+
+        global_settings = Settings.get_settings()
+        global_settings.mineru_token = 'global-expired-token'
+        global_settings.mineru_api_base = 'https://global-mineru.example.test'
+        db.session.commit()
+
+        user_settings = UserSettings.get_or_create_for_user(owner_id)
+        user_settings.mineru_token = 'user-valid-token'
+        user_settings.mineru_api_base = 'https://user-mineru.example.test'
+        db.session.commit()
+
+        file_path = tmp_path / 'reference.pdf'
+        file_path.write_bytes(b'%PDF-1.4 test')
+
+        reference_file = ReferenceFile(
+            user_id=owner_id,
+            filename='reference.pdf',
+            file_path='reference_files/reference.pdf',
+            file_size=file_path.stat().st_size,
+            file_type='pdf',
+            parse_status='pending',
+        )
+        db.session.add(reference_file)
+        db.session.commit()
+        reference_file_id = reference_file.id
+
+    captured = {}
+
+    class DummyParser:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def parse_file(self, file_path, filename):
+            return ('batch-1', '# parsed', 'extract-1', None, 0)
+
+    from controllers import reference_file_controller
+
+    monkeypatch.setattr(reference_file_controller, 'FileParserService', DummyParser)
+
+    reference_file_controller._parse_file_async(
+        reference_file_id,
+        str(file_path),
+        'reference.pdf',
+        owner_id,
+        app,
+    )
+
+    assert captured['mineru_token'] == 'user-valid-token'
+    assert captured['mineru_api_base'] == 'https://user-mineru.example.test'
+
+    with app.app_context():
+        from models import ReferenceFile
+
+        refreshed = db.session.get(ReferenceFile, reference_file_id)
+        assert refreshed.parse_status == 'completed'
+        assert refreshed.markdown_content == '# parsed'
