@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "banana-slides"
 version = "0.3.0"
@@ -42,6 +46,9 @@ test = [
 
 [project.scripts]
 banana-cli = "cli.banana_cli.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["cli*"]
 
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
