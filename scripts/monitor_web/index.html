@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Banana 批量进度看板</title>
+  <style>
+    :root {
+      --bg: #0f1116;
+      --panel: #171a21;
+      --border: #2a2f3a;
+      --muted: #9aa3b2;
+      --text: #e7ecf3;
+      --ok: #2fcb7a;
+      --warn: #f6b73c;
+      --err: #f05d5e;
+      --run: #4ca6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(80px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      padding: 10px;
+    }
+    .stat .k {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .stat .v {
+      margin-top: 4px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .panel h3 {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: #1b1f28;
+      z-index: 1;
+    }
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #111;
+    }
+    .s-running { background: var(--run); color: #061a34; }
+    .s-success { background: var(--ok); color: #072a16; }
+    .s-failed { background: var(--err); color: #2d0808; }
+    .s-queued { background: #7f8898; color: #111826; }
+    .images {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #11141a;
+    }
+    .card img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      background: #0a0c10;
+      display: block;
+    }
+    .card .meta {
+      padding: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .nowrap {
+      white-space: nowrap;
+    }
+    .trunc {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">批量 PPT 动态看板</div>
+        <div class="muted" id="meta">加载中...</div>
+      </div>
+      <div class="muted">自动刷新: 3s</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k">TOTAL</div><div class="v" id="st-total">0</div></div>
+      <div class="stat"><div class="k">QUEUED</div><div class="v" id="st-queued">0</div></div>
+      <div class="stat"><div class="k">RUNNING</div><div class="v" id="st-running">0</div></div>
+      <div class="stat"><div class="k">SUCCESS</div><div class="v" id="st-success">0</div></div>
+      <div class="stat"><div class="k">FAILED</div><div class="v" id="st-failed">0</div></div>
+    </div>
+
+    <div class="panel">
+      <h3>文件进度</h3>
+      <div style="max-height: 480px; overflow: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th class="nowrap">#</th>
+              <th>FILE</th>
+              <th>PAGES</th>
+              <th>STATUS</th>
+              <th>THREADS(d/i)</th>
+              <th>REMAINING</th>
+              <th>ERR_CNT</th>
+              <th>RETRY_CNT</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>新生成图片</h3>
+      <div class="images" id="images"></div>
+    </div>
+  </div>
+
+  <script>
+    const rowsEl = document.getElementById("rows");
+    const imagesEl = document.getElementById("images");
+    const metaEl = document.getElementById("meta");
+    const st = {
+      total: document.getElementById("st-total"),
+      queued: document.getElementById("st-queued"),
+      running: document.getElementById("st-running"),
+      success: document.getElementById("st-success"),
+      failed: document.getElementById("st-failed"),
+    };
+
+    function parseStatusClass(status) {
+      if (status === "RUNNING") return "s-running";
+      if (status === "SUCCESS") return "s-success";
+      if (status === "FAILED") return "s-failed";
+      return "s-queued";
+    }
+
+    function fmtPages(pages) {
+      if (!pages || pages.total === null || pages.completed === null || pages.total === undefined || pages.completed === undefined) {
+        return "--";
+      }
+      return `${pages.completed}/${pages.total}`;
+    }
+
+    function fmtRemaining(value) {
+      return value === null || value === undefined ? "--" : String(value);
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      return d.toLocaleTimeString();
+    }
+
+    async function loadSnapshot() {
+      const resp = await fetch("/api/dashboard/snapshot", { cache: "no-store" });
+      if (!resp.ok) throw new Error(`snapshot http ${resp.status}`);
+      return resp.json();
+    }
+
+    function renderRows(rows) {
+      rowsEl.innerHTML = rows.map((row) => {
+        const statusClass = parseStatusClass(row.status);
+        const statusText = `${row.status} / ${row.stage || "-"}`;
+        return `
+          <tr>
+            <td class="nowrap">${row.index}</td>
+            <td class="trunc" title="${row.file_label}">${row.file_label}</td>
+            <td class="nowrap">${fmtPages(row.pages)}</td>
+            <td><span class="status ${statusClass}">${statusText}</span></td>
+            <td class="nowrap">${row.threads?.text || "-"}</td>
+            <td class="nowrap">${fmtRemaining(row.remaining)}</td>
+            <td class="nowrap">${row.err_count ?? 0}</td>
+            <td class="nowrap">${row.retry_count ?? 0}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderImages(images) {
+      if (!images || images.length === 0) {
+        imagesEl.innerHTML = `<div class="muted">暂无图片（生成后会自动出现）</div>`;
+        return;
+      }
+      imagesEl.innerHTML = images.map((img) => {
+        const pageText = (img.page_no !== null && img.page_no !== undefined)
+          ? `第${img.page_no}页`
+          : (img.page_order !== null && img.page_order !== undefined ? String(img.page_order) : "-");
+        return `
+          <div class="card">
+            <img loading="lazy" src="${img.image_url}" alt="${img.file_label}" />
+            <div class="meta">
+              <div><strong>${img.file_label}</strong></div>
+              <div>chapter: ${img.chapter || "-"}</div>
+              <div>page: ${pageText}</div>
+              <div class="trunc" title="${img.page_title || ""}">title: ${img.page_title || "-"}</div>
+              <div>project: ${img.project_id}</div>
+              <div>updated: ${fmtTime(img.updated_at)}</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderSummary(snapshot) {
+      const sum = snapshot.summary || {};
+      st.total.textContent = sum.total ?? 0;
+      st.queued.textContent = sum.queued ?? 0;
+      st.running.textContent = sum.running ?? 0;
+      st.success.textContent = sum.success ?? 0;
+      st.failed.textContent = sum.failed ?? 0;
+      metaEl.textContent = `更新时间: ${fmtTime(snapshot.generated_at)}  |  backend: ${snapshot.base_url || "-"}`;
+    }
+
+    async function tick() {
+      try {
+        const snapshot = await loadSnapshot();
+        renderSummary(snapshot);
+        renderRows(snapshot.rows || []);
+        renderImages(snapshot.images || []);
+      } catch (err) {
+        metaEl.textContent = `加载失败: ${err.message}`;
+      }
+    }
+
+    tick();
+    setInterval(tick, 3000);
+  </script>
+</body>
+</html>
