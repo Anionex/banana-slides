@@ -11,8 +11,11 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# 确保backend目录在Python路径中
+# 确保backend目录和仓库根目录都在Python路径中
+# CLI 测试需要从仓库根目录导入 `cli.*`
 backend_path = Path(__file__).parent.parent
+project_root = backend_path.parent
+sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(backend_path))
 
 # 设置测试环境变量 - 必须在导入app之前设置
@@ -178,4 +181,3 @@ def assert_error_response(response, expected_status=None):
     assert data is not None
     assert data.get('success') is False or 'error' in data
     return data
-
