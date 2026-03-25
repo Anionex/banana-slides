@@ -1169,8 +1169,8 @@ export const Settings: React.FC = () => {
                     label={t('settings.fields.apiKey')}
                     type="password"
                     placeholder={
-                      settings && (settings.api_key_length as number) > 0
-                        ? t('settings.fields.apiKeySet', { length: settings.api_key_length })
+                      settings && (settings.api_key_length ?? 0) > 0
+                        ? t('settings.fields.apiKeySet', { length: settings.api_key_length ?? 0 })
                         : t('settings.fields.apiKeyPlaceholder')
                     }
                     value={formData.api_key}

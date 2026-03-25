@@ -19,7 +19,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Button, Card, useToast } from '@/components/shared';
-import { useAuthStore, useCreditsBalance } from '@/store/useAuthStore';
+import { useCreditsBalance } from '@/store/useAuthStore';
 import { paymentApi, CreditPackage, CreditCosts } from '@/api/payment';
 
 // 页面翻译
