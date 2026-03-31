@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, useToast, MaterialSelector } from '@/components/shared';
+import { Button, useToast, MaterialModal, materialUrlToFile } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { getImageUrl } from '@/api/client';
 
@@ -37,7 +37,6 @@ const templateI18n = {
   }
 };
 import { listUserTemplates, uploadUserTemplate, deleteUserTemplate, type UserTemplate } from '@/api/endpoints';
-import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
@@ -298,7 +297,8 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
       </div>
       <ToastContainer />
       {projectId && (
-        <MaterialSelector
+        <MaterialModal
+          mode="select"
           projectId={projectId}
           isOpen={isMaterialSelectorOpen}
           onClose={() => setIsMaterialSelectorOpen(false)}
