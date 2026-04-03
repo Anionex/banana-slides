@@ -23,6 +23,8 @@ services:
       # 数据挂载到宿主机绝对路径，重新部署不丢失数据
       - /data/banana-slides/db:/app/backend/instance
       - /data/banana-slides/uploads:/app/uploads
+      # 覆盖启动脚本：用 gunicorn 替换开发服务器，不修改源码
+      - ./scripts/start-backend-prod.sh:/app/docker/start-backend.sh:ro
     restart: unless-stopped
     # 2GB 服务器：容器限制 1GB，留 1GB 给系统和 Docker daemon
     mem_limit: 1g
