@@ -20,8 +20,12 @@ sudo chown -R "$USER:$USER" /data/banana-slides
 
 echo "==> [1/4] 拉取最新代码..."
 cd "$REPO_DIR"
-git fetch origin
-git merge --ff-only origin/deploy/tencent
+# 如果是 git 仓库则尝试 pull，否则跳过（scp 部署模式）
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  git fetch origin && git merge --ff-only origin/deploy/tencent || echo "  (git pull 跳过，继续构建)"
+else
+  echo "  (非 git 仓库，跳过 pull)"
+fi
 
 echo "==> [2/4] 构建镜像（首次构建约需 5-10 分钟）..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull

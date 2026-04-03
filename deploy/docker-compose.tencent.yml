@@ -4,7 +4,7 @@
 services:
   app:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile.allinone
       args:
         # 国内镜像源，加速构建
@@ -18,7 +18,7 @@ services:
     ports:
       - "80:80"
     env_file:
-      - deploy/.env
+      - .env
     volumes:
       # 数据挂载到宿主机绝对路径，重新部署不丢失数据
       - /data/banana-slides/db:/app/backend/instance

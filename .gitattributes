@@ -1,0 +1,40 @@
+# Enforce LF line endings for all shell scripts and text files
+# This prevents CRLF issues when deploying from Windows to Linux
+
+* text=auto
+
+# Shell scripts must always use LF
+*.sh text eol=lf
+
+# Docker and config files must use LF
+Dockerfile* text eol=lf
+docker-compose*.yml text eol=lf
+*.conf text eol=lf
+*.env text eol=lf
+*.env.* text eol=lf
+
+# Python files
+*.py text eol=lf
+
+# Web files
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+
+# Binary files — no line ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pptx binary
+*.pdf binary
+*.db binary
