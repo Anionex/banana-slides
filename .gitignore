@@ -61,3 +61,4 @@ _local_backup/
 
 # Tencent Cloud deployment config (lives only in deploy/tencent branch)
 deploy/
+!deploy/

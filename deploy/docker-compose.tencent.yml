@@ -1,0 +1,41 @@
+# Tencent Cloud Lighthouse — allinone single container deployment
+# Usage: docker compose -f deploy/docker-compose.tencent.yml --env-file deploy/.env up -d
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.allinone
+      args:
+        # 国内镜像源，加速构建
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-docker.1ms.run/}
+        GHCR_REGISTRY: ${GHCR_REGISTRY:-ghcr.nju.edu.cn/}
+        APT_MIRROR: ${APT_MIRROR:-mirrors.tencent.com}
+        PYPI_INDEX_URL: ${PYPI_INDEX_URL:-https://mirrors.cloud.tencent.com/pypi/simple}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+    image: banana-slides:latest
+    container_name: banana-slides
+    ports:
+      - "80:80"
+    env_file:
+      - deploy/.env
+    volumes:
+      # 数据挂载到宿主机绝对路径，重新部署不丢失数据
+      - /data/banana-slides/db:/app/backend/instance
+      - /data/banana-slides/uploads:/app/uploads
+    restart: unless-stopped
+    # 2GB 服务器：容器限制 1GB，留 1GB 给系统和 Docker daemon
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: "1.8"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
