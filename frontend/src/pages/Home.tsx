@@ -27,9 +27,9 @@ const homeI18n = {
       theme: { label: '主题模式', light: '浅色', dark: '深色', system: '跟随系统' }
     },
     home: {
-      title: '蕉幻',
-      subtitle: 'Vibe your slides like vibe coding',
-      tagline: '基于 nano banana pro🍌 的原生 AI PPT 生成器',
+      title: '飞叶智能',
+      subtitle: 'AI-Powered Presentation Generator',
+      tagline: '飞叶智能 FEIYE INTELLIGENCE — 原生 AI PPT 生成器',
       features: {
         oneClick: '一句话生成 PPT',
         naturalEdit: '自然语言修改',
@@ -103,9 +103,9 @@ const homeI18n = {
       theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' }
     },
     home: {
-      title: 'Banana Slides',
-      subtitle: 'Vibe your slides like vibe coding',
-      tagline: 'AI-native PPT generator powered by nano banana pro🍌',
+      title: 'FEIYE INTELLIGENCE',
+      subtitle: 'AI-Powered Presentation Generator',
+      tagline: 'AI-native PPT generator by FEIYE INTELLIGENCE',
       features: {
         oneClick: 'One-click PPT generation',
         naturalEdit: 'Natural language editing',
@@ -657,12 +657,12 @@ export const Home: React.FC = () => {
             <div className="flex items-center">
               <img
                 src="/logo.png"
-                alt="蕉幻 Banana Slides Logo"
+                alt="飞叶智能 Logo"
                 className="h-10 md:h-12 w-auto rounded-lg object-contain"
               />
             </div>
-            <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-orange-500 to-pink-500 bg-clip-text text-transparent">
-              蕉幻
+            <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-banana-500 to-banana-400 bg-clip-text text-transparent">
+              飞叶智能
             </span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
@@ -813,7 +813,7 @@ export const Home: React.FC = () => {
               backgroundSize: '200% auto',
               animation: 'gradient 3s ease infinite',
             }}>
-              {i18n.language?.startsWith('zh') ? `${t('home.title')} · Banana Slides` : 'Banana Slides'}
+              {i18n.language?.startsWith('zh') ? `${t('home.title')} · FEIYE INTELLIGENCE` : 'FEIYE INTELLIGENCE'}
             </span>
           </h1>
 

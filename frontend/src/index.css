@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  /* 主色 - 黄色系 */
-  --banana-yellow: #FFD700;
-  --banana-yellow-light: #FFE44D;
-  --banana-yellow-dark: #FFC700;
-  --banana-yellow-pale: #FFF9E6;
+  /* 主色 - 蓝色系 */
+  --banana-yellow: #1677FF;
+  --banana-yellow-light: #4096FF;
+  --banana-yellow-dark: #0958D9;
+  --banana-yellow-pale: #E6F4FF;
 
   /* 中性色 - 黑白灰 */
   --black: #1A1A1A;
@@ -46,11 +46,11 @@
 }
 
 .dark {
-  /* 主色 - 黄色系（深色模式下稍微调亮） */
-  --banana-yellow: #F5A623;
-  --banana-yellow-light: #FFD700;
-  --banana-yellow-dark: #E6930E;
-  --banana-yellow-pale: #2A2520;
+  /* 主色 - 蓝色系（深色模式下稍微调亮） */
+  --banana-yellow: #4096FF;
+  --banana-yellow-light: #69B1FF;
+  --banana-yellow-dark: #1677FF;
+  --banana-yellow-pale: #111D2C;
 
   /* 中性色 - 深色模式 */
   --black: #F5F5F5;

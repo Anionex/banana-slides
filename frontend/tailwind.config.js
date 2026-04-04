@@ -15,13 +15,13 @@ export default {
           dark: 'var(--banana-yellow-dark)',
           pale: 'var(--banana-yellow-pale)',
           // 保留静态色用于渐变等特殊场景
-          50: '#FFF9E6',
-          100: '#FFE44D',
-          200: '#FFD93D',
-          300: '#FFD21F',
-          400: '#FFCA00',
-          500: '#FFD700',
-          600: '#FFC700',
+          50: '#E6F4FF',
+          100: '#BAE0FF',
+          200: '#91CAFF',
+          300: '#69B1FF',
+          400: '#4096FF',
+          500: '#1677FF',
+          600: '#0958D9',
         },
         // 背景色 - 语义化 token
         'background': {
@@ -56,7 +56,7 @@ export default {
         'panel': '16px',
       },
       boxShadow: {
-        'yellow': '0 4px 12px rgba(255, 215, 0, 0.3)',
+        'yellow': '0 4px 12px rgba(22, 119, 255, 0.3)',
         'sm': '0 1px 2px rgba(0,0,0,0.05)',
         'md': '0 4px 6px rgba(0,0,0,0.07)',
         'lg': '0 10px 15px rgba(0,0,0,0.1)',
