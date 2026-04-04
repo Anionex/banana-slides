@@ -176,6 +176,28 @@ const SortableFieldPill: React.FC<{
   );
 };
 
+const getDescriptionText = (descriptionContent: any): string => {
+  if (!descriptionContent || typeof descriptionContent !== 'object') return '';
+  if (typeof descriptionContent.text === 'string' && descriptionContent.text.trim()) {
+    return descriptionContent.text.trim();
+  }
+  if (Array.isArray(descriptionContent.text_content)) {
+    return descriptionContent.text_content
+      .map((item: unknown) => String(item ?? '').trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  if (descriptionContent.text_content) {
+    return String(descriptionContent.text_content).trim();
+  }
+  return '';
+};
+
+const hasUsableDescription = (page: any): boolean => {
+  return getDescriptionText(page?.description_content).length > 0;
+};
+
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -371,7 +393,7 @@ export const DetailEditor: React.FC = () => {
     } else if (projectId && currentProject && currentProject.id === projectId) {
       // 如果项目已存在，也同步一次以确保数据是最新的（特别是从描述生成后）
       // 但只在首次加载时同步，避免频繁请求
-      const shouldSync = !currentProject.pages.some(p => p.description_content);
+      const shouldSync = !currentProject.pages.some(hasUsableDescription);
       if (shouldSync) {
         syncProject(projectId);
       }
@@ -415,9 +437,7 @@ export const DetailEditor: React.FC = () => {
   });
 
   const handleGenerateAll = async () => {
-    const hasDescriptions = currentProject?.pages.some(
-      (p) => p.description_content
-    );
+    const hasDescriptions = currentProject?.pages.some(hasUsableDescription);
     
     const executeGenerate = async () => {
       await generateDescriptions(detailLevel);
@@ -466,7 +486,7 @@ export const DetailEditor: React.FC = () => {
         executeRegenerate,
         { title: t('detail.messages.confirmRenovationRegenerateTitle'), variant: 'warning' }
       );
-    } else if (page.description_content) {
+    } else if (hasUsableDescription(page)) {
       confirm(
         t('detail.messages.confirmRegeneratePage'),
         executeRegenerate,
@@ -550,10 +570,8 @@ export const DetailEditor: React.FC = () => {
     return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
   }
 
-  const hasAllDescriptions = currentProject.pages.every(
-    (p) => p.description_content
-  );
-  const missingDescCount = currentProject.pages.filter(p => !p.description_content).length;
+  const hasAllDescriptions = currentProject.pages.every(hasUsableDescription);
+  const missingDescCount = currentProject.pages.filter((p) => !hasUsableDescription(p)).length;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-background-primary flex flex-col">
@@ -838,7 +856,7 @@ export const DetailEditor: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => { handleExportDescriptions(); setFileMenuOpen(false); }}
-                    disabled={!currentProject.pages.some(p => p.description_content)}
+                    disabled={!currentProject.pages.some(hasUsableDescription)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                   >
                     <Download size={14} />
@@ -847,7 +865,7 @@ export const DetailEditor: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => { handleExportFull(); setFileMenuOpen(false); }}
-                    disabled={!currentProject.pages.some(p => p.description_content)}
+                    disabled={!currentProject.pages.some(hasUsableDescription)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
                   >
                     <Download size={14} />
@@ -867,7 +885,7 @@ export const DetailEditor: React.FC = () => {
             </div>
             <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportDescriptions} />
             <span className="text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary whitespace-nowrap">
-              {currentProject.pages.filter((p) => p.description_content).length} /{' '}
+              {currentProject.pages.filter(hasUsableDescription).length} /{' '}
               {currentProject.pages.length} {t('detail.pagesCompleted')}
             </span>
           </div>
@@ -969,9 +987,7 @@ export const DetailEditor: React.FC = () => {
                 currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
                 // Renovation processing: treat pages without description as generating
-                const hasDescription = page.description_content && (
-                  (typeof page.description_content === 'object' && 'text' in page.description_content && page.description_content.text?.trim())
-                );
+                const hasDescription = hasUsableDescription(page);
                 const effectivePage = (isRenovationProcessing && !hasDescription)
                   ? { ...page, status: 'GENERATING_DESCRIPTION' as const }
                   : page;

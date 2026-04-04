@@ -988,6 +988,44 @@ Return only the JSON, no other text.
     return prompt
 
 
+def get_ppt_page_content_extraction_from_image_prompt(language: str = None, markdown_text: str = None) -> str:
+    """Extract structured slide content from a single PPT slide image."""
+    markdown_hint = ""
+    if markdown_text and markdown_text.strip():
+        markdown_hint = f"""
+
+Optional parsed text hint from another extractor:
+
+<parsed_text_hint>
+{markdown_text}
+</parsed_text_hint>
+
+Use this hint only when it matches the visible slide image. If there is any conflict, trust the slide image.
+"""
+
+    prompt = f"""\
+You are a helpful assistant that extracts structured PPT slide content from a single slide image.
+{markdown_hint}
+
+Your task is to return a JSON object with exactly these fields:
+1. "title": the main visible title or heading of the slide
+2. "points": an array of the key visible bullet points or content items on the slide
+3. "description": a complete slide description that can be used to regenerate the slide
+
+Rules:
+- Prefer the visible slide image over any hint text
+- Keep readable text faithful to the original wording and original language
+- If some text is hard to read, make a best-effort summary and explicitly keep it approximate instead of inventing exact wording
+- The description must be non-empty
+- The description should cover the slide's visible text, layout, images, charts, tables, and other important visual elements
+- Preserve the original language of the slide content whenever possible
+- Return only JSON, with no markdown fences or extra commentary
+{get_language_instruction(language)}
+"""
+    logger.debug(f"[get_ppt_page_content_extraction_from_image_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
 def get_layout_caption_prompt() -> str:
     """描述 PPT 页面的排版布局（给 caption model 用）"""
     prompt = """\

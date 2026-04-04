@@ -44,6 +44,142 @@ from services.pdf_service import split_pdf_to_pages
 logger = logging.getLogger(__name__)
 
 
+def get_description_text(desc_content: Any) -> str:
+    """Extract plain description text from stored description_content."""
+    if not isinstance(desc_content, dict):
+        return ''
+
+    text = desc_content.get('text')
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+
+    text_content = desc_content.get('text_content')
+    if isinstance(text_content, list):
+        return '\n'.join(str(item).strip() for item in text_content if str(item).strip()).strip()
+    if text_content:
+        return str(text_content).strip()
+
+    return ''
+
+
+def get_page_image_path(page_obj: Page, file_service) -> Optional[str]:
+    """Resolve the best available local image path for a page."""
+    for stored_path in (page_obj.cached_image_path, page_obj.generated_image_path):
+        if not stored_path:
+            continue
+        absolute_path = file_service.get_absolute_path(stored_path)
+        if absolute_path and Path(absolute_path).exists():
+            return absolute_path
+    return None
+
+
+def _normalize_renovation_content(content: Dict[str, Any], fallback_title: str) -> Dict[str, Any]:
+    """Normalize extracted renovation content and ensure description is usable."""
+    if not isinstance(content, dict):
+        raise ValueError(f"Expected dict, got {type(content)}")
+
+    title = str(content.get('title') or '').strip() or fallback_title
+    raw_points = content.get('points') or []
+    if not isinstance(raw_points, list):
+        raw_points = [raw_points]
+    points = [str(point).strip() for point in raw_points if str(point).strip()]
+
+    description = str(content.get('description') or '').strip()
+    if not description and (title or points):
+        description_parts = []
+        if title:
+            description_parts.append(f"Title: {title}")
+        if points:
+            description_parts.append("Content:\n" + "\n".join(f"- {point}" for point in points))
+        description = "\n\n".join(description_parts).strip()
+
+    return {
+        'title': title,
+        'points': points,
+        'description': description,
+    }
+
+
+def extract_renovation_page_content(page_obj: Page, page_pdf_path: str, ai_service,
+                                    file_service, file_parser_service, language: str = 'zh',
+                                    keep_layout: bool = False) -> Dict[str, Any]:
+    """
+    Extract structured content for a renovation page.
+
+    Preferred flow:
+    1. Parse page PDF to markdown and extract content from text
+    2. If parser fails or extracted description is empty, fall back to vision extraction from the page image
+    3. Optionally append layout caption
+    """
+    page_number = (page_obj.order_index or 0) + 1
+    fallback_title = f'Page {page_number}'
+    filename = os.path.basename(page_pdf_path)
+
+    warnings: List[str] = []
+    image_path = get_page_image_path(page_obj, file_service)
+
+    _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
+    if error_msg:
+        warnings.append(error_msg)
+    md_text = md_text or ''
+
+    if extract_id:
+        hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
+        if hf_text:
+            md_text = hf_text + '\n\n' + md_text
+
+    content: Optional[Dict[str, Any]] = None
+    extraction_source = None
+
+    if md_text.strip():
+        try:
+            content = _normalize_renovation_content(
+                ai_service.extract_page_content(md_text, language=language),
+                fallback_title=fallback_title
+            )
+            extraction_source = 'markdown'
+        except Exception as exc:
+            warnings.append(f"Markdown extraction failed: {exc}")
+
+    if (not content or not content.get('description')) and image_path:
+        try:
+            content = _normalize_renovation_content(
+                ai_service.extract_page_content_from_image(
+                    image_path,
+                    language=language,
+                    markdown_text=md_text if md_text.strip() else None
+                ),
+                fallback_title=fallback_title
+            )
+            extraction_source = 'image'
+        except Exception as exc:
+            warnings.append(f"Image extraction failed: {exc}")
+
+    if not content or not content.get('description'):
+        warning_text = '; '.join(warnings) if warnings else 'No content could be extracted from this slide'
+        raise ValueError(f"Failed to extract renovation content for page {page_number}: {warning_text}")
+
+    if keep_layout and image_path:
+        try:
+            caption = ai_service.generate_layout_caption(image_path)
+            if caption:
+                content['description'] = f"{content['description']}\n\n{caption}".strip()
+        except Exception as exc:
+            logger.error(f"Layout caption failed for page {page_number}: {exc}")
+
+    if warnings:
+        logger.warning(
+            "Renovation page %s extracted via %s with warnings: %s",
+            page_number,
+            extraction_source or 'unknown',
+            '; '.join(warnings)
+        )
+    else:
+        logger.info("Renovation page %s extracted via %s", page_number, extraction_source or 'unknown')
+
+    return content
+
+
 class TaskManager:
     """Simple task manager using ThreadPoolExecutor"""
     
@@ -409,6 +545,9 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 desc_text = str(text_content)
 
                         # 将 extra_fields 拼入描述文本供图片生成使用
+                        desc_text = get_description_text(desc_content) or desc_text
+                        if not desc_text.strip():
+                            raise ValueError("No description content for page")
                         desc_text = _append_extra_fields(desc_text, desc_content)
 
                         logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
@@ -595,6 +734,9 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = str(text_content)
 
             # 将 extra_fields 拼入描述文本供图片生成使用
+            desc_text = get_description_text(desc_content) or desc_text
+            if not desc_text.strip():
+                raise ValueError("No description content for page")
             desc_text = _append_extra_fields(desc_text, desc_content)
 
             # 从描述文本中提取图片 URL
@@ -976,46 +1118,23 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                 with app.app_context():
                     try:
                         # Step A: Parse page PDF → markdown
-                        filename = os.path.basename(page_pdf_path)
-                        _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
-                        if error_msg:
-                            logger.warning(f"Page {idx} parse warning: {error_msg}")
-                        md_text = md_text or ''
+                        page_stub = pages[idx] if idx < len(pages) else None
+                        if not page_stub:
+                            raise ValueError(f"Page record missing for page index {idx}")
 
-                        # Supplement with header/footer from layout.json
-                        if extract_id:
-                            hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
-                            if hf_text:
-                                md_text = hf_text + '\n\n' + md_text
-
-                        if not md_text.strip():
-                            content = {'title': f'Page {idx + 1}', 'points': [], 'description': ''}
-                            error = 'empty_input'
-                        else:
-                            # Step B: AI extract structured content
-                            content = ai_service.extract_page_content(md_text, language=language)
-                            error = None
-
-                        # Step C: Optional layout caption
-                        if keep_layout and not error:
-                            try:
-                                page_obj = pages[idx] if idx < len(pages) else None
-                                if page_obj:
-                                    image_path = None
-                                    if page_obj.cached_image_path:
-                                        image_path = file_service.get_absolute_path(page_obj.cached_image_path)
-                                    elif page_obj.generated_image_path:
-                                        image_path = file_service.get_absolute_path(page_obj.generated_image_path)
-                                    if image_path and Path(image_path).exists():
-                                        caption = ai_service.generate_layout_caption(image_path)
-                                        if caption:
-                                            content['description'] += f"\n\n{caption}"
-                            except Exception as e:
-                                logger.error(f"Layout caption failed for page {idx}: {e}")
+                        content = extract_renovation_page_content(
+                            page_obj=page_stub,
+                            page_pdf_path=page_pdf_path,
+                            ai_service=ai_service,
+                            file_service=file_service,
+                            file_parser_service=file_parser_service,
+                            language=language,
+                            keep_layout=keep_layout
+                        )
 
                         # Step D: Write to DB immediately
                         content_results[idx] = content
-                        page_obj = Page.query.get(pages[idx].id)
+                        page_obj = Page.query.get(page_stub.id)
                         if page_obj:
                             title = content.get('title', f'Page {idx + 1}')
                             points = content.get('points', [])
@@ -1033,11 +1152,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                             db.session.commit()
 
                         with progress_lock:
-                            if error and error != 'empty_input':
-                                failed += 1
-                                extraction_errors.append(error)
-                            else:
-                                completed += 1
+                            completed += 1
                             task_obj = Task.query.get(task_id)
                             if task_obj:
                                 task_obj.update_progress(completed=completed, failed=failed)
