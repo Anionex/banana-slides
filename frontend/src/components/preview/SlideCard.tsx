@@ -103,7 +103,11 @@ export const SlideCard: React.FC<SlideCardProps> = ({
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
-              <div className="text-3xl mb-1">🍌</div>
+              <img
+                src="/feiye.jpg"
+                alt="FEIYE Logo"
+                className="w-8 h-8 mx-auto mb-1 rounded-lg object-contain shadow-sm"
+              />
               <div className="text-xs">{t('slideCard.notGenerated')}</div>
             </div>
           </div>

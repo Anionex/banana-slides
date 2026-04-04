@@ -15,7 +15,7 @@ import type { Project } from '@/types';
 // 页面特有翻译 - AI 可以直接看到所有文案
 const historyI18n = {
   zh: {
-    home: { title: '蕉幻', actions: { createProject: '创建新项目' } },
+    home: { title: '飞叶', actions: { createProject: '创建新项目' } },
     nav: { home: '主页' },
     settings: { language: { label: '界面语言' }, theme: { light: '浅色', dark: '深色' } },
     history: {
@@ -43,7 +43,7 @@ const historyI18n = {
     },
   },
   en: {
-    home: { title: 'Banana Slides', actions: { createProject: 'Create New Project' } },
+    home: { title: 'FEIYE', actions: { createProject: 'Create New Project' } },
     nav: { home: 'Home' },
     settings: { language: { label: 'Interface Language' }, theme: { light: 'Light', dark: 'Dark' } },
     history: {
@@ -370,9 +370,11 @@ export const History: React.FC = () => {
       <nav className="h-14 md:h-16 bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-100 dark:border-border-primary">
         <div className="max-w-7xl mx-auto px-3 md:px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-banana-500 to-banana-600 rounded-lg flex items-center justify-center text-xl md:text-2xl">
-              🍌
-            </div>
+            <img
+              src="/feiye.jpg"
+              alt="FEIYE Logo"
+              className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-contain shadow-sm"
+            />
             <span className="text-lg md:text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('home.title')}</span>
           </div>
           <div className="flex items-center gap-2 md:gap-4">

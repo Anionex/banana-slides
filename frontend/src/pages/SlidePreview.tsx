@@ -7,7 +7,7 @@ import { devLog } from '@/utils/logger';
 // 组件内翻译
 const previewI18n = {
   zh: {
-    home: { title: '蕉幻' },
+    home: { title: '飞叶' },
     nav: { home: '主页', materialGenerate: '素材生成' },
     slidePreview: {
       pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
@@ -75,7 +75,7 @@ const previewI18n = {
     }
   },
   en: {
-    home: { title: 'Banana Slides' },
+    home: { title: 'FEIYE' },
     nav: { home: 'Home', materialGenerate: 'Generate Material' },
     slidePreview: {
       pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
@@ -1278,7 +1278,11 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-              <span className="text-xl md:text-2xl">🍌</span>
+              <img
+                src="/feiye.jpg"
+                alt="FEIYE Logo"
+                className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-contain shadow-sm flex-shrink-0"
+              />
               <span className="text-base md:text-xl font-bold truncate">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden md:inline">|</span>
@@ -1604,7 +1608,11 @@ export const SlidePreview: React.FC = () => {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-background-secondary">
                         <div className="text-center">
-                          <div className="text-6xl mb-4">🍌</div>
+                          <img
+                            src="/feiye.jpg"
+                            alt="FEIYE Logo"
+                            className="w-16 h-16 mx-auto mb-4 rounded-xl object-contain shadow-sm"
+                          />
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
                             {selectedPage?.status === 'QUEUED'
                               ? t('preview.queued')

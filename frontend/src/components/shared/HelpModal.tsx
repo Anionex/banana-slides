@@ -12,15 +12,15 @@ import { useTranslation } from 'react-i18next';
 const i18nDict = {
   zh: {
     guide: {
-      brand: '飞叶智能 · FEIYE INTELLIGENCE',
+      brand: '飞叶 · FEIYE',
       setup: '快速开始',
       setupSub: '完成基础配置，开启 AI 创作之旅',
       features: '功能介绍',
       featuresSub: '探索如何使用 AI 快速创建精美 PPT',
       gallery: '结果案例',
-      gallerySub: '以下是使用飞叶智能生成的 PPT 案例展示',
+      gallerySub: '以下是使用飞叶生成的 PPT 案例展示',
       galleryMore: '查看更多使用案例',
-      hi: '欢迎使用飞叶智能！',
+      hi: '欢迎使用飞叶！',
       hiSub: '在开始前，让我们先完成基础配置',
       s1: '配置 API Key',
       s1d: '前往设置页面，配置项目需要使用的API服务，包括：',
@@ -30,7 +30,7 @@ const i18nDict = {
       s3: '开始创作',
       s3d: '配置成功后，返回首页即可开始使用 AI 生成精美的 PPT！',
       s4: '*问题反馈',
-      s4d: '若使用过程中遇到问题，请联系飞叶智能技术支持团队。',
+      s4d: '若使用过程中遇到问题，请联系飞叶技术支持团队。',
       issueLink: '联系技术支持',
       settingsBtn: '前往设置页面',
       hint: '提示',
@@ -48,15 +48,15 @@ const i18nDict = {
   },
   en: {
     guide: {
-      brand: 'FEIYE INTELLIGENCE',
+      brand: 'FEIYE',
       setup: 'Quick Start',
       setupSub: 'Complete basic configuration and start your AI creation journey',
       features: 'Features',
       featuresSub: 'Explore how to use AI to quickly create beautiful PPT',
       gallery: 'Showcases',
-      gallerySub: 'Here are PPT examples generated with FEIYE INTELLIGENCE',
+      gallerySub: 'Here are PPT examples generated with FEIYE',
       galleryMore: 'View more examples',
-      hi: 'Welcome to FEIYE INTELLIGENCE!',
+      hi: 'Welcome to FEIYE!',
       hiSub: "Let's complete the basic configuration before you start",
       s1: 'Configure API Key',
       s1d: 'Go to settings page to configure the API services needed for the project, including:',
@@ -66,7 +66,7 @@ const i18nDict = {
       s3: 'Start Creating',
       s3d: 'After successful configuration, return to home page to start using AI to generate beautiful PPT!',
       s4: '*Feedback',
-      s4d: 'If you encounter issues while using, please contact FEIYE INTELLIGENCE technical support.',
+      s4d: 'If you encounter issues while using, please contact FEIYE technical support.',
       issueLink: 'Contact Support',
       settingsBtn: 'Go to Settings',
       hint: 'Tip',
@@ -160,7 +160,7 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
     <div className="space-y-6">
       <div className="text-center space-y-3">
         <div className="inline-flex items-center justify-center mr-4">
-          <img src="/feiye.jpg" alt="FEIYE INTELLIGENCE Logo" className="h-16 w-16 object-contain" />
+          <img src="/feiye.jpg" alt="FEIYE Logo" className="h-16 w-16 object-contain" />
         </div>
         <h3 className="text-2xl font-bold text-gray-800 dark:text-foreground-primary">{t('guide.hi')}</h3>
         <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.hiSub')}</p>
@@ -373,7 +373,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <span className="text-sm text-gray-400 dark:text-foreground-tertiary flex items-center gap-1">
-            飞叶智能
+            飞叶
           </span>
 
           <div className="flex items-center gap-2">
