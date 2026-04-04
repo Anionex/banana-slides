@@ -278,7 +278,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={t('material.title')} size="lg">
       {/* 顶部提示信息 */}
-      <div className="mb-5 px-4 py-3 rounded-xl bg-gradient-to-r from-banana-50/80 to-amber-50/80 dark:from-banana-900/20 dark:to-amber-900/20 border border-banana-200/50 dark:border-banana-700/30 backdrop-blur-sm">
+      <div className="mb-5 px-4 py-3 rounded-xl feiye-soft-gradient border border-banana-200/50 dark:border-banana-700/30 backdrop-blur-sm">
         <p className="text-sm text-banana-800 dark:text-banana-200 flex items-center gap-2">
           <Info size={16} className="flex-shrink-0" />
           {t('material.saveToLibraryNote')}
@@ -290,7 +290,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           {/* 内部光晕 */}
           <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
             <div className="absolute -top-20 -left-20 w-40 h-40 bg-banana-400/10 dark:bg-banana-400/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-purple-400/10 dark:bg-purple-400/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-banana-300/20 dark:bg-banana-300/10 rounded-full blur-3xl" />
           </div>
 
           <div className="relative">
@@ -352,17 +352,17 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
         </div>
 
         {/* 参考图片上传区域 - 现代渐变设计 */}
-        <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-indigo-50/30 via-white/80 to-purple-50/30 dark:from-indigo-950/20 dark:via-gray-800/40 dark:to-purple-950/20 backdrop-blur-xl shadow-lg">
+        <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-banana-50/50 via-white/80 to-banana-100/55 dark:from-banana-900/20 dark:via-gray-800/40 dark:to-banana-800/25 backdrop-blur-xl shadow-lg">
           {/* 内部光晕 */}
           <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-            <div className="absolute top-0 left-1/4 w-32 h-32 bg-indigo-400/10 dark:bg-indigo-400/5 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-purple-400/10 dark:bg-purple-400/5 rounded-full blur-3xl" />
+            <div className="absolute top-0 left-1/4 w-32 h-32 bg-banana-300/20 dark:bg-banana-300/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-banana-500/15 dark:bg-banana-500/10 rounded-full blur-3xl" />
           </div>
 
           <div className="relative space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200 font-medium">
-                <ImagePlus size={18} className="text-indigo-500 dark:text-indigo-400" />
+                <ImagePlus size={18} className="text-banana-600 dark:text-banana-300" />
                 <span>{t('material.referenceImages')}</span>
               </div>
               <Button
@@ -370,7 +370,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                 size="sm"
                 icon={<FolderOpen size={16} />}
                 onClick={() => setIsMaterialSelectorOpen(true)}
-                className="hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30"
+                className="hover:bg-banana-100/60 dark:hover:bg-banana-900/30"
               >
                 {t('material.selectFromLibrary')}
               </Button>
@@ -380,7 +380,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
               {/* 主参考图 */}
               <div className="space-y-2">
                 <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.mainReference')}</div>
-                <label className="w-40 h-28 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm relative group shadow-sm hover:shadow-md">
+                <label className="w-40 h-28 border-2 border-dashed border-banana-300/60 dark:border-banana-600/35 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 dark:hover:border-banana-400 hover:bg-banana-50/60 dark:hover:bg-banana-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm relative group shadow-sm hover:shadow-md">
                   {refImage ? (
                     <>
                       <img
@@ -402,7 +402,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <ImageIcon size={28} className="text-indigo-400 dark:text-indigo-500 mb-1.5 group-hover:scale-110 transition-transform duration-200" />
+                      <ImageIcon size={28} className="text-banana-400 dark:text-banana-500 mb-1.5 group-hover:scale-110 transition-transform duration-200" />
                       <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.clickToUpload')}</span>
                     </>
                   )}
@@ -424,7 +424,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                       <img
                         src={extraImageUrls.current[idx] || ''}
                         alt={`extra-${idx + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200/50 dark:border-indigo-500/30 shadow-sm group-hover:shadow-md transition-all duration-200"
+                        className="w-20 h-20 object-cover rounded-lg border-2 border-banana-200/60 dark:border-banana-600/35 shadow-sm group-hover:shadow-md transition-all duration-200"
                       />
                       <button
                         onClick={() => removeExtraImage(idx)}
@@ -434,8 +434,8 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                       </button>
                     </div>
                   ))}
-                  <label className="w-20 h-20 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm group shadow-sm hover:shadow-md">
-                    <Upload size={20} className="text-indigo-400 dark:text-indigo-500 mb-1 group-hover:scale-110 transition-transform duration-200" />
+                  <label className="w-20 h-20 border-2 border-dashed border-banana-300/60 dark:border-banana-600/35 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-banana-500 dark:hover:border-banana-400 hover:bg-banana-50/60 dark:hover:bg-banana-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm group shadow-sm hover:shadow-md">
+                    <Upload size={20} className="text-banana-400 dark:text-banana-500 mb-1 group-hover:scale-110 transition-transform duration-200" />
                     <span className="text-[10px] text-gray-600 dark:text-gray-400 font-medium">{t('common.add')}</span>
                     <input
                       type="file"

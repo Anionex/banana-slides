@@ -1,0 +1,122 @@
+:root {
+  --banana-yellow: #6c9f97;
+  --banana-yellow-light: #8fbeb6;
+  --banana-yellow-dark: #456e68;
+  --banana-yellow-pale: #eef7f5;
+
+  --bg-primary: #fcfefd;
+  --bg-secondary: #f3f8f7;
+  --bg-tertiary: #eef5f3;
+  --bg-elevated: #ffffff;
+  --bg-hover: #e6f0ee;
+
+  --text-primary: #1c2624;
+  --text-secondary: #546865;
+  --text-tertiary: #7a8d89;
+
+  --border-primary: #d6e3e0;
+  --border-secondary: #e5efec;
+  --border-hover: #bfd1cc;
+}
+
+.dark {
+  --banana-yellow: #89bcb3;
+  --banana-yellow-light: #a7d2cb;
+  --banana-yellow-dark: #6fa49b;
+  --banana-yellow-pale: #142321;
+
+  --bg-primary: #0f1716;
+  --bg-secondary: #16211f;
+  --bg-tertiary: #12201d;
+  --bg-elevated: #1b2926;
+  --bg-hover: #22312e;
+
+  --text-primary: #f5fbf9;
+  --text-secondary: #c7d8d4;
+  --text-tertiary: #89a09b;
+
+  --border-primary: #29413c;
+  --border-secondary: #223530;
+  --border-hover: #35534c;
+}
+
+.feiye-page-shell {
+  background-image: linear-gradient(135deg, var(--banana-yellow-pale) 0%, #ffffff 56%, rgba(220, 238, 234, 0.82) 100%);
+}
+
+.dark .feiye-page-shell {
+  background-image: none;
+  background-color: var(--bg-primary);
+}
+
+.feiye-soft-gradient {
+  background-image: linear-gradient(90deg, rgba(238, 247, 245, 0.96) 0%, rgba(220, 238, 234, 0.88) 100%);
+}
+
+.dark .feiye-soft-gradient {
+  background-image: linear-gradient(90deg, rgba(20, 35, 33, 0.55) 0%, rgba(34, 58, 54, 0.5) 100%);
+}
+
+.feiye-title-gradient {
+  background-image: linear-gradient(90deg, #456e68 0%, #6c9f97 52%, #9bc7bf 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.dark .feiye-title-gradient {
+  background-image: linear-gradient(90deg, #89bcb3 0%, #a7d2cb 56%, #dceeea 100%);
+}
+
+.feiye-orb-primary {
+  background-color: rgba(108, 159, 151, 0.12);
+}
+
+.feiye-orb-secondary {
+  background-color: rgba(155, 199, 191, 0.18);
+}
+
+.feiye-orb-tertiary {
+  background-color: rgba(190, 221, 214, 0.28);
+}
+
+.dark .feiye-orb-primary,
+.dark .feiye-orb-secondary,
+.dark .feiye-orb-tertiary {
+  background-color: rgba(137, 188, 179, 0.12);
+}
+
+.feiye-accent-strong {
+  color: #456e68;
+}
+
+.feiye-accent {
+  color: #568781;
+}
+
+.feiye-accent-soft {
+  color: #6c9f97;
+}
+
+.feiye-accent-deep {
+  color: #345652;
+}
+
+.dark .feiye-accent-strong,
+.dark .feiye-accent,
+.dark .feiye-accent-soft,
+.dark .feiye-accent-deep {
+  color: #cfe4df;
+}
+
+.feiye-step-secondary {
+  background-color: #568781;
+}
+
+.feiye-step-tertiary {
+  background-color: #456e68;
+}
+
+.feiye-step-deep {
+  background-color: #345652;
+}

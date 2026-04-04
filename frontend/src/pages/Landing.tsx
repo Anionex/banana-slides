@@ -63,32 +63,36 @@ export const Landing: React.FC = () => {
   const features = [
     {
       key: 'flexiblePaths',
-      icon: <Sparkles size={24} className="text-yellow-600 dark:text-banana" />,
-      bg: "bg-yellow-50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/20"
+      icon: <Sparkles size={24} className="feiye-accent-strong" />,
+      bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
+      glow: '#456E68',
     },
     {
       key: 'materialParsing',
-      icon: <FileText size={24} className="text-blue-600 dark:text-blue-400" />,
-      bg: "bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20"
+      icon: <FileText size={24} className="feiye-accent" />,
+      bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
+      glow: '#568781',
     },
     {
       key: 'vibeEditing',
-      icon: <MessageSquare size={24} className="text-green-600 dark:text-green-400" />,
-      bg: "bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20"
+      icon: <MessageSquare size={24} className="feiye-accent-soft" />,
+      bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
+      glow: '#6C9F97',
     },
     {
       key: 'easyExport',
-      icon: <Download size={24} className="text-purple-600 dark:text-purple-400" />,
-      bg: "bg-purple-50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/20"
+      icon: <Download size={24} className="feiye-accent-deep" />,
+      bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
+      glow: '#345652',
     }
   ];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-background-primary relative overflow-hidden flex flex-col font-sans">
+    <div className="min-h-screen feiye-page-shell relative overflow-hidden flex flex-col font-sans">
       {/* 动态背景 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-bl from-banana-100/40 to-transparent dark:from-banana-900/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 animate-float-slow"></div>
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-gradient-to-tr from-orange-100/40 to-transparent dark:from-orange-900/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 animate-float-delayed"></div>
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] feiye-orb-secondary rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 animate-float-slow"></div>
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] feiye-orb-tertiary rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 animate-float-delayed"></div>
       </div>
 
       {/* 导航栏 */}
@@ -130,7 +134,7 @@ export const Landing: React.FC = () => {
 
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-gray-900 dark:text-white leading-[1.1]">
             {t('landing.hero.title_start')}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-banana-500 via-orange-500 to-pink-500 px-2 relative inline-block">
+            <span className="feiye-title-gradient px-2 relative inline-block">
               {t('landing.hero.title_highlight')}
               <svg className="absolute w-full h-3 -bottom-1 left-0 text-banana-200 dark:text-banana-900/30 -z-10" viewBox="0 0 100 10" preserveAspectRatio="none">
                 <path d="M0 5 Q 50 10 100 5" stroke="currentColor" strokeWidth="8" fill="none" />
@@ -262,7 +266,7 @@ export const Landing: React.FC = () => {
                     </div>
 
                     {/* 装饰元素 */}
-                    <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-current opacity-10 rounded-full blur-2xl animate-pulse" style={{ color: feature.icon.props.className.includes('yellow') ? '#EAB308' : feature.icon.props.className.includes('blue') ? '#3B82F6' : feature.icon.props.className.includes('green') ? '#22C55E' : '#A855F7' }} />
+                    <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-current opacity-10 rounded-full blur-2xl animate-pulse" style={{ color: feature.glow }} />
                   </div>
                 </div>
               </div>

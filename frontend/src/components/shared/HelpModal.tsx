@@ -95,10 +95,10 @@ const SHOWCASES = [
 ];
 
 const FEATURES: { key: string; icon: React.ReactNode }[] = [
-  { key: 'paths', icon: <Sparkles className="text-yellow-500" size={24} /> },
-  { key: 'parse', icon: <FileText className="text-blue-500" size={24} /> },
-  { key: 'vibe', icon: <MessageSquare className="text-green-500" size={24} /> },
-  { key: 'export', icon: <Download className="text-purple-500" size={24} /> },
+  { key: 'paths', icon: <Sparkles className="feiye-accent-strong" size={24} /> },
+  { key: 'parse', icon: <FileText className="feiye-accent" size={24} /> },
+  { key: 'vibe', icon: <MessageSquare className="feiye-accent-soft" size={24} /> },
+  { key: 'export', icon: <Download className="feiye-accent-deep" size={24} /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -142,13 +142,13 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
         </ul>
       </div>
     ), highlight: true },
-    { num: '2', bg: 'bg-orange-500', content: (
+    { num: '2', bg: 'feiye-step-secondary', content: (
       <div className="flex-1 space-y-2">
         <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('guide.s2')}</h4>
         <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.s2d')}</p>
       </div>
     ) },
-    { num: <Check size={18} />, bg: 'bg-green-500', content: (
+    { num: <Check size={18} />, bg: 'feiye-step-tertiary', content: (
       <div className="flex-1 space-y-2">
         <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('guide.s3')}</h4>
         <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.s3d')}</p>
@@ -172,7 +172,7 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
             key={i}
             className={`flex gap-4 p-4 rounded-xl border ${
               s.highlight
-                ? 'bg-gradient-to-r from-banana-50 dark:from-background-primary to-orange-50 border-banana-200'
+                ? 'feiye-soft-gradient border-banana-200'
                 : 'bg-white dark:bg-background-secondary border-gray-200 dark:border-border-primary'
             }`}
           >
@@ -185,7 +185,7 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
       </div>
 
       <div className="flex gap-4 p-4 bg-white dark:bg-background-secondary rounded-xl border border-gray-200 dark:border-border-primary">
-        <div className="flex-shrink-0 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center font-bold">4</div>
+        <div className="flex-shrink-0 w-8 h-8 feiye-step-deep text-white rounded-full flex items-center justify-center font-bold">4</div>
         <div className="flex-1 space-y-2">
           <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('guide.s4')}</h4>
           <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.s4d')}</p>
@@ -197,13 +197,13 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
       </div>
 
       <div className="flex justify-center pt-2">
-        <Button onClick={() => { onClose(); navigate('/settings'); }} className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg" icon={<Settings size={18} />}>
+        <Button onClick={() => { onClose(); navigate('/settings'); }} className="bg-banana-500 hover:bg-banana-600 text-white shadow-lg" icon={<Settings size={18} />}>
           {t('guide.settingsBtn')}
         </Button>
       </div>
 
-      <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-        <p className="text-xs text-blue-800">
+      <div className="feiye-soft-gradient border border-banana-200 dark:border-banana-800/40 rounded-lg p-3">
+        <p className="text-xs text-banana-800 dark:text-banana-100">
           💡 <strong>{t('guide.hint')}</strong>：{t('guide.hintBody')}
         </p>
       </div>
@@ -337,7 +337,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
       <div className="space-y-6">
         {/* header */}
         <div className="text-center pb-4 border-b border-gray-100 dark:border-border-primary">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-banana-50 dark:from-background-primary to-orange-50 rounded-full mb-3">
+          <div className="inline-flex items-center gap-2 px-4 py-2 feiye-soft-gradient rounded-full mb-3">
             <Palette size={18} className="text-banana-600" />
             <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('guide.brand')}</span>
           </div>
@@ -378,7 +378,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
           <div className="flex items-center gap-2">
             {pageIdx < PAGES.length - 1 ? (
-              <Button onClick={() => setPageIdx(pageIdx + 1)} icon={<ChevronRight size={16} />} size="sm" className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white">
+              <Button onClick={() => setPageIdx(pageIdx + 1)} icon={<ChevronRight size={16} />} size="sm" className="bg-banana-500 hover:bg-banana-600 text-white">
                 {t('guide.next')}
               </Button>
             ) : (
