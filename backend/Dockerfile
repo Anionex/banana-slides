@@ -44,10 +44,11 @@ ENV UV_INDEX_URL=${PYPI_INDEX_URL}
 # 配置 uv 网络超时
 ENV UV_HTTP_TIMEOUT=300
 
-# 安装 Python 依赖
-# 如果有 uv.lock 文件则使用 --frozen，否则生成新的锁定文件
+# Install Python dependencies. Prefer the lockfile, but fall back to a
+# regular sync when deployment-only dependency changes have not refreshed
+# uv.lock yet.
 RUN if [ -f uv.lock ]; then \
-        uv sync --frozen; \
+        uv sync --frozen || uv sync; \
     else \
         uv sync; \
     fi

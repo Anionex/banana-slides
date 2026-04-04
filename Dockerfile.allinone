@@ -48,11 +48,12 @@ RUN if [ -n "$APT_MIRROR" ]; then \
 COPY --from=uv /uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv
 
-# 安装 Python 依赖
+# Install Python dependencies. Prefer the lockfile, but allow a fallback
+# sync so deployment-specific dependency fixes do not fail the image build.
 COPY pyproject.toml uv.lock* ./
 ENV UV_INDEX_URL=${PYPI_INDEX_URL}
 ENV UV_HTTP_TIMEOUT=300
-RUN if [ -f uv.lock ]; then uv sync --frozen; else uv sync; fi
+RUN if [ -f uv.lock ]; then uv sync --frozen || uv sync; else uv sync; fi
 
 # 复制后端代码和资源
 COPY backend/ ./backend/

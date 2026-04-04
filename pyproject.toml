@@ -8,6 +8,7 @@ dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "flask-sqlalchemy>=3.1.1",
+    "gunicorn>=23.0.0",
     "google-genai>=1.52.0",
     "openai>=1.0.0",
     "anthropic>=0.30.0",
