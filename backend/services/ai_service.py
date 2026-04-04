@@ -24,6 +24,7 @@ from .prompts import (
     get_outline_refinement_prompt,
     get_descriptions_refinement_prompt,
     get_ppt_page_content_extraction_prompt,
+    get_ppt_page_content_extraction_from_image_prompt,
     get_layout_caption_prompt,
     get_style_extraction_prompt,
     get_outline_generation_prompt_markdown,
@@ -1017,6 +1018,27 @@ class AIService:
         result = self.generate_json(prompt, thinking_budget=1000)
 
         # Ensure required fields exist
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected dict, got {type(result)}")
+
+        result.setdefault('title', '')
+        result.setdefault('points', [])
+        result.setdefault('description', '')
+
+        return result
+
+    def extract_page_content_from_image(self, image_path: str, language: str = 'zh',
+                                        markdown_text: Optional[str] = None) -> Dict:
+        """
+        Extract structured page content from a rendered slide image.
+        Used as a fallback when document parsing is unavailable.
+        """
+        prompt = get_ppt_page_content_extraction_from_image_prompt(
+            language=language,
+            markdown_text=markdown_text
+        )
+        result = self.generate_json_with_image(prompt, image_path, thinking_budget=1000)
+
         if not isinstance(result, dict):
             raise ValueError(f"Expected dict, got {type(result)}")
 

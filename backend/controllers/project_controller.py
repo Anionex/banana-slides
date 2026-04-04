@@ -24,7 +24,8 @@ from services.task_manager import (
     task_manager,
     generate_descriptions_task,
     generate_images_task,
-    process_ppt_renovation_task
+    process_ppt_renovation_task,
+    get_description_text,
 )
 from utils import (
     success_response, error_response, not_found, bad_request,
@@ -843,7 +844,7 @@ def generate_descriptions(project_id):
         
         if not pages:
             return bad_request("No pages found for project")
-        
+
         # Reconstruct outline from pages with part structure
         outline = _reconstruct_outline_from_pages(pages)
         
@@ -1083,6 +1084,17 @@ def generate_images(project_id):
         
         if not pages:
             return bad_request("No pages found for project")
+
+        missing_description_pages = [
+            page.order_index + 1
+            for page in pages
+            if not get_description_text(page.get_description_content())
+        ]
+        if missing_description_pages:
+            missing_preview = ', '.join(str(num) for num in missing_description_pages[:10])
+            if len(missing_description_pages) > 10:
+                missing_preview += ', ...'
+            return bad_request(f"Please complete descriptions for page(s): {missing_preview}")
         
         # 检查是否有模板图片或风格描述
         from services import FileService

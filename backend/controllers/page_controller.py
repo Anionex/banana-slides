@@ -7,7 +7,13 @@ from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
-from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
+from services.task_manager import (
+    task_manager,
+    generate_single_page_image_task,
+    edit_page_image_task,
+    extract_renovation_page_content,
+    get_description_text,
+)
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -353,7 +359,7 @@ def generate_page_image(project_id, page_id):
         
         # Get description content
         desc_content = page.get_description_content()
-        if not desc_content:
+        if not get_description_text(desc_content):
             return bad_request("Page must have description content first")
         
         # Reconstruct full outline with part structure
@@ -565,14 +571,7 @@ def edit_page_image(project_id, page_id):
         original_description = None
         desc_content = page.get_description_content()
         if desc_content:
-            # Extract text from description_content
-            original_description = desc_content.get('text') or ''
-            # If text is not available, try to construct from text_content
-            if not original_description and desc_content.get('text_content'):
-                if isinstance(desc_content['text_content'], list):
-                    original_description = '\n'.join(desc_content['text_content'])
-                else:
-                    original_description = str(desc_content['text_content'])
+            original_description = get_description_text(desc_content) or None
         
         # Collect additional reference images
         additional_ref_images = []
@@ -790,43 +789,15 @@ def regenerate_renovation_page(project_id, page_id):
 
         # Step 1: Parse page PDF → markdown
         logger.info(f"Regenerating renovation page {page.order_index + 1}: parsing PDF...")
-        filename = f"page_{page.order_index + 1}.pdf"
-        _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(
-            str(page_pdf_path), filename
+        content = extract_renovation_page_content(
+            page_obj=page,
+            page_pdf_path=str(page_pdf_path),
+            ai_service=ai_service,
+            file_service=file_service,
+            file_parser_service=file_parser_service,
+            language=language,
+            keep_layout=keep_layout
         )
-
-        if error_msg:
-            logger.warning(f"Page {page.order_index + 1} parse warning: {error_msg}")
-
-        md_text = md_text or ''
-
-        # Supplement with header/footer from layout.json
-        if extract_id:
-            hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
-            if hf_text:
-                md_text = hf_text + '\n\n' + md_text
-
-        if not md_text.strip():
-            return error_response('PARSE_ERROR', f"Failed to extract content from page {page.order_index + 1}", 400)
-
-        # Step 2: AI extract structured content
-        logger.info(f"Regenerating renovation page {page.order_index + 1}: extracting content...")
-        content = ai_service.extract_page_content(md_text, language=language)
-
-        # Step 3: Optional layout caption
-        if keep_layout:
-            try:
-                image_path = None
-                if page.cached_image_path:
-                    image_path = file_service.get_absolute_path(page.cached_image_path)
-                elif page.generated_image_path:
-                    image_path = file_service.get_absolute_path(page.generated_image_path)
-                if image_path and Path(image_path).exists():
-                    caption = ai_service.generate_layout_caption(image_path)
-                    if caption:
-                        content['description'] = content.get('description', '') + f"\n\n{caption}"
-            except Exception as e:
-                logger.error(f"Layout caption failed for page {page.order_index + 1}: {e}")
 
         # Step 4: Update page in database
         title = content.get('title', f'Page {page.order_index + 1}')
