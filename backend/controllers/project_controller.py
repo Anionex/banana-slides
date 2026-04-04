@@ -4,6 +4,7 @@ Project Controller - handles project-related endpoints
 import json
 import logging
 import os
+import shutil
 import subprocess
 import traceback
 from datetime import datetime
@@ -33,6 +34,89 @@ from utils import (
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
+
+
+def _resolve_libreoffice_binary() -> str | None:
+    """
+    Resolve the office binary used for headless PPT/PPTX -> PDF conversion.
+
+    Priority:
+    1. Explicit LIBREOFFICE_BIN env override
+    2. `libreoffice`
+    3. `soffice`
+    """
+    candidates = []
+
+    configured_binary = os.getenv('LIBREOFFICE_BIN', '').strip()
+    if configured_binary:
+        candidates.append(configured_binary)
+
+    candidates.extend(['libreoffice', 'soffice'])
+
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if shutil.which(candidate):
+            return candidate
+
+    return None
+
+
+def _convert_office_document_to_pdf(original_path: Path, output_dir: Path) -> str:
+    """
+    Convert a PPT/PPTX file to PDF with LibreOffice/soffice in headless mode.
+    """
+    office_binary = _resolve_libreoffice_binary()
+    if not office_binary:
+        raise ValueError(
+            "PPTX conversion requires LibreOffice, which is not installed. "
+            "Please convert your PPTX to PDF locally before uploading."
+        )
+
+    try:
+        result = subprocess.run(
+            [
+                office_binary,
+                '--headless',
+                '--convert-to',
+                'pdf',
+                '--outdir',
+                str(output_dir),
+                str(original_path),
+            ],
+            check=True,
+            timeout=120,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.TimeoutExpired as exc:
+        logger.error("Office to PDF conversion timed out for %s", original_path, exc_info=True)
+        raise ValueError("PPTX to PDF conversion timed out") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or exc.stdout or '').strip()
+        logger.error(
+            "Office to PDF conversion failed for %s via %s: %s",
+            original_path,
+            office_binary,
+            stderr or "unknown error",
+        )
+        raise ValueError("PPTX to PDF conversion failed") from exc
+
+    pdf_name = original_path.stem + '.pdf'
+    pdf_path = output_dir / pdf_name
+    if not pdf_path.exists():
+        logger.error(
+            "Office conversion command succeeded but PDF was not created for %s. stdout=%s stderr=%s",
+            original_path,
+            (result.stdout or '').strip(),
+            (result.stderr or '').strip(),
+        )
+        raise ValueError("PDF conversion failed - output file not found")
+
+    logger.info("Converted office document to PDF with %s: %s", office_binary, pdf_path)
+    return str(pdf_path)
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -1385,20 +1469,7 @@ def create_ppt_renovation_project():
         # Convert PPTX to PDF if needed
         pdf_path = str(original_path)
         if safe_name.lower().endswith(('.pptx', '.ppt')):
-            try:
-                subprocess.run(
-                    ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', str(template_dir), str(original_path)],
-                    check=True, timeout=120, capture_output=True
-                )
-                pdf_name = safe_name.rsplit('.', 1)[0] + '.pdf'
-                pdf_path = str(template_dir / pdf_name)
-                if not os.path.exists(pdf_path):
-                    raise ValueError("PDF conversion failed - output file not found")
-                logger.info(f"Converted PPTX to PDF: {pdf_path}")
-            except subprocess.TimeoutExpired:
-                raise ValueError("PPTX to PDF conversion timed out")
-            except FileNotFoundError:
-                raise ValueError("PPTX conversion requires LibreOffice, which is not installed. Please convert your PPTX to PDF locally before uploading.")
+            pdf_path = _convert_office_document_to_pdf(original_path, template_dir)
 
         # Convert PDF to page images using PyMuPDF or pdf2image
         pages_dir = project_dir / "pages"
