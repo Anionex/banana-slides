@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, User } from 'lucide-react';
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
+import { useUserStore } from '@/store/useUserStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
@@ -177,6 +178,7 @@ export const Home: React.FC = () => {
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
+  const { user, openLoginModal } = useUserStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -794,6 +796,29 @@ export const Home: React.FC = () => {
             <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
             {/* GitHub 仓库卡片 */}
             <GithubRepoCard />
+            {/* 用户入口 */}
+            <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
+            {user ? (
+              <button
+                onClick={() => navigate('/profile')}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-banana-100/60 dark:hover:bg-background-hover transition-all"
+                title="用户中心"
+              >
+                <div className="w-6 h-6 rounded-full bg-[var(--banana-yellow-pale)] flex items-center justify-center">
+                  <User size={13} className="text-[var(--banana-yellow-dark)]" />
+                </div>
+                <span className="text-xs font-medium text-gray-700 dark:text-foreground-secondary hidden sm:inline max-w-[60px] truncate">
+                  {user.username || user.phone?.slice(-4) || '我'}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={openLoginModal}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--banana-yellow)] text-white hover:bg-[var(--banana-yellow-dark)] transition-colors"
+              >
+                登录
+              </button>
+            )}
             {/* 分隔线 */}
           </div>
         </div>
