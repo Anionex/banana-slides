@@ -1,7 +1,17 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Crown, Receipt, Settings, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Crown, Receipt, Settings, ChevronLeft, LogOut } from 'lucide-react';
+import { useAdminStore } from '../../store/useAdminStore';
 
-const navItems = [
+const mainNavItems = [
+  { to: '/', label: '概览', icon: LayoutDashboard, end: true },
+  { to: '/users', label: '用户管理', icon: Users, end: false },
+  { to: '/subscriptions', label: '订阅管理', icon: Crown, end: false },
+  { to: '/transactions', label: '积分流水', icon: Receipt, end: false },
+  { to: '/settings', label: '系统设置', icon: Settings, end: false },
+];
+
+// Legacy nav items for when AdminLayout is embedded in the main app
+const legacyNavItems = [
   { to: '/admin', label: '概览', icon: LayoutDashboard, end: true },
   { to: '/admin/users', label: '用户管理', icon: Users, end: false },
   { to: '/admin/subscriptions', label: '订阅管理', icon: Crown, end: false },
@@ -9,8 +19,10 @@ const navItems = [
   { to: '/admin/settings', label: '系统设置', icon: Settings, end: false },
 ];
 
-export function AdminLayout() {
+export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boolean }) {
   const navigate = useNavigate();
+  const { logout } = useAdminStore();
+  const navItems = hideBackButton ? mainNavItems : legacyNavItems;
   return (
     <div className="min-h-screen flex bg-[var(--bg-primary)]">
       {/* Sidebar */}
@@ -43,13 +55,23 @@ export function AdminLayout() {
           ))}
         </nav>
         <div className="px-3 py-4 border-t border-[var(--border-secondary)]">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 px-3 py-2 w-full rounded-xl text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <ChevronLeft size={16} />
-            返回主页
-          </button>
+          {hideBackButton ? (
+            <button
+              onClick={() => { logout(); navigate('/login'); }}
+              className="flex items-center gap-2 px-3 py-2 w-full rounded-xl text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-red-500 transition-colors"
+            >
+              <LogOut size={16} />
+              退出登录
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 px-3 py-2 w-full rounded-xl text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <ChevronLeft size={16} />
+              返回主页
+            </button>
+          )}
         </div>
       </aside>
 

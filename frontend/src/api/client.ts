@@ -19,15 +19,21 @@ apiClient.interceptors.request.use(
       config.headers['X-Access-Code'] = accessCode;
     }
 
-    // Attach JWT token if available
+    // Attach JWT token: admin token takes priority for /api/admin/* routes
     try {
+      const isAdminRoute = config.url?.startsWith('/api/admin/');
+      const adminState = localStorage.getItem('feiye-admin');
       const userState = localStorage.getItem('feiye-user');
-      if (userState) {
-        const parsed = JSON.parse(userState);
-        const token = parsed?.state?.accessToken;
-        if (token && config.headers) {
-          config.headers['Authorization'] = `Bearer ${token}`;
-        }
+
+      let token: string | null = null;
+      if (isAdminRoute && adminState) {
+        token = JSON.parse(adminState)?.state?.accessToken ?? null;
+      }
+      if (!token && userState) {
+        token = JSON.parse(userState)?.state?.accessToken ?? null;
+      }
+      if (token && config.headers) {
+        config.headers['Authorization'] = `Bearer ${token}`;
       }
     } catch {
       // ignore parse errors

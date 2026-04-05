@@ -3,10 +3,45 @@ import logging
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, g
 from models import db, User, PointsTransaction, Subscription
-from utils.auth import require_admin
+from utils.auth import require_admin, generate_tokens
 
 logger = logging.getLogger(__name__)
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+
+
+def _check_password(password: str, hashed: str) -> bool:
+    import bcrypt
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+
+@admin_bp.route('/login', methods=['POST'])
+def admin_login():
+    """Admin-only login: username + password, role must be admin."""
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = (data.get('password') or '').strip()
+
+    if not username or not password:
+        return jsonify({'error': '请输入账号和密码'}), 400
+
+    user = User.query.filter(
+        (User.username == username) | (User.phone == username)
+    ).first()
+
+    if not user or not user.password_hash:
+        return jsonify({'error': '账号或密码错误'}), 401
+
+    if not _check_password(password, user.password_hash):
+        return jsonify({'error': '账号或密码错误'}), 401
+
+    if not user.is_active:
+        return jsonify({'error': '账号已被禁用'}), 403
+
+    if user.role != 'admin':
+        return jsonify({'error': '无管理员权限'}), 403
+
+    tokens = generate_tokens(user.id, user.role)
+    return jsonify({'data': {'user': user.to_dict(admin=True), **tokens}})
 
 
 @admin_bp.route('/stats', methods=['GET'])

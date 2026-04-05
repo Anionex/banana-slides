@@ -8,19 +8,12 @@ import { DetailEditor } from './pages/DetailEditor';
 import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { UserProfile } from './pages/UserProfile';
-import { AdminLayout } from './pages/admin/AdminLayout';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminUsers } from './pages/admin/AdminUsers';
-import { AdminSubscriptions } from './pages/admin/AdminSubscriptions';
-import { AdminTransactions } from './pages/admin/AdminTransactions';
 import { useProjectStore } from './store/useProjectStore';
-import { useUserStore } from './store/useUserStore';
 import { useToast, AccessCodeGuard, LoginModal } from './components/shared';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
   const { show, ToastContainer } = useToast();
-  const { user } = useUserStore();
 
   useEffect(() => {
     const savedProjectId = localStorage.getItem('currentProjectId');
@@ -48,16 +41,6 @@ function App() {
           <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
           <Route path="/project/:projectId/detail" element={<DetailEditor />} />
           <Route path="/project/:projectId/preview" element={<SlidePreview />} />
-          <Route
-            path="/admin"
-            element={user?.role === 'admin' ? <AdminLayout /> : <Navigate to="/" replace />}
-          >
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="subscriptions" element={<AdminSubscriptions />} />
-            <Route path="transactions" element={<AdminTransactions />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <ToastContainer />
