@@ -1101,6 +1101,7 @@ def generate_images(project_id):
                 pass
 
         missing_description_pages = [
+            page.order_index + 1
             for page in pages
             if not get_description_text(page.get_description_content())
         ]
