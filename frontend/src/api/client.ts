@@ -19,6 +19,20 @@ apiClient.interceptors.request.use(
       config.headers['X-Access-Code'] = accessCode;
     }
 
+    // Attach JWT token if available
+    try {
+      const userState = localStorage.getItem('feiye-user');
+      if (userState) {
+        const parsed = JSON.parse(userState);
+        const token = parsed?.state?.accessToken;
+        if (token && config.headers) {
+          config.headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
     // 如果请求体是 FormData，删除 Content-Type 让浏览器自动设置
     // 浏览器会自动添加正确的 Content-Type 和 boundary
     if (config.data instanceof FormData) {
