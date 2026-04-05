@@ -16,7 +16,7 @@ services:
     image: banana-slides:latest
     container_name: banana-slides
     ports:
-      - "80:80"
+      - "8080:80"
     env_file:
       - .env
     volumes:
