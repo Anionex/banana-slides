@@ -31,7 +31,7 @@ export function AdminLogin() {
           <div className="w-8 h-8 rounded-xl bg-[var(--banana-yellow)] flex items-center justify-center">
             <span className="text-white text-sm font-bold">F</span>
           </div>
-          <span className="font-semibold text-[var(--text-primary)] text-lg">飞页管理后台</span>
+          <span className="font-semibold text-[var(--text-primary)] text-lg">飞叶管理后台</span>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-secondary)] p-6 space-y-4">

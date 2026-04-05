@@ -32,7 +32,7 @@ export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boole
             <div className="w-7 h-7 rounded-lg bg-[var(--banana-yellow)] flex items-center justify-center">
               <span className="text-white text-xs font-bold">F</span>
             </div>
-            <span className="font-semibold text-[var(--text-primary)] text-sm">飞页管理后台</span>
+            <span className="font-semibold text-[var(--text-primary)] text-sm">飞叶管理后台</span>
           </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
