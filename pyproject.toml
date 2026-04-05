@@ -27,6 +27,9 @@ dependencies = [
     "volcengine-python-sdk[ark]>=5.0.9",
     "PyPDF2>=3.0.0",
     "PyMuPDF>=1.24.0",
+    "PyJWT>=2.8.0",
+    "bcrypt>=4.1.0",
+    "tencentcloud-sdk-python>=3.0.0",
 ]
 
 [project.optional-dependencies]

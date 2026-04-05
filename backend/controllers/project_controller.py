@@ -17,7 +17,7 @@ from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
 from werkzeug.utils import secure_filename
 
-from models import db, Project, Page, Task, ReferenceFile
+from models import db, Project, Page, Task, ReferenceFile, User, PointsTransaction
 from services import ProjectContext, FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import (
@@ -1081,12 +1081,26 @@ def generate_images(project_id):
         # Get page_ids from request body and fetch filtered pages
         selected_page_ids = parse_page_ids_from_body(data)
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
-        
+
         if not pages:
             return bad_request("No pages found for project")
 
+        # Points check: 3 points per page (only for authenticated users)
+        POINTS_PER_PAGE = 3
+        required_points = len(pages) * POINTS_PER_PAGE
+        _auth_user = None
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            from utils.auth import decode_token
+            try:
+                payload = decode_token(auth_header[7:])
+                _auth_user = User.query.get(payload.get('sub'))
+                if _auth_user and _auth_user.points < required_points:
+                    return jsonify({'error': 'insufficient_points', 'required': required_points, 'current': _auth_user.points}), 402
+            except Exception:
+                pass
+
         missing_description_pages = [
-            page.order_index + 1
             for page in pages
             if not get_description_text(page.get_description_content())
         ]
@@ -1169,6 +1183,18 @@ def generate_images(project_id):
         # Update project status
         project.status = 'GENERATING_IMAGES'
         db.session.commit()
+
+        # Deduct points for authenticated user (3 per page)
+        if _auth_user:
+            _auth_user.points = max(0, _auth_user.points - required_points)
+            db.session.add(PointsTransaction(
+                user_id=_auth_user.id,
+                amount=-required_points,
+                type='generation',
+                description=f'生成 {len(pages)} 页 PPT 图片',
+                created_at=datetime.utcnow(),
+            ))
+            db.session.commit()
         
         return success_response({
             'task_id': task.id,
