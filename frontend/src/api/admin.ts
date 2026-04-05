@@ -1,6 +1,9 @@
 import apiClient from './client';
 
 export const adminApi = {
+  login: (username: string, password: string) =>
+    apiClient.post('/api/admin/login', { username, password }),
+
   getStats: () =>
     apiClient.get('/api/admin/stats'),
 

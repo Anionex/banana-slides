@@ -331,30 +331,68 @@ def _load_settings_to_config(app):
 
 
 def _init_admin_user():
-    """Create initial admin account from ADMIN_INIT_PHONE env var if not exists."""
+    """Create initial admin account from env vars if not exists.
+
+    Supports two modes (checked in order):
+    1. ADMIN_INIT_USERNAME + ADMIN_INIT_PASSWORD  — username/password admin
+    2. ADMIN_INIT_PHONE (legacy)                  — phone-only admin (no password)
+    """
+    import bcrypt
+    from models import User
+    from datetime import datetime
+
+    username = os.getenv('ADMIN_INIT_USERNAME', '').strip()
+    password = os.getenv('ADMIN_INIT_PASSWORD', '').strip()
     phone = os.getenv('ADMIN_INIT_PHONE', '').strip()
-    if not phone:
-        return
+
     try:
-        from models import User, PointsTransaction
-        from datetime import datetime
-        existing = User.query.filter_by(phone=phone).first()
-        if existing:
-            if existing.role != 'admin':
-                existing.role = 'admin'
-                db.session.commit()
-                logging.info(f"Upgraded existing user {phone} to admin")
-            return
-        admin = User(
-            phone=phone,
-            role='admin',
-            points=0,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.session.add(admin)
-        db.session.commit()
-        logging.info(f"Created initial admin account: {phone}")
+        if username and password:
+            existing = User.query.filter_by(username=username).first()
+            if existing:
+                changed = False
+                if existing.role != 'admin':
+                    existing.role = 'admin'
+                    changed = True
+                # Always sync password so it can be rotated via env var restart
+                new_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                if not existing.password_hash or not bcrypt.checkpw(password.encode(), existing.password_hash.encode()):
+                    existing.password_hash = new_hash
+                    changed = True
+                if changed:
+                    db.session.commit()
+                    logging.info(f"Updated admin account: {username}")
+                return
+            admin = User(
+                username=username,
+                password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+                role='admin',
+                points=0,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+            )
+            db.session.add(admin)
+            db.session.commit()
+            logging.info(f"Created initial admin account (username): {username}")
+
+        elif phone:
+            existing = User.query.filter_by(phone=phone).first()
+            if existing:
+                if existing.role != 'admin':
+                    existing.role = 'admin'
+                    db.session.commit()
+                    logging.info(f"Upgraded existing user {phone} to admin")
+                return
+            admin = User(
+                phone=phone,
+                role='admin',
+                points=0,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+            )
+            db.session.add(admin)
+            db.session.commit()
+            logging.info(f"Created initial admin account (phone): {phone}")
+
     except Exception as e:
         logging.warning(f"Could not init admin user: {e}")
 
