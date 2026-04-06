@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context, g
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
