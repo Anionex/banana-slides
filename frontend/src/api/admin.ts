@@ -1,27 +1,41 @@
-import apiClient from './client';
+import axios from 'axios';
+
+// Dedicated axios instance for admin API — always injects admin token from store
+const adminClient = axios.create({ baseURL: '', timeout: 60000 });
+
+adminClient.interceptors.request.use((config) => {
+  try {
+    const raw = localStorage.getItem('feiye-admin');
+    const token = raw ? JSON.parse(raw)?.state?.accessToken : null;
+    if (token && config.headers) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch { /* ignore */ }
+  return config;
+});
 
 export const adminApi = {
   login: (username: string, password: string) =>
-    apiClient.post('/api/admin/login', { username, password }),
+    adminClient.post('/api/admin/login', { username, password }),
 
   getStats: () =>
-    apiClient.get('/api/admin/stats'),
+    adminClient.get('/api/admin/stats'),
 
   listUsers: (params?: { page?: number; per_page?: number; search?: string }) =>
-    apiClient.get('/api/admin/users', { params }),
+    adminClient.get('/api/admin/users', { params }),
 
   updateUser: (id: number, data: { role?: string; is_active?: boolean }) =>
-    apiClient.put(`/api/admin/users/${id}`, data),
+    adminClient.put(`/api/admin/users/${id}`, data),
 
   adjustPoints: (id: number, amount: number, description?: string) =>
-    apiClient.post(`/api/admin/users/${id}/points`, { amount, description }),
+    adminClient.post(`/api/admin/users/${id}/points`, { amount, description }),
 
   activateSubscription: (id: number, plan: 'monthly' | 'yearly') =>
-    apiClient.post(`/api/admin/users/${id}/subscribe`, { plan }),
+    adminClient.post(`/api/admin/users/${id}/subscribe`, { plan }),
 
   listSubscriptions: (params?: { page?: number; per_page?: number; status?: string }) =>
-    apiClient.get('/api/admin/subscriptions', { params }),
+    adminClient.get('/api/admin/subscriptions', { params }),
 
   listTransactions: (params?: { page?: number; per_page?: number; user_id?: number }) =>
-    apiClient.get('/api/admin/transactions', { params }),
+    adminClient.get('/api/admin/transactions', { params }),
 };
