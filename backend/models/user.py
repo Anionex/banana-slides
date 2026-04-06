@@ -1,4 +1,5 @@
 """User model"""
+import uuid
 from datetime import datetime
 from . import db
 
@@ -6,7 +7,7 @@ from . import db
 class User(db.Model):
     __tablename__ = 'users'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     phone = db.Column(db.String(20), unique=True, nullable=True)
     username = db.Column(db.String(50), unique=True, nullable=True)
     password_hash = db.Column(db.String(255), nullable=True)
