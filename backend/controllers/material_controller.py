@@ -1,9 +1,10 @@
 """
 Material Controller - handles standalone material image generation
 """
-from flask import Blueprint, request, current_app, send_file
+from flask import Blueprint, request, current_app, send_file, g
 from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
+from utils.auth import optional_auth
 from services import FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
@@ -101,7 +102,13 @@ def _generate_image_caption(filepath: str) -> str:
 
 def _build_material_query(filter_project_id: str):
     """Build common material query with project validation."""
+    user = getattr(g, 'current_user', None)
     query = Material.query
+    # Always scope to current user
+    if user:
+        query = query.filter(Material.user_id == user.id)
+    else:
+        query = query.filter(Material.user_id.is_(None))
 
     if filter_project_id == 'all':
         return query, None
@@ -216,7 +223,8 @@ def _save_material_file(file, target_project_id: Optional[str]):
         project_id=target_project_id,
         filename=unique_filename,
         relative_path=relative_path,
-        url=image_url
+        url=image_url,
+        user_id=getattr(getattr(g, 'current_user', None), 'id', None),
     )
 
     try:
@@ -396,46 +404,21 @@ def upload_material(project_id):
 
 
 @material_global_bp.route('', methods=['GET'])
+@optional_auth
 def list_all_materials():
-    """
-    GET /api/materials - Global materials endpoint for complex queries
-    
-    Query params:
-        - project_id: Filter by project_id
-          * 'all' (default): Get all materials regardless of project
-          * 'none': Get only materials without a project (global materials)
-          * <project_id>: Get materials for specific project
-    
-    Returns:
-        List of material images with filename, url, and metadata
-    """
     try:
         filter_project_id = request.args.get('project_id', 'all')
         materials_list, error = _get_materials_list(filter_project_id)
         if error:
             return error
-        
-        return success_response({
-            "materials": materials_list,
-            "count": len(materials_list)
-        })
-    
+        return success_response({"materials": materials_list, "count": len(materials_list)})
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 
 
 @material_global_bp.route('/upload', methods=['POST'])
+@optional_auth
 def upload_material_global():
-    """
-    POST /api/materials/upload - Upload a material image (global, not bound to a project)
-    
-    Supports multipart/form-data:
-    - file: Image file (required)
-    - project_id: Optional query parameter to associate with a project
-    
-    Returns:
-        Material info with filename, url, and metadata
-    """
     return _handle_material_upload(default_project_id=None)
 
 

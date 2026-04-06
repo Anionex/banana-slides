@@ -2,9 +2,10 @@
 Template Controller - handles template-related endpoints
 """
 import logging
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from models import db, Project, UserTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
+from utils.auth import optional_auth
 from services import FileService
 from datetime import datetime
 
@@ -109,66 +110,49 @@ def get_system_templates():
 # ========== User Template Endpoints ==========
 
 @user_template_bp.route('', methods=['POST'])
+@optional_auth
 def upload_user_template():
     """
     POST /api/user-templates - Upload user template image
-
-    Content-Type: multipart/form-data
-    Form: template_image=@file.png
-    Optional: name=Template Name
     """
     try:
-        # Check if file is in request
         if 'template_image' not in request.files:
             return bad_request("No file uploaded")
-
         file = request.files['template_image']
-
         if file.filename == '':
             return bad_request("No file selected")
-
-        # Validate file extension
         if not allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
             return bad_request("Invalid file type. Allowed types: png, jpg, jpeg, gif, webp")
 
-        # Get optional name
         name = request.form.get('name', None)
-
-        # Get file size before saving
-        file.seek(0, 2)  # Seek to end
+        file.seek(0, 2)
         file_size = file.tell()
-        file.seek(0)  # Reset to beginning
+        file.seek(0)
 
-        # Generate template ID first
         import uuid
         template_id = str(uuid.uuid4())
-
-        # Save template file first (using the generated ID)
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_path = file_service.save_user_template(file, template_id)
-
-        # Generate thumbnail for faster loading
         thumb_path = file_service.save_user_template_thumbnail(template_id, file_path)
 
-        # Create template record with file_path already set
+        user = g.current_user
         template = UserTemplate(
             id=template_id,
             name=name,
             file_path=file_path,
             thumb_path=thumb_path,
-            file_size=file_size
+            file_size=file_size,
+            user_id=user.id if user else None,
         )
         db.session.add(template)
         db.session.commit()
-
         return success_response(template.to_dict())
-    
+
     except Exception as e:
         import traceback
         db.session.rollback()
         error_msg = str(e)
         logger.error(f"Error uploading user template: {error_msg}", exc_info=True)
-        # 在开发环境中返回详细错误，生产环境返回通用错误
         if current_app.config.get('DEBUG', False):
             return error_response('SERVER_ERROR', f"{error_msg}\n{traceback.format_exc()}", 500)
         else:
@@ -176,17 +160,20 @@ def upload_user_template():
 
 
 @user_template_bp.route('', methods=['GET'])
+@optional_auth
 def list_user_templates():
     """
     GET /api/user-templates - Get list of user templates
     """
     try:
-        templates = UserTemplate.query.order_by(UserTemplate.created_at.desc()).all()
-        
-        return success_response({
-            'templates': [template.to_dict() for template in templates]
-        })
-    
+        user = g.current_user
+        query = UserTemplate.query
+        if user:
+            query = query.filter(UserTemplate.user_id == user.id)
+        else:
+            query = query.filter(UserTemplate.user_id.is_(None))
+        templates = query.order_by(UserTemplate.created_at.desc()).all()
+        return success_response({'templates': [t.to_dict() for t in templates]})
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 

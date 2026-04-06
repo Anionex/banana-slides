@@ -57,6 +57,27 @@ def require_auth(f):
     return decorated
 
 
+def optional_auth(f):
+    """Like require_auth but doesn't fail if no token — sets g.current_user to None."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        g.current_user = None
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+            try:
+                payload = decode_token(token)
+                if payload.get('type') == 'access':
+                    from models import User
+                    user = User.query.get(payload['sub'])
+                    if user and user.is_active:
+                        g.current_user = user
+            except Exception:
+                pass
+        return f(*args, **kwargs)
+    return decorated
+
+
 def require_admin(f):
     @wraps(f)
     def decorated(*args, **kwargs):

@@ -123,74 +123,11 @@ export function LoginModal() {
 
         {tab === 'phone' ? (
           <div className="space-y-3">
-            {/* Phone */}
-            <div className="flex items-center gap-2 border border-[var(--border-primary)] rounded-xl px-3 py-2.5 focus-within:border-[var(--banana-yellow)] transition-colors">
-              <Phone size={16} className="text-[var(--text-tertiary)] shrink-0" />
-              <input
-                type="tel"
-                placeholder="手机号"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-              />
+            {/* Coming soon notice */}
+            <div className="rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-secondary)] px-4 py-3 text-center">
+              <p className="text-sm text-[var(--text-secondary)]">手机验证码登录</p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">敬请期待</p>
             </div>
-            {/* Code */}
-            <div className="flex gap-2">
-              <div className="flex-1 flex items-center gap-2 border border-[var(--border-primary)] rounded-xl px-3 py-2.5 focus-within:border-[var(--banana-yellow)] transition-colors">
-                <Lock size={16} className="text-[var(--text-tertiary)] shrink-0" />
-                <input
-                  type="text"
-                  placeholder="验证码"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  maxLength={6}
-                  className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-                />
-              </div>
-              <button
-                onClick={handleSendCode}
-                disabled={countdown > 0 || loading}
-                className="shrink-0 px-3 py-2.5 text-sm rounded-xl border border-[var(--border-primary)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-              >
-                {countdown > 0 ? `${countdown}s` : '获取验证码'}
-              </button>
-            </div>
-            {/* Register extras */}
-            {mode === 'register' && (
-              <>
-                <div className="flex items-center gap-2 border border-[var(--border-primary)] rounded-xl px-3 py-2.5 focus-within:border-[var(--banana-yellow)] transition-colors">
-                  <User size={16} className="text-[var(--text-tertiary)] shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="用户名（可选）"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-                  />
-                </div>
-                <div className="flex items-center gap-2 border border-[var(--border-primary)] rounded-xl px-3 py-2.5 focus-within:border-[var(--banana-yellow)] transition-colors">
-                  <Lock size={16} className="text-[var(--text-tertiary)] shrink-0" />
-                  <input
-                    type={showPwd ? 'text' : 'password'}
-                    placeholder="设置密码（可选）"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-                  />
-                  <button onClick={() => setShowPwd(!showPwd)} className="text-[var(--text-tertiary)]">
-                    {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </>
-            )}
-            {error && <p className="text-red-500 text-xs">{error}</p>}
-            <button
-              onClick={handlePhoneSubmit}
-              disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-[var(--banana-yellow)] text-white font-medium text-sm hover:bg-[var(--banana-yellow-dark)] disabled:opacity-60 transition-colors"
-            >
-              {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
-            </button>
           </div>
         ) : (
           <div className="space-y-3">

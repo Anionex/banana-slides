@@ -715,6 +715,7 @@ export const Home: React.FC = () => {
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
             </Button>
+            {user?.role === 'admin' && (
             <Button
               variant="ghost"
               size="sm"
@@ -724,6 +725,7 @@ export const Home: React.FC = () => {
             >
               <span className="hidden md:inline">{t('nav.settings')}</span>
             </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -826,6 +828,13 @@ export const Home: React.FC = () => {
 
       {/* 主内容 */}
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
+        {/* 未登录遮罩：拦截主内容区所有点击 */}
+        {!user && (
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            onClick={openLoginModal}
+          />
+        )}
         {/* Hero 标题区 */}
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 dark:bg-background-secondary backdrop-blur-sm rounded-full shadow-sm dark:shadow-none mb-4">

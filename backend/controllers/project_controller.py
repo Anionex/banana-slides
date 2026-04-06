@@ -31,6 +31,7 @@ from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
 )
+from utils.auth import optional_auth, require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -239,75 +240,52 @@ def _smart_merge_pages(project_id, pages_data):
 
 
 @project_bp.route('', methods=['GET'])
+@optional_auth
 def list_projects():
     """
     GET /api/projects - Get all projects (for history)
-    
-    Query params:
-    - limit: number of projects to return (default: 50, max: 100)
-    - offset: offset for pagination (default: 0)
     """
     try:
-        # Parameter validation
-        limit = request.args.get('limit', 50, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        limit = min(max(1, request.args.get('limit', 50, type=int)), 100)
+        offset = max(0, request.args.get('offset', 0, type=int))
 
-        # Enforce limits to prevent performance issues
-        limit = min(max(1, limit), 100)  # Between 1-100
-        offset = max(0, offset)  # Non-negative
+        user = g.current_user
+        query = Project.query
+        if user:
+            query = query.filter(Project.user_id == user.id)
+        else:
+            query = query.filter(Project.user_id.is_(None))
 
-        # Get total count for pagination
-        total = Project.query.count()
-
-        projects = Project.query\
-            .options(joinedload(Project.pages))\
+        total = query.count()
+        projects = query.options(joinedload(Project.pages))\
             .order_by(desc(Project.updated_at))\
-            .limit(limit)\
-            .offset(offset)\
-            .all()
+            .limit(limit).offset(offset).all()
 
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'total': total,
-            'limit': limit,
-            'offset': offset
+            'total': total, 'limit': limit, 'offset': offset
         })
-    
     except Exception as e:
         logger.error(f"list_projects failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
 @project_bp.route('', methods=['POST'])
+@optional_auth
 def create_project():
     """
     POST /api/projects - Create a new project
-    
-    Request body:
-    {
-        "creation_type": "idea|outline|descriptions",
-        "idea_prompt": "...",  # required for idea type
-        "outline_text": "...",  # required for outline type
-        "description_text": "...",  # required for descriptions type
-        "template_id": "optional"
-    }
     """
     try:
         data = request.get_json()
-        
         if not data:
             return bad_request("Request body is required")
-        
-        # creation_type is required
         if 'creation_type' not in data:
             return bad_request("creation_type is required")
-        
         creation_type = data.get('creation_type')
-        
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
-        
-        # Validate and set aspect ratio if provided
+
         image_aspect_ratio = '16:9'
         if 'image_aspect_ratio' in data:
             try:
@@ -315,7 +293,7 @@ def create_project():
             except ValueError as e:
                 return bad_request(str(e))
 
-        # Create project
+        user = g.current_user
         project = Project(
             creation_type=creation_type,
             idea_prompt=data.get('idea_prompt'),
@@ -323,27 +301,22 @@ def create_project():
             description_text=data.get('description_text'),
             template_style=data.get('template_style'),
             image_aspect_ratio=image_aspect_ratio,
-            status='DRAFT'
+            status='DRAFT',
+            user_id=user.id if user else None,
         )
-        
         db.session.add(project)
         db.session.commit()
-        
+
         return success_response({
-            'project_id': project.id,
-            'status': project.status,
-            'pages': []
+            'project_id': project.id, 'status': project.status, 'pages': []
         }, status_code=201)
-    
+
     except BadRequest as e:
-        # Handle JSON parsing errors (invalid JSON body)
         db.session.rollback()
         logger.warning(f"create_project: Invalid JSON body - {str(e)}")
         return bad_request("Invalid JSON in request body")
-    
     except Exception as e:
         db.session.rollback()
-        error_trace = traceback.format_exc()
         logger.error(f"create_project failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
