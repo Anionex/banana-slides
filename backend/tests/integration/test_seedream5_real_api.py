@@ -35,7 +35,7 @@ class TestSeedream5RealAPI:
         3. Verifies no "guidance_scale is not supported" error
         4. Verifies image is generated successfully
         """
-        from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
 
         # Initialize with Seedream 5.0 model
         provider = LazyLLMImageProvider(
@@ -76,7 +76,7 @@ class TestSeedream5RealAPI:
         """
         Verify older Seedream 4.0 models still work (not broken by the fix).
         """
-        from backend.services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
 
         provider = LazyLLMImageProvider(
             source='doubao',
