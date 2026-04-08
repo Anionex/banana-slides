@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { uploadMaterial } from '@/api/endpoints';
+import { uploadMaterial, getMaterialByUrl } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
 
 const ALLOWED_IMAGE_TYPES = [
@@ -228,10 +228,14 @@ export const useImagePaste = ({
         const internalImages = markdownImages.filter(img => isInternalMaterialUrl(img.url));
         if (internalImages.length > 0) {
           e.preventDefault();
-          // Process internal material images — collect all replacements first,
-          // then apply in a single state update to avoid race conditions
+          // Insert the pasted text first so it appears in the editor,
+          // then async-replace captions for internal material images
+          if (insertAtCursorRef.current) {
+            insertAtCursorRef.current(text);
+          } else {
+            setContentRef.current(prev => prev + text);
+          }
           (async () => {
-            const { getMaterialByUrl } = await import('@/api/endpoints');
             const replacements = new Map<string, string>();
             for (const img of internalImages) {
               try {

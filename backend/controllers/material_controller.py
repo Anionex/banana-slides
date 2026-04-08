@@ -572,18 +572,21 @@ def get_material_caption(material_id):
     if not material:
         return not_found('Material')
 
-    # Return existing caption if available
-    if material.caption:
+    # Return existing caption if available (None=not yet generated, ''=failed)
+    if material.caption is not None:
         return success_response({'caption': material.caption})
 
     # Generate and store caption
-    file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-    filepath = file_service.get_absolute_path(material.relative_path)
-    caption = _generate_image_caption(filepath)
-    material.caption = caption
-    db.session.commit()
-
-    return success_response({'caption': caption})
+    try:
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        filepath = file_service.get_absolute_path(material.relative_path)
+        caption = _generate_image_caption(filepath)
+        material.caption = caption
+        db.session.commit()
+        return success_response({'caption': caption})
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @material_global_bp.route('/by-url', methods=['GET'])
@@ -597,12 +600,15 @@ def get_material_by_url():
     if not material:
         return not_found('Material')
 
-    # Ensure caption exists
-    if not material.caption:
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        filepath = file_service.get_absolute_path(material.relative_path)
-        material.caption = _generate_image_caption(filepath)
-        db.session.commit()
-
-    return success_response(material.to_dict())
+    # Ensure caption exists (None=not yet generated, ''=failed)
+    try:
+        if material.caption is None:
+            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+            filepath = file_service.get_absolute_path(material.relative_path)
+            material.caption = _generate_image_caption(filepath)
+            db.session.commit()
+        return success_response(material.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
 
