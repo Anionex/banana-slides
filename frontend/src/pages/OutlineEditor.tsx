@@ -95,8 +95,7 @@ import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineOutline, updateProject, addPage } from '@/api/endpoints';
-import { useImagePaste } from '@/hooks/useImagePaste';
-import { escapeMarkdown } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import type { Page } from '@/types';
@@ -200,19 +199,13 @@ export const OutlineEditor: React.FC = () => {
   const [activeMaterialTarget, setActiveMaterialTarget] = useState<'input' | 'requirements'>('input');
 
   const handleInputMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials.map(m => {
-      const caption = m.caption || m.original_filename || m.filename || 'image';
-      return `![${escapeMarkdown(caption)}](${m.url})`;
-    }).join('\n');
+    const markdown = buildMaterialsMarkdown(materials, setInputText);
     const targetRef = desktopTextareaRef.current || mobileTextareaRef.current;
     targetRef?.insertAtCursor(markdown + '\n');
   }, []);
 
   const handleReqMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials.map(m => {
-      const caption = m.caption || m.original_filename || m.filename || 'image';
-      return `![${escapeMarkdown(caption)}](${m.url})`;
-    }).join('\n');
+    const markdown = buildMaterialsMarkdown(materials, setOutlineRequirements);
     reqTextareaRef.current?.insertAtCursor(markdown + '\n');
   }, []);
 

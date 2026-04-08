@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { useImagePaste, escapeMarkdown } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import { Card, useConfirm, Markdown, ShimmerOverlay, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import type { Page, Material } from '@/types';
@@ -78,10 +78,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   });
 
   const handleMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials.map(m => {
-      const caption = m.caption || m.original_filename || m.filename || 'image';
-      return `![${escapeMarkdown(caption)}](${m.url})`;
-    }).join('\n');
+    const markdown = buildMaterialsMarkdown(materials, setEditPoints);
     textareaRef.current?.insertAtCursor(markdown + '\n');
   }, []);
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Edit2, FileText, RefreshCw, Tag, Layout, Image, Focus, MessageSquare, ImageOff } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { useImagePaste, escapeMarkdown } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
@@ -110,10 +110,8 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   });
 
   const handleMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials.map(m => {
-      const caption = m.caption || m.original_filename || m.filename || 'image';
-      return `![${escapeMarkdown(caption)}](${m.url})`;
-    }).join('\n');
+    const setContent = (updater: (prev: string) => string) => activeSetContent.current(updater);
+    const markdown = buildMaterialsMarkdown(materials, setContent);
     activeInsertAtCursor.current?.(markdown + '\n');
   }, []);
 

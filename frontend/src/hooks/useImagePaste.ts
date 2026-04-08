@@ -21,6 +21,58 @@ export const escapeMarkdown = (text: string): string => {
   return text.replace(/[[\]()]/g, '\\$&');
 };
 
+/**
+ * Build markdown for selected materials.
+ * For materials without a caption, async-fetches one via the caption API
+ * and replaces the fallback alt text afterwards.
+ */
+export const buildMaterialsMarkdown = (
+  materials: import('@/types').Material[],
+  setContent?: (updater: (prev: string) => string) => void,
+): string => {
+  const lines: string[] = [];
+  const needCaption: { material: import('@/types').Material; fallback: string }[] = [];
+
+  for (const m of materials) {
+    const fallback = m.original_filename || m.filename || 'image';
+    const caption = m.caption || fallback;
+    lines.push(`![${escapeMarkdown(caption)}](${m.url})`);
+    if (!m.caption) {
+      needCaption.push({ material: m, fallback });
+    }
+  }
+
+  // Async-fetch captions for materials that don't have one yet
+  if (needCaption.length > 0 && setContent) {
+    (async () => {
+      const { getMaterialCaption } = await import('@/api/endpoints');
+      const replacements = new Map<string, string>();
+      await Promise.all(needCaption.map(async ({ material, fallback }) => {
+        try {
+          const response = await getMaterialCaption(material.id);
+          const caption = response.data?.caption;
+          if (caption) {
+            const oldMd = `![${escapeMarkdown(fallback)}](${material.url})`;
+            const newMd = `![${escapeMarkdown(caption)}](${material.url})`;
+            replacements.set(oldMd, newMd);
+          }
+        } catch { /* caption fetch failed, keep fallback */ }
+      }));
+      if (replacements.size > 0) {
+        setContent(prev => {
+          let content = prev;
+          for (const [oldMd, newMd] of replacements.entries()) {
+            content = content.replaceAll(oldMd, newMd);
+          }
+          return content;
+        });
+      }
+    })();
+  }
+
+  return lines.join('\n');
+};
+
 /** Generate a placeholder markdown for a file (exported for MarkdownTextarea) */
 export const generatePlaceholder = (file: File): { blobUrl: string; markdown: string } => {
   const blobUrl = URL.createObjectURL(file);

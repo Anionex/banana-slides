@@ -4,8 +4,7 @@ import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDow
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
-import { useImagePaste } from '@/hooks/useImagePaste';
-import { escapeMarkdown } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -286,10 +285,7 @@ export const DetailEditor: React.FC = () => {
 
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const handleMaterialSelect = useCallback((materials: Material[]) => {
-    const markdown = materials.map(m => {
-      const caption = m.caption || m.original_filename || m.filename || 'image';
-      return `![${escapeMarkdown(caption)}](${m.url})`;
-    }).join('\n');
+    const markdown = buildMaterialsMarkdown(materials, setDescRequirements);
     reqTextareaRef.current?.insertAtCursor(markdown + '\n');
   }, []);
 
