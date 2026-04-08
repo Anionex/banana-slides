@@ -1,7 +1,0 @@
-#!/usr/bin/env python3
-"""Repository-local executable for banana-cli."""
-
-from cli.banana_cli.__main__ import main
-
-if __name__ == "__main__":
-    main()
