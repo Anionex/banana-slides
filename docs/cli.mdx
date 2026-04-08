@@ -1,0 +1,344 @@
+---
+title: "CLI Tool"
+description: "Use banana-cli to operate Banana Slides from the command line"
+---
+
+## Overview
+
+`banana-cli` is the command-line tool for Banana Slides, implementing all features through the backend REST API. Ideal for:
+
+- **Batch generation**: Create PPTs in bulk from JSONL/CSV files
+- **Automation pipelines**: Integrate into CI/CD or scripts
+- **AI Agent orchestration**: Use as a tool-calling interface for agents
+
+## Installation
+
+From the project root:
+
+```bash
+uv sync          # Install dependencies
+uv run banana-cli --help  # Verify installation
+```
+
+## Global Options
+
+All commands support the following global options:
+
+```bash
+banana-cli [global-options] <command-group> <subcommand> [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--base-url` | Backend address | `http://localhost:5000` |
+| `--access-code` | Access code (injected as `X-Access-Code` header) | None |
+| `--poll-interval` | Task polling interval (seconds) | `3` |
+| `--request-timeout` | Request timeout (seconds) | `60` |
+| `--config` | Config file path (TOML) | `~/.config/banana-slides/cli.toml` |
+| `--json` | Output in JSON format | Off |
+| `--verbose` | Verbose output | Off |
+
+### Configuration Priority
+
+CLI args > Environment variables (`BANANA_CLI_*`) > TOML config file > Defaults
+
+Environment variable mapping:
+
+```bash
+BANANA_CLI_BASE_URL=http://localhost:5000
+BANANA_CLI_ACCESS_CODE=your-code
+BANANA_CLI_POLL_INTERVAL=3
+BANANA_CLI_REQUEST_TIMEOUT=60
+BANANA_CLI_CONTINUE_ON_ERROR=true
+```
+
+---
+
+## Command Reference
+
+### projects — Project Management
+
+```bash
+# List projects
+banana-cli projects list --limit 50 --offset 0
+
+# Get project details
+banana-cli projects get <project_id>
+
+# Create project
+banana-cli projects create --creation-type idea --idea-prompt "AI technology trends"
+
+# Update project
+banana-cli projects update <project_id> --template-style "Dark business style"
+
+# Delete project
+banana-cli projects delete <project_id>
+```
+
+### workflows — Workflows
+
+End-to-end PPT generation pipeline.
+
+```bash
+# Generate outline
+banana-cli workflows outline --project-id <id>
+
+# Generate outline from description
+banana-cli workflows outline --project-id <id> --from-description
+
+# Refine outline with natural language
+banana-cli workflows outline --project-id <id> --refine "Add a page about market analysis"
+
+# Generate descriptions (async task, add --wait to block)
+banana-cli workflows descriptions --project-id <id> --wait
+
+# Generate images
+banana-cli workflows images --project-id <id> --wait --use-template
+
+# Full pipeline: outline → descriptions → images
+banana-cli workflows full --project-id <id> --language zh
+```
+
+`workflows full` supports skipping steps:
+
+```bash
+banana-cli workflows full --project-id <id> \
+  --skip-outline \
+  --desc-max-workers 4 \
+  --image-max-workers 2
+```
+
+### pages — Page Operations
+
+```bash
+# Create page
+banana-cli pages create --project-id <id> --order-index 0
+
+# Set outline content
+banana-cli pages set-outline --project-id <id> --page-id <pid> \
+  --outline-json '{"title": "Chapter 1"}'
+
+# Generate single page description
+banana-cli pages gen-description --project-id <id> --page-id <pid>
+
+# Generate single page image
+banana-cli pages gen-image --project-id <id> --page-id <pid> --use-template
+
+# Edit image
+banana-cli pages edit-image --project-id <id> --page-id <pid> \
+  --instruction "Change the title to red"
+
+# View image versions
+banana-cli pages versions --project-id <id> --page-id <pid>
+
+# Switch image version
+banana-cli pages set-current --project-id <id> --page-id <pid> --version-id <vid>
+```
+
+### exports — Export
+
+```bash
+# Export PPTX
+banana-cli exports pptx --project-id <id>
+
+# Export PDF
+banana-cli exports pdf --project-id <id>
+
+# Export images
+banana-cli exports images --project-id <id>
+
+# Export editable PPTX (async task)
+banana-cli exports editable-pptx --project-id <id> --wait --max-depth 2
+```
+
+### materials — Material Management
+
+```bash
+# Upload material to project
+banana-cli materials upload --file /path/to/image.png --project-id <id>
+
+# Upload global material
+banana-cli materials upload --file /path/to/image.png --global
+
+# AI-generate material
+banana-cli materials generate --prompt "Tech-style background" --project-id <id> --wait
+
+# Associate global material with project
+banana-cli materials associate --project-id <id> --material-url <url>
+
+# Download material
+banana-cli materials download --material-id <mid> --output /tmp/materials.zip
+```
+
+### refs — Reference Files
+
+```bash
+# Upload reference file
+banana-cli refs upload --file /path/to/document.pdf --project-id <id>
+
+# Trigger parsing
+banana-cli refs parse --file-id <fid>
+
+# Associate with project
+banana-cli refs associate --file-id <fid> --project-id <id>
+```
+
+### templates — Templates
+
+```bash
+# Upload template image
+banana-cli templates upload --project-id <id> --file /path/to/template.png
+
+# Delete template
+banana-cli templates delete --project-id <id>
+```
+
+### renovation — PPT Renovation
+
+```bash
+# Upload old PPT for renovation
+banana-cli renovation create --file /path/to/old.pptx --wait --language zh
+```
+
+### settings — Settings
+
+```bash
+# Get current settings
+banana-cli settings get
+
+# Update settings
+banana-cli settings update --data '{"TEXT_MODEL": "gemini-2.0-flash"}'
+
+# Reset settings
+banana-cli settings reset
+
+# Verify configuration
+banana-cli settings verify
+
+# Run feature test
+banana-cli settings test --name text-model
+```
+
+### tasks — Task Status
+
+```bash
+# Query task status
+banana-cli tasks status --project-id <id> --task-id <tid>
+
+# Wait for task completion
+banana-cli tasks wait --project-id <id> --task-id <tid> --timeout-sec 600
+```
+
+### styles — Style Extraction
+
+```bash
+banana-cli styles extract --image /path/to/reference.png
+```
+
+### files — File Download
+
+```bash
+banana-cli files fetch --url /files/project-id/exports/slides.pptx --output ./slides.pptx
+```
+
+---
+
+## Batch Jobs
+
+### Job File Format
+
+Supports JSONL and CSV formats. Each line defines one generation task.
+
+**JSONL example** (`jobs.jsonl`):
+
+```json
+{"job_id":"job-1","job_type":"full_generation","creation_type":"idea","idea_prompt":"Introduction to AI","language":"en","export":{"formats":["pptx"]}}
+{"job_id":"job-2","job_type":"full_generation","creation_type":"idea","idea_prompt":"Machine Learning in Practice","language":"en","export":{"formats":["pptx","pdf"]}}
+```
+
+**Field descriptions**:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `job_id` | No | Job identifier for tracking and deduplication |
+| `job_type` | Yes | `full_generation` or `export_only` |
+| `creation_type` | Yes* | `idea`, `outline`, or `descriptions` (required for full_generation) |
+| `idea_prompt` | Yes* | Topic description (required when creation_type=idea) |
+| `language` | No | `zh`, `en`, `ja`, `auto` |
+| `use_template` | No | Whether to use template for image generation, default `true` |
+| `export.formats` | Yes | Export format list: `pptx`, `pdf`, `images`, `editable_pptx` |
+| `reference_files` | No | List of absolute paths to reference files |
+| `material_files` | No | List of absolute paths to material files |
+| `template_image_path` | No | Absolute path to template image |
+
+### Running Batch Jobs
+
+```bash
+banana-cli run jobs \
+  --file jobs.jsonl \
+  --report report.json \
+  --continue-on-error \
+  --timeout-sec 3600 \
+  --state-file state.json \
+  --done-marker-file done.json
+```
+
+- `--state-file`: Writes running state in real-time for monitoring
+- `--done-marker-file`: Records completed jobs, automatically skipped on re-run
+- `--continue-on-error` / `--fail-fast`: Continue after failure or stop immediately
+
+### Monitoring Run Status
+
+```bash
+# View a single snapshot
+banana-cli run monitor --state-file state.json
+
+# Continuous monitoring until completion
+banana-cli run monitor --state-file state.json --watch --interval 30
+```
+
+### Interactive Job File Builder
+
+```bash
+uv run python -m cli.banana_cli.jobs.interactive_builder --output jobs.jsonl --count 3
+```
+
+---
+
+## Typical Workflow Examples
+
+### From Idea to PPTX
+
+```bash
+# 1. Create project
+result=$(banana-cli --json projects create --creation-type idea --idea-prompt "2024 AI Development Report")
+project_id=$(echo "$result" | jq -r '.data.project.id')
+
+# 2. Full generation
+banana-cli workflows full --project-id "$project_id" --language en
+
+# 3. Export
+banana-cli exports pptx --project-id "$project_id"
+```
+
+### Batch Generate 10 PPTs
+
+```bash
+# Prepare job file
+cat > batch.jsonl << 'EOF'
+{"job_id":"ai-intro","job_type":"full_generation","creation_type":"idea","idea_prompt":"AI Beginner's Guide","language":"en","export":{"formats":["pptx"]}}
+{"job_id":"ml-guide","job_type":"full_generation","creation_type":"idea","idea_prompt":"Machine Learning in Practice","language":"en","export":{"formats":["pptx"]}}
+EOF
+
+# Execute
+banana-cli run jobs --file batch.jsonl --report report.json --state-file state.json
+```
+
+---
+
+## Notes
+
+1. **Backend must be running**: The CLI calls the backend API over HTTP — ensure the backend is started before use
+2. **File paths must be absolute**: All `--file`, `--image` parameters require absolute paths
+3. **Async tasks**: Description generation, image generation, and editable export are async tasks — add `--wait` to block until completion, or use `tasks wait` to poll manually
+4. **Shell completion**: Run `banana-cli --install-completion` to install auto-completion for your current shell
