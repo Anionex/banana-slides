@@ -173,7 +173,6 @@ test.describe('MarkdownTextarea upload dropdown - OutlineEditor (mock)', () => {
   test('outline card edit mode shows upload dropdown with library option', async ({ page }) => {
     // Find the outline card's edit button (p-1.5 text-gray-500 with Edit2 icon)
     // The card contains "Page One" title text
-    const card = page.locator('text=Page One').locator('..')
     // Use the edit button that is inside the flex-shrink-0 container
     const editBtn = page.locator('.flex-shrink-0.flex.gap-2 button').first()
     await editBtn.click()
