@@ -251,7 +251,7 @@ export const useImagePaste = ({
               setContentRef.current(prev => {
                 let content = prev;
                 for (const [oldMd, newMd] of replacements.entries()) {
-                  content = content.replace(oldMd, newMd);
+                  content = content.replaceAll(oldMd, newMd);
                 }
                 return content;
               });
