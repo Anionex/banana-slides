@@ -178,7 +178,7 @@ export const Home: React.FC = () => {
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
-  const { user, openLoginModal } = useUserStore();
+  const { user, openLoginModal, requireAuth } = useUserStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -507,6 +507,9 @@ export const Home: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    // 未登录时弹出登录框
+    if (!requireAuth()) return;
+
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
       if (!renovationFile) {
@@ -828,13 +831,6 @@ export const Home: React.FC = () => {
 
       {/* 主内容 */}
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
-        {/* 未登录遮罩：拦截主内容区所有点击 */}
-        {!user && (
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            onClick={openLoginModal}
-          />
-        )}
         {/* Hero 标题区 */}
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 dark:bg-background-secondary backdrop-blur-sm rounded-full shadow-sm dark:shadow-none mb-4">
