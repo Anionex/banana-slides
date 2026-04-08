@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import IOErrorCLI
@@ -11,7 +11,7 @@ from .models import RunReport
 
 
 def finalize_report(report: RunReport) -> RunReport:
-    report.finished_at = datetime.utcnow().isoformat() + "Z"
+    report.finished_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     report.totals = {
         "total": len(report.jobs),
         "success": len([j for j in report.jobs if j.status == "SUCCESS"]),

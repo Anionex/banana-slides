@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -95,7 +95,7 @@ class JobReport(BaseModel):
 
 class RunReport(BaseModel):
     run_id: str = Field(default_factory=lambda: str(uuid4()))
-    started_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    started_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
     finished_at: str | None = None
     base_url: str
     totals: dict[str, int] = Field(default_factory=lambda: {"total": 0, "success": 0, "failed": 0})

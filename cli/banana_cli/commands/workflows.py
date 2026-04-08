@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import click
 import typer
 
 from ..jobs.workflow import wait_task
@@ -37,7 +38,7 @@ def workflows_outline(
     project_id: str = typer.Option(..., help="Project ID"),
     from_description: bool = typer.Option(False, help="Generate from description"),
     refine: Optional[str] = typer.Option(None, help="Refine with user requirement"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
 ) -> None:
     """Generate or refine outline."""
     emit_output(_do_outline(project_id, from_description, refine, language))
@@ -49,7 +50,7 @@ def workflows_descriptions(
     project_id: str = typer.Option(..., help="Project ID"),
     refine: Optional[str] = typer.Option(None, help="Refine with user requirement"),
     max_workers: Optional[int] = typer.Option(None, help="Max workers"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
     wait: bool = typer.Option(False, help="Wait for task completion"),
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
 ) -> None:
@@ -80,7 +81,7 @@ def workflows_descriptions(
 def workflows_images(
     project_id: str = typer.Option(..., help="Project ID"),
     max_workers: Optional[int] = typer.Option(None, help="Max workers"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
     page_ids: Optional[str] = typer.Option(None, help="Comma-separated page IDs"),
     wait: bool = typer.Option(False, help="Wait for task completion"),
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
@@ -114,7 +115,7 @@ def workflows_full(
     skip_outline: bool = typer.Option(False, help="Skip outline generation"),
     skip_descriptions: bool = typer.Option(False, help="Skip descriptions generation"),
     skip_images: bool = typer.Option(False, help="Skip images generation"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
     desc_max_workers: Optional[int] = typer.Option(None, help="Description max workers"),
     image_max_workers: Optional[int] = typer.Option(None, help="Image max workers"),
     use_template: bool = typer.Option(True, "--use-template/--no-template", help="Use template"),

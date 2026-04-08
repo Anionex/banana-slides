@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from typing import Sequence
@@ -18,7 +18,7 @@ from .workflow import execute_export_only, execute_full_generation
 
 
 def _utc_now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _write_state_file(path: Path, payload: dict[str, Any]) -> None:

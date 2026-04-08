@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import List, Optional
 
+import click
 import typer
 
 from ..output import cli_command, emit_output
@@ -102,7 +103,7 @@ def pages_gen_description(
     project_id: str = typer.Option(..., help="Project ID"),
     page_id: str = typer.Option(..., help="Page ID"),
     force_regenerate: bool = typer.Option(False, help="Force regeneration"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(LANGUAGE_CHOICES)),
 ) -> None:
     """Generate single page description."""
     payload: dict = {"force_regenerate": force_regenerate}
@@ -119,7 +120,7 @@ def pages_gen_image(
     project_id: str = typer.Option(..., help="Project ID"),
     page_id: str = typer.Option(..., help="Page ID"),
     force_regenerate: bool = typer.Option(False, help="Force regeneration"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(LANGUAGE_CHOICES)),
     use_template: bool = typer.Option(True, "--use-template/--no-template", help="Use template"),
 ) -> None:
     """Generate single page image."""
@@ -198,7 +199,7 @@ def pages_set_current(
 def pages_regenerate_renovation(
     project_id: str = typer.Option(..., help="Project ID"),
     page_id: str = typer.Option(..., help="Page ID"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(LANGUAGE_CHOICES)),
     keep_layout: bool = typer.Option(False, help="Keep layout"),
 ) -> None:
     """Regenerate renovation page."""

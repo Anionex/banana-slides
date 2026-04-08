@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import click
 import typer
 
 from ..jobs.workflow import wait_task
@@ -20,7 +21,7 @@ def renovation_create(
     file: str = typer.Option(..., help="Absolute file path (ppt/pdf)"),
     keep_layout: bool = typer.Option(False, help="Keep layout"),
     template_style: Optional[str] = typer.Option(None, help="Template style"),
-    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
     wait: bool = typer.Option(False, help="Wait for task completion"),
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
 ) -> None:
