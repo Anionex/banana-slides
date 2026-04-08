@@ -1057,21 +1057,28 @@ export const Home: React.FC = () => {
                 </div>
               }
               toolbarRight={
-                <Button
-                  size="sm"
-                  onClick={handleSubmit}
-                  loading={isSubmitting || isGlobalLoading}
-                  disabled={
-                    !content.trim() ||
-                    isUploadingImage ||
-                    referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  }
-                  className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
-                >
-                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                    ? t('home.actions.parsing')
-                    : t('common.next')}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {(isSubmitting || isGlobalLoading) && activeTab === 'description' && (
+                    <span className="text-xs text-[var(--text-tertiary)] hidden sm:inline">
+                      AI 解析中，约需 1-2 分钟...
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    loading={isSubmitting || isGlobalLoading}
+                    disabled={
+                      !content.trim() ||
+                      isUploadingImage ||
+                      referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                    }
+                    className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
+                  >
+                    {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                      ? t('home.actions.parsing')
+                      : t('common.next')}
+                  </Button>
+                </div>
               }
             />
             )}
