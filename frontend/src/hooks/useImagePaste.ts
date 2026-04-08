@@ -228,20 +228,29 @@ export const useImagePaste = ({
         const internalImages = markdownImages.filter(img => isInternalMaterialUrl(img.url));
         if (internalImages.length > 0) {
           e.preventDefault();
-          // Process internal material images
+          // Process internal material images — collect all replacements first,
+          // then apply in a single state update to avoid race conditions
           (async () => {
             const { getMaterialByUrl } = await import('@/api/endpoints');
+            const replacements = new Map<string, string>();
             for (const img of internalImages) {
               try {
                 const response = await getMaterialByUrl(img.url);
                 const material = response.data;
                 if (material?.caption) {
                   const newMarkdown = `![${escapeMarkdown(material.caption)}](${img.url})`;
-                  setContentRef.current(prev => prev.replace(img.match, newMarkdown));
+                  replacements.set(img.match, newMarkdown);
                 }
-              } catch (error) {
-                console.error('Failed to get material caption:', error);
-              }
+              } catch { /* caption fetch failed, keep original markdown */ }
+            }
+            if (replacements.size > 0) {
+              setContentRef.current(prev => {
+                let content = prev;
+                for (const [oldMd, newMd] of replacements.entries()) {
+                  content = content.replace(oldMd, newMd);
+                }
+                return content;
+              });
             }
           })();
         }

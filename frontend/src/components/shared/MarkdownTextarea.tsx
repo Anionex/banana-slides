@@ -271,7 +271,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
   const editInputRef = useRef<HTMLInputElement>(null);
   const dragCountRef = useRef(0);
   const [showUploadMenu, setShowUploadMenu] = useState(false);
-  const uploadMenuRef = useRef<HTMLDivElement>(null);
+
 
   const shouldShowUpload = showUploadButton ?? !!onFiles;
   const hasToolbar = shouldShowUpload || toolbarLeft || toolbarRight;
@@ -324,17 +324,6 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
     }
   }, [editingChip]);
 
-  // Close upload menu on click outside
-  useEffect(() => {
-    if (!showUploadMenu) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (uploadMenuRef.current && !uploadMenuRef.current.contains(e.target as Node)) {
-        setShowUploadMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUploadMenu]);
 
   const emitChange = useCallback(() => {
     if (!editorRef.current) return;
@@ -693,7 +682,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
           >
             <div className="flex items-center gap-0.5">
               {shouldShowUpload && (
-                <div className="relative" ref={uploadMenuRef}>
+                <div className="relative">
                   <button
                     type="button"
                     onClick={() => {
