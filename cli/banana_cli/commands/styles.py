@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import argparse
+import typer
 
-from ..http_client import APIClient
+from ..output import cli_command, emit_output
+from ..state import state
 from .common import ensure_file
 
-
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("styles", help="Style extraction operations")
-    child = parser.add_subparsers(dest="styles_action", required=True)
-
-    p_extract = child.add_parser("extract", help="Extract style from image")
-    p_extract.add_argument("--image", required=True)
-    p_extract.set_defaults(handler=cmd_extract)
+app = typer.Typer(no_args_is_help=True)
 
 
-def cmd_extract(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    path = ensure_file(args.image)
+@app.command("extract")
+@cli_command
+def styles_extract(
+    image: str = typer.Option(..., help="Absolute image path"),
+) -> None:
+    """Extract style from image."""
+    path = ensure_file(image)
     with path.open("rb") as f:
-        return api.post("/api/extract-style", files={"image": (path.name, f)})
+        emit_output(state.api.post("/api/extract-style", files={"image": (path.name, f)}))

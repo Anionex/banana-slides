@@ -2,34 +2,31 @@
 
 from __future__ import annotations
 
-import argparse
+import typer
 
-from ..http_client import APIClient
+from ..output import cli_command, emit_output
+from ..state import state
 from .common import ensure_file
 
-
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("templates", help="Template operations")
-    child = parser.add_subparsers(dest="templates_action", required=True)
-
-    p_upload = child.add_parser("upload", help="Upload project template image")
-    p_upload.add_argument("--project-id", required=True)
-    p_upload.add_argument("--file", required=True)
-    p_upload.set_defaults(handler=cmd_upload)
-
-    p_delete = child.add_parser("delete", help="Delete project template")
-    p_delete.add_argument("--project-id", required=True)
-    p_delete.set_defaults(handler=cmd_delete)
+app = typer.Typer(no_args_is_help=True)
 
 
-def cmd_upload(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    path = ensure_file(args.file)
+@app.command("upload")
+@cli_command
+def templates_upload(
+    project_id: str = typer.Option(..., help="Project ID"),
+    file: str = typer.Option(..., help="Absolute file path"),
+) -> None:
+    """Upload project template image."""
+    path = ensure_file(file)
     with path.open("rb") as f:
-        return api.post(
-            f"/api/projects/{args.project_id}/template",
-            files={"template_image": (path.name, f)},
-        )
+        emit_output(state.api.post(f"/api/projects/{project_id}/template", files={"template_image": (path.name, f)}))
 
 
-def cmd_delete(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.delete(f"/api/projects/{args.project_id}/template")
+@app.command("delete")
+@cli_command
+def templates_delete(
+    project_id: str = typer.Option(..., help="Project ID"),
+) -> None:
+    """Delete project template."""
+    emit_output(state.api.delete(f"/api/projects/{project_id}/template"))

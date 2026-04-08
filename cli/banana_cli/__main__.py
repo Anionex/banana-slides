@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-
-from .app import run_cli
+from .app import app
 
 
 def main() -> None:
-    raise SystemExit(run_cli())
+    app()
 
 
 if __name__ == "__main__":

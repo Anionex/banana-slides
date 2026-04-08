@@ -2,64 +2,48 @@
 
 from __future__ import annotations
 
-import argparse
+from typing import Optional
 
-from ..http_client import APIClient
+import typer
+
 from ..jobs.workflow import wait_task
+from ..output import cli_command, emit_output
+from ..state import state
 from .common import ensure_file
 
-
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("renovation", help="PPT renovation operations")
-    child = parser.add_subparsers(dest="renovation_action", required=True)
-
-    p_create = child.add_parser("create", help="Create renovation project from ppt/pdf")
-    p_create.add_argument("--file", required=True)
-    p_create.add_argument("--keep-layout", action="store_true")
-    p_create.add_argument("--template-style")
-    p_create.add_argument("--language", choices=["zh", "en", "ja", "auto"])
-    p_create.add_argument("--wait", action="store_true")
-    p_create.add_argument("--timeout-sec", type=int, default=1800)
-    p_create.set_defaults(handler=cmd_create)
+app = typer.Typer(no_args_is_help=True)
 
 
-def cmd_create(api: APIClient, cfg, args: argparse.Namespace) -> dict:
-    path = ensure_file(args.file)
-    form = {
-        "keep_layout": "true" if args.keep_layout else "false",
-    }
-    if args.template_style:
-        form["template_style"] = args.template_style
-    if args.language:
-        form["language"] = args.language
+@app.command("create")
+@cli_command
+def renovation_create(
+    file: str = typer.Option(..., help="Absolute file path (ppt/pdf)"),
+    keep_layout: bool = typer.Option(False, help="Keep layout"),
+    template_style: Optional[str] = typer.Option(None, help="Template style"),
+    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    wait: bool = typer.Option(False, help="Wait for task completion"),
+    timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
+) -> None:
+    """Create renovation project from ppt/pdf."""
+    path = ensure_file(file)
+    form: dict = {"keep_layout": "true" if keep_layout else "false"}
+    if template_style:
+        form["template_style"] = template_style
+    if language:
+        form["language"] = language
 
     with path.open("rb") as f:
-        resp = api.post(
-            "/api/projects/renovation",
-            form_data=form,
-            files={"file": (path.name, f)},
-        )
+        resp = state.api.post("/api/projects/renovation", form_data=form, files={"file": (path.name, f)})
 
-    if not args.wait:
-        return resp
+    if not wait:
+        emit_output(resp)
+        return
 
     project_id = resp.get("data", {}).get("project_id")
     task_id = resp.get("data", {}).get("task_id")
     if not project_id or not task_id:
-        return resp
+        emit_output(resp)
+        return
 
-    final = wait_task(
-        api,
-        project_id,
-        task_id,
-        timeout_sec=args.timeout_sec,
-        poll_interval=cfg.poll_interval,
-    )
-    return {
-        "success": True,
-        "data": {
-            "project_id": project_id,
-            "task_id": task_id,
-            "task": final,
-        },
-    }
+    final = wait_task(state.api, project_id, task_id, timeout_sec=timeout_sec, poll_interval=state.config.poll_interval)
+    emit_output({"success": True, "data": {"project_id": project_id, "task_id": task_id, "task": final}})

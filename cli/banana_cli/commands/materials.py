@@ -2,133 +2,123 @@
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
+from typing import List, Optional
 
-from ..http_client import APIClient
+import typer
+
 from ..jobs.workflow import wait_task
+from ..output import cli_command, emit_output
+from ..state import state
 from .common import ensure_file
 
-
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("materials", help="Material operations")
-    child = parser.add_subparsers(dest="materials_action", required=True)
-
-    p_list = child.add_parser("list", help="List materials")
-    p_list.add_argument("--project-id")
-    p_list.add_argument("--scope", choices=["all", "none"], default="all")
-    p_list.set_defaults(handler=cmd_list)
-
-    p_upload = child.add_parser("upload", help="Upload material")
-    p_upload.add_argument("--file", required=True)
-    p_upload.add_argument("--project-id")
-    p_upload.add_argument("--global", dest="is_global", action="store_true")
-    p_upload.set_defaults(handler=cmd_upload)
-
-    p_gen = child.add_parser("generate", help="Generate material image")
-    p_gen.add_argument("--prompt", required=True)
-    p_gen.add_argument("--project-id")
-    p_gen.add_argument("--global", dest="is_global", action="store_true")
-    p_gen.add_argument("--ref-image")
-    p_gen.add_argument("--extra-image", action="append", default=[])
-    p_gen.add_argument("--wait", action="store_true")
-    p_gen.add_argument("--timeout-sec", type=int, default=1800)
-    p_gen.set_defaults(handler=cmd_generate)
-
-    p_assoc = child.add_parser("associate", help="Associate global materials to project")
-    p_assoc.add_argument("--project-id", required=True)
-    p_assoc.add_argument("--material-url", action="append", required=True)
-    p_assoc.set_defaults(handler=cmd_associate)
-
-    p_download = child.add_parser("download", help="Download materials zip")
-    p_download.add_argument("--material-id", action="append", required=True)
-    p_download.add_argument("--output", required=True)
-    p_download.set_defaults(handler=cmd_download)
-
-    p_delete = child.add_parser("delete", help="Delete material")
-    p_delete.add_argument("--material-id", required=True)
-    p_delete.set_defaults(handler=cmd_delete)
+app = typer.Typer(no_args_is_help=True)
 
 
-def cmd_list(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    if args.project_id:
-        return api.get(f"/api/projects/{args.project_id}/materials")
-    return api.get("/api/materials", params={"project_id": args.scope})
+@app.command("list")
+@cli_command
+def materials_list(
+    project_id: Optional[str] = typer.Option(None, help="Project ID"),
+    scope: str = typer.Option("all", help="Scope: all or none"),
+) -> None:
+    """List materials."""
+    if project_id:
+        emit_output(state.api.get(f"/api/projects/{project_id}/materials"))
+    else:
+        emit_output(state.api.get("/api/materials", params={"project_id": scope}))
 
 
-def cmd_upload(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    path = ensure_file(args.file)
+@app.command("upload")
+@cli_command
+def materials_upload(
+    file: str = typer.Option(..., help="Absolute file path"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID"),
+    is_global: bool = typer.Option(False, "--global", help="Upload as global material"),
+) -> None:
+    """Upload material."""
+    path = ensure_file(file)
     with path.open("rb") as f:
-        if args.is_global or not args.project_id:
-            return api.post("/api/materials/upload", files={"file": (path.name, f)})
-        return api.post(f"/api/projects/{args.project_id}/materials/upload", files={"file": (path.name, f)})
+        if is_global or not project_id:
+            emit_output(state.api.post("/api/materials/upload", files={"file": (path.name, f)}))
+        else:
+            emit_output(state.api.post(f"/api/projects/{project_id}/materials/upload", files={"file": (path.name, f)}))
 
 
-def cmd_generate(api: APIClient, cfg, args: argparse.Namespace) -> dict:
-    endpoint_project = args.project_id if args.project_id and not args.is_global else "none"
-
-    form = {"prompt": args.prompt}
+@app.command("generate")
+@cli_command
+def materials_generate(
+    prompt: str = typer.Option(..., help="Generation prompt"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID"),
+    is_global: bool = typer.Option(False, "--global", help="Generate as global material"),
+    ref_image: Optional[str] = typer.Option(None, help="Reference image path"),
+    extra_image: Optional[List[str]] = typer.Option(None, help="Extra image paths"),
+    wait: bool = typer.Option(False, help="Wait for task completion"),
+    timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
+) -> None:
+    """Generate material image."""
+    endpoint_project = project_id if project_id and not is_global else "none"
+    form = {"prompt": prompt}
     files = []
     opened = []
 
     try:
-        if args.ref_image:
-            ref = ensure_file(args.ref_image)
+        if ref_image:
+            ref = ensure_file(ref_image)
             rf = ref.open("rb")
             opened.append(rf)
             files.append(("ref_image", (ref.name, rf)))
 
-        for p in args.extra_image:
+        for p in (extra_image or []):
             img = ensure_file(p)
             f = img.open("rb")
             opened.append(f)
             files.append(("extra_images", (img.name, f)))
 
-        resp = api.post(f"/api/projects/{endpoint_project}/materials/generate", form_data=form, files=files)
+        resp = state.api.post(f"/api/projects/{endpoint_project}/materials/generate", form_data=form, files=files)
 
-        if args.wait:
+        if wait:
             task_id = resp.get("data", {}).get("task_id")
             if task_id:
-                task_project = args.project_id if args.project_id and not args.is_global else "global"
-                final = wait_task(
-                    api,
-                    task_project,
-                    task_id,
-                    timeout_sec=args.timeout_sec,
-                    poll_interval=cfg.poll_interval,
-                )
-                return {"success": True, "data": {"task_id": task_id, "task": final}}
-        return resp
+                task_project = project_id if project_id and not is_global else "global"
+                final = wait_task(state.api, task_project, task_id, timeout_sec=timeout_sec, poll_interval=state.config.poll_interval)
+                emit_output({"success": True, "data": {"task_id": task_id, "task": final}})
+                return
+        emit_output(resp)
     finally:
         for f in opened:
             f.close()
 
 
-def cmd_associate(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.post(
-        "/api/materials/associate",
-        json_data={"project_id": args.project_id, "material_urls": args.material_url},
+@app.command("associate")
+@cli_command
+def materials_associate(
+    project_id: str = typer.Option(..., help="Project ID"),
+    material_url: List[str] = typer.Option(..., help="Material URLs"),
+) -> None:
+    """Associate global materials to project."""
+    emit_output(
+        state.api.post("/api/materials/associate", json_data={"project_id": project_id, "material_urls": material_url})
     )
 
 
-def cmd_download(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    response = api.request(
-        "POST",
-        "/api/materials/download",
-        json_data={"material_ids": args.material_id},
-        raw=True,
-    )
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_bytes(response.content)
-    return {
-        "success": True,
-        "data": {
-            "output_path": str(output.resolve()),
-            "size_bytes": len(response.content),
-        },
-    }
+@app.command("download")
+@cli_command
+def materials_download(
+    material_id: List[str] = typer.Option(..., help="Material IDs"),
+    output: str = typer.Option(..., help="Output file path"),
+) -> None:
+    """Download materials zip."""
+    response = state.api.request("POST", "/api/materials/download", json_data={"material_ids": material_id}, raw=True)
+    out = Path(output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(response.content)
+    emit_output({"success": True, "data": {"output_path": str(out.resolve()), "size_bytes": len(response.content)}})
 
 
-def cmd_delete(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.delete(f"/api/materials/{args.material_id}")
+@app.command("delete")
+@cli_command
+def materials_delete(
+    material_id: str = typer.Option(..., help="Material ID"),
+) -> None:
+    """Delete material."""
+    emit_output(state.api.delete(f"/api/materials/{material_id}"))

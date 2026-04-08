@@ -2,69 +2,67 @@
 
 from __future__ import annotations
 
-import argparse
+from typing import Optional
 
-from ..http_client import APIClient
-from .common import add_data_options, load_data_args
+import typer
 
-TEST_NAMES = [
-    "baidu-ocr",
-    "text-model",
-    "caption-model",
-    "baidu-inpaint",
-    "image-model",
-    "mineru-pdf",
-]
+from ..output import cli_command, emit_output
+from ..state import state
+from .common import load_data
+
+app = typer.Typer(no_args_is_help=True)
+
+TEST_NAMES = ["baidu-ocr", "text-model", "caption-model", "baidu-inpaint", "image-model", "mineru-pdf"]
 
 
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("settings", help="Settings operations")
-    child = parser.add_subparsers(dest="settings_action", required=True)
-
-    p_get = child.add_parser("get", help="Get settings")
-    p_get.set_defaults(handler=cmd_get)
-
-    p_update = child.add_parser("update", help="Update settings")
-    add_data_options(p_update)
-    p_update.set_defaults(handler=cmd_update)
-
-    p_reset = child.add_parser("reset", help="Reset settings")
-    p_reset.set_defaults(handler=cmd_reset)
-
-    p_verify = child.add_parser("verify", help="Verify key/config")
-    p_verify.set_defaults(handler=cmd_verify)
-
-    p_test = child.add_parser("test", help="Run async settings test")
-    p_test.add_argument("--name", required=True, choices=TEST_NAMES)
-    add_data_options(p_test)
-    p_test.set_defaults(handler=cmd_test)
-
-    p_status = child.add_parser("test-status", help="Get settings test task status")
-    p_status.add_argument("--task-id", required=True)
-    p_status.set_defaults(handler=cmd_test_status)
+@app.command("get")
+@cli_command
+def settings_get() -> None:
+    """Get settings."""
+    emit_output(state.api.get("/api/settings/"))
 
 
-def cmd_get(api: APIClient, _cfg, _args: argparse.Namespace) -> dict:
-    return api.get("/api/settings/")
+@app.command("update")
+@cli_command
+def settings_update(
+    data: Optional[str] = typer.Option(None, help="JSON string body"),
+    data_file: Optional[str] = typer.Option(None, help="Path to JSON file body"),
+) -> None:
+    """Update settings."""
+    payload = load_data(data, data_file)
+    emit_output(state.api.put("/api/settings/", json_data=payload))
 
 
-def cmd_update(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = load_data_args(args)
-    return api.put("/api/settings/", json_data=payload)
+@app.command("reset")
+@cli_command
+def settings_reset() -> None:
+    """Reset settings."""
+    emit_output(state.api.post("/api/settings/reset"))
 
 
-def cmd_reset(api: APIClient, _cfg, _args: argparse.Namespace) -> dict:
-    return api.post("/api/settings/reset")
+@app.command("verify")
+@cli_command
+def settings_verify() -> None:
+    """Verify key/config."""
+    emit_output(state.api.post("/api/settings/verify"))
 
 
-def cmd_verify(api: APIClient, _cfg, _args: argparse.Namespace) -> dict:
-    return api.post("/api/settings/verify")
+@app.command("test")
+@cli_command
+def settings_test(
+    name: str = typer.Option(..., help=f"Test name: {', '.join(TEST_NAMES)}"),
+    data: Optional[str] = typer.Option(None, help="JSON string body"),
+    data_file: Optional[str] = typer.Option(None, help="Path to JSON file body"),
+) -> None:
+    """Run async settings test."""
+    payload = load_data(data, data_file)
+    emit_output(state.api.post(f"/api/settings/tests/{name}", json_data=payload))
 
 
-def cmd_test(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = load_data_args(args)
-    return api.post(f"/api/settings/tests/{args.name}", json_data=payload)
-
-
-def cmd_test_status(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.get(f"/api/settings/tests/{args.task_id}/status")
+@app.command("test-status")
+@cli_command
+def settings_test_status(
+    task_id: str = typer.Option(..., help="Task ID"),
+) -> None:
+    """Get settings test task status."""
+    emit_output(state.api.get(f"/api/settings/tests/{task_id}/status"))

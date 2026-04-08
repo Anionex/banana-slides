@@ -2,101 +2,101 @@
 
 from __future__ import annotations
 
-import argparse
+from typing import Optional
 
-from ..http_client import APIClient
-from .common import add_data_options, load_data_args
+import typer
 
+from ..output import cli_command, emit_output
+from ..state import state
+from .common import load_data
 
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("projects", help="Project operations")
-    child = parser.add_subparsers(dest="projects_action", required=True)
-
-    p_list = child.add_parser("list", help="List projects")
-    p_list.add_argument("--limit", type=int, default=50)
-    p_list.add_argument("--offset", type=int, default=0)
-    p_list.set_defaults(handler=cmd_list)
-
-    p_get = child.add_parser("get", help="Get project")
-    p_get.add_argument("project_id")
-    p_get.set_defaults(handler=cmd_get)
-
-    p_create = child.add_parser("create", help="Create project")
-    p_create.add_argument("--creation-type", choices=["idea", "outline", "descriptions"])
-    p_create.add_argument("--idea-prompt")
-    p_create.add_argument("--outline-text")
-    p_create.add_argument("--description-text")
-    p_create.add_argument("--template-style")
-    p_create.add_argument("--extra-requirements")
-    p_create.add_argument("--image-aspect-ratio")
-    add_data_options(p_create)
-    p_create.set_defaults(handler=cmd_create)
-
-    p_update = child.add_parser("update", help="Update project")
-    p_update.add_argument("project_id")
-    p_update.add_argument("--idea-prompt")
-    p_update.add_argument("--outline-text")
-    p_update.add_argument("--description-text")
-    p_update.add_argument("--template-style")
-    p_update.add_argument("--extra-requirements")
-    p_update.add_argument("--image-aspect-ratio")
-    p_update.add_argument("--export-extractor-method")
-    p_update.add_argument("--export-inpaint-method")
-    add_data_options(p_update)
-    p_update.set_defaults(handler=cmd_update)
-
-    p_delete = child.add_parser("delete", help="Delete project")
-    p_delete.add_argument("project_id")
-    p_delete.set_defaults(handler=cmd_delete)
+app = typer.Typer(no_args_is_help=True)
 
 
-def cmd_list(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.get("/api/projects", params={"limit": args.limit, "offset": args.offset})
+@app.command("list")
+@cli_command
+def projects_list(
+    limit: int = typer.Option(50, help="Max results"),
+    offset: int = typer.Option(0, help="Offset"),
+) -> None:
+    """List projects."""
+    emit_output(state.api.get("/api/projects", params={"limit": limit, "offset": offset}))
 
 
-def cmd_get(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.get(f"/api/projects/{args.project_id}")
+@app.command("get")
+@cli_command
+def projects_get(
+    project_id: str = typer.Argument(..., help="Project ID"),
+) -> None:
+    """Get project details."""
+    emit_output(state.api.get(f"/api/projects/{project_id}"))
 
 
-def cmd_create(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = load_data_args(args)
-    if args.creation_type:
-        payload.setdefault("creation_type", args.creation_type)
-    if args.idea_prompt:
-        payload.setdefault("idea_prompt", args.idea_prompt)
-    if args.outline_text:
-        payload.setdefault("outline_text", args.outline_text)
-    if args.description_text:
-        payload.setdefault("description_text", args.description_text)
-    if args.template_style:
-        payload.setdefault("template_style", args.template_style)
-    if args.extra_requirements:
-        payload.setdefault("extra_requirements", args.extra_requirements)
-    if args.image_aspect_ratio:
-        payload.setdefault("image_aspect_ratio", args.image_aspect_ratio)
-    return api.post("/api/projects", json_data=payload)
+@app.command("create")
+@cli_command
+def projects_create(
+    creation_type: Optional[str] = typer.Option(None, help="idea / outline / descriptions"),
+    idea_prompt: Optional[str] = typer.Option(None, help="Idea prompt"),
+    outline_text: Optional[str] = typer.Option(None, help="Outline text"),
+    description_text: Optional[str] = typer.Option(None, help="Description text"),
+    template_style: Optional[str] = typer.Option(None, help="Template style"),
+    extra_requirements: Optional[str] = typer.Option(None, help="Extra requirements"),
+    image_aspect_ratio: Optional[str] = typer.Option(None, help="Image aspect ratio"),
+    data: Optional[str] = typer.Option(None, help="JSON string body"),
+    data_file: Optional[str] = typer.Option(None, help="Path to JSON file body"),
+) -> None:
+    """Create a project."""
+    payload = load_data(data, data_file)
+    for key, val in [
+        ("creation_type", creation_type),
+        ("idea_prompt", idea_prompt),
+        ("outline_text", outline_text),
+        ("description_text", description_text),
+        ("template_style", template_style),
+        ("extra_requirements", extra_requirements),
+        ("image_aspect_ratio", image_aspect_ratio),
+    ]:
+        if val is not None:
+            payload.setdefault(key, val)
+    emit_output(state.api.post("/api/projects", json_data=payload))
 
 
-def cmd_update(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = load_data_args(args)
-    if args.idea_prompt:
-        payload.setdefault("idea_prompt", args.idea_prompt)
-    if args.outline_text:
-        payload.setdefault("outline_text", args.outline_text)
-    if args.description_text:
-        payload.setdefault("description_text", args.description_text)
-    if args.template_style:
-        payload.setdefault("template_style", args.template_style)
-    if args.extra_requirements:
-        payload.setdefault("extra_requirements", args.extra_requirements)
-    if args.image_aspect_ratio:
-        payload.setdefault("image_aspect_ratio", args.image_aspect_ratio)
-    if args.export_extractor_method:
-        payload.setdefault("export_extractor_method", args.export_extractor_method)
-    if args.export_inpaint_method:
-        payload.setdefault("export_inpaint_method", args.export_inpaint_method)
-    return api.put(f"/api/projects/{args.project_id}", json_data=payload)
+@app.command("update")
+@cli_command
+def projects_update(
+    project_id: str = typer.Argument(..., help="Project ID"),
+    idea_prompt: Optional[str] = typer.Option(None),
+    outline_text: Optional[str] = typer.Option(None),
+    description_text: Optional[str] = typer.Option(None),
+    template_style: Optional[str] = typer.Option(None),
+    extra_requirements: Optional[str] = typer.Option(None),
+    image_aspect_ratio: Optional[str] = typer.Option(None),
+    export_extractor_method: Optional[str] = typer.Option(None),
+    export_inpaint_method: Optional[str] = typer.Option(None),
+    data: Optional[str] = typer.Option(None, help="JSON string body"),
+    data_file: Optional[str] = typer.Option(None, help="Path to JSON file body"),
+) -> None:
+    """Update a project."""
+    payload = load_data(data, data_file)
+    for key, val in [
+        ("idea_prompt", idea_prompt),
+        ("outline_text", outline_text),
+        ("description_text", description_text),
+        ("template_style", template_style),
+        ("extra_requirements", extra_requirements),
+        ("image_aspect_ratio", image_aspect_ratio),
+        ("export_extractor_method", export_extractor_method),
+        ("export_inpaint_method", export_inpaint_method),
+    ]:
+        if val is not None:
+            payload.setdefault(key, val)
+    emit_output(state.api.put(f"/api/projects/{project_id}", json_data=payload))
 
 
-def cmd_delete(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.delete(f"/api/projects/{args.project_id}")
+@app.command("delete")
+@cli_command
+def projects_delete(
+    project_id: str = typer.Argument(..., help="Project ID"),
+) -> None:
+    """Delete a project."""
+    emit_output(state.api.delete(f"/api/projects/{project_id}"))

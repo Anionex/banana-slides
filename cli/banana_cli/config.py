@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -89,11 +88,21 @@ def _validate(cfg: CLIConfig) -> CLIConfig:
     return cfg
 
 
-def resolve_config(args: argparse.Namespace) -> CLIConfig:
-    """Resolve config with priority: args > env > file > defaults."""
+def resolve_config(
+    *,
+    base_url: str | None = None,
+    access_code: str | None = None,
+    poll_interval: int | None = None,
+    request_timeout: int | None = None,
+    continue_on_error: bool | None = None,
+    config_path: str | None = None,
+    json_output: bool = False,
+    verbose: bool = False,
+) -> CLIConfig:
+    """Resolve config with priority: explicit params > env > file > defaults."""
     cfg = CLIConfig()
 
-    config_file = Path(args.config) if getattr(args, "config", None) else default_config_path()
+    config_file = Path(config_path) if config_path else default_config_path()
     file_cfg = _load_file_config(config_file)
 
     if "base_url" in file_cfg:
@@ -122,18 +131,18 @@ def resolve_config(args: argparse.Namespace) -> CLIConfig:
         else:
             setattr(cfg, key, val)
 
-    if getattr(args, "base_url", None):
-        cfg.base_url = args.base_url.rstrip("/")
-    if getattr(args, "access_code", None) is not None:
-        cfg.access_code = args.access_code
-    if getattr(args, "poll_interval", None):
-        cfg.poll_interval = int(args.poll_interval)
-    if getattr(args, "request_timeout", None):
-        cfg.request_timeout = int(args.request_timeout)
-    if getattr(args, "continue_on_error", None) is not None:
-        cfg.continue_on_error = bool(args.continue_on_error)
+    if base_url:
+        cfg.base_url = base_url.rstrip("/")
+    if access_code is not None:
+        cfg.access_code = access_code
+    if poll_interval is not None:
+        cfg.poll_interval = int(poll_interval)
+    if request_timeout is not None:
+        cfg.request_timeout = int(request_timeout)
+    if continue_on_error is not None:
+        cfg.continue_on_error = bool(continue_on_error)
 
-    cfg.json_output = bool(getattr(args, "json", False))
-    cfg.verbose = bool(getattr(args, "verbose", False))
+    cfg.json_output = json_output
+    cfg.verbose = verbose
 
     return _validate(cfg)

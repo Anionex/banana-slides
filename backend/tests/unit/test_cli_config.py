@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from argparse import Namespace
 from pathlib import Path
 
 from cli.banana_cli.config import resolve_config
@@ -27,18 +26,16 @@ def test_resolve_config_precedence(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("BANANA_CLI_REQUEST_TIMEOUT", "66")
     monkeypatch.setenv("BANANA_CLI_CONTINUE_ON_ERROR", "true")
 
-    args = Namespace(
+    cfg = resolve_config(
         base_url="http://arg:5000",
         access_code="from-arg",
         poll_interval=11,
         request_timeout=77,
         continue_on_error=False,
-        config=str(cfg_file),
-        json=False,
+        config_path=str(cfg_file),
+        json_output=False,
         verbose=False,
     )
-
-    cfg = resolve_config(args)
 
     assert cfg.base_url == "http://arg:5000"
     assert cfg.access_code == "from-arg"

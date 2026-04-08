@@ -2,91 +2,18 @@
 
 from __future__ import annotations
 
-import argparse
 import json
-from pathlib import Path
+from typing import List, Optional
 
-from ..http_client import APIClient
+import typer
+
+from ..output import cli_command, emit_output
+from ..state import state
 from .common import ensure_file, parse_list_csv
 
+app = typer.Typer(no_args_is_help=True)
 
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("pages", help="Page operations")
-    child = parser.add_subparsers(dest="pages_action", required=True)
-
-    p_create = child.add_parser("create", help="Create page")
-    p_create.add_argument("--project-id", required=True)
-    p_create.add_argument("--order-index", type=int, required=True)
-    p_create.add_argument("--part")
-    p_create.add_argument("--outline-json")
-    p_create.add_argument("--description-json")
-    p_create.set_defaults(handler=cmd_create)
-
-    p_update = child.add_parser("update", help="Update page base fields")
-    p_update.add_argument("--project-id", required=True)
-    p_update.add_argument("--page-id", required=True)
-    p_update.add_argument("--part", required=True)
-    p_update.set_defaults(handler=cmd_update)
-
-    p_delete = child.add_parser("delete", help="Delete page")
-    p_delete.add_argument("--project-id", required=True)
-    p_delete.add_argument("--page-id", required=True)
-    p_delete.set_defaults(handler=cmd_delete)
-
-    p_outline = child.add_parser("set-outline", help="Set page outline content")
-    p_outline.add_argument("--project-id", required=True)
-    p_outline.add_argument("--page-id", required=True)
-    p_outline.add_argument("--outline-json", required=True)
-    p_outline.set_defaults(handler=cmd_set_outline)
-
-    p_desc = child.add_parser("set-description", help="Set page description content")
-    p_desc.add_argument("--project-id", required=True)
-    p_desc.add_argument("--page-id", required=True)
-    p_desc.add_argument("--description-json", required=True)
-    p_desc.set_defaults(handler=cmd_set_description)
-
-    p_gen_desc = child.add_parser("gen-description", help="Generate single page description")
-    p_gen_desc.add_argument("--project-id", required=True)
-    p_gen_desc.add_argument("--page-id", required=True)
-    p_gen_desc.add_argument("--force-regenerate", action="store_true")
-    p_gen_desc.add_argument("--language", choices=["zh", "en", "ja", "auto"])
-    p_gen_desc.set_defaults(handler=cmd_gen_description)
-
-    p_gen_img = child.add_parser("gen-image", help="Generate single page image")
-    p_gen_img.add_argument("--project-id", required=True)
-    p_gen_img.add_argument("--page-id", required=True)
-    p_gen_img.add_argument("--force-regenerate", action="store_true")
-    p_gen_img.add_argument("--language", choices=["zh", "en", "ja", "auto"])
-    p_gen_img.add_argument("--use-template", dest="use_template", action="store_true", default=True)
-    p_gen_img.add_argument("--no-template", dest="use_template", action="store_false")
-    p_gen_img.set_defaults(handler=cmd_gen_image)
-
-    p_edit = child.add_parser("edit-image", help="Edit single page image")
-    p_edit.add_argument("--project-id", required=True)
-    p_edit.add_argument("--page-id", required=True)
-    p_edit.add_argument("--instruction", required=True)
-    p_edit.add_argument("--use-template", dest="use_template", action="store_true", default=False)
-    p_edit.add_argument("--desc-image-urls", help="Comma-separated image urls")
-    p_edit.add_argument("--context-image", action="append", default=[])
-    p_edit.set_defaults(handler=cmd_edit_image)
-
-    p_versions = child.add_parser("versions", help="List page image versions")
-    p_versions.add_argument("--project-id", required=True)
-    p_versions.add_argument("--page-id", required=True)
-    p_versions.set_defaults(handler=cmd_versions)
-
-    p_set_current = child.add_parser("set-current", help="Set current image version")
-    p_set_current.add_argument("--project-id", required=True)
-    p_set_current.add_argument("--page-id", required=True)
-    p_set_current.add_argument("--version-id", required=True)
-    p_set_current.set_defaults(handler=cmd_set_current)
-
-    p_regen = child.add_parser("regenerate-renovation", help="Regenerate renovation page")
-    p_regen.add_argument("--project-id", required=True)
-    p_regen.add_argument("--page-id", required=True)
-    p_regen.add_argument("--language", choices=["zh", "en", "ja", "auto"])
-    p_regen.add_argument("--keep-layout", action="store_true")
-    p_regen.set_defaults(handler=cmd_regenerate_renovation)
+LANGUAGE_CHOICES = ["zh", "en", "ja", "auto"]
 
 
 def _parse_json(raw: str) -> dict:
@@ -96,109 +23,188 @@ def _parse_json(raw: str) -> dict:
     return parsed
 
 
-def cmd_create(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = {
-        "order_index": args.order_index,
-    }
-    if args.part:
-        payload["part"] = args.part
-    if args.outline_json:
-        payload["outline_content"] = _parse_json(args.outline_json)
-    if args.description_json:
-        payload["description_content"] = _parse_json(args.description_json)
-    return api.post(f"/api/projects/{args.project_id}/pages", json_data=payload)
+@app.command("create")
+@cli_command
+def pages_create(
+    project_id: str = typer.Option(..., help="Project ID"),
+    order_index: int = typer.Option(..., help="Page order index"),
+    part: Optional[str] = typer.Option(None, help="Page part"),
+    outline_json: Optional[str] = typer.Option(None, help="Outline JSON"),
+    description_json: Optional[str] = typer.Option(None, help="Description JSON"),
+) -> None:
+    """Create a page."""
+    payload: dict = {"order_index": order_index}
+    if part:
+        payload["part"] = part
+    if outline_json:
+        payload["outline_content"] = _parse_json(outline_json)
+    if description_json:
+        payload["description_content"] = _parse_json(description_json)
+    emit_output(state.api.post(f"/api/projects/{project_id}/pages", json_data=payload))
 
 
-def cmd_update(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.put(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}",
-        json_data={"part": args.part},
+@app.command("update")
+@cli_command
+def pages_update(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    part: str = typer.Option(..., help="Page part"),
+) -> None:
+    """Update page base fields."""
+    emit_output(state.api.put(f"/api/projects/{project_id}/pages/{page_id}", json_data={"part": part}))
+
+
+@app.command("delete")
+@cli_command
+def pages_delete(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+) -> None:
+    """Delete a page."""
+    emit_output(state.api.delete(f"/api/projects/{project_id}/pages/{page_id}"))
+
+
+@app.command("set-outline")
+@cli_command
+def pages_set_outline(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    outline_json: str = typer.Option(..., help="Outline JSON"),
+) -> None:
+    """Set page outline content."""
+    emit_output(
+        state.api.put(
+            f"/api/projects/{project_id}/pages/{page_id}/outline",
+            json_data={"outline_content": _parse_json(outline_json)},
+        )
     )
 
 
-def cmd_delete(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.delete(f"/api/projects/{args.project_id}/pages/{args.page_id}")
-
-
-def cmd_set_outline(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.put(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}/outline",
-        json_data={"outline_content": _parse_json(args.outline_json)},
+@app.command("set-description")
+@cli_command
+def pages_set_description(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    description_json: str = typer.Option(..., help="Description JSON"),
+) -> None:
+    """Set page description content."""
+    emit_output(
+        state.api.put(
+            f"/api/projects/{project_id}/pages/{page_id}/description",
+            json_data={"description_content": _parse_json(description_json)},
+        )
     )
 
 
-def cmd_set_description(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.put(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}/description",
-        json_data={"description_content": _parse_json(args.description_json)},
+@app.command("gen-description")
+@cli_command
+def pages_gen_description(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    force_regenerate: bool = typer.Option(False, help="Force regeneration"),
+    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+) -> None:
+    """Generate single page description."""
+    payload: dict = {"force_regenerate": force_regenerate}
+    if language:
+        payload["language"] = language
+    emit_output(
+        state.api.post(f"/api/projects/{project_id}/pages/{page_id}/generate/description", json_data=payload)
     )
 
 
-def cmd_gen_description(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = {"force_regenerate": args.force_regenerate}
-    if args.language:
-        payload["language"] = args.language
-    return api.post(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}/generate/description",
-        json_data=payload,
+@app.command("gen-image")
+@cli_command
+def pages_gen_image(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    force_regenerate: bool = typer.Option(False, help="Force regeneration"),
+    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    use_template: bool = typer.Option(True, "--use-template/--no-template", help="Use template"),
+) -> None:
+    """Generate single page image."""
+    payload: dict = {"force_regenerate": force_regenerate, "use_template": use_template}
+    if language:
+        payload["language"] = language
+    emit_output(
+        state.api.post(f"/api/projects/{project_id}/pages/{page_id}/generate/image", json_data=payload)
     )
 
 
-def cmd_gen_image(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = {
-        "force_regenerate": args.force_regenerate,
-        "use_template": args.use_template,
-    }
-    if args.language:
-        payload["language"] = args.language
-    return api.post(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}/generate/image",
-        json_data=payload,
-    )
-
-
-def cmd_edit_image(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    desc_urls = parse_list_csv(args.desc_image_urls)
+@app.command("edit-image")
+@cli_command
+def pages_edit_image(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    instruction: str = typer.Option(..., help="Edit instruction"),
+    use_template: bool = typer.Option(False, help="Use template"),
+    desc_image_urls: Optional[str] = typer.Option(None, help="Comma-separated image urls"),
+    context_image: Optional[List[str]] = typer.Option(None, help="Context image paths"),
+) -> None:
+    """Edit single page image."""
+    desc_urls = parse_list_csv(desc_image_urls)
     form_data = {
-        "edit_instruction": args.instruction,
-        "use_template": "true" if args.use_template else "false",
+        "edit_instruction": instruction,
+        "use_template": "true" if use_template else "false",
         "desc_image_urls": json.dumps(desc_urls),
     }
 
     files = []
     opened = []
     try:
-        for path_str in args.context_image:
+        for path_str in (context_image or []):
             path = ensure_file(path_str)
             f = path.open("rb")
             opened.append(f)
             files.append(("context_images", (path.name, f)))
 
-        return api.post(
-            f"/api/projects/{args.project_id}/pages/{args.page_id}/edit/image",
-            form_data=form_data,
-            files=files,
+        emit_output(
+            state.api.post(
+                f"/api/projects/{project_id}/pages/{page_id}/edit/image",
+                form_data=form_data,
+                files=files,
+            )
         )
     finally:
         for f in opened:
             f.close()
 
 
-def cmd_versions(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.get(f"/api/projects/{args.project_id}/pages/{args.page_id}/image-versions")
+@app.command("versions")
+@cli_command
+def pages_versions(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+) -> None:
+    """List page image versions."""
+    emit_output(state.api.get(f"/api/projects/{project_id}/pages/{page_id}/image-versions"))
 
 
-def cmd_set_current(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    return api.post(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}/image-versions/{args.version_id}/set-current"
+@app.command("set-current")
+@cli_command
+def pages_set_current(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    version_id: str = typer.Option(..., help="Version ID"),
+) -> None:
+    """Set current image version."""
+    emit_output(
+        state.api.post(f"/api/projects/{project_id}/pages/{page_id}/image-versions/{version_id}/set-current")
     )
 
 
-def cmd_regenerate_renovation(api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    payload = {"keep_layout": args.keep_layout}
-    if args.language:
-        payload["language"] = args.language
-    return api.post(
-        f"/api/projects/{args.project_id}/pages/{args.page_id}/regenerate-renovation",
-        json_data=payload,
+@app.command("regenerate-renovation")
+@cli_command
+def pages_regenerate_renovation(
+    project_id: str = typer.Option(..., help="Project ID"),
+    page_id: str = typer.Option(..., help="Page ID"),
+    language: Optional[str] = typer.Option(None, help="Language (zh/en/ja/auto)"),
+    keep_layout: bool = typer.Option(False, help="Keep layout"),
+) -> None:
+    """Regenerate renovation page."""
+    payload: dict = {"keep_layout": keep_layout}
+    if language:
+        payload["language"] = language
+    emit_output(
+        state.api.post(f"/api/projects/{project_id}/pages/{page_id}/regenerate-renovation", json_data=payload)
     )

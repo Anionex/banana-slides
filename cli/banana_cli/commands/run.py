@@ -2,72 +2,58 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
+
+import typer
 
 from ..errors import InputError
-from ..http_client import APIClient
 from ..jobs.loader import load_jobs
 from ..jobs.runner import run_jobs
+from ..output import cli_command, emit_run_output
 from ..reporter import write_report
+from ..state import state
+
+app = typer.Typer(no_args_is_help=True)
 
 
-def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("run", help="High-level batch execution")
-    child = parser.add_subparsers(dest="run_action", required=True)
-
-    p_jobs = child.add_parser("jobs", help="Run jobs from JSONL/CSV")
-    p_jobs.add_argument("--file", required=True, help="Path to jobs .jsonl or .csv")
-    p_jobs.add_argument("--report", required=True, help="Output report JSON path")
-    p_jobs.add_argument("--continue-on-error", dest="continue_on_error", action="store_true")
-    p_jobs.add_argument("--fail-fast", dest="continue_on_error", action="store_false")
-    p_jobs.add_argument("--timeout-sec", type=int, default=1800)
-    p_jobs.add_argument("--state-file", help="Output run state JSON path")
-    p_jobs.add_argument(
-        "--done-marker-file",
-        help="JSON file to mark successful job_ids and skip them on rerun",
-    )
-    p_jobs.add_argument(
-        "--progress-interval-sec",
-        type=int,
-        default=60,
-        help="Throttle terminal progress prints (seconds)",
-    )
-    p_jobs.set_defaults(handler=cmd_jobs, continue_on_error=None)
-
-    p_monitor = child.add_parser("monitor", help="Monitor run progress from state file")
-    p_monitor.add_argument("--state-file", required=True, help="Path to run state JSON")
-    p_monitor.add_argument("--watch", action="store_true", help="Watch until run finishes")
-    p_monitor.add_argument("--interval", type=int, default=60, help="Refresh interval seconds")
-    p_monitor.set_defaults(handler=cmd_monitor)
-
-
-def cmd_jobs(api: APIClient, cfg, args: argparse.Namespace) -> dict:
-    jobs = load_jobs(args.file)
-    report = run_jobs(
-        api,
+@app.command("jobs")
+@cli_command
+def run_jobs_cmd(
+    file: str = typer.Option(..., help="Path to jobs .jsonl or .csv"),
+    report: str = typer.Option(..., help="Output report JSON path"),
+    continue_on_error: Optional[bool] = typer.Option(None, "--continue-on-error/--fail-fast"),
+    timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
+    state_file: Optional[str] = typer.Option(None, help="Output run state JSON path"),
+    done_marker_file: Optional[str] = typer.Option(None, help="JSON file to track completed jobs"),
+    progress_interval_sec: int = typer.Option(60, help="Throttle terminal progress prints"),
+) -> None:
+    """Run jobs from JSONL/CSV."""
+    jobs = load_jobs(file)
+    report_result = run_jobs(
+        state.api,
         jobs,
-        cfg,
-        default_continue_on_error=args.continue_on_error,
-        default_timeout_sec=args.timeout_sec,
-        state_file=args.state_file,
-        done_marker_file=args.done_marker_file,
-        progress_interval_sec=args.progress_interval_sec,
+        state.config,
+        default_continue_on_error=continue_on_error,
+        default_timeout_sec=timeout_sec,
+        state_file=state_file,
+        done_marker_file=done_marker_file,
+        progress_interval_sec=progress_interval_sec,
     )
-    out = write_report(report, args.report)
+    out = write_report(report_result, report)
 
-    return {
+    emit_run_output({
         "success": True,
         "data": {
             "report_path": str(out.resolve()),
-            "run_id": report.run_id,
-            "totals": report.totals,
-            "jobs": [j.model_dump() for j in report.jobs],
+            "run_id": report_result.run_id,
+            "totals": report_result.totals,
+            "jobs": [j.model_dump() for j in report_result.jobs],
         },
-    }
+    })
 
 
 def _read_state_file(state_file: str) -> dict:
@@ -122,18 +108,32 @@ def _print_snapshot(snapshot: dict) -> None:
     print(line)
 
 
-def cmd_monitor(_api: APIClient, _cfg, args: argparse.Namespace) -> dict:
-    if args.interval <= 0:
+def cmd_monitor(state_file: str, watch: bool, interval: int) -> dict:
+    """Monitor run progress (internal function for testing)."""
+    if interval <= 0:
         raise InputError("--interval must be > 0")
 
-    if not args.watch:
-        snapshot = _read_state_file(args.state_file)
+    if not watch:
+        snapshot = _read_state_file(state_file)
         return {"success": True, "data": snapshot}
 
     while True:
-        snapshot = _read_state_file(args.state_file)
+        snapshot = _read_state_file(state_file)
         _print_snapshot(snapshot)
 
         if _is_finished_status(snapshot.get("status")):
             return {"success": True, "data": snapshot}
-        time.sleep(args.interval)
+        time.sleep(interval)
+
+
+@app.command("monitor")
+@cli_command
+def run_monitor(
+    state_file: str = typer.Option(..., help="Path to run state JSON"),
+    watch: bool = typer.Option(False, help="Watch until run finishes"),
+    interval: int = typer.Option(60, help="Refresh interval seconds"),
+) -> None:
+    """Monitor run progress from state file."""
+    from ..output import emit_output
+    result = cmd_monitor(state_file, watch, interval)
+    emit_output(result)

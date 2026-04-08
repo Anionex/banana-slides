@@ -1,110 +1,72 @@
-"""CLI app entry and command dispatch."""
+"""CLI app entry point using Typer."""
 
 from __future__ import annotations
 
-import argparse
-import json
-from typing import Any
+from typing import Optional
+
+import typer
 
 from .config import resolve_config
-from .errors import CLIError
 from .http_client import APIClient
-from .commands import (
-    exports,
-    files,
-    materials,
-    pages,
-    projects,
-    refs,
-    renovation,
-    run,
-    settings,
-    styles,
-    tasks,
-    templates,
-    workflows,
+from .state import state
+from .commands.projects import app as projects_app
+from .commands.pages import app as pages_app
+from .commands.workflows import app as workflows_app
+from .commands.exports import app as exports_app
+from .commands.materials import app as materials_app
+from .commands.run import app as run_app
+from .commands.settings import app as settings_app
+from .commands.tasks import app as tasks_app
+from .commands.templates import app as templates_app
+from .commands.refs import app as refs_app
+from .commands.renovation import app as renovation_app
+from .commands.styles import app as styles_app
+from .commands.files import app as files_app
+
+app = typer.Typer(
+    name="banana-cli",
+    help="Banana Slides API-driven CLI",
+    no_args_is_help=True,
+    pretty_exceptions_enable=False,
 )
 
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="banana-cli", description="Banana Slides API-driven CLI")
-    parser.add_argument("--base-url", help="Backend base URL, default http://localhost:5000")
-    parser.add_argument("--access-code", help="Optional X-Access-Code header")
-    parser.add_argument("--poll-interval", type=int, help="Task polling interval seconds")
-    parser.add_argument("--request-timeout", type=int, help="Request timeout seconds")
-    parser.add_argument("--config", help="Config file path (TOML)")
-    parser.add_argument("--json", action="store_true", help="Output JSON")
-    parser.add_argument("--verbose", action="store_true", help="Verbose output")
-
-    subparsers = parser.add_subparsers(dest="domain", required=True)
-    run.register(subparsers)
-    projects.register(subparsers)
-    workflows.register(subparsers)
-    tasks.register(subparsers)
-    pages.register(subparsers)
-    templates.register(subparsers)
-    exports.register(subparsers)
-    refs.register(subparsers)
-    materials.register(subparsers)
-    settings.register(subparsers)
-    renovation.register(subparsers)
-    styles.register(subparsers)
-    files.register(subparsers)
-
-    return parser
+app.add_typer(projects_app, name="projects", help="Project operations")
+app.add_typer(pages_app, name="pages", help="Page operations")
+app.add_typer(workflows_app, name="workflows", help="Workflow operations")
+app.add_typer(exports_app, name="exports", help="Export operations")
+app.add_typer(materials_app, name="materials", help="Material operations")
+app.add_typer(run_app, name="run", help="High-level batch execution")
+app.add_typer(settings_app, name="settings", help="Settings operations")
+app.add_typer(tasks_app, name="tasks", help="Task operations")
+app.add_typer(templates_app, name="templates", help="Template operations")
+app.add_typer(refs_app, name="refs", help="Reference file operations")
+app.add_typer(renovation_app, name="renovation", help="PPT renovation operations")
+app.add_typer(styles_app, name="styles", help="Style extraction operations")
+app.add_typer(files_app, name="files", help="File transfer operations")
 
 
-def _emit_output(result: Any, json_output: bool, args: argparse.Namespace) -> int:
-    if result is None:
-        return 0
-
-    if args.domain == "run" and getattr(args, "run_action", None) == "jobs":
-        data = result.get("data", {}) if isinstance(result, dict) else {}
-        totals = data.get("totals", {})
-        if not json_output:
-            print(
-                f"Run {data.get('run_id')}: total={totals.get('total', 0)} "
-                f"success={totals.get('success', 0)} failed={totals.get('failed', 0)}"
-            )
-            print(f"Report: {data.get('report_path')}")
-        else:
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 2 if totals.get("failed", 0) > 0 else 0
-
-    if json_output:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-    else:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
-
-
-def run_cli(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    try:
-        cfg = resolve_config(args)
-        api = APIClient(cfg)
-        handler = getattr(args, "handler", None)
-        if handler is None:
-            parser.error("No command handler configured")
-        result = handler(api, cfg, args)
-        return _emit_output(result, cfg.json_output, args)
-    except CLIError as exc:
-        print(json.dumps({"success": False, "error": exc.to_dict()}, ensure_ascii=False, indent=2))
-        return 1
-    except KeyboardInterrupt:
-        print(json.dumps({"success": False, "error": {"code": "INTERRUPTED", "message": "Interrupted"}}, ensure_ascii=False, indent=2))
-        return 1
-    except Exception as exc:  # noqa: BLE001
-        print(
-            json.dumps(
-                {
-                    "success": False,
-                    "error": {"code": "UNEXPECTED_ERROR", "message": str(exc)},
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-        return 1
+@app.callback()
+def main_callback(
+    ctx: typer.Context,
+    base_url: Optional[str] = typer.Option(None, "--base-url", help="Backend base URL"),
+    access_code: Optional[str] = typer.Option(None, "--access-code", help="X-Access-Code header"),
+    poll_interval: Optional[int] = typer.Option(None, "--poll-interval", help="Task polling interval seconds"),
+    request_timeout: Optional[int] = typer.Option(None, "--request-timeout", help="Request timeout seconds"),
+    config: Optional[str] = typer.Option(None, "--config", help="Config file path (TOML)"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    verbose: bool = typer.Option(False, "--verbose", help="Verbose output"),
+) -> None:
+    """Banana Slides API-driven CLI."""
+    cfg = resolve_config(
+        base_url=base_url,
+        access_code=access_code,
+        poll_interval=poll_interval,
+        request_timeout=request_timeout,
+        config_path=config,
+        json_output=json_output,
+        verbose=verbose,
+    )
+    state.config = cfg
+    state.api = APIClient(cfg)
+    state.json_output = json_output
+    state.verbose = verbose

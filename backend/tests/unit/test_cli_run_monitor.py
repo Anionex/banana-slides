@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from argparse import Namespace
 from pathlib import Path
 
 from cli.banana_cli.commands import run as run_cmd
@@ -236,7 +235,7 @@ def test_run_jobs_done_marker_skips_completed_job(tmp_path: Path, monkeypatch):
 
 
 def test_cmd_monitor_reads_snapshot(tmp_path: Path):
-    state = {
+    snapshot = {
         "run_id": "run-1",
         "status": "RUNNING",
         "summary": {"total": 2, "completed": 0, "success": 0, "failed": 0},
@@ -244,10 +243,9 @@ def test_cmd_monitor_reads_snapshot(tmp_path: Path):
         "jobs": [],
     }
     state_file = tmp_path / "state.json"
-    state_file.write_text(json.dumps(state), encoding="utf-8")
+    state_file.write_text(json.dumps(snapshot), encoding="utf-8")
 
-    args = Namespace(state_file=str(state_file), watch=False, interval=60)
-    result = run_cmd.cmd_monitor(None, None, args)
+    result = run_cmd.cmd_monitor(str(state_file), watch=False, interval=60)
 
     assert result["success"] is True
     assert result["data"]["run_id"] == "run-1"
@@ -278,8 +276,7 @@ def test_cmd_monitor_watch_until_completed(monkeypatch):
     monkeypatch.setattr(run_cmd, "_read_state_file", _fake_read)
     monkeypatch.setattr(run_cmd.time, "sleep", lambda sec: sleep_calls.append(sec))
 
-    args = Namespace(state_file="unused.json", watch=True, interval=5)
-    result = run_cmd.cmd_monitor(None, None, args)
+    result = run_cmd.cmd_monitor("unused.json", watch=True, interval=5)
 
     assert result["success"] is True
     assert result["data"]["status"] == "COMPLETED"
