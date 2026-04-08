@@ -708,28 +708,101 @@ def generate_from_description(project_id):
             return bad_request("description_text is required")
         
         project.description_text = description_text
-        
+
+        # Rule-based parser for large descriptions (avoids AI timeout on 50+ pages)
+        def _parse_description_by_rules(text: str):
+            """
+            Split description text into pages using rule-based heuristics.
+            Handles formats like:
+              - 第X页：标题 / Page X: Title
+              - ## 标题 / # 标题
+              - Blank-line separated blocks
+            Returns (outline, page_descriptions).
+            """
+            import re
+            # Try numbered page pattern first: 第1页, 第一页, Page 1, Slide 1
+            page_pattern = re.compile(
+                r'(?:^|\n)(?:第\s*[\d一二三四五六七八九十百]+\s*[页张]|Page\s*\d+|Slide\s*\d+)\s*[：:：]?\s*',
+                re.IGNORECASE
+            )
+            splits = page_pattern.split(text)
+            headers = page_pattern.findall(text)
+
+            if len(splits) > 2:  # first element is empty/preamble
+                blocks = list(zip(headers, splits[1:]))
+            else:
+                # Fall back: split by double newline
+                raw_blocks = [b.strip() for b in re.split(r'\n{2,}', text) if b.strip()]
+                blocks = [(None, b) for b in raw_blocks]
+
+            outline = []
+            page_descriptions = []
+            for idx, (header, body) in enumerate(blocks):
+                lines = body.strip().splitlines()
+                # First non-empty line is the title
+                title = ''
+                content_lines = []
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if not title and stripped:
+                        # Strip markdown heading markers
+                        title = re.sub(r'^#+\s*', '', stripped)
+                    else:
+                        content_lines.append(stripped)
+
+                if not title:
+                    title = f'第{idx + 1}页'
+
+                points = [l for l in content_lines if l]
+                outline.append({'title': title, 'points': points[:5] or [title]})
+
+                desc = f'页面标题：{title}\n\n页面文字：\n'
+                if points:
+                    desc += '\n'.join(f'- {p}' for p in points)
+                else:
+                    desc += f'- {title}'
+                page_descriptions.append(desc)
+
+            return outline, page_descriptions
+
+        # Decide whether to use AI or rule-based parsing
+        # Count rough page count by double-newline blocks or explicit page markers
+        import re as _re
+        rough_page_count = max(
+            len(_re.findall(r'(?:第\s*[\d一二三四五六七八九十百]+\s*[页张]|Page\s*\d+|Slide\s*\d+)', description_text, _re.IGNORECASE)),
+            len([b for b in _re.split(r'\n{2,}', description_text) if b.strip()])
+        )
+        USE_RULES_THRESHOLD = 30  # pages
+
         # Get singleton AI service instance
         ai_service = get_ai_service()
-        
+
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
         project_context = ProjectContext(project, reference_files_content)
-        
-        logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}")
-        
-        # Step 1: Parse description to outline
-        logger.info("Step 1: 解析描述文本到大纲结构...")
-        outline = ai_service.parse_description_to_outline(project_context, language=language)
-        logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
-        
-        # Step 2: Split description into page descriptions
-        logger.info("Step 2: 切分描述文本到每页描述...")
-        page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
-        logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
+
+        logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}, 预估页数={rough_page_count}")
+
+        if rough_page_count >= USE_RULES_THRESHOLD:
+            logger.info(f"描述页数较多({rough_page_count})，使用规则解析跳过 AI")
+            outline, page_descriptions = _parse_description_by_rules(description_text)
+            logger.info(f"规则解析完成，共 {len(outline)} 页")
+        else:
+            # Step 1: Parse description to outline
+            logger.info("Step 1: 解析描述文本到大纲结构...")
+            outline = ai_service.parse_description_to_outline(project_context, language=language)
+            logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
+
+            # Step 2: Split description into page descriptions
+            logger.info("Step 2: 切分描述文本到每页描述...")
+            page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
+            logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
         
         # Step 3: Flatten outline to pages
-        pages_data = ai_service.flatten_outline(outline)
+        if rough_page_count >= USE_RULES_THRESHOLD:
+            pages_data = outline  # already flat from rule parser
+        else:
+            pages_data = ai_service.flatten_outline(outline)
         
         if len(pages_data) != len(page_descriptions):
             logger.warning(f"页面数量不匹配: 大纲 {len(pages_data)} 页, 描述 {len(page_descriptions)} 页")
