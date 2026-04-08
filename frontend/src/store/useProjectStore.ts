@@ -685,28 +685,19 @@ const debouncedUpdatePage = debounce(
     }
   },
 
-  // 从描述生成大纲和页面描述（同步操作）
+  // 从描述生成大纲和页面描述（异步任务）
   generateFromDescription: async () => {
-    const { currentProject } = get();
+    const { currentProject, startAsyncTask } = get();
     if (!currentProject) return;
 
-    set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.generateFromDescription(currentProject.id!);
-      devLog('[从描述生成] API响应:', response);
-      
-      // 刷新项目数据，确保获取最新的大纲和描述
-      await get().syncProject();
-      
-      // 再次确认数据已更新
-      const { currentProject: updatedProject } = get();
-      devLog('[从描述生成] 刷新后的项目:', updatedProject?.pages.length, '个页面');
+      devLog('[从描述生成] 启动异步任务...');
+      await startAsyncTask(() => api.generateFromDescription(currentProject.id!));
+      devLog('[从描述生成] 异步任务完成');
     } catch (error: any) {
       console.error('[从描述生成] 错误:', error);
       set({ error: error.message || t('store.generateFromDescFailed') });
       throw error;
-    } finally {
-      set({ isGlobalLoading: false });
     }
   },
 
