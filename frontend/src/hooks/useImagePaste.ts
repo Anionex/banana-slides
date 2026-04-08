@@ -8,13 +8,18 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 
 const UPLOADING_PREFIX = 'uploading:';
+const RESOLVING_PREFIX = 'resolving:';
 
-/** Check if a URL is an uploading placeholder */
-export const isUploadingUrl = (url: string) => url.startsWith(UPLOADING_PREFIX);
+/** Check if a URL is an uploading/resolving placeholder */
+export const isUploadingUrl = (url: string) =>
+  url.startsWith(UPLOADING_PREFIX) || url.startsWith(RESOLVING_PREFIX);
 
-/** Extract the blob preview URL from an uploading placeholder */
-export const getUploadingPreviewUrl = (url: string) =>
-  isUploadingUrl(url) ? url.slice(UPLOADING_PREFIX.length) : url;
+/** Extract the real URL from an uploading/resolving placeholder */
+export const getUploadingPreviewUrl = (url: string) => {
+  if (url.startsWith(UPLOADING_PREFIX)) return url.slice(UPLOADING_PREFIX.length);
+  if (url.startsWith(RESOLVING_PREFIX)) return url.slice(RESOLVING_PREFIX.length);
+  return url;
+};
 
 /** Escape markdown special characters in alt text to prevent injection */
 export const escapeMarkdown = (text: string): string => {
@@ -35,9 +40,11 @@ export const buildMaterialsMarkdown = (
 
   for (const m of materials) {
     const fallback = m.original_filename || m.filename || 'image';
-    const caption = m.caption || fallback;
-    lines.push(`![${escapeMarkdown(caption)}](${m.url})`);
-    if (!m.caption) {
+    if (m.caption) {
+      lines.push(`![${escapeMarkdown(m.caption)}](${m.url})`);
+    } else {
+      // Show spinner chip while resolving caption
+      lines.push(`![${escapeMarkdown(fallback)}](${RESOLVING_PREFIX}${m.url})`);
       needCaption.push({ material: m, fallback });
     }
   }
@@ -47,17 +54,17 @@ export const buildMaterialsMarkdown = (
     (async () => {
       const { getMaterialCaption } = await import('@/api/endpoints');
       const replacements = new Map<string, string>();
-      await Promise.all(needCaption.map(async ({ material, fallback }) => {
+      for (const { material, fallback } of needCaption) {
+        const oldMd = `![${escapeMarkdown(fallback)}](${RESOLVING_PREFIX}${material.url})`;
         try {
           const response = await getMaterialCaption(material.id);
-          const caption = response.data?.caption;
-          if (caption) {
-            const oldMd = `![${escapeMarkdown(fallback)}](${material.url})`;
-            const newMd = `![${escapeMarkdown(caption)}](${material.url})`;
-            replacements.set(oldMd, newMd);
-          }
-        } catch { /* caption fetch failed, keep fallback */ }
-      }));
+          const caption = response.data?.caption || fallback;
+          replacements.set(oldMd, `![${escapeMarkdown(caption)}](${material.url})`);
+        } catch {
+          // Caption failed — remove resolving prefix, keep fallback
+          replacements.set(oldMd, `![${escapeMarkdown(fallback)}](${material.url})`);
+        }
+      }
       if (replacements.size > 0) {
         setContent(prev => {
           let content = prev;
