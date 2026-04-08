@@ -204,11 +204,8 @@ export const OutlineEditor: React.FC = () => {
       const caption = m.caption || m.original_filename || m.filename || 'image';
       return `![${escapeMarkdown(caption)}](${m.url})`;
     }).join('\n');
-    if (window.innerWidth >= 768) {
-      desktopTextareaRef.current?.insertAtCursor(markdown + '\n');
-    } else {
-      mobileTextareaRef.current?.insertAtCursor(markdown + '\n');
-    }
+    const targetRef = desktopTextareaRef.current || mobileTextareaRef.current;
+    targetRef?.insertAtCursor(markdown + '\n');
   }, []);
 
   const handleReqMaterialSelect = useCallback((materials: Material[]) => {
