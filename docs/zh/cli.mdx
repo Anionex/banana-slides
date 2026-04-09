@@ -54,6 +54,32 @@ BANANA_CLI_CONTINUE_ON_ERROR=true
 
 ---
 
+## 短 ID 前缀匹配
+
+所有 `--project-id` 和 `--page-id` 参数支持短前缀（类似 git 短哈希），无需输入完整 UUID：
+
+```bash
+banana-cli projects get a1b2          # 匹配 a1b2c3d4-e5f6-...
+banana-cli pages edit-image --page-id b9c8 --instruction "把标题改为红色"
+```
+
+前缀必须唯一匹配一个项目/页面，如果匹配到多个会提示补充更多字符。
+
+## 工作项目上下文
+
+设置工作项目后，后续命令可省略 `--project-id`：
+
+```bash
+banana-cli projects use a1b2     # 设置工作项目（支持短前缀）
+banana-cli workflows outline      # 自动使用工作项目
+banana-cli projects use           # 查看当前工作项目
+banana-cli projects unuse         # 清除
+```
+
+工作项目保存在 `~/.config/banana-slides/context.json`，跨会话持久化。
+
+---
+
 ## 命令参考
 
 ### projects — 项目管理
@@ -73,6 +99,13 @@ banana-cli projects update <project_id> --template-style "深色商务风"
 
 # 删除项目
 banana-cli projects delete <project_id>
+
+# 设置/查看工作项目
+banana-cli projects use <project_id>
+banana-cli projects use
+
+# 清除工作项目
+banana-cli projects unuse
 ```
 
 ### workflows — 工作流
@@ -82,6 +115,9 @@ banana-cli projects delete <project_id>
 ```bash
 # 生成大纲
 banana-cli workflows outline --project-id <id>
+
+# 指定页数
+banana-cli workflows outline --project-id <id> --pages 8
 
 # 从描述生成大纲
 banana-cli workflows outline --project-id <id> --from-description
@@ -97,6 +133,9 @@ banana-cli workflows images --project-id <id> --wait --use-template
 
 # 一键全流程：大纲 → 描述 → 图片
 banana-cli workflows full --project-id <id> --language zh
+
+# 指定页数的全流程
+banana-cli workflows full --project-id <id> --language zh --pages 10
 ```
 
 `workflows full` 支持跳过部分步骤：
@@ -310,15 +349,16 @@ uv run python -m cli.banana_cli.jobs.interactive_builder --output jobs.jsonl --c
 ### 从想法到 PPTX
 
 ```bash
-# 1. 创建项目
+# 1. 创建项目并设为工作项目
 result=$(banana-cli --json projects create --creation-type idea --idea-prompt "2024年AI发展报告")
-project_id=$(echo "$result" | jq -r '.data.project.id')
+project_id=$(echo "$result" | jq -r '.data.project_id')
+banana-cli projects use "$project_id"
 
-# 2. 一键生成
-banana-cli workflows full --project-id "$project_id" --language zh
+# 2. 一键生成（工作项目已设置，无需 --project-id）
+banana-cli workflows full --language zh --pages 8
 
 # 3. 导出
-banana-cli exports pptx --project-id "$project_id"
+banana-cli exports pptx
 ```
 
 ### 批量生成 10 套 PPT
@@ -342,3 +382,4 @@ banana-cli run jobs --file batch.jsonl --report report.json --state-file state.j
 2. **文件路径必须绝对路径**：所有 `--file`、`--image` 等参数要求绝对路径
 3. **异步任务**：描述生成、图片生成、可编辑导出等为异步任务，需加 `--wait` 等待完成，或用 `tasks wait` 手动轮询
 4. **Shell 补全**：运行 `banana-cli --install-completion` 安装当前 shell 的自动补全
+5. **AI Agent 友好**：当 stdout 为管道（非 TTY）时，`--help` 自动输出纯文本格式，无 Rich 装饰框

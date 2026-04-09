@@ -54,6 +54,32 @@ BANANA_CLI_CONTINUE_ON_ERROR=true
 
 ---
 
+## Short ID Prefix Matching
+
+All `--project-id` and `--page-id` parameters accept short prefixes (like git short hashes) instead of full UUIDs:
+
+```bash
+banana-cli projects get a1b2          # matches a1b2c3d4-e5f6-...
+banana-cli pages edit-image --page-id b9c8 --instruction "Change title to red"
+```
+
+The prefix must uniquely match one project/page. If multiple matches are found, you'll be prompted to provide more characters.
+
+## Working Project Context
+
+Set a working project to skip `--project-id` on subsequent commands:
+
+```bash
+banana-cli projects use a1b2     # set working project (supports short prefix)
+banana-cli workflows outline      # uses working project automatically
+banana-cli projects use           # show current working project
+banana-cli projects unuse         # clear
+```
+
+The working project is stored in `~/.config/banana-slides/context.json` and persists across sessions.
+
+---
+
 ## Command Reference
 
 ### projects — Project Management
@@ -73,6 +99,13 @@ banana-cli projects update <project_id> --template-style "Dark business style"
 
 # Delete project
 banana-cli projects delete <project_id>
+
+# Set/show working project
+banana-cli projects use <project_id>
+banana-cli projects use
+
+# Clear working project
+banana-cli projects unuse
 ```
 
 ### workflows — Workflows
@@ -82,6 +115,9 @@ End-to-end PPT generation pipeline.
 ```bash
 # Generate outline
 banana-cli workflows outline --project-id <id>
+
+# Specify page count
+banana-cli workflows outline --project-id <id> --pages 8
 
 # Generate outline from description
 banana-cli workflows outline --project-id <id> --from-description
@@ -97,6 +133,9 @@ banana-cli workflows images --project-id <id> --wait --use-template
 
 # Full pipeline: outline → descriptions → images
 banana-cli workflows full --project-id <id> --language zh
+
+# Full pipeline with page count
+banana-cli workflows full --project-id <id> --language en --pages 10
 ```
 
 `workflows full` supports skipping steps:
@@ -310,15 +349,16 @@ uv run python -m cli.banana_cli.jobs.interactive_builder --output jobs.jsonl --c
 ### From Idea to PPTX
 
 ```bash
-# 1. Create project
+# 1. Create project and set as working project
 result=$(banana-cli --json projects create --creation-type idea --idea-prompt "2024 AI Development Report")
-project_id=$(echo "$result" | jq -r '.data.project.id')
+project_id=$(echo "$result" | jq -r '.data.project_id')
+banana-cli projects use "$project_id"
 
-# 2. Full generation
-banana-cli workflows full --project-id "$project_id" --language en
+# 2. Full generation (working project set, no --project-id needed)
+banana-cli workflows full --language en --pages 8
 
 # 3. Export
-banana-cli exports pptx --project-id "$project_id"
+banana-cli exports pptx
 ```
 
 ### Batch Generate 10 PPTs
@@ -342,3 +382,4 @@ banana-cli run jobs --file batch.jsonl --report report.json --state-file state.j
 2. **File paths must be absolute**: All `--file`, `--image` parameters require absolute paths
 3. **Async tasks**: Description generation, image generation, and editable export are async tasks — add `--wait` to block until completion, or use `tasks wait` to poll manually
 4. **Shell completion**: Run `banana-cli --install-completion` to install auto-completion for your current shell
+5. **AI Agent friendly**: When stdout is piped (non-TTY), `--help` outputs plain text without Rich formatting
