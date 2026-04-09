@@ -7,6 +7,12 @@ from typing import Optional
 import typer
 
 from ..output import cli_command, emit_output
+from ..resolve import (
+    clear_working_project,
+    get_working_project,
+    resolve_project_id,
+    set_working_project,
+)
 from ..state import state
 from .common import load_data
 
@@ -26,9 +32,10 @@ def projects_list(
 @app.command("get")
 @cli_command
 def projects_get(
-    project_id: str = typer.Argument(..., help="Project ID"),
+    project_id: str = typer.Argument(..., help="Project ID or prefix"),
 ) -> None:
     """Get project details."""
+    project_id = resolve_project_id(project_id, allow_context=False)
     emit_output(state.api.get(f"/api/projects/{project_id}"))
 
 
@@ -64,7 +71,7 @@ def projects_create(
 @app.command("update")
 @cli_command
 def projects_update(
-    project_id: str = typer.Argument(..., help="Project ID"),
+    project_id: str = typer.Argument(..., help="Project ID or prefix"),
     idea_prompt: Optional[str] = typer.Option(None),
     outline_text: Optional[str] = typer.Option(None),
     description_text: Optional[str] = typer.Option(None),
@@ -77,6 +84,7 @@ def projects_update(
     data_file: Optional[str] = typer.Option(None, help="Path to JSON file body"),
 ) -> None:
     """Update a project."""
+    project_id = resolve_project_id(project_id, allow_context=False)
     payload = load_data(data, data_file)
     for key, val in [
         ("idea_prompt", idea_prompt),
@@ -96,7 +104,35 @@ def projects_update(
 @app.command("delete")
 @cli_command
 def projects_delete(
-    project_id: str = typer.Argument(..., help="Project ID"),
+    project_id: str = typer.Argument(..., help="Project ID or prefix"),
 ) -> None:
     """Delete a project."""
+    project_id = resolve_project_id(project_id, allow_context=False)
     emit_output(state.api.delete(f"/api/projects/{project_id}"))
+
+
+@app.command("use")
+@cli_command
+def projects_use(
+    project_id: Optional[str] = typer.Argument(None, help="Project ID or prefix to set as working project. Omit to show current."),
+) -> None:
+    """Set or show the current working project."""
+    if project_id is None:
+        current = get_working_project()
+        if current:
+            typer.echo(f"Current working project: {current}")
+        else:
+            typer.echo("No working project set. Usage: projects use <id>")
+        return
+
+    resolved = resolve_project_id(project_id, allow_context=False)
+    set_working_project(resolved)
+    typer.echo(f"Working project set to: {resolved}")
+
+
+@app.command("unuse")
+@cli_command
+def projects_unuse() -> None:
+    """Clear the current working project."""
+    clear_working_project()
+    typer.echo("Working project cleared.")

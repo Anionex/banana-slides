@@ -9,6 +9,7 @@ import typer
 
 from ..jobs.workflow import wait_task
 from ..output import cli_command, emit_output
+from ..resolve import resolve_project_id
 from ..state import state
 from .common import parse_list_csv
 
@@ -28,40 +29,43 @@ def _basic_export(project_id: str, export_type: str, filename: str | None, page_
 @app.command("pptx")
 @cli_command
 def exports_pptx(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     filename: Optional[str] = typer.Option(None, help="Output filename"),
     page_ids: Optional[str] = typer.Option(None, help="Comma-separated page IDs"),
 ) -> None:
     """Export PPTX."""
+    project_id = resolve_project_id(project_id)
     _basic_export(project_id, "pptx", filename, page_ids)
 
 
 @app.command("pdf")
 @cli_command
 def exports_pdf(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     filename: Optional[str] = typer.Option(None, help="Output filename"),
     page_ids: Optional[str] = typer.Option(None, help="Comma-separated page IDs"),
 ) -> None:
     """Export PDF."""
+    project_id = resolve_project_id(project_id)
     _basic_export(project_id, "pdf", filename, page_ids)
 
 
 @app.command("images")
 @cli_command
 def exports_images(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     filename: Optional[str] = typer.Option(None, help="Output filename"),
     page_ids: Optional[str] = typer.Option(None, help="Comma-separated page IDs"),
 ) -> None:
     """Export images."""
+    project_id = resolve_project_id(project_id)
     _basic_export(project_id, "images", filename, page_ids)
 
 
 @app.command("editable-pptx")
 @cli_command
 def exports_editable_pptx(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     filename: Optional[str] = typer.Option(None, help="Output filename"),
     page_ids: Optional[str] = typer.Option(None, help="Comma-separated page IDs"),
     max_depth: int = typer.Option(1, help="Max extraction depth"),
@@ -70,6 +74,7 @@ def exports_editable_pptx(
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
 ) -> None:
     """Export editable PPTX asynchronously."""
+    project_id = resolve_project_id(project_id)
     body: dict = {"max_depth": max_depth, "max_workers": max_workers}
     if filename:
         body["filename"] = filename

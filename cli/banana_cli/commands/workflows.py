@@ -9,6 +9,7 @@ import typer
 
 from ..jobs.workflow import wait_task
 from ..output import cli_command, emit_output
+from ..resolve import resolve_project_id
 from ..state import state
 from .common import parse_list_csv
 
@@ -20,10 +21,13 @@ def _do_outline(
     from_description: bool = False,
     refine: str | None = None,
     language: str | None = None,
+    pages: int | None = None,
 ) -> dict:
     payload: dict = {}
     if language:
         payload["language"] = language
+    if pages is not None:
+        payload["outline_requirements"] = f"Generate exactly {pages} pages."
     if refine:
         payload["user_requirement"] = refine
         return state.api.post(f"/api/projects/{project_id}/refine/outline", json_data=payload)
@@ -35,19 +39,21 @@ def _do_outline(
 @app.command("outline")
 @cli_command
 def workflows_outline(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     from_description: bool = typer.Option(False, help="Generate from description"),
     refine: Optional[str] = typer.Option(None, help="Refine with user requirement"),
     language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
+    pages: Optional[int] = typer.Option(None, help="Target number of pages"),
 ) -> None:
     """Generate or refine outline."""
-    emit_output(_do_outline(project_id, from_description, refine, language))
+    project_id = resolve_project_id(project_id)
+    emit_output(_do_outline(project_id, from_description, refine, language, pages))
 
 
 @app.command("descriptions")
 @cli_command
 def workflows_descriptions(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     refine: Optional[str] = typer.Option(None, help="Refine with user requirement"),
     max_workers: Optional[int] = typer.Option(None, help="Max workers"),
     language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
@@ -55,6 +61,7 @@ def workflows_descriptions(
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
 ) -> None:
     """Generate or refine descriptions."""
+    project_id = resolve_project_id(project_id)
     payload: dict = {}
     if max_workers is not None:
         payload["max_workers"] = max_workers
@@ -79,7 +86,7 @@ def workflows_descriptions(
 @app.command("images")
 @cli_command
 def workflows_images(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     max_workers: Optional[int] = typer.Option(None, help="Max workers"),
     language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
     page_ids: Optional[str] = typer.Option(None, help="Comma-separated page IDs"),
@@ -88,6 +95,7 @@ def workflows_images(
     use_template: bool = typer.Option(True, "--use-template/--no-template", help="Use template"),
 ) -> None:
     """Generate images."""
+    project_id = resolve_project_id(project_id)
     payload: dict = {"use_template": use_template}
     if max_workers is not None:
         payload["max_workers"] = max_workers
@@ -110,23 +118,25 @@ def workflows_images(
 @app.command("full")
 @cli_command
 def workflows_full(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     from_description: bool = typer.Option(False, help="Generate from description"),
     skip_outline: bool = typer.Option(False, help="Skip outline generation"),
     skip_descriptions: bool = typer.Option(False, help="Skip descriptions generation"),
     skip_images: bool = typer.Option(False, help="Skip images generation"),
     language: Optional[str] = typer.Option(None, help="Language", click_type=click.Choice(["zh", "en", "ja", "auto"])),
+    pages: Optional[int] = typer.Option(None, help="Target number of pages"),
     desc_max_workers: Optional[int] = typer.Option(None, help="Description max workers"),
     image_max_workers: Optional[int] = typer.Option(None, help="Image max workers"),
     use_template: bool = typer.Option(True, "--use-template/--no-template", help="Use template"),
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
 ) -> None:
     """Run outline -> descriptions -> images pipeline."""
+    project_id = resolve_project_id(project_id)
     tasks = []
     cfg = state.config
 
     if not skip_outline:
-        _do_outline(project_id, from_description, language=language)
+        _do_outline(project_id, from_description, language=language, pages=pages)
 
     if not skip_descriptions:
         desc_payload: dict = {}

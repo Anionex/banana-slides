@@ -9,6 +9,7 @@ import typer
 
 from ..jobs.workflow import wait_task
 from ..output import cli_command, emit_output
+from ..resolve import resolve_project_id
 from ..state import state
 from .common import ensure_file
 
@@ -18,11 +19,12 @@ app = typer.Typer(no_args_is_help=True)
 @app.command("list")
 @cli_command
 def materials_list(
-    project_id: Optional[str] = typer.Option(None, help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     scope: str = typer.Option("all", help="Scope: all or none"),
 ) -> None:
     """List materials."""
     if project_id:
+        project_id = resolve_project_id(project_id, allow_context=False)
         emit_output(state.api.get(f"/api/projects/{project_id}/materials"))
     else:
         emit_output(state.api.get("/api/materials", params={"project_id": scope}))
@@ -32,10 +34,12 @@ def materials_list(
 @cli_command
 def materials_upload(
     file: str = typer.Option(..., help="Absolute file path"),
-    project_id: Optional[str] = typer.Option(None, help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     is_global: bool = typer.Option(False, "--global", help="Upload as global material"),
 ) -> None:
     """Upload material."""
+    if project_id:
+        project_id = resolve_project_id(project_id, allow_context=False)
     path = ensure_file(file)
     with path.open("rb") as f:
         if is_global or not project_id:
@@ -48,7 +52,7 @@ def materials_upload(
 @cli_command
 def materials_generate(
     prompt: str = typer.Option(..., help="Generation prompt"),
-    project_id: Optional[str] = typer.Option(None, help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     is_global: bool = typer.Option(False, "--global", help="Generate as global material"),
     ref_image: Optional[str] = typer.Option(None, help="Reference image path"),
     extra_image: Optional[List[str]] = typer.Option(None, help="Extra image paths"),
@@ -56,6 +60,8 @@ def materials_generate(
     timeout_sec: int = typer.Option(1800, help="Task timeout seconds"),
 ) -> None:
     """Generate material image."""
+    if project_id:
+        project_id = resolve_project_id(project_id, allow_context=False)
     endpoint_project = project_id if project_id and not is_global else "none"
     form = {"prompt": prompt}
     files = []
@@ -92,10 +98,11 @@ def materials_generate(
 @app.command("associate")
 @cli_command
 def materials_associate(
-    project_id: str = typer.Option(..., help="Project ID"),
+    project_id: Optional[str] = typer.Option(None, help="Project ID or prefix"),
     material_url: List[str] = typer.Option(..., help="Material URLs"),
 ) -> None:
     """Associate global materials to project."""
+    project_id = resolve_project_id(project_id)
     emit_output(
         state.api.post("/api/materials/associate", json_data={"project_id": project_id, "material_urls": material_url})
     )

@@ -20,15 +20,37 @@ Use `banana-cli` to create, manage, and export AI-generated presentations via th
 ### Create a presentation from an idea
 
 ```bash
-# 1. Create project
+# 1. Create project and set as working project
 result=$(uv run banana-cli --json projects create --creation-type idea --idea-prompt "Your topic here")
 project_id=$(echo "$result" | jq -r '.data.project.id')
+uv run banana-cli projects use "$project_id"
 
 # 2. Generate everything (outline → descriptions → images)
-uv run banana-cli workflows full --project-id "$project_id" --language zh
+# --project-id is optional when a working project is set
+uv run banana-cli workflows full --language zh --pages 8
 
 # 3. Export
-uv run banana-cli exports pptx --project-id "$project_id"
+uv run banana-cli exports pptx
+```
+
+### Short ID prefix matching
+
+All commands accept short ID prefixes instead of full UUIDs:
+
+```bash
+uv run banana-cli projects get a1b2          # matches a1b2c3d4-...
+uv run banana-cli pages update --page-id b9c8 --part cover
+```
+
+### Working project context
+
+Set a working project to skip `--project-id` on subsequent commands:
+
+```bash
+uv run banana-cli projects use a1b2           # set working project
+uv run banana-cli workflows outline            # uses working project
+uv run banana-cli projects use                 # show current
+uv run banana-cli projects unuse               # clear
 ```
 
 ### Common commands
@@ -38,7 +60,7 @@ uv run banana-cli exports pptx --project-id "$project_id"
 | List projects | `uv run banana-cli projects list` |
 | Generate outline | `uv run banana-cli workflows outline --project-id <id>` |
 | Refine outline | `uv run banana-cli workflows outline --project-id <id> --refine "add a section about X"` |
-| Full generation | `uv run banana-cli workflows full --project-id <id> --language zh` |
+| Full generation | `uv run banana-cli workflows full --project-id <id> --language zh --pages 8` |
 | Export PPTX | `uv run banana-cli exports pptx --project-id <id>` |
 | Export PDF | `uv run banana-cli exports pdf --project-id <id>` |
 | Edit a page image | `uv run banana-cli pages edit-image --project-id <id> --page-id <pid> --instruction "change title color to red"` |
@@ -69,4 +91,7 @@ uv run banana-cli run jobs --file jobs.jsonl --report report.json --state-file s
 - All file path arguments (`--file`, `--image`) require **absolute paths**
 - Async tasks (descriptions, images, editable export) need `--wait` flag to block until completion
 - Use `--json` output when parsing results programmatically
+- All `--project-id` and `--page-id` options accept short ID prefixes (e.g. `a1b2` instead of full UUID)
+- Use `projects use <id>` to set a working project — subsequent commands will use it automatically
+- `--help` output is automatically plain text when piped (non-TTY), AI-agent friendly
 - Config priority: CLI args > env vars (`BANANA_CLI_*`) > TOML config (`~/.config/banana-slides/cli.toml`) > defaults
