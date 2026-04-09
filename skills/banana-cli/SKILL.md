@@ -106,6 +106,6 @@ banana-cli --json projects list | jq '.data.projects[].project_id'
 - `--help` output is plain text when piped (non-TTY) — safe for agent consumption
 - Config priority: CLI args > env vars (`BANANA_CLI_*`) > TOML config (`~/.config/banana-slides/cli.toml`) > defaults
 
-## Command Reference
+## Discovering Commands
 
-For the full list of commands, subcommands, and options, see [references/commands.md](references/commands.md).
+Run `banana-cli --help` for the top-level command list, and `banana-cli <command> --help` for subcommand options. Help output is plain text when piped (non-TTY).
