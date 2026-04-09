@@ -12,13 +12,15 @@ description: >
 
 CLI for creating, managing, and exporting AI-generated presentations.
 
-## Before You Start
+## Environment Check
 
-banana-cli requires a running Banana Slides backend. If not already set up:
+Before running any command, verify the backend is reachable:
 
-1. **Install and start the backend** — follow [references/setup.md](references/setup.md)
-2. **Verify**: `curl http://localhost:5000/health` should return OK
-3. Full docs: https://docs.bananaslides.online/
+```bash
+curl -sf http://localhost:5000/health
+```
+
+If this fails, the backend is not running. Read [references/setup.md](references/setup.md) and follow the steps to clone the repo, configure `.env`, and start the backend. Do not proceed until the health check passes.
 
 ## Invocation
 
