@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -23,6 +24,44 @@ def _emit_progress(
     except Exception:  # noqa: BLE001
         # Monitoring must never break the main workflow.
         return
+
+
+def make_stderr_progress_cb() -> Callable[[dict[str, Any]], None]:
+    """Return a progress callback that prints structured lines to stderr.
+
+    Output goes to stderr so it never pollutes JSON on stdout.
+    Format is designed to be parseable by both humans and agents::
+
+        [PROGRESS] GENERATE_IMAGES RUNNING 3/8 (42s)
+        [PROGRESS] GENERATE_IMAGES COMPLETED 8/8 (87s)
+    """
+    start = time.monotonic()
+
+    def _cb(event: dict[str, Any]) -> None:
+        ev = event.get("event", "")
+        if ev not in {"task_polled", "task_completed", "task_failed"}:
+            return
+
+        stage = event.get("task_type") or ""
+        status = event.get("status") or ""
+        progress = event.get("progress") or {}
+        elapsed = int(time.monotonic() - start)
+
+        parts = ["[PROGRESS]", stage, status]
+
+        total = progress.get("total")
+        completed = progress.get("completed")
+        if total is not None and completed is not None:
+            failed = progress.get("failed", 0)
+            frag = f"{completed}/{total}"
+            if failed:
+                frag += f" failed={failed}"
+            parts.append(frag)
+
+        parts.append(f"({elapsed}s)")
+        print(" ".join(p for p in parts if p), file=sys.stderr)
+
+    return _cb
 
 
 def wait_task(

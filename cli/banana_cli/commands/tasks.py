@@ -6,7 +6,7 @@ from typing import Optional
 
 import typer
 
-from ..jobs.workflow import wait_task
+from ..jobs.workflow import make_stderr_progress_cb, wait_task
 from ..output import cli_command, emit_output
 from ..resolve import resolve_project_id
 from ..state import state
@@ -34,5 +34,10 @@ def tasks_wait(
 ) -> None:
     """Wait for task completion."""
     project_id = resolve_project_id(project_id)
-    result = wait_task(state.api, project_id, task_id, timeout_sec=timeout_sec, poll_interval=state.config.poll_interval)
+    result = wait_task(
+        state.api, project_id, task_id,
+        timeout_sec=timeout_sec,
+        poll_interval=state.config.poll_interval,
+        progress_callback=make_stderr_progress_cb(),
+    )
     emit_output({"success": True, "data": result})
