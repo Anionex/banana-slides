@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
+
+# Resolve the cli directory relative to this test file
+_CLI_DIR = str(Path(__file__).resolve().parents[3] / "cli")
 
 
 def test_help_plain_text_in_pipe():
@@ -12,7 +16,7 @@ def test_help_plain_text_in_pipe():
         [sys.executable, "-m", "banana_cli", "--help"],
         capture_output=True,
         text=True,
-        cwd="/home/aa/banana-slides-cli-ux/cli",
+        cwd=_CLI_DIR,
     )
 
     output = result.stdout
@@ -29,7 +33,7 @@ def test_help_contains_new_commands():
         [sys.executable, "-m", "banana_cli", "projects", "--help"],
         capture_output=True,
         text=True,
-        cwd="/home/aa/banana-slides-cli-ux/cli",
+        cwd=_CLI_DIR,
     )
 
     output = result.stdout
