@@ -25,7 +25,11 @@ uv run banana-cli --help  # Verify installation
 If you use AI Agents in Claude Code, install the banana-cli skill in one command so the Agent knows how to use the CLI automatically:
 
 ```bash
+# Global install (recommended, available in all projects)
 npx skills add Anionex/banana-slides -g
+
+# Or install to current project only
+npx skills add Anionex/banana-slides
 ```
 
 Once installed, the Agent will invoke `/banana-cli` as needed, with full environment detection, setup guidance, and usage examples.
