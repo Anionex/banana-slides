@@ -35,7 +35,7 @@
 # 忽略临时文档，但保留项目文档
 *.md
 !README.md
-!SKILL.md
+!skills/**/*.md
 # !docs/**/*.md
 !docs/specs/cli-spec.md
 !.github/**/*.md
