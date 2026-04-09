@@ -2,27 +2,13 @@
 
 Full documentation: https://docs.bananaslides.online/
 
-## Option 1: Docker (Fastest)
+## Install and Start Backend
 
 ```bash
 git clone https://github.com/Anionex/banana-slides
 cd banana-slides
 cp .env.example .env
-# Edit .env — at minimum set GOOGLE_API_KEY or OPENAI_API_KEY
-docker compose -f docker-compose.prod.yml up -d
-```
-
-Frontend: http://localhost:3000 | Backend: http://localhost:5000
-
-## Option 2: From Source
-
-### Backend
-
-```bash
-git clone https://github.com/Anionex/banana-slides
-cd banana-slides
-cp .env.example .env
-# Edit .env — at minimum set GOOGLE_API_KEY or OPENAI_API_KEY
+# Edit .env — at minimum set an AI provider key (see below)
 cd backend
 uv sync
 uv run alembic upgrade head
@@ -30,16 +16,6 @@ uv run python app.py
 ```
 
 Backend starts on http://localhost:5000.
-
-### Frontend (optional for CLI-only usage)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend starts on http://localhost:3000.
 
 ## Required Configuration
 
@@ -61,12 +37,10 @@ Supported providers: `gemini`, `openai`, `vertex`, `lazyllm`, `anthropic`.
 ## Verify
 
 ```bash
-curl http://localhost:5000/health
+curl -sf http://localhost:5000/health
 ```
 
 ## Install banana-cli
-
-Once the backend is running, install the CLI:
 
 ```bash
 # Option A: use directly from project root (no install needed)
