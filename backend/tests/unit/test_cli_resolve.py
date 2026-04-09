@@ -19,6 +19,9 @@ from cli.banana_cli.resolve import (
 )
 from cli.banana_cli.errors import InputError
 
+# Note: The API uses "project_id" as key for projects and "page_id" for pages,
+# but the resolver also supports "id" as fallback for flexibility.
+
 
 # --- _is_full_uuid ---
 
@@ -80,8 +83,8 @@ def test_resolve_short_prefix_unique():
     api.get.return_value = {
         "data": {
             "projects": [
-                {"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "idea_prompt": "test"},
-                {"id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "idea_prompt": "other"},
+                {"project_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "idea_prompt": "test"},
+                {"project_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "idea_prompt": "other"},
             ]
         }
     }
@@ -95,8 +98,8 @@ def test_resolve_short_prefix_ambiguous():
     api.get.return_value = {
         "data": {
             "projects": [
-                {"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "idea_prompt": "test1"},
-                {"id": "a1b2d5e6-f7a8-9012-cdef-123456789012", "idea_prompt": "test2"},
+                {"project_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "idea_prompt": "test1"},
+                {"project_id": "a1b2d5e6-f7a8-9012-cdef-123456789012", "idea_prompt": "test2"},
             ]
         }
     }
@@ -146,12 +149,10 @@ def test_resolve_page_short_prefix():
     api = MagicMock()
     api.get.return_value = {
         "data": {
-            "project": {
-                "pages": [
-                    {"id": "p1b2c3d4-e5f6-7890-abcd-ef1234567890", "outline_content": {"title": "Intro"}},
-                    {"id": "q2c3d4e5-f6a7-8901-bcde-f12345678901", "outline_content": {"title": "Main"}},
-                ]
-            }
+            "pages": [
+                {"page_id": "p1b2c3d4-e5f6-7890-abcd-ef1234567890", "outline_content": {"title": "Intro"}},
+                {"page_id": "q2c3d4e5-f6a7-8901-bcde-f12345678901", "outline_content": {"title": "Main"}},
+            ]
         }
     }
 
@@ -161,7 +162,7 @@ def test_resolve_page_short_prefix():
 
 def test_resolve_page_no_match():
     api = MagicMock()
-    api.get.return_value = {"data": {"project": {"pages": []}}}
+    api.get.return_value = {"data": {"pages": []}}
 
     with pytest.raises(InputError, match="No page found"):
         resolve_page_id("zzzz", "proj-id", api=api)
@@ -171,12 +172,10 @@ def test_resolve_page_ambiguous():
     api = MagicMock()
     api.get.return_value = {
         "data": {
-            "project": {
-                "pages": [
-                    {"id": "p1b2aaaa-0000-0000-0000-000000000001", "outline_content": {"title": "A"}},
-                    {"id": "p1b2bbbb-0000-0000-0000-000000000002", "outline_content": {"title": "B"}},
-                ]
-            }
+            "pages": [
+                {"page_id": "p1b2aaaa-0000-0000-0000-000000000001", "outline_content": {"title": "A"}},
+                {"page_id": "p1b2bbbb-0000-0000-0000-000000000002", "outline_content": {"title": "B"}},
+            ]
         }
     }
 

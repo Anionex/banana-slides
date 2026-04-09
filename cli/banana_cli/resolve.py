@@ -90,19 +90,22 @@ def resolve_project_id(
     resp = api.get("/api/projects", params={"limit": 200, "offset": 0})
     projects = resp.get("data", {}).get("projects", [])
 
-    matches = [p for p in projects if p.get("id", "").startswith(project_id)]
+    def _get_pid(p: dict) -> str:
+        return p.get("project_id") or p.get("id") or ""
+
+    matches = [p for p in projects if _get_pid(p).startswith(project_id)]
 
     if len(matches) == 0:
         raise InputError(f"No project found matching prefix '{project_id}'")
     if len(matches) > 1:
-        lines = [f"  {p['id'][:12]}…  {p.get('idea_prompt', '')[:40]}" for p in matches[:5]]
+        lines = [f"  {_get_pid(p)[:12]}…  {p.get('idea_prompt', '')[:40]}" for p in matches[:5]]
         hint = "\n".join(lines)
         raise InputError(
             f"Ambiguous prefix '{project_id}' matches {len(matches)} projects. "
             f"Provide more characters:\n{hint}"
         )
 
-    return matches[0]["id"]
+    return _get_pid(matches[0])
 
 
 def resolve_page_id(
@@ -120,18 +123,25 @@ def resolve_page_id(
         api = state.api
 
     resp = api.get(f"/api/projects/{project_id}")
-    pages = resp.get("data", {}).get("project", {}).get("pages", [])
+    data = resp.get("data", {})
+    # The API returns pages directly under data, or under data.project
+    pages = data.get("pages", [])
+    if not pages and isinstance(data.get("project"), dict):
+        pages = data["project"].get("pages", [])
 
-    matches = [p for p in pages if p.get("id", "").startswith(page_id)]
+    def _get_page_id(p: dict) -> str:
+        return p.get("page_id") or p.get("id") or ""
+
+    matches = [p for p in pages if _get_page_id(p).startswith(page_id)]
 
     if len(matches) == 0:
         raise InputError(f"No page found matching prefix '{page_id}' in project {project_id[:8]}…")
     if len(matches) > 1:
-        lines = [f"  {p['id'][:12]}…  {p.get('outline_content', {}).get('title', '')[:30]}" for p in matches[:5]]
+        lines = [f"  {_get_page_id(p)[:12]}…  {(p.get('outline_content') or {}).get('title', '')[:30]}" for p in matches[:5]]
         hint = "\n".join(lines)
         raise InputError(
             f"Ambiguous prefix '{page_id}' matches {len(matches)} pages. "
             f"Provide more characters:\n{hint}"
         )
 
-    return matches[0]["id"]
+    return _get_page_id(matches[0])
