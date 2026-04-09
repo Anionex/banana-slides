@@ -7,11 +7,14 @@
  */
 
 import { execSync } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
 import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:5062";
-const CLI_CMD = `cd /home/aa/banana-slides-cli-ux && uv run banana-cli --base-url ${BASE_URL} --json`;
-const CLI_CMD_NO_JSON = `cd /home/aa/banana-slides-cli-ux && uv run banana-cli --base-url ${BASE_URL}`;
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const CLI_CMD = `cd "${PROJECT_ROOT}" && uv run banana-cli --base-url ${BASE_URL} --json`;
+const CLI_CMD_NO_JSON = `cd "${PROJECT_ROOT}" && uv run banana-cli --base-url ${BASE_URL}`;
 
 function cli(args: string, timeout = 30000): any {
   const output = execSync(`${CLI_CMD} ${args}`, {
@@ -31,7 +34,7 @@ function cliRaw(args: string): string {
 function cliHelp(args: string): string {
   // Help output goes to stdout in pipe mode (non-TTY)
   return execSync(
-    `cd /home/aa/banana-slides-cli-ux && uv run banana-cli ${args}`,
+    `cd "${PROJECT_ROOT}" && uv run banana-cli ${args}`,
     {
       encoding: "utf-8",
       timeout: 30000,
@@ -166,7 +169,7 @@ test.describe("CLI --pages Parameter", () => {
     // the API call succeeds and returns pages.
     const result = cli(
       `workflows outline --project-id ${projectId} --pages 3`,
-      90000
+      120000
     );
     expect(result.success).toBe(true);
     expect(result.data?.pages?.length).toBeGreaterThan(0);

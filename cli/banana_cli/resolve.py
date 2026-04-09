@@ -87,6 +87,7 @@ def resolve_project_id(
         from .state import state
         api = state.api
 
+    # Fetch up to 200 projects for prefix matching; sufficient for CLI usage
     resp = api.get("/api/projects", params={"limit": 200, "offset": 0})
     projects = resp.get("data", {}).get("projects", [])
 
