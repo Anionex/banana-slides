@@ -1526,27 +1526,39 @@ def generate_from_description_task(task_id: str, project_id: str, ai_service,
             task.set_progress({'step': 'splitting_descriptions', 'percent': 50})
             db.session.commit()
 
-            # Step 2: split descriptions in batches of 20 to avoid oversized JSON
+            # Step 2: split descriptions in parallel batches of 20
             logger.info(f"[from-desc {task_id}] Step 2: splitting descriptions ({len(flat)} pages)...")
             BATCH_SIZE = 20
-            page_descriptions = []
 
             def _make_batch_outline(pages_batch):
-                """Reconstruct a minimal outline structure for a batch of flat pages."""
                 return [{'title': p.get('title'), 'points': p.get('points', [])} for p in pages_batch]
 
-            for batch_start in range(0, len(flat), BATCH_SIZE):
-                batch_pages = flat[batch_start:batch_start + BATCH_SIZE]
-                batch_outline = _make_batch_outline(batch_pages)
-                logger.info(f"[from-desc {task_id}] batch {batch_start//BATCH_SIZE + 1}: pages {batch_start+1}-{batch_start+len(batch_pages)}")
-                batch_descs = ai_service.parse_description_to_page_descriptions(
-                    project_context, batch_outline, language=language)
-                page_descriptions.extend(batch_descs)
-                # update progress between 50-85%
-                pct = 50 + int(35 * (batch_start + len(batch_pages)) / max(len(flat), 1))
-                task.set_progress({'step': 'splitting_descriptions', 'percent': pct})
-                db.session.commit()
+            batches = [
+                (i, flat[i:i + BATCH_SIZE])
+                for i in range(0, len(flat), BATCH_SIZE)
+            ]
 
+            results = [None] * len(batches)
+
+            def _run_batch(idx, batch_pages):
+                batch_outline = _make_batch_outline(batch_pages)
+                logger.info(f"[from-desc {task_id}] batch {idx+1}/{len(batches)}: pages {batches[idx][0]+1}-{batches[idx][0]+len(batch_pages)}")
+                return idx, ai_service.parse_description_to_page_descriptions(
+                    project_context, batch_outline, language=language)
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with ThreadPoolExecutor(max_workers=min(len(batches), 4)) as pool:
+                futures = {pool.submit(_run_batch, idx, pages): idx for idx, pages in batches}
+                done_count = 0
+                for fut in as_completed(futures):
+                    idx, batch_descs = fut.result()  # raises on error → caught by outer except
+                    results[idx] = batch_descs
+                    done_count += 1
+                    pct = 50 + int(35 * done_count / len(batches))
+                    task.set_progress({'step': 'splitting_descriptions', 'percent': pct})
+                    db.session.commit()
+
+            page_descriptions = [desc for batch in results for desc in batch]
             logger.info(f"[from-desc {task_id}] split done: {len(page_descriptions)} pages")
 
             task.set_progress({'step': 'saving_pages', 'percent': 85})
