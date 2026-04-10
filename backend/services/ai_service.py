@@ -170,7 +170,60 @@ class AIService:
                 urls.append(url)
         
         return urls
-    
+
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        """
+        从 AI 响应中提取第一个完整的 JSON 对象或数组，忽略前后多余内容。
+        处理常见情况：markdown 代码块、JSON 后面跟着说明文字等。
+        """
+        # 先去掉 markdown 代码块
+        text = text.strip()
+        # ```json ... ``` 或 ``` ... ```
+        import re as _re
+        code_block = _re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+        if code_block:
+            text = code_block.group(1).strip()
+
+        # 找到第一个 [ 或 { 的位置
+        start = -1
+        start_char = None
+        for i, ch in enumerate(text):
+            if ch in ('{', '['):
+                start = i
+                start_char = ch
+                break
+
+        if start == -1:
+            return text  # 没找到，原样返回让 json.loads 报错
+
+        end_char = ']' if start_char == '[' else '}'
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == start_char:
+                depth += 1
+            elif ch == end_char:
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+
+        # 没找到匹配的结束符，返回从 start 到末尾（让 json.loads 报错）
+        return text[start:]
+
     @staticmethod
     def remove_markdown_images(text: str) -> str:
         """
@@ -222,10 +275,9 @@ class AIService:
         # 调用AI生成文本（根据 enable_text_reasoning 配置调整 thinking_budget）
         actual_budget = self._get_text_thinking_budget()
         response_text = self.text_provider.generate_text(prompt, thinking_budget=actual_budget)
-        
-        # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().strip("```json").strip("```").strip()
-        
+
+        cleaned_text = self._extract_json(response_text)
+
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
@@ -271,9 +323,8 @@ class AIService:
         else:
             raise ValueError("caption_provider 不支持图片输入")
         
-        # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        
+        cleaned_text = self._extract_json(response_text)
+
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:

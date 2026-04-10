@@ -1487,7 +1487,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             import traceback
             error_detail = traceback.format_exc()
             logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
-            
+
             # 标记任务失败
             task = Task.query.get(task_id)
             if task:
@@ -1495,3 +1495,129 @@ def export_editable_pptx_with_recursive_analysis_task(
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
+
+
+def generate_from_description_task(task_id: str, project_id: str, ai_service,
+                                    project_context, language: str, app):
+    """
+    Background task: parse description text → outline → page descriptions → create pages.
+    Replaces the synchronous generate/from-description endpoint.
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            task.set_progress({'step': 'parsing_outline', 'percent': 10})
+            db.session.commit()
+
+            # Step 1: parse outline
+            logger.info(f"[from-desc {task_id}] Step 1: parsing outline...")
+            outline = ai_service.parse_description_to_outline(project_context, language=language)
+            flat = ai_service.flatten_outline(outline)
+            logger.info(f"[from-desc {task_id}] outline done: {len(flat)} pages")
+
+            task.set_progress({'step': 'splitting_descriptions', 'percent': 50})
+            db.session.commit()
+
+            # Step 2: split descriptions in parallel batches of 20
+            logger.info(f"[from-desc {task_id}] Step 2: splitting descriptions ({len(flat)} pages)...")
+            BATCH_SIZE = 20
+
+            def _make_batch_outline(pages_batch):
+                return [{'title': p.get('title'), 'points': p.get('points', [])} for p in pages_batch]
+
+            batches = [
+                flat[i:i + BATCH_SIZE]
+                for i in range(0, len(flat), BATCH_SIZE)
+            ]
+
+            results = [None] * len(batches)
+
+            def _run_batch(idx, batch_pages):
+                batch_outline = _make_batch_outline(batch_pages)
+                start_page = idx * BATCH_SIZE + 1
+                end_page = idx * BATCH_SIZE + len(batch_pages)
+                logger.info(f"[from-desc {task_id}] batch {idx+1}/{len(batches)}: pages {start_page}-{end_page}")
+                return idx, ai_service.parse_description_to_page_descriptions(
+                    project_context, batch_outline, language=language)
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with ThreadPoolExecutor(max_workers=min(len(batches), 4)) as pool:
+                futures = {pool.submit(_run_batch, idx, pages): idx for idx, pages in enumerate(batches)}
+                done_count = 0
+                for fut in as_completed(futures):
+                    idx, batch_descs = fut.result()  # raises on error → caught by outer except
+                    results[idx] = batch_descs
+                    done_count += 1
+                    pct = 50 + int(35 * done_count / len(batches))
+                    task.set_progress({'step': 'splitting_descriptions', 'percent': pct})
+                    db.session.commit()
+
+            page_descriptions = [desc for batch in results for desc in batch]
+            logger.info(f"[from-desc {task_id}] split done: {len(page_descriptions)} pages")
+
+            task.set_progress({'step': 'saving_pages', 'percent': 85})
+            db.session.commit()
+
+            # Step 3: reconcile counts
+            pages_data = flat
+            if len(pages_data) != len(page_descriptions):
+                logger.warning(f"[from-desc {task_id}] count mismatch: "
+                               f"outline={len(pages_data)}, desc={len(page_descriptions)}")
+                min_count = min(len(pages_data), len(page_descriptions))
+                pages_data = pages_data[:min_count]
+                page_descriptions = page_descriptions[:min_count]
+
+            # Step 4: delete old pages
+            old_pages = Page.query.filter_by(project_id=project_id).all()
+            for p in old_pages:
+                db.session.delete(p)
+
+            # Step 5: create new pages
+            for i, (page_data, page_desc) in enumerate(zip(pages_data, page_descriptions)):
+                page = Page(
+                    project_id=project_id,
+                    order_index=i,
+                    part=page_data.get('part'),
+                    status='DESCRIPTION_GENERATED',
+                )
+                page.set_outline_content({
+                    'title': page_data.get('title'),
+                    'points': page_data.get('points', []),
+                })
+                page.set_description_content({
+                    'text': page_desc,
+                    'generated_at': datetime.utcnow().isoformat(),
+                })
+                db.session.add(page)
+
+            # Update project status
+            from models import Project
+            project = Project.query.get(project_id)
+            if project:
+                project.status = 'DESCRIPTIONS_GENERATED'
+                project.updated_at = datetime.utcnow()
+
+            task.status = 'COMPLETED'
+            task.set_progress({'step': 'done', 'percent': 100})
+            task.completed_at = datetime.utcnow()
+            db.session.commit()
+            logger.info(f"[from-desc {task_id}] completed, {len(pages_data)} pages created")
+
+        except Exception as e:
+            import traceback
+            logger.error(f"[from-desc {task_id}] failed: {traceback.format_exc()}")
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+

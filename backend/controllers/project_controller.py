@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context, g
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
@@ -25,6 +25,7 @@ from services.task_manager import (
     generate_descriptions_task,
     generate_images_task,
     process_ppt_renovation_task,
+    generate_from_description_task,
     get_description_text,
 )
 from utils import (
@@ -675,118 +676,62 @@ def _sse_event(event: str, data: dict) -> str:
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
 def generate_from_description(project_id):
     """
-    POST /api/projects/{project_id}/generate/from-description - Generate outline and page descriptions from description text
-    
-    This endpoint:
-    1. Parses the description_text to extract outline structure
-    2. Splits the description_text into individual page descriptions
-    3. Creates pages with both outline and description content filled
-    4. Sets project status to DESCRIPTIONS_GENERATED
-    
-    Request body (optional):
-    {
-        "description_text": "...",  # if not provided, uses project.description_text
-        "language": "zh"  # output language: zh, en, ja, auto
-    }
+    POST /api/projects/{project_id}/generate/from-description
+    Async version: submits a background task and returns task_id immediately.
     """
-    
     try:
         project = Project.query.get(project_id)
-        
         if not project:
             return not_found('Project')
-        
+
         if project.creation_type != 'descriptions':
             return bad_request("This endpoint is only for descriptions type projects")
-        
-        # Get description text and language
+
         data = request.get_json() or {}
         description_text = data.get('description_text') or project.description_text
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+
         if not description_text:
             return bad_request("description_text is required")
-        
+
+        # Save description text
         project.description_text = description_text
-        
-        # Get singleton AI service instance
+        project.status = 'PARSING_DESCRIPTION'
+
+        # Create task
+        task = Task(
+            project_id=project_id,
+            task_type='GENERATE_FROM_DESCRIPTION',
+            status='PENDING'
+        )
+        task.set_progress({'step': 'queued', 'percent': 0})
+        db.session.add(task)
+        db.session.commit()
+
         ai_service = get_ai_service()
-        
-        # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
         project_context = ProjectContext(project, reference_files_content)
-        
-        logger.info(f"开始从描述生成大纲和页面描述: 项目 {project_id}")
-        
-        # Step 1: Parse description to outline
-        logger.info("Step 1: 解析描述文本到大纲结构...")
-        outline = ai_service.parse_description_to_outline(project_context, language=language)
-        logger.info(f"大纲解析完成，共 {len(ai_service.flatten_outline(outline))} 页")
-        
-        # Step 2: Split description into page descriptions
-        logger.info("Step 2: 切分描述文本到每页描述...")
-        page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
-        logger.info(f"描述切分完成，共 {len(page_descriptions)} 页")
-        
-        # Step 3: Flatten outline to pages
-        pages_data = ai_service.flatten_outline(outline)
-        
-        if len(pages_data) != len(page_descriptions):
-            logger.warning(f"页面数量不匹配: 大纲 {len(pages_data)} 页, 描述 {len(page_descriptions)} 页")
-            # 取较小的数量，避免索引错误
-            min_count = min(len(pages_data), len(page_descriptions))
-            pages_data = pages_data[:min_count]
-            page_descriptions = page_descriptions[:min_count]
-        
-        # Step 4: Delete existing pages (using ORM session to trigger cascades)
-        old_pages = Page.query.filter_by(project_id=project_id).all()
-        for old_page in old_pages:
-            db.session.delete(old_page)
-        
-        # Step 5: Create pages with both outline and description
-        pages_list = []
-        for i, (page_data, page_desc) in enumerate(zip(pages_data, page_descriptions)):
-            page = Page(
-                project_id=project_id,
-                order_index=i,
-                part=page_data.get('part'),
-                status='DESCRIPTION_GENERATED'  # 直接设置为已生成描述
-            )
-            
-            # Set outline content
-            page.set_outline_content({
-                'title': page_data.get('title'),
-                'points': page_data.get('points', [])
-            })
-            
-            # Set description content
-            desc_content = {
-                "text": page_desc,
-                "generated_at": datetime.utcnow().isoformat()
-            }
-            page.set_description_content(desc_content)
-            
-            db.session.add(page)
-            pages_list.append(page)
-        
-        # Update project status
-        project.status = 'DESCRIPTIONS_GENERATED'
-        project.updated_at = datetime.utcnow()
-        
-        db.session.commit()
-        
-        logger.info(f"从描述生成完成: 项目 {project_id}, 创建了 {len(pages_list)} 个页面，已填充大纲和描述")
-        
-        # Return pages
+        app = current_app._get_current_object()
+
+        task_manager.submit_task(
+            task.id,
+            generate_from_description_task,
+            project_id,
+            ai_service,
+            project_context,
+            language,
+            app,
+        )
+
         return success_response({
-            'pages': [page.to_dict() for page in pages_list],
-            'status': 'DESCRIPTIONS_GENERATED'
-        })
-    
+            'task_id': task.id,
+            'status': 'PARSING_DESCRIPTION',
+        }, status_code=202)
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"generate_from_description failed: {str(e)}", exc_info=True)
-        return error_response('AI_SERVICE_ERROR', str(e), 503)
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @project_bp.route('/<project_id>/generate/descriptions', methods=['POST'])
