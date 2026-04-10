@@ -265,7 +265,10 @@ const debouncedUpdatePage = debounce(
       if (type === 'outline') {
         await generateWithRollback(() => api.generateOutline(projectId), '生成大纲');
       } else if (type === 'description') {
-        await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
+        // generateFromDescription 依赖 currentProject.id，先设置一个最小占位对象
+        set({ currentProject: { id: projectId, pages: [] } as any });
+        // 必须用 store 方法而非底层 API，确保等待异步任务轮询完成
+        await generateWithRollback(() => get().generateFromDescription(), '从描述生成大纲和页面描述');
       }
 
       // 5. 获取完整项目信息
@@ -478,96 +481,91 @@ const debouncedUpdatePage = debounce(
     }
   },
 
-  // 轮询任务状态
-  pollTask: async (taskId) => {
+  // 轮询任务状态（返回 Promise，真正等待任务完成）
+  pollTask: (taskId) => {
     devLog(`[轮询] 开始轮询任务: ${taskId}`);
     const { currentProject } = get();
     if (!currentProject) {
       console.warn('[轮询] 没有当前项目，停止轮询');
-      return;
+      return Promise.resolve();
     }
     const projectId = currentProject.id!;
 
-    const poll = async () => {
-      try {
-        devLog(`[轮询] 查询任务状态: ${taskId}`);
-        const response = await api.getTaskStatus(projectId, taskId);
-        const task = response.data;
-        
-        if (!task) {
-          console.warn('[轮询] 响应中没有任务数据');
-          return;
-        }
+    return new Promise<void>((resolve, reject) => {
+      const poll = async () => {
+        try {
+          devLog(`[轮询] 查询任务状态: ${taskId}`);
+          const response = await api.getTaskStatus(projectId, taskId);
+          const task = response.data;
 
-        // 更新进度
-        if (task.progress) {
-          set({ taskProgress: task.progress });
-        }
-
-        devLog(`[轮询] Task ${taskId} 状态: ${task.status}`, task);
-
-        // 检查任务状态
-        if (task.status === 'COMPLETED') {
-          devLog(`[轮询] Task ${taskId} 已完成，刷新项目数据`);
-          
-          // 如果是导出可编辑PPTX任务，检查是否有下载链接
-          if (task.task_type === 'EXPORT_EDITABLE_PPTX' && task.progress) {
-            const progress = typeof task.progress === 'string' 
-              ? JSON.parse(task.progress) 
-              : task.progress;
-            
-            const downloadUrl = progress?.download_url;
-            if (downloadUrl) {
-              devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
-              // 延迟一下，确保状态更新完成后再打开下载链接
-              setTimeout(() => {
-                window.open(downloadUrl, '_blank');
-              }, 500);
-            } else {
-              console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
-            }
+          if (!task) {
+            console.warn('[轮询] 响应中没有任务数据');
+            resolve();
+            return;
           }
-          
-          set({ 
-            activeTaskId: null, 
-            taskProgress: null, 
-            isGlobalLoading: false 
-          });
-          // 刷新项目数据
-          await get().syncProject();
-        } else if (task.status === 'FAILED') {
-          console.error(`[轮询] Task ${taskId} 失败:`, task.error_message || task.error);
-          set({ 
-            error: normalizeErrorMessage(task.error_message || task.error || t('store.taskFailed')),
-            activeTaskId: null,
-            taskProgress: null,
-            isGlobalLoading: false
-          });
-        } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
-          // 继续轮询（PENDING 或 PROCESSING）
-          devLog(`[轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
-          setTimeout(poll, 2000);
-        } else {
-          // 未知状态，停止轮询
-          console.warn(`[轮询] Task ${taskId} 未知状态: ${task.status}，停止轮询`);
-          set({ 
-            error: `${t('store.unknownTaskStatus', { status: task.status })}`,
-            activeTaskId: null,
-            taskProgress: null,
-            isGlobalLoading: false
-          });
-        }
-      } catch (error: any) {
-        console.error('任务轮询错误:', error);
-        set({ 
-          error: normalizeErrorMessage(error.message || t('store.taskQueryFailed')),
-          activeTaskId: null,
-          isGlobalLoading: false
-        });
-      }
-    };
 
-    await poll();
+          // 更新进度
+          if (task.progress) {
+            set({ taskProgress: task.progress });
+          }
+
+          devLog(`[轮询] Task ${taskId} 状态: ${task.status}`, task);
+
+          if (task.status === 'COMPLETED') {
+            devLog(`[轮询] Task ${taskId} 已完成，刷新项目数据`);
+
+            // 如果是导出可编辑PPTX任务，检查是否有下载链接
+            if (task.task_type === 'EXPORT_EDITABLE_PPTX' && task.progress) {
+              const progress = typeof task.progress === 'string'
+                ? JSON.parse(task.progress)
+                : task.progress;
+              const downloadUrl = progress?.download_url;
+              if (downloadUrl) {
+                devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
+                setTimeout(() => { window.open(downloadUrl, '_blank'); }, 500);
+              } else {
+                console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
+              }
+            }
+
+            set({ activeTaskId: null, taskProgress: null, isGlobalLoading: false });
+            await get().syncProject();
+            resolve();
+          } else if (task.status === 'FAILED') {
+            console.error(`[轮询] Task ${taskId} 失败:`, task.error_message || task.error);
+            set({
+              error: normalizeErrorMessage(task.error_message || task.error || t('store.taskFailed')),
+              activeTaskId: null,
+              taskProgress: null,
+              isGlobalLoading: false,
+            });
+            reject(new Error(task.error_message || task.error || t('store.taskFailed')));
+          } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
+            devLog(`[轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
+            setTimeout(poll, 2000);
+          } else {
+            console.warn(`[轮询] Task ${taskId} 未知状态: ${task.status}，停止轮询`);
+            set({
+              error: `${t('store.unknownTaskStatus', { status: task.status })}`,
+              activeTaskId: null,
+              taskProgress: null,
+              isGlobalLoading: false,
+            });
+            resolve();
+          }
+        } catch (error: any) {
+          console.error('任务轮询错误:', error);
+          set({
+            error: normalizeErrorMessage(error.message || t('store.taskQueryFailed')),
+            activeTaskId: null,
+            isGlobalLoading: false,
+          });
+          reject(error);
+        }
+      };
+
+      poll();
+    });
   },
 
   // 生成大纲（同步操作，不需要轮询）
