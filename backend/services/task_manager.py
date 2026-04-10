@@ -1534,7 +1534,7 @@ def generate_from_description_task(task_id: str, project_id: str, ai_service,
                 return [{'title': p.get('title'), 'points': p.get('points', [])} for p in pages_batch]
 
             batches = [
-                (i, flat[i:i + BATCH_SIZE])
+                flat[i:i + BATCH_SIZE]
                 for i in range(0, len(flat), BATCH_SIZE)
             ]
 
@@ -1542,13 +1542,15 @@ def generate_from_description_task(task_id: str, project_id: str, ai_service,
 
             def _run_batch(idx, batch_pages):
                 batch_outline = _make_batch_outline(batch_pages)
-                logger.info(f"[from-desc {task_id}] batch {idx+1}/{len(batches)}: pages {batches[idx][0]+1}-{batches[idx][0]+len(batch_pages)}")
+                start_page = idx * BATCH_SIZE + 1
+                end_page = idx * BATCH_SIZE + len(batch_pages)
+                logger.info(f"[from-desc {task_id}] batch {idx+1}/{len(batches)}: pages {start_page}-{end_page}")
                 return idx, ai_service.parse_description_to_page_descriptions(
                     project_context, batch_outline, language=language)
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
             with ThreadPoolExecutor(max_workers=min(len(batches), 4)) as pool:
-                futures = {pool.submit(_run_batch, idx, pages): idx for idx, pages in batches}
+                futures = {pool.submit(_run_batch, idx, pages): idx for idx, pages in enumerate(batches)}
                 done_count = 0
                 for fut in as_completed(futures):
                     idx, batch_descs = fut.result()  # raises on error → caught by outer except
