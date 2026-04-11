@@ -331,7 +331,7 @@ export const Home: React.FC = () => {
 
   // 上传文件
   // 在 Home 页面，文件始终上传为全局文件（不关联项目），因为此时还没有项目
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = useCallback(async (file: File) => {
     if (isUploadingFile) return;
 
     // 检查文件大小（前端预检查）
@@ -400,7 +400,7 @@ export const Home: React.FC = () => {
     } finally {
       setIsUploadingFile(false);
     }
-  };
+  }, [isUploadingFile, show, t]);
 
   // 拖拽进来的文档文件：按扩展名过滤后复用 handleFileUpload（逐个上传+自动触发解析）
   const handleDocumentFiles = useCallback(async (files: File[]) => {
@@ -434,7 +434,7 @@ export const Home: React.FC = () => {
     for (const file of accepted) {
       await handleFileUpload(file);
     }
-  }, [isUploadingFile, show, t]);
+  }, [isUploadingFile, handleFileUpload, show, t]);
 
   // 从当前项目移除文件引用（不删除文件本身）
   const handleFileRemove = (fileId: string) => {
