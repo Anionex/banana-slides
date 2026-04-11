@@ -7,6 +7,7 @@ const markdownTextareaI18n = {
   zh: {
     markdownTextarea: {
       dropImages: '拖放图片到此处',
+      dropImagesOrFiles: '拖放图片或文件到此处',
       uploadImage: '上传图片',
       localUpload: '本地上传',
       selectFromLibrary: '从素材库选择',
@@ -18,6 +19,7 @@ const markdownTextareaI18n = {
   en: {
     markdownTextarea: {
       dropImages: 'Drop images here',
+      dropImagesOrFiles: 'Drop images or files here',
       uploadImage: 'Upload image',
       localUpload: 'Local upload',
       selectFromLibrary: 'Select from library',
@@ -36,8 +38,15 @@ interface MarkdownTextareaProps {
   value: string;
   onChange: (value: string) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLDivElement>) => void;
-  /** Called when files are dropped or selected via upload button */
+  /** Called when files are dropped or selected via upload button.
+   *  When `onDocumentFiles` is also provided, only image files (MIME
+   *  `image/*`) are passed here; non-image files go to `onDocumentFiles`. */
   onFiles?: (files: File[]) => void;
+  /** Called when non-image files are dropped. Providing this prop enables
+   *  document drag-and-drop: the drop overlay updates its label and dropped
+   *  files are split by MIME type. When not provided, legacy behavior applies
+   *  (all dropped files go to `onFiles`). */
+  onDocumentFiles?: (files: File[]) => void;
   onBlur?: () => void;
   onFocus?: () => void;
   placeholder?: string;
@@ -247,6 +256,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
   onChange,
   onPaste,
   onFiles,
+  onDocumentFiles,
   onBlur,
   onFocus,
   placeholder,
