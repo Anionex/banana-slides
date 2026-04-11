@@ -128,4 +128,48 @@ test.describe('Home document drop (mocked)', () => {
     await page.waitForTimeout(500)
     expect(uploadCalled).toBe(false)
   })
+
+  test('dropping multiple unsupported files shows a deduped toast', async ({ page }) => {
+    let uploadCalled = false
+
+    await page.route('**/api/settings', r =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings()) })
+    )
+    await page.route('**/api/reference-files/upload', r => {
+      uploadCalled = true
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { file: uploadedFileFixture('pending') } }) })
+    })
+
+    await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
+    await page.goto('/')
+
+    const editor = page.getByRole('textbox').first()
+    await expect(editor).toBeVisible({ timeout: 10_000 })
+
+    // Three unsupported files, two sharing the same extension — the toast
+    // must list each unsupported extension only once.
+    await editor.evaluate((el) => {
+      const files = [
+        new File(['x'], 'a.exe', { type: 'application/octet-stream' }),
+        new File(['x'], 'b.exe', { type: 'application/octet-stream' }),
+        new File(['x'], 'c.zip', { type: 'application/zip' }),
+      ]
+      const dataTransfer = new DataTransfer()
+      for (const f of files) dataTransfer.items.add(f)
+      const dropEvent = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer })
+      el.dispatchEvent(dropEvent)
+    })
+
+    // Unsupported file types — upload must NOT be hit.
+    await page.waitForTimeout(300)
+    expect(uploadCalled).toBe(false)
+
+    // The toast should contain both unique extensions, exactly once each.
+    const toast = page.getByText(/不支持的文件类型|Unsupported file type/).first()
+    await expect(toast).toBeVisible({ timeout: 3_000 })
+    const toastText = (await toast.textContent()) ?? ''
+    // Each extension appears exactly once (dedup): no `exe, exe`.
+    expect((toastText.match(/exe/g) || []).length).toBe(1)
+    expect((toastText.match(/zip/g) || []).length).toBe(1)
+  })
 })

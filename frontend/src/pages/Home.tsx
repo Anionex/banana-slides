@@ -87,6 +87,7 @@ const homeI18n = {
         fileUploadSuccess: '文件上传成功',
         fileUploadFailed: '文件上传失败',
         fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
+        fileUploadInProgress: '正在上传文件，请等待当前上传完成后再试',
         unsupportedFileType: '不支持的文件类型: {{type}}',
         pptTip: '建议先在本地将 PPTX 转为 PDF 后再上传，可获得更好的兼容性和更快的处理速度',
         filesAdded: '已添加 {{count}} 个参考文件',
@@ -163,6 +164,7 @@ const homeI18n = {
         fileUploadSuccess: 'File uploaded successfully',
         fileUploadFailed: 'Failed to upload file',
         fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
+        fileUploadInProgress: 'A file upload is already in progress — please wait for it to finish',
         unsupportedFileType: 'Unsupported file type: {{type}}',
         pptTip: 'We recommend converting your PPTX to PDF locally before uploading for better compatibility and faster processing',
         filesAdded: 'Added {{count}} reference file(s)',
@@ -401,7 +403,13 @@ export const Home: React.FC = () => {
   };
 
   // 拖拽进来的文档文件：按扩展名过滤后复用 handleFileUpload（逐个上传+自动触发解析）
-  const handleDocumentFiles = async (files: File[]) => {
+  const handleDocumentFiles = useCallback(async (files: File[]) => {
+    // 已有上传在进行时告知用户，避免文件被静默丢弃（handleFileUpload 的 isUploadingFile 守卫）
+    if (isUploadingFile) {
+      show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
+      return;
+    }
+
     const accepted: File[] = [];
     const rejected: string[] = [];
     for (const file of files) {
@@ -414,8 +422,11 @@ export const Home: React.FC = () => {
     }
 
     if (rejected.length > 0) {
+      // 去重扩展名，避免一次拖入多个同类型不支持文件时 toast 重复冗长
       show({
-        message: t('home.messages.unsupportedFileType', { type: rejected.join(', ') }),
+        message: t('home.messages.unsupportedFileType', {
+          type: Array.from(new Set(rejected)).join(', '),
+        }),
         type: 'info',
       });
     }
@@ -423,7 +434,7 @@ export const Home: React.FC = () => {
     for (const file of accepted) {
       await handleFileUpload(file);
     }
-  };
+  }, [isUploadingFile, show, t]);
 
   // 从当前项目移除文件引用（不删除文件本身）
   const handleFileRemove = (fileId: string) => {
