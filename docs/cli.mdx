@@ -22,7 +22,7 @@ uv run banana-cli --help  # Verify installation
 
 ## Agent Skill
 
-If you use AI Agents in Claude Code, install the banana-cli skill in one command so the Agent knows how to use the CLI automatically:
+If you use AI Agents in Claude Code, install the banana-cli skill with a single command so the Agent automatically knows how to use the CLI:
 
 ```bash
 # Global install (recommended, available in all projects)
@@ -74,7 +74,7 @@ All `--project-id` and `--page-id` parameters accept short prefixes (like git sh
 
 ```bash
 banana-cli projects get a1b2          # matches a1b2c3d4-e5f6-...
-banana-cli pages edit-image --page-id b9c8 --instruction "Change title to red"
+banana-cli pages edit-image --page-id b9c8 --instruction "Change the title to red"
 ```
 
 The prefix must uniquely match one project/page. If multiple matches are found, you'll be prompted to provide more characters.
@@ -96,7 +96,7 @@ The working project is stored in `~/.config/banana-slides/context.json` and pers
 
 ## Command Reference
 
-### projects — Project Management
+### projects -- Project Management
 
 ```bash
 # List projects
@@ -122,7 +122,7 @@ banana-cli projects use
 banana-cli projects unuse
 ```
 
-### workflows — Workflows
+### workflows -- Workflows
 
 End-to-end PPT generation pipeline.
 
@@ -130,26 +130,26 @@ End-to-end PPT generation pipeline.
 # Generate outline
 banana-cli workflows outline --project-id <id>
 
-# Specify page count
+# Specify page count (hint to AI, actual count may differ)
 banana-cli workflows outline --project-id <id> --pages 8
 
-# Generate outline from description
+# Generate outline from descriptions
 banana-cli workflows outline --project-id <id> --from-description
 
 # Refine outline with natural language
 banana-cli workflows outline --project-id <id> --refine "Add a page about market analysis"
 
-# Generate descriptions (async task, add --wait to block)
-banana-cli workflows descriptions --project-id <id> --wait
+# Generate descriptions (waits for completion by default; add --no-wait for async)
+banana-cli workflows descriptions --project-id <id>
 
 # Generate images
-banana-cli workflows images --project-id <id> --wait --use-template
+banana-cli workflows images --project-id <id> --use-template
 
-# Full pipeline: outline → descriptions → images
+# Full pipeline: outline -> descriptions -> images
 banana-cli workflows full --project-id <id> --language zh
 
-# Full pipeline with page count
-banana-cli workflows full --project-id <id> --language en --pages 10
+# Full pipeline with page count (page count is a hint to AI, actual count may differ)
+banana-cli workflows full --project-id <id> --language zh --pages 10
 ```
 
 `workflows full` supports skipping steps:
@@ -161,7 +161,7 @@ banana-cli workflows full --project-id <id> \
   --image-max-workers 2
 ```
 
-### pages — Page Operations
+### pages -- Page Operations
 
 ```bash
 # Create page
@@ -188,23 +188,28 @@ banana-cli pages versions --project-id <id> --page-id <pid>
 banana-cli pages set-current --project-id <id> --page-id <pid> --version-id <vid>
 ```
 
-### exports — Export
+### exports -- Export
 
 ```bash
-# Export PPTX
+# Export PPTX (returns download URL)
 banana-cli exports pptx --project-id <id>
 
+# Export and download locally
+banana-cli exports pptx --project-id <id> --output ./slides.pptx
+
 # Export PDF
-banana-cli exports pdf --project-id <id>
+banana-cli exports pdf --project-id <id> --output ./slides.pdf
 
 # Export images
 banana-cli exports images --project-id <id>
 
-# Export editable PPTX (async task)
-banana-cli exports editable-pptx --project-id <id> --wait --max-depth 2
+# Export editable PPTX (waits for completion by default)
+banana-cli exports editable-pptx --project-id <id> --output ./editable.pptx --max-depth 2
 ```
 
-### materials — Material Management
+`--output` specifies a local download path; if omitted, the server-side download URL is returned. `--filename` only sets the filename generated on the server side.
+
+### materials -- Material Management
 
 ```bash
 # Upload material to project
@@ -223,7 +228,7 @@ banana-cli materials associate --project-id <id> --material-url <url>
 banana-cli materials download --material-id <mid> --output /tmp/materials.zip
 ```
 
-### refs — Reference Files
+### refs -- Reference Files
 
 ```bash
 # Upload reference file
@@ -236,7 +241,7 @@ banana-cli refs parse --file-id <fid>
 banana-cli refs associate --file-id <fid> --project-id <id>
 ```
 
-### templates — Templates
+### templates -- Templates
 
 ```bash
 # Upload template image
@@ -246,14 +251,14 @@ banana-cli templates upload --project-id <id> --file /path/to/template.png
 banana-cli templates delete --project-id <id>
 ```
 
-### renovation — PPT Renovation
+### renovation -- PPT Renovation
 
 ```bash
 # Upload old PPT for renovation
 banana-cli renovation create --file /path/to/old.pptx --wait --language zh
 ```
 
-### settings — Settings
+### settings -- Settings
 
 ```bash
 # Get current settings
@@ -272,23 +277,25 @@ banana-cli settings verify
 banana-cli settings test --name text-model
 ```
 
-### tasks — Task Status
+### tasks -- Task Status
 
 ```bash
 # Query task status
 banana-cli tasks status --project-id <id> --task-id <tid>
 
-# Wait for task completion
+# Wait for task completion (shows real-time progress)
 banana-cli tasks wait --project-id <id> --task-id <tid> --timeout-sec 600
 ```
 
-### styles — Style Extraction
+`tasks wait` can be interrupted with Ctrl+C and resumed at any time -- the backend task is not affected.
+
+### styles -- Style Extraction
 
 ```bash
 banana-cli styles extract --image /path/to/reference.png
 ```
 
-### files — File Download
+### files -- File Download
 
 ```bash
 banana-cli files fetch --url /files/project-id/exports/slides.pptx --output ./slides.pptx
@@ -337,7 +344,7 @@ banana-cli run jobs \
 ```
 
 - `--state-file`: Writes running state in real-time for monitoring
-- `--done-marker-file`: Records completed jobs, automatically skipped on re-run
+- `--done-marker-file`: Records completed jobs; automatically skipped on re-run
 - `--continue-on-error` / `--fail-fast`: Continue after failure or stop immediately
 
 ### Monitoring Run Status
@@ -368,11 +375,11 @@ result=$(banana-cli --json projects create --creation-type idea --idea-prompt "2
 project_id=$(echo "$result" | jq -r '.data.project_id')
 banana-cli projects use "$project_id"
 
-# 2. Full generation (working project set, no --project-id needed)
-banana-cli workflows full --language en --pages 8
+# 2. Full generation (working project is set, no --project-id needed)
+banana-cli workflows full --language zh --pages 8
 
-# 3. Export
-banana-cli exports pptx
+# 3. Export locally
+banana-cli exports pptx --output ./report.pptx
 ```
 
 ### Batch Generate 10 PPTs
@@ -392,8 +399,11 @@ banana-cli run jobs --file batch.jsonl --report report.json --state-file state.j
 
 ## Notes
 
-1. **Backend must be running**: The CLI calls the backend API over HTTP — ensure the backend is started before use
+1. **Backend must be running**: The CLI calls the backend API over HTTP -- ensure the backend is started before use
 2. **File paths must be absolute**: All `--file`, `--image` parameters require absolute paths
-3. **Async tasks**: Description generation, image generation, and editable export are async tasks — add `--wait` to block until completion, or use `tasks wait` to poll manually
-4. **Shell completion**: Run `banana-cli --install-completion` to install auto-completion for your current shell
-5. **AI Agent friendly**: When stdout is piped (non-TTY), `--help` outputs plain text without Rich formatting
+3. **Waits for completion by default**: Async tasks such as description generation, image generation, and editable export wait for completion and show progress by default. Pass `--no-wait` to return the task_id immediately, then use `tasks wait` to poll manually
+4. **Interruptible and resumable**: `--wait` and `tasks wait` can be interrupted with Ctrl+C at any time. The backend task is unaffected -- you can resume waiting with the same task_id
+5. **`--pages` is a hint**: `--pages` is passed as a hint to the AI; the actual number of generated pages may differ. When there is a mismatch, the CLI prints a notice to stderr
+6. **Progress output**: While waiting for a task, progress information is written to stderr (format: `[PROGRESS] stage status completed/total`) and does not interfere with JSON output on stdout
+7. **Shell completion**: Run `banana-cli --install-completion` to install auto-completion for your current shell
+8. **AI Agent friendly**: When stdout is piped (non-TTY), `--help` automatically outputs plain text without Rich formatting
