@@ -41,8 +41,8 @@ banana-cli projects use "$project_id"
 # 2. Generate everything (outline → descriptions → images)
 banana-cli workflows full --language zh --pages 8
 
-# 3. Export
-banana-cli exports pptx
+# 3. Export to local file
+banana-cli exports pptx --output ./slides.pptx
 ```
 
 Once a working project is set, `--project-id` is optional on all subsequent commands.
@@ -71,9 +71,22 @@ banana-cli projects unuse         # clear
 
 ### Page count control
 
+`--pages` is a hint to the AI — actual page count may differ. The CLI warns on stderr when they don't match.
+
 ```bash
 banana-cli workflows outline --pages 5
 banana-cli workflows full --pages 10 --language en
+```
+
+### Export with auto-download
+
+```bash
+# Download directly to local path
+banana-cli exports pptx --output ./slides.pptx
+banana-cli exports pdf --output ./report.pdf
+
+# Without --output, returns a server-side download URL
+banana-cli exports pptx
 ```
 
 ### Batch generation
@@ -102,7 +115,9 @@ banana-cli --json projects list | jq '.data.projects[].project_id'
 ## Important Notes
 
 - File path arguments (`--file`, `--image`) require **absolute paths**
-- Async tasks (descriptions, images, editable export) need `--wait` to block until done
+- Async tasks (descriptions, images, editable export) **wait by default** and show progress on stderr. Pass `--no-wait` to get a task_id immediately
+- `--wait` / `tasks wait` can be interrupted (Ctrl+C) and resumed anytime — backend tasks are unaffected
+- Progress lines go to stderr (format: `[PROGRESS] STAGE STATUS completed/total`), keeping stdout JSON clean
 - `--help` output is plain text when piped (non-TTY) — safe for agent consumption
 - Config priority: CLI args > env vars (`BANANA_CLI_*`) > TOML config (`~/.config/banana-slides/cli.toml`) > defaults
 

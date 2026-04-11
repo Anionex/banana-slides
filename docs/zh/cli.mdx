@@ -130,7 +130,7 @@ banana-cli projects unuse
 # 生成大纲
 banana-cli workflows outline --project-id <id>
 
-# 指定页数
+# 指定页数（提示 AI，实际数量可能不同）
 banana-cli workflows outline --project-id <id> --pages 8
 
 # 从描述生成大纲
@@ -139,16 +139,16 @@ banana-cli workflows outline --project-id <id> --from-description
 # 用自然语言优化大纲
 banana-cli workflows outline --project-id <id> --refine "增加一页关于市场分析的内容"
 
-# 生成描述（异步任务，加 --wait 等待完成）
-banana-cli workflows descriptions --project-id <id> --wait
+# 生成描述（默认等待完成，加 --no-wait 异步返回）
+banana-cli workflows descriptions --project-id <id>
 
 # 生成图片
-banana-cli workflows images --project-id <id> --wait --use-template
+banana-cli workflows images --project-id <id> --use-template
 
 # 一键全流程：大纲 → 描述 → 图片
 banana-cli workflows full --project-id <id> --language zh
 
-# 指定页数的全流程
+# 指定页数的全流程（页数为 AI 提示，实际数量可能不同）
 banana-cli workflows full --project-id <id> --language zh --pages 10
 ```
 
@@ -191,18 +191,23 @@ banana-cli pages set-current --project-id <id> --page-id <pid> --version-id <vid
 ### exports — 导出
 
 ```bash
-# 导出 PPTX
+# 导出 PPTX（返回下载 URL）
 banana-cli exports pptx --project-id <id>
 
+# 导出并下载到本地
+banana-cli exports pptx --project-id <id> --output ./slides.pptx
+
 # 导出 PDF
-banana-cli exports pdf --project-id <id>
+banana-cli exports pdf --project-id <id> --output ./slides.pdf
 
 # 导出图片
 banana-cli exports images --project-id <id>
 
-# 导出可编辑 PPTX（异步任务）
-banana-cli exports editable-pptx --project-id <id> --wait --max-depth 2
+# 导出可编辑 PPTX（默认等待完成）
+banana-cli exports editable-pptx --project-id <id> --output ./editable.pptx --max-depth 2
 ```
+
+`--output` 指定本地下载路径；不指定则返回服务端下载 URL。`--filename` 仅设置服务端生成的文件名。
 
 ### materials — 素材管理
 
@@ -278,9 +283,11 @@ banana-cli settings test --name text-model
 # 查询任务状态
 banana-cli tasks status --project-id <id> --task-id <tid>
 
-# 等待任务完成
+# 等待任务完成（显示实时进度）
 banana-cli tasks wait --project-id <id> --task-id <tid> --timeout-sec 600
 ```
+
+`tasks wait` 可随时 Ctrl+C 中断再重新等待，后端任务不受影响。
 
 ### styles — 风格提取
 
@@ -371,8 +378,8 @@ banana-cli projects use "$project_id"
 # 2. 一键生成（工作项目已设置，无需 --project-id）
 banana-cli workflows full --language zh --pages 8
 
-# 3. 导出
-banana-cli exports pptx
+# 3. 导出到本地
+banana-cli exports pptx --output ./report.pptx
 ```
 
 ### 批量生成 10 套 PPT
@@ -394,6 +401,9 @@ banana-cli run jobs --file batch.jsonl --report report.json --state-file state.j
 
 1. **后端必须运行**：CLI 通过 HTTP 调用后端 API，使用前确保后端已启动
 2. **文件路径必须绝对路径**：所有 `--file`、`--image` 等参数要求绝对路径
-3. **异步任务**：描述生成、图片生成、可编辑导出等为异步任务，需加 `--wait` 等待完成，或用 `tasks wait` 手动轮询
-4. **Shell 补全**：运行 `banana-cli --install-completion` 安装当前 shell 的自动补全
-5. **AI Agent 友好**：当 stdout 为管道（非 TTY）时，`--help` 自动输出纯文本格式，无 Rich 装饰框
+3. **默认等待完成**：描述生成、图片生成、可编辑导出等异步任务默认等待完成并显示进度。传 `--no-wait` 可立即返回 task_id，后续用 `tasks wait` 手动轮询
+4. **可中断恢复**：`--wait` 和 `tasks wait` 随时可 Ctrl+C 中断，后端任务不受影响，可用相同 task_id 重新等待
+5. **`--pages` 是提示**：`--pages` 作为提示传给 AI，实际生成的页数可能不同。页数不匹配时 CLI 会在 stderr 打印提示
+6. **进度输出**：等待任务时，进度信息输出到 stderr（格式 `[PROGRESS] 阶段 状态 完成数/总数`），不影响 stdout 的 JSON 输出
+7. **Shell 补全**：运行 `banana-cli --install-completion` 安装当前 shell 的自动补全
+8. **AI Agent 友好**：当 stdout 为管道（非 TTY）时，`--help` 自动输出纯文本格式，无 Rich 装饰框
