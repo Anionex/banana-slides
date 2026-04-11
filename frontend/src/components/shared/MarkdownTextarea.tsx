@@ -559,10 +559,26 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
     e.preventDefault();
     dragCountRef.current = 0;
     setIsDragging(false);
-    if (onFiles && e.dataTransfer.files.length > 0) {
-      onFiles(Array.from(e.dataTransfer.files));
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // When onDocumentFiles is provided, split files by MIME type:
+    // images go through onFiles, non-images go through onDocumentFiles.
+    if (onDocumentFiles) {
+      const images: File[] = [];
+      const documents: File[] = [];
+      for (const f of files) {
+        if (f.type.startsWith('image/')) images.push(f);
+        else documents.push(f);
+      }
+      if (images.length > 0 && onFiles) onFiles(images);
+      if (documents.length > 0) onDocumentFiles(documents);
+      return;
     }
-  }, [onFiles]);
+
+    // Legacy behavior: all dropped files go through onFiles.
+    if (onFiles) onFiles(files);
+  }, [onFiles, onDocumentFiles]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -656,7 +672,7 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
                 </svg>
-                {t('markdownTextarea.dropImages')}
+                {t(onDocumentFiles ? 'markdownTextarea.dropImagesOrFiles' : 'markdownTextarea.dropImages')}
               </div>
             </div>
           )}
