@@ -627,10 +627,10 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
       )}
       {/* Outer container — owns the border, focus ring, and toolbar */}
       <div className={cn(
-        'rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary',
+        'relative rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary',
         'focus-within:ring-2 focus-within:ring-banana-500 focus-within:border-transparent',
         'transition-all',
-        isDragging && 'ring-2 ring-banana-400 border-banana-400 bg-banana-50/50 dark:bg-banana-900/10',
+        isDragging && 'ring-2 ring-banana-400 border-transparent',
         error && 'border-red-500 focus-within:ring-red-500',
         className
       )}>
@@ -662,18 +662,6 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
           {isEmpty && placeholder && !isDragging && (
             <div className="absolute top-0 left-0 right-0 px-4 py-3 text-gray-400 dark:text-gray-500 pointer-events-none select-none">
               {placeholder}
-            </div>
-          )}
-
-          {/* Drag overlay */}
-          {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none">
-              <div className="flex items-center gap-2 px-4 py-2 bg-banana-100 dark:bg-banana-900/50 rounded-full text-sm font-medium text-banana-700 dark:text-banana-300">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
-                </svg>
-                {t(onDocumentFiles ? 'markdownTextarea.dropImagesOrFiles' : 'markdownTextarea.dropImages')}
-              </div>
             </div>
           )}
 
@@ -810,6 +798,23 @@ export const MarkdownTextarea = forwardRef<MarkdownTextareaRef, MarkdownTextarea
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Drag overlay — anchored to the outer container so the dashed frame
+            wraps the entire textarea (editor + toolbar + image preview). */}
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none border-2 border-dashed border-banana-400 dark:border-banana bg-white/80 dark:bg-background-secondary/80 backdrop-blur-sm z-10">
+            <div className="flex flex-col items-center gap-2 text-banana-700 dark:text-banana-300">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <div className="text-sm font-medium">
+                {t(onDocumentFiles ? 'markdownTextarea.dropImagesOrFiles' : 'markdownTextarea.dropImages')}
+              </div>
+            </div>
           </div>
         )}
       </div>
