@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
+RENOVATION_SOURCE_EXTENSIONS = {'.pdf', '.pptx', '.ppt'}
+
 
 def _resolve_libreoffice_binary() -> str | None:
     """
@@ -120,6 +122,20 @@ def _convert_office_document_to_pdf(original_path: Path, output_dir: Path) -> st
 
     logger.info("Converted office document to PDF with %s: %s", office_binary, pdf_path)
     return str(pdf_path)
+
+
+def _build_renovation_source_path(template_dir: Path, original_filename: str) -> Path:
+    """
+    Build a stable storage path for renovation source files.
+
+    We intentionally avoid using `secure_filename(original_filename)` here because
+    non-ASCII PDF names like "测试.pdf" may be sanitized to just "pdf", which then
+    loses the `.pdf` suffix and breaks later PDF discovery.
+    """
+    ext = Path(original_filename or '').suffix.lower()
+    if ext not in RENOVATION_SOURCE_EXTENSIONS:
+        raise ValueError("Only PDF and PPTX files are supported")
+    return template_dir / f"source{ext}"
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -1417,15 +1433,14 @@ def create_ppt_renovation_project():
         template_dir = project_dir / "template"
         template_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save original file
-        safe_name = secure_filename(file.filename)
-        safe_name = secure_filename(file.filename)
-        original_path = template_dir / safe_name
+        # Save original file to a stable name so later background tasks never
+        # depend on sanitized user filenames to rediscover the PDF.
+        original_path = _build_renovation_source_path(template_dir, file.filename)
         file.save(str(original_path))
 
         # Convert PPTX to PDF if needed
         pdf_path = str(original_path)
-        if safe_name.lower().endswith(('.pptx', '.ppt')):
+        if original_path.suffix.lower() in {'.pptx', '.ppt'}:
             pdf_path = _convert_office_document_to_pdf(original_path, template_dir)
 
         # Convert PDF to page images using PyMuPDF or pdf2image

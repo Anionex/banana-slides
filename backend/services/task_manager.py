@@ -44,6 +44,59 @@ from services.pdf_service import split_pdf_to_pages
 logger = logging.getLogger(__name__)
 
 
+def _looks_like_pdf(path: Path) -> bool:
+    """Best-effort PDF signature check for legacy renovation uploads."""
+    try:
+        with path.open('rb') as file_obj:
+            return file_obj.read(5) == b'%PDF-'
+    except OSError:
+        return False
+
+
+def _resolve_renovation_pdf_path(project_dir: Path) -> Optional[str]:
+    """
+    Resolve the source PDF for a renovation project.
+
+    New projects store uploads as `template/source.pdf`. Older projects may still
+    contain user-derived filenames, including sanitized names like `pdf` without a
+    suffix. This helper keeps both cases working.
+    """
+    template_dir = project_dir / "template"
+    if not template_dir.exists():
+        return None
+
+    preferred_candidates = [
+        template_dir / "source.pdf",
+        template_dir / "template.pdf",
+    ]
+    for candidate in preferred_candidates:
+        if candidate.exists() and candidate.is_file():
+            return str(candidate)
+
+    pdf_candidates = sorted(
+        (path for path in template_dir.iterdir() if path.is_file() and path.suffix.lower() == '.pdf'),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if pdf_candidates:
+        return str(pdf_candidates[0])
+
+    content_candidates = sorted(
+        (path for path in template_dir.iterdir() if path.is_file()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for candidate in content_candidates:
+        if _looks_like_pdf(candidate):
+            logger.warning(
+                "Resolved renovation PDF by file signature for legacy upload: %s",
+                candidate,
+            )
+            return str(candidate)
+
+    return None
+
+
 def get_description_text(desc_content: Any) -> str:
     """Extract plain description text from stored description_content."""
     if not isinstance(desc_content, dict):
@@ -1068,15 +1121,8 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             if not project:
                 raise ValueError(f"Project {project_id} not found")
 
-            # Get the PDF path from project
-            pdf_path = None
             project_dir = Path(app.config['UPLOAD_FOLDER']) / project_id
-            # Look for the uploaded PDF file
-            for f in (project_dir / "template").iterdir() if (project_dir / "template").exists() else []:
-                if f.suffix.lower() == '.pdf':
-                    pdf_path = str(f)
-                    break
-
+            pdf_path = _resolve_renovation_pdf_path(project_dir)
             if not pdf_path:
                 raise ValueError("No PDF file found for renovation project")
 
@@ -1620,4 +1666,3 @@ def generate_from_description_task(task_id: str, project_id: str, ai_service,
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
-
