@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Settings, CreditCard, LogOut, ChevronDown, User, Shield, List, Lock, Users, Bell } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { usePublicConfigStore } from '../../store/usePublicConfigStore';
 import { logoutUser } from '../../api/auth';
 import { useT } from '../../hooks/useT';
 
@@ -38,6 +39,7 @@ const userMenuI18n = {
 
 export default function UserMenu() {
   const { user, isAuthenticated } = useAuthStore();
+  const { config: publicConfig } = usePublicConfigStore();
   const navigate = useNavigate();
   const t = useT(userMenuI18n);
   const [isOpen, setIsOpen] = useState(false);
@@ -172,14 +174,16 @@ export default function UserMenu() {
                 <Users size={18} />
                 <span>{t('auth.invitation')}</span>
               </Link>
-              <Link
-                to="/pricing"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
-              >
-                <CreditCard size={18} />
-                <span>{t('auth.buyCredits')}</span>
-              </Link>
+              {publicConfig.enable_credits_purchase && (
+                <Link
+                  to="/pricing"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-gray-700 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
+                >
+                  <CreditCard size={18} />
+                  <span>{t('auth.buyCredits')}</span>
+                </Link>
+              )}
               <Link
                 to="/announcements"
                 onClick={() => setIsOpen(false)}

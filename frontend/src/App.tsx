@@ -27,6 +27,7 @@ import { AdminRoute } from './components/admin';
 import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs, AdminAnnouncements } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
+import { usePublicConfigStore } from './store/usePublicConfigStore';
 import { useToast } from './components/shared';
 import { setupAuthInterceptor, checkAuth } from './api/auth';
 
@@ -46,6 +47,7 @@ setupAuthInterceptor();
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
   const { isAuthenticated, setLoading } = useAuthStore();
+  const { fetchPublicConfig } = usePublicConfigStore();
   const { show, ToastContainer } = useToast();
   const { i18n } = useTranslation();
 
@@ -64,7 +66,8 @@ function App() {
       setLoading(false);
     };
     initAuth();
-  }, [setLoading]);
+    fetchPublicConfig();
+  }, [setLoading, fetchPublicConfig]);
 
   // 恢复项目状态
   useEffect(() => {

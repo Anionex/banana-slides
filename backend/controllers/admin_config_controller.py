@@ -196,6 +196,15 @@ def update_system_config():
         )
 
 
+@admin_config_bp.route("/public", methods=["GET"], strict_slashes=False)
+def get_public_config():
+    """GET /api/admin/config/public - Public system flags for UI rendering"""
+    config = SystemConfig.get_instance()
+    return success_response({
+        "enable_credits_purchase": config.enable_credits_purchase,
+    })
+
+
 @admin_config_bp.route("/credit-costs", methods=["GET"], strict_slashes=False)
 @auth_required
 @admin_required
