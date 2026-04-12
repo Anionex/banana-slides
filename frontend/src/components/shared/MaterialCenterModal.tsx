@@ -432,7 +432,7 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
     dispatch({ type: 'SET_UPLOADING', on: true });
     try {
       const pid = s.filter === 'all' || s.filter === 'none' ? null : s.filter;
-      await uploadMaterial(file, pid);
+      await uploadMaterial(file, pid, true);
       show({ message: t('mc.msg.uploaded'), type: 'success' });
       fetchItems();
     } catch (err: any) {

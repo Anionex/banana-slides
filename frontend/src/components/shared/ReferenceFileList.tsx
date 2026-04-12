@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ReferenceFileCard } from '@/components/shared';
+import { ReferenceFileCard } from './ReferenceFileCard';
 import { useT } from '@/hooks/useT';
 import { listProjectReferenceFiles, type ReferenceFile } from '@/api/endpoints';
 

@@ -598,7 +598,8 @@ banana-slides/
 
 
 
-<img width="302" alt="image" src="https://github.com/user-attachments/assets/3699efad-eb5d-4ab2-bc68-20f44c8b1b5b" />
+<img width="302" alt="image" src="https://github.com/user-attachments/assets/8459b2f1-bf09-45f6-864d-bfbc0c7a08e1" />
+
 
 
 
