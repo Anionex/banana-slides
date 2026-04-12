@@ -2,19 +2,27 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, User } from 'lucide-react';
-import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
+import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
+import { ReferenceFileList } from '@/components/shared/ReferenceFileList';
+import { ReferenceFileSelector } from '@/components/shared/ReferenceFileSelector';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useUserStore } from '@/store/useUserStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
-import { useImagePaste } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
+import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
+
+// 支持作为参考文件上传的文档扩展名（与后端 file_parser_service 保持一致）
+const ALLOWED_DOC_EXTENSIONS = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
+const MAX_UPLOAD_SIZE_MB = 30;
+const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -78,12 +86,15 @@ const homeI18n = {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
         projectCreateFailed: '项目创建失败',
+        renovationFileTooLarge: '翻新文件过大：{{size}}MB，当前最大支持 30MB',
+        renovationUploadRejected: '服务器拒绝了上传请求（413）。文件大小 {{size}}MB，当前前端限制是 30MB；如果这个文件明明没有超过 30MB，说明服务器上传限制还没同步，请稍后重试。',
         uploadingImage: '正在上传图片并识别内容...',
         imageUploadSuccess: '图片上传成功！已插入到光标位置',
         imageUploadFailed: '图片上传失败',
         fileUploadSuccess: '文件上传成功',
         fileUploadFailed: '文件上传失败',
         fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
+        fileUploadInProgress: '正在上传文件，请等待当前上传完成后再试',
         unsupportedFileType: '不支持的文件类型: {{type}}',
         pptTip: '建议先在本地将 PPTX 转为 PDF 后再上传，可获得更好的兼容性和更快的处理速度',
         filesAdded: '已添加 {{count}} 个参考文件',
@@ -154,12 +165,15 @@ const homeI18n = {
         enterContent: 'Please enter content',
         filesParsing: '{{count}} reference file(s) are still parsing, please wait',
         projectCreateFailed: 'Failed to create project',
+        renovationFileTooLarge: 'Renovation file too large: {{size}}MB, maximum 30MB',
+        renovationUploadRejected: 'The server rejected the upload (413). File size: {{size}}MB, current frontend limit: 30MB. If this file is clearly under 30MB, the server upload limit is likely not in sync yet. Please retry shortly.',
         uploadingImage: 'Uploading and recognizing image...',
         imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
         imageUploadFailed: 'Failed to upload image',
         fileUploadSuccess: 'File uploaded successfully',
         fileUploadFailed: 'Failed to upload file',
         fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
+        fileUploadInProgress: 'A file upload is already in progress — please wait for it to finish',
         unsupportedFileType: 'Unsupported file type: {{type}}',
         pptTip: 'We recommend converting your PPTX to PDF locally before uploading for better compatibility and faster processing',
         filesAdded: 'Added {{count}} reference file(s)',
@@ -256,7 +270,32 @@ export const Home: React.FC = () => {
     setIsMaterialModalOpen(true);
   };
 
+  const validateRenovationFile = useCallback((file: File): boolean => {
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    if (!fileExt || !['pdf', 'pptx', 'ppt'].includes(fileExt)) {
+      show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
+      return false;
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      show({
+        message: t('home.messages.renovationFileTooLarge', {
+          size: (file.size / 1024 / 1024).toFixed(1),
+        }),
+        type: 'error',
+      });
+      return false;
+    }
+
+    if (fileExt === 'ppt' || fileExt === 'pptx') {
+      show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+    }
+
+    return true;
+  }, [show, t]);
+
   const textareaRef = useRef<MarkdownTextareaRef>(null);
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
 
   // Callback to insert at cursor position in the textarea
   const insertAtCursor = useCallback((markdown: string) => {
@@ -272,6 +311,11 @@ export const Home: React.FC = () => {
     insertAtCursor,
   });
 
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = buildMaterialsMarkdown(materials, setContent);
+    textareaRef.current?.insertAtCursor(markdown + '\n');
+  }, [setContent]);
+
   // 检测粘贴事件，图片走 hook，文档走独立逻辑
   const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
@@ -281,8 +325,6 @@ export const Home: React.FC = () => {
     let hasImages = false;
     const docFiles: File[] = [];
     const unsupportedExts: string[] = [];
-
-    const allowedDocExtensions = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -294,7 +336,7 @@ export const Home: React.FC = () => {
         hasImages = true;
       } else {
         const fileExt = file.name.split('.').pop()?.toLowerCase();
-        if (fileExt && allowedDocExtensions.includes(fileExt)) {
+        if (fileExt && ALLOWED_DOC_EXTENSIONS.includes(fileExt)) {
           docFiles.push(file);
         } else {
           unsupportedExts.push(fileExt || file.type);
@@ -323,7 +365,7 @@ export const Home: React.FC = () => {
 
   // 上传文件
   // 在 Home 页面，文件始终上传为全局文件（不关联项目），因为此时还没有项目
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = useCallback(async (file: File) => {
     if (isUploadingFile) return;
 
     // 检查文件大小（前端预检查）
@@ -392,7 +434,41 @@ export const Home: React.FC = () => {
     } finally {
       setIsUploadingFile(false);
     }
-  };
+  }, [isUploadingFile, show, t]);
+
+  // 拖拽进来的文档文件：按扩展名过滤后复用 handleFileUpload（逐个上传+自动触发解析）
+  const handleDocumentFiles = useCallback(async (files: File[]) => {
+    // 已有上传在进行时告知用户，避免文件被静默丢弃（handleFileUpload 的 isUploadingFile 守卫）
+    if (isUploadingFile) {
+      show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
+      return;
+    }
+
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext && ALLOWED_DOC_EXTENSIONS.includes(ext)) {
+        accepted.push(file);
+      } else {
+        rejected.push(ext || file.type || file.name);
+      }
+    }
+
+    if (rejected.length > 0) {
+      // 去重扩展名，避免一次拖入多个同类型不支持文件时 toast 重复冗长
+      show({
+        message: t('home.messages.unsupportedFileType', {
+          type: Array.from(new Set(rejected)).join(', '),
+        }),
+        type: 'info',
+      });
+    }
+
+    for (const file of accepted) {
+      await handleFileUpload(file);
+    }
+  }, [isUploadingFile, handleFileUpload, show, t]);
 
   // 从当前项目移除文件引用（不删除文件本身）
   const handleFileRemove = (fileId: string) => {
@@ -514,6 +590,9 @@ export const Home: React.FC = () => {
     if (activeTab === 'ppt_renovation') {
       if (!renovationFile) {
         show({ message: t('home.renovation.uploadFile'), type: 'error' });
+        return;
+      }
+      if (!validateRenovationFile(renovationFile)) {
         return;
       }
     } else if (!content.trim()) {
@@ -638,6 +717,15 @@ export const Home: React.FC = () => {
       }
     } catch (error: any) {
       console.error('创建项目失败:', error);
+      if (error?.response?.status === 413 && activeTab === 'ppt_renovation' && renovationFile) {
+        show({
+          message: t('home.messages.renovationUploadRejected', {
+            size: (renovationFile.size / 1024 / 1024).toFixed(1),
+          }),
+          type: 'error',
+        });
+        return;
+      }
       const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
       show({ message: msg, type: 'error' });
     } finally {
@@ -927,14 +1015,8 @@ export const Home: React.FC = () => {
                     e.preventDefault();
                     e.stopPropagation();
                     const file = e.dataTransfer.files[0];
-                    if (file && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt'))) {
+                    if (file && validateRenovationFile(file)) {
                       setRenovationFile(file);
-                      const ext = file.name.split('.').pop()?.toLowerCase();
-                      if (ext === 'ppt' || ext === 'pptx') {
-                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
-                      }
-                    } else {
-                      show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
                     }
                   }}
                 >
@@ -967,12 +1049,8 @@ export const Home: React.FC = () => {
                   accept=".pdf,.pptx,.ppt"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
+                    if (file && validateRenovationFile(file)) {
                       setRenovationFile(file);
-                      const ext = file.name.split('.').pop()?.toLowerCase();
-                      if (ext === 'ppt' || ext === 'pptx') {
-                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
-                      }
                     }
                     e.target.value = '';
                   }}
@@ -1014,6 +1092,8 @@ export const Home: React.FC = () => {
               onChange={setContent}
               onPaste={handlePaste}
               onFiles={handleImageFiles}
+              onDocumentFiles={handleDocumentFiles}
+              onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
               rows={activeTab === 'idea' ? 4 : 8}
               className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
               toolbarLeft={
@@ -1170,6 +1250,13 @@ export const Home: React.FC = () => {
       <MaterialCenterModal
         isOpen={isMaterialCenterOpen}
         onClose={() => setIsMaterialCenterOpen(false)}
+      />
+      {/* 从素材库选择插入到文本框 */}
+      <MaterialSelector
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
       />
       {/* 参考文件选择器 */}
       {/* 在 Home 页面，始终查询全局文件，因为此时还没有项目 */}

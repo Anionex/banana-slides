@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
+RENOVATION_SOURCE_EXTENSIONS = {'.pdf', '.pptx', '.ppt'}
+
 
 def _resolve_libreoffice_binary() -> str | None:
     """
@@ -120,6 +122,20 @@ def _convert_office_document_to_pdf(original_path: Path, output_dir: Path) -> st
 
     logger.info("Converted office document to PDF with %s: %s", office_binary, pdf_path)
     return str(pdf_path)
+
+
+def _build_renovation_source_path(template_dir: Path, original_filename: str) -> Path:
+    """
+    Build a stable storage path for renovation source files.
+
+    We intentionally avoid using `secure_filename(original_filename)` here because
+    non-ASCII PDF names like "测试.pdf" may be sanitized to just "pdf", which then
+    loses the `.pdf` suffix and breaks later PDF discovery.
+    """
+    ext = Path(original_filename or '').suffix.lower()
+    if ext not in RENOVATION_SOURCE_EXTENSIONS:
+        raise ValueError("Only PDF and PPTX files are supported")
+    return template_dir / f"source{ext}"
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -1003,7 +1019,7 @@ def generate_images(project_id):
         if not pages:
             return bad_request("No pages found for project")
 
-        # Points check: 3 points per page (only for authenticated users)
+        # Points check: 3 points per page (authenticated non-admin users only)
         POINTS_PER_PAGE = 3
         required_points = len(pages) * POINTS_PER_PAGE
         _auth_user = None
@@ -1013,7 +1029,11 @@ def generate_images(project_id):
             try:
                 payload = decode_token(auth_header[7:])
                 _auth_user = User.query.get(payload.get('sub'))
-                if _auth_user and _auth_user.points < required_points:
+                if (
+                    _auth_user
+                    and _auth_user.role != 'admin'
+                    and _auth_user.points < required_points
+                ):
                     return jsonify({'error': 'insufficient_points', 'required': required_points, 'current': _auth_user.points}), 402
             except Exception:
                 pass
@@ -1103,8 +1123,8 @@ def generate_images(project_id):
         project.status = 'GENERATING_IMAGES'
         db.session.commit()
 
-        # Deduct points for authenticated user (3 per page)
-        if _auth_user:
+        # Deduct points for authenticated non-admin users (3 per page)
+        if _auth_user and _auth_user.role != 'admin':
             _auth_user.points = max(0, _auth_user.points - required_points)
             db.session.add(PointsTransaction(
                 user_id=_auth_user.id,
@@ -1417,15 +1437,14 @@ def create_ppt_renovation_project():
         template_dir = project_dir / "template"
         template_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save original file
-        safe_name = secure_filename(file.filename)
-        safe_name = secure_filename(file.filename)
-        original_path = template_dir / safe_name
+        # Save original file to a stable name so later background tasks never
+        # depend on sanitized user filenames to rediscover the PDF.
+        original_path = _build_renovation_source_path(template_dir, file.filename)
         file.save(str(original_path))
 
         # Convert PPTX to PDF if needed
         pdf_path = str(original_path)
-        if safe_name.lower().endswith(('.pptx', '.ppt')):
+        if original_path.suffix.lower() in {'.pptx', '.ppt'}:
             pdf_path = _convert_office_document_to_pdf(original_path, template_dir)
 
         # Convert PDF to page images using PyMuPDF or pdf2image
