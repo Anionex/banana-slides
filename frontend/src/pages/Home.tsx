@@ -21,6 +21,8 @@ type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
 // 支持作为参考文件上传的文档扩展名（与后端 file_parser_service 保持一致）
 const ALLOWED_DOC_EXTENSIONS = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
+const MAX_UPLOAD_SIZE_MB = 200;
+const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -84,6 +86,7 @@ const homeI18n = {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
         projectCreateFailed: '项目创建失败',
+        renovationFileTooLarge: '翻新文件过大：{{size}}MB，当前最大支持 200MB',
         uploadingImage: '正在上传图片并识别内容...',
         imageUploadSuccess: '图片上传成功！已插入到光标位置',
         imageUploadFailed: '图片上传失败',
@@ -161,6 +164,7 @@ const homeI18n = {
         enterContent: 'Please enter content',
         filesParsing: '{{count}} reference file(s) are still parsing, please wait',
         projectCreateFailed: 'Failed to create project',
+        renovationFileTooLarge: 'Renovation file too large: {{size}}MB, maximum 200MB',
         uploadingImage: 'Uploading and recognizing image...',
         imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
         imageUploadFailed: 'Failed to upload image',
@@ -263,6 +267,30 @@ export const Home: React.FC = () => {
     // 在主页始终生成全局素材，不关联任何项目
     setIsMaterialModalOpen(true);
   };
+
+  const validateRenovationFile = useCallback((file: File): boolean => {
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    if (!fileExt || !['pdf', 'pptx', 'ppt'].includes(fileExt)) {
+      show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
+      return false;
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      show({
+        message: t('home.messages.renovationFileTooLarge', {
+          size: (file.size / 1024 / 1024).toFixed(1),
+        }),
+        type: 'error',
+      });
+      return false;
+    }
+
+    if (fileExt === 'ppt' || fileExt === 'pptx') {
+      show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+    }
+
+    return true;
+  }, [show, t]);
 
   const textareaRef = useRef<MarkdownTextareaRef>(null);
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
@@ -562,6 +590,9 @@ export const Home: React.FC = () => {
         show({ message: t('home.renovation.uploadFile'), type: 'error' });
         return;
       }
+      if (!validateRenovationFile(renovationFile)) {
+        return;
+      }
     } else if (!content.trim()) {
       show({ message: t('home.messages.enterContent'), type: 'error' });
       return;
@@ -684,6 +715,15 @@ export const Home: React.FC = () => {
       }
     } catch (error: any) {
       console.error('创建项目失败:', error);
+      if (error?.response?.status === 413 && activeTab === 'ppt_renovation' && renovationFile) {
+        show({
+          message: t('home.messages.renovationFileTooLarge', {
+            size: (renovationFile.size / 1024 / 1024).toFixed(1),
+          }),
+          type: 'error',
+        });
+        return;
+      }
       const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
       show({ message: msg, type: 'error' });
     } finally {
@@ -973,14 +1013,8 @@ export const Home: React.FC = () => {
                     e.preventDefault();
                     e.stopPropagation();
                     const file = e.dataTransfer.files[0];
-                    if (file && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt'))) {
+                    if (file && validateRenovationFile(file)) {
                       setRenovationFile(file);
-                      const ext = file.name.split('.').pop()?.toLowerCase();
-                      if (ext === 'ppt' || ext === 'pptx') {
-                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
-                      }
-                    } else {
-                      show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
                     }
                   }}
                 >
@@ -1013,12 +1047,8 @@ export const Home: React.FC = () => {
                   accept=".pdf,.pptx,.ppt"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
+                    if (file && validateRenovationFile(file)) {
                       setRenovationFile(file);
-                      const ext = file.name.split('.').pop()?.toLowerCase();
-                      if (ext === 'ppt' || ext === 'pptx') {
-                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
-                      }
                     }
                     e.target.value = '';
                   }}
