@@ -21,7 +21,7 @@ type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
 // 支持作为参考文件上传的文档扩展名（与后端 file_parser_service 保持一致）
 const ALLOWED_DOC_EXTENSIONS = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
-const MAX_UPLOAD_SIZE_MB = 200;
+const MAX_UPLOAD_SIZE_MB = 30;
 const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
@@ -86,7 +86,8 @@ const homeI18n = {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
         projectCreateFailed: '项目创建失败',
-        renovationFileTooLarge: '翻新文件过大：{{size}}MB，当前最大支持 200MB',
+        renovationFileTooLarge: '翻新文件过大：{{size}}MB，当前最大支持 30MB',
+        renovationUploadRejected: '服务器拒绝了上传请求（413）。文件大小 {{size}}MB，当前前端限制是 30MB；如果这个文件明明没有超过 30MB，说明服务器上传限制还没同步，请稍后重试。',
         uploadingImage: '正在上传图片并识别内容...',
         imageUploadSuccess: '图片上传成功！已插入到光标位置',
         imageUploadFailed: '图片上传失败',
@@ -164,7 +165,8 @@ const homeI18n = {
         enterContent: 'Please enter content',
         filesParsing: '{{count}} reference file(s) are still parsing, please wait',
         projectCreateFailed: 'Failed to create project',
-        renovationFileTooLarge: 'Renovation file too large: {{size}}MB, maximum 200MB',
+        renovationFileTooLarge: 'Renovation file too large: {{size}}MB, maximum 30MB',
+        renovationUploadRejected: 'The server rejected the upload (413). File size: {{size}}MB, current frontend limit: 30MB. If this file is clearly under 30MB, the server upload limit is likely not in sync yet. Please retry shortly.',
         uploadingImage: 'Uploading and recognizing image...',
         imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
         imageUploadFailed: 'Failed to upload image',
@@ -717,7 +719,7 @@ export const Home: React.FC = () => {
       console.error('创建项目失败:', error);
       if (error?.response?.status === 413 && activeTab === 'ppt_renovation' && renovationFile) {
         show({
-          message: t('home.messages.renovationFileTooLarge', {
+          message: t('home.messages.renovationUploadRejected', {
             size: (renovationFile.size / 1024 / 1024).toFixed(1),
           }),
           type: 'error',
