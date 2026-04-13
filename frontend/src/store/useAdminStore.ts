@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface AdminUser {
-  id: number;
+  id: string;
   username: string | null;
   phone: string | null;
   role: string;

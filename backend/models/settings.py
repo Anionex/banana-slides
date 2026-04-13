@@ -10,7 +10,42 @@ class Settings(db.Model):
     """
     __tablename__ = 'settings'
 
-    id = db.Column(db.Integer, primary_key=True, default=1)
+    COPYABLE_FIELDS = (
+        'ai_provider_format',
+        'api_base_url',
+        'api_key',
+        'image_resolution',
+        'image_aspect_ratio',
+        'max_description_workers',
+        'max_image_workers',
+        'text_model',
+        'image_model',
+        'mineru_api_base',
+        'mineru_token',
+        'image_caption_model',
+        'output_language',
+        'enable_text_reasoning',
+        'text_thinking_budget',
+        'enable_image_reasoning',
+        'image_thinking_budget',
+        'description_generation_mode',
+        'description_extra_fields',
+        'image_prompt_extra_fields',
+        'baidu_api_key',
+        'text_model_source',
+        'image_model_source',
+        'image_caption_model_source',
+        'lazyllm_api_keys',
+        'text_api_key',
+        'text_api_base_url',
+        'image_api_key',
+        'image_api_base_url',
+        'image_caption_api_key',
+        'image_caption_api_base_url',
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, unique=True, index=True)
     ai_provider_format = db.Column(db.String(20), nullable=True)   # AI提供商格式: openai, gemini (NULL=use .env)
     api_base_url = db.Column(db.String(500), nullable=True)        # API基础URL
     api_key = db.Column(db.String(500), nullable=True)             # API密钥
@@ -101,6 +136,8 @@ class Settings(db.Model):
         image_caption_api_key = self._val('image_caption_api_key', d)
         return {
             'id': self.id,
+            'owner_user_id': self.owner_user_id,
+            'scope': 'admin' if self.owner_user_id else 'global',
             'ai_provider_format': self._val('ai_provider_format', d),
             'api_base_url': self._val('api_base_url', d),
             'api_key_length': len(api_key) if api_key else 0,
@@ -195,22 +232,49 @@ class Settings(db.Model):
         }
 
     @staticmethod
-    def get_settings():
-        """
-        Get or create the single settings instance.
-
-        Returns the ORM object as-is from the database.  ``.env``
-        defaults for ``None`` fields are merged only at serialisation
-        time in ``to_dict()``, so this method has no write side-effects.
-        """
-        settings = Settings.query.first()
-
-        if settings is None:
-            settings = Settings(id=1)
-            db.session.add(settings)
-            db.session.commit()
-
+    def _create_empty_settings(owner_user_id=None):
+        settings = Settings(owner_user_id=owner_user_id)
+        db.session.add(settings)
+        db.session.commit()
         return settings
+
+    @classmethod
+    def get_global_settings(cls):
+        """Return the shared global settings row."""
+        settings = cls.query.filter(cls.owner_user_id.is_(None)).order_by(cls.id.asc()).first()
+        if settings is None:
+            settings = cls._create_empty_settings()
+        return settings
+
+    @classmethod
+    def create_admin_settings_from_global(cls, admin_user):
+        """Clone current global settings into a private row for the given admin."""
+        base_settings = cls.get_global_settings()
+        settings = cls(owner_user_id=admin_user.id)
+
+        for field_name in cls.COPYABLE_FIELDS:
+            setattr(settings, field_name, getattr(base_settings, field_name))
+
+        db.session.add(settings)
+        db.session.commit()
+        return settings
+
+    @classmethod
+    def get_admin_settings(cls, admin_user, create_if_missing=True):
+        """Return the admin-private settings row, cloning from global on first use."""
+        settings = cls.query.filter_by(owner_user_id=admin_user.id).first()
+        if settings is None and create_if_missing:
+            settings = cls.create_admin_settings_from_global(admin_user)
+        return settings
+
+    @classmethod
+    def get_settings(cls, user=None):
+        """
+        Return global settings by default, or admin-private settings when an admin is provided.
+        """
+        if user is not None and getattr(user, 'role', None) == 'admin':
+            return cls.get_admin_settings(user)
+        return cls.get_global_settings()
 
     def __repr__(self):
         return f'<Settings id={self.id}>'

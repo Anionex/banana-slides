@@ -1,5 +1,15 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Crown, Receipt, Settings, ChevronLeft, LogOut } from 'lucide-react';
+import {
+  ChevronLeft,
+  Crown,
+  LayoutDashboard,
+  Lock,
+  LogOut,
+  Receipt,
+  Settings,
+  Users,
+} from 'lucide-react';
+
 import { useAdminStore } from '../../store/useAdminStore';
 
 const mainNavItems = [
@@ -8,41 +18,43 @@ const mainNavItems = [
   { to: '/subscriptions', label: '订阅管理', icon: Crown, end: false },
   { to: '/transactions', label: '积分流水', icon: Receipt, end: false },
   { to: '/settings', label: '系统设置', icon: Settings, end: false },
+  { to: '/account', label: '账号安全', icon: Lock, end: false },
 ];
 
-// Legacy nav items for when AdminLayout is embedded in the main app
 const legacyNavItems = [
   { to: '/admin', label: '概览', icon: LayoutDashboard, end: true },
   { to: '/admin/users', label: '用户管理', icon: Users, end: false },
   { to: '/admin/subscriptions', label: '订阅管理', icon: Crown, end: false },
   { to: '/admin/transactions', label: '积分流水', icon: Receipt, end: false },
   { to: '/admin/settings', label: '系统设置', icon: Settings, end: false },
+  { to: '/admin/account', label: '账号安全', icon: Lock, end: false },
 ];
 
 export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boolean }) {
   const navigate = useNavigate();
   const { logout } = useAdminStore();
   const navItems = hideBackButton ? mainNavItems : legacyNavItems;
+
   return (
     <div className="min-h-screen flex bg-[var(--bg-primary)]">
-      {/* Sidebar */}
-      <aside className="w-56 shrink-0 bg-[var(--bg-elevated)] border-r border-[var(--border-secondary)] flex flex-col">
-        <div className="px-5 py-5 border-b border-[var(--border-secondary)]">
+      <aside className="w-56 shrink-0 flex flex-col border-r border-[var(--border-secondary)] bg-[var(--bg-elevated)]">
+        <div className="border-b border-[var(--border-secondary)] px-5 py-5">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[var(--banana-yellow)] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">F</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--banana-yellow)]">
+              <span className="text-xs font-bold text-white">F</span>
             </div>
-            <span className="font-semibold text-[var(--text-primary)] text-sm">飞叶管理后台</span>
+            <span className="text-sm font-semibold text-[var(--text-primary)]">飞叶管理后台</span>
           </div>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+
+        <nav className="flex-1 space-y-1 px-3 py-4">
           {navItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors ${
+                `flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-colors ${
                   isActive
                     ? 'bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] font-medium'
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
@@ -54,11 +66,15 @@ export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boole
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 py-4 border-t border-[var(--border-secondary)]">
+
+        <div className="border-t border-[var(--border-secondary)] px-3 py-4">
           {hideBackButton ? (
             <button
-              onClick={() => { logout(); navigate('/login'); }}
-              className="flex items-center gap-2 px-3 py-2 w-full rounded-xl text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-red-500 transition-colors"
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-red-500"
             >
               <LogOut size={16} />
               退出登录
@@ -66,7 +82,7 @@ export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boole
           ) : (
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 px-3 py-2 w-full rounded-xl text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <ChevronLeft size={16} />
               返回主页
@@ -75,7 +91,6 @@ export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boole
         </div>
       </aside>
 
-      {/* Content */}
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
