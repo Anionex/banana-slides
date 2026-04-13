@@ -6,7 +6,8 @@ import { AdminDashboard } from './AdminDashboard';
 import { AdminUsers } from './AdminUsers';
 import { AdminSubscriptions } from './AdminSubscriptions';
 import { AdminTransactions } from './AdminTransactions';
-import { SettingsPage } from '../Settings';
+import { AdminSettingsPage } from './AdminSettingsPage';
+import { AdminAccount } from './AdminAccount';
 
 function ProtectedLayout() {
   const isAuthenticated = useAdminStore((s) => s.isAuthenticated());
@@ -24,7 +25,8 @@ export function AdminApp() {
           <Route path="users" element={<AdminUsers />} />
           <Route path="subscriptions" element={<AdminSubscriptions />} />
           <Route path="transactions" element={<AdminTransactions />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="account" element={<AdminAccount />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

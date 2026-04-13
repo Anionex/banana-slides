@@ -212,6 +212,27 @@ import type { OutputLanguage } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
 
+type SettingsApiModule = Pick<
+  typeof api,
+  | 'getSettings'
+  | 'updateSettings'
+  | 'resetSettings'
+  | 'getTestStatus'
+  | 'testBaiduOcr'
+  | 'testTextModel'
+  | 'testCaptionModel'
+  | 'testBaiduInpaint'
+  | 'testImageModel'
+  | 'testMineruPdf'
+>;
+
+type UpdateSettingsPayload = Parameters<typeof api.updateSettings>[0];
+
+interface SettingsProps {
+  apiModule?: SettingsApiModule;
+  persistKey?: string;
+}
+
 // 配置项类型定义
 type FieldType = 'text' | 'password' | 'number' | 'select' | 'buttons' | 'switch';
 
@@ -376,7 +397,10 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
 });
 
 // Settings 组件 - 纯嵌入模式（可复用）
-export const Settings: React.FC = () => {
+export const Settings: React.FC<SettingsProps> = ({
+  apiModule = api,
+  persistKey = 'banana-settings',
+}) => {
   const t = useT(settingsI18n);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -546,11 +570,11 @@ export const Settings: React.FC = () => {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const response = await api.getSettings();
+      const response = await apiModule.getSettings();
       if (response.data) {
         setSettings(response.data);
         setFormData(formDataFromSettings(response.data));
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+        sessionStorage.setItem(persistKey, JSON.stringify(response.data));
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -571,7 +595,7 @@ export const Settings: React.FC = () => {
         text_api_key, image_api_key, image_caption_api_key,
         ...otherData
       } = formData;
-      const payload: Parameters<typeof api.updateSettings>[0] = {
+      const payload: UpdateSettingsPayload = {
         ...otherData,
         ai_provider_format: otherData.ai_provider_format,
       };
@@ -592,10 +616,10 @@ export const Settings: React.FC = () => {
         payload.lazyllm_api_keys = nonEmptyKeys;
       }
 
-      const response = await api.updateSettings(payload);
+      const response = await apiModule.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+        sessionStorage.setItem(persistKey, JSON.stringify(response.data));
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         // Clear all sensitive fields after save
@@ -623,7 +647,7 @@ export const Settings: React.FC = () => {
       async () => {
         setIsSaving(true);
         try {
-          const response = await api.resetSettings();
+          const response = await apiModule.resetSettings();
           if (response.data) {
             setSettings(response.data);
             setFormData(formDataFromSettings(response.data));
@@ -714,7 +738,7 @@ export const Settings: React.FC = () => {
       // 开始轮询任务状态
       const pollInterval = setInterval(async () => {
         try {
-          const statusResponse = await api.getTestStatus(taskId);
+          const statusResponse = await apiModule.getTestStatus(taskId);
           const taskStatus = statusResponse.data.status;
 
           if (taskStatus === 'COMPLETED') {
@@ -1193,7 +1217,7 @@ export const Settings: React.FC = () => {
                 titleKey: 'settings.serviceTest.tests.baiduOcr.title',
                 descriptionKey: 'settings.serviceTest.tests.baiduOcr.description',
                 resultKey: 'settings.serviceTest.results.recognizedText',
-                action: api.testBaiduOcr,
+                action: apiModule.testBaiduOcr,
                 formatDetail: (data: any) => (data?.recognized_text ? t('settings.serviceTest.results.recognizedText', { text: data.recognized_text }) : ''),
               },
               {
@@ -1201,7 +1225,7 @@ export const Settings: React.FC = () => {
                 titleKey: 'settings.serviceTest.tests.textModel.title',
                 descriptionKey: 'settings.serviceTest.tests.textModel.description',
                 resultKey: 'settings.serviceTest.results.modelReply',
-                action: api.testTextModel,
+                action: apiModule.testTextModel,
                 formatDetail: (data: any) => (data?.reply ? t('settings.serviceTest.results.modelReply', { reply: data.reply }) : ''),
               },
               {
@@ -1209,7 +1233,7 @@ export const Settings: React.FC = () => {
                 titleKey: 'settings.serviceTest.tests.captionModel.title',
                 descriptionKey: 'settings.serviceTest.tests.captionModel.description',
                 resultKey: 'settings.serviceTest.results.captionDesc',
-                action: api.testCaptionModel,
+                action: apiModule.testCaptionModel,
                 formatDetail: (data: any) => (data?.caption ? t('settings.serviceTest.results.captionDesc', { caption: data.caption }) : ''),
               },
               {
@@ -1217,7 +1241,7 @@ export const Settings: React.FC = () => {
                 titleKey: 'settings.serviceTest.tests.baiduInpaint.title',
                 descriptionKey: 'settings.serviceTest.tests.baiduInpaint.description',
                 resultKey: 'settings.serviceTest.results.imageSize',
-                action: api.testBaiduInpaint,
+                action: apiModule.testBaiduInpaint,
                 formatDetail: (data: any) => (data?.image_size ? t('settings.serviceTest.results.imageSize', { width: data.image_size[0], height: data.image_size[1] }) : ''),
               },
               {
@@ -1225,7 +1249,7 @@ export const Settings: React.FC = () => {
                 titleKey: 'settings.serviceTest.tests.imageModel.title',
                 descriptionKey: 'settings.serviceTest.tests.imageModel.description',
                 resultKey: 'settings.serviceTest.results.imageSize',
-                action: api.testImageModel,
+                action: apiModule.testImageModel,
                 formatDetail: (data: any) => (data?.image_size ? t('settings.serviceTest.results.imageSize', { width: data.image_size[0], height: data.image_size[1] }) : ''),
               },
               {
@@ -1233,7 +1257,7 @@ export const Settings: React.FC = () => {
                 titleKey: 'settings.serviceTest.tests.mineruPdf.title',
                 descriptionKey: 'settings.serviceTest.tests.mineruPdf.description',
                 resultKey: 'settings.serviceTest.results.parsePreview',
-                action: api.testMineruPdf,
+                action: apiModule.testMineruPdf,
                 formatDetail: (data: any) => (data?.content_preview ? t('settings.serviceTest.results.parsePreview', { preview: data.content_preview }) : data?.message || ''),
               },
             ].map((item) => {

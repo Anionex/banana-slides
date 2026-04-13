@@ -28,6 +28,10 @@ settings_bp = Blueprint(
 )
 
 
+class SettingsValidationError(ValueError):
+    """Raised when settings payload validation fails."""
+
+
 @contextmanager
 def temporary_settings_override(settings_override: dict):
     """
@@ -145,6 +149,270 @@ def temporary_settings_override(settings_override: dict):
                 current_app.config[key] = value
             else:
                 current_app.config.pop(key, None)
+
+
+def _apply_settings_updates(settings: Settings, data: dict):
+    """Validate and apply settings payload to a settings row."""
+    if not data:
+        raise SettingsValidationError("Request body is required")
+
+    if "ai_provider_format" in data:
+        provider_format = data["ai_provider_format"]
+        if provider_format not in ALLOWED_PROVIDER_FORMATS:
+            allowed_values = "', '".join(sorted(ALLOWED_PROVIDER_FORMATS))
+            raise SettingsValidationError(
+                f"AI provider format must be one of '{allowed_values}'"
+            )
+        settings.ai_provider_format = provider_format
+
+    if "api_base_url" in data:
+        raw_base_url = data["api_base_url"]
+        if raw_base_url is None:
+            settings.api_base_url = None
+        else:
+            value = str(raw_base_url).strip()
+            settings.api_base_url = value if value != "" else None
+
+    if "api_key" in data:
+        settings.api_key = data["api_key"]
+
+    if "image_resolution" in data:
+        resolution = data["image_resolution"]
+        if resolution not in ["1K", "2K", "4K"]:
+            raise SettingsValidationError("Resolution must be 1K, 2K, or 4K")
+        settings.image_resolution = resolution
+
+    if "image_aspect_ratio" in data:
+        settings.image_aspect_ratio = data["image_aspect_ratio"]
+
+    if "max_description_workers" in data:
+        workers = int(data["max_description_workers"])
+        if workers < 1 or workers > 20:
+            raise SettingsValidationError(
+                "Max description workers must be between 1 and 20"
+            )
+        settings.max_description_workers = workers
+
+    if "max_image_workers" in data:
+        workers = int(data["max_image_workers"])
+        if workers < 1 or workers > 20:
+            raise SettingsValidationError(
+                "Max image workers must be between 1 and 20"
+            )
+        settings.max_image_workers = workers
+
+    if "text_model" in data:
+        settings.text_model = (data["text_model"] or "").strip() or None
+
+    if "image_model" in data:
+        settings.image_model = (data["image_model"] or "").strip() or None
+
+    if "mineru_api_base" in data:
+        settings.mineru_api_base = (data["mineru_api_base"] or "").strip() or None
+
+    if "mineru_token" in data:
+        settings.mineru_token = data["mineru_token"]
+
+    if "image_caption_model" in data:
+        settings.image_caption_model = (data["image_caption_model"] or "").strip() or None
+
+    if "output_language" in data:
+        language = data["output_language"]
+        if language not in ["zh", "en", "ja", "auto"]:
+            raise SettingsValidationError(
+                "Output language must be 'zh', 'en', 'ja', or 'auto'"
+            )
+        settings.output_language = language
+
+    if "description_generation_mode" in data:
+        mode = data["description_generation_mode"]
+        if mode not in ("streaming", "parallel"):
+            raise SettingsValidationError(
+                "description_generation_mode must be 'streaming' or 'parallel'"
+            )
+        settings.description_generation_mode = mode
+
+    if "description_extra_fields" in data:
+        fields = data["description_extra_fields"]
+        if not isinstance(fields, list) or not fields:
+            raise SettingsValidationError(
+                "description_extra_fields must be a non-empty array of strings"
+            )
+        if len(fields) > 10:
+            raise SettingsValidationError("description_extra_fields allows at most 10 items")
+        if not all(isinstance(f, str) and f.strip() for f in fields):
+            raise SettingsValidationError("Each extra field must be a non-empty string")
+        settings.description_extra_fields = json.dumps(
+            [f.strip() for f in fields], ensure_ascii=False
+        )
+
+    if "image_prompt_extra_fields" in data:
+        fields = data["image_prompt_extra_fields"]
+        if not isinstance(fields, list):
+            raise SettingsValidationError(
+                "image_prompt_extra_fields must be an array of strings"
+            )
+        settings.image_prompt_extra_fields = json.dumps(
+            [f.strip() for f in fields if isinstance(f, str) and f.strip()],
+            ensure_ascii=False,
+        )
+
+    if "enable_text_reasoning" in data:
+        settings.enable_text_reasoning = bool(data["enable_text_reasoning"])
+
+    if "text_thinking_budget" in data:
+        budget = int(data["text_thinking_budget"])
+        if budget < 1 or budget > 8192:
+            raise SettingsValidationError("Text thinking budget must be between 1 and 8192")
+        settings.text_thinking_budget = budget
+
+    if "enable_image_reasoning" in data:
+        settings.enable_image_reasoning = bool(data["enable_image_reasoning"])
+
+    if "image_thinking_budget" in data:
+        budget = int(data["image_thinking_budget"])
+        if budget < 1 or budget > 8192:
+            raise SettingsValidationError("Image thinking budget must be between 1 and 8192")
+        settings.image_thinking_budget = budget
+
+    if "baidu_api_key" in data:
+        settings.baidu_api_key = data["baidu_api_key"] or None
+
+    if "text_model_source" in data:
+        settings.text_model_source = (data["text_model_source"] or "").strip() or None
+
+    if "image_model_source" in data:
+        settings.image_model_source = (data["image_model_source"] or "").strip() or None
+
+    if "image_caption_model_source" in data:
+        settings.image_caption_model_source = (data["image_caption_model_source"] or "").strip() or None
+
+    for model_type in ("text", "image", "image_caption"):
+        key_field = f"{model_type}_api_key"
+        base_field = f"{model_type}_api_base_url"
+
+        if key_field in data:
+            setattr(settings, key_field, data[key_field] or None)
+
+        if base_field in data:
+            setattr(settings, base_field, (data[base_field] or "").strip() or None)
+
+    if "lazyllm_api_keys" in data:
+        keys_data = data["lazyllm_api_keys"]
+        if isinstance(keys_data, dict):
+            existing = settings.get_lazyllm_api_keys_dict()
+            for vendor, key in keys_data.items():
+                if key:
+                    existing[vendor] = key
+            settings.lazyllm_api_keys = json.dumps(existing) if existing else None
+        elif keys_data is None:
+            settings.lazyllm_api_keys = None
+
+    settings.updated_at = datetime.now(timezone.utc)
+
+
+def _reset_settings_values(settings: Settings):
+    """Reset a settings row to environment defaults via NULL/initial values."""
+    settings.ai_provider_format = None
+    settings.api_base_url = None
+    settings.api_key = None
+    settings.text_model = None
+    settings.image_model = None
+    settings.mineru_api_base = None
+    settings.mineru_token = None
+    settings.image_caption_model = None
+    settings.output_language = None
+    settings.enable_text_reasoning = False
+    settings.text_thinking_budget = 1024
+    settings.enable_image_reasoning = False
+    settings.image_thinking_budget = 1024
+    settings.description_generation_mode = None
+    settings.description_extra_fields = None
+    settings.image_prompt_extra_fields = None
+    settings.baidu_api_key = None
+    settings.text_model_source = None
+    settings.image_model_source = None
+    settings.image_caption_model_source = None
+    settings.lazyllm_api_keys = None
+    for model_type in ("text", "image", "image_caption"):
+        setattr(settings, f"{model_type}_api_key", None)
+        setattr(settings, f"{model_type}_api_base_url", None)
+    settings.image_resolution = None
+    settings.image_aspect_ratio = None
+    settings.max_description_workers = None
+    settings.max_image_workers = None
+    settings.updated_at = datetime.now(timezone.utc)
+
+
+def _build_test_settings_payload(base_settings: Settings) -> dict:
+    """Build the base test payload from a settings row."""
+    test_settings = {}
+    if base_settings.api_key:
+        test_settings["api_key"] = base_settings.api_key
+    if base_settings.api_base_url:
+        test_settings["api_base_url"] = base_settings.api_base_url
+    if base_settings.ai_provider_format:
+        test_settings["ai_provider_format"] = base_settings.ai_provider_format
+    if base_settings.text_model:
+        test_settings["text_model"] = base_settings.text_model
+    if base_settings.image_model:
+        test_settings["image_model"] = base_settings.image_model
+    if base_settings.image_caption_model:
+        test_settings["image_caption_model"] = base_settings.image_caption_model
+    if current_app.config.get("IMAGE_CAPTION_MODEL_SOURCE"):
+        test_settings["image_caption_model_source"] = current_app.config.get(
+            "IMAGE_CAPTION_MODEL_SOURCE"
+        )
+    for model_type in ("text", "image", "image_caption"):
+        for suffix in ("model_source", "api_key", "api_base_url"):
+            attr = f"{model_type}_{suffix}"
+            val = getattr(base_settings, attr, None)
+            if val:
+                test_settings[attr] = val
+    if base_settings.mineru_api_base:
+        test_settings["mineru_api_base"] = base_settings.mineru_api_base
+    if base_settings.mineru_token:
+        test_settings["mineru_token"] = base_settings.mineru_token
+    if base_settings.baidu_api_key:
+        test_settings["baidu_api_key"] = base_settings.baidu_api_key
+    if base_settings.image_resolution:
+        test_settings["image_resolution"] = base_settings.image_resolution
+    test_settings["enable_text_reasoning"] = base_settings.enable_text_reasoning
+    test_settings["text_thinking_budget"] = base_settings.text_thinking_budget
+    test_settings["enable_image_reasoning"] = base_settings.enable_image_reasoning
+    test_settings["image_thinking_budget"] = base_settings.image_thinking_budget
+    return test_settings
+
+
+def create_settings_test_task(test_name: str, base_settings: Settings, override_settings=None):
+    """Start an async settings test using the provided settings scope."""
+    if test_name not in TEST_FUNCTIONS:
+        raise SettingsValidationError(f"Unknown test type: {test_name}")
+
+    test_settings = _build_test_settings_payload(base_settings)
+    override_settings = override_settings or {}
+    if override_settings:
+        logger.info(f"Applying test setting overrides: {list(override_settings.keys())}")
+        test_settings.update(override_settings)
+
+    task = Task(
+        project_id='settings-test',
+        task_type=f'TEST_{test_name.upper().replace("-", "_")}',
+        status='PENDING'
+    )
+    db.session.add(task)
+    db.session.commit()
+
+    task_manager.submit_task(
+        task.id,
+        _run_test_async,
+        test_name,
+        test_settings,
+        current_app._get_current_object()
+    )
+
+    logger.info(f"Started test task {task.id} for {test_name}")
+    return success_response({'task_id': task.id, 'status': 'PENDING'}, '娴嬭瘯浠诲姟宸插惎鍔?')
 
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)

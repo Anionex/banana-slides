@@ -128,6 +128,8 @@ export interface ApiResponse<T = any> {
 // 设置
 export interface Settings {
   id: number;
+  owner_user_id?: string | null;
+  scope?: 'global' | 'admin';
   ai_provider_format: string;
   api_base_url?: string;
   api_key_length: number;
@@ -167,4 +169,3 @@ export interface Settings {
   created_at?: string;
   updated_at?: string;
 }
-
