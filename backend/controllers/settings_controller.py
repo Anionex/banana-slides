@@ -8,10 +8,11 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import contextmanager
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from PIL import Image
 from models import db, Settings, Task
 from utils import success_response, error_response, bad_request
+from utils.auth import optional_auth
 from config import Config, PROJECT_ROOT
 from services.ai_service import AIService
 from services.file_parser_service import FileParserService
@@ -422,12 +423,13 @@ def create_settings_test_task(test_name: str, base_settings: Settings, override_
 
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
+@optional_auth
 def get_settings():
     """
     GET /api/settings - Get application settings
     """
     try:
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
         return success_response(settings.to_dict())
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
@@ -439,6 +441,7 @@ def get_settings():
 
 
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
+@optional_auth
 def update_settings():
     """
     PUT /api/settings - Update application settings
@@ -456,7 +459,7 @@ def update_settings():
         if not data:
             return bad_request("Request body is required")
 
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -633,12 +636,13 @@ def update_settings():
 
 
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
+@optional_auth
 def reset_settings():
     """
     POST /api/settings/reset - Reset settings to default values
     """
     try:
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
 
         # Reset all fields to NULL so .env defaults take over via to_dict()
         settings.ai_provider_format = None
@@ -1248,6 +1252,7 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
 
 
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
+@optional_auth
 def run_settings_test(test_name: str):
     """
     POST /api/settings/tests/<test_name> - 启动异步服务测试
@@ -1271,7 +1276,7 @@ def run_settings_test(test_name: str):
     """
     try:
         # 从数据库加载已保存的全局设置作为基础
-        global_settings = Settings.get_settings()
+        global_settings = Settings.get_settings(getattr(g, "current_user", None))
 
         # 构建基础测试设置（使用数据库中已保存的值）
         test_settings = {}

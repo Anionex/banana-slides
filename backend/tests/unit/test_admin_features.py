@@ -119,3 +119,38 @@ def test_admin_settings_are_isolated_between_admins(client, db_session):
 
     assert global_response.get_json()["data"]["text_model"] == "global-text-model"
     assert global_response.get_json()["data"]["image_resolution"] == "2K"
+
+
+def test_main_settings_route_uses_admin_private_settings_when_authenticated(client, db_session):
+    from models import Settings, User
+
+    global_settings = Settings.get_global_settings()
+    global_settings.text_model = "global-text-model"
+    global_settings.image_resolution = "2K"
+    db_session.commit()
+
+    admin_user = _create_user(db_session, User, "main_admin", "Admin@1")
+
+    initial_response = client.get("/api/settings", headers=_admin_headers(admin_user))
+    assert initial_response.status_code == 200
+    assert initial_response.get_json()["data"]["text_model"] is None
+    assert initial_response.get_json()["data"]["image_resolution"] is None
+
+    update_response = client.put(
+        "/api/settings",
+        json={"text_model": "admin-private-model", "image_resolution": "4K"},
+        headers=_admin_headers(admin_user),
+    )
+    assert update_response.status_code == 200
+    assert update_response.get_json()["data"]["text_model"] == "admin-private-model"
+    assert update_response.get_json()["data"]["image_resolution"] == "4K"
+
+    refreshed_admin_response = client.get("/api/settings", headers=_admin_headers(admin_user))
+    assert refreshed_admin_response.status_code == 200
+    assert refreshed_admin_response.get_json()["data"]["text_model"] == "admin-private-model"
+    assert refreshed_admin_response.get_json()["data"]["image_resolution"] == "4K"
+
+    global_response = client.get("/api/settings")
+    assert global_response.status_code == 200
+    assert global_response.get_json()["data"]["text_model"] == "global-text-model"
+    assert global_response.get_json()["data"]["image_resolution"] == "2K"
