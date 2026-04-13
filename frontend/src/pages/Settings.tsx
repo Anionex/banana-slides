@@ -211,6 +211,7 @@ import * as api from '@/api/endpoints';
 import type { OutputLanguage } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
+import { useUserStore } from '@/store/useUserStore';
 
 type SettingsApiModule = Pick<
   typeof api,
@@ -410,11 +411,13 @@ const formDataFromSettings = (
 export const Settings: React.FC<SettingsProps> = ({
   apiModule = api,
   persistKey = 'banana-settings',
-  mode = 'global',
+  mode,
 }) => {
   const t = useT(settingsI18n);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const user = useUserStore((state) => state.user);
+  const effectiveMode: 'global' | 'admin' = mode || (user?.role === 'admin' ? 'admin' : 'global');
 
   const copyToClipboard = (text: string) => {
     if (navigator.clipboard) {
@@ -435,7 +438,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<SettingsFormData>(() => buildInitialFormData(mode));
+  const [formData, setFormData] = useState<SettingsFormData>(() => buildInitialFormData(effectiveMode));
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
 
@@ -585,7 +588,7 @@ export const Settings: React.FC<SettingsProps> = ({
       const response = await apiModule.getSettings();
       if (response.data) {
         setSettings(response.data);
-        setFormData(formDataFromSettings(response.data, mode));
+        setFormData(formDataFromSettings(response.data, effectiveMode));
         setDirtyFields({});
         sessionStorage.setItem(persistKey, JSON.stringify(response.data));
       }
@@ -610,7 +613,7 @@ export const Settings: React.FC<SettingsProps> = ({
       } = formData;
       const payload: UpdateSettingsPayload = {};
 
-      if (mode === 'admin') {
+      if (effectiveMode === 'admin') {
         Object.entries(otherData).forEach(([key, value]) => {
           if (dirtyFields[key]) {
             (payload as Record<string, unknown>)[key] = value;
@@ -646,7 +649,7 @@ export const Settings: React.FC<SettingsProps> = ({
       const response = await apiModule.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
-        setFormData(formDataFromSettings(response.data, mode));
+        setFormData(formDataFromSettings(response.data, effectiveMode));
         setDirtyFields({});
         sessionStorage.setItem(persistKey, JSON.stringify(response.data));
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
@@ -672,7 +675,7 @@ export const Settings: React.FC<SettingsProps> = ({
           const response = await apiModule.resetSettings();
           if (response.data) {
             setSettings(response.data);
-            setFormData(formDataFromSettings(response.data, mode));
+            setFormData(formDataFromSettings(response.data, effectiveMode));
             setDirtyFields({});
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });
           }
@@ -1111,7 +1114,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
-                {mode === 'admin' && (
+                {effectiveMode === 'admin' && (
                   <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
                 )}
                 {ALL_PROVIDER_SOURCES.map((option) => (

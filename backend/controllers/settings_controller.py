@@ -33,6 +33,12 @@ class SettingsValidationError(ValueError):
     """Raised when settings payload validation fails."""
 
 
+def _serialize_settings_for_request(settings: Settings):
+    user = getattr(g, "current_user", None)
+    include_defaults = not (user is not None and getattr(user, "role", None) == "admin")
+    return settings.to_dict(include_defaults=include_defaults)
+
+
 @contextmanager
 def temporary_settings_override(settings_override: dict):
     """
@@ -430,7 +436,7 @@ def get_settings():
     """
     try:
         settings = Settings.get_settings(getattr(g, "current_user", None))
-        return success_response(settings.to_dict())
+        return success_response(_serialize_settings_for_request(settings))
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
         return error_response(
@@ -622,7 +628,7 @@ def update_settings():
 
         logger.info("Settings updated successfully")
         return success_response(
-            settings.to_dict(), "Settings updated successfully"
+            _serialize_settings_for_request(settings), "Settings updated successfully"
         )
 
     except Exception as e:
@@ -682,7 +688,7 @@ def reset_settings():
 
         logger.info("Settings reset to defaults")
         return success_response(
-            settings.to_dict(), "Settings reset to defaults"
+            _serialize_settings_for_request(settings), "Settings reset to defaults"
         )
 
     except Exception as e:
