@@ -37,16 +37,16 @@ def test_admin_can_create_admin_user(client, db_session):
 
     response = client.post(
         "/api/admin/users",
-        json={"username": "feiye_ops_admin", "password": "FeiYe@7"},
+        json={"username": "admin1", "password": "FeiYe@7"},
         headers=_admin_headers(super_admin),
     )
 
     assert response.status_code == 201
     payload = response.get_json()
-    assert payload["data"]["username"] == "feiye_ops_admin"
+    assert payload["data"]["username"] == "admin1"
     assert payload["data"]["role"] == "admin"
 
-    created = User.query.filter_by(username="feiye_ops_admin").first()
+    created = User.query.filter_by(username="admin1").first()
     assert created is not None
     assert created.role == "admin"
 
