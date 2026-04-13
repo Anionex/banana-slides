@@ -158,12 +158,15 @@ def _apply_settings_updates(settings: Settings, data: dict):
 
     if "ai_provider_format" in data:
         provider_format = data["ai_provider_format"]
-        if provider_format not in ALLOWED_PROVIDER_FORMATS:
+        if provider_format in (None, ""):
+            settings.ai_provider_format = None
+        elif provider_format not in ALLOWED_PROVIDER_FORMATS:
             allowed_values = "', '".join(sorted(ALLOWED_PROVIDER_FORMATS))
             raise SettingsValidationError(
                 f"AI provider format must be one of '{allowed_values}'"
             )
-        settings.ai_provider_format = provider_format
+        else:
+            settings.ai_provider_format = provider_format
 
     if "api_base_url" in data:
         raw_base_url = data["api_base_url"]
@@ -178,9 +181,12 @@ def _apply_settings_updates(settings: Settings, data: dict):
 
     if "image_resolution" in data:
         resolution = data["image_resolution"]
-        if resolution not in ["1K", "2K", "4K"]:
+        if resolution in (None, ""):
+            settings.image_resolution = None
+        elif resolution not in ["1K", "2K", "4K"]:
             raise SettingsValidationError("Resolution must be 1K, 2K, or 4K")
-        settings.image_resolution = resolution
+        else:
+            settings.image_resolution = resolution
 
     if "image_aspect_ratio" in data:
         settings.image_aspect_ratio = data["image_aspect_ratio"]

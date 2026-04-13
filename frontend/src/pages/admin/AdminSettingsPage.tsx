@@ -11,7 +11,7 @@ export function AdminSettingsPage() {
         </p>
       </div>
       <div className="rounded-2xl border border-[var(--border-secondary)] bg-[var(--bg-elevated)] p-6">
-        <Settings apiModule={adminApi} persistKey="banana-admin-settings" />
+        <Settings apiModule={adminApi} persistKey="banana-admin-settings" mode="admin" />
       </div>
     </div>
   );

@@ -33,7 +33,10 @@ def test_admin_can_create_admin_user(client, db_session):
     from models import Settings, User
 
     super_admin = _create_user(db_session, User, "root_admin", "Root@1")
-    Settings.get_global_settings()
+    global_settings = Settings.get_global_settings()
+    global_settings.text_model = "global-text-model"
+    global_settings.image_resolution = "4K"
+    db_session.commit()
 
     response = client.post(
         "/api/admin/users",
@@ -52,6 +55,8 @@ def test_admin_can_create_admin_user(client, db_session):
 
     admin_settings = Settings.query.filter_by(owner_user_id=created.id).first()
     assert admin_settings is not None
+    assert admin_settings.text_model is None
+    assert admin_settings.image_resolution is None
 
 
 def test_admin_can_change_own_password(client, db_session):
@@ -109,8 +114,8 @@ def test_admin_settings_are_isolated_between_admins(client, db_session):
     assert admin_one_settings.get_json()["data"]["text_model"] == "admin-one-model"
     assert admin_one_settings.get_json()["data"]["image_resolution"] == "4K"
 
-    assert admin_two_settings.get_json()["data"]["text_model"] == "global-text-model"
-    assert admin_two_settings.get_json()["data"]["image_resolution"] == "2K"
+    assert admin_two_settings.get_json()["data"]["text_model"] is None
+    assert admin_two_settings.get_json()["data"]["image_resolution"] is None
 
     assert global_response.get_json()["data"]["text_model"] == "global-text-model"
     assert global_response.get_json()["data"]["image_resolution"] == "2K"

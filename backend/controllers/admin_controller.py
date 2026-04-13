@@ -330,7 +330,7 @@ def change_admin_password():
 @require_admin
 def get_admin_settings():
     settings = _get_admin_settings_or_404()
-    return jsonify({"data": settings.to_dict()})
+    return jsonify({"data": settings.to_dict(include_defaults=False)})
 
 
 @admin_bp.route("/settings", methods=["PUT"], strict_slashes=False)
@@ -341,7 +341,12 @@ def update_admin_settings():
         settings = _get_admin_settings_or_404()
         _apply_settings_updates(settings, data)
         db.session.commit()
-        return jsonify({"data": settings.to_dict(), "message": "Settings updated successfully"})
+        return jsonify(
+            {
+                "data": settings.to_dict(include_defaults=False),
+                "message": "Settings updated successfully",
+            }
+        )
     except SettingsValidationError as exc:
         db.session.rollback()
         return jsonify({"error": str(exc)}), 400
@@ -358,7 +363,12 @@ def reset_admin_settings():
         settings = _get_admin_settings_or_404()
         _reset_settings_values(settings)
         db.session.commit()
-        return jsonify({"data": settings.to_dict(), "message": "Settings reset to defaults"})
+        return jsonify(
+            {
+                "data": settings.to_dict(include_defaults=False),
+                "message": "Settings reset to defaults",
+            }
+        )
     except Exception as exc:
         db.session.rollback()
         logger.error("Error resetting admin settings: %s", exc, exc_info=True)

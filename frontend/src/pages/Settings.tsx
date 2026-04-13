@@ -231,6 +231,7 @@ type UpdateSettingsPayload = Parameters<typeof api.updateSettings>[0];
 interface SettingsProps {
   apiModule?: SettingsApiModule;
   persistKey?: string;
+  mode?: 'global' | 'admin';
 }
 
 // 配置项类型定义
@@ -291,8 +292,8 @@ const API_KEY_PROVIDERS = new Set(['gemini', 'openai']);
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 
 // 初始表单数据
-const initialFormData = {
-  ai_provider_format: 'gemini' as string,
+const buildInitialFormData = (mode: 'global' | 'admin' = 'global') => ({
+  ai_provider_format: (mode === 'admin' ? '' : 'gemini') as string,
   api_base_url: '',
   api_key: '',
   text_model: '',
@@ -300,7 +301,7 @@ const initialFormData = {
   image_caption_model: '',
   mineru_api_base: '',
   mineru_token: '',
-  image_resolution: '2K',
+  image_resolution: (mode === 'admin' ? '' : '2K') as string,
   max_description_workers: 5,
   max_image_workers: 8,
   output_language: 'zh' as OutputLanguage,
@@ -322,7 +323,10 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
-};
+});
+
+const initialFormData = buildInitialFormData();
+type SettingsFormData = ReturnType<typeof buildInitialFormData>;
 
 const isLazyllmVendor = (vendor: string) =>
   LAZYLLM_VENDOR_SET.has(vendor) && vendor !== 'openai';
@@ -338,8 +342,8 @@ const resolveLazyllmVendor = (format: string, keysInfo?: Record<string, number>)
 };
 
 const GlobalVendorKeyInput: React.FC<{
-  vendor: string; formData: typeof initialFormData;
-  setFormData: React.Dispatch<React.SetStateAction<typeof initialFormData>>;
+  vendor: string; formData: SettingsFormData;
+  setFormData: React.Dispatch<React.SetStateAction<SettingsFormData>>;
   settings: SettingsType | null; t: ReturnType<typeof useT>;
 }> = ({ vendor, formData, setFormData, settings, t }) => {
   const vendorLabel = LAZYLLM_SOURCES.find(s => s.value === vendor)?.label || vendor.toUpperCase();
@@ -366,11 +370,17 @@ const GlobalVendorKeyInput: React.FC<{
   );
 };
 
-const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
-  ai_provider_format: resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info),
+const formDataFromSettings = (
+  data: SettingsType,
+  mode: 'global' | 'admin' = 'global'
+): SettingsFormData => ({
+  ai_provider_format: resolveLazyllmVendor(
+    data.ai_provider_format || (mode === 'admin' ? '' : 'gemini'),
+    data.lazyllm_api_keys_info
+  ),
   api_base_url: data.api_base_url || '',
   api_key: '',
-  image_resolution: data.image_resolution || '2K',
+  image_resolution: data.image_resolution || (mode === 'admin' ? '' : '2K'),
   max_description_workers: data.max_description_workers || 5,
   max_image_workers: data.max_image_workers || 8,
   text_model: data.text_model || '',
@@ -400,6 +410,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
 export const Settings: React.FC<SettingsProps> = ({
   apiModule = api,
   persistKey = 'banana-settings',
+  mode = 'global',
 }) => {
   const t = useT(settingsI18n);
   const { show, ToastContainer } = useToast();
@@ -424,8 +435,9 @@ export const Settings: React.FC<SettingsProps> = ({
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState<SettingsFormData>(() => buildInitialFormData(mode));
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
+  const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
 
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
@@ -573,7 +585,8 @@ export const Settings: React.FC<SettingsProps> = ({
       const response = await apiModule.getSettings();
       if (response.data) {
         setSettings(response.data);
-        setFormData(formDataFromSettings(response.data));
+        setFormData(formDataFromSettings(response.data, mode));
+        setDirtyFields({});
         sessionStorage.setItem(persistKey, JSON.stringify(response.data));
       }
     } catch (error: any) {
@@ -595,10 +608,19 @@ export const Settings: React.FC<SettingsProps> = ({
         text_api_key, image_api_key, image_caption_api_key,
         ...otherData
       } = formData;
-      const payload: UpdateSettingsPayload = {
-        ...otherData,
-        ai_provider_format: otherData.ai_provider_format,
-      };
+      const payload: UpdateSettingsPayload = {};
+
+      if (mode === 'admin') {
+        Object.entries(otherData).forEach(([key, value]) => {
+          if (dirtyFields[key]) {
+            (payload as Record<string, unknown>)[key] = value;
+          }
+        });
+      } else {
+        Object.assign(payload, otherData, {
+          ai_provider_format: otherData.ai_provider_format,
+        });
+      }
 
       // Only send sensitive fields if user entered a new value
       if (api_key) payload.api_key = api_key;
@@ -616,19 +638,19 @@ export const Settings: React.FC<SettingsProps> = ({
         payload.lazyllm_api_keys = nonEmptyKeys;
       }
 
+      if (Object.keys(payload).length === 0) {
+        show({ message: 'No changes to save', type: 'info' });
+        return;
+      }
+
       const response = await apiModule.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
+        setFormData(formDataFromSettings(response.data, mode));
+        setDirtyFields({});
         sessionStorage.setItem(persistKey, JSON.stringify(response.data));
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
-        // Clear all sensitive fields after save
-        setFormData(prev => ({
-          ...prev,
-          api_key: '', mineru_token: '', baidu_api_key: '',
-          lazyllm_api_keys: {},
-          text_api_key: '', image_api_key: '', image_caption_api_key: '',
-        }));
       }
     } catch (error: any) {
       console.error('保存设置失败:', error);
@@ -650,7 +672,8 @@ export const Settings: React.FC<SettingsProps> = ({
           const response = await apiModule.resetSettings();
           if (response.data) {
             setSettings(response.data);
-            setFormData(formDataFromSettings(response.data));
+            setFormData(formDataFromSettings(response.data, mode));
+            setDirtyFields({});
             show({ message: t('settings.messages.resetSuccess'), type: 'success' });
           }
         } catch (error: any) {
@@ -674,6 +697,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const handleFieldChange = (key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+    setDirtyFields(prev => ({ ...prev, [key]: true }));
   };
 
   const updateServiceTest = (key: string, nextState: ServiceTestState) => {
@@ -1087,6 +1111,9 @@ export const Settings: React.FC<SettingsProps> = ({
                 onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
+                {mode === 'admin' && (
+                  <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
+                )}
                 {ALL_PROVIDER_SOURCES.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
