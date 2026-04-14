@@ -60,7 +60,6 @@ const previewI18n = {
       confirmRegenerateTitle: "确认重新生成",
       generationFailed: "生成失败",
       disabledExportTip: "还有 {{count}} 页未生成图片，请先生成所有页面图片",
-      disabledEditTip: "请先生成该页图片",
       messages: {
         exportSuccess: "导出成功", exportFailed: "导出失败",
         regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
@@ -128,7 +127,6 @@ const previewI18n = {
       confirmRegenerateTitle: "Confirm Regenerate",
       generationFailed: "Generation failed",
       disabledExportTip: "{{count}} page(s) have no images yet. Please generate all page images first",
-      disabledEditTip: "Please generate this page's image first",
       messages: {
         exportSuccess: "Export successful", exportFailed: "Export failed",
         regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
@@ -1747,8 +1745,6 @@ export const SlidePreview: React.FC = () => {
                       variant="secondary"
                       size="sm"
                       onClick={handleEditPage}
-                      disabled={!selectedPage?.generated_image_path}
-                      title={!selectedPage?.generated_image_path ? t('preview.disabledEditTip') : undefined}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {t('common.edit')}
@@ -1990,7 +1986,7 @@ export const SlidePreview: React.FC = () => {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedContextImages.uploadedFiles.map((file, idx) => (
+                {selectedContextImages.uploadedFiles.map((_, idx) => (
                   <div key={idx} className="relative group">
                     <img
                       src={uploadedFileUrls.current[idx] || ''}
