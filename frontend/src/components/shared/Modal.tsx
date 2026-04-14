@@ -68,11 +68,11 @@ export const Modal: React.FC<ModalProps> = ({
       setIsAnimating(false);
       const timer = setTimeout(() => {
         setIsVisible(false);
+        if (hasBodyLockRef.current) {
+          unlockBodyScroll();
+          hasBodyLockRef.current = false;
+        }
       }, 250);
-      if (hasBodyLockRef.current) {
-        unlockBodyScroll();
-        hasBodyLockRef.current = false;
-      }
       return () => clearTimeout(timer);
     }
   }, [isOpen]);

@@ -221,32 +221,32 @@ export const DetailEditor: React.FC = () => {
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Load settings from DB on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await getSettings();
-        const s = res.data;
-        if (!s) return;
-        setDetailLevel('default');
-        // detail level from sessionStorage (backwards compat, then from DB if we add it later)
-        const storedLevel = sessionStorage.getItem('banana-detail-level');
-        if (storedLevel) setDetailLevel(storedLevel);
-        setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
-        setExtraFieldNames(activeFields);
-        if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
-        // 合并活跃字段到可选池
-        setAvailableFields(prev => {
-          const merged = [...new Set([...prev, ...activeFields])];
-          localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
-          return merged;
-        });
-        // Cache settings in sessionStorage for store to read
-        sessionStorage.setItem('banana-settings', JSON.stringify(s));
-      } catch { /* ignore */ }
-    })();
+  // Load settings from DB
+  const reloadSettings = useCallback(async () => {
+    try {
+      const res = await getSettings();
+      const s = res.data;
+      if (!s) return;
+      setDetailLevel('default');
+      const storedLevel = sessionStorage.getItem('banana-detail-level');
+      if (storedLevel) setDetailLevel(storedLevel);
+      setGenerationMode(s.description_generation_mode || 'streaming');
+      const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+      setExtraFieldNames(activeFields);
+      if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
+      setAvailableFields(prev => {
+        const merged = [...new Set([...prev, ...activeFields])];
+        localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
+        return merged;
+      });
+      sessionStorage.setItem('banana-settings', JSON.stringify(s));
+    } catch { /* ignore */ }
   }, []);
+
+  // Load on mount
+  useEffect(() => {
+    reloadSettings();
+  }, [reloadSettings]);
 
   // Debounced save settings to DB
   const saveSettingsDebounced = useCallback((updates: Record<string, unknown>) => {
@@ -1019,7 +1019,7 @@ export const DetailEditor: React.FC = () => {
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
       <Modal
         isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+        onClose={() => { setShowSettingsModal(false); reloadSettings(); }}
         title={t('common.settings')}
         size="xl"
       >
