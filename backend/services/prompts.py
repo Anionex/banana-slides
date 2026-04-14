@@ -700,6 +700,70 @@ You are a helpful assistant that modifies PPT page descriptions based on user re
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def get_design_generation_prompt(page_description: str, outline_text: str,
+                                 template_style: Optional[str] = None,
+                                 has_template_image: bool = False,
+                                 page_index: int = 1,
+                                 aspect_ratio: str = "16:9",
+                                 language: str = None) -> str:
+    """生成每页设计描述的 prompt"""
+    style_context = ""
+    if template_style and template_style.strip():
+        style_context = (
+            "全局风格约束如下，请严格继承其设计语言，并把它具体落到本页的布局、元素和配色上：\n"
+            f"<template_style>\n{template_style.strip()}\n</template_style>\n"
+        )
+    elif has_template_image:
+        style_context = (
+            "项目存在模板图片，但当前没有提取好的文字风格描述。请假定本页需要与模板图片保持一致的设计语言、"
+            "配色倾向和装饰风格，并在输出中明确写出可执行的视觉约束，避免泛泛而谈。\n"
+        )
+    else:
+        style_context = (
+            "项目当前没有模板图片也没有风格描述。请为本页自主制定专业、统一、可执行的视觉设计方案，"
+            "同时注意与整套 PPT 的其他页面保持一致性。\n"
+        )
+
+    prompt = f"""\
+你是一位资深演示设计总监，负责把页面内容描述转换成可执行的视觉设计说明，供后续文生图模型严格执行。
+
+<outline>
+{outline_text}
+</outline>
+
+<page_description>
+{page_description}
+</page_description>
+
+{style_context}
+<requirements>
+- 当前页面为第 {page_index} 页，目标画面比例为 {aspect_ratio}。
+- 只输出本页的设计说明，不要解释你的思路，不要输出 JSON，不要输出额外前言。
+- 设计说明必须覆盖且仅覆盖以下 5 个维度，并保持这个顺序：
+  1. 布局方式
+  2. 构图指令
+  3. 元素风格
+  4. 视觉层次
+  5. 配色应用
+- 每个维度都必须给出明确、可执行、可被图像模型直接遵循的指令，避免空泛形容词。
+- 如果是第一页，请按封面页处理，强调标题焦点、留白、品牌感和开场冲击力。
+- 设计说明应围绕页面文字和页面素材组织，不能遗漏主要内容，也不要要求文生图模型自行二次设计。
+</requirements>
+
+<output_format>
+布局方式：...
+构图指令：...
+元素风格：...
+视觉层次：...
+配色应用：...
+</output_format>
+{get_language_instruction(language)}
+"""
+
+    logger.debug(f"[get_design_generation_prompt] Final prompt:\n{prompt}")
+    return prompt
+
+
 def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 current_section: str,
                                 has_material_images: bool = False,
@@ -707,7 +771,8 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 language: str = None,
                                 has_template: bool = True,
                                 page_index: int = 1,
-                                aspect_ratio: str = "16:9") -> str:
+                                aspect_ratio: str = "16:9",
+                                design_text: Optional[str] = None) -> str:
     """生成图片生成 prompt"""
     material_images_note = ""
     if has_material_images:
@@ -723,6 +788,11 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 
     template_style_guideline = "- 配色和设计语言和模板图片严格相似。" if has_template else "- 严格按照风格描述进行设计。"
     forbidden_template_text_guidline = "- 只参考风格设计，禁止出现模板中的文字。\n" if has_template else ""
+    design_instruction_block = ""
+    composition_instruction = "- 根据内容和要求自动设计最完美的构图，不重不漏地渲染\"页面文字\"段落中的文本。"
+    if design_text and design_text.strip():
+        design_instruction_block = f"\n<design_instructions>\n{design_text.strip()}\n</design_instructions>\n"
+        composition_instruction = "- 严格按照设计指令进行视觉设计，不重不漏地渲染\"页面文字\"段落中的文本。"
 
     prompt = (f"""\
 你是一位专家级UI UX演示设计师，专注于生成设计良好的PPT页面。
@@ -730,11 +800,12 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 <page_description>
 {page_desc}
 </page_description>
+{design_instruction_block}
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，{aspect_ratio}比例。
 {template_style_guideline}
-- 根据内容和要求自动设计最完美的构图，不重不漏地渲染"页面文字"段落中的文本。
+{composition_instruction}
 - 如非必要，禁止出现 markdown 格式符号（如 # 和 * 等）。
 {forbidden_template_text_guidline}
 </design_guidelines>

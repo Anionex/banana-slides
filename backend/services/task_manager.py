@@ -2,6 +2,7 @@
 Task Manager - handles background tasks using ThreadPoolExecutor
 No need for Celery or Redis, uses in-memory task tracking
 """
+import json
 import logging
 import os
 import threading
@@ -10,7 +11,7 @@ from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy import func
 from PIL import Image
-from models import db, Task, Page, Material, PageImageVersion
+from models import db, Task, Page, Project, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
@@ -42,6 +43,151 @@ from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_description_text(desc_content: dict | None) -> str:
+    """Extract plain text from description content."""
+    if not desc_content:
+        return ""
+
+    desc_text = desc_content.get('text', '')
+    if not desc_text and desc_content.get('text_content'):
+        text_content = desc_content.get('text_content', [])
+        if isinstance(text_content, list):
+            desc_text = '\n'.join(text_content)
+        else:
+            desc_text = str(text_content)
+    return desc_text
+
+
+def _extract_design_text(page_obj: Page) -> str | None:
+    """Extract design text from stored JSON with defensive logging."""
+    if not page_obj.design_content:
+        return None
+
+    try:
+        design_content = json.loads(page_obj.design_content)
+    except json.JSONDecodeError:
+        logger.warning("Invalid design_content JSON for page %s; falling back to prompt without design", page_obj.id)
+        return None
+
+    if not isinstance(design_content, dict):
+        return None
+
+    design_text = design_content.get('text')
+    return design_text.strip() if isinstance(design_text, str) and design_text.strip() else None
+
+
+def _build_design_content(design_text: str) -> dict:
+    return {
+        "text": design_text,
+        "generated_at": datetime.utcnow().isoformat()
+    }
+
+
+def _clear_page_design_content(page: Page) -> None:
+    page.set_design_content(None)
+
+
+def _generate_designs_for_pages(project_id: str, page_ids: list[str], ai_service,
+                                outline: List[Dict], aspect_ratio: str = "16:9",
+                                max_workers: int = 5, app=None,
+                                language: str = None,
+                                task_id: str | None = None) -> dict:
+    """Core design-generation logic shared by standalone and auto-chain flows."""
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        if not page_ids:
+            return {'completed': 0, 'failed': 0, 'success_page_ids': [], 'failed_page_ids': []}
+
+        project = Project.query.get(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        outline_text = ai_service.generate_outline_text(outline)
+        has_template_image = bool(project.template_image_path)
+        template_style = project.template_style
+        completed = 0
+        failed = 0
+        success_page_ids: list[str] = []
+        failed_page_ids: list[str] = []
+
+        def update_task_progress():
+            if not task_id:
+                return
+            task = Task.query.get(task_id)
+            if task:
+                task.set_progress({
+                    "total": len(page_ids),
+                    "completed": completed,
+                    "failed": failed,
+                    "current_stage": "design_generation"
+                })
+                db.session.commit()
+
+        def generate_single_design(page_id: str):
+            with app.app_context():
+                try:
+                    from services.ai_service_manager import get_ai_service
+                    worker_ai_service = get_ai_service()
+                    page = Page.query.get(page_id)
+                    if not page or page.project_id != project_id:
+                        raise ValueError(f"Page {page_id} not found")
+
+                    desc_content = page.get_description_content()
+                    desc_text = _extract_description_text(desc_content)
+                    if not desc_text:
+                        raise ValueError("No description content for page")
+
+                    design_text = worker_ai_service.generate_page_design(
+                        page_description=desc_text,
+                        outline_text=outline_text,
+                        template_style=template_style,
+                        has_template_image=has_template_image,
+                        page_index=page.order_index + 1,
+                        aspect_ratio=aspect_ratio,
+                        language=language,
+                    )
+                    if not design_text:
+                        raise ValueError("Empty design description generated")
+
+                    return (page_id, _build_design_content(design_text), None)
+                except Exception as e:
+                    logger.error("Failed to generate design for page %s", page_id, exc_info=True)
+                    return (page_id, None, str(e))
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(generate_single_design, page_id)
+                for page_id in page_ids
+            ]
+
+            for future in as_completed(futures):
+                page_id, design_content, error = future.result()
+
+                db.session.expire_all()
+                page = Page.query.get(page_id)
+                if page:
+                    if error:
+                        failed += 1
+                        failed_page_ids.append(page_id)
+                    else:
+                        page.set_design_content(design_content)
+                        page.updated_at = datetime.utcnow()
+                        completed += 1
+                        success_page_ids.append(page_id)
+                    db.session.commit()
+
+                update_task_progress()
+
+        return {
+            'completed': completed,
+            'failed': failed,
+            'success_page_ids': success_page_ids,
+            'failed_page_ids': failed_page_ids,
+        }
 
 
 class TaskManager:
@@ -282,6 +428,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                             failed += 1
                         else:
                             page.set_description_content(desc_content)
+                            _clear_page_design_content(page)
                             page.status = 'DESCRIPTION_GENERATED'
                             completed += 1
                         
@@ -312,6 +459,63 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         
         except Exception as e:
             # Mark task as failed
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+
+
+def generate_designs_task(task_id: str, project_id: str, ai_service,
+                          outline: List[Dict], max_workers: int = 5, app=None,
+                          language: str = None, page_ids: list[str] | None = None,
+                          aspect_ratio: str = "16:9"):
+    """Background task for generating per-page design descriptions."""
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            pages = get_filtered_pages(project_id, page_ids if page_ids else None)
+            page_id_list = [page.id for page in pages]
+
+            task.set_progress({
+                "total": len(page_id_list),
+                "completed": 0,
+                "failed": 0,
+                "current_stage": "design_generation"
+            })
+            db.session.commit()
+
+            _generate_designs_for_pages(
+                project_id=project_id,
+                page_ids=page_id_list,
+                ai_service=ai_service,
+                outline=outline,
+                aspect_ratio=aspect_ratio,
+                max_workers=max_workers,
+                app=app,
+                language=language,
+                task_id=task_id,
+            )
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+                logger.info("Task %s COMPLETED - design generation finished for %s pages", task_id, len(page_id_list))
+
+        except Exception as e:
             task = Task.query.get(task_id)
             if task:
                 task.status = 'FAILED'
@@ -358,16 +562,46 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # get matched to the correct outline entry (not just first N)
             pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
             
-            # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
-            # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
-            
+            missing_design_page_ids = [
+                page.id for page in pages
+                if page.get_description_content() and not page.get_design_content()
+            ]
+
             # Initialize progress
             task.set_progress({
                 "total": len(pages),
                 "completed": 0,
-                "failed": 0
+                "failed": 0,
+                "design_total": len(missing_design_page_ids),
+                "design_completed": 0,
+                "design_failed": 0,
+                "current_stage": "design_generation" if missing_design_page_ids else "image_generation"
             })
             db.session.commit()
+
+            if missing_design_page_ids:
+                design_result = _generate_designs_for_pages(
+                    project_id=project_id,
+                    page_ids=missing_design_page_ids,
+                    ai_service=ai_service,
+                    outline=outline,
+                    aspect_ratio=aspect_ratio,
+                    max_workers=max_workers,
+                    app=app,
+                    language=language,
+                )
+                task = Task.query.get(task_id)
+                if task:
+                    task.set_progress({
+                        "total": len(pages),
+                        "completed": 0,
+                        "failed": 0,
+                        "design_total": len(missing_design_page_ids),
+                        "design_completed": design_result['completed'],
+                        "design_failed": design_result['failed'],
+                        "current_stage": "image_generation"
+                    })
+                    db.session.commit()
             
             # Generate images in parallel
             completed = 0
@@ -399,17 +633,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             raise ValueError("No description content for page")
                         
                         # 获取描述文本（可能是 text 字段或 text_content 数组）
-                        desc_text = desc_content.get('text', '')
-                        if not desc_text and desc_content.get('text_content'):
-                            # 如果 text 字段不存在，尝试从 text_content 数组获取
-                            text_content = desc_content.get('text_content', [])
-                            if isinstance(text_content, list):
-                                desc_text = '\n'.join(text_content)
-                            else:
-                                desc_text = str(text_content)
+                        desc_text = _extract_description_text(desc_content)
 
                         # 将 extra_fields 拼入描述文本供图片生成使用
                         desc_text = _append_extra_fields(desc_text, desc_content)
+                        design_text = _extract_design_text(page_obj)
 
                         logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                         
@@ -439,7 +667,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             extra_requirements=extra_requirements,
                             language=language,
                             has_template=use_template,
-                            aspect_ratio=aspect_ratio
+                            aspect_ratio=aspect_ratio,
+                            design_text=design_text
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
@@ -512,6 +741,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         progress = task.get_progress()
                         progress['completed'] = completed
                         progress['failed'] = failed
+                        progress['current_stage'] = 'image_generation'
                         # 第一次检测到不匹配时设置警告
                         if resolution_mismatched > 0 and 'warning_message' not in progress:
                             progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
@@ -585,17 +815,28 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             if not desc_content:
                 raise ValueError("No description content for page")
             
+            if not page.get_design_content():
+                _generate_designs_for_pages(
+                    project_id=project_id,
+                    page_ids=[page_id],
+                    ai_service=ai_service,
+                    outline=outline,
+                    aspect_ratio=aspect_ratio,
+                    max_workers=1,
+                    app=app,
+                    language=language,
+                )
+                db.session.expire_all()
+                page = Page.query.get(page_id)
+                if not page or page.project_id != project_id:
+                    raise ValueError(f"Page {page_id} not found")
+
             # 获取描述文本（可能是 text 字段或 text_content 数组）
-            desc_text = desc_content.get('text', '')
-            if not desc_text and desc_content.get('text_content'):
-                text_content = desc_content.get('text_content', [])
-                if isinstance(text_content, list):
-                    desc_text = '\n'.join(text_content)
-                else:
-                    desc_text = str(text_content)
+            desc_text = _extract_description_text(desc_content)
 
             # 将 extra_fields 拼入描述文本供图片生成使用
             desc_text = _append_extra_fields(desc_text, desc_content)
+            design_text = _extract_design_text(page)
 
             # 从描述文本中提取图片 URL
             additional_ref_images = []
@@ -626,7 +867,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 extra_requirements=extra_requirements,
                 language=language,
                 has_template=use_template,
-                aspect_ratio=aspect_ratio
+                aspect_ratio=aspect_ratio,
+                design_text=design_text
             )
             
             # Generate image

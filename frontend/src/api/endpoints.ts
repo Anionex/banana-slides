@@ -242,6 +242,25 @@ export const generateDescriptions = async (projectId: string, language?: OutputL
 };
 
 /**
+ * 批量生成设计描述
+ */
+export const generateDesigns = async (
+  projectId: string,
+  language?: OutputLanguage,
+  pageIds?: string[]
+): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse>(
+    `/api/projects/${projectId}/generate/designs`,
+    {
+      language: lang,
+      ...(pageIds ? { page_ids: pageIds } : {}),
+    }
+  );
+  return response.data;
+};
+
+/**
  * 流式生成描述（SSE）
  */
 export interface DescriptionStreamEvent {
@@ -542,6 +561,23 @@ export const updatePageDescription = async (
   const response = await apiClient.put<ApiResponse<Page>>(
     `/api/projects/${projectId}/pages/${pageId}/description`,
     { description_content: descriptionContent, language: lang }
+  );
+  return response.data;
+};
+
+/**
+ * 更新页面设计描述
+ */
+export const updatePageDesign = async (
+  projectId: string,
+  pageId: string,
+  designContent: any,
+  language?: OutputLanguage
+): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.put<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}`,
+    { design_content: designContent, language: lang }
   );
   return response.data;
 };

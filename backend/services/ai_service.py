@@ -16,6 +16,7 @@ from .prompts import (
     get_outline_generation_prompt,
     get_outline_parsing_prompt,
     get_page_description_prompt,
+    get_design_generation_prompt,
     get_all_descriptions_stream_prompt,
     get_image_generation_prompt,
     get_image_edit_prompt,
@@ -54,6 +55,7 @@ class ProjectContext:
             self.creation_type = project_or_dict.creation_type or 'idea'
             self.outline_requirements = project_or_dict.outline_requirements
             self.description_requirements = project_or_dict.description_requirements
+            self.template_style = project_or_dict.template_style
         else:
             # 是字典
             self.idea_prompt = project_or_dict.get('idea_prompt')
@@ -62,6 +64,7 @@ class ProjectContext:
             self.creation_type = project_or_dict.get('creation_type', 'idea')
             self.outline_requirements = project_or_dict.get('outline_requirements')
             self.description_requirements = project_or_dict.get('description_requirements')
+            self.template_style = project_or_dict.get('template_style')
 
         self.reference_files_content = reference_files_content or []
 
@@ -74,6 +77,7 @@ class ProjectContext:
             'creation_type': self.creation_type,
             'outline_requirements': self.outline_requirements,
             'description_requirements': self.description_requirements,
+            'template_style': self.template_style,
             'reference_files_content': self.reference_files_content
         }
 
@@ -712,6 +716,25 @@ class AIService:
 
         yield {'__stream_complete__': stream_complete}
 
+    def generate_page_design(self, page_description: str, outline_text: str,
+                             template_style: Optional[str] = None,
+                             has_template_image: bool = False,
+                             page_index: int = 1,
+                             aspect_ratio: str = "16:9",
+                             language: str = 'zh') -> str:
+        """Generate structured design instructions for a single page."""
+        prompt = get_design_generation_prompt(
+            page_description=page_description,
+            outline_text=outline_text,
+            template_style=template_style,
+            has_template_image=has_template_image,
+            page_index=page_index,
+            aspect_ratio=aspect_ratio,
+            language=language,
+        )
+        actual_budget = self._get_text_thinking_budget()
+        return dedent(self.text_provider.generate_text(prompt, thinking_budget=actual_budget)).strip()
+
     @staticmethod
     def _build_extra_field_pattern(field_names: list):
         """Build a compiled regex pattern that matches any extra field header."""
@@ -740,7 +763,8 @@ class AIService:
                             extra_requirements: Optional[str] = None,
                             language='zh',
                             has_template: bool = True,
-                            aspect_ratio: str = "16:9") -> str:
+                            aspect_ratio: str = "16:9",
+                            design_text: Optional[str] = None) -> str:
         """
         Generate image generation prompt for a page
         Based on demo.py gen_prompts()
@@ -779,7 +803,8 @@ class AIService:
             language=language,
             has_template=has_template,
             page_index=page_index,
-            aspect_ratio=aspect_ratio
+            aspect_ratio=aspect_ratio,
+            design_text=design_text
         )
         
         return prompt
@@ -1055,4 +1080,3 @@ class AIService:
     def extract_style_description(self, image_path: str) -> str:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
-

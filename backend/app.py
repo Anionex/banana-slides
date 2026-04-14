@@ -61,8 +61,9 @@ def create_app():
     instance_dir = os.path.join(backend_dir, 'instance')
     os.makedirs(instance_dir, exist_ok=True)
     
-    db_path = os.path.join(instance_dir, 'database.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    if not os.getenv('DATABASE_URL'):
+        db_path = os.path.join(instance_dir, 'database.db')
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     
     # Ensure upload folder exists
     project_root = os.path.dirname(backend_dir)

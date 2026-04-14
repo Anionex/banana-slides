@@ -56,7 +56,11 @@ def create_page(project_id):
 
         if 'description_content' in data:
             page.set_description_content(data['description_content'])
+            page.set_design_content(None)
             page.status = 'DESCRIPTION_GENERATED'
+
+        if 'design_content' in data:
+            page.set_design_content(data['design_content'])
 
         db.session.add(page)
         
@@ -136,6 +140,14 @@ def update_page(project_id, page_id):
         # Update part field if provided
         if 'part' in data:
             page.part = data['part']
+
+        if 'description_content' in data:
+            page.set_description_content(data['description_content'])
+            page.set_design_content(None)
+            page.status = 'DESCRIPTION_GENERATED'
+
+        if 'design_content' in data:
+            page.set_design_content(data['design_content'])
 
         page.updated_at = datetime.utcnow()
 
@@ -217,6 +229,7 @@ def update_page_description(project_id, page_id):
             return bad_request("description_content is required")
         
         page.set_description_content(data['description_content'])
+        page.set_design_content(None)
         page.updated_at = datetime.utcnow()
         
         # Update project
@@ -309,6 +322,7 @@ def generate_page_description(project_id, page_id):
             desc_content['extra_fields'] = desc_result['extra_fields']
         
         page.set_description_content(desc_content)
+        page.set_design_content(None)
         page.status = 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
         
