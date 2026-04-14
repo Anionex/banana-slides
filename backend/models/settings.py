@@ -230,6 +230,86 @@ class Settings(db.Model):
             return {}
 
     @staticmethod
+    def _parse_lazyllm_api_keys(raw):
+        """Parse lazyllm_api_keys JSON payload into a plain dict."""
+        if not raw:
+            return {}
+        if isinstance(raw, dict):
+            return {vendor: key for vendor, key in raw.items() if key}
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        return {vendor: key for vendor, key in parsed.items() if key}
+
+    def to_runtime_config(self, include_secret_defaults=True, lazyllm_namespace=None):
+        """
+        Build an internal runtime configuration dict for AI services.
+
+        For admin-private settings, callers can disable secret defaults so that empty
+        private credentials never fall back to shared/global API keys.
+        """
+        defaults = Settings._get_config_defaults()
+
+        def _general(attr):
+            return self._val(attr, defaults)
+
+        def _secret(attr):
+            return self._val(attr, defaults) if include_secret_defaults else getattr(self, attr)
+
+        lazyllm_keys = self.get_lazyllm_api_keys_dict()
+        if include_secret_defaults and not lazyllm_keys:
+            lazyllm_keys = self._parse_lazyllm_api_keys(defaults.get('lazyllm_api_keys'))
+
+        namespace = lazyllm_namespace
+        if not namespace:
+            if self.owner_user_id:
+                namespace = f"BANANA_{self.owner_user_id.replace('-', '').upper()}"
+            else:
+                namespace = "BANANA"
+
+        global_api_key = _secret('api_key')
+        global_api_base = _general('api_base_url')
+
+        return {
+            'SETTINGS_SCOPE': 'admin' if self.owner_user_id else 'global',
+            'SETTINGS_OWNER_USER_ID': self.owner_user_id,
+            'AI_PROVIDER_FORMAT': _general('ai_provider_format'),
+            'GOOGLE_API_KEY': global_api_key,
+            'OPENAI_API_KEY': global_api_key,
+            'GOOGLE_API_BASE': global_api_base,
+            'OPENAI_API_BASE': global_api_base,
+            'TEXT_MODEL': _general('text_model'),
+            'IMAGE_MODEL': _general('image_model'),
+            'IMAGE_CAPTION_MODEL': _general('image_caption_model'),
+            'OUTPUT_LANGUAGE': _general('output_language'),
+            'DEFAULT_RESOLUTION': _general('image_resolution'),
+            'DEFAULT_ASPECT_RATIO': _general('image_aspect_ratio'),
+            'MAX_DESCRIPTION_WORKERS': _general('max_description_workers'),
+            'MAX_IMAGE_WORKERS': _general('max_image_workers'),
+            'ENABLE_TEXT_REASONING': self.enable_text_reasoning,
+            'TEXT_THINKING_BUDGET': self.text_thinking_budget,
+            'ENABLE_IMAGE_REASONING': self.enable_image_reasoning,
+            'IMAGE_THINKING_BUDGET': self.image_thinking_budget,
+            'MINERU_API_BASE': _general('mineru_api_base'),
+            'MINERU_TOKEN': _secret('mineru_token'),
+            'BAIDU_API_KEY': _secret('baidu_api_key'),
+            'TEXT_MODEL_SOURCE': _general('text_model_source'),
+            'IMAGE_MODEL_SOURCE': _general('image_model_source'),
+            'IMAGE_CAPTION_MODEL_SOURCE': _general('image_caption_model_source'),
+            'TEXT_API_KEY': _secret('text_api_key'),
+            'TEXT_API_BASE': self.text_api_base_url,
+            'IMAGE_API_KEY': _secret('image_api_key'),
+            'IMAGE_API_BASE': self.image_api_base_url,
+            'IMAGE_CAPTION_API_KEY': _secret('image_caption_api_key'),
+            'IMAGE_CAPTION_API_BASE': self.image_caption_api_base_url,
+            'LAZYLLM_API_KEYS': lazyllm_keys,
+            'LAZYLLM_NAMESPACE': namespace,
+        }
+
+    @staticmethod
     def _get_config_defaults():
         """Return a dict of default values from Config/env for settings fields."""
         from config import Config

@@ -6,7 +6,7 @@ from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
 from utils.auth import optional_auth
 from services import FileService
-from services.ai_service_manager import get_ai_service
+from services.ai_service_manager import get_runtime_config_for_user
 from services.task_manager import task_manager, generate_material_image_task
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -26,6 +26,14 @@ material_global_bp = Blueprint('materials_global', __name__, url_prefix='/api/ma
 
 ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
 ALLOWED_ASPECT_RATIOS = frozenset({'16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'})
+
+
+def _get_request_user():
+    return getattr(g, 'current_user', None)
+
+
+def _get_request_runtime_config():
+    return get_runtime_config_for_user(_get_request_user())
 
 
 def _generate_image_caption(filepath: str) -> str:
@@ -240,6 +248,7 @@ def _save_material_file(file, target_project_id: Optional[str]):
 
 
 @material_bp.route('/<project_id>/materials/generate', methods=['POST'])
+@optional_auth
 def generate_material_image(project_id):
     """
     POST /api/projects/{project_id}/materials/generate - Generate a standalone material image
@@ -273,6 +282,8 @@ def generate_material_image(project_id):
             ref_file = request.files.get('ref_image')
             extra_files = request.files.getlist('extra_images') or []
 
+        runtime_config = _get_request_runtime_config()
+        _auth_user = _get_request_user()
         aspect_ratio = (data.get('aspect_ratio') or '').strip() or None
         if aspect_ratio and aspect_ratio not in ALLOWED_ASPECT_RATIOS:
             return bad_request(f"Invalid aspect ratio. Allowed values: {', '.join(sorted(ALLOWED_ASPECT_RATIOS))}")
@@ -290,8 +301,6 @@ def generate_material_image(project_id):
             if not project:
                 return not_found('Project')
 
-        # Initialize services
-        ai_service = get_ai_service()
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
         # 创建临时目录保存参考图片（后台任务会清理）
@@ -342,14 +351,15 @@ def generate_material_image(project_id):
                 generate_material_image_task,
                 task_project_id,  # 传递给任务函数，它会处理'global'的情况
                 prompt,
-                ai_service,
+                prompt,
                 file_service,
                 ref_path_str,
                 additional_ref_images if additional_ref_images else None,
-                aspect_ratio or (project.image_aspect_ratio if project else None) or current_app.config.get('DEFAULT_ASPECT_RATIO', '16:9'),
-                current_app.config['DEFAULT_RESOLUTION'],
+                aspect_ratio or (project.image_aspect_ratio if project else None) or runtime_config.get('DEFAULT_ASPECT_RATIO') or current_app.config.get('DEFAULT_ASPECT_RATIO', '16:9'),
+                runtime_config.get('DEFAULT_RESOLUTION') or current_app.config['DEFAULT_RESOLUTION'],
                 temp_dir_str,
-                app
+                app,
+                getattr(_auth_user, 'id', None),
             )
 
             # Return task_id immediately (不再清理temp_dir，由后台任务清理)

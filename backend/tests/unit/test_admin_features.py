@@ -154,3 +154,32 @@ def test_main_settings_route_uses_admin_private_settings_when_authenticated(clie
     assert global_response.status_code == 200
     assert global_response.get_json()["data"]["text_model"] == "global-text-model"
     assert global_response.get_json()["data"]["image_resolution"] == "2K"
+
+
+def test_admin_runtime_config_does_not_fallback_to_global_secrets(db_session):
+    from flask import Flask
+    from models import Settings, User
+    from services.ai_providers import get_image_provider
+
+    global_settings = Settings.get_global_settings()
+    global_settings.ai_provider_format = "gemini"
+    global_settings.api_key = "GLOBAL_SECRET_KEY"
+    db_session.commit()
+
+    admin_user = _create_user(db_session, User, "isolated_admin", "Admin@3")
+    admin_settings = Settings.get_settings(admin_user)
+    runtime_config = admin_settings.to_runtime_config(include_secret_defaults=False)
+
+    assert runtime_config["GOOGLE_API_KEY"] is None
+    assert runtime_config["OPENAI_API_KEY"] is None
+
+    app = Flask(__name__)
+    app.config["AI_PROVIDER_FORMAT"] = "gemini"
+    app.config["GOOGLE_API_KEY"] = "GLOBAL_SECRET_KEY"
+
+    with app.app_context():
+        try:
+            get_image_provider(model="test-image-model", runtime_config=runtime_config)
+            assert False, "Expected provider creation to fail without admin secret"
+        except ValueError as exc:
+            assert "GOOGLE_API_KEY" in str(exc)

@@ -15,7 +15,13 @@ from ..lazyllm_env import ensure_lazyllm_namespace_key
 
 class LazyLLMTextProvider(TextProvider):
     """Text generation using lazyllm"""
-    def __init__(self, source: str = 'deepseek', model: str = "deepseek-v3-1-terminus"):
+    def __init__(
+        self,
+        source: str = 'deepseek',
+        model: str = "deepseek-v3-1-terminus",
+        namespace: str = 'BANANA',
+        api_key: str | None = None,
+    ):
         """
         Initialize lazyllm text provider
 
@@ -34,10 +40,11 @@ class LazyLLMTextProvider(TextProvider):
 
         self._source = source
         self._model = model
+        self._namespace = namespace
         self._vlm_client = None
         self._vlm_lock = threading.Lock()
-        ensure_lazyllm_namespace_key(source, namespace='BANANA')
-        self.client = lazyllm.namespace('BANANA').OnlineModule(
+        ensure_lazyllm_namespace_key(source, namespace=namespace, api_key=api_key)
+        self.client = lazyllm.namespace(namespace).OnlineModule(
             source = source,
             model = model,
             type = 'llm',
@@ -52,8 +59,8 @@ class LazyLLMTextProvider(TextProvider):
             with self._vlm_lock:
                 if self._vlm_client is None:
                     import lazyllm
-                    ensure_lazyllm_namespace_key(self._source, namespace='BANANA')
-                    self._vlm_client = lazyllm.namespace('BANANA').OnlineModule(
+                    ensure_lazyllm_namespace_key(self._source, namespace=self._namespace)
+                    self._vlm_client = lazyllm.namespace(self._namespace).OnlineModule(
                         source=self._source, model=self._model, type='vlm',
                     )
         message = self._vlm_client(prompt, lazyllm_files=[image_path])

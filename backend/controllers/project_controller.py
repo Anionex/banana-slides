@@ -19,7 +19,7 @@ from werkzeug.utils import secure_filename
 
 from models import db, Project, Page, Task, ReferenceFile, User, PointsTransaction
 from services import ProjectContext, FileService
-from services.ai_service_manager import get_ai_service
+from services.ai_service_manager import get_ai_service, get_runtime_config_for_user
 from services.task_manager import (
     task_manager,
     generate_descriptions_task,
@@ -39,6 +39,18 @@ logger = logging.getLogger(__name__)
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
 RENOVATION_SOURCE_EXTENSIONS = {'.pdf', '.pptx', '.ppt'}
+
+
+def _get_request_user():
+    return getattr(g, 'current_user', None)
+
+
+def _get_request_runtime_config():
+    return get_runtime_config_for_user(_get_request_user())
+
+
+def _get_request_ai_service():
+    return get_ai_service(runtime_config=_get_request_runtime_config())
 
 
 def _resolve_libreoffice_binary() -> str | None:
@@ -479,6 +491,7 @@ def delete_project(project_id):
 
 
 @project_bp.route('/<project_id>/generate/outline', methods=['POST'])
+@optional_auth
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
@@ -499,12 +512,11 @@ def generate_outline(project_id):
         if not project:
             return not_found('Project')
         
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
-        
+
         # Get request data and language parameter
         data = request.get_json() or {}
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        runtime_config = _get_request_runtime_config()
+        language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -571,6 +583,7 @@ def generate_outline(project_id):
 
 
 @project_bp.route('/<project_id>/generate/outline/stream', methods=['POST'])
+@optional_auth
 def generate_outline_stream(project_id):
     """
     POST /api/projects/{project_id}/generate/outline/stream - Stream outline generation via SSE
@@ -589,7 +602,8 @@ def generate_outline_stream(project_id):
         return not_found('Project')
 
     data = request.get_json() or {}
-    language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+    runtime_config = _get_request_runtime_config()
+    language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
 
     # Capture app reference for use inside the generator (which runs outside request context)
     app = current_app._get_current_object()
@@ -599,7 +613,7 @@ def generate_outline_stream(project_id):
             try:
                 # Re-fetch project inside app context to attach to this session
                 proj = db.session.get(Project, project_id)
-                ai_service = get_ai_service()
+                ai_service = _get_request_ai_service()
                 reference_files_content = _get_project_reference_files_content(project_id)
 
                 # Validate input based on creation type
@@ -690,6 +704,7 @@ def _sse_event(event: str, data: dict) -> str:
 
 
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
+@optional_auth
 def generate_from_description(project_id):
     """
     POST /api/projects/{project_id}/generate/from-description
@@ -704,8 +719,9 @@ def generate_from_description(project_id):
             return bad_request("This endpoint is only for descriptions type projects")
 
         data = request.get_json() or {}
+        runtime_config = _get_request_runtime_config()
         description_text = data.get('description_text') or project.description_text
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
 
         if not description_text:
             return bad_request("description_text is required")
@@ -724,7 +740,7 @@ def generate_from_description(project_id):
         db.session.add(task)
         db.session.commit()
 
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         reference_files_content = _get_project_reference_files_content(project_id)
         project_context = ProjectContext(project, reference_files_content)
         app = current_app._get_current_object()
@@ -751,6 +767,7 @@ def generate_from_description(project_id):
 
 
 @project_bp.route('/<project_id>/generate/descriptions', methods=['POST'])
+@optional_auth
 def generate_descriptions(project_id):
     """
     POST /api/projects/{project_id}/generate/descriptions - Generate descriptions
@@ -784,8 +801,8 @@ def generate_descriptions(project_id):
         
         data = request.get_json() or {}
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        max_workers = data.get('max_workers', _get_request_runtime_config().get('MAX_DESCRIPTION_WORKERS') or current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
+        language = data.get('language', _get_request_runtime_config().get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         detail_level = data.get('detail_level', 'default')
         
         # Create task
@@ -804,7 +821,7 @@ def generate_descriptions(project_id):
         db.session.commit()
         
         # Get singleton AI service instance
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -824,7 +841,8 @@ def generate_descriptions(project_id):
             max_workers,
             app,
             language,
-            detail_level
+            detail_level,
+            getattr(_get_request_user(), 'id', None),
         )
         
         # Update project status
@@ -844,6 +862,7 @@ def generate_descriptions(project_id):
 
 
 @project_bp.route('/<project_id>/generate/descriptions/stream', methods=['POST'])
+@optional_auth
 def generate_descriptions_stream(project_id):
     """
     POST /api/projects/{project_id}/generate/descriptions/stream - Stream description generation via SSE
@@ -863,7 +882,8 @@ def generate_descriptions_stream(project_id):
         return bad_request("Project must have outline generated first")
 
     data = request.get_json() or {}
-    language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+    runtime_config = _get_request_runtime_config()
+    language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
     detail_level = data.get('detail_level', 'default')
 
     app = current_app._get_current_object()
@@ -872,7 +892,7 @@ def generate_descriptions_stream(project_id):
         with app.app_context():
             try:
                 proj = db.session.get(Project, project_id)
-                ai_service = get_ai_service()
+                ai_service = _get_request_ai_service()
                 reference_files_content = _get_project_reference_files_content(project_id)
                 project_context = ProjectContext(proj, reference_files_content)
 
@@ -986,6 +1006,7 @@ def generate_descriptions_stream(project_id):
 
 
 @project_bp.route('/<project_id>/generate/images', methods=['POST'])
+@optional_auth
 def generate_images(project_id):
     """
     POST /api/projects/{project_id}/generate/images - Generate images
@@ -1022,21 +1043,13 @@ def generate_images(project_id):
         # Points check: 3 points per page (authenticated non-admin users only)
         POINTS_PER_PAGE = 3
         required_points = len(pages) * POINTS_PER_PAGE
-        _auth_user = None
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            from utils.auth import decode_token
-            try:
-                payload = decode_token(auth_header[7:])
-                _auth_user = User.query.get(payload.get('sub'))
-                if (
-                    _auth_user
-                    and _auth_user.role != 'admin'
-                    and _auth_user.points < required_points
-                ):
-                    return jsonify({'error': 'insufficient_points', 'required': required_points, 'current': _auth_user.points}), 402
-            except Exception:
-                pass
+        _auth_user = _get_request_user()
+        if (
+            _auth_user
+            and _auth_user.role != 'admin'
+            and _auth_user.points < required_points
+        ):
+            return jsonify({'error': 'insufficient_points', 'required': required_points, 'current': _auth_user.points}), 402
 
         missing_description_pages = [
             page.order_index + 1
@@ -1064,9 +1077,11 @@ def generate_images(project_id):
         outline = _reconstruct_outline_from_pages(pages)
         
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
+        runtime_config = _get_request_runtime_config()
+        max_workers = data.get('max_workers', runtime_config.get('MAX_IMAGE_WORKERS') or current_app.config.get('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        resolution = runtime_config.get('DEFAULT_RESOLUTION') or current_app.config['DEFAULT_RESOLUTION']
         
         # Create task
         task = Task(
@@ -1082,9 +1097,6 @@ def generate_images(project_id):
         
         db.session.add(task)
         db.session.commit()
-        
-        # Get singleton AI service instance
-        ai_service = get_ai_service()
         
         # 合并额外要求和风格描述
         combined_requirements = project.extra_requirements or ""
@@ -1106,17 +1118,17 @@ def generate_images(project_id):
             task.id,
             generate_images_task,
             project_id,
-            ai_service,
             file_service,
             outline,
             use_template,
             max_workers,
             project.image_aspect_ratio,
-            current_app.config['DEFAULT_RESOLUTION'],
+            resolution,
             app,
             combined_requirements if combined_requirements.strip() else None,
             language,
-            selected_page_ids if selected_page_ids else None
+            selected_page_ids if selected_page_ids else None,
+            getattr(_auth_user, 'id', None),
         )
         
         # Update project status
@@ -1166,6 +1178,7 @@ def get_task_status(project_id, task_id):
 
 
 @project_bp.route('/<project_id>/refine/outline', methods=['POST'])
+@optional_auth
 def refine_outline(project_id):
     """
     POST /api/projects/{project_id}/refine/outline - Refine outline based on user requirements
@@ -1204,7 +1217,7 @@ def refine_outline(project_id):
             current_outline = _reconstruct_outline_from_pages(pages)
         
         # Get singleton AI service instance
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -1263,6 +1276,7 @@ def refine_outline(project_id):
 
 
 @project_bp.route('/<project_id>/refine/descriptions', methods=['POST'])
+@optional_auth
 def refine_descriptions(project_id):
     """
     POST /api/projects/{project_id}/refine/descriptions - Refine page descriptions based on user requirements
@@ -1316,7 +1330,7 @@ def refine_descriptions(project_id):
             })
         
         # Get singleton AI service instance
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
@@ -1387,6 +1401,7 @@ def refine_descriptions(project_id):
 
 
 @project_bp.route('/renovation', methods=['POST'])
+@optional_auth
 def create_ppt_renovation_project():
     """
     POST /api/projects/renovation - Create a PPT renovation project
@@ -1558,21 +1573,22 @@ def create_ppt_renovation_project():
         db.session.commit()
 
         # Get services
-        ai_service = get_ai_service()
+        runtime_config = _get_request_runtime_config()
+        ai_service = _get_request_ai_service()
         from services.file_parser_service import FileParserService
         file_parser_service = FileParserService(
-            mineru_token=current_app.config['MINERU_TOKEN'],
-            mineru_api_base=current_app.config['MINERU_API_BASE'],
-            google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-            google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
-            openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
-            openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-            image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-            provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
-            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
+            mineru_token=runtime_config.get('MINERU_TOKEN') or current_app.config['MINERU_TOKEN'],
+            mineru_api_base=runtime_config.get('MINERU_API_BASE') or current_app.config['MINERU_API_BASE'],
+            google_api_key=runtime_config.get('GOOGLE_API_KEY') or current_app.config.get('GOOGLE_API_KEY', ''),
+            google_api_base=runtime_config.get('GOOGLE_API_BASE') or current_app.config.get('GOOGLE_API_BASE', ''),
+            openai_api_key=runtime_config.get('OPENAI_API_KEY') or current_app.config.get('OPENAI_API_KEY', ''),
+            openai_api_base=runtime_config.get('OPENAI_API_BASE') or current_app.config.get('OPENAI_API_BASE', ''),
+            image_caption_model=runtime_config.get('IMAGE_CAPTION_MODEL') or current_app.config['IMAGE_CAPTION_MODEL'],
+            provider_format=runtime_config.get('AI_PROVIDER_FORMAT') or current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+            lazyllm_image_caption_source=runtime_config.get('IMAGE_CAPTION_MODEL_SOURCE') or current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
         )
 
-        language = request.form.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = request.form.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         app = current_app._get_current_object()
 
         # Submit async task
@@ -1609,6 +1625,7 @@ style_bp = Blueprint('style', __name__, url_prefix='/api')
 
 
 @style_bp.route('/extract-style', methods=['POST'])
+@optional_auth
 def extract_style():
     """
     POST /api/extract-style - Extract style description from an image
@@ -1637,7 +1654,7 @@ def extract_style():
             tmp_path = tmp.name
 
         try:
-            ai_service = get_ai_service()
+            ai_service = _get_request_ai_service()
             style_description = ai_service.extract_style_description(tmp_path)
 
             return success_response({
