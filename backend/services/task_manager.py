@@ -10,16 +10,16 @@ from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy import func
 from PIL import Image
-from models import db, Task, Page, Material, PageImageVersion
+from models import db, Task, Page, Material, PageImageVersion, Settings, User
+from services.ai_service_manager import get_ai_service_for_user_id
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
 
-def _get_image_prompt_field_names() -> set | None:
+def _get_image_prompt_field_names(settings: Optional[Settings] = None) -> set | None:
     """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
     try:
-        from models import Settings
-        settings = Settings.get_settings()
+        settings = settings or Settings.get_settings()
         if settings.image_prompt_extra_fields is None:
             return None  # 未配置 → 全部允许
         return set(settings.get_image_prompt_extra_fields())
@@ -27,15 +27,14 @@ def _get_image_prompt_field_names() -> set | None:
         return None
 
 
-def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+def _append_extra_fields(desc_text: str, desc_content: dict, allowed_fields: set | None = None) -> str:
     """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
         return desc_text
-    allowed = _get_image_prompt_field_names()
     parts = [desc_text]
     for name, value in extra_fields.items():
-        if value and (allowed is None or name in allowed):
+        if value and (allowed_fields is None or name in allowed_fields):
             parts.append(f"\n{name}：{value}")
     return ''.join(parts)
 from pathlib import Path
@@ -357,7 +356,8 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                                project_context, outline: List[Dict],
                                max_workers: int = 5, app=None,
                                language: str = None,
-                               detail_level: str = 'default'):
+                               detail_level: str = 'default',
+                               auth_user_id: Optional[str] = None):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
@@ -424,9 +424,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 # 关键修复：在子线程中也需要应用上下文
                 with app.app_context():
                     try:
-                        # Get singleton AI service instance
-                        from services.ai_service_manager import get_ai_service
-                        ai_service = get_ai_service()
+                        ai_service = get_ai_service_for_user_id(auth_user_id)
                         
                         desc_result = ai_service.generate_page_description(
                             project_context, outline, page_outline, page_index,
@@ -509,13 +507,14 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 db.session.commit()
 
 
-def generate_images_task(task_id: str, project_id: str, ai_service, file_service,
+def generate_images_task(task_id: str, project_id: str, file_service,
                         outline: List[Dict], use_template: bool = True, 
                         max_workers: int = 8, aspect_ratio: str = "16:9",
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
                         language: str = None,
-                        page_ids: list = None):
+                        page_ids: list = None,
+                        auth_user_id: Optional[str] = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
@@ -539,6 +538,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             task.status = 'PROCESSING'
             db.session.commit()
             
+            task_user = User.query.get(auth_user_id) if auth_user_id else None
+            task_settings = Settings.get_settings(task_user)
+            allowed_image_prompt_fields = _get_image_prompt_field_names(task_settings)
+            ai_service = get_ai_service_for_user_id(auth_user_id)
+
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             all_pages_data = ai_service.flatten_outline(outline)
@@ -601,7 +605,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         desc_text = get_description_text(desc_content) or desc_text
                         if not desc_text.strip():
                             raise ValueError("No description content for page")
-                        desc_text = _append_extra_fields(desc_text, desc_content)
+                        desc_text = _append_extra_fields(
+                            desc_text,
+                            desc_content,
+                            allowed_fields=allowed_image_prompt_fields,
+                        )
 
                         logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                         
@@ -739,12 +747,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 db.session.commit()
 
 
-def generate_single_page_image_task(task_id: str, project_id: str, page_id: str, 
-                                    ai_service, file_service, outline: List[Dict],
+def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
+                                    file_service, outline: List[Dict],
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
                                     extra_requirements: str = None,
-                                    language: str = None):
+                                    language: str = None,
+                                    auth_user_id: Optional[str] = None):
     """
     Background task for generating a single page image
     
@@ -762,6 +771,11 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             
             task.status = 'PROCESSING'
             db.session.commit()
+
+            task_user = User.query.get(auth_user_id) if auth_user_id else None
+            task_settings = Settings.get_settings(task_user)
+            allowed_image_prompt_fields = _get_image_prompt_field_names(task_settings)
+            ai_service = get_ai_service_for_user_id(auth_user_id)
             
             # Get page from database
             page = Page.query.get(page_id)
@@ -790,7 +804,11 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             desc_text = get_description_text(desc_content) or desc_text
             if not desc_text.strip():
                 raise ValueError("No description content for page")
-            desc_text = _append_extra_fields(desc_text, desc_content)
+            desc_text = _append_extra_fields(
+                desc_text,
+                desc_content,
+                allowed_fields=allowed_image_prompt_fields,
+            )
 
             # 从描述文本中提取图片 URL
             additional_ref_images = []
@@ -872,11 +890,12 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
 
 
 def edit_page_image_task(task_id: str, project_id: str, page_id: str,
-                         edit_instruction: str, ai_service, file_service,
+                         edit_instruction: str, file_service,
                          aspect_ratio: str = "16:9", resolution: str = "2K",
                          original_description: str = None,
                          additional_ref_images: List[str] = None,
-                         temp_dir: str = None, app=None):
+                         temp_dir: str = None, app=None,
+                         auth_user_id: Optional[str] = None):
     """
     Background task for editing a page image
     
@@ -894,6 +913,8 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             
             task.status = 'PROCESSING'
             db.session.commit()
+
+            ai_service = get_ai_service_for_user_id(auth_user_id)
             
             # Get page from database
             page = Page.query.get(page_id)
@@ -979,12 +1000,13 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
 
 
 def generate_material_image_task(task_id: str, project_id: str, prompt: str,
-                                 ai_service, file_service,
+                                 file_service,
                                  ref_image_path: str = None,
                                  additional_ref_images: List[str] = None,
                                  aspect_ratio: str = "16:9",
                                  resolution: str = "2K",
-                                 temp_dir: str = None, app=None):
+                                 temp_dir: str = None, app=None,
+                                 auth_user_id: Optional[str] = None):
     """
     Background task for generating a material image
     复用核心的generate_image逻辑，但保存到Material表而不是Page表
@@ -1005,6 +1027,8 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
             
             task.status = 'PROCESSING'
             db.session.commit()
+
+            ai_service = get_ai_service_for_user_id(auth_user_id)
             
             # Generate image (复用核心逻辑)
             logger.info(f"🎨 Generating material image with prompt: {prompt[:100]}...")
@@ -1035,7 +1059,8 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 project_id=actual_project_id,
                 filename=filename,
                 relative_path=relative_path,
-                url=image_url
+                url=image_url,
+                user_id=auth_user_id,
             )
             db.session.add(material)
             

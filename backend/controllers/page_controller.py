@@ -2,11 +2,12 @@
 Page Controller - handles page-related endpoints
 """
 import logging
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
+from utils.auth import optional_auth
 from services import FileService, ProjectContext
-from services.ai_service_manager import get_ai_service
+from services.ai_service_manager import get_ai_service, get_runtime_config_for_user
 from services.task_manager import (
     task_manager,
     generate_single_page_image_task,
@@ -24,6 +25,18 @@ import json
 logger = logging.getLogger(__name__)
 
 page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
+
+
+def _get_request_user():
+    return getattr(g, 'current_user', None)
+
+
+def _get_request_runtime_config():
+    return get_runtime_config_for_user(_get_request_user())
+
+
+def _get_request_ai_service():
+    return get_ai_service(runtime_config=_get_request_runtime_config())
 
 
 @page_bp.route('/<project_id>/pages', methods=['POST'])
@@ -240,6 +253,7 @@ def update_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/description', methods=['POST'])
+@optional_auth
 def generate_page_description(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/description - Generate single page description
@@ -260,8 +274,9 @@ def generate_page_description(project_id, page_id):
             return not_found('Project')
         
         data = request.get_json() or {}
+        runtime_config = _get_request_runtime_config()
         force_regenerate = data.get('force_regenerate', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         detail_level = data.get('detail_level', 'default')
 
         # Check if already generated
@@ -285,7 +300,7 @@ def generate_page_description(project_id, page_id):
                 outline.append(page_data)
         
         # Initialize AI service
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         
         # Get reference files content and create project context
         from controllers.project_controller import _get_project_reference_files_content
@@ -328,6 +343,7 @@ def generate_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
+@optional_auth
 def generate_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/image - Generate single page image
@@ -349,9 +365,12 @@ def generate_page_image(project_id, page_id):
             return not_found('Project')
         
         data = request.get_json() or {}
+        _auth_user = _get_request_user()
+        runtime_config = _get_request_runtime_config()
         use_template = data.get('use_template', True)
         force_regenerate = data.get('force_regenerate', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        resolution = data.get('resolution') or runtime_config.get('DEFAULT_RESOLUTION') or current_app.config['DEFAULT_RESOLUTION']
         
         # Check if already generated
         if page.generated_image_path and not force_regenerate:
@@ -411,7 +430,7 @@ def generate_page_image(project_id, page_id):
             })
         
         # Initialize services
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
@@ -481,15 +500,15 @@ def generate_page_image(project_id, page_id):
             generate_single_page_image_task,
             project_id,
             page_id,
-            ai_service,
             file_service,
             outline,
             use_template,
             project.image_aspect_ratio,
-            current_app.config['DEFAULT_RESOLUTION'],
+            resolution,
             app,
             combined_requirements if combined_requirements.strip() else None,
-            language
+            language,
+            getattr(_auth_user, 'id', None),
         )
         
         # Return task_id immediately
@@ -505,6 +524,7 @@ def generate_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/edit/image', methods=['POST'])
+@optional_auth
 def edit_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/edit/image - Edit page image
@@ -538,10 +558,9 @@ def edit_page_image(project_id, page_id):
         if not project:
             return not_found('Project')
         
-        # Initialize services
-        ai_service = get_ai_service()
-        
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        _auth_user = _get_request_user()
+        runtime_config = _get_request_runtime_config()
         
         # Parse request data (support both JSON and multipart/form-data)
         if request.is_json:
@@ -563,9 +582,6 @@ def edit_page_image(project_id, page_id):
         
         if not data or 'edit_instruction' not in data:
             return bad_request("edit_instruction is required")
-        
-        # Get current image path
-        current_image_path = file_service.get_absolute_path(page.generated_image_path)
         
         # Get original description if available
         original_description = None
@@ -648,14 +664,14 @@ def edit_page_image(project_id, page_id):
             project_id,
             page_id,
             data['edit_instruction'],
-            ai_service,
             file_service,
             project.image_aspect_ratio,
-            current_app.config['DEFAULT_RESOLUTION'],
+            data.get('resolution') or runtime_config.get('DEFAULT_RESOLUTION') or current_app.config['DEFAULT_RESOLUTION'],
             original_description,
             additional_ref_images if additional_ref_images else None,
             str(temp_dir) if temp_dir else None,
-            app
+            app,
+            getattr(_auth_user, 'id', None),
         )
         
         # Return task_id immediately
@@ -738,6 +754,7 @@ def set_current_image_version(project_id, page_id, version_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/regenerate-renovation', methods=['POST'])
+@optional_auth
 def regenerate_renovation_page(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/regenerate-renovation
@@ -760,7 +777,8 @@ def regenerate_renovation_page(project_id, page_id):
             return bad_request("This endpoint is only for PPT renovation projects")
 
         data = request.get_json() or {}
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        runtime_config = _get_request_runtime_config()
+        language = data.get('language', runtime_config.get('OUTPUT_LANGUAGE') or current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         keep_layout = data.get('keep_layout', False)
 
         # Find the split PDF for this page
@@ -772,18 +790,18 @@ def regenerate_renovation_page(project_id, page_id):
             return bad_request(f"Split PDF not found for page {page.order_index + 1}")
 
         # Initialize services
-        ai_service = get_ai_service()
+        ai_service = _get_request_ai_service()
         from services.file_parser_service import FileParserService
         file_parser_service = FileParserService(
-            mineru_api_base=current_app.config.get('MINERU_API_BASE', ''),
-            mineru_token=current_app.config.get('MINERU_TOKEN', ''),
-            google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-            google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
-            openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
-            openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-            image_caption_model=current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview'),
-            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', ''),
-            provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
+            mineru_api_base=runtime_config.get('MINERU_API_BASE') or current_app.config.get('MINERU_API_BASE', ''),
+            mineru_token=runtime_config.get('MINERU_TOKEN') or current_app.config.get('MINERU_TOKEN', ''),
+            google_api_key=runtime_config.get('GOOGLE_API_KEY') or current_app.config.get('GOOGLE_API_KEY', ''),
+            google_api_base=runtime_config.get('GOOGLE_API_BASE') or current_app.config.get('GOOGLE_API_BASE', ''),
+            openai_api_key=runtime_config.get('OPENAI_API_KEY') or current_app.config.get('OPENAI_API_KEY', ''),
+            openai_api_base=runtime_config.get('OPENAI_API_BASE') or current_app.config.get('OPENAI_API_BASE', ''),
+            image_caption_model=runtime_config.get('IMAGE_CAPTION_MODEL') or current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview'),
+            lazyllm_image_caption_source=runtime_config.get('IMAGE_CAPTION_MODEL_SOURCE') or current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', ''),
+            provider_format=runtime_config.get('AI_PROVIDER_FORMAT') or current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
         )
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 

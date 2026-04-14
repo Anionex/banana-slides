@@ -82,7 +82,13 @@ class ProjectContext:
 class AIService:
     """Service for AI model interactions using pluggable providers"""
     
-    def __init__(self, text_provider: TextProvider = None, image_provider: ImageProvider = None, caption_provider: TextProvider = None):
+    def __init__(
+        self,
+        text_provider: TextProvider = None,
+        image_provider: ImageProvider = None,
+        caption_provider: TextProvider = None,
+        runtime_config: Optional[Dict[str, object]] = None,
+    ):
         """
         Initialize AI service with providers
         
@@ -91,6 +97,7 @@ class AIService:
             image_provider: Optional pre-configured ImageProvider. If None, created from factory.
         """
         config = get_config()
+        self.runtime_config = runtime_config or {}
 
         # 优先使用 Flask app.config（可由 Settings 覆盖），否则回退到 Config 默认值
         try:
@@ -98,6 +105,13 @@ class AIService:
         except ImportError:
             current_app = None  # type: ignore
             has_app_context = lambda: False  # type: ignore
+
+        def _config_value(key: str, default):
+            if key in self.runtime_config and self.runtime_config[key] is not None:
+                return self.runtime_config[key]
+            if has_app_context() and current_app and hasattr(current_app, "config"):
+                return current_app.config.get(key, default)
+            return default
 
         if has_app_context() and current_app and hasattr(current_app, "config"):
             self.text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
@@ -116,15 +130,32 @@ class AIService:
             self.image_thinking_budget = 1024
         
         # Caption model for multimodal (image→text) tasks
+        self.text_model = _config_value("TEXT_MODEL", self.text_model)
+        self.image_model = _config_value("IMAGE_MODEL", self.image_model)
+        self.enable_text_reasoning = _config_value("ENABLE_TEXT_REASONING", self.enable_text_reasoning)
+        self.text_thinking_budget = _config_value("TEXT_THINKING_BUDGET", self.text_thinking_budget)
+        self.enable_image_reasoning = _config_value("ENABLE_IMAGE_REASONING", self.enable_image_reasoning)
+        self.image_thinking_budget = _config_value("IMAGE_THINKING_BUDGET", self.image_thinking_budget)
+
         if has_app_context() and current_app and hasattr(current_app, "config"):
             self.caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
         else:
             self.caption_model = config.IMAGE_CAPTION_MODEL
+        self.caption_model = _config_value("IMAGE_CAPTION_MODEL", self.caption_model)
 
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT (from Flask config or env var)
-        self.text_provider = text_provider or get_text_provider(model=self.text_model)
-        self.image_provider = image_provider or get_image_provider(model=self.image_model)
-        self.caption_provider = caption_provider or get_caption_provider(model=self.caption_model)
+        self.text_provider = text_provider or get_text_provider(
+            model=self.text_model,
+            runtime_config=self.runtime_config,
+        )
+        self.image_provider = image_provider or get_image_provider(
+            model=self.image_model,
+            runtime_config=self.runtime_config,
+        )
+        self.caption_provider = caption_provider or get_caption_provider(
+            model=self.caption_model,
+            runtime_config=self.runtime_config,
+        )
     
     def _get_text_thinking_budget(self) -> int:
         """
@@ -1128,4 +1159,3 @@ class AIService:
     def extract_style_description(self, image_path: str) -> str:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
-

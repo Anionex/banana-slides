@@ -166,7 +166,13 @@ def _patch_doubao_remove_guidance_scale(client):
 
 class LazyLLMImageProvider(ImageProvider):
     """Image generation using Lazyllm framework"""
-    def __init__(self, source: str = 'doubao', model: str = 'doubao-seedream-4-0-250828'):
+    def __init__(
+        self,
+        source: str = 'doubao',
+        model: str = 'doubao-seedream-4-0-250828',
+        namespace: str = 'BANANA',
+        api_key: str | None = None,
+    ):
         """
         Initialize GenAI image provider
 
@@ -183,9 +189,10 @@ class LazyLLMImageProvider(ImageProvider):
                 "Please install backend dependencies including lazyllm."
             ) from exc
 
-        ensure_lazyllm_namespace_key(source, namespace='BANANA')
+        self._namespace = namespace
+        ensure_lazyllm_namespace_key(source, namespace=namespace, api_key=api_key)
         self._source = source
-        self.client = lazyllm.namespace('BANANA').OnlineModule(
+        self.client = lazyllm.namespace(namespace).OnlineModule(
             source=source,
             model=model,
             type='image_editing',
