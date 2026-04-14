@@ -1745,6 +1745,7 @@ export const SlidePreview: React.FC = () => {
                       variant="secondary"
                       size="sm"
                       onClick={handleEditPage}
+                      disabled={!selectedPage}
                       className="text-xs md:text-sm flex-1 sm:flex-initial"
                     >
                       {t('common.edit')}
@@ -2041,7 +2042,7 @@ export const SlidePreview: React.FC = () => {
               <Button
                 variant="primary"
                 onClick={handleSubmitEdit}
-                disabled={!editPrompt.trim()}
+                disabled={!editPrompt.trim() || !selectedPage?.generated_image_path}
               >
                 {t('preview.generateImage')}
               </Button>
