@@ -760,7 +760,7 @@ def get_design_generation_prompt(page_description: str, outline_text: str,
 {get_language_instruction(language)}
 """
 
-    logger.debug(f"[get_design_generation_prompt] Final prompt:\n{prompt}")
+    logger.debug("[get_design_generation_prompt] Generated prompt for page %d (%d chars)", page_index, len(prompt))
     return prompt
 
 

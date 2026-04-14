@@ -194,6 +194,7 @@ export const SlidePreview: React.FC = () => {
     editPageImage,
     deletePageById,
     updatePageLocal,
+    saveAllPages,
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
@@ -602,7 +603,9 @@ export const SlidePreview: React.FC = () => {
     const page = currentProject.pages[selectedIndex];
     if (!page?.id) return;
 
+    // Flush pending edits to backend before generating designs
     handleSaveOutlineAndDescription();
+    await saveAllPages();
     try {
       await generateDesigns([page.id]);
       show({ message: t('preview.generateDesign'), type: 'success' });
@@ -612,7 +615,7 @@ export const SlidePreview: React.FC = () => {
         type: 'error',
       });
     }
-  }, [currentProject, selectedIndex, handleSaveOutlineAndDescription, generateDesigns, show, t]);
+  }, [currentProject, selectedIndex, handleSaveOutlineAndDescription, saveAllPages, generateDesigns, show, t]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;

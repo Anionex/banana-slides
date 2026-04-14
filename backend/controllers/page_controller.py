@@ -187,13 +187,14 @@ def update_page_outline(project_id, page_id):
             return bad_request("outline_content is required")
         
         page.set_outline_content(data['outline_content'])
+        page.set_design_content(None)
         page.updated_at = datetime.utcnow()
-        
+
         # Update project
         project = Project.query.get(project_id)
         if project:
             project.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
         
         return success_response(page.to_dict())
@@ -855,6 +856,7 @@ def regenerate_renovation_page(project_id, page_id):
             "text": description,
             "generated_at": datetime.utcnow().isoformat()
         })
+        page.set_design_content(None)
         page.status = 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
 

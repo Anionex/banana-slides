@@ -1139,7 +1139,8 @@ def generate_designs(project_id):
             return bad_request("No valid page_ids found for project")
 
         outline = _reconstruct_outline_from_pages(all_pages)
-        max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
+        max_workers_cap = current_app.config.get('MAX_DESCRIPTION_WORKERS', 5)
+        max_workers = min(int(data.get('max_workers', max_workers_cap)), max_workers_cap)
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
 
         task = Task(
