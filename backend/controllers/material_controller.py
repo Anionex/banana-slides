@@ -40,10 +40,12 @@ def _generate_image_caption(filepath: str) -> str:
     """Generate AI caption for an uploaded image. Returns empty string on failure."""
     if filepath.lower().endswith('.svg'):
         return ""
+    image = None
     try:
         from PIL import Image
 
-        image = Image.open(filepath)
+        with Image.open(filepath) as opened_image:
+            image = opened_image.copy()
         image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
 
         output_lang = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
@@ -106,6 +108,9 @@ def _generate_image_caption(filepath: str) -> str:
     except Exception as e:
         logger.warning(f"Failed to generate caption for {filepath}: {e}")
         return ""
+    finally:
+        if image is not None:
+            image.close()
 
 
 def _build_material_query(filter_project_id: str):
