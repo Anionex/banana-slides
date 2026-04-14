@@ -1,11 +1,13 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, Settings as SettingsIcon, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
+import { Settings as SettingsComponent } from '@/pages/Settings';
+import { Modal } from '@/components/shared/Modal';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -18,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 // 组件内翻译
 const detailI18n = {
   zh: {
+    common: { settings: '设置' },
     home: { title: '蕉幻' },
     detail: {
       title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
@@ -58,6 +61,7 @@ const detailI18n = {
     }
   },
   en: {
+    common: { settings: 'Settings' },
     home: { title: 'Banana Slides' },
     detail: {
       title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
@@ -197,6 +201,7 @@ export const DetailEditor: React.FC = () => {
   const [isAiRefining, setIsAiRefining] = React.useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
@@ -608,6 +613,16 @@ export const DetailEditor: React.FC = () => {
           {/* 右侧：操作按钮 */}
           <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
             <Button
+              variant="ghost"
+              size="sm"
+              icon={<SettingsIcon size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => setShowSettingsModal(true)}
+              title={t('common.settings')}
+              className="flex-shrink-0"
+            >
+              <span className="hidden sm:inline">{t('common.settings')}</span>
+            </Button>
+            <Button
               variant="secondary"
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
@@ -1002,6 +1017,14 @@ export const DetailEditor: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <Modal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        title={t('common.settings')}
+        size="xl"
+      >
+        <SettingsComponent />
+      </Modal>
       <MaterialSelector
         projectId={projectId}
         isOpen={isMaterialSelectorOpen}
@@ -1012,4 +1035,3 @@ export const DetailEditor: React.FC = () => {
     </div>
   );
 };
-

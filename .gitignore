@@ -60,3 +60,4 @@ _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
 .venv
+openspec/

@@ -1,7 +1,28 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
+
+let bodyScrollLockCount = 0;
+let previousBodyOverflow = '';
+
+const lockBodyScroll = () => {
+  if (typeof document === 'undefined') return;
+  if (bodyScrollLockCount === 0) {
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  bodyScrollLockCount += 1;
+};
+
+const unlockBodyScroll = () => {
+  if (typeof document === 'undefined' || bodyScrollLockCount === 0) return;
+  bodyScrollLockCount -= 1;
+  if (bodyScrollLockCount === 0) {
+    document.body.style.overflow = previousBodyOverflow;
+    previousBodyOverflow = '';
+  }
+};
 
 interface ModalProps {
   isOpen: boolean;
@@ -22,29 +43,41 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const hasBodyLockRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
+      if (!hasBodyLockRef.current) {
+        lockBodyScroll();
+        hasBodyLockRef.current = true;
+      }
       setIsVisible(true);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsAnimating(true);
         });
       });
-      document.body.style.overflow = 'hidden';
     } else {
       setIsAnimating(false);
       const timer = setTimeout(() => {
         setIsVisible(false);
       }, 250);
-      document.body.style.overflow = '';
+      if (hasBodyLockRef.current) {
+        unlockBodyScroll();
+        hasBodyLockRef.current = false;
+      }
       return () => clearTimeout(timer);
     }
-
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (hasBodyLockRef.current) {
+        unlockBodyScroll();
+        hasBodyLockRef.current = false;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
