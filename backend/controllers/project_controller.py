@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context, g
 from sqlalchemy import desc
+from sqlalchemy import or_
 from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
@@ -281,9 +282,11 @@ def list_projects():
         user = g.current_user
         query = Project.query
         if user:
-            query = query.filter(Project.user_id == user.id)
+            query = query.filter(
+                or_(Project.owner_user_id == user.id, Project.user_id == user.id)
+            )
         else:
-            query = query.filter(Project.user_id.is_(None))
+            query = query.filter(Project.owner_user_id.is_(None), Project.user_id.is_(None))
 
         total = query.count()
         projects = query.options(joinedload(Project.pages))\
@@ -331,6 +334,7 @@ def create_project():
             template_style=data.get('template_style'),
             image_aspect_ratio=image_aspect_ratio,
             status='DRAFT',
+            owner_user_id=user.id if user else None,
             user_id=user.id if user else None,
         )
         db.session.add(project)
@@ -1439,7 +1443,9 @@ def create_ppt_renovation_project():
         project = Project(
             creation_type='ppt_renovation',
             template_style=template_style,
-            status='DRAFT'
+            status='DRAFT',
+            owner_user_id=g.current_user.id if g.current_user else None,
+            user_id=g.current_user.id if g.current_user else None,
         )
         db.session.add(project)
         db.session.commit()

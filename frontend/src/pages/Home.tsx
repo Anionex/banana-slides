@@ -810,12 +810,13 @@ export const Home: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
-              icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => navigate('/settings')}
-              className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
-            >
-              <span className="hidden md:inline">{t('nav.settings')}</span>
-            </Button>
+                icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={() => navigate('/settings')}
+                className="hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+                title={t('nav.settings')}
+              >
+                <span className="hidden lg:inline">{t('nav.settings')}</span>
+              </Button>
             )}
             <Button
               variant="ghost"
