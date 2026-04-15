@@ -114,6 +114,12 @@ def get_stats():
     )
 
 
+@admin_bp.route("/me", methods=["GET"])
+@require_admin
+def get_current_admin():
+    return jsonify({"data": g.current_user.to_dict(admin=True)})
+
+
 @admin_bp.route("/users", methods=["GET"])
 @require_admin
 def list_users():

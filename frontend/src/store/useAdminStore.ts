@@ -13,6 +13,7 @@ interface AdminStore {
   accessToken: string | null;
   refreshToken: string | null;
   setAuth: (admin: AdminUser, accessToken: string, refreshToken: string) => void;
+  setAdmin: (admin: AdminUser) => void;
   logout: () => void;
   isAuthenticated: () => boolean;
 }
@@ -26,6 +27,8 @@ export const useAdminStore = create<AdminStore>()(
 
       setAuth: (admin, accessToken, refreshToken) =>
         set({ admin, accessToken, refreshToken }),
+
+      setAdmin: (admin) => set({ admin }),
 
       logout: () => set({ admin: null, accessToken: null, refreshToken: null }),
 

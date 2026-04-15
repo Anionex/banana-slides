@@ -46,6 +46,8 @@ export const adminApi = {
   login: (username: string, password: string) =>
     adminClient.post('/api/admin/login', { username, password }),
 
+  getMe: () => adminClient.get('/api/admin/me'),
+
   getStats: () => adminClient.get('/api/admin/stats'),
 
   listUsers: (params?: { page?: number; per_page?: number; search?: string }) =>
