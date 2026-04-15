@@ -806,7 +806,7 @@ export const Home: React.FC = () => {
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
             </Button>
-            {user?.role === 'admin' && (
+            {user?.role === 'internal' && (
             <Button
               variant="ghost"
               size="sm"

@@ -232,7 +232,7 @@ type UpdateSettingsPayload = Parameters<typeof api.updateSettings>[0];
 interface SettingsProps {
   apiModule?: SettingsApiModule;
   persistKey?: string;
-  mode?: 'global' | 'admin';
+  mode?: 'global' | 'private';
 }
 
 // 配置项类型定义
@@ -293,8 +293,8 @@ const API_KEY_PROVIDERS = new Set(['gemini', 'openai']);
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 
 // 初始表单数据
-const buildInitialFormData = (mode: 'global' | 'admin' = 'global') => ({
-  ai_provider_format: (mode === 'admin' ? '' : 'gemini') as string,
+const buildInitialFormData = (mode: 'global' | 'private' = 'global') => ({
+  ai_provider_format: (mode === 'private' ? '' : 'gemini') as string,
   api_base_url: '',
   api_key: '',
   text_model: '',
@@ -302,7 +302,7 @@ const buildInitialFormData = (mode: 'global' | 'admin' = 'global') => ({
   image_caption_model: '',
   mineru_api_base: '',
   mineru_token: '',
-  image_resolution: (mode === 'admin' ? '' : '2K') as string,
+  image_resolution: (mode === 'private' ? '' : '2K') as string,
   max_description_workers: 5,
   max_image_workers: 8,
   output_language: 'zh' as OutputLanguage,
@@ -373,15 +373,15 @@ const GlobalVendorKeyInput: React.FC<{
 
 const formDataFromSettings = (
   data: SettingsType,
-  mode: 'global' | 'admin' = 'global'
+  mode: 'global' | 'private' = 'global'
 ): SettingsFormData => ({
   ai_provider_format: resolveLazyllmVendor(
-    data.ai_provider_format || (mode === 'admin' ? '' : 'gemini'),
+    data.ai_provider_format || (mode === 'private' ? '' : 'gemini'),
     data.lazyllm_api_keys_info
   ),
   api_base_url: data.api_base_url || '',
   api_key: '',
-  image_resolution: data.image_resolution || (mode === 'admin' ? '' : '2K'),
+  image_resolution: data.image_resolution || (mode === 'private' ? '' : '2K'),
   max_description_workers: data.max_description_workers || 5,
   max_image_workers: data.max_image_workers || 8,
   text_model: data.text_model || '',
@@ -417,7 +417,8 @@ export const Settings: React.FC<SettingsProps> = ({
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
   const user = useUserStore((state) => state.user);
-  const effectiveMode: 'global' | 'admin' = mode || (user?.role === 'admin' ? 'admin' : 'global');
+  const effectiveMode: 'global' | 'private' =
+    mode || (user?.role === 'internal' ? 'private' : 'global');
 
   const copyToClipboard = (text: string) => {
     if (navigator.clipboard) {
@@ -1114,7 +1115,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
-                {effectiveMode === 'admin' && (
+                {effectiveMode === 'private' && (
                   <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
                 )}
                 {ALL_PROVIDER_SOURCES.map((option) => (

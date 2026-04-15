@@ -619,10 +619,12 @@ class AIService:
 
         return cleaned_text, extra_fields
 
-    @staticmethod
-    def _get_extra_field_names() -> list:
+    def _get_extra_field_names(self) -> list:
         """从 Settings 读取配置的额外字段名列表。"""
         try:
+            runtime_fields = self.runtime_config.get('DESCRIPTION_EXTRA_FIELDS')
+            if isinstance(runtime_fields, list) and runtime_fields:
+                return runtime_fields
             from models import Settings
             settings = Settings.get_settings()
             return settings.get_description_extra_fields()

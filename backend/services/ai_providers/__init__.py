@@ -79,8 +79,8 @@ def _resolve_setting(
     # 1) Explicit runtime_config overrides
     if runtime_config and key in runtime_config:
         val = runtime_config[key]
-        if val is None and runtime_config.get('SETTINGS_SCOPE') == 'admin':
-            logger.debug("Setting %s explicitly unset in admin runtime_config", key)
+        if val is None and runtime_config.get('SETTINGS_SCOPE') == 'private':
+            logger.debug("Setting %s explicitly unset in private runtime_config", key)
             return None
         if val is not None:
             logger.debug("Setting %s resolved from runtime_config", key)

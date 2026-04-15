@@ -5,7 +5,7 @@ export interface UserInfo {
   id: number;
   phone: string | null;
   username: string | null;
-  role: 'user' | 'admin';
+  role: 'user' | 'internal' | 'admin';
   points: number;
   is_active: boolean;
   created_at: string;
@@ -31,6 +31,9 @@ interface UserStore {
   closeLoginModal: () => void;
   requireAuth: () => boolean; // returns true if authenticated, opens modal if not
   isAdmin: () => boolean;
+  isInternalUser: () => boolean;
+  canAccessAdminConsole: () => boolean;
+  usesPrivateSettings: () => boolean;
 }
 
 export const useUserStore = create<UserStore>()(
@@ -60,6 +63,9 @@ export const useUserStore = create<UserStore>()(
       },
 
       isAdmin: () => get().user?.role === 'admin',
+      isInternalUser: () => get().user?.role === 'internal',
+      canAccessAdminConsole: () => get().user?.role === 'admin',
+      usesPrivateSettings: () => get().user?.role === 'internal',
     }),
     {
       name: 'feiye-user',

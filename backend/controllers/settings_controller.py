@@ -35,7 +35,11 @@ class SettingsValidationError(ValueError):
 
 def _serialize_settings_for_request(settings: Settings):
     user = getattr(g, "current_user", None)
-    include_defaults = not (user is not None and getattr(user, "role", None) == "admin")
+    include_defaults = not (
+        user is not None
+        and hasattr(user, "uses_private_runtime_settings")
+        and user.uses_private_runtime_settings()
+    )
     return settings.to_dict(include_defaults=include_defaults)
 
 
@@ -623,8 +627,9 @@ def update_settings():
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        request_user = getattr(g, "current_user", None)
+        if request_user is None or request_user.uses_platform_shared_settings():
+            _sync_settings_to_config(settings)
 
         logger.info("Settings updated successfully")
         return success_response(
@@ -683,8 +688,9 @@ def reset_settings():
 
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        request_user = getattr(g, "current_user", None)
+        if request_user is None or request_user.uses_platform_shared_settings():
+            _sync_settings_to_config(settings)
 
         logger.info("Settings reset to defaults")
         return success_response(
@@ -717,6 +723,7 @@ def get_active_config():
 
 
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
+@optional_auth
 def verify_api_key():
     """
     POST /api/settings/verify - 验证模型配置是否可用
@@ -732,7 +739,7 @@ def verify_api_key():
     """
     try:
         # 获取当前设置
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
         if not settings:
             return success_response({
                 "available": False,
@@ -1131,7 +1138,7 @@ def _test_image_model():
     ai_service = AIService()
     test_image_path = _get_test_image_path()
     prompt = "生成一张简洁、明亮、适合演示文稿的背景图。"
-    settings = Settings.get_settings()
+    settings = Settings.get_settings(getattr(g, "current_user", None))
     result = ai_service.generate_image(
         prompt=prompt,
         ref_image_path=str(test_image_path),

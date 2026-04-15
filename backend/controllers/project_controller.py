@@ -1040,13 +1040,13 @@ def generate_images(project_id):
         if not pages:
             return bad_request("No pages found for project")
 
-        # Points check: 3 points per page (authenticated non-admin users only)
+        # Points check: only platform-billed users consume shared platform points
         POINTS_PER_PAGE = 3
         required_points = len(pages) * POINTS_PER_PAGE
         _auth_user = _get_request_user()
         if (
             _auth_user
-            and _auth_user.role != 'admin'
+            and _auth_user.uses_platform_billing()
             and _auth_user.points < required_points
         ):
             return jsonify({'error': 'insufficient_points', 'required': required_points, 'current': _auth_user.points}), 402
@@ -1135,8 +1135,8 @@ def generate_images(project_id):
         project.status = 'GENERATING_IMAGES'
         db.session.commit()
 
-        # Deduct points for authenticated non-admin users (3 per page)
-        if _auth_user and _auth_user.role != 'admin':
+        # Deduct points only for platform-billed users
+        if _auth_user and _auth_user.uses_platform_billing():
             _auth_user.points = max(0, _auth_user.points - required_points)
             db.session.add(PointsTransaction(
                 user_id=_auth_user.id,

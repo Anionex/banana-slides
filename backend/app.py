@@ -29,6 +29,7 @@ from controllers import project_bp, page_bp, template_bp, user_template_bp, expo
 from controllers.auth_controller import auth_bp
 from controllers.user_controller import user_bp
 from controllers.admin_controller import admin_bp
+from utils.auth import optional_auth
 
 
 # Enable SQLite WAL mode for all connections
@@ -167,14 +168,16 @@ def create_app():
     
     # Output language endpoint
     @app.route('/api/output-language', methods=['GET'])
+    @optional_auth
     def get_output_language():
         """
         获取用户的输出语言偏好（从数据库 Settings 读取）
         返回: zh, ja, en, auto
         """
+        from flask import g
         from models import Settings
         try:
-            settings = Settings.get_settings()
+            settings = Settings.get_settings(getattr(g, "current_user", None))
             return {'data': {'language': settings.output_language or Config.OUTPUT_LANGUAGE}}
         except SQLAlchemyError as db_error:
             logging.warning(f"Failed to load output language from settings: {db_error}")

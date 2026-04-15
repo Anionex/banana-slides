@@ -151,7 +151,7 @@ class Settings(db.Model):
         return {
             'id': self.id,
             'owner_user_id': self.owner_user_id,
-            'scope': 'admin' if self.owner_user_id else 'global',
+            'scope': 'private' if self.owner_user_id else 'global',
             'ai_provider_format': self._val('ai_provider_format', d) if include_defaults else self.ai_provider_format,
             'api_base_url': self._val('api_base_url', d) if include_defaults else self.api_base_url,
             'api_key_length': len(api_key) if api_key else 0,
@@ -248,7 +248,7 @@ class Settings(db.Model):
         """
         Build an internal runtime configuration dict for AI services.
 
-        For admin-private settings, callers can disable secret defaults so that empty
+        For private runtime settings, callers can disable secret defaults so that empty
         private credentials never fall back to shared/global API keys.
         """
         defaults = Settings._get_config_defaults()
@@ -274,7 +274,7 @@ class Settings(db.Model):
         global_api_base = _general('api_base_url')
 
         return {
-            'SETTINGS_SCOPE': 'admin' if self.owner_user_id else 'global',
+            'SETTINGS_SCOPE': 'private' if self.owner_user_id else 'global',
             'SETTINGS_OWNER_USER_ID': self.owner_user_id,
             'AI_PROVIDER_FORMAT': _general('ai_provider_format'),
             'GOOGLE_API_KEY': global_api_key,
@@ -289,6 +289,8 @@ class Settings(db.Model):
             'DEFAULT_ASPECT_RATIO': _general('image_aspect_ratio'),
             'MAX_DESCRIPTION_WORKERS': _general('max_description_workers'),
             'MAX_IMAGE_WORKERS': _general('max_image_workers'),
+            'DESCRIPTION_EXTRA_FIELDS': self.get_description_extra_fields(),
+            'IMAGE_PROMPT_EXTRA_FIELDS': self.get_image_prompt_extra_fields(),
             'ENABLE_TEXT_REASONING': self.enable_text_reasoning,
             'TEXT_THINKING_BUDGET': self.text_thinking_budget,
             'ENABLE_IMAGE_REASONING': self.enable_image_reasoning,
@@ -363,25 +365,30 @@ class Settings(db.Model):
         return settings
 
     @classmethod
-    def create_admin_settings_from_global(cls, admin_user):
-        """Create an empty private settings row for the given admin."""
-        return cls._create_empty_settings(owner_user_id=admin_user.id)
+    def create_private_settings_for_user(cls, user):
+        """Create an empty private settings row for a user with isolated runtime config."""
+        return cls._create_empty_settings(owner_user_id=user.id)
+
+    @classmethod
+    def get_private_settings(cls, user, create_if_missing=True):
+        """Return the user-private settings row, creating an empty one on first use."""
+        settings = cls.query.filter_by(owner_user_id=user.id).first()
+        if settings is None and create_if_missing:
+            settings = cls.create_private_settings_for_user(user)
+        return settings
 
     @classmethod
     def get_admin_settings(cls, admin_user, create_if_missing=True):
-        """Return the admin-private settings row, creating an empty one on first use."""
-        settings = cls.query.filter_by(owner_user_id=admin_user.id).first()
-        if settings is None and create_if_missing:
-            settings = cls.create_admin_settings_from_global(admin_user)
-        return settings
+        """Backward-compatible alias for legacy private-settings callers."""
+        return cls.get_private_settings(admin_user, create_if_missing=create_if_missing)
 
     @classmethod
     def get_settings(cls, user=None):
         """
-        Return global settings by default, or admin-private settings when an admin is provided.
+        Return global settings by default, or user-private settings when the user uses isolated runtime config.
         """
-        if user is not None and getattr(user, 'role', None) == 'admin':
-            return cls.get_admin_settings(user)
+        if user is not None and hasattr(user, 'uses_private_runtime_settings') and user.uses_private_runtime_settings():
+            return cls.get_private_settings(user)
         return cls.get_global_settings()
 
     def __repr__(self):

@@ -95,7 +95,7 @@ def require_admin(f):
         user = User.query.get(payload['sub'])
         if not user or not user.is_active:
             return jsonify({'error': 'User not found or disabled'}), 401
-        if user.role != 'admin':
+        if not user.can_access_admin_console():
             return jsonify({'error': 'Admin access required'}), 403
         g.current_user = user
         return f(*args, **kwargs)

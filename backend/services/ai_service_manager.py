@@ -3,7 +3,7 @@ AI service cache and runtime-config helpers.
 
 This module supports both:
 - the legacy/global app-level AI configuration
-- user-scoped runtime AI configuration for isolated admin settings
+- user-scoped runtime AI configuration for isolated private settings
 """
 
 import logging
@@ -33,6 +33,8 @@ _RUNTIME_CONFIG_KEYS = (
     "DEFAULT_ASPECT_RATIO",
     "MAX_DESCRIPTION_WORKERS",
     "MAX_IMAGE_WORKERS",
+    "DESCRIPTION_EXTRA_FIELDS",
+    "IMAGE_PROMPT_EXTRA_FIELDS",
     "ENABLE_TEXT_REASONING",
     "TEXT_THINKING_BUDGET",
     "ENABLE_IMAGE_REASONING",
@@ -94,7 +96,9 @@ def get_runtime_config_for_user(user=None) -> dict[str, Any]:
 
     settings = Settings.get_settings(user)
     include_secret_defaults = not (
-        user is not None and getattr(user, "role", None) == "admin"
+        user is not None
+        and hasattr(user, "uses_private_runtime_settings")
+        and user.uses_private_runtime_settings()
     )
     return settings.to_runtime_config(include_secret_defaults=include_secret_defaults)
 

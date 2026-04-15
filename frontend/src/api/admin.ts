@@ -51,7 +51,7 @@ export const adminApi = {
   listUsers: (params?: { page?: number; per_page?: number; search?: string }) =>
     adminClient.get('/api/admin/users', { params }),
 
-  createAdmin: (data: { username: string; password: string }) =>
+  createUser: (data: { username: string; password: string; role?: 'user' | 'internal' | 'admin' }) =>
     adminClient.post('/api/admin/users', data),
 
   updateUser: (id: string, data: { role?: string; is_active?: boolean }) =>

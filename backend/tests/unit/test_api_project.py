@@ -200,6 +200,30 @@ class TestGenerateImagesPoints:
         assert admin.points == 0
         assert PointsTransaction.query.filter_by(user_id=admin.id, type='generation').count() == 0
 
+    def test_generate_images_skips_points_for_internal_user(self, client, db_session):
+        from models import PointsTransaction, User
+
+        internal_user = User(username='internal-user', role='internal', points=0)
+        db_session.add(internal_user)
+        db_session.commit()
+
+        project, page = self._create_project_with_page(db_session, internal_user)
+
+        with patch('controllers.project_controller.get_ai_service', return_value=MagicMock()), \
+             patch('controllers.project_controller.task_manager.submit_task'):
+            response = client.post(
+                f'/api/projects/{project.id}/generate/images',
+                json={'page_ids': [page.id], 'use_template': False},
+                headers=self._auth_headers(internal_user),
+            )
+
+        data = assert_success_response(response, 202)
+        assert data['data']['total_pages'] == 1
+
+        db_session.refresh(internal_user)
+        assert internal_user.points == 0
+        assert PointsTransaction.query.filter_by(user_id=internal_user.id, type='generation').count() == 0
+
     def test_generate_images_passes_authenticated_user_to_background_task(self, client, db_session):
         from models import User
 

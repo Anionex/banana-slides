@@ -1,9 +1,10 @@
-"""Admin controller - user management, admin accounts, and private settings."""
+"""Admin controller - admin console, shared settings, and managed user accounts."""
+
 import logging
 import re
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
 from controllers.settings_controller import (
     SettingsValidationError,
@@ -39,36 +40,46 @@ def _validate_admin_password(password: str):
         )
 
 
-def _get_admin_settings_or_404():
-    settings = Settings.get_admin_settings(g.current_user, create_if_missing=True)
+def _get_shared_settings_or_404():
+    settings = Settings.get_global_settings()
     if not settings:
-        raise SettingsValidationError("Admin settings not found")
+        raise SettingsValidationError("Shared settings not found")
     return settings
+
+
+def _normalize_user_role(raw_role: str | None) -> str:
+    role = (raw_role or "").strip().lower()
+    return role or User.ROLE_USER
+
+
+def _validate_manageable_role(role: str):
+    if role not in (User.ROLE_USER, User.ROLE_INTERNAL, User.ROLE_ADMIN):
+        raise SettingsValidationError("role must be one of 'user', 'internal', or 'admin'")
 
 
 @admin_bp.route("/login", methods=["POST"])
 def admin_login():
-    """Admin-only login: username + password, role must be admin."""
+    """Admin console login: only admin-console roles may sign in here."""
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
     if not username or not password:
-        return jsonify({"error": "请输入账号和密码"}), 400
+        return jsonify({"error": "Username and password are required"}), 400
 
     user = User.query.filter((User.username == username) | (User.phone == username)).first()
 
     if not user or not user.password_hash:
-        return jsonify({"error": "账号或密码错误"}), 401
+        return jsonify({"error": "Invalid username or password"}), 401
 
     if not _check_password(password, user.password_hash):
-        return jsonify({"error": "账号或密码错误"}), 401
+        return jsonify({"error": "Invalid username or password"}), 401
 
     if not user.is_active:
-        return jsonify({"error": "账号已被禁用"}), 403
+        return jsonify({"error": "Account is disabled"}), 403
 
-    if user.role != "admin":
-        return jsonify({"error": "无管理员权限"}), 403
+    if not user.can_access_admin_console():
+        return jsonify({"error": "Admin console access denied"}), 403
 
     tokens = generate_tokens(user.id, user.role)
     return jsonify({"data": {"user": user.to_dict(admin=True), **tokens}})
@@ -132,10 +143,11 @@ def list_users():
 
 @admin_bp.route("/users", methods=["POST"])
 @require_admin
-def create_admin_user():
+def create_managed_user():
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
+    role = _normalize_user_role(data.get("role"))
 
     if not username:
         return jsonify({"error": "Username is required"}), 400
@@ -143,26 +155,28 @@ def create_admin_user():
         return jsonify({"error": "Username already exists"}), 409
 
     try:
+        _validate_manageable_role(role)
         _validate_admin_password(password)
     except SettingsValidationError as exc:
         return jsonify({"error": str(exc)}), 400
 
     now = datetime.utcnow()
-    admin_user = User(
+    managed_user = User(
         username=username,
         password_hash=_hash_password(password),
-        role="admin",
+        role=role,
         points=0,
         is_active=True,
         created_at=now,
         updated_at=now,
     )
-    db.session.add(admin_user)
+    db.session.add(managed_user)
     db.session.commit()
 
-    Settings.get_admin_settings(admin_user, create_if_missing=True)
+    if managed_user.uses_private_runtime_settings():
+        Settings.get_private_settings(managed_user, create_if_missing=True)
 
-    return jsonify({"data": admin_user.to_dict(admin=True)}), 201
+    return jsonify({"data": managed_user.to_dict(admin=True)}), 201
 
 
 @admin_bp.route("/users/<string:user_id>", methods=["PUT"])
@@ -171,8 +185,16 @@ def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
 
-    if "role" in data and data["role"] in ("user", "admin"):
-        user.role = data["role"]
+    if "role" in data:
+        role = _normalize_user_role(data["role"])
+        try:
+            _validate_manageable_role(role)
+        except SettingsValidationError as exc:
+            return jsonify({"error": str(exc)}), 400
+        user.role = role
+        if user.uses_private_runtime_settings():
+            Settings.get_private_settings(user, create_if_missing=True)
+
     if "is_active" in data:
         user.is_active = bool(data["is_active"])
 
@@ -187,7 +209,7 @@ def adjust_points(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
     amount = int(data.get("amount", 0))
-    description = (data.get("description") or "管理员调整").strip()
+    description = (data.get("description") or "Admin adjustment").strip()
 
     if amount == 0:
         return jsonify({"error": "amount cannot be 0"}), 400
@@ -216,7 +238,7 @@ def admin_activate_subscription(user_id):
     plan = data.get("plan", "monthly")
 
     if plan not in ("monthly", "yearly"):
-        return jsonify({"error": "无效的订阅方案"}), 400
+        return jsonify({"error": "Invalid subscription plan"}), 400
 
     Subscription.query.filter_by(user_id=user.id, status="active").update({"status": "expired"})
 
@@ -329,7 +351,7 @@ def change_admin_password():
 @admin_bp.route("/settings", methods=["GET"], strict_slashes=False)
 @require_admin
 def get_admin_settings():
-    settings = _get_admin_settings_or_404()
+    settings = _get_shared_settings_or_404()
     return jsonify({"data": settings.to_dict(include_defaults=False)})
 
 
@@ -338,7 +360,7 @@ def get_admin_settings():
 def update_admin_settings():
     try:
         data = request.get_json()
-        settings = _get_admin_settings_or_404()
+        settings = _get_shared_settings_or_404()
         _apply_settings_updates(settings, data)
         db.session.commit()
         return jsonify(
@@ -360,7 +382,7 @@ def update_admin_settings():
 @require_admin
 def reset_admin_settings():
     try:
-        settings = _get_admin_settings_or_404()
+        settings = _get_shared_settings_or_404()
         _reset_settings_values(settings)
         db.session.commit()
         return jsonify(
@@ -379,7 +401,7 @@ def reset_admin_settings():
 @require_admin
 def run_admin_settings_test(test_name: str):
     try:
-        settings = _get_admin_settings_or_404()
+        settings = _get_shared_settings_or_404()
         override_settings = request.get_json() or {}
         return create_settings_test_task(test_name, settings, override_settings)
     except SettingsValidationError as exc:
