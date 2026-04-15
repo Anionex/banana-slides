@@ -192,7 +192,7 @@ export const Home: React.FC = () => {
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
-  const { user, openLoginModal, requireAuth, usesPrivateSettings } = useUserStore();
+  const { user, openLoginModal, requireAuth, canAccessSettingsPage } = useUserStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -806,7 +806,7 @@ export const Home: React.FC = () => {
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
             </Button>
-            {usesPrivateSettings() && (
+            {canAccessSettingsPage() && (
               <Button
                 variant="ghost"
                 size="sm"

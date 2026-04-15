@@ -34,6 +34,7 @@ interface UserStore {
   isInternalUser: () => boolean;
   canAccessAdminConsole: () => boolean;
   usesPrivateSettings: () => boolean;
+  canAccessSettingsPage: () => boolean;
 }
 
 export const useUserStore = create<UserStore>()(
@@ -66,6 +67,8 @@ export const useUserStore = create<UserStore>()(
       isInternalUser: () => get().user?.role === 'internal',
       canAccessAdminConsole: () => get().user?.role === 'admin',
       usesPrivateSettings: () => get().user?.role === 'internal',
+      canAccessSettingsPage: () =>
+        get().user?.role === 'admin' || get().user?.role === 'internal',
     }),
     {
       name: 'feiye-user',

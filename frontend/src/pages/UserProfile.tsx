@@ -11,7 +11,7 @@ const PLAN_LABELS: Record<string, string> = {
 
 export function UserProfile() {
   const navigate = useNavigate();
-  const { user, setUser, logout, openLoginModal } = useUserStore();
+  const { user, setUser, logout, openLoginModal, canAccessSettingsPage } = useUserStore();
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState<{
     plan: string;
@@ -249,7 +249,7 @@ export function UserProfile() {
           </button>
         )}
 
-        {isInternal && (
+        {canAccessSettingsPage() && (
           <button
             onClick={() => navigate('/settings')}
             className="w-full py-3 rounded-2xl text-sm font-medium bg-[var(--bg-elevated)] border border-[var(--border-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-colors"
