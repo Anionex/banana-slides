@@ -7,6 +7,9 @@ export const authApi = {
   register: (data: { phone: string; code: string; username?: string; password?: string }) =>
     apiClient.post('/api/auth/register', data),
 
+  registerPassword: (data: { username: string; password: string }) =>
+    apiClient.post('/api/auth/register/password', data),
+
   loginPhone: (data: { phone: string; code: string }) =>
     apiClient.post('/api/auth/login/phone', data),
 
