@@ -132,7 +132,9 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   } else if (message.includes('500') || message.includes('internal server error')) {
     return isZh ? '服务器内部错误，请稍后重试。' : 'Internal server error. Please try again later.';
   } else if (message.includes('502') || message.includes('bad gateway')) {
-    return isZh ? '网关错误，请稍后重试。' : 'Bad gateway. Please try again later.';
+    return isZh
+      ? '导出过程中服务中断，通常是文件过大或服务器内存不足导致。请稍后重试；如果仍失败，建议先导出 PPTX 或减少导出页数。'
+      : 'The export interrupted the service, usually because the file is too large or the server ran out of memory. Please try again later, or export PPTX / fewer pages first.';
   } else if (message.includes('504') || message.includes('gateway timeout')) {
     return isZh ? '请求超时，请稍后重试。' : 'Gateway timeout. Please try again later.';
   } else if (message.includes('429') || message.includes('too many requests')) {

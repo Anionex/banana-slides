@@ -326,17 +326,17 @@ class ExportService:
                 fit=img2pdf.FitMode.fill,
             )
 
-            # Convert images to PDF
-            pdf_bytes = img2pdf.convert(valid_paths, layout_fun=layout_fun)
-
-            # Add metadata
-            pdf_bytes = ExportService._add_pdf_metadata(pdf_bytes)
-
             if output_file:
+                # Stream directly to disk to reduce peak memory usage for large exports.
                 with open(output_file, "wb") as f:
-                    f.write(pdf_bytes)
+                    img2pdf.convert(valid_paths, layout_fun=layout_fun, outputstream=f)
+
+                ExportService._add_pdf_metadata_to_file(output_file)
                 return None
             else:
+                # Keep bytes mode for callers that explicitly need in-memory output.
+                pdf_bytes = img2pdf.convert(valid_paths, layout_fun=layout_fun)
+                pdf_bytes = ExportService._add_pdf_metadata(pdf_bytes)
                 return pdf_bytes
         except (img2pdf.ImageOpenError, ValueError, IOError) as e:
             logger.warning(f"img2pdf conversion failed: {e}. Falling back to Pillow (high memory usage).")
@@ -386,6 +386,49 @@ class ExportService:
         except Exception as e:
             logger.warning(f"Failed to add PDF metadata: {e}")
             return pdf_bytes
+
+    @staticmethod
+    def _add_pdf_metadata_to_file(pdf_path: str) -> None:
+        """Add metadata directly to a PDF file already written on disk."""
+        try:
+            doc = fitz.open(pdf_path)
+
+            doc.set_metadata({
+                "author": "banana-slides",
+                "producer": "banana-slides",
+                "creator": "banana-slides"
+            })
+
+            now = datetime.now(timezone.utc)
+            iso_time = now.isoformat()
+            content_hash = hashlib.md5(f"{pdf_path}:{os.path.getsize(pdf_path)}".encode("utf-8")).hexdigest()
+
+            xmp = dedent(f'''\
+                <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+                <x:xmpmeta xmlns:x="adobe:ns:meta/">
+                  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+                      <dc:creator><rdf:Seq><rdf:li>banana-slides</rdf:li></rdf:Seq></dc:creator>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+                      <pdf:Producer>banana-slides</pdf:Producer>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                      <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
+                      <xmp:CreateDate>{iso_time}</xmp:CreateDate>
+                      <xmp:MetadataDate>{iso_time}</xmp:MetadataDate>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/">
+                      <xmpMM:DocumentID>uuid:{content_hash}</xmpMM:DocumentID>
+                    </rdf:Description>
+                  </rdf:RDF>
+                </x:xmpmeta>
+                <?xpacket end="w"?>''')
+            doc.set_xml_metadata(xmp)
+            doc.save(pdf_path, incremental=False, encryption=fitz.PDF_ENCRYPT_KEEP)
+            doc.close()
+        except Exception as e:
+            logger.warning(f"Failed to add PDF metadata to file: {e}")
 
     @staticmethod
     def create_pdf_from_images_pillow(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> Optional[bytes]:
