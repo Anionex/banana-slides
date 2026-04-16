@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2, Settings as SettingsIcon } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import PresetCapsules from '@/components/shared/PresetCapsules';
+import { Settings as SettingsComponent } from '@/pages/Settings';
+import { Modal } from '@/components/shared/Modal';
 
 // 组件内翻译
 const outlineI18n = {
   zh: {
+    common: { settings: '设置' },
     home: { title: '蕉幻' },
     outline: {
       title: "编辑大纲", pageCount: "共 {{count}} 页", addPage: "添加页面",
@@ -40,6 +43,7 @@ const outlineI18n = {
     }
   },
   en: {
+    common: { settings: 'Settings' },
     home: { title: 'Banana Slides' },
     outline: {
       title: "Edit Outline", pageCount: "{{count}} pages", addPage: "Add Page",
@@ -152,6 +156,7 @@ export const OutlineEditor: React.FC = () => {
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Skeleton fade-out: keep it mounted briefly after streaming ends
   const [skeletonVisible, setSkeletonVisible] = useState(false);
@@ -490,6 +495,16 @@ export const OutlineEditor: React.FC = () => {
 
           {/* 右侧：操作按钮 */}
           <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<SettingsIcon size={16} className="md:w-[18px] md:h-[18px]" />}
+              onClick={() => setShowSettingsModal(true)}
+              title={t('common.settings')}
+              className="flex-shrink-0"
+            >
+              <span className="hidden sm:inline">{t('common.settings')}</span>
+            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -834,6 +849,14 @@ export const OutlineEditor: React.FC = () => {
       {ConfirmDialog}
       <ToastContainer />
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <Modal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        title={t('common.settings')}
+        size="xl"
+      >
+        <SettingsComponent />
+      </Modal>
       <MaterialSelector
         projectId={projectId}
         isOpen={isMaterialSelectorOpen}

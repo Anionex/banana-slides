@@ -1,7 +1,28 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
+
+let bodyScrollLockCount = 0;
+let previousBodyOverflow = '';
+
+const lockBodyScroll = () => {
+  if (typeof document === 'undefined') return;
+  if (bodyScrollLockCount === 0) {
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  bodyScrollLockCount += 1;
+};
+
+const unlockBodyScroll = () => {
+  if (typeof document === 'undefined' || bodyScrollLockCount === 0) return;
+  bodyScrollLockCount -= 1;
+  if (bodyScrollLockCount === 0) {
+    document.body.style.overflow = previousBodyOverflow;
+    previousBodyOverflow = '';
+  }
+};
 
 interface ModalProps {
   isOpen: boolean;
@@ -22,29 +43,52 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const hasBodyLockRef = useRef(false);
+  const animFrameRef = useRef<number | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (isOpen) {
+      if (!hasBodyLockRef.current) {
+        lockBodyScroll();
+        hasBodyLockRef.current = true;
+      }
       setIsVisible(true);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      animFrameRef.current = requestAnimationFrame(() => {
+        animFrameRef.current = requestAnimationFrame(() => {
+          animFrameRef.current = null;
           setIsAnimating(true);
         });
       });
-      document.body.style.overflow = 'hidden';
     } else {
+      if (animFrameRef.current !== null) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
       setIsAnimating(false);
       const timer = setTimeout(() => {
         setIsVisible(false);
+        if (hasBodyLockRef.current) {
+          unlockBodyScroll();
+          hasBodyLockRef.current = false;
+        }
       }, 250);
-      document.body.style.overflow = '';
       return () => clearTimeout(timer);
     }
-
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current !== null) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      if (hasBodyLockRef.current) {
+        unlockBodyScroll();
+        hasBodyLockRef.current = false;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,7 +137,7 @@ export const Modal: React.FC<ModalProps> = ({
         <div
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? 'modal-title' : undefined}
+          aria-labelledby={title ? titleId : undefined}
           className={cn(
             'relative w-full flex flex-col',
             'max-h-[85vh]',
@@ -128,7 +172,7 @@ export const Modal: React.FC<ModalProps> = ({
           {title && (
             <div className="relative flex-shrink-0 px-7 pt-7 pb-5">
               <h2
-                id="modal-title"
+                id={titleId}
                 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight pr-10"
               >
                 {title}

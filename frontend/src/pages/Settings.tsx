@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
@@ -402,6 +402,8 @@ export const Settings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
+  const testIntervalRef = useRef<Record<string, ReturnType<typeof setInterval> | null>>({});
+  const testTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
@@ -543,6 +545,19 @@ export const Settings: React.FC = () => {
     loadSettings();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      Object.values(testIntervalRef.current).forEach((timer) => {
+        if (timer) clearInterval(timer);
+      });
+      Object.values(testTimeoutRef.current).forEach((timer) => {
+        if (timer) clearTimeout(timer);
+      });
+      testIntervalRef.current = {};
+      testTimeoutRef.current = {};
+    };
+  }, []);
+
   const loadSettings = async () => {
     setIsLoading(true);
     try {
@@ -656,11 +671,23 @@ export const Settings: React.FC = () => {
     setServiceTestStates(prev => ({ ...prev, [key]: nextState }));
   };
 
+  const clearServiceTestTimers = (key: string) => {
+    if (testIntervalRef.current[key]) {
+      clearInterval(testIntervalRef.current[key]);
+      testIntervalRef.current[key] = null;
+    }
+    if (testTimeoutRef.current[key]) {
+      clearTimeout(testTimeoutRef.current[key]);
+      testTimeoutRef.current[key] = null;
+    }
+  };
+
   const handleServiceTest = async (
     key: string,
     action: (settings?: any) => Promise<any>,
     formatDetail: (data: any) => string
   ) => {
+    clearServiceTestTimers(key);
     updateServiceTest(key, { status: 'loading' });
     try {
       // 准备测试时要使用的设置（包括未保存的修改）
@@ -712,26 +739,30 @@ export const Settings: React.FC = () => {
       const taskId = response.data.task_id;
 
       // 开始轮询任务状态
-      const pollInterval = setInterval(async () => {
+      testIntervalRef.current[key] = setInterval(async () => {
         try {
           const statusResponse = await api.getTestStatus(taskId);
-          const taskStatus = statusResponse.data.status;
+          const statusData = statusResponse.data;
+          if (!statusData) {
+            throw new Error(t('settings.serviceTest.testFailed'));
+          }
+          const taskStatus = statusData.status;
 
           if (taskStatus === 'COMPLETED') {
-            clearInterval(pollInterval);
-            const detail = formatDetail(statusResponse.data.result || {});
-            const message = statusResponse.data.message || t('settings.messages.testSuccess');
+            clearServiceTestTimers(key);
+            const detail = formatDetail(statusData.result || {});
+            const message = statusData.message || t('settings.messages.testSuccess');
             updateServiceTest(key, { status: 'success', message, detail });
             show({ message, type: 'success' });
           } else if (taskStatus === 'FAILED') {
-            clearInterval(pollInterval);
-            const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
+            clearServiceTestTimers(key);
+            const errorMessage = statusData.error || t('settings.serviceTest.testFailed');
             updateServiceTest(key, { status: 'error', message: errorMessage });
             show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
         } catch (pollError: any) {
-          clearInterval(pollInterval);
+          clearServiceTestTimers(key);
           const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || t('settings.serviceTest.testFailed');
           updateServiceTest(key, { status: 'error', message: errorMessage });
           show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
@@ -739,15 +770,14 @@ export const Settings: React.FC = () => {
       }, 2000); // 每2秒轮询一次
 
       // 设置最大轮询时间（2分钟）
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (serviceTestStates[key]?.status === 'loading') {
-          updateServiceTest(key, { status: 'error', message: t('settings.serviceTest.testTimeout') });
-          show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
-        }
+      testTimeoutRef.current[key] = setTimeout(() => {
+        clearServiceTestTimers(key);
+        updateServiceTest(key, { status: 'error', message: t('settings.serviceTest.testTimeout') });
+        show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
       }, 120000);
 
     } catch (error: any) {
+      clearServiceTestTimers(key);
       const errorMessage = error?.response?.data?.error?.message || error?.message || t('common.unknownError');
       updateServiceTest(key, { status: 'error', message: errorMessage });
       show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
