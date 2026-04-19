@@ -19,11 +19,44 @@ import logging
 import requests
 from io import BytesIO
 from typing import Optional, List, Tuple
+from urllib.parse import urlparse
 from PIL import Image
 from .base import ImageProvider
 from ..lazyllm_env import ensure_lazyllm_namespace_key
 
 logger = logging.getLogger(__name__)
+
+# Hosts trusted for the manual image fallback download in generate_image().
+_ALLOWED_FALLBACK_HOSTS = ('s3.siliconflow.cn',)
+_ALLOWED_FALLBACK_HOST_SUFFIXES = ('.s3.amazonaws.com',)
+
+
+def _is_safe_fallback_url(url: str) -> bool:
+    """Validate a URL is safe to fetch in the manual fallback path.
+
+    Guards against authority-confusion attacks where urlparse and the HTTP
+    client disagree on the target host (e.g. ``https://127.0.0.1:6666\\@s3.siliconflow.cn``
+    — urlparse reports ``s3.siliconflow.cn`` while requests connects to
+    ``127.0.0.1:6666``). We reject URLs containing characters that cause this
+    divergence (``\\`` anywhere, ``@`` in the netloc) before matching the
+    parsed hostname against a strict allowlist.
+    """
+    if not isinstance(url, str) or '\\' in url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme != 'https':
+        return False
+    if '@' in parsed.netloc:
+        return False
+    host = (parsed.hostname or '').lower()
+    if not host:
+        return False
+    if host in _ALLOWED_FALLBACK_HOSTS:
+        return True
+    return any(host.endswith(suffix) for suffix in _ALLOWED_FALLBACK_HOST_SUFFIXES)
 
 # Vendor-specific image dimension constraints
 # Format: vendor -> (min_dimension, max_dimension, min_total_pixels, separator)
@@ -233,15 +266,14 @@ class LazyLLMImageProvider(ImageProvider):
                 # instead of image/*. In that case, extract the URL and download manually.
                 err_str = str(client_err)
                 if 'content type' in err_str.lower() or 'Failed to load image from' in err_str:
-                    url_match = re.search(r'(https://[^\s"\'<>]+)', err_str)
+                    url_match = re.search(r'(https://[^\s"\'<>\\]+)', err_str)
                     if url_match:
                         url = url_match.group(1).rstrip('.')
-                        # Only fetch from known image-hosting domains to prevent SSRF
-                        from urllib.parse import urlparse
-                        host = urlparse(url).hostname or ''
-                        allowed = host == 's3.siliconflow.cn' or host.endswith('.s3.amazonaws.com')
-                        if not allowed:
-                            logger.warning(f"[LazyLLM] Untrusted host '{host}', skipping manual download")
+                        # Only fetch from known image-hosting domains to prevent SSRF.
+                        if not _is_safe_fallback_url(url):
+                            logger.warning(
+                                "[LazyLLM] Untrusted fallback URL rejected, skipping manual download"
+                            )
                             raise
                         logger.warning(
                             f"[LazyLLM] Content-type mismatch, downloading image manually: {url[:80]}..."
