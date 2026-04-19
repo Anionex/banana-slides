@@ -14,9 +14,11 @@ vi.mock('@/api/endpoints', () => ({
   getProject: vi.fn(),
   updatePage: vi.fn(),
   updatePageDescription: vi.fn(),
+  updatePageDesign: vi.fn(),
   updatePageOutline: vi.fn(),
   generateOutline: vi.fn(),
   generateDescriptions: vi.fn(),
+  generateDesigns: vi.fn(),
   generateImages: vi.fn(),
   getTaskStatus: vi.fn(),
   exportPPTX: vi.fn(),
@@ -124,6 +126,31 @@ describe('useProjectStore', () => {
       const updatedPage = result.current.currentProject?.pages.find(p => p.id === 'page-1')
       expect(updatedPage?.outline_content?.title).toBe('Updated Page 1')
     })
+
+    it('should update design content locally', () => {
+      const { result } = renderHook(() => useProjectStore())
+
+      act(() => {
+        result.current.setCurrentProject({
+          id: 'proj-123',
+          status: 'DRAFT',
+          pages: [
+            { id: 'page-1', outline_content: { title: 'Page 1', points: [] }, design_content: null },
+          ],
+        } as any)
+      })
+
+      act(() => {
+        result.current.updatePageLocal('page-1', {
+          design_content: {
+            text: '布局方式：左右分栏',
+            generated_at: '2026-04-14T00:00:00',
+          },
+        })
+      })
+
+      expect(result.current.currentProject?.pages[0].design_content?.text).toBe('布局方式：左右分栏')
+    })
   })
 
   describe('清除状态', () => {
@@ -146,4 +173,3 @@ describe('useProjectStore', () => {
     })
   })
 })
-

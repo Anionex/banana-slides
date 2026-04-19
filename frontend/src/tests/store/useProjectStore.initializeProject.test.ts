@@ -39,9 +39,11 @@ vi.mock('@/api/endpoints', () => ({
   // Other mocks needed by the store
   updatePage: vi.fn(),
   updatePageDescription: vi.fn(),
+  updatePageDesign: vi.fn(),
   updatePageOutline: vi.fn(),
   generateOutline: vi.fn(),
   generateDescriptions: vi.fn(),
+  generateDesigns: vi.fn(),
   generateImages: vi.fn(),
   getTaskStatus: vi.fn(),
   exportPPTX: vi.fn(),

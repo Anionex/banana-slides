@@ -37,15 +37,16 @@ const previewI18n = {
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
-      pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）",
+      pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）", pageDesign: "设计描述（可编辑）",
       enterTitle: "输入页面标题", pointsPerLine: "要点（每行一个）",
-      enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容",
+      enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容", enterDesign: "输入页面的设计描述内容",
       selectContextImages: "选择上下文图片（可选）", useTemplateImage: "使用模板图片",
       imagesInDescription: "描述中的图片", uploadImages: "上传图片",
       selectFromMaterials: "从素材库选择", upload: "上传",
       editPromptLabel: "输入修改指令(将自动添加页面描述)",
       editPromptPlaceholder: "例如：将框选区域内的素材移除、把背景改成蓝色、增大标题字号、更改文本框样式为虚线...",
-      saveOutlineOnly: "仅保存大纲/描述", generateImage: "生成图片",
+      saveOutlineOnly: "仅保存大纲/描述/设计", generateImage: "生成图片", generateDesign: "生成设计描述",
+      designProgress: "设计进度", imageProgress: "图片进度", autoDesignStage: "正在补全设计描述后再生成图片",
       templateModalDesc: "选择一个新的模板将应用到后续PPT页面生成（不影响已经生成的页面）。你可以选择预设模板、已有模板或上传新模板。",
       useTextStyle: "使用文字描述风格",
       applyStyle: "应用风格",
@@ -104,15 +105,16 @@ const previewI18n = {
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
-      pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)",
+      pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)", pageDesign: "Design Description (Editable)",
       enterTitle: "Enter page title", pointsPerLine: "Key Points (one per line)",
-      enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description",
+      enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description", enterDesign: "Enter page design description",
       selectContextImages: "Select Context Images (Optional)", useTemplateImage: "Use Template Image",
       imagesInDescription: "Images in Description", uploadImages: "Upload Images",
       selectFromMaterials: "Select from Materials", upload: "Upload",
       editPromptLabel: "Enter edit instructions (page description will be auto-added)",
       editPromptPlaceholder: "e.g., Remove elements in selected area, change background to blue, increase title font size, change text box style to dashed...",
-      saveOutlineOnly: "Save Outline/Description Only", generateImage: "Generate Image",
+      saveOutlineOnly: "Save Outline/Description/Design", generateImage: "Generate Image", generateDesign: "Generate Design Description",
+      designProgress: "Design Progress", imageProgress: "Image Progress", autoDesignStage: "Generating missing design descriptions before image generation",
       templateModalDesc: "Selecting a new template will apply to future PPT page generation (won't affect already generated pages). You can choose preset templates, existing templates, or upload a new one.",
       useTextStyle: "Use text description for style",
       applyStyle: "Apply Style",
@@ -185,10 +187,12 @@ export const SlidePreview: React.FC = () => {
   const {
     currentProject,
     syncProject,
+    generateDesigns,
     generateImages,
     editPageImage,
     deletePageById,
     updatePageLocal,
+    saveAllPages,
     isGlobalLoading,
     taskProgress,
     pageGeneratingTasks,
@@ -213,6 +217,7 @@ export const SlidePreview: React.FC = () => {
   const [editOutlineTitle, setEditOutlineTitle] = useState('');
   const [editOutlinePoints, setEditOutlinePoints] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editDesignDescription, setEditDesignDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   // 多选导出相关状态
@@ -591,6 +596,25 @@ export const SlidePreview: React.FC = () => {
     });
   }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show, checkResolutionAndExecute]);
 
+  const handleGeneratePageDesign = useCallback(async () => {
+    if (!currentProject) return;
+    const page = currentProject.pages[selectedIndex];
+    if (!page?.id) return;
+
+    // Flush pending edits to backend before generating designs
+    handleSaveOutlineAndDescription();
+    await saveAllPages();
+    try {
+      await generateDesigns([page.id]);
+      show({ message: t('preview.generateDesign'), type: 'success' });
+    } catch (error: any) {
+      show({
+        message: normalizeErrorMessage(error.message || t('preview.generationFailed')),
+        type: 'error',
+      });
+    }
+  }, [currentProject, selectedIndex, handleSaveOutlineAndDescription, saveAllPages, generateDesigns, show, t]);
+
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
     
@@ -659,6 +683,7 @@ export const SlidePreview: React.FC = () => {
       }
     }
     setEditDescription(descText);
+    setEditDesignDescription(page?.design_content?.text || '');
 
     if (pageId && editContextByPage[pageId]) {
       // 恢复该页上次编辑的内容和图片选择
@@ -721,13 +746,20 @@ export const SlidePreview: React.FC = () => {
         text: editDescription,
       } as DescriptionContent;
     }
+
+    const originalDesign = page.design_content?.text || '';
+    if (editDesignDescription !== originalDesign) {
+      updates.design_content = editDesignDescription.trim()
+        ? { text: editDesignDescription, generated_at: new Date().toISOString() }
+        : null;
+    }
     
     // 如果有修改，保存更新
     if (Object.keys(updates).length > 0) {
       updatePageLocal(page.id, updates);
       show({ message: t('slidePreview.outlineSaved'), type: 'success' });
     }
-  }, [currentProject, selectedIndex, editOutlineTitle, editOutlinePoints, editDescription, updatePageLocal, show]);
+  }, [currentProject, selectedIndex, editOutlineTitle, editOutlinePoints, editDescription, editDesignDescription, updatePageLocal, show]);
 
   const handleSubmitEdit = useCallback(async () => {
     if (!currentProject || !editPrompt.trim()) return;
@@ -1245,6 +1277,9 @@ export const SlidePreview: React.FC = () => {
     (p) => p.generated_image_path
   );
   const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
+  const progressData = taskProgress as any;
+  const hasDesignProgress = Boolean(progressData?.design_total) || progressData?.current_stage === 'design_generation';
+  const hasImageProgress = Boolean(progressData?.total);
 
   return (
     <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
@@ -1440,6 +1475,31 @@ export const SlidePreview: React.FC = () => {
                 ? t('preview.generateSelected', { count: selectedPageIds.size })
                 : t('preview.batchGenerate', { count: currentProject.pages.length })}
             </Button>
+            {(hasDesignProgress || hasImageProgress) && (
+              <div className="rounded-lg border border-banana-200 bg-banana-50 px-3 py-2 text-xs text-banana-900">
+                {hasDesignProgress && (
+                  <div>
+                    <div className="font-semibold">{t('preview.designProgress')}</div>
+                    <div>
+                      {(progressData.design_completed ?? progressData.completed ?? 0)}/{progressData.design_total || progressData.total || 0}
+                      {(progressData.design_failed ?? progressData.failed) ? `, failed ${progressData.design_failed ?? progressData.failed}` : ''}
+                    </div>
+                  </div>
+                )}
+                {progressData?.current_stage === 'design_generation' && (
+                  <div className="mt-1">{t('preview.autoDesignStage')}</div>
+                )}
+                {hasImageProgress && progressData?.current_stage === 'image_generation' && (
+                  <div className={hasDesignProgress ? 'mt-2' : ''}>
+                    <div className="font-semibold">{t('preview.imageProgress')}</div>
+                    <div>
+                      {progressData.completed || 0}/{progressData.total || 0}
+                      {progressData.failed ? `, failed ${progressData.failed}` : ''}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* 缩略图列表：桌面端垂直，移动端横向滚动 */}
@@ -1894,6 +1954,19 @@ export const SlidePreview: React.FC = () => {
             )}
           </div>
 
+          <div className="bg-amber-50 rounded-lg border border-amber-200">
+            <div className="px-4 py-3">
+              <h4 className="text-sm font-semibold text-gray-700">{t('preview.pageDesign')}</h4>
+              <textarea
+                value={editDesignDescription}
+                onChange={(e) => setEditDesignDescription(e.target.value)}
+                rows={8}
+                className="mt-3 w-full px-3 py-2 text-sm border border-amber-300 bg-white text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-banana-500 resize-none"
+                placeholder={t('preview.enterDesign')}
+              />
+            </div>
+          </div>
+
           {/* 上下文图片选择 */}
           <div className="bg-gray-50 dark:bg-background-primary rounded-lg border border-gray-200 dark:border-border-primary p-4 space-y-4">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-foreground-secondary mb-3">{t('preview.selectContextImages')}</h4>
@@ -2036,6 +2109,9 @@ export const SlidePreview: React.FC = () => {
               {t('preview.saveOutlineOnly')}
             </Button>
             <div className="flex gap-3">
+              <Button variant="ghost" onClick={handleGeneratePageDesign}>
+                {t('preview.generateDesign')}
+              </Button>
               <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
                 {t('common.cancel')}
               </Button>

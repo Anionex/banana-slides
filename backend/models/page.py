@@ -20,6 +20,7 @@ class Page(db.Model):
     part = db.Column(db.String(200), nullable=True)  # Optional section name
     outline_content = db.Column(db.Text, nullable=True)  # JSON string
     description_content = db.Column(db.Text, nullable=True)  # JSON string
+    design_content = db.Column(db.Text, nullable=True)  # JSON string
     generated_image_path = db.Column(db.String(500), nullable=True)  # Original PNG image path
     cached_image_path = db.Column(db.String(500), nullable=True)  # Compressed JPG thumbnail path
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
@@ -63,6 +64,22 @@ class Page(db.Model):
             self.description_content = json.dumps(data, ensure_ascii=False)
         else:
             self.description_content = None
+
+    def get_design_content(self):
+        """Parse design_content from JSON string"""
+        if self.design_content:
+            try:
+                return json.loads(self.design_content)
+            except json.JSONDecodeError:
+                return None
+        return None
+
+    def set_design_content(self, data):
+        """Set design_content as JSON string"""
+        if data:
+            self.design_content = json.dumps(data, ensure_ascii=False)
+        else:
+            self.design_content = None
     
     def to_dict(self, include_versions=False):
         """Convert to dictionary"""
@@ -79,6 +96,7 @@ class Page(db.Model):
             'part': self.part,
             'outline_content': self.get_outline_content(),
             'description_content': self.get_description_content(),
+            'design_content': self.get_design_content(),
             'generated_image_url': display_image_url,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -92,4 +110,3 @@ class Page(db.Model):
     
     def __repr__(self):
         return f'<Page {self.id}: {self.order_index} - {self.status}>'
-

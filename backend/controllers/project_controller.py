@@ -22,6 +22,7 @@ from services.ai_service_manager import get_ai_service
 from services.task_manager import (
     task_manager,
     generate_descriptions_task,
+    generate_designs_task,
     generate_images_task,
     process_ppt_renovation_task
 )
@@ -151,6 +152,12 @@ def _smart_merge_pages(project_id, pages_data):
         db.session.delete(p)
 
     return pages_list
+
+
+def _clear_designs_for_pages(pages: list[Page]) -> None:
+    """Invalidate per-page design descriptions."""
+    for page in pages:
+        page.set_design_content(None)
 
 
 @project_bp.route('', methods=['GET'])
@@ -332,7 +339,10 @@ def update_project(project_id):
         
         # Update template_style if provided
         if 'template_style' in data:
-            project.template_style = data['template_style']
+            new_template_style = data['template_style']
+            if project.template_style != new_template_style:
+                _clear_designs_for_pages(project.pages)
+            project.template_style = new_template_style
         
         # Update aspect ratio if provided
         if 'image_aspect_ratio' in data:
@@ -472,6 +482,7 @@ def generate_outline(project_id):
         # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(outline)
         pages_list = _smart_merge_pages(project_id, pages_data)
+        _clear_designs_for_pages(pages_list)
 
         # Update project status (don't downgrade if all pages already have content)
         if all(p.description_content for p in pages_list) and pages_list:
@@ -574,6 +585,7 @@ def generate_outline_stream(project_id):
 
                 # Save all pages to database
                 pages_list = _smart_merge_pages(project_id, streamed_pages)
+                _clear_designs_for_pages(pages_list)
 
                 if all(p.description_content for p in pages_list) and pages_list:
                     proj.status = 'DESCRIPTIONS_GENERATED'
@@ -892,6 +904,7 @@ def generate_descriptions_stream(project_id):
                         desc_content['extra_fields'] = result['extra_fields']
 
                     page.set_description_content(desc_content)
+                    page.set_design_content(None)
                     page.status = 'DESCRIPTION_GENERATED'
                     page.updated_at = datetime.utcnow()
                     db.session.commit()
@@ -995,6 +1008,7 @@ def generate_images(project_id):
         
         # Get page_ids from request body and fetch filtered pages
         selected_page_ids = parse_page_ids_from_body(data)
+        all_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
         
         if not pages:
@@ -1012,7 +1026,7 @@ def generate_images(project_id):
             return bad_request("请先上传模板图片或添加风格描述。")
         
         # Reconstruct outline from pages with part structure
-        outline = _reconstruct_outline_from_pages(pages)
+        outline = _reconstruct_outline_from_pages(all_pages)
         
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
@@ -1083,6 +1097,90 @@ def generate_images(project_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"generate_images failed: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@project_bp.route('/<project_id>/generate/designs', methods=['POST'])
+def generate_designs(project_id):
+    """
+    POST /api/projects/{project_id}/generate/designs - Generate per-page design descriptions
+
+    Request body:
+    {
+        "max_workers": 5,
+        "language": "zh",
+        "page_ids": ["id1", "id2"]
+    }
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        if not project.pages:
+            return bad_request("Project must have outline generated first")
+
+        db.session.expire_all()
+        data = request.get_json() or {}
+
+        if 'page_ids' in data:
+            if not isinstance(data['page_ids'], list):
+                return bad_request("page_ids must be an array")
+            if len(data['page_ids']) == 0:
+                return bad_request("page_ids cannot be empty")
+
+        requested_page_ids = parse_page_ids_from_body(data)
+        all_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+        if not all_pages:
+            return bad_request("No pages found for project")
+
+        pages = get_filtered_pages(project_id, requested_page_ids if requested_page_ids else None)
+        if 'page_ids' in data and not pages:
+            return bad_request("No valid page_ids found for project")
+
+        outline = _reconstruct_outline_from_pages(all_pages)
+        max_workers_cap = current_app.config.get('MAX_DESCRIPTION_WORKERS', 5)
+        max_workers = min(int(data.get('max_workers', max_workers_cap)), max_workers_cap)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+        task = Task(
+            project_id=project_id,
+            task_type='GENERATE_DESIGNS',
+            status='PENDING'
+        )
+        task.set_progress({
+            'total': len(pages),
+            'completed': 0,
+            'failed': 0
+        })
+        db.session.add(task)
+        db.session.commit()
+
+        ai_service = get_ai_service()
+        app = current_app._get_current_object()
+
+        task_manager.submit_task(
+            task.id,
+            generate_designs_task,
+            project_id,
+            ai_service,
+            outline,
+            max_workers,
+            app,
+            language,
+            [page.id for page in pages],
+            project.image_aspect_ratio,
+        )
+
+        return success_response({
+            'task_id': task.id,
+            'status': 'GENERATING_DESIGNS',
+            'total_pages': len(pages)
+        }, status_code=202)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"generate_designs failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -1173,6 +1271,7 @@ def refine_outline(project_id):
         # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(refined_outline)
         pages_list = _smart_merge_pages(project_id, pages_data)
+        _clear_designs_for_pages(pages_list)
 
         preserved_count = sum(1 for p in pages_list if p.description_content)
         new_count = len(pages_list) - preserved_count
@@ -1303,6 +1402,7 @@ def refine_descriptions(project_id):
                 "generated_at": datetime.utcnow().isoformat()
             }
             page.set_description_content(desc_content)
+            page.set_design_content(None)
             page.status = 'DESCRIPTION_GENERATED'
         
         # Update project status

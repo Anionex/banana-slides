@@ -26,6 +26,11 @@ export type DescriptionContent =
       layout_suggestion?: string; // 向后兼容
     };
 
+export interface DesignContent {
+  text: string;
+  generated_at: string;
+}
+
 // 图片版本
 export interface ImageVersion {
   version_id: string;
@@ -45,6 +50,7 @@ export interface Page {
   part?: string; // 章节名
   outline_content: OutlineContent | null;
   description_content?: DescriptionContent;
+  design_content?: DesignContent | null;
   generated_image_url?: string; // 后端返回 generated_image_url
   generated_image_path?: string; // 前端使用的别名
   status: PageStatus;
@@ -167,4 +173,3 @@ export interface Settings {
   created_at?: string;
   updated_at?: string;
 }
-

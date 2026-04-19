@@ -115,6 +115,7 @@ interface ProjectState {
   generateOutlineStream: () => Promise<{ complete: boolean } | undefined>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: (detailLevel?: string) => Promise<void>;
+  generateDesigns: (pageIds?: string[]) => Promise<void>;
   generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
   regenerateRenovationPage: (pageId: string, keepLayout?: boolean) => Promise<void>;
   generateImages: (pageIds?: string[]) => Promise<void>;
@@ -144,6 +145,11 @@ const debouncedUpdatePage = debounce(
     // 如果更新的是 description_content，使用专门的端点
     if (data.description_content) {
       promises.push(api.updatePageDescription(projectId, pageId, data.description_content));
+    }
+
+    // 如果更新的是 design_content，使用专门的端点
+    if ('design_content' in data) {
+      promises.push(api.updatePageDesign(projectId, pageId, data.design_content));
     }
 
     // 如果更新的是 outline_content，使用专门的端点
@@ -894,6 +900,35 @@ const debouncedUpdatePage = debounce(
     }
   },
 
+  generateDesigns: async (pageIds?: string[]) => {
+    const { currentProject } = get();
+    if (!currentProject || !currentProject.id) return;
+
+    set({ error: null });
+
+    try {
+      const response = await api.generateDesigns(currentProject.id, undefined, pageIds);
+      const taskId = response.data?.task_id;
+      if (!taskId) {
+        throw new Error(t('store.noTaskId'));
+      }
+
+      set({
+        activeTaskId: taskId,
+        taskProgress: {
+          total: response.data?.total_pages || (pageIds?.length || currentProject.pages.length),
+          completed: 0,
+          failed: 0,
+        },
+      });
+      get().pollTask(taskId);
+    } catch (error: any) {
+      console.error('[生成设计描述] 启动任务失败:', error);
+      set({ error: normalizeErrorMessage(error.message || t('store.startGenerationFailed')) });
+      throw error;
+    }
+  },
+
   // 生成单页描述
   generatePageDescription: async (pageId: string, detailLevel?: string) => {
     const { currentProject } = get();
@@ -1049,6 +1084,9 @@ const debouncedUpdatePage = debounce(
         }
 
         devLog(`[批量轮询] Task ${taskId} 状态: ${task.status}`, task.progress);
+        if (task.progress) {
+          set({ taskProgress: task.progress });
+        }
 
         // 检查任务状态
         if (task.status === 'COMPLETED') {
@@ -1066,6 +1104,7 @@ const debouncedUpdatePage = debounce(
           const warningMessage = task.progress?.warning_message || null;
           
           set({ pageGeneratingTasks: newTasks, warningMessage });
+          set({ taskProgress: null });
 
           // 刷新项目数据，并验证图片路径已更新
           // 使用重试机制确保数据同步完成
@@ -1113,6 +1152,7 @@ const debouncedUpdatePage = debounce(
           });
           set({ 
             pageGeneratingTasks: newTasks,
+            taskProgress: null,
             error: normalizeErrorMessage(task.error_message || task.error || t('store.batchGenerateFailed'))
           });
           // 刷新项目数据以更新页面状态
@@ -1170,7 +1210,7 @@ const debouncedUpdatePage = debounce(
             delete newTasks[id];
           }
         });
-        set({ pageGeneratingTasks: newTasks });
+        set({ pageGeneratingTasks: newTasks, taskProgress: null });
       }
     };
 

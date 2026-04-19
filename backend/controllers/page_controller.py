@@ -56,7 +56,11 @@ def create_page(project_id):
 
         if 'description_content' in data:
             page.set_description_content(data['description_content'])
+            page.set_design_content(None)
             page.status = 'DESCRIPTION_GENERATED'
+
+        if 'design_content' in data:
+            page.set_design_content(data['design_content'])
 
         db.session.add(page)
         
@@ -137,6 +141,14 @@ def update_page(project_id, page_id):
         if 'part' in data:
             page.part = data['part']
 
+        if 'description_content' in data:
+            page.set_description_content(data['description_content'])
+            page.set_design_content(None)
+            page.status = 'DESCRIPTION_GENERATED'
+
+        if 'design_content' in data:
+            page.set_design_content(data['design_content'])
+
         page.updated_at = datetime.utcnow()
 
         # Update project
@@ -175,13 +187,14 @@ def update_page_outline(project_id, page_id):
             return bad_request("outline_content is required")
         
         page.set_outline_content(data['outline_content'])
+        page.set_design_content(None)
         page.updated_at = datetime.utcnow()
-        
+
         # Update project
         project = Project.query.get(project_id)
         if project:
             project.updated_at = datetime.utcnow()
-        
+
         db.session.commit()
         
         return success_response(page.to_dict())
@@ -217,6 +230,7 @@ def update_page_description(project_id, page_id):
             return bad_request("description_content is required")
         
         page.set_description_content(data['description_content'])
+        page.set_design_content(None)
         page.updated_at = datetime.utcnow()
         
         # Update project
@@ -309,6 +323,7 @@ def generate_page_description(project_id, page_id):
             desc_content['extra_fields'] = desc_result['extra_fields']
         
         page.set_description_content(desc_content)
+        page.set_design_content(None)
         page.status = 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
         
@@ -841,6 +856,7 @@ def regenerate_renovation_page(project_id, page_id):
             "text": description,
             "generated_at": datetime.utcnow().isoformat()
         })
+        page.set_design_content(None)
         page.status = 'DESCRIPTION_GENERATED'
         page.updated_at = datetime.utcnow()
 
