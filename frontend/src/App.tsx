@@ -27,7 +27,7 @@ import OIDCCallbackPage from './pages/auth/OIDCCallbackPage';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
 import AdminLayout from './components/admin/AdminLayout';
-import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs, AdminAnnouncements } from './pages/admin';
+import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminConfigGeneral, AdminConfigCredits, AdminConfigPayment, AdminConfigStorage, AdminLogs, AdminAnnouncements } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
 import { usePublicConfigStore } from './store/usePublicConfigStore';
@@ -184,6 +184,26 @@ function App() {
         <Route path="/admin/config" element={
           <AdminRoute>
             <AdminLayout><AdminConfig /></AdminLayout>
+          </AdminRoute>
+        } />
+        <Route path="/admin/config/general" element={
+          <AdminRoute>
+            <AdminLayout><AdminConfigGeneral /></AdminLayout>
+          </AdminRoute>
+        } />
+        <Route path="/admin/config/credits" element={
+          <AdminRoute>
+            <AdminLayout><AdminConfigCredits /></AdminLayout>
+          </AdminRoute>
+        } />
+        <Route path="/admin/config/payment" element={
+          <AdminRoute>
+            <AdminLayout><AdminConfigPayment /></AdminLayout>
+          </AdminRoute>
+        } />
+        <Route path="/admin/config/storage" element={
+          <AdminRoute>
+            <AdminLayout><AdminConfigStorage /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/logs" element={

@@ -11,7 +11,13 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Home,
+  Shield,
+  CreditCard,
+  Wallet,
+  Database,
+  type LucideIcon,
 } from 'lucide-react';
 
 const i18n = {
@@ -21,6 +27,10 @@ const i18n = {
     transactions: '积分明细',
     orders: '订单审计',
     config: '系统配置',
+    configGeneral: '通用',
+    configCredits: '积分与套餐',
+    configPayment: '支付',
+    configStorage: '存储与 AI',
     announcements: '公告管理',
     logs: '后端日志',
     backHome: '返回首页',
@@ -33,6 +43,10 @@ const i18n = {
     transactions: 'Transactions',
     orders: 'Orders',
     config: 'Configuration',
+    configGeneral: 'General',
+    configCredits: 'Credits',
+    configPayment: 'Payment',
+    configStorage: 'Storage & AI',
     announcements: 'Announcements',
     logs: 'Logs',
     backHome: 'Back to Home',
@@ -41,12 +55,34 @@ const i18n = {
   },
 };
 
-const navItems = [
+interface NavChild {
+  path: string;
+  key: string;
+  icon: LucideIcon;
+}
+
+interface NavItem {
+  path: string;
+  key: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  children?: NavChild[];
+}
+
+const navItems: NavItem[] = [
   { path: '/admin', key: 'dashboard', icon: LayoutDashboard, exact: true },
   { path: '/admin/users', key: 'users', icon: Users },
   { path: '/admin/transactions', key: 'transactions', icon: ArrowLeftRight },
   { path: '/admin/orders', key: 'orders', icon: ShoppingCart },
-  { path: '/admin/config', key: 'config', icon: Settings },
+  {
+    path: '/admin/config', key: 'config', icon: Settings,
+    children: [
+      { path: '/admin/config/general', key: 'configGeneral', icon: Shield },
+      { path: '/admin/config/credits', key: 'configCredits', icon: CreditCard },
+      { path: '/admin/config/payment', key: 'configPayment', icon: Wallet },
+      { path: '/admin/config/storage', key: 'configStorage', icon: Database },
+    ],
+  },
   { path: '/admin/announcements', key: 'announcements', icon: Megaphone },
   { path: '/admin/logs', key: 'logs', icon: FileText },
 ];
@@ -59,11 +95,16 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const t = useT(i18n);
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const configActive = location.pathname.startsWith('/admin/config');
+  const [configOpen, setConfigOpen] = useState(configActive);
 
   const isActive = (path: string, exact?: boolean) => {
     if (exact) return location.pathname === path;
     return location.pathname.startsWith(path);
   };
+
+  const activeCls = 'bg-banana-50 text-banana-700 dark:bg-banana-500/10 dark:text-banana-400';
+  const inactiveCls = 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-foreground-secondary dark:hover:bg-background-hover dark:hover:text-foreground-primary';
 
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-background-primary">
@@ -93,14 +134,56 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {navItems.map((item) => {
             const active = isActive(item.path, item.exact);
             const Icon = item.icon;
+            const hasChildren = item.children && item.children.length > 0;
+            const showChildren = hasChildren && (configOpen || configActive) && !collapsed;
+
+            if (hasChildren && !collapsed) {
+              return (
+                <div key={item.path}>
+                  <button
+                    type="button"
+                    onClick={() => setConfigOpen(!configOpen)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                      active ? activeCls : inactiveCls
+                    }`}
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    <span className="truncate flex-1 text-left">{t(item.key)}</span>
+                    <ChevronDown
+                      size={14}
+                      className={`flex-shrink-0 transition-transform ${showChildren ? '' : '-rotate-90'}`}
+                    />
+                  </button>
+                  {showChildren && (
+                    <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
+                      {item.children!.map((child) => {
+                        const childActive = location.pathname === child.path;
+                        const ChildIcon = child.icon;
+                        return (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
+                              childActive ? activeCls : inactiveCls
+                            }`}
+                          >
+                            <ChildIcon size={15} className="flex-shrink-0" />
+                            <span className="truncate">{t(child.key)}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={hasChildren ? item.children![0].path : item.path}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-banana-50 text-banana-700 dark:bg-banana-500/10 dark:text-banana-400'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-foreground-secondary dark:hover:bg-background-hover dark:hover:text-foreground-primary'
+                  active ? activeCls : inactiveCls
                 }`}
                 title={collapsed ? t(item.key) : undefined}
               >
