@@ -228,6 +228,19 @@ interface LemonConfig {
   variant_ids: Record<string, string>;
 }
 
+interface WechatPayConfig {
+  mch_id: string;
+  app_id: string;
+  api_v3_key: string;
+  api_v3_key_length?: number;
+  private_key: string;
+  private_key_length?: number;
+  cert_serial_no: string;
+  wxpay_public_key_id: string;
+  wxpay_public_key: string;
+  wxpay_public_key_length?: number;
+}
+
 interface LocalStorageConfig {
   upload_folder: string;
 }
@@ -287,6 +300,7 @@ export interface SystemConfig {
     paypal: PayPalConfig;
     xunhupay: XunhuPayConfig;
     lemon_squeezy: LemonConfig;
+    wechatpay: WechatPayConfig;
   };
   storage_backend: 'local' | 'r2' | 'oss';
   storage_provider_configs: {
@@ -378,6 +392,15 @@ const EMPTY_SYSTEM_CONFIG: SystemConfig = {
       store_id: '',
       variant_ids: { starter: '', basic: '', standard: '', pro: '', enterprise: '' },
     },
+    wechatpay: {
+      mch_id: '',
+      app_id: '',
+      api_v3_key: '',
+      private_key: '',
+      cert_serial_no: '',
+      wxpay_public_key_id: '',
+      wxpay_public_key: '',
+    },
   },
   storage_backend: 'local',
   storage_provider_configs: {
@@ -408,6 +431,7 @@ export const PAYMENT_PROVIDER_OPTIONS = [
   { value: 'paypal', label: 'PayPal' },
   { value: 'xunhupay', label: 'XunhuPay' },
   { value: 'lemon_squeezy', label: 'Lemon Squeezy' },
+  { value: 'wechatpay', label: 'WeChat Pay (微信支付)' },
 ] as const;
 
 export const STORAGE_BACKEND_OPTIONS = [

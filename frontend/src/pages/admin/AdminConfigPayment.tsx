@@ -241,6 +241,59 @@ const AdminConfigPayment: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* WeChat Pay */}
+            <div className="border dark:border-border-primary rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-foreground-primary">WeChat Pay (微信支付)</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">V3 API · Native (PC扫码) + H5 (手机浏览器)</p>
+                </div>
+                <ProviderToggle checked={config.enabled_payment_providers.includes('wechatpay')} onChange={() => togglePaymentProvider('wechatpay')} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">商户号 (mch_id)</label>
+                  <Input value={config.payment_provider_configs.wechatpay.mch_id} onChange={(e) => handlePaymentProviderField('wechatpay', 'mch_id', e.target.value)} placeholder="1900000000" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">应用ID (app_id)</label>
+                  <Input value={config.payment_provider_configs.wechatpay.app_id} onChange={(e) => handlePaymentProviderField('wechatpay', 'app_id', e.target.value)} placeholder="wx..." />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">APIv3 密钥</label>
+                  <Input type="password" value={config.payment_provider_configs.wechatpay.api_v3_key} onChange={(e) => handlePaymentProviderField('wechatpay', 'api_v3_key', e.target.value)} placeholder={SecretPlaceholder(config.payment_provider_configs.wechatpay.api_v3_key_length)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">商户证书序列号</label>
+                  <Input value={config.payment_provider_configs.wechatpay.cert_serial_no} onChange={(e) => handlePaymentProviderField('wechatpay', 'cert_serial_no', e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">商户私钥 (PEM)</label>
+                  <textarea
+                    rows={3}
+                    value={config.payment_provider_configs.wechatpay.private_key}
+                    onChange={(e) => handlePaymentProviderField('wechatpay', 'private_key', e.target.value)}
+                    placeholder={config.payment_provider_configs.wechatpay.private_key_length ? `已配置 (${config.payment_provider_configs.wechatpay.private_key_length} chars)` : '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
+                    className="w-full rounded-md border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-sm px-3 py-2 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">微信支付公钥ID</label>
+                  <Input value={config.payment_provider_configs.wechatpay.wxpay_public_key_id} onChange={(e) => handlePaymentProviderField('wechatpay', 'wxpay_public_key_id', e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-500 dark:text-foreground-tertiary mb-1">微信支付公钥 (PEM)</label>
+                  <textarea
+                    rows={3}
+                    value={config.payment_provider_configs.wechatpay.wxpay_public_key}
+                    onChange={(e) => handlePaymentProviderField('wechatpay', 'wxpay_public_key', e.target.value)}
+                    placeholder={config.payment_provider_configs.wechatpay.wxpay_public_key_length ? `已配置 (${config.payment_provider_configs.wechatpay.wxpay_public_key_length} chars)` : '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----'}
+                    className="w-full rounded-md border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary text-sm px-3 py-2 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </Card>
       </main>

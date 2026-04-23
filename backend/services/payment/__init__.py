@@ -101,6 +101,8 @@ def _load_provider_class(preferred: str):
         return getattr(import_module('.xunhupay', __name__), 'XunhuPayProvider')
     if preferred in {'lemon_squeezy', 'lemonsqueezy'}:
         return getattr(import_module('.lemon_squeezy', __name__), 'LemonSqueezyProvider')
+    if preferred == 'wechatpay':
+        return getattr(import_module('.wechatpay', __name__), 'WechatPayProvider')
     raise ValueError(f'Unknown payment provider: {preferred}')
 
 
@@ -190,12 +192,13 @@ def get_subscription_plan(plan_id: str) -> Optional[SubscriptionPlan]:
 
 
 def __getattr__(name: str):
-    if name in {'StripeProvider', 'PayPalProvider', 'XunhuPayProvider', 'LemonSqueezyProvider'}:
+    if name in {'StripeProvider', 'PayPalProvider', 'XunhuPayProvider', 'LemonSqueezyProvider', 'WechatPayProvider'}:
         mapping = {
             'StripeProvider': 'stripe',
             'PayPalProvider': 'paypal',
             'XunhuPayProvider': 'xunhupay',
             'LemonSqueezyProvider': 'lemon_squeezy',
+            'WechatPayProvider': 'wechatpay',
         }
         return _load_provider_class(mapping[name])
     raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
@@ -211,6 +214,7 @@ __all__ = [
     'PayPalProvider',
     'XunhuPayProvider',
     'LemonSqueezyProvider',
+    'WechatPayProvider',
     'get_payment_provider',
     'get_payment_provider_descriptors',
     'get_default_payment_provider_name',

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 admin_config_bp = Blueprint('admin_config', __name__, url_prefix='/api/admin/config')
 
-KNOWN_PAYMENT_PROVIDERS = {'stripe', 'paypal', 'xunhupay', 'lemon_squeezy'}
+KNOWN_PAYMENT_PROVIDERS = {'stripe', 'paypal', 'xunhupay', 'lemon_squeezy', 'wechatpay'}
 KNOWN_STORAGE_BACKENDS = {'local', 'r2', 'oss'}
 
 

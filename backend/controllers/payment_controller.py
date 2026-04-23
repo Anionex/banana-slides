@@ -316,6 +316,44 @@ def create_billing_portal_session():
         return error_response('PAYMENT_ERROR', str(exc), 500)
 
 
+def _fulfill_wechatpay_order(order_info: dict):
+    """Fulfill a paid WechatPay order: add credits and update DB record."""
+    user_id = order_info.get('user_id')
+    package_id = order_info.get('package_id')
+    external_order_id = order_info.get('external_order_id')
+    internal_order_id = order_info.get('order_id')
+
+    user = User.query.get(user_id) if user_id else None
+    package = get_credit_package(package_id) if package_id else None
+    if not user or not package:
+        logger.error('WechatPay fulfill: user=%s package=%s not found', user_id, package_id)
+        return
+
+    db_order = None
+    if internal_order_id:
+        db_order = PaymentOrder.query.filter_by(id=internal_order_id).first()
+    if not db_order and internal_order_id:
+        db_order = PaymentOrder.query.filter(
+            PaymentOrder.external_order_id == internal_order_id
+        ).first()
+    if db_order and db_order.status == 'paid':
+        return
+
+    success, error = CreditsService.add_credits(
+        user=user,
+        amount=package.total_credits,
+        operation=CreditOperation.PURCHASE,
+        description=f'Purchase {package.name} ({external_order_id or internal_order_id})',
+    )
+    if success and db_order:
+        db_order.status = 'paid'
+        db_order.paid_at = datetime.now(timezone.utc)
+        db_order.external_order_id = external_order_id or db_order.external_order_id
+        db.session.commit()
+    elif not success:
+        logger.error('WechatPay fulfill credits failed: %s', error)
+
+
 @payment_bp.route('/webhook', methods=['POST'])
 def payment_webhook():
     """Unified webhook endpoint for Stripe, PayPal, and legacy providers."""
@@ -336,6 +374,19 @@ def payment_webhook():
                 return 'Forbidden', 403
             result = provider.handle_webhook_event(payload)
             return success_response(result)
+
+        if request.headers.get('Wechatpay-Signature'):
+            raw_body = request.get_data(as_text=True)
+            payload = request.get_json(silent=True) or {}
+            payload['_raw_body'] = raw_body
+            provider = get_payment_provider('wechatpay')
+            if not provider.verify_webhook(payload, headers=dict(request.headers)):
+                logger.warning('WechatPay webhook verification failed')
+                return 'Forbidden', 403
+            order_info = provider.parse_webhook(payload)
+            if order_info.get('status') == PaymentStatus.PAID:
+                _fulfill_wechatpay_order(order_info)
+            return '{"code": "SUCCESS", "message": "成功"}', 200
 
         payload = request.get_json(silent=True) or request.form.to_dict()
         if not payload:

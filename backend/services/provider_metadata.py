@@ -6,6 +6,7 @@ PAYMENT_PROVIDER_SECRET_FIELDS = {
     'paypal': ['client_id', 'client_secret', 'webhook_id'],
     'xunhupay': ['app_id', 'app_secret'],
     'lemon_squeezy': ['api_key', 'webhook_secret'],
+    'wechatpay': ['api_v3_key', 'private_key', 'wxpay_public_key'],
 }
 
 STORAGE_PROVIDER_SECRET_FIELDS = {
@@ -18,6 +19,7 @@ PAYMENT_PROVIDER_LABELS = {
     'paypal': 'PayPal',
     'xunhupay': 'XunhuPay',
     'lemon_squeezy': 'Lemon Squeezy',
+    'wechatpay': 'WeChat Pay',
 }
 
 STORAGE_PROVIDER_LABELS = {
@@ -54,5 +56,12 @@ PAYMENT_PROVIDER_CAPABILITIES = {
         'supports_billing_portal': False,
         'payment_methods': ['card'],
         'currencies': ['USD'],
+    },
+    'wechatpay': {
+        'supports_one_time': True,
+        'supports_subscription': False,
+        'supports_billing_portal': False,
+        'payment_methods': ['wechat'],
+        'currencies': ['CNY'],
     },
 }

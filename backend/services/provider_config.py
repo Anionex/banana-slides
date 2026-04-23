@@ -16,7 +16,7 @@ from services.provider_metadata import (
 )
 
 
-DEFAULT_PAYMENT_PROVIDERS = ['stripe', 'paypal', 'xunhupay', 'lemon_squeezy']
+DEFAULT_PAYMENT_PROVIDERS = ['stripe', 'paypal', 'xunhupay', 'lemon_squeezy', 'wechatpay']
 DEFAULT_STORAGE_PROVIDERS = ['local', 'r2', 'oss']
 
 
@@ -122,6 +122,15 @@ def load_env_payment_provider_configs() -> Dict[str, Dict[str, Any]]:
                 'enterprise': _env_str('LS_VARIANT_ENTERPRISE'),
             },
         },
+        'wechatpay': {
+            'mch_id': _env_str('WECHATPAY_MCH_ID'),
+            'app_id': _env_str('WECHATPAY_APP_ID'),
+            'api_v3_key': _env_str('WECHATPAY_API_V3_KEY'),
+            'private_key': _env_str('WECHATPAY_PRIVATE_KEY'),
+            'cert_serial_no': _env_str('WECHATPAY_CERT_SERIAL_NO'),
+            'wxpay_public_key_id': _env_str('WECHATPAY_WXPAY_PUBLIC_KEY_ID'),
+            'wxpay_public_key': _env_str('WECHATPAY_WXPAY_PUBLIC_KEY'),
+        },
     }
 
 
@@ -164,6 +173,8 @@ def _default_payment_provider_from_env() -> str:
         return 'lemon_squeezy'
     if env_configs['xunhupay'].get('app_id') and env_configs['xunhupay'].get('app_secret'):
         return 'xunhupay'
+    if env_configs['wechatpay'].get('mch_id') and env_configs['wechatpay'].get('private_key'):
+        return 'wechatpay'
     return 'stripe'
 
 
@@ -238,6 +249,8 @@ def payment_provider_has_core_credentials(provider_name: str, provider_cfg: Opti
         return bool(cfg.get('app_id') and cfg.get('app_secret'))
     if provider_name == 'lemon_squeezy':
         return bool(cfg.get('api_key') and cfg.get('store_id'))
+    if provider_name == 'wechatpay':
+        return bool(cfg.get('mch_id') and cfg.get('private_key') and cfg.get('api_v3_key'))
     return False
 
 
