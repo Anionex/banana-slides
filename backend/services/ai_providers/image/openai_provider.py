@@ -30,14 +30,7 @@ _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
 _NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
 
 # Aspect-ratio → size per model family.
-# GPT image models: 1536x1024 landscape; DALL-E 3: 1792x1024 landscape.
-_GPT_IMAGE_SIZE_MAP = {
-    '16:9': '1536x1024',
-    '9:16': '1024x1536',
-    '1:1':  '1024x1024',
-    '3:2':  '1536x1024',
-    '2:3':  '1024x1536',
-}
+# DALL-E models only support fixed sizes; gpt-image-* uses dynamic calculation.
 _DALLE3_SIZE_MAP = {
     '16:9': '1792x1024',
     '9:16': '1024x1792',
@@ -48,6 +41,49 @@ _DALLE3_SIZE_MAP = {
 _DALLE2_SIZE_MAP = {
     '1:1':  '1024x1024',
 }
+
+_RESOLUTION_LONG_EDGE = {
+    '1K': 1024,
+    '2K': 2048,
+    '4K': 3840,
+}
+
+
+def _compute_gpt_image_size(aspect_ratio: str, resolution: str = '2K') -> str:
+    """Dynamically compute WxH for gpt-image-* from aspect ratio and resolution.
+
+    Rules: both edges multiples of 16, max edge ≤ 3840, ratio ≤ 3:1.
+    """
+    parts = aspect_ratio.split(':')
+    if len(parts) != 2:
+        return 'auto'
+    try:
+        aw, ah = int(parts[0]), int(parts[1])
+    except ValueError:
+        return 'auto'
+    if aw <= 0 or ah <= 0:
+        return 'auto'
+
+    long_edge = _RESOLUTION_LONG_EDGE.get(resolution.upper(), 2048)
+
+    if aw >= ah:
+        w = long_edge
+        h = round(w * ah / aw)
+    else:
+        h = long_edge
+        w = round(h * aw / ah)
+
+    w = max(16, (w // 16) * 16)
+    h = max(16, (h // 16) * 16)
+
+    # Clamp total pixels to API limit (max 8,294,400)
+    max_pixels = 8_294_400
+    if w * h > max_pixels:
+        scale = (max_pixels / (w * h)) ** 0.5
+        w = max(16, (int(w * scale) // 16) * 16)
+        h = max(16, (int(h * scale) // 16) * 16)
+
+    return f'{w}x{h}'
 
 
 class OpenAIImageProvider(ImageProvider):
@@ -149,14 +185,14 @@ class OpenAIImageProvider(ImageProvider):
         buf.seek(0)
         return buf.read()
 
-    def _resolve_size(self, aspect_ratio: str) -> str:
+    def _resolve_size(self, aspect_ratio: str, resolution: str = '2K') -> str:
         """Map aspect_ratio to a size string appropriate for the current model."""
         model = self.model.lower()
         if model == 'dall-e-3':
             return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
         if model == 'dall-e-2':
             return _DALLE2_SIZE_MAP.get(aspect_ratio, '1024x1024')
-        return _GPT_IMAGE_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        return _compute_gpt_image_size(aspect_ratio, resolution)
 
     def _resolve_quality(self):
         """Return quality param appropriate for the current model, or None to omit."""
@@ -182,9 +218,10 @@ class OpenAIImageProvider(ImageProvider):
         prompt: str,
         ref_images: Optional[List[Image.Image]],
         aspect_ratio: str,
+        resolution: str = '2K',
     ) -> Optional[Image.Image]:
         """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
-        size = self._resolve_size(aspect_ratio)
+        size = self._resolve_size(aspect_ratio, resolution)
         quality = self._resolve_quality()
         # GPT image models always return b64_json; DALL-E models default to url
         is_dalle = self.model.lower() in _DALLE_MODELS
@@ -252,7 +289,7 @@ class OpenAIImageProvider(ImageProvider):
         try:
             # Route gpt-image-2 / dall-e-* to the native images API
             if self._is_native_images_api_model():
-                return self._generate_with_images_api(prompt, ref_images, aspect_ratio)
+                return self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)
 
             # Build message content
             content = []
