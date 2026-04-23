@@ -13,6 +13,14 @@ from controllers.settings_controller import (
     create_settings_test_task,
 )
 from models import PointsTransaction, Settings, Subscription, User, db
+from services.recharge_service import (
+    get_recharge_packages_with_source,
+    get_subscription_plans_with_source,
+    reset_recharge_packages,
+    reset_subscription_plans,
+    save_recharge_packages,
+    save_subscription_plans,
+)
 from utils.auth import generate_tokens, require_admin
 
 logger = logging.getLogger(__name__)
@@ -327,6 +335,122 @@ def list_transactions():
             }
         }
     )
+
+
+@admin_bp.route("/recharge/packages", methods=["GET"])
+@require_admin
+def get_recharge_packages():
+    packages, source = get_recharge_packages_with_source()
+    return jsonify(
+        {
+            "data": {
+                "items": [package.to_dict() for package in packages],
+                "source": source,
+            }
+        }
+    )
+
+
+@admin_bp.route("/recharge/packages", methods=["PUT"])
+@require_admin
+def update_recharge_packages():
+    data = request.get_json() or {}
+    try:
+        packages = save_recharge_packages(data.get("items") or [])
+        return jsonify(
+            {
+                "data": {
+                    "items": [package.to_dict() for package in packages],
+                    "source": "database",
+                },
+                "message": "Recharge pricing updated successfully",
+            }
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to update recharge pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to update recharge pricing: {exc}"}), 500
+
+
+@admin_bp.route("/recharge/packages/reset", methods=["POST"])
+@require_admin
+def reset_recharge_pricing():
+    try:
+        reset_recharge_packages()
+        packages, source = get_recharge_packages_with_source()
+        return jsonify(
+            {
+                "data": {
+                    "items": [package.to_dict() for package in packages],
+                    "source": source,
+                },
+                "message": "Recharge pricing reset successfully",
+            }
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to reset recharge pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to reset recharge pricing: {exc}"}), 500
+
+
+@admin_bp.route("/subscription/plans", methods=["GET"])
+@require_admin
+def get_subscription_plans():
+    plans, source = get_subscription_plans_with_source()
+    return jsonify(
+        {
+            "data": {
+                "items": [plan.to_dict() for plan in plans],
+                "source": source,
+            }
+        }
+    )
+
+
+@admin_bp.route("/subscription/plans", methods=["PUT"])
+@require_admin
+def update_subscription_plans():
+    data = request.get_json() or {}
+    try:
+        plans = save_subscription_plans(data.get("items") or [])
+        return jsonify(
+            {
+                "data": {
+                    "items": [plan.to_dict() for plan in plans],
+                    "source": "database",
+                },
+                "message": "Subscription pricing updated successfully",
+            }
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to update subscription pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to update subscription pricing: {exc}"}), 500
+
+
+@admin_bp.route("/subscription/plans/reset", methods=["POST"])
+@require_admin
+def reset_subscription_pricing():
+    try:
+        reset_subscription_plans()
+        plans, source = get_subscription_plans_with_source()
+        return jsonify(
+            {
+                "data": {
+                    "items": [plan.to_dict() for plan in plans],
+                    "source": source,
+                },
+                "message": "Subscription pricing reset successfully",
+            }
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to reset subscription pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to reset subscription pricing: {exc}"}), 500
 
 
 @admin_bp.route("/account/password", methods=["POST"])

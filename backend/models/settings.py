@@ -42,10 +42,12 @@ class Settings(db.Model):
         'image_api_base_url',
         'image_caption_api_key',
         'image_caption_api_base_url',
+        'recharge_packages',
+        'subscription_plans',
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    owner_user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, unique=True, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True, index=True)
     ai_provider_format = db.Column(db.String(20), nullable=True)   # AI提供商格式: openai, gemini (NULL=use .env)
     api_base_url = db.Column(db.String(500), nullable=True)        # API基础URL
     api_key = db.Column(db.String(500), nullable=True)             # API密钥
@@ -91,6 +93,8 @@ class Settings(db.Model):
     image_api_base_url = db.Column(db.String(500), nullable=True)
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
+    recharge_packages = db.Column(db.Text, nullable=True)
+    subscription_plans = db.Column(db.Text, nullable=True)
     
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -205,6 +209,8 @@ class Settings(db.Model):
                 if include_defaults
                 else self.image_caption_api_base_url
             ),
+            'recharge_packages': self.recharge_packages,
+            'subscription_plans': self.subscription_plans,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -266,7 +272,7 @@ class Settings(db.Model):
         namespace = lazyllm_namespace
         if not namespace:
             if self.owner_user_id:
-                namespace = f"BANANA_{self.owner_user_id.replace('-', '').upper()}"
+                namespace = f"BANANA_{self.owner_user_id}"
             else:
                 namespace = "BANANA"
 

@@ -13,7 +13,7 @@ class UserTemplate(db.Model):
     __tablename__ = 'user_templates'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     name = db.Column(db.String(200), nullable=True)  # Optional template name
     file_path = db.Column(db.String(500), nullable=False)
     thumb_path = db.Column(db.String(500), nullable=True)  # Thumbnail path for faster loading
@@ -40,4 +40,3 @@ class UserTemplate(db.Model):
 
     def __repr__(self):
         return f'<UserTemplate {self.id}: {self.name or "Unnamed"}>'
-

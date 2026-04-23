@@ -8,6 +8,7 @@ import {
   Receipt,
   Settings,
   Users,
+  WalletCards,
 } from 'lucide-react';
 
 import { useAdminStore } from '../../store/useAdminStore';
@@ -17,6 +18,7 @@ const mainNavItems = [
   { to: '/users', label: '用户管理', icon: Users, end: false },
   { to: '/subscriptions', label: '订阅管理', icon: Crown, end: false },
   { to: '/transactions', label: '积分流水', icon: Receipt, end: false },
+  { to: '/pricing', label: '定价', icon: WalletCards, end: false },
   { to: '/settings', label: '系统设置', icon: Settings, end: false },
   { to: '/account', label: '账号安全', icon: Lock, end: false },
 ];
@@ -26,6 +28,7 @@ const legacyNavItems = [
   { to: '/admin/users', label: '用户管理', icon: Users, end: false },
   { to: '/admin/subscriptions', label: '订阅管理', icon: Crown, end: false },
   { to: '/admin/transactions', label: '积分流水', icon: Receipt, end: false },
+  { to: '/admin/pricing', label: '定价', icon: WalletCards, end: false },
   { to: '/admin/settings', label: '系统设置', icon: Settings, end: false },
   { to: '/admin/account', label: '账号安全', icon: Lock, end: false },
 ];

@@ -29,6 +29,7 @@ from controllers import project_bp, page_bp, template_bp, user_template_bp, expo
 from controllers.auth_controller import auth_bp
 from controllers.user_controller import user_bp
 from controllers.admin_controller import admin_bp
+from controllers.payment_controller import payment_bp, payment_compat_bp
 from utils.auth import optional_auth
 
 
@@ -119,6 +120,8 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(payment_bp)
+    app.register_blueprint(payment_compat_bp)
 
     with app.app_context():
         # Load settings from database and sync to app.config
@@ -137,6 +140,10 @@ def create_app():
             return  # non-API routes (health, static, etc.)
         if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
+        if request.path.startswith('/api/payment/'):
+            return  # allow third-party payment callbacks
+        if request.path.startswith('/api/v1/notify/'):
+            return  # allow third-party payment callbacks compatible with reference config
         code = request.headers.get('X-Access-Code', '')
         if hmac.compare_digest(code, expected):
             return

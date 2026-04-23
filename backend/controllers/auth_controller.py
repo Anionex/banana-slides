@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 
 from models import PointsTransaction, User, db
 from services.sms_service import check_rate_limit, create_sms_code, send_sms, verify_sms_code
-from utils.auth import decode_token, generate_tokens, require_auth
+from utils.auth import decode_token, generate_tokens, require_auth, token_user_id
 
 logger = logging.getLogger(__name__)
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -183,10 +183,11 @@ def refresh_token():
         payload = decode_token(token)
         if payload.get("type") != "refresh":
             raise ValueError("Not a refresh token")
+        user_id = token_user_id(payload)
     except Exception:
         return jsonify({"error": "Invalid or expired refresh token"}), 401
 
-    user = User.query.get(payload["sub"])
+    user = User.query.get(user_id)
     if not user or not user.is_active:
         return jsonify({"error": "User not found or disabled"}), 401
 
