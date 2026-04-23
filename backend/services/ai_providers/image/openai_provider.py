@@ -142,8 +142,9 @@ class OpenAIImageProvider(ImageProvider):
 
     def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
         buf = BytesIO()
-        if image.mode not in ('RGB', 'RGBA'):
-            image = image.convert('RGB')
+        # Preserve alpha channel: the images.edit endpoint uses it as a mask
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
         image.save(buf, format='PNG')
         buf.seek(0)
         return buf.read()
@@ -155,7 +156,7 @@ class OpenAIImageProvider(ImageProvider):
             return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
         if model == 'dall-e-2':
             return _DALLE2_SIZE_MAP.get(aspect_ratio, '1024x1024')
-        return _GPT_IMAGE_SIZE_MAP.get(aspect_ratio, 'auto')
+        return _GPT_IMAGE_SIZE_MAP.get(aspect_ratio, '1024x1024')
 
     def _resolve_quality(self):
         """Return quality param appropriate for the current model, or None to omit."""
@@ -189,7 +190,8 @@ class OpenAIImageProvider(ImageProvider):
         is_dalle = self.model.lower() in _DALLE_MODELS
         response_format = 'b64_json' if is_dalle else None
 
-        if ref_images:
+        if ref_images and self.model.lower() != 'dall-e-3':
+            # dall-e-3 does not support images.edit; all other native models do
             image_bytes = self._pil_to_png_bytes(ref_images[0])
             image_file = BytesIO(image_bytes)
             image_file.name = 'image.png'
@@ -199,6 +201,8 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['response_format'] = response_format
             result = self.client.images.edit(**kwargs)
         else:
+            if ref_images:
+                logger.warning("dall-e-3 does not support images.edit; ignoring ref_images")
             logger.debug("%s: images.generate, size=%s, quality=%s", self.model, size, quality)
             kwargs = dict(model=self.model, prompt=prompt, n=1, size=size)
             if quality:
