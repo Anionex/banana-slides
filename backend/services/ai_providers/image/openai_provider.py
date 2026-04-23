@@ -43,7 +43,7 @@ _DALLE2_SIZE_MAP = {
 }
 
 _RESOLUTION_LONG_EDGE = {
-    '1K': 1024,
+    '1K': 1280,
     '2K': 2048,
     '4K': 3840,
 }
