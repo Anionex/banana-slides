@@ -568,9 +568,7 @@ export const ReferenceFileSelector: React.FC<ReferenceFileSelectorProps> = React
 
                       {/* 文件图标 */}
                       <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-blue-600" />
-                        </div>
+                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       </div>
 
                       {/* 文件信息 */}

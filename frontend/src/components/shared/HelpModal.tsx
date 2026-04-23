@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check } from 'lucide-react';
+import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from './Modal';
 import { Button } from './Button';
@@ -124,67 +124,61 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('help.welcomeDesc')}</p>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex gap-4 p-4 bg-gradient-to-r from-banana-50 dark:from-background-primary to-orange-50 rounded-xl border border-banana-200">
-          <div className="flex-shrink-0 w-8 h-8 bg-banana-500 text-white rounded-full flex items-center justify-center font-bold">
-            1
-          </div>
-          <div className="flex-1 space-y-2">
-            <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.step1Title')}</h4>
-            <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-              {t('help.step1Desc')}
-            </p>
-            <ul className="text-sm text-gray-600 dark:text-foreground-tertiary space-y-1 pl-4">
-              <li>• {t('help.step1Items.apiConfig')}</li>
-              <li>• {t('help.step1Items.modelConfig')}</li>
-              <li>• {t('help.step1Items.mineruConfig')}</li>
-              <li>• {t('help.step1Items.editableExport')}</li>
-            </ul>
-          </div>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">
+            <span className="font-mono text-banana-600 dark:text-banana mr-2">1.</span>
+            {t('help.step1Title')}
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-foreground-tertiary pl-6">
+            {t('help.step1Desc')}
+          </p>
+          <ul className="text-sm text-gray-600 dark:text-foreground-tertiary space-y-1 pl-10">
+            <li>• {t('help.step1Items.apiConfig')}</li>
+            <li>• {t('help.step1Items.modelConfig')}</li>
+            <li>• {t('help.step1Items.mineruConfig')}</li>
+            <li>• {t('help.step1Items.editableExport')}</li>
+          </ul>
         </div>
 
-        <div className="flex gap-4 p-4 bg-white dark:bg-background-secondary rounded-xl border border-gray-200 dark:border-border-primary">
-          <div className="flex-shrink-0 w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold">
-            2
-          </div>
-          <div className="flex-1 space-y-2">
-            <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.step2Title')}</h4>
-            <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-              {t('help.step2Desc')}
-            </p>
-          </div>
+        <div className="space-y-2">
+          <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">
+            <span className="font-mono text-banana-600 dark:text-banana mr-2">2.</span>
+            {t('help.step2Title')}
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-foreground-tertiary pl-6">
+            {t('help.step2Desc')}
+          </p>
         </div>
 
-        <div className="flex gap-4 p-4 bg-white dark:bg-background-secondary rounded-xl border border-gray-200 dark:border-border-primary">
-          <div className="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center font-bold">
-            <Check size={18} />
-          </div>
-          <div className="flex-1 space-y-2">
-            <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.step3Title')}</h4>
-            <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-              {t('help.step3Desc')}
-            </p>
-          </div>
+        <div className="space-y-2">
+          <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">
+            <span className="font-mono text-banana-600 dark:text-banana mr-2">3.</span>
+            {t('help.step3Title')}
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-foreground-tertiary pl-6">
+            {t('help.step3Desc')}
+          </p>
         </div>
-      </div>
 
-      <div className="flex gap-4 p-4 bg-white dark:bg-background-secondary rounded-xl border border-gray-200 dark:border-border-primary">
-        <div className="flex-shrink-0 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center font-bold">
-          4
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">
+              <span className="font-mono text-banana-600 dark:text-banana mr-2">4.</span>
+              {t('help.step4Title')}
+            </h4>
+            <a
+              href="https://github.com/Anionex/banana-slides/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-banana-600 hover:text-banana-700 font-medium"
+            >
+              <ExternalLink size={14} />
+              {t('help.goToGithubIssue')}
+            </a>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-foreground-tertiary pl-6">{t('help.step4Desc')}</p>
         </div>
-        <div className="flex-1 space-y-2">
-          <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('help.step4Title')}</h4>
-          <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('help.step4Desc')}</p>
-        </div>
-        <a
-          href="https://github.com/Anionex/banana-slides/issues"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-banana-600 hover:text-banana-700 font-medium"
-        >
-          <ExternalLink size={14} />
-          {t('help.goToGithubIssue')}
-        </a>
       </div>
 
       <div className="flex justify-center pt-2">

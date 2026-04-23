@@ -175,9 +175,7 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
       }}
     >
       <div className="flex-shrink-0">
-        <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/30 rounded-md flex items-center justify-center">
-          <FileText className="w-4 h-4 text-blue-600" />
-        </div>
+        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
       </div>
 
       <div className="flex-1 min-w-0">
