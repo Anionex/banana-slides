@@ -313,8 +313,9 @@ class OpenAIImageProvider(ImageProvider):
             
             # Build extra_body with resolution parameters for compatible providers
             extra_body = self._build_extra_body(aspect_ratio, resolution)
-            logger.debug(f"Using extra_body for resolution control: {extra_body}")
-            
+            extra_body["modalities"] = ["text", "image"]
+            logger.debug(f"Using extra_body: {extra_body}")
+
             # Use both system message (for basic providers) and extra_body (for advanced providers)
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -330,11 +331,27 @@ class OpenAIImageProvider(ImageProvider):
             
             # Extract image from response - handle different response formats
             message = response.choices[0].message
-            
+
             # Debug: log available attributes
             logger.debug(f"Response message attributes: {dir(message)}")
-            
-            # Try multi_mod_content first (custom format from some proxies)
+
+            # Try message.images first (OpenRouter format)
+            images_attr = getattr(message, 'images', None)
+            if images_attr:
+                for img_item in images_attr:
+                    url = None
+                    if isinstance(img_item, dict):
+                        url = img_item.get('image_url', {}).get('url', '')
+                    elif hasattr(img_item, 'image_url'):
+                        iu = img_item.image_url
+                        url = iu.get('url', '') if isinstance(iu, dict) else getattr(iu, 'url', '')
+                    if url and url.startswith('data:image'):
+                        base64_data = url.split(',', 1)[1]
+                        image = Image.open(BytesIO(base64.b64decode(base64_data)))
+                        logger.debug(f"Extracted image from message.images: {image.size}")
+                        return image
+
+            # Try multi_mod_content (custom format from some proxies)
             if hasattr(message, 'multi_mod_content') and message.multi_mod_content:
                 parts = message.multi_mod_content
                 for part in parts:
@@ -437,6 +454,7 @@ class OpenAIImageProvider(ImageProvider):
             logger.warning(f"Message content type: {type(getattr(message, 'content', None))}")
             raw = str(getattr(message, 'content', 'N/A'))
             logger.warning(f"Message content: {raw[:300]}{'...(truncated)' if len(raw) > 300 else ''}")
+            logger.warning(f"Message all attrs: {vars(message) if hasattr(message, '__dict__') else dir(message)}"[:500])
             
             raise ValueError("No valid multimodal response received from OpenAI API")
             
