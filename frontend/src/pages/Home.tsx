@@ -862,9 +862,9 @@ export const Home: React.FC = () => {
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
         {/* Hero 标题区 */}
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-background-secondary rounded-full ring-1 ring-gray-200/80 dark:ring-border-primary shadow-none mb-4">
-            <span className="text-2xl animate-pulse"><Sparkles size={20} className="text-orange-500 dark:text-banana" /></span>
-            <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('home.tagline')}</span>
+          <div className="inline-flex items-center gap-2 mb-4">
+            <Sparkles size={16} className="text-orange-500 dark:text-banana" />
+            <span className="text-sm font-medium text-gray-500 dark:text-foreground-tertiary">{t('home.tagline')}</span>
           </div>
 
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight">
@@ -881,20 +881,19 @@ export const Home: React.FC = () => {
           </p>
 
           {/* 特性标签 */}
-          <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 pt-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 pt-4">
             {[
               { icon: <Sparkles size={14} className="text-yellow-600 dark:text-banana" />, label: t('home.features.oneClick') },
               { icon: <FileEdit size={14} className="text-blue-500 dark:text-blue-400" />, label: t('home.features.naturalEdit') },
               { icon: <Search size={14} className="text-orange-500 dark:text-orange-400" />, label: t('home.features.regionEdit') },
-
               { icon: <Paperclip size={14} className="text-green-600 dark:text-green-400" />, label: t('home.features.export') },
-            ].map((feature, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 dark:bg-background-secondary backdrop-blur-sm rounded-full text-xs md:text-sm text-gray-700 dark:text-foreground-secondary border border-gray-200/50 dark:border-border-primary shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-border-hover transition-all hover:scale-105 cursor-default"
-              >
-                {feature.icon}
-                {feature.label}
+            ].map((feature, idx, arr) => (
+              <span key={idx} className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 text-xs md:text-sm text-gray-600 dark:text-foreground-secondary">
+                  {feature.icon}
+                  {feature.label}
+                </span>
+                {idx < arr.length - 1 && <span className="text-gray-300 dark:text-foreground-tertiary ml-2">·</span>}
               </span>
             ))}
           </div>

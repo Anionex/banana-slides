@@ -404,7 +404,7 @@ export const Landing: React.FC = () => {
 
 
         <div className="relative z-10 max-w-4xl">
-          <div className="lp2-anim mb-7 inline-flex items-center gap-2 rounded-full border border-black/[0.07] bg-white px-4 py-1.5 font-mono text-xs font-medium tracking-[0.18em] text-slate-500 shadow-sm" style={{ transitionDelay: '0ms' }}>
+          <div className="lp2-anim mb-7 inline-flex items-center gap-2 font-mono text-xs font-medium tracking-[0.18em] text-slate-500" style={{ transitionDelay: '0ms' }}>
             <span className="h-1.5 w-1.5 rounded-full bg-[#FFD700]" />
             {t.hero.eyebrow}
           </div>
