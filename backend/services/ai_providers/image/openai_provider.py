@@ -239,6 +239,8 @@ class OpenAIImageProvider(ImageProvider):
             image_file.name = 'image.png'
             logger.debug("%s: images.edit, size=%s", self.model, size)
             kwargs = dict(model=self.model, image=image_file, prompt=prompt, n=1, size=size)
+            if quality:
+                kwargs['quality'] = quality
             if response_format:
                 kwargs['response_format'] = response_format
             result = self.client.images.edit(**kwargs)
