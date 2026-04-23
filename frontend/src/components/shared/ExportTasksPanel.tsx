@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings } from 'lucide-react';
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useT } from '@/hooks/useT';
 import type { Page } from '@/types';
 import { Button } from './Button';
@@ -340,7 +341,13 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             variant="primary"
             size="sm"
             icon={<Download size={14} />}
-            onClick={() => window.open(task.downloadUrl, '_blank')}
+            onClick={() => {
+              const token = useAuthStore.getState().tokens?.access_token;
+              const url = task.downloadUrl!;
+              const sep = url.includes('?') ? '&' : '?';
+              const authUrl = token ? `${url}${sep}access_token=${encodeURIComponent(token)}` : url;
+              window.open(authUrl, '_blank');
+            }}
             className="text-xs px-2 py-1"
           >
             {t('common.download')}

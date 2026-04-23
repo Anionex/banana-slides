@@ -28,8 +28,11 @@ class User(db.Model):
     # Subscription related
     subscription_plan = db.Column(db.String(20), default='free')  # free, pro, enterprise
     subscription_expires_at = db.Column(db.DateTime, nullable=True)
+    billing_provider = db.Column(db.String(50), nullable=True)
     stripe_customer_id = db.Column(db.String(100), nullable=True, index=True)
     stripe_subscription_id = db.Column(db.String(100), nullable=True)
+    paypal_payer_id = db.Column(db.String(100), nullable=True, index=True)
+    paypal_subscription_id = db.Column(db.String(100), nullable=True)
     
     # Credits system (积分制)
     credits_balance = db.Column(db.Integer, default=0)  # 当前积分余额
@@ -81,6 +84,7 @@ class User(db.Model):
             'avatar_url': self.avatar_url,
             'subscription_plan': self.subscription_plan,
             'subscription_expires_at': self.subscription_expires_at.isoformat() if self.subscription_expires_at else None,
+            'billing_provider': self.billing_provider,
             'credits_balance': self.credits_balance,
             'credits_used_total': self.credits_used_total,
             'projects_count': self.projects_count,
@@ -95,6 +99,8 @@ class User(db.Model):
         if include_sensitive:
             data['stripe_customer_id'] = self.stripe_customer_id
             data['stripe_subscription_id'] = self.stripe_subscription_id
+            data['paypal_payer_id'] = self.paypal_payer_id
+            data['paypal_subscription_id'] = self.paypal_subscription_id
         
         return data
     

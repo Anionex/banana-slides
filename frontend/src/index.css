@@ -194,3 +194,339 @@ select option {
   color: var(--text-primary);
 }
 
+/* ============================================================
+   Landing Page v2  (Mirofish-inspired, light theme)
+   ============================================================ */
+
+.lp2-page {
+  background: #ffffff;
+  color: #0d0d10;
+  font-family: 'Inter', 'SF Pro Display', 'PingFang SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lp2-snap {}
+
+/* Floating gradient orbs */
+.lp2-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+
+@keyframes lp2Drift1 {
+  0%, 100% { transform: translate(0, 0) rotate(-10deg); }
+  50% { transform: translate(30px, -18px) rotate(-10deg); }
+}
+@keyframes lp2Drift2 {
+  0%, 100% { transform: translate(0, 0) rotate(15deg); }
+  50% { transform: translate(-22px, 14px) rotate(15deg); }
+}
+@keyframes lp2Drift3 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(18px, 20px); }
+}
+
+.lp2-orb-1 { animation: lp2Drift1 24s ease-in-out infinite; }
+.lp2-orb-2 { animation: lp2Drift2 28s ease-in-out infinite; }
+.lp2-orb-3 { animation: lp2Drift3 20s ease-in-out infinite; }
+
+/* Hero display font */
+.lp2-hero-title {
+  font-family: 'Space Grotesk', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-weight: 700;
+}
+
+/* Gradient text — hero accent word */
+.lp2-gradient-text {
+  display: inline-block;
+  background: linear-gradient(135deg, #FFD700 0%, #f0a030 40%, #D2588E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+/* SVG animated underline */
+.lp2-underline-path {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: lp2DrawLine 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
+}
+@keyframes lp2DrawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Section entry animation system ─────────────────────────
+   Elements start hidden and shift into place only after
+   IntersectionObserver marks them as ready.
+   ─────────────────────────────────────────────────────────── */
+.lp2-anim {
+  --lp2-enter-x: 0px;
+  --lp2-enter-y: 34px;
+  --lp2-enter-scale: 1;
+  opacity: 0;
+  transform: translate3d(var(--lp2-enter-x), var(--lp2-enter-y), 0) scale(var(--lp2-enter-scale));
+  transition:
+    opacity 0.82s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.82s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.lp2-anim-fade {
+  --lp2-enter-y: 0px;
+}
+.lp2-anim-slide {
+  --lp2-enter-x: -28px;
+  --lp2-enter-y: 0px;
+}
+.lp2-anim-pop {
+  --lp2-enter-y: 42px;
+  --lp2-enter-scale: 0.94;
+}
+
+/* Fire when the observer marks the element as entered */
+.lp2-anim.lp2-playing {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+/* ── Hero stacked preview cards ───────────────────────────── */
+.lp2-hero-stack {
+  /* reserve space for the front card; back cards are absolute */
+  transform-style: preserve-3d;
+}
+
+.lp2-hero-stack-card {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp2-hero-card-frame {
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 8px 32px rgba(0, 0, 0, 0.04);
+}
+
+.lp2-hero-card-front {
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.06);
+}
+
+/* Browser-style traffic-light dots */
+.lp2-hero-card-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #fafafa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.lp2-hero-card-dots::before,
+.lp2-hero-card-dots::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.lp2-hero-card-dots::before {
+  background: #ff5f57;
+  box-shadow: 16px 0 0 #ffbd2e, 32px 0 0 #28c840;
+}
+
+/* Mobile: reduce offsets so cards don't clip */
+@media (max-width: 640px) {
+  .lp2-hero-stack-card:nth-child(1) {
+    transform: translate3d(-20px, 4px, -60px) rotateY(1deg) !important;
+  }
+  .lp2-hero-stack-card:nth-child(2) {
+    transform: translate3d(-10px, 2px, -30px) rotateY(0.6deg) !important;
+  }
+}
+
+.lp2-workflow-card {
+  transition:
+    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lp2-workflow-meta,
+.lp2-workflow-title,
+.lp2-workflow-subtitle,
+.lp2-workflow-copy {
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  transition:
+    opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.lp2-workflow-card.lp2-playing .lp2-workflow-meta,
+.lp2-workflow-card.lp2-playing .lp2-workflow-title,
+.lp2-workflow-card.lp2-playing .lp2-workflow-subtitle,
+.lp2-workflow-card.lp2-playing .lp2-workflow-copy {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.lp2-workflow-card.lp2-playing .lp2-workflow-title {
+  transition-delay: 24ms;
+}
+
+.lp2-workflow-card.lp2-playing .lp2-workflow-subtitle {
+  transition-delay: 48ms;
+}
+
+.lp2-workflow-card.lp2-playing .lp2-workflow-copy {
+  transition-delay: 72ms;
+}
+
+/* Legacy scroll reveal (keep for marquee / non-snap elements) */
+.lp2-reveal {
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+.lp2-reveal.lp2-shown {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Feature / step cards with mouse-spotlight */
+.lp2-card {
+  --mx: 50%;
+  --my: 50%;
+  position: relative;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+
+.lp2-card.lp2-anim {
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.82s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.82s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lp2-card:hover {
+  border-color: rgba(0, 0, 0, 0.13);
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.08);
+}
+
+/* Radial spotlight that follows the mouse */
+.lp2-card-spot {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(
+    220px circle at var(--mx) var(--my),
+    rgba(0, 0, 0, 0.045),
+    transparent 70%
+  );
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.lp2-card:hover .lp2-card-spot { opacity: 1; }
+
+/* Border highlight following mouse */
+.lp2-card-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(
+    260px circle at var(--mx) var(--my),
+    rgba(0, 0, 0, 0.18),
+    transparent 60%
+  );
+  transition: opacity 0.3s;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000, #000) content-box,
+                linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000, #000) content-box,
+        linear-gradient(#000, #000);
+  mask-composite: exclude;
+  padding: 1px;
+}
+.lp2-card:hover .lp2-card-glow { opacity: 1; }
+
+/* Top accent line that expands on hover */
+.lp2-card-accent {
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+  transition: left 0.35s, right 0.35s, background 0.35s;
+}
+.lp2-card:hover .lp2-card-accent {
+  left: 5%; right: 5%;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.18), transparent);
+}
+
+/* Primary button with subtle metal sheen */
+.lp2-btn-primary {
+  position: relative;
+  overflow: hidden;
+  background: #111118;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 8px rgba(0,0,0,0.18);
+  transition: box-shadow 0.3s cubic-bezier(0.4,0,0.2,1),
+              background 0.3s;
+}
+.lp2-btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.12) 50%, transparent 70%);
+  background-size: 300% 100%;
+  background-position: 200% 0;
+  animation: lp2Shimmer 5s ease-in-out infinite;
+}
+@keyframes lp2Shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.lp2-btn-primary:hover {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 6px 18px rgba(0,0,0,0.22);
+  background: #1c1c26;
+}
+
+.lp2-btn-secondary {
+  background: #fff;
+  color: #111;
+  border: 1px solid rgba(0,0,0,0.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: box-shadow 0.3s, background 0.3s;
+}
+.lp2-btn-secondary:hover {
+  background: #f5f5f8;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Marquee */
+.lp2-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: lp2Marquee 28s linear infinite;
+}
+@keyframes lp2Marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp2-reveal, .lp2-btn-primary::before { transition: none; animation: none; }
+  .lp2-orb-1, .lp2-orb-2, .lp2-orb-3 { animation: none; }
+  .lp2-underline-path { animation: none; stroke-dashoffset: 0; }
+  .lp2-marquee-track { animation: none; }
+}

@@ -6,6 +6,7 @@ from flask import Blueprint, request, current_app
 from models import db, Project, UserTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
+from services.file_urls import public_url
 from middlewares.auth import auth_required, get_current_user
 from datetime import datetime
 
@@ -63,7 +64,7 @@ def upload_template(project_id):
         db.session.commit()
         
         return success_response({
-            'template_image_url': f'/files/{project_id}/template/{file_path.split("/")[-1]}'
+            'template_image_url': public_url(file_path)
         })
     
     except Exception as e:

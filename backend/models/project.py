@@ -49,6 +49,8 @@ class Project(db.Model):
     
     def to_dict(self, include_pages=False):
         """Convert to dictionary"""
+        from services.file_urls import public_url
+
         # Format created_at and updated_at with UTC timezone indicator for proper frontend parsing
         created_at_str = None
         if self.created_at:
@@ -67,7 +69,7 @@ class Project(db.Model):
             'outline_requirements': self.outline_requirements,
             'description_requirements': self.description_requirements,
             'creation_type': self.creation_type,
-            'template_image_url': f'/files/{self.id}/template/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
+            'template_image_url': public_url(self.template_image_path),
             'template_style': self.template_style,
             'export_extractor_method': self.export_extractor_method or 'hybrid',
             'export_inpaint_method': self.export_inpaint_method or 'hybrid',

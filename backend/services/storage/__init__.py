@@ -1,116 +1,89 @@
-"""
-Storage Service Package
+"""Storage service factory with runtime-configurable backends."""
+from __future__ import annotations
 
-提供存储抽象层，支持本地存储和云存储的无缝切换。
-
-使用方法:
-    from services.storage import get_storage
-    
-    storage = get_storage()
-    storage.save_image(image, "project_id/pages/image.png")
-"""
-import os
 import logging
+import os
 from typing import Optional
-from functools import lru_cache
+
+from services.provider_config import get_storage_runtime_settings
 
 from .base import StorageBackend
 from .local import LocalStorage
+from .oss import AliyunOSSStorage
+from .r2 import R2Storage
 
 logger = logging.getLogger(__name__)
 
-# 全局存储实例缓存
 _storage_instance: Optional[StorageBackend] = None
 
 
-def get_storage() -> StorageBackend:
-    """
-    获取存储后端实例（工厂函数）
-    
-    根据环境变量 STORAGE_BACKEND 决定使用哪种存储后端：
-    - local: 本地文件系统（默认）
-    - s3: Amazon S3（未来实现）
-    - oss: 阿里云 OSS（未来实现）
-    
-    Returns:
-        StorageBackend 实例
-    
-    Example:
-        storage = get_storage()
-        storage.save_image(image, "project/pages/1.png")
-    """
-    global _storage_instance
-    
-    if _storage_instance is not None:
-        return _storage_instance
-    
-    backend_type = os.environ.get('STORAGE_BACKEND', 'local').lower()
-    
+def _create_storage_from_runtime(runtime: dict) -> StorageBackend:
+    backend_type = (runtime.get('backend') or 'local').lower()
+    providers = runtime.get('providers') or {}
+
     if backend_type == 'local':
-        # 获取上传目录配置
-        upload_folder = os.environ.get('UPLOAD_FOLDER', 'uploads')
-        _storage_instance = LocalStorage(upload_folder)
-        logger.info(f"Storage backend initialized: LocalStorage at {upload_folder}")
-    
-    elif backend_type == 's3':
-        # TODO: 实现 S3 存储后端
-        # from .s3 import S3Storage
-        # _storage_instance = S3Storage(
-        #     bucket=os.environ.get('S3_BUCKET'),
-        #     region=os.environ.get('S3_REGION'),
-        #     access_key=os.environ.get('AWS_ACCESS_KEY_ID'),
-        #     secret_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-        # )
-        raise NotImplementedError("S3 storage backend not yet implemented")
-    
-    elif backend_type == 'oss':
-        # TODO: 实现阿里云 OSS 存储后端
-        raise NotImplementedError("OSS storage backend not yet implemented")
-    
-    else:
-        raise ValueError(f"Unknown storage backend: {backend_type}")
-    
+        upload_folder = (providers.get('local') or {}).get('upload_folder') or os.environ.get('UPLOAD_FOLDER', 'uploads')
+        storage = LocalStorage(upload_folder)
+        logger.info('Storage backend initialized: LocalStorage at %s', upload_folder)
+        return storage
+
+    if backend_type in {'r2', 's3'}:
+        cfg = providers.get('r2') or {}
+        storage = R2Storage(
+            bucket=cfg.get('bucket', ''),
+            account_id=cfg.get('account_id', ''),
+            access_key_id=cfg.get('access_key_id', ''),
+            secret_access_key=cfg.get('secret_access_key', ''),
+            public_base_url=cfg.get('public_base_url', ''),
+            region=cfg.get('region', 'auto'),
+            endpoint_url=cfg.get('endpoint_url', ''),
+            signed_url_ttl=int(cfg.get('signed_url_ttl', 3600)),
+        )
+        logger.info('Storage backend initialized: R2Storage bucket=%s', cfg.get('bucket', ''))
+        return storage
+
+    if backend_type == 'oss':
+        cfg = providers.get('oss') or {}
+        storage = AliyunOSSStorage(
+            bucket=cfg.get('bucket', ''),
+            endpoint=cfg.get('endpoint', ''),
+            access_key_id=cfg.get('access_key_id', ''),
+            access_key_secret=cfg.get('access_key_secret', ''),
+            public_base_url=cfg.get('public_base_url', ''),
+            signed_url_ttl=int(cfg.get('signed_url_ttl', 3600)),
+        )
+        logger.info('Storage backend initialized: AliyunOSSStorage bucket=%s', cfg.get('bucket', ''))
+        return storage
+
+    raise ValueError(f'Unknown storage backend: {backend_type}')
+
+
+def get_storage() -> StorageBackend:
+    global _storage_instance
+    if _storage_instance is None:
+        runtime = get_storage_runtime_settings()
+        _storage_instance = _create_storage_from_runtime(runtime)
     return _storage_instance
 
 
 def init_storage(app) -> StorageBackend:
-    """
-    使用 Flask app 配置初始化存储
-    
-    Args:
-        app: Flask application instance
-        
-    Returns:
-        StorageBackend 实例
-    """
     global _storage_instance
-    
-    backend_type = app.config.get('STORAGE_BACKEND', 'local').lower()
-    
-    if backend_type == 'local':
-        upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
-        _storage_instance = LocalStorage(upload_folder)
-        logger.info(f"Storage backend initialized: LocalStorage at {upload_folder}")
-    else:
-        # 设置环境变量后调用通用工厂函数
-        os.environ['STORAGE_BACKEND'] = backend_type
-        _storage_instance = get_storage()
-    
+    runtime = get_storage_runtime_settings()
+    _storage_instance = _create_storage_from_runtime(runtime)
+    app.config['STORAGE_BACKEND'] = runtime.get('backend', 'local')
     return _storage_instance
 
 
 def reset_storage() -> None:
-    """
-    重置存储实例（主要用于测试）
-    """
     global _storage_instance
     _storage_instance = None
 
 
-# 导出
 __all__ = [
     'StorageBackend',
-    'LocalStorage', 
+    'LocalStorage',
+    'R2Storage',
+    'AliyunOSSStorage',
     'get_storage',
     'init_storage',
     'reset_storage',

@@ -66,12 +66,11 @@ class Page(db.Model):
     
     def to_dict(self, include_versions=False):
         """Convert to dictionary"""
+        from services.file_urls import public_url
+
         # Use cached image for frontend display, fallback to original if no cache
         display_image_path = self.cached_image_path or self.generated_image_path
-        display_image_url = None
-        if display_image_path:
-            filename = Path(display_image_path).name
-            display_image_url = f'/files/{self.project_id}/pages/{filename}'
+        display_image_url = public_url(display_image_path)
 
         data = {
             'page_id': self.id,

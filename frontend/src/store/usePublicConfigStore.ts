@@ -3,6 +3,7 @@ import { apiClient } from '../api/client';
 
 interface PublicConfig {
   enable_credits_purchase: boolean;
+  enable_alipay: boolean;
 }
 
 interface PublicConfigState {
@@ -13,6 +14,7 @@ interface PublicConfigState {
 export const usePublicConfigStore = create<PublicConfigState>((set) => ({
   config: {
     enable_credits_purchase: true,
+    enable_alipay: false,
   },
   fetchPublicConfig: async () => {
     try {

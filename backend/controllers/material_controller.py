@@ -5,6 +5,7 @@ from flask import Blueprint, request, current_app, send_file
 from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService
+from services.file_urls import public_url
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
 from services.runtime_settings import get_effective_config_value, get_user_effective_config_value, use_user_settings
@@ -204,7 +205,7 @@ def _resolve_target_project_id(raw_project_id: Optional[str], user_id: str, allo
 
 
 def _save_material_file(file, target_project_id: Optional[str], user_id: str):
-    """Shared logic for saving uploaded material files to disk and DB."""
+    """Shared logic for saving uploaded material files to storage and DB."""
     if not file or not file.filename:
         return None, bad_request("file is required")
 
@@ -215,23 +216,18 @@ def _save_material_file(file, target_project_id: Optional[str], user_id: str):
 
     file_service = FileService(current_app.config['UPLOAD_FOLDER'])
     if target_project_id:
-        materials_dir = file_service.upload_folder / file_service._get_materials_dir(target_project_id)
+        materials_dir = file_service._get_materials_dir(target_project_id)
     else:
-        materials_dir = file_service.upload_folder / "materials"
-    materials_dir.mkdir(exist_ok=True, parents=True)
+        materials_dir = "materials"
+    file_service.storage.ensure_directory(materials_dir)
 
     timestamp = int(time.time() * 1000)
     base_name = Path(filename).stem
     unique_filename = f"{base_name}_{timestamp}{file_ext}"
 
-    filepath = materials_dir / unique_filename
-    file.save(str(filepath))
-
-    relative_path = str(filepath.relative_to(file_service.upload_folder))
-    if target_project_id:
-        image_url = file_service.get_file_url(target_project_id, 'materials', unique_filename)
-    else:
-        image_url = f"/files/materials/{unique_filename}"
+    relative_path = f"{materials_dir}/{unique_filename}"
+    file_service.storage.save_file(file, relative_path)
+    image_url = public_url(relative_path)
 
     material = Material(
         user_id=user_id,

@@ -1,9 +1,11 @@
 /**
  * OIDC Callback Page
- * 处理 OIDC 登录回调
+ * 处理 Supabase / 旧 OIDC 登录回调
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { checkAuth } from '../../api/auth';
+import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export default function OIDCCallbackPage() {
@@ -13,12 +15,39 @@ export default function OIDCCallbackPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
+
     const handleError = (message: string) => {
+      if (!active) {
+        return;
+      }
       setError(message);
-      setTimeout(() => navigate('/login'), 2000);
+      setTimeout(() => navigate('/login', { replace: true }), 2000);
     };
 
-    const handleCallback = async () => {
+    const handleSupabaseCallback = async () => {
+      const code = searchParams.get('code');
+
+      try {
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            throw error;
+          }
+        }
+
+        const ok = await checkAuth();
+        if (!ok) {
+          throw new Error('未能完成登录，请重试');
+        }
+
+        navigate('/app', { replace: true });
+      } catch (err: any) {
+        handleError(err?.message || '登录失败，请重试');
+      }
+    };
+
+    const handleLegacyCallback = async () => {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
@@ -27,7 +56,6 @@ export default function OIDCCallbackPage() {
         return;
       }
 
-      // Validate state parameter (CSRF protection)
       const savedState = sessionStorage.getItem('oidc_state');
       const provider = sessionStorage.getItem('oidc_provider') || 'google';
 
@@ -36,7 +64,6 @@ export default function OIDCCallbackPage() {
         return;
       }
 
-      // Clear saved state and provider
       sessionStorage.removeItem('oidc_state');
       sessionStorage.removeItem('oidc_provider');
 
@@ -48,15 +75,24 @@ export default function OIDCCallbackPage() {
           const { user, access_token, refresh_token, token_type, expires_in } = data.data;
           login(user, { access_token, refresh_token, token_type, expires_in }, true);
           navigate('/app', { replace: true });
-        } else {
-          handleError(data.error?.message || '登录失败');
+          return;
         }
-      } catch (err) {
-        handleError('登录失败，请重试');
+
+        handleError(data.error?.message || '登录失败');
+      } catch (err: any) {
+        handleError(err?.message || '登录失败，请重试');
       }
     };
 
-    handleCallback();
+    if (isSupabaseConfigured()) {
+      handleSupabaseCallback();
+    } else {
+      handleLegacyCallback();
+    }
+
+    return () => {
+      active = false;
+    };
   }, [searchParams, navigate, login]);
 
   return (

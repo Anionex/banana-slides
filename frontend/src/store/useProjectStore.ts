@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
 import { refreshCredits } from '@/api/auth';
+import { useAuthStore } from '@/store/useAuthStore';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 import { devLog } from '@/utils/logger';
 import { getT } from '@/utils/i18nHelper';
@@ -73,6 +74,17 @@ const storeI18n = {
   }
 };
 const t = getT(storeI18n);
+
+/** Open a download URL with the current access_token appended as a query param. */
+function openAuthenticatedDownload(url: string) {
+  const token = useAuthStore.getState().tokens?.access_token;
+  if (!token) {
+    window.open(url, '_blank');
+    return;
+  }
+  const separator = url.includes('?') ? '&' : '?';
+  window.open(`${url}${separator}access_token=${encodeURIComponent(token)}`, '_blank');
+}
 
 interface ProjectState {
   // 状态
@@ -375,7 +387,7 @@ const debouncedUpdatePage = debounce(
     });
 
     // 防抖后调用API
-    debouncedUpdatePage(currentProject.id, pageId, data);
+    debouncedUpdatePage(currentProject.id!, pageId, data);
   },
 
   // 立即保存所有页面的更改（用于保存按钮）
@@ -409,7 +421,7 @@ const debouncedUpdatePage = debounce(
     });
 
     try {
-      await api.updatePagesOrder(currentProject.id, newOrder);
+      await api.updatePagesOrder(currentProject.id!, newOrder);
     } catch (error: any) {
       set({ error: error.message || t('store.updateOrderFailed') });
       // 失败后重新同步
@@ -428,7 +440,7 @@ const debouncedUpdatePage = debounce(
         order_index: currentProject.pages.length,
       };
 
-      const response = await api.addPage(currentProject.id, newPage);
+      const response = await api.addPage(currentProject.id!, newPage);
       if (response.data) {
         await get().syncProject();
       }
@@ -443,7 +455,7 @@ const debouncedUpdatePage = debounce(
     if (!currentProject) return;
 
     try {
-      await api.deletePage(currentProject.id, pageId);
+      await api.deletePage(currentProject.id!, pageId);
       await get().syncProject();
     } catch (error: any) {
       set({ error: error.message || t('store.deletePageFailed') });
@@ -523,7 +535,7 @@ const debouncedUpdatePage = debounce(
               devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
               // 延迟一下，确保状态更新完成后再打开下载链接
               setTimeout(() => {
-                window.open(downloadUrl, '_blank');
+                openAuthenticatedDownload(downloadUrl);
               }, 500);
             } else {
               console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
@@ -618,7 +630,7 @@ const debouncedUpdatePage = debounce(
     // Concurrent queue: pages are pushed by SSE callbacks, drained by a timer loop
     const pageQueue: any[] = [];
     let streamDone = false;
-    let doneData: { total: number; pages: any[]; complete?: boolean } | null = null;
+    const result: { doneData: { total: number; pages: any[]; complete?: boolean } | null } = { doneData: null };
     const STAGGER_MS = 150;
 
     // Start the render loop — runs concurrently with the SSE stream
@@ -653,7 +665,7 @@ const debouncedUpdatePage = debounce(
     try {
       await api.generateOutlineStream(currentProject.id!, {
         onPage: (page) => { pageQueue.push(page); },
-        onDone: (data) => { doneData = data; },
+        onDone: (data) => { result.doneData = data; },
         onError: (message) => {
           console.error('[流式大纲] 错误:', message);
           set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
@@ -665,14 +677,14 @@ const debouncedUpdatePage = debounce(
       await renderPromise;
 
       // Replace temp pages with real persisted pages
-      if (doneData) {
+      if (result.doneData) {
         const { currentProject: proj } = get();
         if (proj) {
-          const normalized = normalizeProject({ ...proj, pages: doneData.pages });
+          const normalized = normalizeProject({ ...proj, pages: result.doneData.pages });
           set({ currentProject: normalized, isOutlineStreaming: false });
         }
-        devLog('[流式大纲] 完成:', doneData.total, '个页面');
-        return { complete: doneData.complete ?? false };
+        devLog('[流式大纲] 完成:', result.doneData.total, '个页面');
+        return { complete: result.doneData.complete ?? false };
       } else {
         set({ isOutlineStreaming: false });
         return { complete: false };
@@ -749,7 +761,7 @@ const debouncedUpdatePage = debounce(
       // Concurrent queue + render loop (like outline streaming)
       const descQueue: api.DescriptionStreamEvent[] = [];
       let streamDone = false;
-      let doneData: { total: number; pages: any[]; warning?: string } | null = null;
+      const descResult: { doneData: { total: number; pages: any[]; warning?: string } | null } = { doneData: null };
       const STAGGER_MS = 100;
 
       const renderPromise = new Promise<void>((resolve) => {
@@ -786,7 +798,7 @@ const debouncedUpdatePage = debounce(
       try {
         await api.generateDescriptionsStream(currentProject.id, {
           onDescription: (data) => { descQueue.push(data); },
-          onDone: (data) => { doneData = data; },
+          onDone: (data) => { descResult.doneData = data; },
           onError: (message) => {
             console.error('[流式描述] 错误:', message);
             set({ error: normalizeErrorMessage(message) });
@@ -797,17 +809,17 @@ const debouncedUpdatePage = debounce(
         streamDone = true;
         await renderPromise;
 
-        if (doneData) {
+        if (descResult.doneData) {
           const { currentProject: proj } = get();
           if (proj) {
-            const normalized = normalizeProject({ ...proj, pages: doneData.pages });
+            const normalized = normalizeProject({ ...proj, pages: descResult.doneData.pages });
             set({
               currentProject: normalized,
               isDescriptionStreaming: false,
-              ...(doneData.warning ? { error: doneData.warning } : {}),
+              ...(descResult.doneData.warning ? { error: descResult.doneData.warning } : {}),
             });
           }
-          devLog('[流式描述] 完成:', doneData.total, '个页面');
+          devLog('[流式描述] 完成:', descResult.doneData.total, '个页面');
         } else {
           // 无 doneData（SSE error 或连接中断）→ 从后端恢复真实状态
           await get().syncProject();
@@ -922,7 +934,7 @@ const debouncedUpdatePage = debounce(
     set({ currentProject: { ...currentProject, pages: updatedPages } });
 
     try {
-      const response = await api.generatePageDescription(currentProject.id, pageId, true, undefined, detailLevel);
+      const response = await api.generatePageDescription(currentProject.id!, pageId, true, undefined, detailLevel);
 
       // Refresh credits after successful generation
       refreshCredits();
@@ -967,7 +979,7 @@ const debouncedUpdatePage = debounce(
     set({ currentProject: { ...currentProject, pages: updatedPages } });
 
     try {
-      const response = await api.regenerateRenovationPage(currentProject.id, pageId, keepLayout);
+      const response = await api.regenerateRenovationPage(currentProject.id!, pageId, keepLayout);
 
       if (response.data) {
         const updatedPageData = response.data;
@@ -1011,7 +1023,7 @@ const debouncedUpdatePage = debounce(
     
     try {
       // 调用批量生成 API
-      const response = await api.generateImages(currentProject.id, undefined, pageIds);
+      const response = await api.generateImages(currentProject.id!, undefined, pageIds);
       const taskId = response.data?.task_id;
 
       // Credits consumed upfront, refresh balance
@@ -1204,7 +1216,7 @@ const debouncedUpdatePage = debounce(
 
     set({ error: null });
     try {
-      const response = await api.editPageImage(currentProject.id, pageId, editPrompt, contextImages);
+      const response = await api.editPageImage(currentProject.id!, pageId, editPrompt, contextImages);
       const taskId = response.data?.task_id;
 
       // Credits consumed upfront, refresh balance
@@ -1242,7 +1254,7 @@ const debouncedUpdatePage = debounce(
 
     set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.exportPPTX(currentProject.id, pageIds);
+      const response = await api.exportPPTX(currentProject.id!, pageIds);
       // 优先使用相对路径，避免 Docker 环境下的端口问题
       const downloadUrl =
         response.data?.download_url || response.data?.download_url_absolute;
@@ -1252,7 +1264,7 @@ const debouncedUpdatePage = debounce(
       }
 
       // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      openAuthenticatedDownload(downloadUrl);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1267,7 +1279,7 @@ const debouncedUpdatePage = debounce(
 
     set({ isGlobalLoading: true, error: null });
     try {
-      const response = await api.exportPDF(currentProject.id, pageIds);
+      const response = await api.exportPDF(currentProject.id!, pageIds);
       // 优先使用相对路径，避免 Docker 环境下的端口问题
       const downloadUrl =
         response.data?.download_url || response.data?.download_url_absolute;
@@ -1277,7 +1289,7 @@ const debouncedUpdatePage = debounce(
       }
 
       // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      openAuthenticatedDownload(downloadUrl);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1293,7 +1305,7 @@ const debouncedUpdatePage = debounce(
     try {
       devLog('[导出可编辑PPTX] 启动异步导出任务...');
       // startAsyncTask 中的 pollTask 会在任务完成时自动处理下载
-      await startAsyncTask(() => api.exportEditablePPTX(currentProject.id, filename, pageIds));
+      await startAsyncTask(() => api.exportEditablePPTX(currentProject.id!, filename, pageIds));
       devLog('[导出可编辑PPTX] 异步任务完成');
     } catch (error: any) {
       console.error('[导出可编辑PPTX] 导出失败:', error);

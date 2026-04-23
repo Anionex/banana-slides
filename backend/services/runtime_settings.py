@@ -11,6 +11,8 @@ import logging
 import os
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
+from enum import Enum
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -41,16 +43,6 @@ _SETTINGS_FIELDS = [
     "baidu_api_key",
 ]
 
-_NULLABLE_FIELDS = {
-    "api_base_url",
-    "api_key",
-    "text_model",
-    "image_model",
-    "image_caption_model",
-    "mineru_api_base",
-    "mineru_token",
-    "baidu_api_key",
-}
 
 _CONFIG_ATTR_BY_KEY = {
     "AI_PROVIDER_FORMAT": "AI_PROVIDER_FORMAT",
@@ -241,34 +233,48 @@ def get_default_settings_source():
     """
     Return the canonical site-default settings source.
 
-    Priority:
-    1. The most recently updated admin user's UserSettings
-    2. Global Settings row
-
-    This matches the product meaning of "管理员给用户的默认配置".
+    The global Settings row is the only canonical site-default source. User
+    settings are sparse per-user overrides and do not participate in default
+    fallback arbitration.
     """
-    from models import Settings, User, UserSettings
-
-    admin_settings = (
-        UserSettings.query.join(User, User.id == UserSettings.user_id)
-        .filter(User.is_admin.is_(True))
-        .order_by(UserSettings.updated_at.desc(), UserSettings.id.desc())
-        .first()
-    )
-    if admin_settings:
-        return admin_settings
-
+    from models import Settings
     return Settings.get_settings()
 
 
-def build_effective_settings_override(user_id: str | None = None) -> Dict[str, object]:
+def _get_user_editable_fields() -> set[str]:
+    """Get the set of fields a non-admin user is allowed to override."""
+    try:
+        from models import SystemConfig
+        config = SystemConfig.get_instance()
+        return set(config.get_user_editable_fields())
+    except Exception:
+        return {"output_language", "image_resolution", "image_aspect_ratio"}
+
+
+@dataclass
+class EffectiveSettingsResult:
+    """Result of settings resolution with per-field source tracking."""
+    override: Dict[str, object]
+    field_sources: Dict[str, str]  # field_name -> "user" | "platform"
+
+
+def build_effective_settings_override(
+    user_id: str | None = None,
+    *,
+    _return_sources: bool = False,
+) -> Dict[str, object] | EffectiveSettingsResult:
     """
     Build the effective runtime settings for a request/task.
 
     Priority:
-    1. UserSettings (when user_id is provided)
+    1. UserSettings field value (only if field is in admin-allowed editable set)
     2. Global Settings
     3. .env / Config only indirectly, via Settings initialization/reset
+
+    When *_return_sources* is True, returns an ``EffectiveSettingsResult``
+    that also carries per-field source information (``"user"`` vs
+    ``"platform"``).  The default (False) keeps the original return type
+    for backward-compat.
     """
     from models import UserSettings
 
@@ -276,32 +282,59 @@ def build_effective_settings_override(user_id: str | None = None) -> Dict[str, o
 
     if not user_id:
         logger.info("Building runtime settings override from default site settings source")
-        return _settings_row_to_runtime_override(default_settings)
+        override = _settings_row_to_runtime_override(default_settings)
+        if _return_sources:
+            return EffectiveSettingsResult(
+                override=override,
+                field_sources={f: "platform" for f in _SETTINGS_FIELDS},
+            )
+        return override
 
     user_settings = UserSettings.get_or_create_for_user(user_id)
-    effective_values = {}
+
+    # Admin users are unrestricted; for regular users, honour editable_fields.
+    from models import User
+    user = User.query.get(user_id)
+    is_admin = user.is_admin if user else False
+    editable_fields = None if is_admin else _get_user_editable_fields()
+
+    effective_values: Dict[str, object] = {}
+    field_sources: Dict[str, str] = {}
 
     for field in _SETTINGS_FIELDS:
         user_value = getattr(user_settings, field)
         default_value = getattr(default_settings, field)
-        if field in _NULLABLE_FIELDS and user_value is None:
-            effective_values[field] = default_value
-        else:
-            effective_values[field] = user_value
 
-    class EffectiveSettings:
+        # If the field is not editable for this user, ignore user's value
+        use_user = (
+            user_value is not None
+            and (editable_fields is None or field in editable_fields)
+        )
+
+        if use_user:
+            effective_values[field] = user_value
+            field_sources[field] = "user"
+        else:
+            effective_values[field] = default_value
+            field_sources[field] = "platform"
+
+    class _Merged:
         pass
 
-    merged = EffectiveSettings()
+    merged = _Merged()
     for field, value in effective_values.items():
         setattr(merged, field, value)
 
     logger.info(
-        "Built effective runtime settings for user %s with fallback-to-global for nullable fields",
+        "Built effective runtime settings for user %s (editable: %s)",
         user_id,
+        "all" if editable_fields is None else sorted(editable_fields),
     )
 
-    return _settings_row_to_runtime_override(merged)
+    override = _settings_row_to_runtime_override(merged)
+    if _return_sources:
+        return EffectiveSettingsResult(override=override, field_sources=field_sources)
+    return override
 
 
 def _summarize_override(override: Dict[str, object]) -> str:
@@ -336,3 +369,39 @@ def use_user_settings(user_id: str | None, scope: str = ""):
     override = build_effective_settings_override(user_id)
     with use_settings_override(override, scope=scope):
         yield override
+
+
+# ---------------------------------------------------------------------------
+# Credential source arbitration
+# ---------------------------------------------------------------------------
+
+class ServiceType(Enum):
+    """Service types that consume third-party API credentials."""
+    TEXT_MODEL = "text_model"
+    IMAGE_MODEL = "image_model"
+    CAPTION_MODEL = "caption_model"
+    MINERU = "mineru"
+    BAIDU_OCR = "baidu_ocr"
+
+
+# Maps each service to the UserSettings / Settings field holding its credential.
+_SERVICE_CREDENTIAL_FIELDS: Dict[ServiceType, str] = {
+    ServiceType.TEXT_MODEL: "api_key",
+    ServiceType.IMAGE_MODEL: "api_key",
+    ServiceType.CAPTION_MODEL: "api_key",
+    ServiceType.MINERU: "mineru_token",
+    ServiceType.BAIDU_OCR: "baidu_api_key",
+}
+
+
+def is_user_owned_credential(user_id: str, service_type: ServiceType) -> bool:
+    """
+    Check whether the effective credential for *service_type* belongs to the
+    user (True) or the platform (False).
+
+    Delegates to ``build_effective_settings_override`` so that editable-field
+    restrictions and value resolution happen in one place.
+    """
+    field_name = _SERVICE_CREDENTIAL_FIELDS[service_type]
+    result = build_effective_settings_override(user_id, _return_sources=True)
+    return result.field_sources.get(field_name) == "user"

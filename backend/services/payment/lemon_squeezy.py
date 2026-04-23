@@ -17,23 +17,25 @@ logger = logging.getLogger(__name__)
 
 class LemonSqueezyProvider(PaymentProvider):
     """Lemon Squeezy 支付提供商（国际市场）"""
-    
+
     API_BASE = "https://api.lemonsqueezy.com/v1"
-    
-    def __init__(self):
-        self.api_key = os.getenv('LEMON_SQUEEZY_API_KEY', '')
-        self.store_id = os.getenv('LEMON_SQUEEZY_STORE_ID', '')
-        self.webhook_secret = os.getenv('LEMON_SQUEEZY_WEBHOOK_SECRET', '')
-        
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        cfg = config or {}
+        self.api_key = cfg.get('api_key', os.getenv('LEMON_SQUEEZY_API_KEY', ''))
+        self.store_id = cfg.get('store_id', os.getenv('LEMON_SQUEEZY_STORE_ID', ''))
+        self.webhook_secret = cfg.get('webhook_secret', os.getenv('LEMON_SQUEEZY_WEBHOOK_SECRET', ''))
+
+        variant_ids = cfg.get('variant_ids') or {}
         # 套餐ID映射（需要在 Lemon Squeezy 后台创建对应产品）
         self.variant_ids = {
-            'starter': os.getenv('LS_VARIANT_STARTER', ''),
-            'basic': os.getenv('LS_VARIANT_BASIC', ''),
-            'standard': os.getenv('LS_VARIANT_STANDARD', ''),
-            'pro': os.getenv('LS_VARIANT_PRO', ''),
-            'enterprise': os.getenv('LS_VARIANT_ENTERPRISE', ''),
+            'starter': variant_ids.get('starter', os.getenv('LS_VARIANT_STARTER', '')),
+            'basic': variant_ids.get('basic', os.getenv('LS_VARIANT_BASIC', '')),
+            'standard': variant_ids.get('standard', os.getenv('LS_VARIANT_STANDARD', '')),
+            'pro': variant_ids.get('pro', os.getenv('LS_VARIANT_PRO', '')),
+            'enterprise': variant_ids.get('enterprise', os.getenv('LS_VARIANT_ENTERPRISE', '')),
         }
-        
+
         if not self.api_key:
             logger.warning("Lemon Squeezy API key not configured")
     
@@ -55,6 +57,9 @@ class LemonSqueezyProvider(PaymentProvider):
         notify_url: str,
         return_url: str,
         client_ip: Optional[str] = None,
+        payment_type: Optional[str] = None,
+        success_url: Optional[str] = None,
+        cancel_url: Optional[str] = None,
     ) -> PaymentResult:
         """
         创建 Lemon Squeezy checkout
@@ -87,7 +92,7 @@ class LemonSqueezyProvider(PaymentProvider):
                         'button_color': '#7C3AED',  # Purple
                     },
                     'product_options': {
-                        'redirect_url': return_url,
+                        'redirect_url': cancel_url or return_url,
                     },
                 },
                 'relationships': {
@@ -149,7 +154,7 @@ class LemonSqueezyProvider(PaymentProvider):
                 error_message=f"Payment service error: {str(e)}"
             )
     
-    def verify_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None) -> bool:
+    def verify_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None, headers: Optional[Dict[str, Any]] = None) -> bool:
         """验证 webhook 签名"""
         if not signature or not self.webhook_secret:
             return False

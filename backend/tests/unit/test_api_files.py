@@ -139,6 +139,14 @@ def test_reference_file_parse_uses_effective_user_mineru_settings(client, app, m
         global_settings.mineru_api_base = 'https://global-mineru.example.test'
         db.session.commit()
 
+        # Allow users to override mineru fields so the test can verify
+        from models import SystemConfig
+        sys_config = SystemConfig.get_instance()
+        sys_config.set_user_editable_fields(
+            list(set(sys_config.get_user_editable_fields()) | {'mineru_token', 'mineru_api_base'})
+        )
+        db.session.commit()
+
         user_settings = UserSettings.get_or_create_for_user(owner_id)
         user_settings.mineru_token = 'user-valid-token'
         user_settings.mineru_api_base = 'https://user-mineru.example.test'

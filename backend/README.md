@@ -1,343 +1,323 @@
 # Banana Slides Backend
 
-蕉幻（Banana Slides）后端服务 - AI驱动的PPT生成系统
+这个目录是 Banana Slides SaaS 的后端服务。它不是单一的“AI 生成接口”，而是一个包含认证、项目管理、积分、支付、系统配置、参考文件解析、异步任务和导出能力的 Flask SaaS API。
+
+## 当前后端定位
+
+后端负责四类核心职责：
+
+- 提供项目生成与编辑 API
+- 维护用户、积分、支付、邀请码、系统设置等 SaaS 数据模型
+- 调度耗时任务，例如批量描述生成、图片生成、可编辑 PPTX 导出
+- 抽象 AI provider、任务队列、存储后端、支付提供商，降低后续扩展成本
 
 ## 技术栈
 
-- **框架**: Flask 3.0
-- **数据库**: SQLite + SQLAlchemy ORM
-- **AI服务**: Google Gemini API
-- **PPT处理**: python-pptx
-- **并发处理**: ThreadPoolExecutor
-- **包管理**: uv
+- Flask 3
+- Flask-SQLAlchemy
+- Flask-Migrate / Alembic
+- SQLite（默认）+ `DATABASE_URL` 可覆盖
+- Google GenAI SDK / OpenAI SDK
+- python-pptx
+- Pillow
+- Thread-based task queue abstraction
+- uv
 
-## 项目结构
+## 后端架构
 
-```
+### 1. 应用入口
+
+入口是 `app.py`，采用应用工厂模式：
+
+- 从项目根目录 `.env` 加载环境变量
+- 初始化 Flask 配置、数据库、CORS、迁移
+- 创建 `backend/instance/` 与根目录 `uploads/`
+- 注册所有蓝图
+- 启动时把数据库中的 `Settings` 同步回 `app.config`
+- 自动补默认管理员
+
+同时会启用 SQLite WAL 和超时参数，以减轻多线程任务下的锁竞争问题。
+
+### 2. 控制器层
+
+控制器位于 `controllers/`，当前主要蓝图包括：
+
+- `auth_controller.py`
+  - 注册、登录、刷新 token、邮箱验证、密码重置
+- `project_controller.py`
+  - 创建项目、获取项目、更新项目、删除项目
+  - 生成大纲
+  - 从描述直接生成大纲和描述
+  - refine 大纲 / refine 描述
+- `page_controller.py`
+  - 单页更新、描述更新、图片生成与编辑相关接口
+- `template_controller.py`
+  - 项目模板图
+  - 用户模板图库 `user_template_bp`
+- `material_controller.py`
+  - 项目素材中心与全局素材接口
+- `reference_file_controller.py`
+  - 参考文件上传、解析、关联、解除关联
+- `export_controller.py`
+  - PPTX、PDF、可编辑 PPTX 导出
+- `settings_controller.py`
+  - 用户侧设置读取与更新
+- `payment_controller.py`
+  - 下单、支付回调、支付状态
+- `invitation_controller.py`
+  - 邀请码兑换
+- `admin_controller.py`
+  - 后台统计、用户、订单、交易等管理接口
+- `admin_config_controller.py`
+  - 系统级配置、用户可编辑字段策略、积分成本
+- `file_controller.py`
+  - 统一文件访问接口
+
+### 3. 服务层
+
+`services/` 是后端的核心业务层。
+
+#### AI 服务
+
+- `ai_service.py`
+  - 面向业务流程的统一 AI 调用入口
+- `ai_service_manager.py`
+  - AIService 单例与 provider 缓存，避免每次请求重新初始化模型客户端
+- `services/ai_providers/text/`
+  - 文本模型 provider
+- `services/ai_providers/image/`
+  - 图片生成与修复 provider
+- `services/ai_providers/ocr/`
+  - OCR provider
+
+当前代码已支持多 provider 格式，而不是只绑定单一 Gemini：
+
+- `gemini`
+- `openai`
+- `vertex`
+
+#### 任务与队列
+
+- `task_manager.py`
+  - 后台任务兼容层
+  - 当前默认队列是线程池抽象
+- `services/queue/`
+  - 队列抽象接口与 `thread_pool` 实现
+
+这层主要承担：
+
+- 批量生成描述
+- 批量生成图片
+- 导出任务
+- 可编辑 PPTX 递归分析导出
+
+#### 导出能力
+
+- `export_service.py`
+  - 普通 PPTX 导出
+  - PDF 导出
+  - 可编辑 PPTX 导出
+- `utils/pptx_builder.py`
+  - 将识别出的文本、表格、图像元素写入 PPTX
+- `services/image_editability/`
+  - 递归元素提取、文本属性分析、背景修复、元素重建
+
+可编辑 PPTX 导出是当前私有版的重要能力，不应再在文档中简化成“仅导出图片型 PPT”。
+
+#### 文件与解析
+
+- `file_service.py`
+  - 上传、模板、生成图、缓存图、用户模板等文件管理
+- `file_parser_service.py`
+  - 参考文件解析
+- `storage/`
+  - 存储抽象，当前默认 `local`
+
+#### 商业化与账号能力
+
+- `auth_service.py`
+  - token、用户认证等核心逻辑
+- `credits_service.py`
+  - 积分扣减、消耗类型定义
+- `payment/`
+  - 支付提供商抽象
+  - 已实现 `xunhupay` 和 `lemon_squeezy`
+- `email_service.py`
+  - 邮件验证码与通知
+- `admin_service.py`
+  - 后台统计与管理相关聚合逻辑
+
+### 4. 数据模型
+
+模型位于 `models/`，当前不止项目和页面，已经是完整 SaaS 数据层：
+
+- `Project`
+- `Page`
+- `Task`
+- `User`
+- `UserSettings`
+- `Settings`
+- `SystemConfig`
+- `CreditTransaction`
+- `PaymentOrder`
+- `InvitationCode`
+- `Material`
+- `ReferenceFile`
+- `UserTemplate`
+- `PageImageVersion`
+
+其中：
+
+- `Settings` 偏向系统生成配置
+- `UserSettings` 是用户级稀疏覆盖表，只保存用户真正改过的字段
+- `SystemConfig` 管理积分价格、用户可编辑字段等 SaaS 级策略
+- `PageImageVersion` 支持页面图片历史版本切换
+
+### 5. 中间件与工具层
+
+- `middlewares/auth.py`
+  - 登录鉴权
+- `middlewares/credits.py`
+  - 积分校验
+- `utils/response.py`
+  - 统一响应结构
+- `utils/validators.py`
+  - 输入校验
+- `utils/security.py`
+  - 安全相关辅助
+- `utils/image_utils.py`
+  - 图片尺寸与质量检测
+- `utils/page_utils.py`
+  - 页面筛选等通用逻辑
+
+## 当前目录结构
+
+```text
 backend/
-├── app.py                    # Flask应用入口
-├── config.py                 # 配置文件
-├── models/                   # 数据库模型
-│   ├── __init__.py
-│   ├── project.py           # Project模型
-│   ├── page.py              # Page模型
-│   └── task.py              # Task模型
-├── services/                 # 服务层
-│   ├── __init__.py
-│   ├── ai_service.py        # AI相关服务
-│   ├── file_service.py      # 文件管理服务
-│   ├── export_service.py    # 导出服务
-│   └── task_manager.py      # 异步任务管理
-├── controllers/              # 控制器层
-│   ├── __init__.py
-│   ├── project_controller.py
-│   ├── page_controller.py
-│   ├── template_controller.py
-│   ├── export_controller.py
-│   └── file_controller.py
-├── utils/                    # 工具函数
-│   ├── __init__.py
-│   ├── response.py          # 统一响应格式
-│   └── validators.py        # 数据验证
-├── instance/                 # 数据库文件目录（自动创建）
-├── uploads/                  # 文件上传目录（自动创建）
-├── .env.example             # 环境变量示例
-└── README.md                # 本文件
+├── app.py
+├── config.py
+├── controllers/              # 路由与 HTTP 入口
+├── middlewares/              # 鉴权与积分中间件
+├── migrations/               # Alembic 迁移
+├── models/                   # ORM 模型
+├── services/
+│   ├── ai_providers/         # 文本 / 图片 / OCR provider
+│   ├── image_editability/    # 可编辑 PPTX 的图像理解能力
+│   ├── payment/              # 支付提供商抽象
+│   ├── queue/                # 队列抽象
+│   ├── storage/              # 存储抽象
+│   └── *.py                  # 业务服务
+├── tests/
+│   ├── integration/
+│   └── unit/
+├── utils/
+├── Dockerfile
+└── alembic.ini
 ```
 
-## 快速开始
+## 关键配置
+
+配置定义在 `config.py`。数据库连接优先使用 `DATABASE_URL`，其余运行期配置会在启动后被数据库中的设置覆盖一部分。
+
+### 基础配置
+
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `CORS_ORIGINS`
+- `LOG_LEVEL`
+- `UPLOAD_FOLDER`
+
+### AI 相关
+
+- `AI_PROVIDER_FORMAT`
+- `GOOGLE_API_KEY`
+- `GOOGLE_API_BASE`
+- `OPENAI_API_KEY`
+- `OPENAI_API_BASE`
+- `VERTEX_PROJECT_ID`
+- `VERTEX_LOCATION`
+- `TEXT_MODEL`
+- `IMAGE_MODEL`
+- `IMAGE_CAPTION_MODEL`
+
+### 生成与并发
+
+- `MAX_DESCRIPTION_WORKERS`
+- `MAX_IMAGE_WORKERS`
+- `DEFAULT_ASPECT_RATIO`
+- `DEFAULT_RESOLUTION`
+- `OUTPUT_LANGUAGE`
+
+### 文件解析与图像处理
+
+- `MINERU_TOKEN`
+- `MINERU_API_BASE`
+- `VOLCENGINE_ACCESS_KEY`
+- `VOLCENGINE_SECRET_KEY`
+- `INPAINTING_PROVIDER`
+- `BAIDU_OCR_API_KEY`
+
+## 本地开发
 
 ### 1. 安装依赖
 
-本项目使用 [uv](https://github.com/astral-sh/uv) 管理 Python 依赖。所有依赖定义在项目根目录的 `pyproject.toml` 文件中。
+依赖由根目录 `pyproject.toml` 管理：
 
-在项目根目录下运行：
 ```bash
+cd /home/aa/banana-slides-saas-89942e8-private
 uv sync
 ```
 
-这将自动安装所有必需的依赖包。
-
-### 2. 配置环境变量
-
-复制 `.env.example` 为 `.env` 并填写配置：
-
-```bash
-cp .env.example .env
-```
-
-编辑 `.env` 文件：
-
-```env
-GOOGLE_API_KEY=your-google-api-key
-GOOGLE_API_BASE=https://generativelanguage.googleapis.com
-
-# 火山引擎配置（可选，用于 Inpainting 图像消除功能）
-VOLCENGINE_ACCESS_KEY=your-volcengine-access-key
-VOLCENGINE_SECRET_KEY=your-volcengine-secret-key
-VOLCENGINE_INPAINTING_TIMEOUT=60
-VOLCENGINE_INPAINTING_MAX_RETRIES=3
-```
-
-### 3. 初始化 / 升级数据库结构（Alembic 迁移）
-
-从当前版本开始，后端使用 Alembic 管理数据库结构变更。
+### 2. 初始化数据库
 
 ```bash
 cd backend
 uv run alembic upgrade head
 ```
 
-> 注意：  
-> - 首次运行时会自动创建 `alembic_version` 表并将数据库迁移到最新结构；  
-> - 后续新增模型字段时，只需要更新 `models/`，然后使用 `alembic revision --autogenerate` 生成迁移，再执行 `alembic upgrade head`。
+### 3. 启动后端
 
-### 4. 运行服务
-
-使用 uv 运行：
 ```bash
-cd backend
 uv run python app.py
 ```
-服务将在 `http://localhost:5000` 启动。
 
-## API文档
+默认监听 `http://localhost:5000`。
 
-完整的API文档请参考项目根目录的 `API设计文档.md`。
+## 典型 API 能力
 
-### 主要端点
+当前后端提供的核心接口族包括：
 
-#### 项目管理
-- `POST /api/projects` - 创建项目
-- `GET /api/projects/{project_id}` - 获取项目详情
-- `PUT /api/projects/{project_id}` - 更新项目
-- `DELETE /api/projects/{project_id}` - 删除项目
-
-#### 大纲生成
-- `POST /api/projects/{project_id}/generate/outline` - 生成大纲
-
-#### 描述生成
-- `POST /api/projects/{project_id}/generate/descriptions` - 批量生成描述（异步）
-- `POST /api/projects/{project_id}/pages/{page_id}/generate/description` - 单页生成
-
-#### 图片生成
-- `POST /api/projects/{project_id}/generate/images` - 批量生成图片（异步）
-- `POST /api/projects/{project_id}/pages/{page_id}/generate/image` - 单页生成
-- `POST /api/projects/{project_id}/pages/{page_id}/edit/image` - 编辑图片
-
-#### 模板管理
-- `POST /api/projects/{project_id}/template` - 上传模板
-- `DELETE /api/projects/{project_id}/template` - 删除模板
-
-#### 导出
-- `GET /api/projects/{project_id}/export/pptx` - 导出PPTX
-- `GET /api/projects/{project_id}/export/pdf` - 导出PDF
-
-#### 静态文件
-- `GET /files/{project_id}/{type}/{filename}` - 获取文件
-
-## 核心功能
-
-### 1. AI驱动的内容生成
-
-基于 Google Gemini API，支持：
-- 自动生成PPT大纲
-- 并行生成页面描述
-- 根据参考模板生成图片
-- 自然语言编辑图片
-
-### 2. 异步任务处理
-
-使用 `ThreadPoolExecutor` 实现简单但高效的异步任务处理：
-- 并行生成多个页面描述
-- 并行生成多个页面图片
-- 实时任务进度跟踪
-
-### 3. 文件管理
-
-完整的文件管理系统：
-- 项目级文件隔离
-- 模板图片管理
-- 生成图片管理
-- 自动清理机制
-
-### 4. Inpainting 图像消除（可选）
-
-基于火山引擎的 Inpainting 服务，支持：
-- 根据边界框（bbox）精确消除图像区域
-- 自动生成掩码图像
-- 重新生成背景（保留前景，消除其他区域）
-- 支持批量处理和重试机制
-
-使用方法：
-```python
-from services.inpainting_service import InpaintingService, remove_regions
-from PIL import Image
-
-# 方式1：使用服务类
-service = InpaintingService()
-image = Image.open('original.png')
-bboxes = [(100, 100, 200, 200), (300, 150, 400, 250)]  # 要消除的区域
-result = service.remove_regions_by_bboxes(image, bboxes)
-
-# 方式2：使用便捷函数
-result = remove_regions(image, bboxes, expand_pixels=5)
-```
-
-### 5. 数据持久化
-
-使用 SQLite + SQLAlchemy：
-- 轻量级，无需额外配置
-- 支持关系型数据操作
-- 事务保证数据一致性
-
-## 开发说明
-
-### 数据模型
-
-#### Project（项目）
-- 项目基本信息
-- 模板图片路径
-- 项目状态
-- 关联的页面和任务
-
-#### Page（页面）
-- 页面顺序
-- 大纲内容（JSON）
-- 描述内容（JSON）
-- 生成的图片路径
-- 页面状态
-
-#### Task（任务）
-- 任务类型（生成描述/生成图片）
-- 任务状态
-- 进度信息（JSON）
-- 错误信息
-
-### 状态机
-
-#### 项目状态
-```
-DRAFT → OUTLINE_GENERATED → DESCRIPTIONS_GENERATED → GENERATING_IMAGES → COMPLETED
-```
-
-#### 页面状态
-```
-DRAFT → DESCRIPTION_GENERATED → GENERATING → COMPLETED | FAILED
-```
-
-#### 任务状态
-```
-PENDING → PROCESSING → COMPLETED | FAILED
-```
-
-### 扩展开发
-
-#### 添加新的AI模型
-
-在 `services/ai_service.py` 中添加新的模型支持：
-
-```python
-class AIService:
-    def __init__(self, api_key: str, model_type: str = 'gemini'):
-        if model_type == 'gemini':
-            # Gemini implementation
-        elif model_type == 'openai':
-            # OpenAI implementation
-        # ...
-```
-
-#### 自定义提示词模板
-
-修改 `services/ai_service.py` 中的提示词生成逻辑：
-
-```python
-def generate_image_prompt(self, ...):
-    prompt = dedent(f"""
-        # 自定义提示词模板
-        ...
-    """)
-    return prompt
-```
-
-#### 添加新的导出格式
-
-在 `services/export_service.py` 中添加新的导出方法：
-
-```python
-class ExportService:
-    @staticmethod
-    def create_custom_format(image_paths, output_file):
-        # 实现自定义格式导出
-        pass
-```
-
+- 认证：`/api/auth/*`
+- 项目：`/api/projects/*`
+- 页面生成与编辑：`/api/projects/:id/pages/*`
+- 用户模板：`/api/user-templates`
+- 参考文件：`/api/reference-files/*`
+- 设置：`/api/settings`
+- 支付：`/api/payments/*`
+- 邀请码：`/api/invitations/*`
+- 管理后台：`/api/admin/*`
+- 系统配置：`/api/admin/config*`
+- 文件访问：`/files/*`
+- 健康检查：`/health`
 
 ## 测试
 
-### 健康检查
-
 ```bash
-curl http://localhost:5000/health
+cd backend
+uv run pytest
 ```
 
-### 创建项目
+测试已经按层拆分：
 
-```bash
-curl -X POST http://localhost:5000/api/projects \
-  -H "Content-Type: application/json" \
-  -d '{"creation_type":"idea","idea_prompt":"生成环保主题ppt"}'
-```
+- `tests/unit/`
+- `tests/integration/`
 
-### 上传模板
+前者覆盖接口、校验器、认证与积分逻辑，后者覆盖端到端业务流。
 
-```bash
-curl -X POST http://localhost:5000/api/projects/{project_id}/template \
-  -F "template_image=@template.png"
-```
+## 维护重点
 
-### 生成大纲
-
-```bash
-curl -X POST http://localhost:5000/api/projects/{project_id}/generate/outline \
-  -H "Content-Type: application/json" \
-  -d '{"idea_prompt":"生成环保主题ppt"}'
-```
-
-## 常见问题
-
-### Q: 数据库文件在哪里？
-A: 在 `backend/instance/database.db`，会自动创建。
-
-### Q: 上传的文件存在哪里？
-A: 在 `uploads/{project_id}/` 目录下，按项目隔离。
-
-### Q: 如何修改并发数？
-A: 推荐通过前端设置页修改（会同步到数据库并覆盖 `.env` 值）；也可以在 `.env` 文件中修改 `MAX_DESCRIPTION_WORKERS` 和 `MAX_IMAGE_WORKERS` 作为默认值，然后在设置页点击“重置为默认值”同步到 DB。
-
-### Q: 如何切换到其他AI模型 / 修改 MinerU 地址？
-A: 从当前版本开始，推荐通过前端“系统设置”页面修改：  
-- 大模型提供商格式 / API Base / API Key  
-- 文本模型 (`TEXT_MODEL`) / 图片模型 (`IMAGE_MODEL`)  
-- MinerU 地址 (`MINERU_API_BASE`) / 图片识别模型 (`IMAGE_CAPTION_MODEL`)  
-
-这些值会保存到 `settings` 表并覆盖 `.env` 中对应配置，点击“重置为默认值”会回到 `.env` 的默认值。
-
-### Q: 支持哪些图片格式？
-A: PNG, JPG, JPEG, GIF, WEBP。在 `config.py` 中的 `ALLOWED_EXTENSIONS` 配置。
-
-
-## 开源字体说明
-
-本项目包含 **Noto Sans CJK SC**（思源黑体简体中文）字体文件，用于 PPT 导出时的精确文本测量。
-
-- **字体文件**: `fonts/NotoSansSC-Regular.ttf`
-- **来源**: [Google Noto CJK Fonts](https://github.com/googlefonts/noto-cjk)
-- **许可证**: [SIL Open Font License 1.1 (OFL)](https://scripts.sil.org/OFL)
-
-OFL 许可证允许自由使用、修改和分发该字体。
-
-## 联系方式
-
-如有问题或建议，请通过 GitHub Issues 反馈。
-
+- 新增 HTTP 能力，优先放入 `controllers/ + services/`
+- 涉及模型配置切换，先检查 `config.py`、`settings_controller.py`、`ai_service_manager.py`
+- 涉及异步任务，先检查 `task_manager.py` 与 `services/queue/`
+- 涉及可编辑 PPTX，重点检查 `export_service.py`、`utils/pptx_builder.py`、`services/image_editability/`
+- 涉及普通用户可改哪些设置，重点检查 `SystemConfig` 和 `admin_config_controller.py`

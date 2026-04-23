@@ -4,8 +4,8 @@ Base payment provider interface
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class PaymentStatus(Enum):
@@ -27,12 +27,12 @@ class CreditPackage:
     price_usd: float            # 美元价格
     description: str = ""       # 套餐描述
     bonus_credits: int = 0      # 赠送积分
-    
+
     @property
     def total_credits(self) -> int:
         """总积分（包含赠送）"""
         return self.credits + self.bonus_credits
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,
@@ -56,7 +56,7 @@ class PaymentResult:
     qr_code_url: Optional[str] = None       # 二维码图片URL
     error_message: Optional[str] = None     # 错误信息
     raw_response: Optional[Dict] = None     # 原始响应
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'success': self.success,
@@ -68,15 +68,38 @@ class PaymentResult:
         }
 
 
+@dataclass
+class SubscriptionPlan:
+    """Recurring subscription plan."""
+    id: str
+    name: str
+    price_usd: float
+    interval: str = 'month'
+    monthly_credits: int = 0
+    description: str = ''
+    features: Optional[List[str]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'price_usd': self.price_usd,
+            'interval': self.interval,
+            'monthly_credits': self.monthly_credits,
+            'description': self.description,
+            'features': self.features or [],
+        }
+
+
 class PaymentProvider(ABC):
     """支付提供商基类"""
-    
+
     @property
     @abstractmethod
     def provider_name(self) -> str:
         """提供商名称"""
-        pass
-    
+        raise NotImplementedError
+
     @abstractmethod
     def create_order(
         self,
@@ -85,64 +108,29 @@ class PaymentProvider(ABC):
         notify_url: str,
         return_url: str,
         client_ip: Optional[str] = None,
+        payment_type: Optional[str] = None,
+        success_url: Optional[str] = None,
+        cancel_url: Optional[str] = None,
     ) -> PaymentResult:
-        """
-        创建支付订单
-        
-        Args:
-            user_id: 用户ID
-            package: 积分套餐
-            notify_url: 支付回调URL
-            return_url: 支付完成后跳转URL
-            client_ip: 客户端IP
-            
-        Returns:
-            PaymentResult
-        """
-        pass
-    
+        """创建支付订单。"""
+        raise NotImplementedError
+
     @abstractmethod
-    def verify_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None) -> bool:
-        """
-        验证 webhook 签名
-        
-        Args:
-            payload: webhook 数据
-            signature: 签名（如果有）
-            
-        Returns:
-            是否验证通过
-        """
-        pass
-    
+    def verify_webhook(
+        self,
+        payload: Dict[str, Any],
+        signature: Optional[str] = None,
+        headers: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """验证 webhook 签名。"""
+        raise NotImplementedError
+
     @abstractmethod
     def parse_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解析 webhook 数据
-        
-        Args:
-            payload: webhook 数据
-            
-        Returns:
-            标准化的订单信息 {
-                'order_id': str,
-                'external_order_id': str,
-                'status': PaymentStatus,
-                'amount': float,
-                'paid_at': datetime,
-            }
-        """
-        pass
-    
+        """解析 webhook 数据。"""
+        raise NotImplementedError
+
     @abstractmethod
     def query_order(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """
-        查询订单状态
-        
-        Args:
-            order_id: 订单ID
-            
-        Returns:
-            订单信息或 None
-        """
-        pass
+        """查询订单状态。"""
+        raise NotImplementedError

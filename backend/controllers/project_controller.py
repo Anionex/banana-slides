@@ -856,7 +856,10 @@ def generate_descriptions(project_id):
         
         with use_user_settings(user.id, scope=f"generate_descriptions:{project_id}"):
             ai_service = get_ai_service(force_new=True)
-        
+            reference_files_content = _get_project_reference_files_content(project_id)
+            project_context = ProjectContext(project, reference_files_content)
+
+
         # Get app instance for background task
         app = current_app._get_current_object()
         

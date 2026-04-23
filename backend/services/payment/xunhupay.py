@@ -19,39 +19,47 @@ logger = logging.getLogger(__name__)
 
 class XunhuPayProvider(PaymentProvider):
     """虎皮椒支付提供商"""
-    
+
     # API endpoints
     API_BASE = "https://api.xunhupay.com/payment"
     WECHAT_PAY_URL = f"{API_BASE}/do.html"
     ALIPAY_URL = f"{API_BASE}/do.html"
     QUERY_URL = f"{API_BASE}/query.html"
-    
-    def __init__(self):
-        self.app_id = os.getenv('XUNHUPAY_APP_ID', '')
-        self.app_secret = os.getenv('XUNHUPAY_APP_SECRET', '')
-        
-        if not self.app_id or not self.app_secret:
-            logger.warning("XunhuPay credentials not configured")
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        cfg = config or {}
+        self._config_app_id = cfg.get('app_id', '')
+        self._config_app_secret = cfg.get('app_secret', '')
+        self._env_app_id = os.getenv('XUNHUPAY_APP_ID', '')
+        self._env_app_secret = os.getenv('XUNHUPAY_APP_SECRET', '')
+
+    def _load_credentials(self):
+        """Load credentials: DB first, env fallback."""
+        try:
+            from models import SystemConfig
+            system_config = SystemConfig.get_instance()
+            app_id = self._config_app_id or system_config.xunhupay_app_id or self._env_app_id
+            app_secret = self._config_app_secret or system_config.xunhupay_app_secret or self._env_app_secret
+        except Exception:
+            app_id = self._config_app_id or self._env_app_id
+            app_secret = self._config_app_secret or self._env_app_secret
+        return app_id, app_secret
     
     @property
     def provider_name(self) -> str:
         return "xunhupay"
     
-    def _generate_sign(self, params: Dict[str, Any]) -> str:
+    @staticmethod
+    def _generate_sign(params: Dict[str, Any], app_secret: str) -> str:
         """
         生成签名
         签名规则：按参数名ASCII码排序，拼接成 key=value&key=value 格式，
         最后直接拼接 appsecret（不带前缀），然后 MD5
         """
-        # 过滤空值和 sign/hash 字段
         filtered = {k: v for k, v in params.items() if v and k not in ('sign', 'hash')}
-        # 按 key 排序
         sorted_params = sorted(filtered.items(), key=lambda x: x[0])
-        # 拼接
         query_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
-        # 直接拼接 appsecret（虎皮椒要求不带 &appsecret= 前缀）
-        sign_str = f"{query_string}{self.app_secret}"
-        # MD5
+        sign_str = f"{query_string}{app_secret}"
         return hashlib.md5(sign_str.encode('utf-8')).hexdigest()
     
     def _generate_order_id(self) -> str:
@@ -67,7 +75,9 @@ class XunhuPayProvider(PaymentProvider):
         notify_url: str,
         return_url: str,
         client_ip: Optional[str] = None,
-        payment_type: str = 'wechat',  # 'wechat' or 'alipay'
+        payment_type: Optional[str] = 'wechat',  # 'wechat' or 'alipay'
+        success_url: Optional[str] = None,
+        cancel_url: Optional[str] = None,
     ) -> PaymentResult:
         """
         创建支付订单
@@ -80,18 +90,20 @@ class XunhuPayProvider(PaymentProvider):
             client_ip: 客户端IP
             payment_type: 支付方式 'wechat' 或 'alipay'
         """
-        if not self.app_id or not self.app_secret:
+        app_id, app_secret = self._load_credentials()
+        if not app_id or not app_secret:
             return PaymentResult(
                 success=False,
                 error_message="支付服务未配置"
             )
-        
+
+        payment_type = payment_type or 'wechat'
+        return_url = cancel_url or return_url
         order_id = self._generate_order_id()
-        
-        # 构建请求参数
+
         params = {
             'version': '1.1',
-            'appid': self.app_id,
+            'appid': app_id,
             'trade_order_id': order_id,
             'total_fee': str(package.price_cny),
             'title': f"Banana Slides - {package.name}",
@@ -101,14 +113,13 @@ class XunhuPayProvider(PaymentProvider):
             'callback_url': return_url,
             'nonce_str': uuid.uuid4().hex[:16],
             'type': payment_type,
-            'attach': f"{user_id}|{package.id}",  # 附加数据：用户ID|套餐ID
+            'attach': f"{user_id}|{package.id}",
         }
-        
+
         if client_ip:
             params['mch_ip'] = client_ip
-        
-        # 生成签名
-        params['hash'] = self._generate_sign(params)
+
+        params['hash'] = self._generate_sign(params, app_secret)
         
         try:
             logger.info(f"Creating XunhuPay order: {order_id} for user {user_id}")
@@ -157,18 +168,22 @@ class XunhuPayProvider(PaymentProvider):
                 error_message=f"支付服务异常: {str(e)}"
             )
     
-    def verify_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None) -> bool:
+    def verify_webhook(self, payload: Dict[str, Any], signature: Optional[str] = None, headers: Optional[Dict[str, Any]] = None) -> bool:
         """验证 webhook 签名"""
         if not payload:
             return False
-        
+
         received_hash = payload.get('hash', '')
         if not received_hash:
             return False
-        
+
+        _app_id, app_secret = self._load_credentials()
+        if not app_secret:
+            return False
+
         # 重新计算签名
-        expected_hash = self._generate_sign(payload)
-        
+        expected_hash = self._generate_sign(payload, app_secret)
+
         return received_hash.lower() == expected_hash.lower()
     
     def parse_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -203,16 +218,17 @@ class XunhuPayProvider(PaymentProvider):
     
     def query_order(self, order_id: str) -> Optional[Dict[str, Any]]:
         """查询订单状态"""
-        if not self.app_id or not self.app_secret:
+        app_id, app_secret = self._load_credentials()
+        if not app_id or not app_secret:
             return None
-        
+
         params = {
-            'appid': self.app_id,
+            'appid': app_id,
             'out_trade_order': order_id,
             'time': str(int(time.time())),
             'nonce_str': uuid.uuid4().hex[:16],
         }
-        params['hash'] = self._generate_sign(params)
+        params['hash'] = self._generate_sign(params, app_secret)
         
         try:
             response = requests.post(self.QUERY_URL, data=params, timeout=30)

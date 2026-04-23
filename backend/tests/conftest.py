@@ -22,6 +22,9 @@ os.environ['GOOGLE_API_KEY'] = os.environ.get('GOOGLE_API_KEY', 'mock-api-key-fo
 os.environ['FLASK_ENV'] = 'testing'
 os.environ['SKIP_EMAIL_VERIFICATION'] = 'true'  # 跳过邮箱验证
 os.environ['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'test-jwt-secret-key')
+os.environ['STRIPE_SECRET_KEY'] = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_dummy')
+os.environ['PAYPAL_CLIENT_ID'] = os.environ.get('PAYPAL_CLIENT_ID', 'paypal-client-id')
+os.environ['PAYPAL_CLIENT_SECRET'] = os.environ.get('PAYPAL_CLIENT_SECRET', 'paypal-client-secret')
 
 
 @pytest.fixture(scope='session')

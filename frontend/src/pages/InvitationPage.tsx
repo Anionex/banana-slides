@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Home, Copy, Share2, Trash2, Plus, Gift, Users } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Button, Card, Loading, useToast, useConfirm } from '@/components/shared';
-import { useAuthStore } from '@/store/useAuthStore';
 import * as api from '@/api/endpoints';
 
 const invitationI18n = {

@@ -20,7 +20,7 @@ vi.mock('@/components/shared/MarkdownTextarea', () => {
   return {
     MarkdownTextarea: React.forwardRef(
       ({ value, onChange, onPaste, onFocus, placeholder, label }: any, ref: any) => {
-        const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+        const textareaRef = React.useRef(null)
         React.useImperativeHandle(ref, () => ({
           insertAtCursor: (text: string) => {
             // Simulate inserting text at end
@@ -74,6 +74,7 @@ if (typeof URL.createObjectURL === 'undefined') {
 
 describe('DescriptionCard', () => {
   const mockPage: Page = {
+    page_id: 'page-1',
     id: 'page-1',
     project_id: 'proj-1',
     order_index: 0,

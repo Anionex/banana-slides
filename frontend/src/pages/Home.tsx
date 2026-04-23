@@ -63,7 +63,7 @@ const homeI18n = {
     },
     home: {
       title: '蕉幻',
-      subtitle: 'Vibe your PPT like vibing code',
+      subtitle: 'Vibe your slides like vibing code',
       tagline: '基于 nano banana pro🍌 的原生 AI PPT 生成器',
       features: {
         oneClick: '一句话生成 PPT',
@@ -167,7 +167,7 @@ const homeI18n = {
     },
     home: {
       title: 'Banana Slides',
-      subtitle: 'Vibe your PPT like vibing code',
+      subtitle: 'Vibe your slides like vibing code',
       tagline: 'AI-native PPT generator powered by nano banana pro🍌',
       features: {
         oneClick: 'One-click PPT generation',
@@ -862,7 +862,7 @@ export const Home: React.FC = () => {
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">
         {/* Hero 标题区 */}
         <div className="text-center mb-10 md:mb-16 space-y-4 md:space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 dark:bg-background-secondary backdrop-blur-sm rounded-full border border-banana-200/50 dark:border-border-primary dark:shadow-none mb-4">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-background-secondary rounded-full ring-1 ring-gray-200/80 dark:ring-border-primary shadow-none mb-4">
             <span className="text-2xl animate-pulse"><Sparkles size={20} className="text-orange-500 dark:text-banana" /></span>
             <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('home.tagline')}</span>
           </div>

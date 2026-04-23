@@ -217,7 +217,7 @@ def get_provider_cache_signature() -> tuple:
     """
     Build a cache signature that changes when provider credentials/endpoints change.
     """
-    config = _get_provider_config()
+    config = _build_provider_config()
     provider_format = config['format']
 
     if provider_format == 'vertex':

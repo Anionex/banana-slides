@@ -26,16 +26,14 @@ class UserTemplate(db.Model):
 
     def to_dict(self):
         """Convert to dictionary"""
-        # Use thumbnail for preview if available
-        if self.thumb_path:
-            thumb_url = f'/files/user-templates/{self.id}/{self.thumb_path.split("/")[-1]}'
-        else:
-            thumb_url = None
+        from services.file_urls import public_url
+
+        thumb_url = public_url(self.thumb_path)
 
         return {
             'template_id': self.id,
             'name': self.name,
-            'template_image_url': f'/files/user-templates/{self.id}/{self.file_path.split("/")[-1]}',
+            'template_image_url': public_url(self.file_path),
             'thumb_url': thumb_url,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

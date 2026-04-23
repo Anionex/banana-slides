@@ -13,6 +13,8 @@ import { CreditsHistory } from './pages/CreditsHistory';
 import { InvitationPage } from './pages/InvitationPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import AnnouncementPopup from './components/announcements/AnnouncementPopup';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
 import {
   LoginPage,
   RegisterPage,
@@ -97,6 +99,8 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/oidc/callback" element={<OIDCCallbackPage />} />
         <Route path="/landing" element={<Landing />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
 
         {/* Protected routes */}
         <Route path="/app" element={
@@ -202,4 +206,3 @@ function App() {
 }
 
 export default App;
-

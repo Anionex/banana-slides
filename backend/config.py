@@ -37,10 +37,34 @@ class Config:
     }
     
     # 文件存储配置
+    STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local')
     UPLOAD_FOLDER = os.path.join(PROJECT_ROOT, 'uploads')
     MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200MB max file size
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     ALLOWED_REFERENCE_FILE_EXTENSIONS = {'pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'}
+
+    # Cloudflare R2 / S3-compatible storage
+    R2_ACCOUNT_ID = os.getenv('R2_ACCOUNT_ID', '')
+    R2_BUCKET = os.getenv('R2_BUCKET', '')
+    R2_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID', '')
+    R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY', '')
+    R2_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL', '')
+    R2_PUBLIC_BASE_URL = os.getenv('R2_PUBLIC_BASE_URL', '')
+    R2_REGION = os.getenv('R2_REGION', 'auto')
+    R2_SIGNED_URL_TTL = int(os.getenv('R2_SIGNED_URL_TTL', '3600'))
+
+    # Supabase auth
+    SUPABASE_URL = os.getenv('SUPABASE_URL', '')
+    SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
+    SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET', '')
+
+    # Billing
+    BILLING_PROVIDER = os.getenv('BILLING_PROVIDER', 'stripe')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+    STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+    STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+    STRIPE_PORTAL_CONFIGURATION_ID = os.getenv('STRIPE_PORTAL_CONFIGURATION_ID', '')
+    STRIPE_PORTAL_RETURN_URL = os.getenv('STRIPE_PORTAL_RETURN_URL', '')
     
     # AI服务配置
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')

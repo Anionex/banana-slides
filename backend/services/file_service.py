@@ -303,6 +303,22 @@ class FileService:
             relative_path = f"{project_id}/{file_type}/{filename}"
         
         return self.storage.get_public_url(relative_path)
+
+    def get_public_url(self, relative_path: str) -> str:
+        """Return a public URL for any stored relative path."""
+        return self.storage.get_public_url(relative_path)
+
+    def save_bytes(self, relative_path: str, content: bytes) -> str:
+        """Save raw bytes to the current storage backend."""
+        parent = str(Path(relative_path).parent)
+        if parent and parent != '.':
+            self.storage.ensure_directory(parent)
+        return self.storage.save_file(content, relative_path)
+
+    def save_local_file(self, local_path: str, relative_path: str) -> str:
+        """Upload an existing local file into the configured storage backend."""
+        with open(local_path, 'rb') as handle:
+            return self.save_bytes(relative_path, handle.read())
     
     def get_absolute_path(self, relative_path: str) -> str:
         """

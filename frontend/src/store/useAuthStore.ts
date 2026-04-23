@@ -15,6 +15,7 @@ export interface User {
   avatar_url?: string;
   subscription_plan: string;
   subscription_expires_at?: string;
+  billing_provider?: string;
   credits_balance: number;
   credits_used_total: number;
   projects_count: number;

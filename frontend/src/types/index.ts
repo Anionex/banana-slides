@@ -85,7 +85,7 @@ export interface Project {
 }
 
 // 任务状态
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type TaskStatus = 'PENDING' | 'RUNNING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 // 任务信息
 export interface Task {
@@ -152,6 +152,7 @@ export interface Settings {
   enable_image_reasoning: boolean;
   image_thinking_budget: number;
   baidu_api_key_length?: number;
+  baidu_ocr_api_key_length?: number;
   // LazyLLM 配置
   text_model_source?: string;
   image_model_source?: string;
@@ -170,3 +171,4 @@ export interface Settings {
   created_at?: string;
   updated_at?: string;
 }
+

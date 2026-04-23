@@ -2,8 +2,18 @@
  * Auth API - authentication related API calls
  * 认证相关 API
  */
+import type { Session } from '@supabase/supabase-js';
 import { apiClient } from './client';
 import { User, AuthTokens, useAuthStore } from '../store/useAuthStore';
+import {
+  assertSupabaseConfigured,
+  clearSupabaseSessionStorage,
+  getSupabaseRedirectUrl,
+  getSupabaseRememberMe,
+  isSupabaseConfigured,
+  setSupabaseRememberMe,
+  supabase,
+} from '../lib/supabase';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -22,16 +32,78 @@ interface LoginResponse {
 }
 
 interface RegisterResponse {
-  user: User;
+  user?: User;
   message: string;
   email?: string;
   require_verification?: boolean;
-  // 只有开发模式跳过验证时才有 tokens
   access_token?: string;
   refresh_token?: string;
   token_type?: string;
   expires_in?: number;
 }
+
+let requestInterceptorId: number | null = null;
+let responseInterceptorId: number | null = null;
+let authListenerInitialized = false;
+
+const toAuthTokens = (session: Session): AuthTokens => ({
+  access_token: session.access_token,
+  refresh_token: session.refresh_token,
+  token_type: session.token_type || 'Bearer',
+  expires_in: session.expires_in || 3600,
+});
+
+const readErrorMessage = (error: any, fallback: string): string => {
+  return error?.response?.data?.error?.message
+    || error?.response?.data?.message
+    || error?.message
+    || fallback;
+};
+
+const fetchCurrentUserWithAccessToken = async (accessToken: string): Promise<User> => {
+  const response = await apiClient.get<ApiResponse<{ user: User }>>('/api/auth/me', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  return response.data.data.user;
+};
+
+const applyTokensToStore = (tokens: AuthTokens, rememberMe = getSupabaseRememberMe()) => {
+  useAuthStore.setState({ rememberMe });
+  const currentUser = useAuthStore.getState().user;
+  if (currentUser) {
+    useAuthStore.getState().login(currentUser, tokens, rememberMe);
+  } else {
+    useAuthStore.getState().setTokens(tokens);
+  }
+};
+
+const syncSupabaseSessionToStore = (session: Session | null) => {
+  if (!session) {
+    return;
+  }
+  applyTokensToStore(toAuthTokens(session), getSupabaseRememberMe());
+};
+
+const setupSupabaseAuthListener = () => {
+  if (authListenerInitialized || !isSupabaseConfigured()) {
+    return;
+  }
+  authListenerInitialized = true;
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
+      clearSupabaseSessionStorage();
+      useAuthStore.getState().logout();
+      return;
+    }
+
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'PASSWORD_RECOVERY') {
+      syncSupabaseSessionToStore(session);
+    }
+  });
+};
 
 // ==================== Auth API ====================
 
@@ -40,35 +112,118 @@ export const authApi = {
    * Register a new user
    */
   register: async (email: string, password: string, username?: string, invitationCode?: string): Promise<RegisterResponse> => {
-    const response = await apiClient.post<ApiResponse<RegisterResponse>>('/api/auth/register', {
+    if (!isSupabaseConfigured()) {
+      const response = await apiClient.post<ApiResponse<RegisterResponse>>('/api/auth/register', {
+        email,
+        password,
+        username,
+        invitation_code: invitationCode,
+      });
+      return response.data.data;
+    }
+
+    assertSupabaseConfigured();
+    setSupabaseRememberMe(true);
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      username,
-      invitation_code: invitationCode,
+      options: {
+        emailRedirectTo: getSupabaseRedirectUrl('/auth/oidc/callback'),
+        data: {
+          username,
+          invitation_code: invitationCode,
+        },
+      },
     });
-    return response.data.data;
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const session = data.session;
+    let user: User | undefined;
+    let tokens: AuthTokens | undefined;
+
+    if (session) {
+      tokens = toAuthTokens(session);
+      user = await fetchCurrentUserWithAccessToken(session.access_token);
+    }
+
+    return {
+      user,
+      email: data.user?.email || email,
+      message: session ? '注册成功' : '注册成功，请查收邮箱确认链接',
+      require_verification: !session,
+      access_token: tokens?.access_token,
+      refresh_token: tokens?.refresh_token,
+      token_type: tokens?.token_type,
+      expires_in: tokens?.expires_in,
+    };
   },
 
   /**
    * Login with email and password
    */
   login: async (email: string, password: string, rememberMe: boolean = false): Promise<LoginResponse> => {
-    const response = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/login', {
+    if (!isSupabaseConfigured()) {
+      const response = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/login', {
+        email,
+        password,
+        remember_me: rememberMe,
+      });
+      return response.data.data;
+    }
+
+    assertSupabaseConfigured();
+    setSupabaseRememberMe(rememberMe);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      remember_me: rememberMe,
     });
-    return response.data.data;
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data.session) {
+      throw new Error('登录失败，未获取到会话');
+    }
+
+    const user = await fetchCurrentUserWithAccessToken(data.session.access_token);
+    const tokens = toAuthTokens(data.session);
+
+    return {
+      user,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_type: tokens.token_type,
+      expires_in: tokens.expires_in,
+      refresh_expires_in: tokens.refresh_expires_in,
+    };
   },
 
   /**
    * Refresh access token
    */
   refreshToken: async (refreshToken: string): Promise<AuthTokens> => {
-    const response = await apiClient.post<ApiResponse<AuthTokens>>('/api/auth/refresh', {
-      refresh_token: refreshToken,
-    });
-    return response.data.data;
+    if (!isSupabaseConfigured()) {
+      const response = await apiClient.post<ApiResponse<AuthTokens>>('/api/auth/refresh', {
+        refresh_token: refreshToken,
+      });
+      return response.data.data;
+    }
+
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (!data.session) {
+      throw new Error('登录已过期，请重新登录');
+    }
+    return toAuthTokens(data.session);
   },
 
   /**
@@ -80,42 +235,111 @@ export const authApi = {
   },
 
   /**
-   * Verify email with code
+   * Verify email with code (legacy fallback only)
    */
   verifyEmail: async (email: string, code: string): Promise<LoginResponse> => {
-    const response = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/verify-email', { email, code });
-    return response.data.data;
+    if (!isSupabaseConfigured()) {
+      const response = await apiClient.post<ApiResponse<LoginResponse>>('/api/auth/verify-email', { email, code });
+      return response.data.data;
+    }
+
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (!data.session) {
+      throw new Error('请点击邮箱中的确认链接完成验证');
+    }
+
+    const user = await fetchCurrentUserWithAccessToken(data.session.access_token);
+    const tokens = toAuthTokens(data.session);
+    return {
+      user,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_type: tokens.token_type,
+      expires_in: tokens.expires_in,
+      refresh_expires_in: tokens.refresh_expires_in,
+    };
   },
 
   /**
    * Resend verification email
    */
   resendVerification: async (email: string): Promise<void> => {
-    await apiClient.post('/api/auth/resend-verification', { email });
+    if (!isSupabaseConfigured()) {
+      await apiClient.post('/api/auth/resend-verification', { email });
+      return;
+    }
+
+    assertSupabaseConfigured();
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: getSupabaseRedirectUrl('/auth/oidc/callback'),
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   },
 
   /**
    * Request password reset
    */
   forgotPassword: async (email: string): Promise<void> => {
-    await apiClient.post('/api/auth/forgot-password', { email });
+    if (!isSupabaseConfigured()) {
+      await apiClient.post('/api/auth/forgot-password', { email });
+      return;
+    }
+
+    assertSupabaseConfigured();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getSupabaseRedirectUrl('/reset-password'),
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   },
 
   /**
-   * Reset password with token
+   * Reset password with token (Supabase uses the recovery session from the email link)
    */
   resetPassword: async (token: string, password: string): Promise<void> => {
-    await apiClient.post('/api/auth/reset-password', { token, password });
+    if (!isSupabaseConfigured() || token) {
+      await apiClient.post('/api/auth/reset-password', { token, password });
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      throw new Error(error.message);
+    }
   },
 
   /**
    * Change password (requires authentication)
    */
   changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
-    await apiClient.post('/api/auth/change-password', {
+    if (!isSupabaseConfigured()) {
+      await apiClient.post('/api/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
       current_password: currentPassword,
-      new_password: newPassword,
     });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   },
 };
 
@@ -125,70 +349,64 @@ export const authApi = {
  * Setup axios interceptor to add auth token to requests
  */
 export const setupAuthInterceptor = () => {
-  // Request interceptor - add auth token
-  apiClient.interceptors.request.use(
-    (config) => {
-      const tokens = useAuthStore.getState().tokens;
-      if (tokens?.access_token) {
-        config.headers.Authorization = `Bearer ${tokens.access_token}`;
-      }
-      return config;
-    },
-    (error) => Promise.reject(error)
-  );
+  setupSupabaseAuthListener();
 
-  // Response interceptor - handle 401 and token refresh
-  apiClient.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      const originalRequest = error.config;
-
-      // Skip refresh logic for auth endpoints to prevent infinite loop
-      const isAuthEndpoint = originalRequest.url?.includes('/api/auth/');
-      
-      // If 401 and not already retried and not an auth endpoint
-      if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
-        originalRequest._retry = true;
-
+  if (requestInterceptorId === null) {
+    requestInterceptorId = apiClient.interceptors.request.use(
+      (config) => {
         const tokens = useAuthStore.getState().tokens;
-        
-        if (tokens?.refresh_token) {
+        if (tokens?.access_token) {
+          config.headers.Authorization = `Bearer ${tokens.access_token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+  }
+
+  if (responseInterceptorId === null) {
+    responseInterceptorId = apiClient.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config || {};
+        const isAuthMutationEndpoint = [
+          '/api/auth/login',
+          '/api/auth/register',
+          '/api/auth/refresh',
+        ].some((path) => originalRequest.url?.includes(path));
+
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthMutationEndpoint) {
+          originalRequest._retry = true;
+
           try {
-            // Try to refresh token
-            const newTokens = await authApi.refreshToken(tokens.refresh_token);
-            useAuthStore.getState().setTokens(newTokens);
-            
-            // Retry original request with new token
+            const tokens = useAuthStore.getState().tokens;
+            const newTokens = await authApi.refreshToken(tokens?.refresh_token || '');
+            applyTokensToStore(newTokens, useAuthStore.getState().rememberMe || getSupabaseRememberMe());
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${newTokens.access_token}`;
             return apiClient(originalRequest);
           } catch (refreshError) {
-            // Refresh failed, logout user
+            clearSupabaseSessionStorage();
             useAuthStore.getState().logout();
             window.location.href = '/login';
             return Promise.reject(refreshError);
           }
-        } else {
-          // No refresh token, logout
-          useAuthStore.getState().logout();
-          window.location.href = '/login';
         }
-      }
 
-      // Handle insufficient credits error
-      if (error.response?.status === 402) {
-        // Enhance error with user-friendly message for components to display
-        const lang = document.documentElement.lang?.startsWith('zh') ? 'zh' :
-                    (localStorage.getItem('i18nextLng')?.startsWith('zh') ? 'zh' : 'en');
-        error.friendlyMessage = lang === 'zh'
-          ? '积分不足，请前往充值'
-          : 'Insufficient credits. Please purchase more.';
-        error.showPricingLink = true;
-        console.warn('Insufficient credits');
-      }
+        if (error.response?.status === 402) {
+          const lang = document.documentElement.lang?.startsWith('zh') ? 'zh' :
+                      (localStorage.getItem('i18nextLng')?.startsWith('zh') ? 'zh' : 'en');
+          error.friendlyMessage = lang === 'zh'
+            ? '积分不足，请前往充值'
+            : 'Insufficient credits. Please purchase more.';
+          error.showPricingLink = true;
+          console.warn('Insufficient credits');
+        }
 
-      return Promise.reject(error);
-    }
-  );
+        return Promise.reject(error);
+      }
+    );
+  }
 };
 
 // ==================== Auth Helpers ====================
@@ -210,13 +428,11 @@ export const loginUser = async (email: string, password: string, rememberMe: boo
 
 /**
  * Register user
- * 注意：生产模式下注册后不会自动登录，需要先验证邮箱
  */
 export const registerUser = async (email: string, password: string, username?: string, invitationCode?: string) => {
   const data = await authApi.register(email, password, username, invitationCode);
 
-  // 只有当返回了 tokens 时才自动登录（开发模式跳过验证时）
-  if (data.access_token && data.refresh_token) {
+  if (data.access_token && data.refresh_token && data.user) {
     useAuthStore.getState().login(data.user, {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -228,16 +444,57 @@ export const registerUser = async (email: string, password: string, username?: s
   return {
     user: data.user,
     message: data.message,
-    email: data.email || data.user.email,
-    requireVerification: data.require_verification || false
+    email: data.email || data.user?.email || email,
+    requireVerification: data.require_verification || false,
   };
+};
+
+/**
+ * Start Google OAuth login
+ */
+export const signInWithGoogle = async () => {
+  if (!isSupabaseConfigured()) {
+    const provider = 'google';
+    const response = await fetch(`/api/auth/oidc/login?provider=${provider}`);
+    const payload = await response.json();
+    if (payload.data?.auth_url && payload.data?.state) {
+      sessionStorage.setItem('oidc_state', payload.data.state);
+      sessionStorage.setItem('oidc_provider', provider);
+      window.location.href = payload.data.auth_url;
+      return;
+    }
+    throw new Error(payload.error?.message || 'Google 登录失败，请重试');
+  }
+
+  assertSupabaseConfigured();
+  setSupabaseRememberMe(true);
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: getSupabaseRedirectUrl('/auth/oidc/callback'),
+      queryParams: {
+        prompt: 'select_account',
+      },
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 };
 
 /**
  * Logout user
  */
-export const logoutUser = () => {
-  useAuthStore.getState().logout();
+export const logoutUser = async () => {
+  try {
+    if (isSupabaseConfigured()) {
+      await supabase.auth.signOut();
+    }
+  } finally {
+    clearSupabaseSessionStorage();
+    useAuthStore.getState().logout();
+  }
 };
 
 /**
@@ -250,7 +507,6 @@ export const refreshCredits = async (): Promise<void> => {
     const { balance, used_total } = response.data.data;
     useAuthStore.getState().updateCredits(balance, used_total);
   } catch (error) {
-    // Silent fail - credit refresh is best-effort
     console.warn('Failed to refresh credits:', error);
   }
 };
@@ -261,24 +517,38 @@ export const refreshCredits = async (): Promise<void> => {
  */
 export const checkAuth = async (): Promise<boolean> => {
   const store = useAuthStore.getState();
-  
-  // 首先从 storage 加载 tokens（支持 localStorage 和 sessionStorage）
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        throw error;
+      }
+      if (data.session?.access_token) {
+        const tokens = toAuthTokens(data.session);
+        const user = await fetchCurrentUserWithAccessToken(data.session.access_token);
+        store.login(user, tokens, getSupabaseRememberMe());
+        return true;
+      }
+    } catch (error) {
+      console.warn('Supabase session check failed:', readErrorMessage(error, 'unknown error'));
+    }
+  }
+
   const tokens = store.loadTokensFromStorage() || store.tokens;
-  
-  // 没有 token，直接登出
   if (!tokens?.access_token) {
     store.logout();
     return false;
   }
-  
+
   try {
-    // 验证 token 并获取用户信息
     const user = await authApi.getCurrentUser();
-    // 验证成功，设置用户和认证状态（保持原有的 rememberMe 设置）
-    store.login(user, tokens, store.rememberMe);
+    const currentState = useAuthStore.getState();
+    const latestTokens = currentState.tokens || tokens;
+    store.login(user, latestTokens, currentState.rememberMe);
     return true;
-  } catch (error) {
-    // token 无效，清除所有状态
+  } catch {
+    clearSupabaseSessionStorage();
     store.logout();
     return false;
   }

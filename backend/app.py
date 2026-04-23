@@ -68,8 +68,19 @@ def create_app():
     instance_dir = os.path.join(backend_dir, 'instance')
     os.makedirs(instance_dir, exist_ok=True)
     
-    db_path = os.path.join(instance_dir, 'database.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    database_uri = os.getenv('DATABASE_URL') or app.config.get('SQLALCHEMY_DATABASE_URI')
+    if not database_uri:
+        db_path = os.path.join(instance_dir, 'database.db')
+        database_uri = f'sqlite:///{db_path}'
+
+    # Respect DATABASE_URL / Config so tests and alternate deployments do not
+    # silently write into the default instance database.
+    if database_uri.startswith('sqlite:///'):
+        sqlite_path = database_uri[len('sqlite:///'):]
+        if sqlite_path and sqlite_path != ':memory:':
+            os.makedirs(os.path.dirname(sqlite_path), exist_ok=True)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
     
     # Ensure upload folder exists
     project_root = os.path.dirname(backend_dir)
@@ -79,9 +90,10 @@ def create_app():
     
     # 设置存储后端环境变量（用于抽象层初始化）
     os.environ['UPLOAD_FOLDER'] = upload_folder
-    os.environ.setdefault('STORAGE_BACKEND', 'local')
+    os.environ['STORAGE_BACKEND'] = app.config.get('STORAGE_BACKEND', os.getenv('STORAGE_BACKEND', 'local'))
     os.environ.setdefault('TASK_QUEUE', 'thread')
     os.environ.setdefault('TASK_QUEUE_WORKERS', '4')
+    app.config['STORAGE_BACKEND'] = os.environ['STORAGE_BACKEND']
     
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
@@ -189,11 +201,11 @@ def create_app():
     @app.route('/api/output-language', methods=['GET'])
     def get_output_language():
         """
-        获取用户的输出语言偏好（从用户个人设置读取）
+        获取用户的有效输出语言偏好（用户 override > 全局 Settings）
         返回: zh, ja, en, auto
         """
-        from models import UserSettings
         from services.auth_service import AuthService
+        from services.runtime_settings import get_user_effective_config_value
         try:
             # Manually extract and verify token (no @auth_required decorator here)
             auth_header = request.headers.get('Authorization', '')
@@ -201,8 +213,12 @@ def create_app():
             if token:
                 user = AuthService.verify_access_token(token)
                 if user and user.is_active:
-                    user_settings = UserSettings.get_or_create_for_user(user.id)
-                    return {'data': {'language': user_settings.output_language or 'zh'}}
+                    language = get_user_effective_config_value(
+                        user.id,
+                        'OUTPUT_LANGUAGE',
+                        default=Config.OUTPUT_LANGUAGE,
+                    )
+                    return {'data': {'language': language or 'zh'}}
             return {'data': {'language': Config.OUTPUT_LANGUAGE}}
         except Exception as e:
             logging.warning(f"Failed to load output language from user settings: {e}")

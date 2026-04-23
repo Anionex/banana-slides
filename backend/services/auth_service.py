@@ -5,6 +5,7 @@ import os
 import logging
 import secrets
 import jwt
+from jwt import PyJWKClient
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
 from sqlalchemy import update as sql_update
@@ -34,6 +35,10 @@ class AuthService:
     ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour
     REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 604800))  # 7 days
     REFRESH_TOKEN_EXPIRES_REMEMBER = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES_REMEMBER', 2592000))  # 30 days
+    SUPABASE_URL = (os.getenv('SUPABASE_URL') or '').rstrip('/')
+    SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET', '')
+    SUPABASE_JWKS_URL = os.getenv('SUPABASE_JWKS_URL') or (f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else '')
+    _supabase_jwks_client: Optional[PyJWKClient] = None
     
     # ==================== User Registration ====================
 
@@ -320,26 +325,235 @@ class AuthService:
         Returns:
             User object if token is valid, None otherwise
         """
+        user = cls._verify_local_access_token(token)
+        if user:
+            return user
+
+        claims = cls._decode_supabase_access_token(token)
+        if claims:
+            return cls.sync_or_create_supabase_user(claims)
+
+        return None
+
+    @classmethod
+    def _verify_local_access_token(cls, token: str) -> Optional[User]:
+        """Verify a legacy first-party access token."""
         try:
             payload = jwt.decode(token, cls.JWT_SECRET_KEY, algorithms=[cls.JWT_ALGORITHM])
-            
+
             if payload.get('type') != 'access':
                 logger.debug("Token type is not 'access'")
                 return None
-            
+
             user_id = payload.get('sub')
             if not user_id:
                 logger.debug("No user ID in token payload")
                 return None
-            
-            user = User.query.get(user_id)
-            return user
-            
+
+            return User.query.get(user_id)
         except jwt.ExpiredSignatureError:
             logger.debug("Access token expired")
             return None
         except jwt.InvalidTokenError as e:
-            logger.debug(f"Invalid access token: {e}")
+            logger.debug(f"Invalid local access token: {e}")
+            return None
+
+    @classmethod
+    def _get_supabase_jwks_client(cls) -> Optional[PyJWKClient]:
+        if not cls.SUPABASE_JWKS_URL:
+            return None
+        if cls._supabase_jwks_client is None:
+            cls._supabase_jwks_client = PyJWKClient(cls.SUPABASE_JWKS_URL)
+        return cls._supabase_jwks_client
+
+    @classmethod
+    def _decode_supabase_access_token(cls, token: str) -> Optional[Dict[str, Any]]:
+        """Verify a Supabase access token using the project's JWT secret or JWKS."""
+        if not (cls.SUPABASE_URL or cls.SUPABASE_JWT_SECRET or cls.SUPABASE_JWKS_URL):
+            return None
+
+        try:
+            header = jwt.get_unverified_header(token)
+            algorithm = header.get('alg', 'RS256')
+            issuer = f"{cls.SUPABASE_URL}/auth/v1" if cls.SUPABASE_URL else None
+            decode_kwargs: Dict[str, Any] = {
+                'algorithms': [algorithm],
+                'options': {'verify_aud': False},
+            }
+            if issuer:
+                decode_kwargs['issuer'] = issuer
+
+            if algorithm.startswith('HS'):
+                if not cls.SUPABASE_JWT_SECRET:
+                    logger.debug("SUPABASE_JWT_SECRET not configured for HS-signed token")
+                    return None
+                return jwt.decode(token, cls.SUPABASE_JWT_SECRET, **decode_kwargs)
+
+            jwks_client = cls._get_supabase_jwks_client()
+            if not jwks_client:
+                return None
+            signing_key = jwks_client.get_signing_key_from_jwt(token)
+            return jwt.decode(token, signing_key.key, **decode_kwargs)
+        except Exception as e:
+            logger.debug(f"Invalid Supabase access token: {e}")
+            return None
+
+    @classmethod
+    def sync_or_create_supabase_user(cls, claims: Dict[str, Any]) -> Optional[User]:
+        """Sync a local user record from verified Supabase JWT claims."""
+        supabase_sub = claims.get('sub')
+        email = (claims.get('email') or '').lower().strip()
+        if not supabase_sub:
+            logger.debug("Supabase token missing sub claim")
+            return None
+
+        user = User.query.filter_by(oidc_provider='supabase', oidc_sub=supabase_sub).first()
+        if not user and email:
+            user = User.query.filter_by(email=email).first()
+
+        user_metadata = claims.get('user_metadata') or {}
+        preferred_username = (
+            user_metadata.get('username')
+            or user_metadata.get('full_name')
+            or user_metadata.get('name')
+            or (email.split('@')[0] if email else None)
+        )
+        avatar_url = user_metadata.get('avatar_url') or user_metadata.get('picture')
+        invitation_code = (user_metadata.get('invitation_code') or user_metadata.get('invitationCode') or '').strip() or None
+        invitation = None
+        if invitation_code:
+            try:
+                from models import InvitationCode
+                invitation = InvitationCode.get_by_code(invitation_code)
+                if not invitation or not invitation.is_valid():
+                    logger.warning(f"Ignoring invalid Supabase invitation code: {invitation_code}")
+                    invitation = None
+            except Exception as e:
+                logger.warning(f"Failed to validate Supabase invitation code {invitation_code}: {e}")
+                invitation = None
+        email_verified = claims.get('email_verified')
+        if email_verified is None:
+            email_verified = bool(claims.get('email_confirmed_at') or claims.get('confirmed_at') or email)
+
+        try:
+            if user:
+                changed = False
+                if user.oidc_provider != 'supabase':
+                    user.oidc_provider = 'supabase'
+                    changed = True
+                if user.oidc_sub != supabase_sub:
+                    user.oidc_sub = supabase_sub
+                    changed = True
+                if email and user.email != email:
+                    # Only update email if no other account already owns it.
+                    existing_email_owner = User.query.filter(User.email == email, User.id != user.id).first()
+                    if not existing_email_owner:
+                        user.email = email
+                        changed = True
+                if preferred_username and not user.username:
+                    user.username = preferred_username
+                    changed = True
+                if avatar_url and user.avatar_url != avatar_url:
+                    user.avatar_url = avatar_url
+                    changed = True
+                if email_verified and not user.email_verified:
+                    user.email_verified = True
+                    changed = True
+
+                if changed:
+                    user.updated_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                return user
+
+            registration_bonus = 50
+            try:
+                config = SystemConfig.get_instance()
+                registration_bonus = config.registration_bonus
+            except Exception as e:
+                logger.warning(f"Failed to get registration bonus from SystemConfig: {e}")
+
+            user = User(
+                email=email or f"supabase-{supabase_sub}@users.local",
+                password_hash=None,
+                username=preferred_username,
+                avatar_url=avatar_url,
+                oidc_provider='supabase',
+                oidc_sub=supabase_sub,
+                email_verified=bool(email_verified),
+                subscription_plan='free',
+                credits_balance=registration_bonus,
+                ai_calls_reset_at=datetime.now(timezone.utc),
+                last_login_at=datetime.now(timezone.utc),
+            )
+
+            db.session.add(user)
+            db.session.flush()
+
+            if registration_bonus > 0:
+                transaction = CreditTransaction(
+                    user_id=user.id,
+                    operation=CreditOperation.REGISTRATION.value,
+                    amount=registration_bonus,
+                    balance_after=user.credits_balance,
+                    description="Supabase 注册奖励"
+                )
+                db.session.add(transaction)
+
+            if invitation:
+                invitation_bonus = 50
+                try:
+                    config = SystemConfig.get_instance()
+                    invitation_bonus = config.invitation_bonus
+                except Exception as e:
+                    logger.warning(f"Failed to get invitation bonus from SystemConfig: {e}")
+
+                invitation.use(user.id)
+
+                if invitation_bonus > 0:
+                    db.session.execute(
+                        db.update(User)
+                        .where(User.id == user.id)
+                        .values(credits_balance=User.credits_balance + invitation_bonus)
+                    )
+                    db.session.refresh(user)
+                    invitee_transaction = CreditTransaction(
+                        user_id=user.id,
+                        operation=CreditOperation.INVITATION.value,
+                        amount=invitation_bonus,
+                        balance_after=user.credits_balance,
+                        description=f"使用邀请码 {invitation.code} 注册奖励"
+                    )
+                    db.session.add(invitee_transaction)
+
+                    inviter = User.query.get(invitation.inviter_id)
+                    if inviter:
+                        db.session.execute(
+                            db.update(User)
+                            .where(User.id == inviter.id)
+                            .values(credits_balance=User.credits_balance + invitation_bonus)
+                        )
+                        db.session.refresh(inviter)
+                        inviter_transaction = CreditTransaction(
+                            user_id=inviter.id,
+                            operation=CreditOperation.INVITATION.value,
+                            amount=invitation_bonus,
+                            balance_after=inviter.credits_balance,
+                            description=f"邀请码 {invitation.code} 被 {email or user.email} 使用"
+                        )
+                        db.session.add(inviter_transaction)
+                        logger.info(f"Supabase invitation bonus granted: inviter={inviter.id}, invitee={user.id}, bonus={invitation_bonus}")
+
+            db.session.commit()
+            logger.info(f"Supabase user synced: {user.id} ({user.email})")
+            return user
+        except IntegrityError:
+            db.session.rollback()
+            if email:
+                return User.query.filter_by(email=email).first()
+            return User.query.filter_by(oidc_provider='supabase', oidc_sub=supabase_sub).first()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to sync Supabase user: {e}")
             return None
     
     @classmethod

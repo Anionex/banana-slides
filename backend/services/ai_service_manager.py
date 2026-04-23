@@ -87,6 +87,7 @@ def _get_cached_image_provider(model: str, signature: tuple) -> ImageProvider:
         return _image_provider_cache[cache_key]
 
 
+
 def _get_cached_caption_provider(model: str, signature: tuple) -> TextProvider:
     """Get or create a cached caption provider instance"""
     with _cache_lock:

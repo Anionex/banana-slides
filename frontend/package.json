@@ -40,7 +40,8 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "tailwind-merge": "^2.1.0",
-    "zustand": "^4.4.7"
+    "zustand": "^4.4.7",
+    "@supabase/supabase-js": "^2.57.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.1",

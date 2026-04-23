@@ -298,12 +298,6 @@ export const SlidePreview: React.FC = () => {
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
-  // Memoize pages with generated images to avoid re-computing in multiple places
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const pagesWithImages = useMemo(() => {
-    return currentProject?.pages.filter(p => p.id && p.generated_image_path) || [];
-  }, [currentProject?.pages]);
-
   // All pages with IDs (for multi-select, which can select ungenerated slides too)
   const allPagesWithIds = useMemo(() => {
     return currentProject?.pages.filter(p => p.id) || [];
@@ -997,7 +991,11 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          // Append access_token for authenticated file download
+          const token = (await import('@/store/useAuthStore')).useAuthStore.getState().tokens?.access_token;
+          const sep = downloadUrl.includes('?') ? '&' : '?';
+          const authUrl = token ? `${downloadUrl}${sep}access_token=${encodeURIComponent(token)}` : downloadUrl;
+          window.open(authUrl, '_blank');
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling
@@ -1979,7 +1977,7 @@ export const SlidePreview: React.FC = () => {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedContextImages.uploadedFiles.map((file, idx) => (
+                {selectedContextImages.uploadedFiles.map((_file, idx) => (
                   <div key={idx} className="relative group">
                     <img
                       src={uploadedFileUrls.current[idx] || ''}

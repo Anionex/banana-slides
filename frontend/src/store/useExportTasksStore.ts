@@ -36,6 +36,7 @@ export interface ExportTask {
       other_warnings?: string[];
       total_warnings?: number;
     };
+    help_text?: string;
   };
   downloadUrl?: string;
   filename?: string;

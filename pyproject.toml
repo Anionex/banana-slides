@@ -30,6 +30,9 @@ dependencies = [
     "volcengine-python-sdk[ark]>=5.0.9",
     "PyPDF2>=3.0.0",
     "PyMuPDF>=1.24.0",
+    "boto3>=1.35.0",
+    "oss2>=2.18.0",
+    "stripe>=12.0.0",
 ]
 
 [project.optional-dependencies]

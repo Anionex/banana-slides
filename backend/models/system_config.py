@@ -1,10 +1,16 @@
-"""
-SystemConfig Model - 系统级配置
-存储全局系统配置，如用户策略、积分定价、邀请奖励等
-"""
+"""SystemConfig Model - 系统级配置"""
+from __future__ import annotations
+
+import copy
 import json
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from models import db
+from services.provider_metadata import (
+    PAYMENT_PROVIDER_SECRET_FIELDS,
+    STORAGE_PROVIDER_SECRET_FIELDS,
+)
 
 
 class SystemConfig(db.Model):
@@ -14,56 +20,58 @@ class SystemConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True, default=1)
 
     # ==================== 用户策略 ====================
-    # 哪些设置字段允许用户自定义（JSON 数组）
-    # 例如: ["api_key", "api_base_url", "text_model", "image_model"]
-    user_editable_fields = db.Column(db.Text, default='["output_language", "image_resolution", "image_aspect_ratio", "description_generation_mode", "description_extra_fields", "image_prompt_extra_fields"]')
+    user_editable_fields = db.Column(
+        db.Text,
+        default='["output_language", "image_resolution", "image_aspect_ratio", "description_generation_mode", "description_extra_fields", "image_prompt_extra_fields"]',
+    )
 
     # ==================== 积分定价配置 ====================
-    # 注册奖励积分
     registration_bonus = db.Column(db.Integer, default=50)
-    # 邀请奖励积分（邀请人和被邀请人各得）
     invitation_bonus = db.Column(db.Integer, default=50)
-    # 最大邀请码数量（每用户）
     max_invitation_codes = db.Column(db.Integer, default=3)
 
-    # 生成大纲积分
     cost_generate_outline = db.Column(db.Integer, default=5)
-    # 生成描述积分（每页）
     cost_generate_description = db.Column(db.Integer, default=1)
-    # 生成图片积分（每页，按分辨率分级）
     cost_generate_image_1k = db.Column(db.Integer, default=4)
     cost_generate_image_2k = db.Column(db.Integer, default=8)
     cost_generate_image_4k = db.Column(db.Integer, default=16)
-    # 编辑图片积分
     cost_edit_image = db.Column(db.Integer, default=8)
-    # 生成素材积分
     cost_generate_material = db.Column(db.Integer, default=10)
-    # 修改大纲积分
     cost_refine_outline = db.Column(db.Integer, default=2)
-    # 修改描述积分（每页）
     cost_refine_description = db.Column(db.Integer, default=1)
-    # 解析参考文件积分
     cost_parse_file = db.Column(db.Integer, default=5)
-    # 导出可编辑PPTX积分（每页）
     cost_export_editable = db.Column(db.Integer, default=15)
 
+    # ==================== 旧支付配置（兼容） ====================
+    xunhupay_app_id = db.Column(db.String(100), default='')
+    xunhupay_app_secret = db.Column(db.String(200), default='')
+
     # ==================== 功能开关 ====================
-    # 是否允许用户购买积分
     enable_credits_purchase = db.Column(db.Boolean, default=True)
-    # 是否允许邀请功能
+    enable_alipay = db.Column(db.Boolean, default=False)
     enable_invitation = db.Column(db.Boolean, default=True)
 
     # ==================== 套餐配置 ====================
-    # 套餐配置（JSON 格式）
     credit_packages = db.Column(db.Text, default=None)
 
     # ==================== 文生图渠道池 ====================
-    # 多渠道配置（JSON 格式），按优先级自动降级
     image_provider_pool = db.Column(db.Text, default=None)
+
+    # ==================== 新支付 / 存储配置 ====================
+    default_payment_provider = db.Column(db.String(50), default='stripe')
+    enabled_payment_providers = db.Column(db.Text, default='["stripe"]')
+    payment_provider_configs = db.Column(db.Text, default=None)
+
+    storage_backend = db.Column(db.String(50), default='local')
+    storage_provider_configs = db.Column(db.Text, default=None)
 
     # 时间戳
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
     @staticmethod
     def get_instance():
@@ -75,45 +83,69 @@ class SystemConfig(db.Model):
             db.session.commit()
         return config
 
-    def get_user_editable_fields(self):
-        """获取用户可编辑字段列表"""
+    @staticmethod
+    def _loads_json(raw: Optional[str], default: Any):
+        if raw in (None, ''):
+            return copy.deepcopy(default)
         try:
-            return json.loads(self.user_editable_fields or '[]')
+            return json.loads(raw)
         except (json.JSONDecodeError, TypeError):
-            return ['output_language', 'image_resolution', 'image_aspect_ratio']
+            return copy.deepcopy(default)
 
-    def set_user_editable_fields(self, fields: list):
-        """设置用户可编辑字段"""
-        self.user_editable_fields = json.dumps(fields)
+    @staticmethod
+    def _dumps_json(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        return json.dumps(value)
+
+    def get_user_editable_fields(self) -> List[str]:
+        return self._loads_json(
+            self.user_editable_fields,
+            ['output_language', 'image_resolution', 'image_aspect_ratio'],
+        )
+
+    def set_user_editable_fields(self, fields: List[str]):
+        self.user_editable_fields = self._dumps_json(fields)
 
     def get_credit_packages(self):
-        """获取积分套餐配置"""
-        if not self.credit_packages:
-            return None
-        try:
-            return json.loads(self.credit_packages)
-        except (json.JSONDecodeError, TypeError):
-            return None
+        return self._loads_json(self.credit_packages, None)
 
-    def set_credit_packages(self, packages: list):
-        """设置积分套餐配置"""
-        self.credit_packages = json.dumps(packages)
+    def set_credit_packages(self, packages: Optional[list]):
+        self.credit_packages = self._dumps_json(packages)
 
     def get_image_provider_pool(self):
-        """获取文生图渠道池配置"""
-        if not self.image_provider_pool:
-            return None
-        try:
-            return json.loads(self.image_provider_pool)
-        except (json.JSONDecodeError, TypeError):
-            return None
+        return self._loads_json(self.image_provider_pool, None)
 
-    def set_image_provider_pool(self, pool: list):
-        """设置文生图渠道池配置"""
-        self.image_provider_pool = json.dumps(pool)
+    def set_image_provider_pool(self, pool: Optional[list]):
+        self.image_provider_pool = self._dumps_json(pool)
+
+    def get_enabled_payment_providers(self) -> List[str]:
+        providers = self._loads_json(self.enabled_payment_providers, ['stripe']) or []
+        return [str(provider).strip().lower() for provider in providers if provider]
+
+    def set_enabled_payment_providers(self, providers: List[str]):
+        normalized = [str(provider).strip().lower() for provider in providers if provider]
+        self.enabled_payment_providers = self._dumps_json(normalized)
+
+    def get_payment_provider_configs(self, raw: bool = False) -> Dict[str, Any]:
+        configs = self._loads_json(self.payment_provider_configs, {}) or {}
+        if raw:
+            return configs
+        return self._mask_provider_configs(configs, PAYMENT_PROVIDER_SECRET_FIELDS)
+
+    def set_payment_provider_configs(self, configs: Optional[Dict[str, Any]]):
+        self.payment_provider_configs = self._dumps_json(configs or {})
+
+    def get_storage_provider_configs(self, raw: bool = False) -> Dict[str, Any]:
+        configs = self._loads_json(self.storage_provider_configs, {}) or {}
+        if raw:
+            return configs
+        return self._mask_provider_configs(configs, STORAGE_PROVIDER_SECRET_FIELDS)
+
+    def set_storage_provider_configs(self, configs: Optional[Dict[str, Any]]):
+        self.storage_provider_configs = self._dumps_json(configs or {})
 
     def get_image_cost_by_resolution(self, resolution: str) -> int:
-        """根据分辨率获取图片生成积分"""
         costs = {
             '1K': self.cost_generate_image_1k,
             '2K': self.cost_generate_image_2k,
@@ -122,7 +154,6 @@ class SystemConfig(db.Model):
         return costs.get(resolution, self.cost_generate_image_2k)
 
     def get_credit_costs(self):
-        """获取所有积分消耗配置"""
         return {
             'generate_outline': self.cost_generate_outline,
             'generate_description': self.cost_generate_description,
@@ -138,21 +169,32 @@ class SystemConfig(db.Model):
         }
 
     def _safe_pool_dict(self):
-        """返回渠道池配置，隐藏 api_key 明文"""
         pool = self.get_image_provider_pool()
         if not pool:
             return pool
         safe = []
-        for ch in pool:
-            c = dict(ch)
-            key = c.get('api_key', '')
-            c['api_key_length'] = len(key) if key else 0
-            c['api_key'] = ''
-            safe.append(c)
+        for channel in pool:
+            item = dict(channel)
+            key = item.get('api_key', '')
+            item['api_key_length'] = len(key) if key else 0
+            item['api_key'] = ''
+            safe.append(item)
         return safe
 
+    @staticmethod
+    def _mask_provider_configs(configs: Dict[str, Any], secret_fields_map: Dict[str, List[str]]) -> Dict[str, Any]:
+        safe_configs: Dict[str, Any] = copy.deepcopy(configs or {})
+        for provider_name, secret_fields in secret_fields_map.items():
+            provider_cfg = safe_configs.get(provider_name)
+            if not isinstance(provider_cfg, dict):
+                continue
+            for field in secret_fields:
+                value = provider_cfg.get(field, '')
+                provider_cfg[f'{field}_length'] = len(value) if isinstance(value, str) and value else 0
+                provider_cfg[field] = ''
+        return safe_configs
+
     def to_dict(self):
-        """转换为字典"""
         return {
             'id': self.id,
             'user_editable_fields': self.get_user_editable_fields(),
@@ -170,10 +212,18 @@ class SystemConfig(db.Model):
             'cost_refine_description': self.cost_refine_description,
             'cost_parse_file': self.cost_parse_file,
             'cost_export_editable': self.cost_export_editable,
+            'xunhupay_app_id': self.xunhupay_app_id or '',
+            'xunhupay_app_secret_length': len(self.xunhupay_app_secret or ''),
             'enable_credits_purchase': self.enable_credits_purchase,
+            'enable_alipay': self.enable_alipay,
             'enable_invitation': self.enable_invitation,
             'credit_packages': self.get_credit_packages(),
             'image_provider_pool': self._safe_pool_dict(),
+            'default_payment_provider': (self.default_payment_provider or 'stripe').strip().lower(),
+            'enabled_payment_providers': self.get_enabled_payment_providers(),
+            'payment_provider_configs': self.get_payment_provider_configs(raw=False),
+            'storage_backend': (self.storage_backend or 'local').strip().lower(),
+            'storage_provider_configs': self.get_storage_provider_configs(raw=False),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

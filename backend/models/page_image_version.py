@@ -24,6 +24,8 @@ class PageImageVersion(db.Model):
     
     def to_dict(self):
         """Convert to dictionary"""
+        from services.file_urls import public_url
+
         # Get project_id from page relationship
         project_id = self.page.project_id if self.page else None
         # Format created_at with UTC timezone indicator for proper frontend parsing
@@ -35,7 +37,7 @@ class PageImageVersion(db.Model):
             'version_id': self.id,
             'page_id': self.page_id,
             'image_path': self.image_path,
-            'image_url': f'/files/{project_id}/pages/{self.image_path.split("/")[-1]}' if self.image_path and project_id else None,
+            'image_url': public_url(self.image_path) if self.image_path and project_id else None,
             'version_number': self.version_number,
             'is_current': self.is_current,
             'created_at': created_at_str,

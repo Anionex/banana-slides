@@ -110,7 +110,7 @@ def _build_non_admin_settings_response(user_settings: UserSettings) -> dict:
     for field_name in user_fields:
         user_value = getattr(user_settings, field_name, None)
         global_value = getattr(default_settings, field_name, None)
-        uses_global_fallback = user_value is None and global_value is not None
+        uses_global_fallback = user_value is None
 
         value_sources[field_name] = "global" if uses_global_fallback else "user"
 
@@ -233,21 +233,13 @@ def _copy_user_settings_to_global(user_settings: UserSettings) -> Settings:
 
 def _restore_user_settings_to_global_defaults(user_settings: UserSettings) -> UserSettings:
     """
-    Clear a user's personal overrides so the user returns to the admin/global
-    configuration without mutating the global Settings row.
-
-    This must reset all runtime-relevant fields, not only fields that are
-    currently editable in the UI. Otherwise stale hidden overrides can continue
-    to affect generation after the user clicks "reset to default configuration".
+    Clear all user overrides so the user fully returns to the global Settings
+    defaults without mutating the site-wide configuration.
     """
-    default_settings = get_default_settings_source()
     reset_fields = set(ALL_SETTINGS_FIELDS)
 
     for field_name in reset_fields:
-        if field_name in NULLABLE_USER_FIELDS:
-            setattr(user_settings, field_name, None)
-        else:
-            setattr(user_settings, field_name, getattr(default_settings, field_name))
+        setattr(user_settings, field_name, None)
 
     user_settings.updated_at = datetime.now(timezone.utc)
     logger.info(
@@ -429,20 +421,24 @@ def update_settings():
             if not data:
                 return bad_request("No editable fields provided")
 
-        settings = UserSettings.get_or_create_for_user(user.id)
+        settings = Settings.get_settings() if user.is_admin else UserSettings.get_or_create_for_user(user.id)
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
             provider_format = data["ai_provider_format"]
-            if provider_format not in ALLOWED_PROVIDER_FORMATS:
+            if provider_format is None:
+                if user.is_admin:
+                    return bad_request("AI provider format is required")
+                settings.ai_provider_format = None
+            elif provider_format not in ALLOWED_PROVIDER_FORMATS:
                 allowed_values = "', '".join(sorted(ALLOWED_PROVIDER_FORMATS))
                 return bad_request(f"AI provider format must be one of '{allowed_values}'")
-            settings.ai_provider_format = provider_format
+            else:
+                settings.ai_provider_format = provider_format
 
         # Update API configuration
         if "api_base_url" in data:
             raw_base_url = data["api_base_url"]
-            # Empty string from frontend means "clear override, fall back to env/default"
             if raw_base_url is None:
                 settings.api_base_url = None
             else:
@@ -450,37 +446,57 @@ def update_settings():
                 settings.api_base_url = value if value != "" else None
 
         if "api_key" in data:
-            settings.api_key = data["api_key"]
+            settings.api_key = data["api_key"] or None
 
         # Update image generation configuration
         if "image_resolution" in data:
             resolution = data["image_resolution"]
-            if resolution not in ["1K", "2K", "4K"]:
+            if resolution is None:
+                if user.is_admin:
+                    return bad_request("Resolution is required")
+                settings.image_resolution = None
+            elif resolution not in ["1K", "2K", "4K"]:
                 return bad_request("Resolution must be 1K, 2K, or 4K")
-            settings.image_resolution = resolution
+            else:
+                settings.image_resolution = resolution
 
         if "image_aspect_ratio" in data:
             aspect_ratio = data["image_aspect_ratio"]
-            settings.image_aspect_ratio = aspect_ratio
+            if aspect_ratio is None:
+                if user.is_admin:
+                    return bad_request("Aspect ratio is required")
+                settings.image_aspect_ratio = None
+            else:
+                settings.image_aspect_ratio = aspect_ratio
 
         # Update worker configuration
         if "max_description_workers" in data:
-            workers = int(data["max_description_workers"])
-            if workers < 1 or workers > 20:
-                return bad_request(
-                    "Max description workers must be between 1 and 20"
-                )
-            settings.max_description_workers = workers
+            if data["max_description_workers"] is None:
+                if user.is_admin:
+                    return bad_request("Max description workers is required")
+                settings.max_description_workers = None
+            else:
+                workers = int(data["max_description_workers"])
+                if workers < 1 or workers > 20:
+                    return bad_request(
+                        "Max description workers must be between 1 and 20"
+                    )
+                settings.max_description_workers = workers
 
         if "max_image_workers" in data:
-            workers = int(data["max_image_workers"])
-            if workers < 1 or workers > 20:
-                return bad_request(
-                    "Max image workers must be between 1 and 20"
-                )
-            settings.max_image_workers = workers
+            if data["max_image_workers"] is None:
+                if user.is_admin:
+                    return bad_request("Max image workers is required")
+                settings.max_image_workers = None
+            else:
+                workers = int(data["max_image_workers"])
+                if workers < 1 or workers > 20:
+                    return bad_request(
+                        "Max image workers must be between 1 and 20"
+                    )
+                settings.max_image_workers = workers
 
-        # Update model & MinerU configuration (optional, empty values fall back to Config)
+        # Update model & MinerU configuration (optional; empty values clear the override)
         if "text_model" in data:
             settings.text_model = (data["text_model"] or "").strip() or None
 
@@ -498,7 +514,11 @@ def update_settings():
 
         if "output_language" in data:
             language = data["output_language"]
-            if language in ["zh", "en", "ja", "auto"]:
+            if language is None:
+                if user.is_admin:
+                    return bad_request("Output language is required")
+                settings.output_language = None
+            elif language in ["zh", "en", "ja", "auto"]:
                 settings.output_language = language
             else:
                 return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
@@ -530,22 +550,42 @@ def update_settings():
 
         # Update reasoning mode configuration (separate for text and image)
         if "enable_text_reasoning" in data:
-            settings.enable_text_reasoning = bool(data["enable_text_reasoning"])
+            if data["enable_text_reasoning"] is None:
+                if user.is_admin:
+                    return bad_request("Text reasoning switch is required")
+                settings.enable_text_reasoning = None
+            else:
+                settings.enable_text_reasoning = bool(data["enable_text_reasoning"])
         
         if "text_thinking_budget" in data:
-            budget = int(data["text_thinking_budget"])
-            if budget < 1 or budget > 8192:
-                return bad_request("Text thinking budget must be between 1 and 8192")
-            settings.text_thinking_budget = budget
+            if data["text_thinking_budget"] is None:
+                if user.is_admin:
+                    return bad_request("Text thinking budget is required")
+                settings.text_thinking_budget = None
+            else:
+                budget = int(data["text_thinking_budget"])
+                if budget < 1 or budget > 8192:
+                    return bad_request("Text thinking budget must be between 1 and 8192")
+                settings.text_thinking_budget = budget
         
         if "enable_image_reasoning" in data:
-            settings.enable_image_reasoning = bool(data["enable_image_reasoning"])
+            if data["enable_image_reasoning"] is None:
+                if user.is_admin:
+                    return bad_request("Image reasoning switch is required")
+                settings.enable_image_reasoning = None
+            else:
+                settings.enable_image_reasoning = bool(data["enable_image_reasoning"])
         
         if "image_thinking_budget" in data:
-            budget = int(data["image_thinking_budget"])
-            if budget < 1 or budget > 8192:
-                return bad_request("Image thinking budget must be between 1 and 8192")
-            settings.image_thinking_budget = budget
+            if data["image_thinking_budget"] is None:
+                if user.is_admin:
+                    return bad_request("Image thinking budget is required")
+                settings.image_thinking_budget = None
+            else:
+                budget = int(data["image_thinking_budget"])
+                if budget < 1 or budget > 8192:
+                    return bad_request("Image thinking budget must be between 1 and 8192")
+                settings.image_thinking_budget = budget
 
         # Update Baidu OCR configuration
         if "baidu_api_key" in data:
@@ -590,7 +630,6 @@ def update_settings():
         db.session.commit()
 
         if user.is_admin:
-            # Only the global/admin settings row should drive app.config.
             _sync_settings_to_config(settings)
 
         logger.info("Settings updated successfully")
@@ -621,9 +660,9 @@ def reset_settings():
     """
     try:
         user = get_current_user()
-        settings = UserSettings.get_or_create_for_user(user.id)
 
         if user.is_admin:
+            settings = UserSettings.get_or_create_for_user(user.id)
             # Reset to default values from Config / .env
             # Priority logic:
             # - Check AI_PROVIDER_FORMAT
@@ -658,6 +697,7 @@ def reset_settings():
             settings.updated_at = datetime.now(timezone.utc)
             _copy_user_settings_to_global(settings)
         else:
+            settings = UserSettings.get_or_create_for_user(user.id)
             _restore_user_settings_to_global_defaults(settings)
 
         db.session.commit()

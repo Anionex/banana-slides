@@ -74,6 +74,7 @@ export default defineConfig(({ mode }) => {
       setupFiles: './src/tests/setup.ts',
       include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
       exclude: ['node_modules', 'dist'],
+      ...(process.env.CI ? { minWorkers: 1, maxWorkers: 1 } : {}),
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html'],

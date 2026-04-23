@@ -6,6 +6,7 @@ import os
 import io
 import shutil
 import time
+import tempfile
 import zipfile
 
 from flask import Blueprint, request, current_app
@@ -16,6 +17,7 @@ from utils import (
     parse_page_ids_from_query, parse_page_ids_from_body, get_filtered_pages
 )
 from services import ExportService, FileService
+from services.file_urls import public_url
 from services.ai_service_manager import get_ai_service
 from services.credits_service import CreditsService, CreditOperation
 from middlewares.auth import auth_required, get_current_user
@@ -31,6 +33,26 @@ def _get_user_project(project_id: str, user_id: str):
         Project.id == project_id,
         Project.user_id == user_id
     ).first()
+
+
+def _prepare_export_output(file_service: FileService, project_id: str, filename: str):
+    """Return (relative_path, local_output_path, temp_dir_or_none)."""
+    relative_path = f"{project_id}/exports/{filename}"
+    if os.getenv('STORAGE_BACKEND', 'local').lower() == 'local':
+        local_output_path = file_service.get_absolute_path(relative_path)
+        os.makedirs(os.path.dirname(local_output_path), exist_ok=True)
+        return relative_path, local_output_path, None
+
+    temp_dir = tempfile.mkdtemp(prefix='banana-export-')
+    local_output_path = os.path.join(temp_dir, filename)
+    return relative_path, local_output_path, temp_dir
+
+
+def _finalize_export_output(file_service: FileService, local_output_path: str, relative_path: str, temp_dir: str | None):
+    if temp_dir:
+        file_service.save_local_file(local_output_path, relative_path)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    return public_url(relative_path)
 
 
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
@@ -82,29 +104,22 @@ def export_pptx(project_id):
         if not image_paths:
             return bad_request("No generated images found for project")
         
-        # Determine export directory and filename
-        exports_dir = file_service.get_absolute_path(file_service._get_exports_dir(project_id))
-        os.makedirs(exports_dir, exist_ok=True)
-
         # Get filename from query params or use default
         filename = secure_filename(request.args.get('filename', f'presentation_{project_id}.pptx'))
         if not filename.endswith('.pptx'):
             filename += '.pptx'
 
-        output_path = os.path.join(exports_dir, filename)
+        relative_path, output_path, temp_dir = _prepare_export_output(file_service, project_id, filename)
 
         # Generate PPTX file on disk
         ExportService.create_pptx_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
 
-        # Build download URLs
-        download_path = f"/files/{project_id}/exports/{filename}"
-        base_url = request.url_root.rstrip("/")
-        download_url_absolute = f"{base_url}{download_path}"
+        download_url = _finalize_export_output(file_service, output_path, relative_path, temp_dir)
 
         return success_response(
             data={
-                "download_url": download_path,
-                "download_url_absolute": download_url_absolute,
+                "download_url": download_url,
+                "download_url_absolute": download_url,
             },
             message="Export PPTX task created"
         )
@@ -159,29 +174,22 @@ def export_pdf(project_id):
         if not image_paths:
             return bad_request("No generated images found for project")
         
-        # Determine export directory and filename
-        exports_dir = file_service.get_absolute_path(file_service._get_exports_dir(project_id))
-        os.makedirs(exports_dir, exist_ok=True)
-
         # Get filename from query params or use default
         filename = secure_filename(request.args.get('filename', f'presentation_{project_id}.pdf'))
         if not filename.endswith('.pdf'):
             filename += '.pdf'
 
-        output_path = os.path.join(exports_dir, filename)
+        relative_path, output_path, temp_dir = _prepare_export_output(file_service, project_id, filename)
 
         # Generate PDF file on disk
         ExportService.create_pdf_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
 
-        # Build download URLs
-        download_path = f"/files/{project_id}/exports/{filename}"
-        base_url = request.url_root.rstrip("/")
-        download_url_absolute = f"{base_url}{download_path}"
+        download_url = _finalize_export_output(file_service, output_path, relative_path, temp_dir)
 
         return success_response(
             data={
-                "download_url": download_path,
-                "download_url_absolute": download_url_absolute,
+                "download_url": download_url,
+                "download_url_absolute": download_url,
             },
             message="Export PDF task created"
         )
@@ -226,30 +234,28 @@ def export_images(project_id):
         if not image_items:
             return bad_request("No generated images found for project")
 
-        exports_dir = file_service._get_exports_dir(s_project_id)
         timestamp = int(time.time())
 
         if len(image_items) == 1:
             page, path = image_items[0]
             ext = os.path.splitext(path)[1] or '.png'
             filename = f'slide_{page.id}_{timestamp}{ext}'
-            output_path = os.path.join(exports_dir, filename)
+            relative_path, output_path, temp_dir = _prepare_export_output(file_service, s_project_id, filename)
             shutil.copy2(path, output_path)
         else:
             filename = f'slides_{s_project_id}_{timestamp}.zip'
-            output_path = os.path.join(exports_dir, filename)
+            relative_path, output_path, temp_dir = _prepare_export_output(file_service, s_project_id, filename)
             with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for page, path in image_items:
                     ext = os.path.splitext(path)[1] or '.png'
                     zf.write(path, f'slide_{page.order_index + 1:03d}{ext}')
 
-        download_path = f"/files/{s_project_id}/exports/{filename}"
-        base_url = request.url_root.rstrip("/")
+        download_url = _finalize_export_output(file_service, output_path, relative_path, temp_dir)
 
         return success_response(
             data={
-                "download_url": download_path,
-                "download_url_absolute": f"{base_url}{download_path}",
+                "download_url": download_url,
+                "download_url_absolute": download_url,
             },
             message="Export images completed"
         )

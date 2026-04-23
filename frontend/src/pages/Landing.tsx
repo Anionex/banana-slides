@@ -1,403 +1,785 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, FileText, MessageSquare, Download, ChevronRight, Github, ChevronLeft } from 'lucide-react';
-import { Button, Footer } from '@/components/shared';
-import { useT } from '@/hooks/useT';
+import { useAuthStore } from '@/store/useAuthStore';
 
-// Scroll reveal hook
-function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
-  options: { threshold?: number; rootMargin?: string } = {}
-): [React.RefObject<T | null>, boolean] {
-  const { threshold = 0.15, rootMargin = '0px 0px -100px 0px' } = options;
-  const ref = useRef<T | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.unobserve(element);
-        }
-      },
-      { threshold, rootMargin }
-    );
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [threshold, rootMargin]);
-
-  return [ref, isVisible];
-}
-
-// 组件内翻译
-const landingI18n = {
+// ── Copy ────────────────────────────────────────────────────
+const copy = {
   zh: {
-    landing: {
-      nav: { enter: "进入应用" },
-      hero: {
-        badge: "新一代 AI 演示文稿生成器",
-        title_start: "让创意",
-        title_highlight: "瞬间落地",
-        title_end: "无需繁琐排版",
-        subtitle: "专注于您的内容与想法，剩下的交给 Banana Slides。从大纲到精美幻灯片，只需几分钟。",
-        cta_primary: "免费开始使用"
-      }
+    brand: 'Banana Slides',
+    tagline: 'Vibe your slides like vibe coding',
+    nav: {
+      sections: [
+        { id: 'workflow', label: '功能介绍' },
+        { id: 'scenarios', label: '使用场景' },
+        { id: 'start', label: '马上开始' },
+      ],
+      demo: 'Demo',
+      docs: '文档',
+      github: 'GitHub',
+      enter: '进入应用',
+      lang: 'EN',
     },
-    help: {
-      showcaseTitles: { softwareDev: "软件开发最佳实践", deepseek: "DeepSeek-V3.2技术展示", prefabFood: "预制菜智能产线装备研发和产业化", moneyHistory: "钱的演变：从贝壳到纸币的旅程" },
-      features: {
-        flexiblePaths: { title: "灵活多样的创作路径", description: "支持想法、大纲、页面描述三种起步方式，满足不同创作习惯。", details: ["一句话生成：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述", "自然语言编辑：支持以 Vibe 形式口头修改大纲或描述，AI 实时响应调整", "大纲/描述模式：既可一键批量生成，也可手动调整细节"] },
-        materialParsing: { title: "强大的素材解析能力", description: "上传多种格式文件，自动解析内容，为生成提供丰富素材。", details: ["多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容", "智能提取：自动识别文本中的关键点、图片链接和图表信息", "风格参考：支持上传参考图片或模板，定制 PPT 风格"] },
-        vibeEditing: { title: "「Vibe」式自然语言修改", description: "不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。", details: ["局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）", "整页优化：基于 nano banana pro 生成高清、风格统一的页面"] },
-        easyExport: { title: "开箱即用的格式导出", description: "一键导出标准格式，直接演示无需调整。", details: ["多格式支持：一键导出标准 PPTX 或 PDF 文件", "完美适配：默认 16:9 比例，排版无需二次调整"] }
-      }
-    }
+    hero: {
+      eyebrow: '原生 AI PPT 生成器',
+      line1: '让想法',
+      accent: '瞬间落地',
+      line3: '无需繁琐排版',
+      sub: `一款图像生成模型驱动的原生 AI PPT 应用。告别模板味和繁琐的排版美化，用自然语言修改一切，几分钟内获得兼具结构与美感的演示文稿。`,
+      cta1: '立即体验',
+      cta2: '在 GitHub 上查看',
+      chips: ['Outline First', 'AI Images', 'Editable PPTX', 'Export Ready'],
+    },
+    workflow: {
+      eyebrow: 'HOW IT WORKS',
+      title: '全新的 PPT 制作体验',
+      sub: '不拼接割裂的图文元素。每一页都由 AI 原生渲染，从结构到视觉，一次成型。',
+      steps: [
+        {
+          n: '01',
+          title: '三种路径，自由起步',
+          subtitle: '适配你的创作习惯，而非相反',
+          desc: '支持从一句话想法、结构化大纲或逐页描述三种方式开始创建。无论你是灵感驱动还是结构先行，都能找到合适的起点。',
+          hint: 'CREATE',
+        },
+        {
+          n: '02',
+          title: '智能素材解析',
+          subtitle: '上传文件，自动解析内容',
+          desc: '支持 PDF、DOCX、Markdown、TXT 等多格式文件上传与解析，自动识别文本与图片素材，为实际生成提供充分的内容支撑。',
+          hint: 'PARSE',
+        },
+        {
+          n: '03',
+          title: '自然语言编辑',
+          subtitle: '说话编辑，告别菜单迷宫',
+          desc: '对大纲、描述或已生成的页面，直接用自然语言下达修改指令。支持框选局部重绘与整页优化，告别菜单层级和按钮寻找。',
+          hint: 'VIBE EDIT',
+        },
+        {
+          n: '04',
+          title: '原生渲染，视觉统一',
+          subtitle: '不是割裂拼凑，而是整体成型',
+          desc: '基于原生图像模型渲染，确保图文风格高度统一。拒绝模板同质化，支持通过参考图精准定义视觉走向。',
+          hint: 'RENDER',
+        },
+        {
+          n: '05',
+          title: '多格式导出，开箱即用',
+          subtitle: '从生成到交付，一气呵成',
+          desc: '一键导出标准 PPTX 或 PDF 文件。支持可编辑 PPTX 导出，高还原度保留文字样式与布局，直接用于演示或二次编辑。',
+          hint: 'EXPORT',
+        },
+      ],
+    },
+    scenarios: {
+      eyebrow: 'WHO IS IT FOR',
+      title: '适合每一位需要演示的人',
+      sub: '把时间还给真正有价值的内容。无论你是什么身份，都能在这里让灵感瞬间变成现实。',
+      items: [
+        { tag: '零基础用户', bg: 'A', title: '告别从零开始的焦虑', text: '零门槛生成具备专业审美的幻灯片。无需辛苦排版和美化，让你的好想法不再被糟糕的排版拖后腿。' },
+        { tag: 'PPT 设计师', bg: 'P', title: '打破视觉灵感的瓶颈', text: '将高质量的生成结果作为设计起点。快速获取丰富的图文组合与排版方案，比面对空白页更高效地探索可能性。' },
+        { tag: '教育工作者', bg: 'E', title: '繁杂讲义秒变精美课件', text: '轻松将长篇文本转化为结构清晰、图文并茂的教学幻灯片。把宝贵的精力留给备课与讲授本身。' },
+        { tag: '学生', bg: 'S', title: '轻松搞定课程汇报', text: '告别熬夜填充PPT的折磨。把时间花在课题研究上，用高颜值的专业汇报在课堂中脱颖而出。' },
+        { tag: '职场人士', bg: 'W', title: '极速交付商业级演示', text: '从容应对紧迫的汇报需求，将商业提案快速可视化。成倍缩短从构思到汇报的周期，让每一次展现都充满说服力。' },
+      ],
+    },
+    start: {
+      eyebrow: 'START NOW',
+      title: '让 PPT 创作，回归直觉',
+      sub: '说出心中所想，剩下的交给 Banana Slides。',
+      cta1: '进入应用',
+      cta2: '在 GitHub 上收藏',
+      footerNote: '开源可自托管 | 支持私有化部署',
+    },
+    footer: {
+      note: 'Vibe your slides like Vibe Coding',
+      copy: `© ${new Date().getFullYear()} Banana Slides`,
+      links: [
+        { label: '功能介绍', href: '#workflow' },
+        { label: '使用场景', href: '#scenarios' },
+        { label: '马上开始', href: '#start' },
+      ],
+    },
   },
   en: {
-    landing: {
-      nav: { enter: "Enter App" },
-      hero: {
-        badge: "Next Gen AI Presentation Generator",
-        title_start: "Turn Ideas into",
-        title_highlight: "Reality Instantly",
-        title_end: "No Formatting Hassle",
-        subtitle: "Focus on your content and ideas, leave the rest to Banana Slides. From outline to beautiful slides in seconds.",
-        cta_primary: "Get Started for Free"
-      }
+    brand: 'Banana Slides',
+    tagline: 'Vibe your slides like vibe coding',
+    nav: {
+      sections: [
+        { id: 'workflow', label: 'Features' },
+        { id: 'scenarios', label: 'Use Cases' },
+        { id: 'start', label: 'Get Started' },
+      ],
+      demo: 'Demo',
+      docs: 'Docs',
+      github: 'GitHub',
+      enter: 'Open App',
+      lang: '中',
     },
-    help: {
-      showcaseTitles: { softwareDev: "Software Development Best Practices", deepseek: "DeepSeek-V3.2 Technical Showcase", prefabFood: "Prefab Food Intelligent Production Line R&D", moneyHistory: "The Evolution of Money: From Shells to Paper" },
-      features: {
-        flexiblePaths: { title: "Flexible Creation Paths", description: "Support idea, outline, page description three starting ways to meet different creative habits.", details: ["One-sentence generation: Enter a topic, AI automatically generates a well-structured outline and page-by-page content descriptions", "Natural language editing: Support verbal modification of outline or description in Vibe form, AI responds in real-time", "Outline/description mode: Both one-click batch generation and manual detail adjustment"] },
-        materialParsing: { title: "Powerful Material Parsing", description: "Upload multiple format files, automatically parse content to provide rich materials for generation.", details: ["Multi-format support: Upload PDF/Docx/MD/Txt files, backend automatically parses content", "Smart extraction: Automatically identify key points, image links and chart information in text", "Style reference: Support uploading reference images or templates to customize PPT style"] },
-        vibeEditing: { title: "\"Vibe\" Style Natural Language Editing", description: "No longer limited by complex menu buttons, directly issue modification commands through natural language.", details: ["Partial redraw: Make verbal modifications to unsatisfying areas (e.g., \"Change this chart to a pie chart\")", "Full page optimization: Generate HD, style-consistent pages based on nano banana pro"] },
-        easyExport: { title: "Ready-to-Use Format Export", description: "One-click export to standard formats, present directly without adjustments.", details: ["Multi-format support: One-click export to standard PPTX or PDF files", "Perfect fit: Default 16:9 ratio, no secondary layout adjustments needed"] }
-      }
-    }
-  }
+    hero: {
+      eyebrow: 'AI-Native Presentation Engine',
+      line1: 'Describe it.',
+      accent: 'AI renders it.',
+      line3: 'Beautiful slides in minutes.',
+      sub: 'Stop wrestling with templates and layout tools. Banana Slides renders every page as a cohesive visual — powered by image-generation models. Just say what you want, tweak with natural language, and export a polished deck.',
+      cta1: 'Open App',
+      cta2: 'View on GitHub',
+      chips: ['Outline First', 'AI Images', 'Editable PPTX', 'Export Ready'],
+    },
+    workflow: {
+      eyebrow: 'HOW IT WORKS',
+      title: 'From idea to deck in five steps',
+      sub: 'No stitching clip-art onto templates. Every slide is rendered as a unified visual by AI — structure and style, all at once.',
+      steps: [
+        {
+          n: '01',
+          title: 'Start however you think',
+          subtitle: 'One-liner, outline, or full brief — your call',
+          desc: 'Drop in a single sentence, a structured outline, or detailed page-by-page notes. The workflow adapts to you, not the other way around.',
+          hint: 'CREATE',
+        },
+        {
+          n: '02',
+          title: 'Drop in your materials',
+          subtitle: 'PDFs, docs, markdown — all fair game',
+          desc: 'Upload reference files and let the system extract text and images automatically. Your content becomes the foundation, not an afterthought.',
+          hint: 'PARSE',
+        },
+        {
+          n: '03',
+          title: 'Edit by talking, not clicking',
+          subtitle: 'Natural language, zero menu-diving',
+          desc: 'Tell it what to change — rewrite a heading, swap a layout, redraw a section. Iterate on intent, not toolbar buttons.',
+          hint: 'VIBE EDIT',
+        },
+        {
+          n: '04',
+          title: 'AI-rendered, visually consistent',
+          subtitle: 'Every page is generated as one cohesive image',
+          desc: 'Powered by image-generation models, so text, graphics, and layout share a unified style. Use reference images to steer the look precisely.',
+          hint: 'RENDER',
+        },
+        {
+          n: '05',
+          title: 'Export and go',
+          subtitle: 'PPTX or PDF, one click',
+          desc: 'Download an editable PPTX that preserves text, styles, and layout — or a clean PDF. Ready to present or hand off, no post-processing needed.',
+          hint: 'EXPORT',
+        },
+      ],
+    },
+    scenarios: {
+      eyebrow: 'WHO IS IT FOR',
+      title: 'For anyone who presents',
+      sub: 'Spend your time on what you\'re saying, not how it looks. Banana Slides handles the design so you can focus on the message.',
+      items: [
+        { tag: 'Beginners', bg: 'A', title: 'No design skills? No problem.', text: 'Get professional-looking slides on your first try. Your ideas deserve better than a bad layout — now they get it automatically.' },
+        { tag: 'Designers', bg: 'P', title: 'Skip the blank canvas', text: 'Use AI-generated drafts as a creative springboard. Explore more visual directions in less time than starting from scratch.' },
+        { tag: 'Educators', bg: 'E', title: 'Lecture notes to courseware, instantly', text: 'Turn long-form material into structured, visual slides without the manual grind. Save your energy for teaching.' },
+        { tag: 'Students', bg: 'S', title: 'Nail the class presentation', text: 'Stop pulling all-nighters over slide formatting. Focus on your research, then show up with a deck that actually impresses.' },
+        { tag: 'Professionals', bg: 'W', title: 'Pitch-ready in minutes', text: 'Tight deadline? Visualize your proposal fast and walk into the room with a polished, convincing deck.' },
+      ],
+    },
+    start: {
+      eyebrow: 'START NOW',
+      title: 'Just describe it. We\'ll design it.',
+      sub: 'Tell Banana Slides what you need — the rest is automatic.',
+      cta1: 'Open App',
+      cta2: 'Star on GitHub',
+      footerNote: 'Open-source & self-hostable | Private deployment ready',
+    },
+    footer: {
+      note: 'Vibe your slides like vibe coding',
+      copy: `© ${new Date().getFullYear()} Banana Slides`,
+      links: [
+        { label: 'Features', href: '#workflow' },
+        { label: 'Use Cases', href: '#scenarios' },
+        { label: 'Get Started', href: '#start' },
+      ],
+    },
+  },
+} as const;
+
+// ── Scenario card background icons (viewBox 0 0 24 24) ───────
+const SCENARIO_ICONS: Record<string, React.ReactNode> = {
+  // person silhouette — beginners
+  A: <><circle cx="12" cy="7" r="4" /><path d="M4 21v-1a8 8 0 0 1 16 0v1" /></>,
+  // stacked slides — PPT professionals
+  P: <><rect x="3" y="5" width="18" height="3" rx="1" /><rect x="3" y="10.5" width="18" height="3" rx="1" /><rect x="3" y="16" width="18" height="3" rx="1" /></>,
+  // open book — educators
+  E: <><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></>,
+  // pencil — students
+  S: <><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></>,
+  // briefcase — professionals
+  W: <><rect width="20" height="14" x="2" y="7" rx="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></>,
 };
 
-// Feature keys consistent with HelpModal
-const _featureKeys = ['flexiblePaths', 'materialParsing', 'vibeEditing', 'easyExport'] as const;
+const WORKFLOW_CARD_LAYOUTS: Record<string, { card: string }> = {
+  '01': {
+    card: 'lg:col-span-7 lg:row-span-1',
+  },
+  '02': {
+    card: 'lg:col-span-5 lg:row-span-1',
+  },
+  '03': {
+    card: 'lg:col-span-4 lg:row-span-1',
+  },
+  '04': {
+    card: 'lg:col-span-4 lg:row-span-1',
+  },
+  '05': {
+    card: 'lg:col-span-4 lg:row-span-1',
+  },
+};
 
-// Showcase data consistent with HelpModal
-const showcaseKeys = [
-  { image: 'https://github.com/user-attachments/assets/d58ce3f7-bcec-451d-a3b9-ca3c16223644', titleKey: 'softwareDev' },
-  { image: 'https://github.com/user-attachments/assets/c64cd952-2cdf-4a92-8c34-0322cbf3de4e', titleKey: 'deepseek' },
-  { image: 'https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7', titleKey: 'prefabFood' },
-  { image: 'https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1', titleKey: 'moneyHistory' },
-];
-
-// Feature section with scroll animations
-interface FeatureSectionProps {
-  feature: {
-    key: string;
-    icon: React.ReactNode;
-    bg: string;
-    image: string;
-  };
-  idx: number;
-  t: (key: string) => string;
-  getDetails: (key: string) => string[];
-}
-
-const FeatureSection: React.FC<FeatureSectionProps> = ({ feature, idx, t, getDetails }) => {
-  const [sectionRef, isVisible] = useScrollReveal<HTMLElement>({ threshold: 0.1 });
-  const isReversed = idx % 2 === 1;
-
+// ── Spotlight hover card ─────────────────────────────────────
+const SpotCard: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}> = ({ children, className = '', style }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+    el.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`);
+  }, []);
   return (
-    <section
-      ref={sectionRef}
-      className={`min-h-[80vh] flex items-center py-24 overflow-hidden ${
-        idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-white dark:bg-transparent'
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-6 w-full">
-        <div className={`flex flex-col lg:flex-row items-center gap-12 lg:gap-24 ${
-          isReversed ? 'lg:flex-row-reverse' : ''
-        }`}>
-          {/* 文本区域 - 从侧边滑入 */}
-          <div
-            className={`flex-1 space-y-6 transition-all duration-1000 ease-out ${
-              isVisible
-                ? 'opacity-100 translate-x-0'
-                : `opacity-0 ${isReversed ? 'translate-x-20' : '-translate-x-20'}`
-            }`}
-          >
-            <div
-              className={`inline-flex p-3 rounded-2xl ${feature.bg} shadow-sm transition-all duration-700 delay-100 ${
-                isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
-              }`}
-            >
-              {feature.icon}
-            </div>
-            <h2
-              className={`text-3xl md:text-4xl font-bold text-gray-900 dark:text-white transition-all duration-700 delay-200 ${
-                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              }`}
-            >
-              {t(`help.features.${feature.key}.title`)}
-            </h2>
-            <p
-              className={`text-lg text-gray-600 dark:text-gray-300 leading-relaxed transition-all duration-700 delay-300 ${
-                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              }`}
-            >
-              {t(`help.features.${feature.key}.description`)}
-            </p>
-
-            {/* 详情列表 - 依次出现 */}
-            <ul className="space-y-4 pt-4">
-              {getDetails(feature.key).map((detail: string, i: number) => (
-                <li
-                  key={i}
-                  className={`flex items-start gap-3 transition-all duration-500 ${
-                    isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
-                  }`}
-                  style={{ transitionDelay: isVisible ? `${400 + i * 100}ms` : '0ms' }}
-                >
-                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-banana-500 shrink-0" />
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">{detail}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* 视觉区域 - 放大进入 + 从另一侧滑入 */}
-          <div
-            className={`flex-1 w-full max-w-lg lg:max-w-none transition-all duration-1000 ease-out ${
-              isVisible
-                ? 'opacity-100 translate-x-0 scale-100'
-                : `opacity-0 ${isReversed ? '-translate-x-20' : 'translate-x-20'} scale-95`
-            }`}
-          >
-            <div className="aspect-video rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 relative group hover:scale-[1.02] transition-transform duration-500">
-              <img
-                src={feature.image}
-                alt={t(`help.features.${feature.key}.title`)}
-                className={`w-full h-full object-cover transition-transform duration-1000 ${
-                  isVisible ? 'scale-100' : 'scale-110'
-                }`}
-              />
-              {/* 图片上的渐变遮罩 */}
-              <div className={`absolute inset-0 bg-gradient-to-t from-black/20 to-transparent transition-opacity duration-700 ${
-                isVisible ? 'opacity-0' : 'opacity-100'
-              }`} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <div ref={ref} className={`lp2-card ${className}`} style={style} onMouseMove={onMove}>
+      <div className="lp2-card-accent" />
+      <div className="lp2-card-spot" />
+      <div className="lp2-card-glow" />
+      {children}
+    </div>
   );
 };
 
+// ── Main ─────────────────────────────────────────────────────
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
-  const t = useT(landingI18n);
-  const [currentShowcase, setCurrentShowcase] = useState(0);
-
-  // Get current language translations for direct array access
+  const { isAuthenticated, isLoading } = useAuthStore();
   const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
-  const currentLang = landingI18n[lang] || landingI18n['zh'];
-  const getDetails = (featureKey: string): string[] => {
-    return (currentLang.help?.features as any)?.[featureKey]?.details || [];
+  const t = copy[lang];
+  const [scrolled, setScrolled] = useState(false);
+  const primaryEntryPath = isAuthenticated ? '/app' : '/register';
+
+  const handlePrimaryEntry = () => {
+    if (isLoading) return;
+    navigate(primaryEntryPath);
   };
 
-  // Auto-rotate showcase
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentShowcase((prev) => (prev + 1) % showcaseKeys.length);
-    }, 5000);
-    return () => clearInterval(timer);
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const features = [
-    {
-      key: 'flexiblePaths',
-      icon: <Sparkles size={24} className="text-yellow-600 dark:text-banana" />,
-      bg: "bg-yellow-50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/20",
-      image: "https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba"
-    },
-    {
-      key: 'materialParsing',
-      icon: <FileText size={24} className="text-blue-600 dark:text-blue-400" />,
-      bg: "bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20",
-      image: "https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936"
-    },
-    {
-      key: 'vibeEditing',
-      icon: <MessageSquare size={24} className="text-green-600 dark:text-green-400" />,
-      bg: "bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/20",
-      image: "https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3"
-    },
-    {
-      key: 'easyExport',
-      icon: <Download size={24} className="text-purple-600 dark:text-purple-400" />,
-      bg: "bg-purple-50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/20",
-      image: "https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984"
-    }
-  ];
+  // Unified scroll-triggered animation observer
+  useEffect(() => {
+    // Individual component reveal (.lp2-anim): fires when element enters viewport
+    const ioComponents = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add('lp2-playing');
+          ioComponents.unobserve(e.target); // play once
+        }
+      }),
+      { threshold: 0.14, rootMargin: '0px 0px -10% 0px' },
+    );
+    document.querySelectorAll('.lp2-anim').forEach((el) => ioComponents.observe(el));
+
+    // Legacy transition-based reveal (.lp2-reveal)
+    const ioReveal = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add('lp2-shown')),
+      { threshold: 0.08, rootMargin: '0px 0px -8% 0px' },
+    );
+    document.querySelectorAll('.lp2-reveal').forEach((el) => ioReveal.observe(el));
+
+    return () => { ioComponents.disconnect(); ioReveal.disconnect(); };
+  }, [lang]);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-background-primary relative overflow-hidden flex flex-col font-sans">
-      {/* 动态背景 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-bl from-banana-100/40 to-transparent dark:from-banana-900/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 animate-float-slow"></div>
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-gradient-to-tr from-orange-100/40 to-transparent dark:from-orange-900/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 animate-float-delayed"></div>
-      </div>
+    <div className="lp2-page relative min-h-screen overflow-x-hidden">
 
-      {/* 导航栏 */}
-      <nav className="relative z-50 w-full px-6 py-6 flex items-center justify-between max-w-7xl mx-auto">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-lg shadow-sm" />
-          <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-            Banana Slides
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
-            className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10"
-          >
-            {i18n.language?.startsWith('zh') ? 'EN' : '中'}
-          </button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => navigate('/app')}
-            className="shadow-lg shadow-banana-500/20 hover:shadow-banana-500/30 transition-all"
-          >
-            {t('landing.nav.enter')}
-          </Button>
-        </div>
-      </nav>
+      {/* ══════════ NAV ══════════ */}
+      <header className={`fixed inset-x-0 top-0 z-50 backdrop-blur-xl transition-all duration-300 ${scrolled ? 'border-b border-black/[0.06] bg-white/90' : 'border-b border-transparent bg-transparent'}`}>
+        {/* full-width inner, generous padding */}
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-2.5 sm:px-6 sm:py-3 lg:px-10">
 
-      {/* Hero 区域 */}
-      <main className="flex-1 relative z-10 flex flex-col justify-center max-w-7xl mx-auto px-6 py-12 lg:py-20 text-center">
-        <div className="space-y-8 animate-fade-in-up">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 text-sm font-medium mx-auto backdrop-blur-sm shadow-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-banana-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-banana-500"></span>
+          {/* Left: Logo */}
+          <a href="#overview" className="flex min-w-0 shrink items-center gap-2 sm:gap-2.5">
+            <img
+              src="/logo.png"
+              alt="Banana Slides"
+              className="h-8 w-8 object-contain sm:h-9 sm:w-9"
+            />
+            <span className="hidden truncate text-[13px] font-semibold tracking-tight text-slate-900 min-[360px]:inline sm:text-sm">
+              {t.brand}
             </span>
-            {t('landing.hero.badge')}
-          </div>
+          </a>
 
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-gray-900 dark:text-white leading-[1.1]">
-            {t('landing.hero.title_start')}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-banana-500 via-orange-500 to-pink-500 px-2 relative inline-block">
-              {t('landing.hero.title_highlight')}
-              <svg className="absolute w-full h-3 -bottom-1 left-0 text-banana-200 dark:text-banana-900/30 -z-10" viewBox="0 0 100 10" preserveAspectRatio="none">
-                <path d="M0 5 Q 50 10 100 5" stroke="currentColor" strokeWidth="8" fill="none" />
-              </svg>
-            </span>
-            <br className="hidden md:block" />
-            {t('landing.hero.title_end')}
-          </h1>
+          {/* Center: section bookmarks */}
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 text-sm text-slate-500 xl:flex">
+            {t.nav.sections.map((s) => (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                className="rounded-lg px-3.5 py-2 transition-colors hover:bg-black/[0.04] hover:text-slate-900"
+              >
+                {s.label}
+              </a>
+            ))}
+          </nav>
 
-          <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed font-light">
-            {t('landing.hero.subtitle')}
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Button
-              size="lg"
-              className="w-full sm:w-auto text-base px-8 py-6 rounded-full shadow-xl shadow-banana-500/20 hover:shadow-banana-500/30 hover:-translate-y-1 transition-all duration-300 font-bold"
-              onClick={() => navigate('/app')}
-              icon={<ChevronRight size={20} />}
+          {/* Right: external links + CTA */}
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            <a
+              href="https://bananaslides.online/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden rounded-lg px-3 py-1.5 text-sm text-slate-500 transition-colors hover:bg-black/[0.04] hover:text-slate-900 md:block"
             >
-              {t('landing.hero.cta_primary')}
-            </Button>
+              {t.nav.demo}
+            </a>
+            <a
+              href="https://docs.bananaslides.online/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden rounded-lg px-3 py-1.5 text-sm text-slate-500 transition-colors hover:bg-black/[0.04] hover:text-slate-900 md:block"
+            >
+              {t.nav.docs}
+            </a>
             <a
               href="https://github.com/Anionex/banana-slides"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-white/10 transition-all duration-200 hover:shadow-md"
+              className="hidden rounded-lg px-3 py-1.5 text-sm text-slate-500 transition-colors hover:bg-black/[0.04] hover:text-slate-900 md:block"
             >
-              <Github size={20} />
-              GitHub
+              {t.nav.github}
             </a>
+            <div className="mx-1 hidden h-4 w-px bg-black/10 md:block" />
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage(lang === 'zh' ? 'en' : 'zh')}
+              className="rounded-lg px-2.5 py-1.5 text-xs text-slate-500 transition-colors hover:bg-black/[0.04] hover:text-slate-900 sm:px-3 sm:text-sm"
+            >
+              {t.nav.lang}
+            </button>
+            <button
+              type="button"
+              onClick={handlePrimaryEntry}
+              disabled={isLoading}
+              className="lp2-btn-primary rounded-lg px-3 py-1.5 text-xs font-medium sm:px-4 sm:text-sm"
+            >
+              <span className="relative z-10 hidden min-[380px]:inline">{t.nav.enter}</span>
+              <span className="relative z-10 min-[380px]:hidden">{lang === 'zh' ? '开始' : 'Start'}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ══════════ HERO / OVERVIEW ══════════ */}
+      <section
+        id="overview"
+        className="lp2-snap relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pb-20 pt-24 text-center lg:px-10"
+      >
+        {/* Banana yellow orbs */}
+        <div
+          className="lp2-orb lp2-orb-1 pointer-events-none absolute"
+          style={{ width: 600, height: 360, background: 'rgba(255,215,0,0.15)', top: '8%', right: '-6%' }}
+        />
+        <div
+          className="lp2-orb lp2-orb-2 pointer-events-none absolute"
+          style={{ width: 440, height: 300, background: 'rgba(255,228,77,0.12)', top: '14%', left: '-8%' }}
+        />
+        <div
+          className="lp2-orb lp2-orb-3 pointer-events-none absolute"
+          style={{ width: 320, height: 220, background: 'rgba(255,215,0,0.08)', bottom: '16%', left: '32%' }}
+        />
+
+
+        <div className="relative z-10 max-w-4xl">
+          <div className="lp2-anim mb-7 inline-flex items-center gap-2 rounded-full border border-black/[0.07] bg-white px-4 py-1.5 font-mono text-xs font-medium tracking-[0.18em] text-slate-500 shadow-sm" style={{ transitionDelay: '0ms' }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-[#FFD700]" />
+            {t.hero.eyebrow}
           </div>
 
-          {/* 案例展示区域 (Carousel) */}
-          <div className="relative mt-20 mx-auto max-w-5xl rounded-2xl overflow-hidden shadow-2xl border border-gray-200/50 dark:border-white/10 bg-white dark:bg-gray-900 animate-float-slow group">
-            {/* 顶部标题栏模拟 */}
-            <div className="h-8 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex items-center px-4 gap-2">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                <div className="w-3 h-3 rounded-full bg-green-400"></div>
-              </div>
-              <div className="flex-1 text-center text-xs text-gray-400 dark:text-gray-500 font-mono">
-                {t(`help.showcaseTitles.${showcaseKeys[currentShowcase].titleKey}`)}
+          <h1 className="lp2-anim lp2-hero-title text-[3rem] leading-[1.12] tracking-[-0.04em] text-slate-950 sm:text-[4.2rem] lg:text-[5.4rem]" style={{ transitionDelay: '120ms' }}>
+            <span>{t.hero.line1}</span>
+            <span className="relative lp2-gradient-text">
+              {t.hero.accent}
+              {/* Upward arc underline */}
+              <svg
+                aria-hidden="true"
+                className="absolute -bottom-2 left-0 w-full overflow-visible"
+                viewBox="0 0 400 22"
+                preserveAspectRatio="none"
+              >
+                <path
+                  className="lp2-underline-path"
+                  d="M 8 18 Q 200 2 392 18"
+                  fill="none"
+                  stroke="#FFD700"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <span className="block">{t.hero.line3}</span>
+          </h1>
+
+          <p className="lp2-anim mx-auto mt-8 max-w-2xl text-base leading-8 text-slate-500 md:text-lg" style={{ transitionDelay: '240ms', wordBreak: 'keep-all', textWrap: 'pretty' } as React.CSSProperties}>
+            {t.hero.sub}
+          </p>
+
+          <div className="lp2-anim mt-10 flex flex-wrap justify-center gap-3" style={{ transitionDelay: '360ms' }}>
+            <button
+              type="button"
+              onClick={handlePrimaryEntry}
+              disabled={isLoading}
+              className="lp2-btn-primary rounded-xl px-8 py-3.5 text-sm font-medium tracking-wide"
+            >
+              <span className="relative z-10">{t.hero.cta1}</span>
+            </button>
+            {/* GitHub Star button */}
+            <a
+              href="https://github.com/Anionex/banana-slides"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="lp2-btn-secondary inline-flex items-center gap-2.5 rounded-xl px-6 py-3.5 text-sm font-medium tracking-wide"
+            >
+              {/* GitHub mark */}
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true" className="text-slate-700">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+              </svg>
+              {t.hero.cta2}
+            </a>
+          </div>
+        </div>
+
+        {/* ── Hero Preview: stacked cards ── */}
+        <div className="lp2-anim lp2-anim-pop relative mx-auto mt-16 w-full max-w-5xl sm:mt-20 lg:mt-24" style={{ transitionDelay: '480ms' }}>
+          {/* Perspective wrapper */}
+          <div className="lp2-hero-stack relative" style={{ perspective: '1200px' }}>
+            {/* Layer 3 (deepest) — offset most to the left */}
+            <div
+              className="lp2-hero-stack-card absolute inset-0 origin-center"
+              style={{
+                transform: 'translate3d(-48px, 8px, -60px) rotateY(2deg)',
+                zIndex: 1,
+              }}
+            >
+              <div className="lp2-hero-card-frame">
+                <div className="lp2-hero-card-dots" />
+                <div className="bg-gradient-to-br from-slate-100 to-slate-200">
+                  <img src="/hero-preview-3.webp" alt="" className="w-full" loading="eager" />
+                </div>
               </div>
             </div>
-
-            <div className="relative aspect-video bg-gray-100 dark:bg-gray-800 overflow-hidden">
-               {showcaseKeys.map((showcase, idx) => (
-                <img 
-                  key={idx}
-                  src={showcase.image}
-                  alt={t(`help.showcaseTitles.${showcase.titleKey}`)}
-                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out ${
-                    idx === currentShowcase ? 'opacity-100' : 'opacity-0'
-                  }`}
-                />
-              ))}
-              
-              {/* 左右切换按钮 */}
-              <button 
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 dark:bg-black/50 text-gray-800 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg backdrop-blur-sm"
-                onClick={() => setCurrentShowcase((prev) => (prev === 0 ? showcaseKeys.length - 1 : prev - 1))}
-              >
-                <ChevronLeft size={24} />
-              </button>
-              <button 
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 dark:bg-black/50 text-gray-800 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg backdrop-blur-sm"
-                onClick={() => setCurrentShowcase((prev) => (prev + 1) % showcaseKeys.length)}
-              >
-                <ChevronRight size={24} />
-              </button>
-
-              {/* 底部指示器 */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                {showcaseKeys.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setCurrentShowcase(idx)}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      idx === currentShowcase 
-                        ? 'w-6 bg-white shadow-sm' 
-                        : 'w-1.5 bg-white/50 hover:bg-white/70'
-                    }`}
-                  />
-                ))}
+            {/* Layer 2 (middle) — offset slightly left */}
+            <div
+              className="lp2-hero-stack-card absolute inset-0 origin-center"
+              style={{
+                transform: 'translate3d(-26px, 4px, -30px) rotateY(1.2deg)',
+                zIndex: 2,
+              }}
+            >
+              <div className="lp2-hero-card-frame">
+                <div className="lp2-hero-card-dots" />
+                <div className="bg-gradient-to-br from-slate-100 to-slate-200">
+                  <img src="/hero-preview-2.webp" alt="" className="w-full" loading="eager" />
+                </div>
               </div>
+            </div>
+            {/* Layer 1 (front / main) — full visible */}
+            <div
+              className="lp2-hero-stack-card relative"
+              style={{ zIndex: 3 }}
+            >
+              <div className="lp2-hero-card-frame lp2-hero-card-front">
+                <div className="lp2-hero-card-dots" />
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100">
+                  <img src="/hero-preview-1.webp" alt="Banana Slides preview" className="w-full" loading="eager" />
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Soft reflection glow */}
+          <div className="pointer-events-none absolute -bottom-12 left-1/2 h-24 w-3/4 -translate-x-1/2 rounded-full bg-[#FFD700]/8 blur-3xl" />
+        </div>
+
+      </section>
+
+      {/* ══════════ WORKFLOW (flowchart) ══════════ */}
+      {/* ══════════ MARQUEE ══════════ */}
+      <div
+        className="overflow-hidden bg-white py-5"
+        style={{
+          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
+          maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
+        }}
+      >
+        <div className="lp2-marquee-track">
+          {/* duplicate for seamless loop */}
+          {[0, 1].map((k) => (
+            <div key={k} className="flex items-center">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span key={i} className="flex items-center whitespace-nowrap px-8 font-mono text-sm font-medium tracking-[0.12em] text-slate-400">
+                  Banana Slides
+                  <span className="ml-8 inline-block h-1 w-1 rounded-full bg-[#FFD700]" />
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* hero → workflow 渐变过渡 */}
+      <div className="h-16 bg-gradient-to-b from-white to-[#fafafa]" aria-hidden="true" />
+      <section
+        id="workflow"
+        className="lp2-snap scroll-mt-14 bg-[#fafafa]"
+      >
+        <div className="px-6 py-24 lg:px-16">
+          <div className="lp2-anim mx-auto max-w-4xl text-center" style={{ transitionDelay: '0ms' }}>
+            <div className="mb-3 font-mono text-xs tracking-[0.28em] text-slate-400">
+              {t.workflow.eyebrow}
+            </div>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-slate-950 md:text-4xl">
+              {t.workflow.title}
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-slate-500">{t.workflow.sub}</p>
+          </div>
+
+          <div className="mt-16 lg:mt-20">
+            <div className="grid gap-4 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+              {t.workflow.steps.map((step, i) => {
+                const layout = WORKFLOW_CARD_LAYOUTS[step.n];
+
+                return (
+                  <SpotCard
+                    key={step.n}
+                    className={`lp2-anim lp2-workflow-card relative overflow-hidden rounded-[1.9rem] border border-black/[0.06] bg-white/80 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)] backdrop-blur md:p-5 ${layout.card}`}
+                    style={{
+                      transitionDelay: `${60 + i * 55}ms`,
+                      ['--lp2-enter-x' as string]: i % 2 === 0 ? '-8px' : '8px',
+                      ['--lp2-enter-y' as string]: '14px',
+                      ['--lp2-enter-scale' as string]: '0.992',
+                    } as React.CSSProperties}
+                  >
+                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,rgba(250,250,252,0.84)_100%)]" />
+                    <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(15,23,42,0.08),transparent)]" />
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-5 top-4 select-none font-mono text-[2rem] font-semibold tracking-[-0.05em] text-black/[0.04] sm:text-[2.4rem] lg:text-[2.8rem]"
+                    >
+                      {step.hint}
+                    </div>
+
+                    <div className="relative z-10 flex h-full min-h-[15rem] flex-col justify-between sm:min-h-[16rem] lg:min-h-[17rem]">
+                      <div className="relative z-10 max-w-2xl">
+                        <div className="lp2-workflow-meta mb-3 flex items-center gap-3">
+                          <div className="font-mono text-[11px] tracking-[0.24em] text-slate-400">
+                            {step.n}
+                          </div>
+                          <div className="h-px w-10 bg-black/[0.08]" />
+                        </div>
+                        <h3 className="lp2-workflow-title max-w-2xl text-[1.35rem] font-semibold tracking-[-0.045em] text-slate-950 sm:text-[1.55rem] lg:text-[1.75rem]">
+                          {step.title}
+                        </h3>
+                        <p className="lp2-workflow-subtitle mt-2.5 text-sm font-medium text-slate-700 sm:text-[15px]">
+                          {step.subtitle}
+                        </p>
+                        <p className="lp2-workflow-copy mt-3.5 max-w-2xl text-[13px] leading-6 text-slate-500 sm:text-sm">
+                          {step.desc}
+                        </p>
+                      </div>
+                    </div>
+                  </SpotCard>
+                );
+              })}
             </div>
           </div>
         </div>
-      </main>
+      </section>
 
-      {/* 特性区域 */}
-      <div className="relative z-10 bg-white dark:bg-black/20">
-        {features.map((feature, idx) => (
-          <FeatureSection
-            key={idx}
-            feature={feature}
-            idx={idx}
-            t={t}
-            getDetails={getDetails}
-          />
-        ))}
-      </div>
+      {/* ══════════ SCENARIOS ══════════ */}
+      {/* workflow → scenarios 渐变过渡 */}
+      <div className="h-16 bg-gradient-to-b from-[#fafafa] to-white" aria-hidden="true" />
+      <section id="scenarios" className="lp2-snap scroll-mt-14 bg-white">
+        <div className="px-6 py-24 lg:px-16">
+          <div className="lp2-anim mb-14 text-center" style={{ transitionDelay: '0ms' }}>
+            <div className="mb-3 font-mono text-xs tracking-[0.28em] text-slate-400">
+              {t.scenarios.eyebrow}
+            </div>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-slate-950 md:text-4xl">
+              {t.scenarios.title}
+            </h2>
+            <p
+              className="mx-auto mt-4 max-w-xl text-slate-500"
+              style={{ textWrap: 'pretty' }}
+            >
+              {t.scenarios.sub}
+            </p>
+          </div>
 
-      <Footer />
+          {/* 5-card grid: 2+2+1 */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {t.scenarios.items.map((item, i) => (
+              <SpotCard
+                key={item.tag}
+                className={`lp2-anim lp2-anim-pop p-7 ${i === 4 ? 'sm:col-span-2 lg:col-span-1' : ''}`}
+                style={{ transitionDelay: `${140 + i * 120}ms, ${140 + i * 120}ms, ${140 + i * 120}ms, 0ms` }}
+              >
+                {/* Faded SVG icon in background */}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="pointer-events-none absolute bottom-4 right-4 h-20 w-20 text-black/[0.055]"
+                >
+                  {SCENARIO_ICONS[item.bg]}
+                </svg>
+                <div className="relative z-10">
+                  <div className="mb-4 font-mono text-xs tracking-[0.22em] text-[#c9a800]">
+                    {item.tag}
+                  </div>
+                  <h3 className="mb-3 text-lg font-semibold tracking-tight text-slate-900">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm leading-6 text-slate-500">{item.text}</p>
+                </div>
+              </SpotCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* scenarios → start 渐变过渡 */}
+      <div className="h-16 bg-gradient-to-b from-white to-[#fafafa]" aria-hidden="true" />
+
+      {/* ══════════ START / CTA ══════════ */}
+      <section
+        id="start"
+        className="lp2-snap scroll-mt-14"
+        style={{
+          background: '#fafafa',
+        }}
+      >
+        <div className="relative overflow-hidden px-6 py-32 text-center lg:px-16">
+          {/* Background decoration */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none font-mono text-[14rem] font-bold leading-none text-amber-400/[0.06] lg:text-[20rem]"
+          >
+            GO
+          </div>
+
+          <div className="lp2-anim relative z-10 mx-auto max-w-2xl" style={{ transitionDelay: '0ms' }}>
+            <div className="mb-4 font-mono text-xs tracking-[0.28em] text-slate-400">
+              {t.start.eyebrow}
+            </div>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-slate-950 md:text-4xl lg:text-5xl" style={{ wordBreak: 'keep-all' }}>
+              {t.start.title}
+            </h2>
+            <p className="mx-auto mt-6 max-w-xl text-base leading-8 text-slate-500 md:text-lg">
+              {t.start.sub}
+            </p>
+            <div className="mt-12 flex flex-wrap justify-center gap-4">
+              <button
+                type="button"
+                onClick={handlePrimaryEntry}
+                disabled={isLoading}
+                className="lp2-btn-primary rounded-xl px-9 py-4 text-sm font-medium tracking-wide"
+              >
+                <span className="relative z-10">{t.start.cta1}</span>
+              </button>
+              <a
+                href="https://github.com/Anionex/banana-slides"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp2-btn-secondary inline-flex items-center gap-2.5 rounded-xl px-8 py-4 text-sm font-medium tracking-wide"
+              >
+                <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true" className="text-slate-700">
+                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                </svg>
+                {t.start.cta2}
+              </a>
+            </div>
+            <div className="mt-6 text-sm text-slate-400">
+              {t.start.footerNote}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ FOOTER ══════════ */}
+      <footer className="border-t border-black/[0.06] bg-white">
+        <div className="px-6 pb-10 pt-16 lg:px-16">
+          {/* Top: brand block */}
+          <div className="mb-12 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <a href="#overview" className="inline-flex items-center gap-3">
+                <img
+                  src="/logo.png"
+                  alt="Banana Slides"
+                  className="h-16 w-16 object-contain"
+                />
+                  <div>
+                    <div className="text-2xl font-bold tracking-[-0.04em] text-slate-950">
+                      {t.brand}
+                    </div>
+                    <div className="mt-1 font-mono text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                      {t.footer.note}
+                    </div>
+                  </div>
+                </a>
+              </div>
+
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-slate-400">
+              {t.footer.links.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="transition-colors hover:text-slate-700"
+                >
+                  {link.label}
+                </a>
+              ))}
+              <a
+                href="https://github.com/Anionex/banana-slides"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-slate-700"
+              >
+                GitHub
+              </a>
+              <a
+                href="https://docs.bananaslides.online/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-slate-700"
+              >
+                {t.nav.docs}
+              </a>
+            </div>
+          </div>
+
+          {/* Bottom: copyright */}
+          <div className="border-t border-black/[0.05] pt-6 text-sm text-slate-300">
+            {t.footer.copy}
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

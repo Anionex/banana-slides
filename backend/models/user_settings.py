@@ -6,7 +6,8 @@ from . import db
 class UserSettings(db.Model):
     """
     UserSettings model - stores per-user application settings
-    Each user has their own settings including API keys and preferences.
+    Only stores user-specific overrides. Effective values are resolved at
+    runtime by merging this sparse row with the global Settings defaults.
     """
     __tablename__ = 'user_settings'
 
@@ -14,17 +15,17 @@ class UserSettings(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('users.id'), unique=True, nullable=False, index=True)
     
     # AI Provider settings
-    ai_provider_format = db.Column(db.String(20), nullable=False, default='gemini')  # AI提供商格式: openai, gemini
+    ai_provider_format = db.Column(db.String(20), nullable=True)  # AI提供商格式: openai, gemini
     api_base_url = db.Column(db.String(500), nullable=True)  # API基础URL
     api_key = db.Column(db.String(500), nullable=True)  # API密钥 (加密存储)
     
     # Image generation settings
-    image_resolution = db.Column(db.String(20), nullable=False, default='2K')  # 图像清晰度: 1K, 2K, 4K
-    image_aspect_ratio = db.Column(db.String(10), nullable=False, default='16:9')  # 图像比例: 16:9, 4:3, 1:1
+    image_resolution = db.Column(db.String(20), nullable=True)  # 图像清晰度: 1K, 2K, 4K
+    image_aspect_ratio = db.Column(db.String(10), nullable=True)  # 图像比例: 16:9, 4:3, 1:1
     
     # Concurrency settings
-    max_description_workers = db.Column(db.Integer, nullable=False, default=5)  # 描述生成最大工作线程数
-    max_image_workers = db.Column(db.Integer, nullable=False, default=8)  # 图像生成最大工作线程数
+    max_description_workers = db.Column(db.Integer, nullable=True)  # 描述生成最大工作线程数
+    max_image_workers = db.Column(db.Integer, nullable=True)  # 图像生成最大工作线程数
 
     # Model settings
     text_model = db.Column(db.String(100), nullable=True)  # 文本大模型名称
@@ -36,13 +37,13 @@ class UserSettings(db.Model):
     mineru_token = db.Column(db.String(500), nullable=True)  # MinerU API Token
     
     # Language settings
-    output_language = db.Column(db.String(10), nullable=False, default='zh')  # 输出语言偏好（zh, en, ja, auto）
+    output_language = db.Column(db.String(10), nullable=True)  # 输出语言偏好（zh, en, ja, auto）
     
     # Reasoning mode settings
-    enable_text_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 文本生成是否开启推理
-    text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
-    enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
-    image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
+    enable_text_reasoning = db.Column(db.Boolean, nullable=True)  # 文本生成是否开启推理
+    text_thinking_budget = db.Column(db.Integer, nullable=True)  # 文本推理思考负载 (1-8192)
+    enable_image_reasoning = db.Column(db.Boolean, nullable=True)  # 图像生成是否开启推理
+    image_thinking_budget = db.Column(db.Integer, nullable=True)  # 图像推理思考负载 (1-8192)
     
     # Third-party API keys
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
@@ -165,51 +166,14 @@ class UserSettings(db.Model):
     def get_or_create_for_user(user_id: str) -> 'UserSettings':
         """
         Get or create settings for a user.
-        
-        If settings don't exist, inherit from the current admin/site default
-        source so new users start from the same defaults exposed in the UI and
-        used by runtime fallback.
+
+        New rows are intentionally sparse. Missing fields mean "inherit from the
+        global Settings defaults" instead of "copy the current defaults into a
+        per-user snapshot".
         """
         settings = UserSettings.query.filter_by(user_id=user_id).first()
         if not settings:
-            from services.runtime_settings import get_default_settings_source
-
-            default_settings = get_default_settings_source()
-
-            settings = UserSettings(
-                user_id=user_id,
-                ai_provider_format=default_settings.ai_provider_format,
-                api_base_url=default_settings.api_base_url,
-                api_key=default_settings.api_key,
-                image_resolution=default_settings.image_resolution,
-                image_aspect_ratio=default_settings.image_aspect_ratio,
-                max_description_workers=default_settings.max_description_workers,
-                max_image_workers=default_settings.max_image_workers,
-                text_model=default_settings.text_model,
-                image_model=default_settings.image_model,
-                mineru_api_base=default_settings.mineru_api_base,
-                mineru_token=default_settings.mineru_token,
-                image_caption_model=default_settings.image_caption_model,
-                output_language=default_settings.output_language,
-                enable_text_reasoning=default_settings.enable_text_reasoning,
-                text_thinking_budget=default_settings.text_thinking_budget,
-                enable_image_reasoning=default_settings.enable_image_reasoning,
-                image_thinking_budget=default_settings.image_thinking_budget,
-                baidu_api_key=default_settings.baidu_api_key,
-                description_generation_mode=default_settings.description_generation_mode,
-                description_extra_fields=default_settings.description_extra_fields,
-                image_prompt_extra_fields=default_settings.image_prompt_extra_fields,
-                text_model_source=default_settings.text_model_source,
-                image_model_source=default_settings.image_model_source,
-                image_caption_model_source=default_settings.image_caption_model_source,
-                lazyllm_api_keys=default_settings.lazyllm_api_keys,
-                text_api_key=default_settings.text_api_key,
-                text_api_base_url=default_settings.text_api_base_url,
-                image_api_key=default_settings.image_api_key,
-                image_api_base_url=default_settings.image_api_base_url,
-                image_caption_api_key=default_settings.image_caption_api_key,
-                image_caption_api_base_url=default_settings.image_caption_api_base_url,
-            )
+            settings = UserSettings(user_id=user_id)
             db.session.add(settings)
             db.session.commit()
         return settings

@@ -90,6 +90,33 @@ def get_image_cost(resolution: str = '2K') -> int:
 CREDIT_COSTS = DEFAULT_CREDIT_COSTS
 
 
+def _operation_to_service_type(operation: CreditOperation):
+    """Map a CreditOperation to its ServiceType for credential source check."""
+    from services.runtime_settings import ServiceType
+
+    return {
+        CreditOperation.GENERATE_OUTLINE: ServiceType.TEXT_MODEL,
+        CreditOperation.GENERATE_DESCRIPTION: ServiceType.TEXT_MODEL,
+        CreditOperation.GENERATE_IMAGE: ServiceType.IMAGE_MODEL,
+        CreditOperation.EDIT_IMAGE: ServiceType.IMAGE_MODEL,
+        CreditOperation.REFINE_OUTLINE: ServiceType.TEXT_MODEL,
+        CreditOperation.REFINE_DESCRIPTION: ServiceType.TEXT_MODEL,
+        CreditOperation.GENERATE_MATERIAL: ServiceType.CAPTION_MODEL,
+        CreditOperation.PARSE_FILE: ServiceType.MINERU,
+        CreditOperation.EXPORT_EDITABLE: ServiceType.BAIDU_OCR,
+    }.get(operation)
+
+
+def _is_user_owned_credential(user_id: str, operation: CreditOperation) -> bool:
+    """Check if the user is using their own credential for this operation."""
+    from services.runtime_settings import is_user_owned_credential
+
+    service_type = _operation_to_service_type(operation)
+    if service_type is None:
+        return False
+    return is_user_owned_credential(user_id, service_type)
+
+
 class CreditsService:
     """积分服务"""
 
@@ -116,16 +143,16 @@ class CreditsService:
     @staticmethod
     def check_credits(user: User, operation: CreditOperation, quantity: int = 1) -> Tuple[bool, int]:
         """
-        检查用户是否有足够积分
-        
-        Args:
-            user: 用户对象
-            operation: 操作类型
-            quantity: 数量
-            
+        检查用户是否有足够积分。
+        用户自带密钥时跳过检查，直接返回 True。
+
         Returns:
             Tuple of (has_enough, required_credits)
         """
+        if _is_user_owned_credential(user.id, operation):
+            logger.info("User %s uses own credential for %s, skipping credit check", user.id, operation.value)
+            return True, 0
+
         required = CreditsService.get_cost(operation, quantity)
         has_enough = user.credits_balance >= required
         return has_enough, required
@@ -139,20 +166,16 @@ class CreditsService:
         resolution: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """
-        消耗用户积分（原子操作，防止并发超扣）
-
-        使用 SQL 级别的 UPDATE ... WHERE credits_balance >= cost 保证原子性，
-        避免并发请求通过 ORM 内存值绕过余额检查。
-
-        Args:
-            user: 用户对象
-            operation: 操作类型
-            quantity: 数量
-            description: 操作描述（可选）
+        消耗用户积分（原子操作，防止并发超扣）。
+        用户自带密钥时跳过扣费，直接返回成功。
 
         Returns:
             Tuple of (success, error_message)
         """
+        if _is_user_owned_credential(user.id, operation):
+            logger.info("User %s uses own credential for %s, skipping credit deduction", user.id, operation.value)
+            return True, None
+
         cost = CreditsService.get_cost(operation, quantity, resolution=resolution)
 
         try:
@@ -215,6 +238,9 @@ class CreditsService:
         Returns:
             Tuple of (success, error_message)
         """
+        if _is_user_owned_credential(user_id, operation):
+            return True, None
+
         refund_amount = CreditsService.get_cost(operation, quantity, resolution=resolution)
         if refund_amount <= 0:
             return True, None

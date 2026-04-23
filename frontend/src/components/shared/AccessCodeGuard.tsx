@@ -40,11 +40,11 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
     setStatus('loading');
     try {
       const res = await checkAccessCode();
-      if (!res.data.enabled) { setStatus('pass'); return; }
+      if (!res.data?.enabled) { setStatus('pass'); return; }
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const v = await verifyAccessCode(saved);
-        if (v.data.valid) { setStatus('pass'); return; }
+        if (v.data?.valid) { setStatus('pass'); return; }
         localStorage.removeItem(STORAGE_KEY);
       }
       setStatus('prompt');
@@ -62,7 +62,7 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
     setError('');
     try {
       const res = await verifyAccessCode(code.trim());
-      if (res.data.valid) {
+      if (res.data?.valid) {
         localStorage.setItem(STORAGE_KEY, code.trim());
         setStatus('pass');
       } else {

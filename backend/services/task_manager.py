@@ -47,6 +47,8 @@ from services.credits_service import CreditsService, CreditOperation
 from services.pdf_service import split_pdf_to_pages
 from services.ai_service_manager import get_ai_service
 from services.runtime_settings import build_effective_settings_override, use_settings_override, use_user_settings
+from services import FileService
+from services.file_urls import public_url
 
 # 导入队列抽象层
 from services.queue import get_queue, TaskQueue
@@ -1145,6 +1147,11 @@ def export_editable_pptx_with_recursive_analysis_task(
 
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
 
+        settings_override = build_effective_settings_override(user_id)
+        from services.runtime_settings import _runtime_settings_override
+        _override_token = _runtime_settings_override.set(dict(settings_override))
+        logger.info("Applied runtime settings override for export_editable_task:%s", task_id)
+
         try:
             # Get project
             project = Project.query.get(project_id)
@@ -1273,8 +1280,16 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
             
-            # Step 4: 标记任务完成
-            download_path = f"/files/{project_id}/exports/{filename}"
+            # Step 4: 上传导出结果到配置的存储后端（R2/本地）
+            relative_export_path = f"{project_id}/exports/{filename}"
+            if os.getenv('STORAGE_BACKEND', 'local').lower() != 'local':
+                file_service = FileService(app.config['UPLOAD_FOLDER'])
+                file_service.save_local_file(output_path, relative_export_path)
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
+            download_path = public_url(relative_export_path)
             
             # 添加完成消息
             progress_messages.append("✅ 导出完成！")
@@ -1361,3 +1376,6 @@ def export_editable_pptx_with_recursive_analysis_task(
                 CreditsService.refund_credits(
                     user_id, CreditOperation.EXPORT_EDITABLE,
                     description=str(e)[:200])
+
+        finally:
+            _runtime_settings_override.reset(_override_token)
