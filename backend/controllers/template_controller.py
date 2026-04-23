@@ -48,11 +48,23 @@ def upload_template(project_id):
         # Update project
         project.template_image_path = file_path
         project.updated_at = datetime.utcnow()
-        
+
+        # Auto-extract style description from template image
+        template_image_style = None
+        try:
+            from services.ai_service import get_ai_service
+            ai_service = get_ai_service()
+            abs_path = file_service.get_absolute_path(file_path)
+            template_image_style = ai_service.extract_style_description(abs_path)
+            project.template_image_style = template_image_style
+        except Exception as extract_err:
+            logger.warning(f"Failed to extract style from template: {extract_err}")
+
         db.session.commit()
-        
+
         return success_response({
-            'template_image_url': f'/files/{project_id}/template/{file_path.split("/")[-1]}'
+            'template_image_url': f'/files/{project_id}/template/{file_path.split("/")[-1]}',
+            'template_image_style': template_image_style,
         })
     
     except Exception as e:
@@ -80,6 +92,7 @@ def delete_template(project_id):
         
         # Update project
         project.template_image_path = None
+        project.template_image_style = None
         project.updated_at = datetime.utcnow()
         
         db.session.commit()
