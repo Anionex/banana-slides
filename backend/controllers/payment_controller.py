@@ -211,7 +211,7 @@ def create_order():
             currency=currency,
             payment_provider=provider.provider_name,
             payment_type=payment_type,
-            external_order_id=result.external_order_id,
+            external_order_id=result.external_order_id or result.order_id,
             status='pending',
             created_at=datetime.now(timezone.utc),
         )
@@ -281,7 +281,7 @@ def create_subscription_checkout():
             currency='USD',
             payment_provider=provider.provider_name,
             payment_type='subscription',
-            external_order_id=result.external_order_id,
+            external_order_id=result.external_order_id or result.order_id,
             status='pending',
             created_at=datetime.now(timezone.utc),
         )
@@ -314,6 +314,30 @@ def create_billing_portal_session():
     except Exception as exc:
         logger.error('Billing portal creation error: %s', exc, exc_info=True)
         return error_response('PAYMENT_ERROR', str(exc), 500)
+
+
+def _fulfill_order_from_query(db_order, order_info: dict):
+    """Fulfill a paid order discovered via polling (before webhook arrives)."""
+    if db_order.status == 'paid':
+        return
+    package = get_credit_package(db_order.package_id)
+    user = User.query.get(db_order.user_id)
+    if not user or not package:
+        logger.error('fulfill_order_from_query: user=%s package=%s not found', db_order.user_id, db_order.package_id)
+        return
+    success, error = CreditsService.add_credits(
+        user=user,
+        amount=package.total_credits,
+        operation=CreditOperation.PURCHASE,
+        description=f'Purchase {package.name} ({order_info.get("external_order_id") or db_order.external_order_id})',
+    )
+    if success:
+        db_order.status = 'paid'
+        db_order.paid_at = datetime.now(timezone.utc)
+        db_order.external_order_id = order_info.get('external_order_id') or db_order.external_order_id
+        db.session.commit()
+    else:
+        logger.error('fulfill_order_from_query credits failed: %s', error)
 
 
 def _fulfill_wechatpay_order(order_info: dict):
@@ -481,8 +505,19 @@ def query_order(order_id):
     try:
         provider_name = request.args.get('provider') or get_default_payment_provider_name()
         provider = get_payment_provider(provider_name)
-        order_info = provider.query_order(order_id)
+
+        lookup_id = order_id
+        db_order = PaymentOrder.query.filter_by(id=order_id).first()
+        if db_order:
+            if db_order.status == 'paid':
+                return success_response({'order_id': order_id, 'status': 'paid'})
+            if db_order.external_order_id:
+                lookup_id = db_order.external_order_id
+
+        order_info = provider.query_order(lookup_id)
         if order_info:
+            if order_info.get('status') == 'paid' and db_order and db_order.status != 'paid':
+                _fulfill_order_from_query(db_order, order_info)
             return success_response(order_info)
         return not_found('Order')
     except Exception as exc:

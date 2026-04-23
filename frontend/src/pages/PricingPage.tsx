@@ -2,7 +2,7 @@
  * Pricing Page - multi-provider subscriptions + credit packs
  * 海外 SaaS 定价页
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Building2,
   Check,
+  CheckCircle2,
   Coins,
   Crown,
   ExternalLink,
@@ -53,6 +54,9 @@ const pricingI18n = {
     paymentError: '创建支付会话失败',
     scanToPay: '微信扫码支付',
     scanWithWechat: '请使用微信扫描二维码完成支付',
+    waitingPayment: '等待支付中...',
+    paymentSuccess: '支付成功！',
+    creditsAdded: '积分已到账',
     close: '关闭',
     billingError: '打开账单中心失败',
     canceled: '您已取消本次支付',
@@ -98,6 +102,9 @@ const pricingI18n = {
     paymentError: 'Failed to create checkout session',
     scanToPay: 'Scan to Pay',
     scanWithWechat: 'Scan the QR code with WeChat to complete payment',
+    waitingPayment: 'Waiting for payment...',
+    paymentSuccess: 'Payment successful!',
+    creditsAdded: 'Credits added to your account',
     close: 'Close',
     billingError: 'Failed to open billing portal',
     canceled: 'Payment was canceled',
@@ -201,7 +208,9 @@ export const PricingPage: React.FC = () => {
   const [creditCosts, setCreditCosts] = useState<CreditCosts>(DEFAULT_CREDIT_COSTS);
   const [selectedPackageProvider, setSelectedPackageProvider] = useState<string | null>(null);
   const [selectedSubscriptionProvider, setSelectedSubscriptionProvider] = useState<string | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<{ url: string; orderId: string; packageName: string } | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<{ url: string; orderId: string; packageName: string; provider: string } | null>(null);
+  const [qrPaymentStatus, setQrPaymentStatus] = useState<'pending' | 'paid'>('pending');
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const t = (key: string, vars?: Record<string, any>) => {
     const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
@@ -215,6 +224,39 @@ export const PricingPage: React.FC = () => {
     }
     return value || key;
   };
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  const closeQrModal = useCallback(() => {
+    stopPolling();
+    setQrCodeData(null);
+    setQrPaymentStatus('pending');
+  }, [stopPolling]);
+
+  useEffect(() => {
+    if (!qrCodeData?.orderId) return;
+    setQrPaymentStatus('pending');
+    const poll = async () => {
+      try {
+        const result = await paymentApi.queryOrder(qrCodeData.orderId, qrCodeData.provider);
+        if (result?.status === 'paid') {
+          stopPolling();
+          setQrPaymentStatus('paid');
+          await refreshCredits();
+          show({ message: t('success'), type: 'success' });
+        }
+      } catch {
+        // ignore transient errors, keep polling
+      }
+    };
+    pollingRef.current = setInterval(poll, 3000);
+    return stopPolling;
+  }, [qrCodeData?.orderId]);
 
   const currentPlanSlug = user?.subscription_plan || 'free';
 
@@ -324,7 +366,7 @@ export const PricingPage: React.FC = () => {
         throw new Error(result.error_message || t('paymentError'));
       }
       if (result.qr_code_url) {
-        setQrCodeData({ url: result.qr_code_url, orderId: result.order_id || '', packageName: pkg.name });
+        setQrCodeData({ url: result.qr_code_url, orderId: result.order_id || '', packageName: pkg.name, provider: selectedPackageProvider });
         return;
       }
       if (!result.payment_url) {
@@ -380,16 +422,32 @@ export const PricingPage: React.FC = () => {
       <ToastContainer />
 
       {qrCodeData && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setQrCodeData(null)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeQrModal}>
           <div className="bg-white dark:bg-background-secondary rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4 text-center" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('scanToPay')}</h3>
             <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-6">{qrCodeData.packageName}</p>
-            <div className="inline-block p-4 bg-white rounded-xl">
-              <QRCodeSVG value={qrCodeData.url} size={220} />
-            </div>
-            <p className="text-xs text-gray-400 mt-4">{t('scanWithWechat')}</p>
+
+            {qrPaymentStatus === 'pending' ? (
+              <>
+                <div className="inline-block p-4 bg-white rounded-xl">
+                  <QRCodeSVG value={qrCodeData.url} size={220} />
+                </div>
+                <div className="flex items-center justify-center gap-2 mt-4 text-xs text-gray-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{t('waitingPayment')}</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">{t('scanWithWechat')}</p>
+              </>
+            ) : (
+              <div className="py-8">
+                <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <p className="text-lg font-semibold text-gray-900 dark:text-foreground-primary">{t('paymentSuccess')}</p>
+                <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1">{t('creditsAdded')}</p>
+              </div>
+            )}
+
             <button
-              onClick={() => setQrCodeData(null)}
+              onClick={closeQrModal}
               className="mt-6 px-6 py-2 text-sm text-gray-600 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               {t('close')}
