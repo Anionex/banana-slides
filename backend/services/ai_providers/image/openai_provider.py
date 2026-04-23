@@ -172,7 +172,7 @@ class OpenAIImageProvider(ImageProvider):
         if item.b64_json:
             return Image.open(BytesIO(base64.b64decode(item.b64_json)))
         if item.url:
-            resp = requests.get(item.url, timeout=60)
+            resp = requests.get(item.url, timeout=60, stream=True)
             resp.raise_for_status()
             return Image.open(BytesIO(resp.content))
         raise ValueError("images API returned neither b64_json nor url")
@@ -192,7 +192,12 @@ class OpenAIImageProvider(ImageProvider):
 
         if ref_images and self.model.lower() != 'dall-e-3':
             # dall-e-3 does not support images.edit; all other native models do
-            image_bytes = self._pil_to_png_bytes(ref_images[0])
+            # Resize ref image to match target size so the API doesn't reject mismatched dimensions
+            w, h = map(int, size.split('x'))
+            ref_img = ref_images[0]
+            if ref_img.size != (w, h):
+                ref_img = ref_img.resize((w, h), Image.LANCZOS)
+            image_bytes = self._pil_to_png_bytes(ref_img)
             image_file = BytesIO(image_bytes)
             image_file.name = 'image.png'
             logger.debug("%s: images.edit, size=%s", self.model, size)
