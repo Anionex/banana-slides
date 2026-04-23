@@ -114,6 +114,25 @@ class AliyunOSSStorage(StorageBackend):
                 return None
             raise
 
+    def get_file_stream(self, relative_path: str):
+        normalized = self._normalize_path(relative_path)
+        try:
+            result = self.bucket.get_object(normalized)
+            content_length = result.content_length
+
+            def stream_generator():
+                try:
+                    for chunk in result:
+                        yield chunk
+                finally:
+                    result.close()
+
+            return stream_generator(), content_length
+        except Exception as exc:
+            if self._is_not_found(exc):
+                return None, 0
+            raise
+
     def delete_file(self, relative_path: str) -> bool:
         relative_path = self._normalize_path(relative_path)
         self.bucket.delete_object(relative_path)

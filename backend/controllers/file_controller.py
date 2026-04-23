@@ -1,16 +1,36 @@
 """File Controller - handles static file serving."""
+import mimetypes
 from pathlib import Path
 import os
 
-from flask import Blueprint, current_app, send_from_directory
+from flask import Blueprint, current_app, Response, send_from_directory
 
 from middlewares.auth import authenticate_request
 from models import Material, Project, UserTemplate
+from services.storage import get_storage, LocalStorage
 from utils import error_response, not_found
 from utils.path_utils import find_file_with_prefix
 from werkzeug.utils import secure_filename
 
 file_bp = Blueprint('files', __name__, url_prefix='/files')
+
+
+def _serve_from_storage(relative_path):
+    """Serve a file via storage backend: local uses send_from_directory, cloud streams."""
+    storage = get_storage()
+    if isinstance(storage, LocalStorage):
+        absolute = Path(storage.get_absolute_path(relative_path))
+        if not absolute.exists():
+            return not_found('File')
+        return send_from_directory(str(absolute.parent), absolute.name)
+
+    stream, content_length = storage.get_file_stream(relative_path)
+    if stream is None:
+        return not_found('File')
+
+    content_type = mimetypes.guess_type(relative_path)[0] or 'application/octet-stream'
+    headers = {'Content-Length': str(content_length)} if content_length else {}
+    return Response(stream, content_type=content_type, headers=headers)
 
 
 def _get_owned_project(project_id, user_id):
@@ -41,26 +61,10 @@ def serve_file(project_id, file_type, filename):
         project = _get_owned_project(project_id, user.id)
         if not project:
             return not_found('File')
-        
-        # Construct file path
-        file_dir = os.path.join(
-            current_app.config['UPLOAD_FOLDER'],
-            project_id,
-            file_type
-        )
-        
-        # Check if directory exists
-        if not os.path.exists(file_dir):
-            return not_found('File')
-        
-        # Check if file exists
-        file_path = os.path.join(file_dir, filename)
-        if not os.path.exists(file_path):
-            return not_found('File')
-        
-        # Serve file
-        return send_from_directory(file_dir, filename)
-    
+
+        relative_path = os.path.join(project_id, file_type, filename)
+        return _serve_from_storage(relative_path)
+
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 
@@ -97,11 +101,7 @@ def serve_user_template(template_id, filename):
         else:
             return not_found('File')
 
-        absolute_path = Path(current_app.config['UPLOAD_FOLDER']) / relative_path
-        if not absolute_path.exists():
-            return not_found('File')
-
-        return send_from_directory(str(absolute_path.parent), absolute_path.name)
+        return _serve_from_storage(relative_path)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -129,11 +129,7 @@ def serve_global_material(filename):
         if not material:
             return not_found('File')
 
-        absolute_path = Path(current_app.config['UPLOAD_FOLDER']) / material.relative_path
-        if not absolute_path.exists():
-            return not_found('File')
-
-        return send_from_directory(str(absolute_path.parent), absolute_path.name)
+        return _serve_from_storage(material.relative_path)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)

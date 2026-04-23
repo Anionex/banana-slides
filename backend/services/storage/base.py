@@ -149,7 +149,17 @@ class StorageBackend(ABC):
             relative_path: 目录相对路径
         """
         pass
-    
+
+    def get_file_stream(self, relative_path: str):
+        data = self.get_file(relative_path)
+        if data is None:
+            return None, 0
+
+        def _gen():
+            yield data
+
+        return _gen(), len(data)
+
     # ==================== 高级便捷方法 ====================
     # 这些方法有默认实现，子类可以选择性重写以优化性能
     

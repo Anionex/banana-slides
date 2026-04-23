@@ -64,6 +64,7 @@ class SystemConfig(db.Model):
 
     storage_backend = db.Column(db.String(50), default='local')
     storage_provider_configs = db.Column(db.Text, default=None)
+    cdn_base_url = db.Column(db.String(512), default=None)
 
     # 时间戳
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -224,6 +225,7 @@ class SystemConfig(db.Model):
             'payment_provider_configs': self.get_payment_provider_configs(raw=False),
             'storage_backend': (self.storage_backend or 'local').strip().lower(),
             'storage_provider_configs': self.get_storage_provider_configs(raw=False),
+            'cdn_base_url': self.cdn_base_url or '',
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

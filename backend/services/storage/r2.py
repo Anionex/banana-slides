@@ -121,6 +121,24 @@ class R2Storage(StorageBackend):
                 return None
             raise
 
+    def get_file_stream(self, relative_path: str):
+        relative_path = self._normalize_path(relative_path)
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=relative_path)
+            content_length = response.get('ContentLength', 0)
+
+            def stream_generator():
+                body = response['Body']
+                try:
+                    for chunk in body.iter_chunks(chunk_size=65536):
+                        yield chunk
+                finally:
+                    body.close()
+
+            return stream_generator(), content_length
+        except self.client.exceptions.NoSuchKey:
+            return None, 0
+
     def delete_file(self, relative_path: str) -> bool:
         relative_path = self._normalize_path(relative_path)
         self.client.delete_object(Bucket=self.bucket, Key=relative_path)
