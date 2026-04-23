@@ -1,12 +1,12 @@
 """
 OpenAI SDK implementation for image generation
 
-Supports multiple resolution parameter formats for different OpenAI-compatible providers:
-- Flat style: extra_body.aspect_ratio + extra_body.resolution
-- Nested style: extra_body.generationConfig.imageConfig.aspectRatio + imageSize
+Two code paths:
+1. Native images API (gpt-image-2, dall-e-3, dall-e-2): uses client.images.generate /
+   client.images.edit, returns b64_json directly.
+2. Chat completions path (Gemini-via-proxy, etc.): uses client.chat.completions.create
+   with modalities=["text","image"] and extra_body resolution hints.
 
-Note: Not all providers support 2K/4K resolution in OpenAI format.
-Some may only return 1K regardless of settings.
 Resolution validation is handled at the task_manager level for all providers.
 """
 import logging
@@ -23,10 +23,41 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+# Models that use the native OpenAI images API (images.generate / images.edit)
+# rather than the chat completions multimodal path.
+_GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'}
+_DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
+_NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
+
+# Aspect-ratio → size per model family.
+# GPT image models: 1536x1024 landscape; DALL-E 3: 1792x1024 landscape.
+_GPT_IMAGE_SIZE_MAP = {
+    '16:9': '1536x1024',
+    '9:16': '1024x1536',
+    '1:1':  '1024x1024',
+    '3:2':  '1536x1024',
+    '2:3':  '1024x1536',
+}
+_DALLE3_SIZE_MAP = {
+    '16:9': '1792x1024',
+    '9:16': '1024x1792',
+    '1:1':  '1024x1024',
+    '3:2':  '1792x1024',
+    '2:3':  '1024x1792',
+}
+_DALLE2_SIZE_MAP = {
+    '1:1':  '1024x1024',
+}
+
+
 class OpenAIImageProvider(ImageProvider):
     """
-    Image generation using OpenAI SDK (compatible with Gemini via proxy)
-    
+    Image generation using OpenAI SDK.
+
+    Two code paths selected by model name:
+    • Native images API (gpt-image-2 / dall-e-*): images.generate / images.edit
+    • Chat completions path (Gemini via proxy, etc.): chat.completions with modalities
+
     Supports multiple resolution parameter formats for different providers.
     Resolution support varies by provider:
     - Some providers support 2K/4K via extra_body parameters
@@ -105,6 +136,79 @@ class OpenAIImageProvider(ImageProvider):
         
         return extra_body
 
+    def _is_native_images_api_model(self) -> bool:
+        """Return True when the model should use images.generate / images.edit."""
+        return self.model.lower() in _NATIVE_IMAGES_API_MODELS
+
+    def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
+        buf = BytesIO()
+        if image.mode not in ('RGB', 'RGBA'):
+            image = image.convert('RGB')
+        image.save(buf, format='PNG')
+        buf.seek(0)
+        return buf.read()
+
+    def _resolve_size(self, aspect_ratio: str) -> str:
+        """Map aspect_ratio to a size string appropriate for the current model."""
+        model = self.model.lower()
+        if model == 'dall-e-3':
+            return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        if model == 'dall-e-2':
+            return _DALLE2_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        return _GPT_IMAGE_SIZE_MAP.get(aspect_ratio, 'auto')
+
+    def _resolve_quality(self):
+        """Return quality param appropriate for the current model, or None to omit."""
+        model = self.model.lower()
+        if model == 'dall-e-3':
+            return 'standard'   # dall-e-3 only accepts standard / hd
+        if model == 'dall-e-2':
+            return None          # dall-e-2 has no quality param
+        return 'auto'            # gpt-image-* accepts auto / low / medium / high
+
+    def _decode_image_response(self, item) -> Image.Image:
+        """Extract PIL Image from an images API response item (b64_json or url)."""
+        if item.b64_json:
+            return Image.open(BytesIO(base64.b64decode(item.b64_json)))
+        if item.url:
+            resp = requests.get(item.url, timeout=60)
+            resp.raise_for_status()
+            return Image.open(BytesIO(resp.content))
+        raise ValueError("images API returned neither b64_json nor url")
+
+    def _generate_with_images_api(
+        self,
+        prompt: str,
+        ref_images: Optional[List[Image.Image]],
+        aspect_ratio: str,
+    ) -> Optional[Image.Image]:
+        """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
+        size = self._resolve_size(aspect_ratio)
+        quality = self._resolve_quality()
+        # GPT image models always return b64_json; DALL-E models default to url
+        is_dalle = self.model.lower() in _DALLE_MODELS
+        response_format = 'b64_json' if is_dalle else None
+
+        if ref_images:
+            image_bytes = self._pil_to_png_bytes(ref_images[0])
+            image_file = BytesIO(image_bytes)
+            image_file.name = 'image.png'
+            logger.debug("%s: images.edit, size=%s", self.model, size)
+            kwargs = dict(model=self.model, image=image_file, prompt=prompt, n=1, size=size)
+            if response_format:
+                kwargs['response_format'] = response_format
+            result = self.client.images.edit(**kwargs)
+        else:
+            logger.debug("%s: images.generate, size=%s, quality=%s", self.model, size, quality)
+            kwargs = dict(model=self.model, prompt=prompt, n=1, size=size)
+            if quality:
+                kwargs['quality'] = quality
+            if response_format:
+                kwargs['response_format'] = response_format
+            result = self.client.images.generate(**kwargs)
+
+        return self._decode_image_response(result.data[0])
+
     def generate_image(
         self,
         prompt: str,
@@ -137,6 +241,10 @@ class OpenAIImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
+            # Route gpt-image-2 / dall-e-* to the native images API
+            if self._is_native_images_api_model():
+                return self._generate_with_images_api(prompt, ref_images, aspect_ratio)
+
             # Build message content
             content = []
             
