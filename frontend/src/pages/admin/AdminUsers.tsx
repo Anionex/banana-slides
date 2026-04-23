@@ -3,7 +3,6 @@
  * User management with search, filters, pagination, and actions
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useT } from '../../hooks/useT';
 import UserTable from '../../components/admin/UserTable';
 import AdjustCreditsModal from '../../components/admin/AdjustCreditsModal';
@@ -20,7 +19,6 @@ const PAGE_SIZE = 20;
 const i18n = {
   zh: {
     title: '用户管理',
-    backDashboard: '返回仪表盘',
     searchPlaceholder: '搜索邮箱或用户名...',
     allPlans: '全部套餐',
     allStatus: '全部状态',
@@ -39,7 +37,6 @@ const i18n = {
   },
   en: {
     title: 'User Management',
-    backDashboard: 'Back to Dashboard',
     searchPlaceholder: 'Search email or username...',
     allPlans: 'All Plans',
     allStatus: 'All Status',
@@ -139,19 +136,8 @@ export default function AdminUsers() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary">
-      {/* Nav */}
-      <header className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('title')}</h1>
-        <Link
-          to="/admin"
-          className="text-sm text-gray-500 hover:text-gray-700 dark:text-foreground-secondary dark:hover:text-foreground-primary"
-        >
-          {t('backDashboard')}
-        </Link>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-6">
+    <>
+      <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <input
@@ -226,7 +212,7 @@ export default function AdminUsers() {
             </button>
           </div>
         )}
-      </main>
+      </div>
 
       {/* Adjust credits modal */}
       {creditsTarget && (
@@ -237,6 +223,6 @@ export default function AdminUsers() {
           onClose={() => setCreditsTarget(null)}
         />
       )}
-    </div>
+    </>
   );
 }

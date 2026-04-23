@@ -3,7 +3,6 @@
  * Credit transaction audit with search, filters, and pagination
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useT } from '../../hooks/useT';
 import { getAdminTransactions } from '../../api/adminApi';
 import { ArrowUpRight, ArrowDownRight, Search, Filter, Calendar } from 'lucide-react';
@@ -13,7 +12,6 @@ const PAGE_SIZE = 50;
 const i18n = {
   zh: {
     title: '积分明细审计',
-    backDashboard: '返回仪表盘',
     searchPlaceholder: '按用户名/邮箱/ID筛选...',
     allOperations: '全部操作类型',
     startDate: '开始日期',
@@ -48,7 +46,6 @@ const i18n = {
   },
   en: {
     title: 'Credit Transaction Audit',
-    backDashboard: 'Back to Dashboard',
     searchPlaceholder: 'Filter by name/email/ID...',
     allOperations: 'All Operations',
     startDate: 'Start Date',
@@ -170,20 +167,8 @@ export default function AdminTransactions() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary">
-      {/* Nav */}
-      <header className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('title')}</h1>
-        <Link
-          to="/admin"
-          className="text-sm text-gray-500 hover:text-gray-700 dark:text-foreground-secondary dark:hover:text-foreground-primary"
-        >
-          {t('backDashboard')}
-        </Link>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {/* Filters */}
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -328,7 +313,6 @@ export default function AdminTransactions() {
             </button>
           </div>
         )}
-      </main>
     </div>
   );
 }

@@ -2,7 +2,6 @@
  * Admin Announcements Management Page
  */
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useT } from '../../hooks/useT';
 import { getAdminAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../../api/adminApi';
 import type { Announcement } from '../../api/announcements';
@@ -10,7 +9,6 @@ import type { Announcement } from '../../api/announcements';
 const i18n = {
   zh: {
     title: '公告管理',
-    backDashboard: '返回仪表盘',
     create: '发布公告',
     edit: '编辑',
     delete: '删除',
@@ -31,7 +29,6 @@ const i18n = {
   },
   en: {
     title: 'Announcements',
-    backDashboard: 'Back to Dashboard',
     create: 'New Announcement',
     edit: 'Edit',
     delete: 'Delete',
@@ -119,28 +116,22 @@ export default function AdminAnnouncements() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background-primary">
+      <div className="flex-1 flex items-center justify-center">
         <p className="text-gray-500 dark:text-foreground-secondary">{t('loading')}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary">
-      <header className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('title')}</h1>
-        <div className="flex items-center gap-4">
-          <button onClick={startCreate} className="px-4 py-2 bg-banana-500 text-white rounded-lg hover:bg-banana-600 text-sm font-medium">
-            {t('create')}
-          </button>
-          <Link to="/admin" className="text-sm text-gray-500 hover:text-gray-700 dark:text-foreground-secondary dark:hover:text-foreground-primary">
-            {t('backDashboard')}
-          </Link>
-        </div>
-      </header>
+        <button onClick={startCreate} className="px-4 py-2 bg-banana-500 text-white rounded-lg hover:bg-banana-600 text-sm font-medium">
+          {t('create')}
+        </button>
+      </div>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        {/* Create / Edit Form */}
+      {/* Create / Edit Form */}
         {(creating || editing) && (
           <div className="mb-6 p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-background-secondary shadow-sm">
             <div className="space-y-4">
@@ -211,7 +202,6 @@ export default function AdminAnnouncements() {
             ))}
           </div>
         )}
-      </main>
     </div>
   );
 }

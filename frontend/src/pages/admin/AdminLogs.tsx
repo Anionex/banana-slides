@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useT } from '../../hooks/useT';
 import { getAdminLogs } from '../../api/adminApi';
 import { Search, RefreshCw, Filter } from 'lucide-react';
@@ -7,7 +6,6 @@ import { Search, RefreshCw, Filter } from 'lucide-react';
 const i18n = {
   zh: {
     title: '后端日志',
-    backDashboard: '返回仪表盘',
     keyword: '关键词搜索...',
     allLevels: '全部级别',
     lines: '行数',
@@ -20,7 +18,6 @@ const i18n = {
   },
   en: {
     title: 'Backend Logs',
-    backDashboard: 'Back to Dashboard',
     keyword: 'Search keyword...',
     allLevels: 'All Levels',
     lines: 'Lines',
@@ -98,16 +95,8 @@ export default function AdminLogs() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary">
-      <header className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('title')}</h1>
-        <Link to="/admin" className="text-sm text-gray-500 hover:text-gray-700 dark:text-foreground-secondary dark:hover:text-foreground-primary">
-          {t('backDashboard')}
-        </Link>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {/* Filters */}
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -169,7 +158,6 @@ export default function AdminLogs() {
             </div>
           )}
         </div>
-      </main>
     </div>
   );
 }

@@ -3,7 +3,6 @@
  * Shows overview stats and user-growth chart
  */
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useT } from '../../hooks/useT';
 import StatsCard from '../../components/admin/StatsCard';
 import SimpleBarChart from '../../components/admin/SimpleBarChart';
@@ -12,13 +11,6 @@ import { getStatsOverview, getUserGrowthTrend } from '../../api/adminApi';
 const i18n = {
   zh: {
     title: '管理后台',
-    backHome: '返回首页',
-    manageUsers: '管理用户',
-    auditTransactions: '积分明细',
-    auditOrders: '订单审计',
-    systemConfig: '系统配置',
-    announcements: '公告管理',
-    logs: '后端日志',
     totalUsers: '总用户数',
     activeUsers: '活跃用户',
     verifiedUsers: '已验证用户',
@@ -32,13 +24,6 @@ const i18n = {
   },
   en: {
     title: 'Admin Dashboard',
-    backHome: 'Back to Home',
-    manageUsers: 'Manage Users',
-    auditTransactions: 'Transactions',
-    auditOrders: 'Orders',
-    systemConfig: 'System Config',
-    announcements: 'Announcements',
-    logs: 'Backend Logs',
     totalUsers: 'Total Users',
     activeUsers: 'Active Users',
     verifiedUsers: 'Verified Users',
@@ -95,7 +80,7 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background-primary">
+      <div className="flex-1 flex items-center justify-center">
         <p className="text-gray-500 dark:text-foreground-secondary">{t('loading')}</p>
       </div>
     );
@@ -103,7 +88,7 @@ export default function AdminDashboard() {
 
   if (error || !stats) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background-primary">
+      <div className="flex-1 flex items-center justify-center">
         <p className="text-red-500">{t('error')}</p>
       </div>
     );
@@ -120,74 +105,23 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary">
-      {/* Nav */}
-      <header className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('title')}</h1>
-        <div className="flex items-center gap-4">
-          <Link
-            to="/admin/users"
-            className="px-4 py-2 bg-banana-500 text-white rounded-lg hover:bg-banana-600 text-sm font-medium"
-          >
-            {t('manageUsers')}
-          </Link>
-          <Link
-            to="/admin/transactions"
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium"
-          >
-            {t('auditTransactions')}
-          </Link>
-          <Link
-            to="/admin/orders"
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium"
-          >
-            {t('auditOrders')}
-          </Link>
-          <Link
-            to="/admin/config"
-            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm font-medium"
-          >
-            {t('systemConfig')}
-          </Link>
-          <Link
-            to="/admin/announcements"
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium"
-          >
-            {t('announcements')}
-          </Link>
-          <Link
-            to="/admin/logs"
-            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
-          >
-            {t('logs')}
-          </Link>
-          <Link
-            to="/app"
-            className="text-sm text-gray-500 hover:text-gray-700 dark:text-foreground-secondary dark:hover:text-foreground-primary"
-          >
-            {t('backHome')}
-          </Link>
-        </div>
-      </header>
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+        {cards.map((c) => (
+          <StatsCard key={c.key} label={t(c.key)} value={c.value} />
+        ))}
+      </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-          {cards.map((c) => (
-            <StatsCard key={c.key} label={t(c.key)} value={c.value} />
-          ))}
+      {/* Growth chart */}
+      {growth && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-background-secondary p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-4">
+            {t('userGrowth')}
+          </h2>
+          <SimpleBarChart labels={growth.labels} values={growth.values} />
         </div>
-
-        {/* Growth chart */}
-        {growth && (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-background-secondary p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-4">
-              {t('userGrowth')}
-            </h2>
-            <SimpleBarChart labels={growth.labels} values={growth.values} />
-          </div>
-        )}
-      </main>
+      )}
     </div>
   );
 }

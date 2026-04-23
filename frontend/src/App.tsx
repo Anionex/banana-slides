@@ -26,6 +26,7 @@ import {
 import OIDCCallbackPage from './pages/auth/OIDCCallbackPage';
 import { ProtectedRoute } from './components/auth';
 import { AdminRoute } from './components/admin';
+import AdminLayout from './components/admin/AdminLayout';
 import { AdminDashboard, AdminUsers, AdminTransactions, AdminOrders, AdminConfig, AdminLogs, AdminAnnouncements } from './pages/admin';
 import { useProjectStore } from './store/useProjectStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -162,37 +163,37 @@ function App() {
         {/* Admin routes */}
         <Route path="/admin" element={
           <AdminRoute>
-            <AdminDashboard />
+            <AdminLayout><AdminDashboard /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/users" element={
           <AdminRoute>
-            <AdminUsers />
+            <AdminLayout><AdminUsers /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/transactions" element={
           <AdminRoute>
-            <AdminTransactions />
+            <AdminLayout><AdminTransactions /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/orders" element={
           <AdminRoute>
-            <AdminOrders />
+            <AdminLayout><AdminOrders /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/config" element={
           <AdminRoute>
-            <AdminConfig />
+            <AdminLayout><AdminConfig /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/logs" element={
           <AdminRoute>
-            <AdminLogs />
+            <AdminLayout><AdminLogs /></AdminLayout>
           </AdminRoute>
         } />
         <Route path="/admin/announcements" element={
           <AdminRoute>
-            <AdminAnnouncements />
+            <AdminLayout><AdminAnnouncements /></AdminLayout>
           </AdminRoute>
         } />
 
