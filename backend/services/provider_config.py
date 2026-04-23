@@ -175,7 +175,7 @@ def _default_payment_provider_from_env() -> str:
         return 'xunhupay'
     if env_configs['wechatpay'].get('mch_id') and env_configs['wechatpay'].get('private_key'):
         return 'wechatpay'
-    return 'stripe'
+    return DEFAULT_PAYMENT_PROVIDERS[0]
 
 
 def _enabled_payment_providers_from_env(default_provider: str) -> List[str]:
@@ -209,10 +209,10 @@ def get_payment_runtime_settings() -> Dict[str, Any]:
     if default_provider and default_provider not in enabled_providers:
         enabled_providers.insert(0, default_provider)
     if not enabled_providers:
-        enabled_providers = [default_provider or 'stripe']
+        enabled_providers = [default_provider or DEFAULT_PAYMENT_PROVIDERS[0]]
 
     return {
-        'default_provider': default_provider or 'stripe',
+        'default_provider': default_provider or DEFAULT_PAYMENT_PROVIDERS[0],
         'enabled_providers': enabled_providers,
         'providers': provider_configs,
     }
