@@ -183,19 +183,20 @@ export const paymentApi = {
   ): Promise<PaymentOrder> => {
     try {
       const origin = window.location.origin;
-      const provider = options.provider || 'stripe';
+      const provider = options.provider;
       const successUrl = options.successUrl || (provider === 'stripe'
         ? `${origin}/pricing?success=true&checkout={CHECKOUT_SESSION_ID}&provider=stripe`
-        : `${origin}/pricing?success=true&provider=${provider}`);
-      const cancelUrl = options.cancelUrl || `${origin}/pricing?canceled=true&provider=${provider}`;
-      const response = await apiClient.post<ApiResponse<PaymentOrder>>('/api/payment/create-order', {
+        : `${origin}/pricing?success=true&provider=${provider || 'default'}`);
+      const cancelUrl = options.cancelUrl || `${origin}/pricing?canceled=true&provider=${provider || 'default'}`;
+      const body: Record<string, any> = {
         package_id: packageId,
-        provider,
         payment_type: options.paymentType || (provider === 'paypal' ? 'paypal' : 'card'),
-        return_url: options.returnUrl,
         success_url: successUrl,
         cancel_url: cancelUrl,
-      });
+      };
+      if (provider) body.provider = provider;
+      if (options.returnUrl) body.return_url = options.returnUrl;
+      const response = await apiClient.post<ApiResponse<PaymentOrder>>('/api/payment/create-order', body);
       return response.data.data;
     } catch (error: any) {
       return {
