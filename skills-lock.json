@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "wechatpay-basic-payment": {
+      "source": "wechatpay-apiv3/wechatpay-skills",
+      "sourceType": "github",
+      "computedHash": "c773add7ef22cfd409703fb93a4149766bcedfe8ddf567a1bc8827656b5ee346"
+    },
+    "wechatpay-product-coupon": {
+      "source": "wechatpay-apiv3/wechatpay-skills",
+      "sourceType": "github",
+      "computedHash": "8a352ed41ea870308753f5ff1cc0cf60938053dfa13c34a70da8d9ed35249d65"
+    }
+  }
+}

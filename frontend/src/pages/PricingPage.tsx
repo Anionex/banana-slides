@@ -18,6 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Button, Card, useToast } from '@/components/shared';
+import { QRCodeSVG } from 'qrcode.react';
 import { useCreditsBalance, useUser } from '@/store/useAuthStore';
 import {
   paymentApi,
@@ -50,6 +51,9 @@ const pricingI18n = {
     redirecting: '正在跳转到支付页面...',
     loadingPricing: '加载定价中...',
     paymentError: '创建支付会话失败',
+    scanToPay: '微信扫码支付',
+    scanWithWechat: '请使用微信扫描二维码完成支付',
+    close: '关闭',
     billingError: '打开账单中心失败',
     canceled: '您已取消本次支付',
     oneTime: '一次性',
@@ -92,6 +96,9 @@ const pricingI18n = {
     redirecting: 'Redirecting to checkout...',
     loadingPricing: 'Loading pricing...',
     paymentError: 'Failed to create checkout session',
+    scanToPay: 'Scan to Pay',
+    scanWithWechat: 'Scan the QR code with WeChat to complete payment',
+    close: 'Close',
     billingError: 'Failed to open billing portal',
     canceled: 'Payment was canceled',
     oneTime: 'One-time',
@@ -194,6 +201,7 @@ export const PricingPage: React.FC = () => {
   const [creditCosts, setCreditCosts] = useState<CreditCosts>(DEFAULT_CREDIT_COSTS);
   const [selectedPackageProvider, setSelectedPackageProvider] = useState<string | null>(null);
   const [selectedSubscriptionProvider, setSelectedSubscriptionProvider] = useState<string | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<{ url: string; orderId: string; packageName: string } | null>(null);
 
   const t = (key: string, vars?: Record<string, any>) => {
     const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en';
@@ -312,7 +320,14 @@ export const PricingPage: React.FC = () => {
     setPurchasingPackage(pkg.id);
     try {
       const result = await paymentApi.createOrder(pkg.id, { provider: selectedPackageProvider });
-      if (!result.success || !result.payment_url) {
+      if (!result.success) {
+        throw new Error(result.error_message || t('paymentError'));
+      }
+      if (result.qr_code_url) {
+        setQrCodeData({ url: result.qr_code_url, orderId: result.order_id || '', packageName: pkg.name });
+        return;
+      }
+      if (!result.payment_url) {
         throw new Error(result.error_message || t('paymentError'));
       }
       show({ message: t('redirecting'), type: 'info' });
@@ -363,6 +378,25 @@ export const PricingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50/30 to-pink-50/50 dark:from-background-primary dark:via-background-primary dark:to-background-primary">
       <ToastContainer />
+
+      {qrCodeData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setQrCodeData(null)}>
+          <div className="bg-white dark:bg-background-secondary rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4 text-center" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('scanToPay')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-6">{qrCodeData.packageName}</p>
+            <div className="inline-block p-4 bg-white rounded-xl">
+              <QRCodeSVG value={qrCodeData.url} size={220} />
+            </div>
+            <p className="text-xs text-gray-400 mt-4">{t('scanWithWechat')}</p>
+            <button
+              onClick={() => setQrCodeData(null)}
+              className="mt-6 px-6 py-2 text-sm text-gray-600 dark:text-foreground-secondary hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              {t('close')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <nav className="sticky top-0 z-50 h-16 bg-white/80 dark:bg-background-primary backdrop-blur-xl border-b border-gray-200/50 dark:border-border-primary">
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
