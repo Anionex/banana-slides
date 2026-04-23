@@ -55,6 +55,13 @@ def create_app():
     
     # Load configuration from Config class
     app.config.from_object(Config)
+
+    # Warn if SECRET_KEY is the insecure default placeholder
+    if app.config['SECRET_KEY'] == Config._default_secret:
+        logging.warning(
+            "⚠️  SECRET_KEY is using the default placeholder value. "
+            "Set a strong SECRET_KEY in your .env file for production deployments."
+        )
     
     # Override with environment-specific paths (use absolute path)
     backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -346,7 +353,7 @@ if __name__ == '__main__':
         port = int(os.getenv('BACKEND_PORT'))
     else:
         port = _compute_worktree_port(5000)
-    debug = os.getenv('FLASK_ENV', 'development') == 'development'
+    debug = os.getenv('FLASK_DEBUG', '') == '1' or os.getenv('FLASK_ENV') == 'development'
     
     logging.info(
         "\n"

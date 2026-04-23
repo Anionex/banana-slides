@@ -804,6 +804,7 @@ class AIService:
         Raises:
             Exception with detailed error message if generation fails
         """
+        _opened_images = []  # Track images we opened so we can close them
         try:
             logger.debug(f"Reference image: {ref_image_path}")
             if additional_ref_images:
@@ -812,12 +813,18 @@ class AIService:
 
             # 构建参考图片列表
             ref_images = []
-            
+
             # 添加主参考图片（如果提供了路径）
             if ref_image_path:
+                # 验证路径在 upload 目录内
+                upload_folder = get_config().UPLOAD_FOLDER
+                abs_ref = os.path.abspath(ref_image_path)
+                if not abs_ref.startswith(os.path.abspath(upload_folder)):
+                    raise ValueError(f"Path traversal attempt blocked: {ref_image_path}")
                 if not os.path.exists(ref_image_path):
                     raise FileNotFoundError(f"Reference image not found: {ref_image_path}")
                 main_ref_image = Image.open(ref_image_path)
+                _opened_images.append(main_ref_image)
                 ref_images.append(main_ref_image)
             
             # 添加额外的参考图片
@@ -829,8 +836,15 @@ class AIService:
                     elif isinstance(ref_img, str):
                         # 可能是本地路径或 URL
                         if os.path.exists(ref_img):
-                            # 本地路径
-                            ref_images.append(Image.open(ref_img))
+                            # 本地路径 — 验证路径在 upload 目录内
+                            upload_folder = get_config().UPLOAD_FOLDER
+                            abs_ref = os.path.abspath(ref_img)
+                            if not abs_ref.startswith(os.path.abspath(upload_folder)):
+                                logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
+                                continue
+                            img = Image.open(ref_img)
+                            _opened_images.append(img)
+                            ref_images.append(img)
                         elif ref_img.startswith('http://') or ref_img.startswith('https://'):
                             # URL，需要下载
                             downloaded_img = self.download_image_from_url(ref_img)
@@ -842,7 +856,14 @@ class AIService:
                             # MinerU 本地文件路径，需要转换为文件系统路径（支持前缀匹配）
                             local_path = self._convert_mineru_path_to_local(ref_img)
                             if local_path and os.path.exists(local_path):
-                                ref_images.append(Image.open(local_path))
+                                # Verify the resolved path is within the upload directory
+                                upload_folder = get_config().UPLOAD_FOLDER
+                                if not os.path.abspath(local_path).startswith(os.path.abspath(upload_folder)):
+                                    logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
+                                    continue
+                                img = Image.open(local_path)
+                                _opened_images.append(img)
+                                ref_images.append(img)
                                 logger.debug(f"Loaded MinerU image from local path: {local_path}")
                             else:
                                 logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
@@ -854,7 +875,9 @@ class AIService:
                             if not local_path.startswith(os.path.abspath(upload_folder)):
                                 logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
                             elif os.path.exists(local_path):
-                                ref_images.append(Image.open(local_path))
+                                img = Image.open(local_path)
+                                _opened_images.append(img)
+                                ref_images.append(img)
                                 logger.debug(f"Loaded image from local path: {local_path}")
                             else:
                                 logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
@@ -863,7 +886,7 @@ class AIService:
             
             logger.debug(f"Calling image provider for generation with {len(ref_images)} reference images...")
             logger.debug(f"Enable image reasoning/thinking: {self.enable_image_reasoning}, budget: {self._get_image_thinking_budget()}")
-            
+
             # 使用 image_provider 生成图片
             # 根据 enable_image_reasoning 配置控制图像生成的思考模式
             return self.image_provider.generate_image(
@@ -874,11 +897,17 @@ class AIService:
                 enable_thinking=self.enable_image_reasoning,
                 thinking_budget=self._get_image_thinking_budget()
             )
-            
+
         except Exception as e:
             error_detail = f"Error generating image: {type(e).__name__}: {str(e)}"
             logger.error(error_detail, exc_info=True)
             raise Exception(error_detail) from e
+        finally:
+            for img in _opened_images:
+                try:
+                    img.close()
+                except Exception as close_err:
+                    logger.warning(f"Failed to close image resource: {close_err}")
     
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",
