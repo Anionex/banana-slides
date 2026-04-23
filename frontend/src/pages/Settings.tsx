@@ -711,6 +711,16 @@ export const Settings: React.FC = () => {
       const response = await action(testSettings);
       const taskId = response.data.task_id;
 
+      // isActive tracks whether this test round is still pending — avoids stale closure
+      let isActive = true;
+      const finish = (nextState: ServiceTestState, toastMsg: string, toastType: 'success' | 'error') => {
+        if (!isActive) return;
+        isActive = false;
+        clearInterval(pollInterval);
+        updateServiceTest(key, nextState);
+        show({ message: toastMsg, type: toastType });
+      };
+
       // 开始轮询任务状态
       const pollInterval = setInterval(async () => {
         try {
@@ -718,33 +728,23 @@ export const Settings: React.FC = () => {
           const taskStatus = statusResponse.data.status;
 
           if (taskStatus === 'COMPLETED') {
-            clearInterval(pollInterval);
             const detail = formatDetail(statusResponse.data.result || {});
             const message = statusResponse.data.message || t('settings.messages.testSuccess');
-            updateServiceTest(key, { status: 'success', message, detail });
-            show({ message, type: 'success' });
+            finish({ status: 'success', message, detail }, message, 'success');
           } else if (taskStatus === 'FAILED') {
-            clearInterval(pollInterval);
             const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
-            updateServiceTest(key, { status: 'error', message: errorMessage });
-            show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
+            finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
         } catch (pollError: any) {
-          clearInterval(pollInterval);
           const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || t('settings.serviceTest.testFailed');
-          updateServiceTest(key, { status: 'error', message: errorMessage });
-          show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
+          finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
         }
       }, 2000); // 每2秒轮询一次
 
       // 设置最大轮询时间（2分钟）
       setTimeout(() => {
-        clearInterval(pollInterval);
-        if (serviceTestStates[key]?.status === 'loading') {
-          updateServiceTest(key, { status: 'error', message: t('settings.serviceTest.testTimeout') });
-          show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
-        }
+        finish({ status: 'error', message: t('settings.serviceTest.testTimeout') }, t('settings.serviceTest.testTimeout'), 'error');
       }, 120000);
 
     } catch (error: any) {
