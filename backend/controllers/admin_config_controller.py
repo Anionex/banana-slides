@@ -122,6 +122,8 @@ def update_system_config():
                 'enable_text_reasoning', 'text_thinking_budget',
                 'enable_image_reasoning', 'image_thinking_budget',
                 'baidu_api_key',
+                'description_generation_mode', 'description_extra_fields',
+                'image_prompt_extra_fields',
             }
             invalid_fields = set(fields) - valid_fields
             if invalid_fields:
