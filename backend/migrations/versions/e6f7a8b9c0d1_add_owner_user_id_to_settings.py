@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade():
     with op.batch_alter_table("settings", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("owner_user_id", sa.String(length=36), nullable=True))
+        batch_op.add_column(sa.Column("owner_user_id", sa.Integer(), nullable=True))
         batch_op.create_index(
             batch_op.f("ix_settings_owner_user_id"), ["owner_user_id"], unique=True
         )

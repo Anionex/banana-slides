@@ -14,7 +14,7 @@ class Material(db.Model):
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     project_id = db.Column(db.String(36), db.ForeignKey('projects.id'), nullable=True)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     filename = db.Column(db.String(500), nullable=False)
     relative_path = db.Column(db.String(500), nullable=False)  # Path relative to the upload_folder
     url = db.Column(db.String(500), nullable=False)  # URL accessible by the frontend
@@ -42,4 +42,3 @@ class Material(db.Model):
     
     def __repr__(self):
         return f'<Material {self.id}: {self.filename} (project={self.project_id or "None"})>'
-

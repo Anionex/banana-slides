@@ -1,26 +1,81 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Coins, Crown, QrCode, LogOut, Edit2, Check, X } from 'lucide-react';
+import QRCode from 'qrcode';
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Coins,
+  Copy,
+  Crown,
+  Edit2,
+  Loader2,
+  LogOut,
+  QrCode,
+  User,
+  WalletCards,
+  X,
+} from 'lucide-react';
 import { useUserStore } from '../store/useUserStore';
 import { userApi } from '../api/user';
+import type { RechargeOrder, RechargePackage, SubscriptionPlan } from '../api/user';
 
 const PLAN_LABELS: Record<string, string> = {
   monthly: '月度订阅',
   yearly: '年度订阅',
 };
 
+type WechatPayResult = {
+  code_url: string;
+  qr_code_url?: string | null;
+};
+
+const formatPrice = (amountCents: number) => {
+  const value = amountCents / 100;
+  return `￥${value.toFixed(amountCents % 100 === 0 ? 0 : 2)}`;
+};
+
+const formatRemaining = (seconds: number) => {
+  const safe = Math.max(0, seconds);
+  const minutes = Math.floor(safe / 60);
+  const rest = safe % 60;
+  return `${minutes}:${String(rest).padStart(2, '0')}`;
+};
+
+const apiError = (error: any, fallback: string) => error?.response?.data?.error || fallback;
+
 export function UserProfile() {
   const navigate = useNavigate();
   const { user, setUser, logout, openLoginModal, canAccessSettingsPage } = useUserStore();
   const [loading, setLoading] = useState(true);
-  const [paymentModal, setPaymentModal] = useState<{
-    plan: string;
-    method: 'wechat' | 'alipay';
-    qr: string;
-  } | null>(null);
   const [editUsername, setEditUsername] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [saveError, setSaveError] = useState('');
+
+  const [rechargeOpen, setRechargeOpen] = useState(false);
+  const [rechargePackages, setRechargePackages] = useState<RechargePackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState('');
+  const [wechatConfigured, setWechatConfigured] = useState(false);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [rechargeOrder, setRechargeOrder] = useState<RechargeOrder | null>(null);
+  const [rechargeResult, setRechargeResult] = useState<WechatPayResult | null>(null);
+  const [clientQrCodeUrl, setClientQrCodeUrl] = useState('');
+  const [rechargeError, setRechargeError] = useState('');
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscriptionWechatConfigured, setSubscriptionWechatConfigured] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [creatingSubscription, setCreatingSubscription] = useState(false);
+  const [subscriptionOrder, setSubscriptionOrder] = useState<RechargeOrder | null>(null);
+  const [subscriptionResult, setSubscriptionResult] = useState<WechatPayResult | null>(null);
+  const [subscriptionQrCodeUrl, setSubscriptionQrCodeUrl] = useState('');
+  const [subscriptionError, setSubscriptionError] = useState('');
+  const [subscriptionRemainingSeconds, setSubscriptionRemainingSeconds] = useState(0);
+  const [subscriptionCopied, setSubscriptionCopied] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -36,13 +91,244 @@ export function UserProfile() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSubscribe = async (plan: 'monthly' | 'yearly', method: 'wechat' | 'alipay') => {
+  useEffect(() => {
+    if (!rechargeOpen || !rechargeOrder || rechargeOrder.status !== 'pending') return;
+
+    let cancelled = false;
+    // 微信支付结果由后端回调确认，前端只轮询本地订单状态并刷新积分余额。
+    const timer = window.setInterval(async () => {
+      try {
+        const res = await userApi.getRechargeOrder(rechargeOrder.order_no);
+        if (cancelled) return;
+        const data = res.data.data;
+        setRechargeOrder(data.order);
+        setRemainingSeconds(data.remaining_seconds || 0);
+        if (data.paid && data.user) {
+          setUser(data.user);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRechargeError(apiError(error, '查询订单状态失败'));
+        }
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [rechargeOpen, rechargeOrder?.order_no, rechargeOrder?.status, setUser]);
+
+  useEffect(() => {
+    if (!subscriptionOpen || !subscriptionOrder || subscriptionOrder.status !== 'pending') return;
+
+    let cancelled = false;
+    // 订阅支付同样通过订单轮询刷新，避免用户支付完成后还看到旧订阅状态。
+    const timer = window.setInterval(async () => {
+      try {
+        const res = await userApi.getRechargeOrder(subscriptionOrder.order_no);
+        if (cancelled) return;
+        const data = res.data.data;
+        setSubscriptionOrder(data.order);
+        setSubscriptionRemainingSeconds(data.remaining_seconds || 0);
+        if (data.paid && data.user) {
+          setUser(data.user);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSubscriptionError(apiError(error, '查询订阅订单状态失败'));
+        }
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [setUser, subscriptionOpen, subscriptionOrder?.order_no, subscriptionOrder?.status]);
+
+  const selectedPackage = useMemo(
+    () => rechargePackages.find((item) => item.id === selectedPackageId) || null,
+    [rechargePackages, selectedPackageId],
+  );
+  const monthlyPlan = subscriptionPlans.find((item) => item.id === 'monthly') || null;
+  const yearlyPlan = subscriptionPlans.find((item) => item.id === 'yearly') || null;
+  const selectedSubscriptionPlan = subscriptionPlans.find((item) => item.id === subscriptionOrder?.subscription_plan) || null;
+  const showRechargePricing = Boolean(user);
+
+  const loadRechargePackages = useCallback(async (showSpinner = true) => {
+    setRechargeError('');
+    if (showSpinner) setPackagesLoading(true);
+
     try {
-      const res = await userApi.subscribe(plan, method);
-      setPaymentModal({ plan, method, qr: res.data.data.qr_code_url });
-    } catch {
-      // ignore
+      const res = await userApi.getRechargePackages();
+      const items: RechargePackage[] = res.data.data.items || [];
+      setRechargePackages(items);
+      setWechatConfigured(Boolean(res.data.data.wechat?.configured));
+      setSelectedPackageId((current) => {
+        if (current && items.some((item) => item.id === current)) return current;
+        const preferred = items.find((item) => item.popular) || items[0];
+        return preferred?.id || '';
+      });
+      if (!items.length) {
+        setRechargeError('暂无可用充值套餐');
+      }
+    } catch (error) {
+      setRechargeError(apiError(error, '读取充值套餐失败'));
+    } finally {
+      if (showSpinner) setPackagesLoading(false);
     }
+  }, []);
+
+  const loadSubscriptionPlans = useCallback(async (showSpinner = true) => {
+    setSubscriptionError('');
+    if (showSpinner) setSubscriptionLoading(true);
+
+    try {
+      const res = await userApi.getSubscriptionPlans();
+      const items: SubscriptionPlan[] = res.data.data.items || [];
+      setSubscriptionPlans(items);
+      setSubscriptionWechatConfigured(Boolean(res.data.data.wechat?.configured));
+      if (!items.length) {
+        setSubscriptionError('暂无可用订阅套餐');
+      }
+    } catch (error) {
+      setSubscriptionError(apiError(error, '读取订阅套餐失败'));
+    } finally {
+      if (showSpinner) setSubscriptionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showRechargePricing) return;
+    loadRechargePackages(true);
+    loadSubscriptionPlans(true);
+  }, [loadRechargePackages, loadSubscriptionPlans, showRechargePricing]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const codeUrl = rechargeResult?.code_url;
+
+    if (!codeUrl || rechargeResult?.qr_code_url) {
+      setClientQrCodeUrl('');
+      return;
+    }
+
+    // 后端若未返回二维码图片，就在浏览器端用 code_url 生成，防止二维码空白。
+    QRCode.toDataURL(codeUrl, { width: 240, margin: 2 })
+      .then((url) => {
+        if (!cancelled) setClientQrCodeUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setClientQrCodeUrl('');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rechargeResult?.code_url, rechargeResult?.qr_code_url]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const codeUrl = subscriptionResult?.code_url;
+
+    if (!codeUrl || subscriptionResult?.qr_code_url) {
+      setSubscriptionQrCodeUrl('');
+      return;
+    }
+
+    // 订阅二维码也保留同样的前端兜底逻辑。
+    QRCode.toDataURL(codeUrl, { width: 240, margin: 2 })
+      .then((url) => {
+        if (!cancelled) setSubscriptionQrCodeUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setSubscriptionQrCodeUrl('');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [subscriptionResult?.code_url, subscriptionResult?.qr_code_url]);
+
+  const createSubscriptionOrder = async (plan: 'monthly' | 'yearly') => {
+    // 每次购买订阅都重置弹窗状态，避免上一笔订单的二维码或错误信息残留。
+    setSubscriptionOpen(true);
+    setSubscriptionError('');
+    setSubscriptionOrder(null);
+    setSubscriptionResult(null);
+    setSubscriptionQrCodeUrl('');
+    setSubscriptionCopied(false);
+    setSubscriptionRemainingSeconds(0);
+    setCreatingSubscription(true);
+
+    try {
+      if (!subscriptionPlans.length) {
+        await loadSubscriptionPlans(true);
+      }
+      const res = await userApi.subscribe(plan, 'wechat');
+      const order: RechargeOrder = res.data.data.order;
+      setSubscriptionOrder(order);
+      setSubscriptionResult(res.data.data.result);
+      setSubscriptionRemainingSeconds(Math.max(0, Math.floor((new Date(order.expire_at).getTime() - Date.now()) / 1000)));
+    } catch (error) {
+      setSubscriptionError(apiError(error, '发起微信订阅支付失败'));
+    } finally {
+      setCreatingSubscription(false);
+    }
+  };
+
+  const openRecharge = async () => {
+    // 打开充值弹窗时清空上一笔订单状态，再加载后台配置的套餐。
+    setRechargeOpen(true);
+    setRechargeError('');
+    setRechargeOrder(null);
+    setRechargeResult(null);
+    setClientQrCodeUrl('');
+    setRemainingSeconds(0);
+    setCopied(false);
+
+    if (!rechargePackages.length) {
+      await loadRechargePackages(true);
+    }
+  };
+
+  const createRechargeOrder = async (packageId = selectedPackageId) => {
+    const targetPackageId = packageId || selectedPackageId;
+    if (!targetPackageId) return;
+    // 用户确认套餐后才创建微信订单，订单有效期由后端统一计算。
+    setSelectedPackageId(targetPackageId);
+    setRechargeOpen(true);
+    setRechargeError('');
+    setClientQrCodeUrl('');
+    setCopied(false);
+    setCreatingOrder(true);
+
+    try {
+      const res = await userApi.createRechargeOrder(targetPackageId);
+      const order: RechargeOrder = res.data.data.order;
+      setRechargeOrder(order);
+      setRechargeResult(res.data.data.result);
+      setRemainingSeconds(Math.max(0, Math.floor((new Date(order.expire_at).getTime() - Date.now()) / 1000)));
+    } catch (error) {
+      setRechargeError(apiError(error, '发起微信支付失败'));
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
+
+  const handleCopyCodeUrl = async () => {
+    if (!rechargeResult?.code_url) return;
+    await navigator.clipboard.writeText(rechargeResult.code_url);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleCopySubscriptionCodeUrl = async () => {
+    if (!subscriptionResult?.code_url) return;
+    await navigator.clipboard.writeText(subscriptionResult.code_url);
+    setSubscriptionCopied(true);
+    window.setTimeout(() => setSubscriptionCopied(false), 1500);
   };
 
   const handleSaveUsername = async () => {
@@ -72,11 +358,16 @@ export function UserProfile() {
 
   if (!user) return null;
 
-  const sub = (user as any).subscription;
+  const sub = user.subscription;
   const isSubscribed = sub?.status === 'active';
   const isAdmin = user.role === 'admin';
   const isInternal = user.role === 'internal';
-  const usesPlatformBilling = user.role === 'user';
+  const rechargePaid = rechargeOrder?.status === 'paid';
+  const rechargeExpired = rechargeOrder?.status === 'expired';
+  const rechargeFailed = rechargeOrder?.status === 'failed';
+  const subscriptionPaid = subscriptionOrder?.status === 'paid';
+  const subscriptionExpired = subscriptionOrder?.status === 'expired';
+  const subscriptionFailed = subscriptionOrder?.status === 'failed';
 
   return (
     <div className="min-h-screen feiye-page-shell">
@@ -103,7 +394,7 @@ export function UserProfile() {
               <User size={24} className="text-[var(--banana-yellow-dark)]" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {editUsername ? (
                   <div className="flex items-center gap-2">
                     <input
@@ -121,7 +412,7 @@ export function UserProfile() {
                   </div>
                 ) : (
                   <>
-                    <span className="text-base font-semibold text-[var(--text-primary)]">
+                    <span className="text-base font-semibold text-[var(--text-primary)] truncate">
                       {user.username || user.phone || '用户'}
                     </span>
                     <button
@@ -155,7 +446,7 @@ export function UserProfile() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div className="bg-[var(--bg-elevated)] rounded-2xl p-5 shadow-sm border border-[var(--border-secondary)]">
             <div className="flex items-center gap-2 mb-3">
               <Coins size={18} className="text-[var(--banana-yellow-dark)]" />
@@ -163,25 +454,14 @@ export function UserProfile() {
             </div>
             <div className="text-3xl font-bold text-[var(--text-primary)] mb-1">{user.points}</div>
             <p className="text-xs text-[var(--text-tertiary)] mb-4">
-              {usesPlatformBilling ? '每生成 1 页 PPT 消耗 3 积分' : '该账号不走平台积分计费'}
+              每生成 1 页 PPT 消耗 3 积分
             </p>
-            {usesPlatformBilling ? (
-              <button
-                onClick={() =>
-                  setPaymentModal({ plan: 'points', method: 'wechat', qr: '/static/payment/wechat_qr.png' })
-                }
-                className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                充值积分
-              </button>
-            ) : (
-              <button
-                disabled
-                className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-tertiary)] cursor-not-allowed"
-              >
-                由系统统一管理
-              </button>
-            )}
+            <button
+              onClick={openRecharge}
+              className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              微信充值
+            </button>
           </div>
 
           <div className="bg-[var(--bg-elevated)] rounded-2xl p-5 shadow-sm border border-[var(--border-secondary)]">
@@ -189,7 +469,7 @@ export function UserProfile() {
               <Crown size={18} className="text-amber-500" />
               <span className="text-sm font-medium text-[var(--text-secondary)]">订阅状态</span>
             </div>
-            {usesPlatformBilling && isSubscribed ? (
+            {isSubscribed ? (
               <>
                 <div className="text-base font-bold text-[var(--text-primary)] mb-1">
                   {PLAN_LABELS[sub.plan] || sub.plan}
@@ -198,47 +478,113 @@ export function UserProfile() {
                   到期：{new Date(sub.end_date).toLocaleDateString('zh-CN')}
                 </p>
                 <button
-                  onClick={() => handleSubscribe('yearly', 'wechat')}
+                  onClick={() => createSubscriptionOrder('yearly')}
+                  disabled={!subscriptionWechatConfigured || creatingSubscription}
                   className="w-full py-2 rounded-xl text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
                 >
                   续费
                 </button>
               </>
-            ) : usesPlatformBilling ? (
+            ) : (
               <>
                 <div className="text-base font-bold text-[var(--text-primary)] mb-1">免费版</div>
                 <p className="text-xs text-[var(--text-tertiary)] mb-4">升级订阅享受更多权益</p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleSubscribe('monthly', 'wechat')}
-                    className="flex-1 py-2 rounded-xl text-xs font-medium bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] transition-colors"
+                    onClick={() => createSubscriptionOrder('monthly')}
+                    disabled={!subscriptionWechatConfigured || creatingSubscription || subscriptionLoading}
+                    className="flex-1 py-2 rounded-xl text-xs font-medium bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    月度 ￥29
+                    月度 {monthlyPlan ? formatPrice(monthlyPlan.amount_cents) : '￥29'}
                   </button>
                   <button
-                    onClick={() => handleSubscribe('yearly', 'wechat')}
-                    className="flex-1 py-2 rounded-xl text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                    onClick={() => createSubscriptionOrder('yearly')}
+                    disabled={!subscriptionWechatConfigured || creatingSubscription || subscriptionLoading}
+                    className="flex-1 py-2 rounded-xl text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    年度 ￥199
+                    年度 {yearlyPlan ? formatPrice(yearlyPlan.amount_cents) : '￥199'}
                   </button>
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="text-base font-bold text-[var(--text-primary)] mb-1">平台订阅不适用</div>
-                <p className="text-xs text-[var(--text-tertiary)] mb-4">
-                  该账号使用独立配置或后台管理权限，不通过主页订阅购买额度
-                </p>
-                <button
-                  disabled
-                  className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-tertiary)] cursor-not-allowed"
-                >
-                  由系统统一管理
-                </button>
+                {!subscriptionWechatConfigured && (
+                  <p className="mt-3 text-xs text-amber-600">微信支付尚未配置完整，暂不能购买订阅。</p>
+                )}
+                {subscriptionError && !subscriptionOpen && (
+                  <p className="mt-3 text-xs text-red-500">{subscriptionError}</p>
+                )}
               </>
             )}
           </div>
         </div>
+
+        {showRechargePricing && (
+          <div className="bg-[var(--bg-elevated)] rounded-2xl p-5 mb-4 shadow-sm border border-[var(--border-secondary)]">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <WalletCards size={18} className="text-[var(--banana-yellow-dark)]" />
+                <div>
+                  <h2 className="text-sm font-semibold text-[var(--text-primary)]">微信充值套餐</h2>
+                  <p className="text-xs text-[var(--text-tertiary)]">积分和价格由后台定价配置</p>
+                </div>
+              </div>
+              <button
+                onClick={openRecharge}
+                className="shrink-0 rounded-lg bg-[var(--bg-secondary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                扫码支付
+              </button>
+            </div>
+
+            {packagesLoading && !rechargePackages.length ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-[var(--banana-yellow-dark)]" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {rechargePackages.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => createRechargeOrder(item.id)}
+                      disabled={!wechatConfigured || creatingOrder}
+                      className="relative rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-secondary)] p-4 text-left transition-colors hover:border-[var(--banana-yellow)] hover:bg-[var(--banana-yellow-pale)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {item.popular && (
+                        <span className="absolute right-2 top-2 rounded-full bg-[var(--banana-yellow)] px-1.5 py-0.5 text-[10px] text-white">
+                          推荐
+                        </span>
+                      )}
+                      <div className="text-lg font-semibold text-[var(--text-primary)]">{item.points}</div>
+                      <div className="mb-2 text-xs text-[var(--text-secondary)]">积分</div>
+                      <div className="text-sm font-semibold text-[var(--banana-yellow-dark)]">
+                        {formatPrice(item.amount_cents)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {!rechargePackages.length && (
+                  <div className="rounded-xl bg-[var(--bg-secondary)] px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">
+                    暂无可用充值套餐
+                  </div>
+                )}
+
+                {!wechatConfigured && rechargePackages.length > 0 && (
+                  <div className="mt-3 flex gap-2 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-700">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>微信支付尚未配置完整，套餐可见但暂不能下单。</span>
+                  </div>
+                )}
+
+                {rechargeError && !rechargeOpen && (
+                  <div className="mt-3 flex gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>{rechargeError}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {isAdmin && (
           <button
@@ -259,42 +605,291 @@ export function UserProfile() {
         )}
       </div>
 
-      {paymentModal && usesPlatformBilling && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPaymentModal(null)} />
-          <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl p-6 w-72 text-center">
-            <button onClick={() => setPaymentModal(null)} className="absolute top-3 right-3 text-[var(--text-tertiary)]">
-              <X size={16} />
+      {rechargeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRechargeOpen(false)} />
+          <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+            <button onClick={() => setRechargeOpen(false)} className="absolute top-4 right-4 text-[var(--text-tertiary)]">
+              <X size={18} />
             </button>
-            <div className="flex gap-2 justify-center mb-4">
-              {(['wechat', 'alipay'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() =>
-                    setPaymentModal({ ...paymentModal, method: m, qr: `/static/payment/${m}_qr.png` })
-                  }
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    paymentModal.method === m
-                      ? 'bg-[var(--banana-yellow)] text-white'
-                      : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
-                  }`}
-                >
-                  {m === 'wechat' ? '微信支付' : '支付宝'}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 mb-5">
+              <WalletCards size={20} className="text-[var(--banana-yellow-dark)]" />
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">微信充值积分</h2>
+                <p className="text-xs text-[var(--text-tertiary)]">支付成功后积分自动到账</p>
+              </div>
             </div>
-            <div className="w-40 h-40 mx-auto bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center mb-3">
-              <img
-                src={paymentModal.qr}
-                alt="QR Code"
-                className="w-full h-full object-contain rounded-xl"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-              <QrCode size={48} className="text-[var(--text-tertiary)] absolute" />
+
+            {packagesLoading ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 size={28} className="animate-spin text-[var(--banana-yellow-dark)]" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  {rechargePackages.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (!rechargeOrder) setSelectedPackageId(item.id);
+                      }}
+                      disabled={Boolean(rechargeOrder)}
+                      className={`relative text-left rounded-xl border p-4 transition-colors ${
+                        selectedPackageId === item.id
+                          ? 'border-[var(--banana-yellow)] bg-[var(--banana-yellow-pale)]'
+                          : 'border-[var(--border-secondary)] bg-[var(--bg-secondary)] hover:border-[var(--border-hover)]'
+                      } ${rechargeOrder ? 'cursor-default' : ''}`}
+                    >
+                      {item.popular && (
+                        <span className="absolute right-2 top-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--banana-yellow)] text-white">
+                          推荐
+                        </span>
+                      )}
+                      <div className="text-lg font-semibold text-[var(--text-primary)]">{item.points}</div>
+                      <div className="text-xs text-[var(--text-secondary)] mb-2">积分</div>
+                      <div className="text-sm font-medium text-[var(--banana-yellow-dark)]">
+                        {formatPrice(item.amount_cents)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {!wechatConfigured && (
+                  <div className="flex gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>微信支付还没有配置完整，请先补齐 .env.example 中列出的微信商户参数。</span>
+                  </div>
+                )}
+
+                {rechargeError && (
+                  <div className="flex gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>{rechargeError}</span>
+                  </div>
+                )}
+
+                {!rechargeOrder ? (
+                  <button
+                    onClick={createRechargeOrder}
+                    disabled={!selectedPackage || !wechatConfigured || creatingOrder}
+                    className="w-full py-3 rounded-xl text-sm font-medium bg-[var(--banana-yellow)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {creatingOrder && <Loader2 size={16} className="animate-spin" />}
+                    {selectedPackage ? `微信支付 ${formatPrice(selectedPackage.amount_cents)}` : '选择充值套餐'}
+                  </button>
+                ) : (
+                  <div className="border border-[var(--border-secondary)] rounded-xl p-4">
+                    {rechargePaid ? (
+                      <div className="flex flex-col items-center py-5 text-center">
+                        <CheckCircle2 size={44} className="text-green-500 mb-3" />
+                        <div className="font-semibold text-[var(--text-primary)]">充值成功</div>
+                        <p className="text-sm text-[var(--text-secondary)] mt-1">
+                          已到账 {rechargeOrder.points} 积分，当前余额已刷新
+                        </p>
+                      </div>
+                    ) : rechargeExpired || rechargeFailed ? (
+                      <div className="flex flex-col items-center py-5 text-center">
+                        <AlertCircle size={44} className="text-red-500 mb-3" />
+                        <div className="font-semibold text-[var(--text-primary)]">
+                          {rechargeExpired ? '订单已过期' : '订单失败'}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setRechargeOrder(null);
+                            setRechargeResult(null);
+                            setRechargeError('');
+                          }}
+                          className="mt-4 px-4 py-2 rounded-xl text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                        >
+                          重新下单
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <div className="text-sm font-medium text-[var(--text-primary)]">
+                              {selectedPackage?.name || `${rechargeOrder.points} 积分`}
+                            </div>
+                            <div className="text-xs text-[var(--text-tertiary)]">订单号：{rechargeOrder.order_no}</div>
+                          </div>
+                          <div className="text-sm text-[var(--banana-yellow-dark)]">
+                            {formatRemaining(remainingSeconds)}
+                          </div>
+                        </div>
+                        <div className="w-44 h-44 mx-auto bg-white rounded-xl flex items-center justify-center mb-3 border border-[var(--border-secondary)]">
+                          {rechargeResult?.qr_code_url ? (
+                            <img
+                              src={rechargeResult.qr_code_url}
+                              alt="微信支付二维码"
+                              className="w-40 h-40 object-contain"
+                            />
+                          ) : clientQrCodeUrl ? (
+                            <img
+                              src={clientQrCodeUrl}
+                              alt="微信支付二维码"
+                              className="w-40 h-40 object-contain"
+                            />
+                          ) : (
+                            <QrCode size={56} className="text-[var(--text-tertiary)]" />
+                          )}
+                        </div>
+                        <p className="text-xs text-center text-[var(--text-secondary)] mb-3">
+                          使用微信扫码支付，支付后页面会自动刷新
+                        </p>
+                        {rechargeResult?.code_url && !rechargeResult.qr_code_url && !clientQrCodeUrl && (
+                          <button
+                            onClick={handleCopyCodeUrl}
+                            className="w-full py-2 rounded-xl text-xs bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center gap-1.5"
+                          >
+                            <Copy size={13} />
+                            {copied ? '已复制支付链接' : '复制微信支付链接'}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {subscriptionOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSubscriptionOpen(false)} />
+          <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+            <button
+              onClick={() => setSubscriptionOpen(false)}
+              className="absolute top-4 right-4 text-[var(--text-tertiary)]"
+            >
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-2 mb-5">
+              <Crown size={20} className="text-amber-500" />
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">微信订阅</h2>
+                <p className="text-xs text-[var(--text-tertiary)]">支付成功后订阅自动开通或续期</p>
+              </div>
             </div>
-            <p className="text-xs text-[var(--text-tertiary)]">扫码付款后请联系管理员激活</p>
+
+            {subscriptionLoading && !subscriptionOrder ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 size={28} className="animate-spin text-[var(--banana-yellow-dark)]" />
+              </div>
+            ) : (
+              <>
+                {!subscriptionWechatConfigured && (
+                  <div className="flex gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>微信支付还没有配置完整，暂不能购买订阅。</span>
+                  </div>
+                )}
+
+                {subscriptionError && (
+                  <div className="flex gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>{subscriptionError}</span>
+                  </div>
+                )}
+
+                {!subscriptionOrder ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {subscriptionPlans.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => createSubscriptionOrder(item.id)}
+                        disabled={!subscriptionWechatConfigured || creatingSubscription}
+                        className="relative rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-secondary)] p-4 text-left transition-colors hover:border-[var(--banana-yellow)] hover:bg-[var(--banana-yellow-pale)] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {item.popular && (
+                          <span className="absolute right-2 top-2 rounded-full bg-[var(--banana-yellow)] px-1.5 py-0.5 text-[10px] text-white">
+                            推荐
+                          </span>
+                        )}
+                        <div className="text-base font-semibold text-[var(--text-primary)]">{item.name}</div>
+                        <div className="mb-2 text-xs text-[var(--text-secondary)]">{item.days} 天</div>
+                        <div className="text-sm font-semibold text-[var(--banana-yellow-dark)]">
+                          {formatPrice(item.amount_cents)}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-[var(--border-secondary)] rounded-xl p-4">
+                    {subscriptionPaid ? (
+                      <div className="flex flex-col items-center py-5 text-center">
+                        <CheckCircle2 size={44} className="text-green-500 mb-3" />
+                        <div className="font-semibold text-[var(--text-primary)]">订阅已开通</div>
+                        <p className="text-sm text-[var(--text-secondary)] mt-1">当前订阅状态已刷新</p>
+                      </div>
+                    ) : subscriptionExpired || subscriptionFailed ? (
+                      <div className="flex flex-col items-center py-5 text-center">
+                        <AlertCircle size={44} className="text-red-500 mb-3" />
+                        <div className="font-semibold text-[var(--text-primary)]">
+                          {subscriptionExpired ? '订单已过期' : '订单失败'}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSubscriptionOrder(null);
+                            setSubscriptionResult(null);
+                            setSubscriptionError('');
+                            setSubscriptionQrCodeUrl('');
+                          }}
+                          className="mt-4 px-4 py-2 rounded-xl text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                        >
+                          重新下单
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <div className="text-sm font-medium text-[var(--text-primary)]">
+                              {selectedSubscriptionPlan?.name || PLAN_LABELS[subscriptionOrder.subscription_plan || ''] || '订阅'}
+                            </div>
+                            <div className="text-xs text-[var(--text-tertiary)]">订单号：{subscriptionOrder.order_no}</div>
+                          </div>
+                          <div className="text-sm text-[var(--banana-yellow-dark)]">
+                            {formatRemaining(subscriptionRemainingSeconds)}
+                          </div>
+                        </div>
+                        <div className="w-44 h-44 mx-auto bg-white rounded-xl flex items-center justify-center mb-3 border border-[var(--border-secondary)]">
+                          {subscriptionResult?.qr_code_url ? (
+                            <img
+                              src={subscriptionResult.qr_code_url}
+                              alt="微信订阅支付二维码"
+                              className="w-40 h-40 object-contain"
+                            />
+                          ) : subscriptionQrCodeUrl ? (
+                            <img
+                              src={subscriptionQrCodeUrl}
+                              alt="微信订阅支付二维码"
+                              className="w-40 h-40 object-contain"
+                            />
+                          ) : (
+                            <QrCode size={56} className="text-[var(--text-tertiary)]" />
+                          )}
+                        </div>
+                        <p className="text-xs text-center text-[var(--text-secondary)] mb-3">
+                          使用微信扫码支付，支付后页面会自动刷新订阅状态
+                        </p>
+                        {subscriptionResult?.code_url && !subscriptionResult.qr_code_url && !subscriptionQrCodeUrl && (
+                          <button
+                            onClick={handleCopySubscriptionCodeUrl}
+                            className="w-full py-2 rounded-xl text-xs bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center gap-1.5"
+                          >
+                            <Copy size={13} />
+                            {subscriptionCopied ? '已复制支付链接' : '复制微信支付链接'}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

@@ -10,17 +10,18 @@ def _secret():
     return os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-production')
 
 
-def generate_tokens(user_id: int, role: str) -> dict:
+def generate_tokens(user_id: str, role: str) -> dict:
     now = datetime.utcnow()
+    subject = str(user_id)
     access_payload = {
-        'sub': user_id,
+        'sub': subject,
         'role': role,
         'iat': now,
         'exp': now + timedelta(hours=1),
         'type': 'access',
     }
     refresh_payload = {
-        'sub': user_id,
+        'sub': subject,
         'iat': now,
         'exp': now + timedelta(days=7),
         'type': 'refresh',
@@ -35,6 +36,10 @@ def decode_token(token: str) -> dict:
     return jwt.decode(token, _secret(), algorithms=['HS256'])
 
 
+def token_user_id(payload: dict) -> str:
+    return str(payload['sub'])
+
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -46,10 +51,11 @@ def require_auth(f):
             payload = decode_token(token)
             if payload.get('type') != 'access':
                 raise ValueError('Not an access token')
+            user_id = token_user_id(payload)
         except Exception:
             return jsonify({'error': 'Invalid or expired token'}), 401
         from models import User
-        user = User.query.get(payload['sub'])
+        user = User.query.get(user_id)
         if not user or not user.is_active:
             return jsonify({'error': 'User not found or disabled'}), 401
         g.current_user = user
@@ -69,7 +75,7 @@ def optional_auth(f):
                 payload = decode_token(token)
                 if payload.get('type') == 'access':
                     from models import User
-                    user = User.query.get(payload['sub'])
+                    user = User.query.get(token_user_id(payload))
                     if user and user.is_active:
                         g.current_user = user
             except Exception:
@@ -89,10 +95,11 @@ def require_admin(f):
             payload = decode_token(token)
             if payload.get('type') != 'access':
                 raise ValueError('Not an access token')
+            user_id = token_user_id(payload)
         except Exception:
             return jsonify({'error': 'Invalid or expired token'}), 401
         from models import User
-        user = User.query.get(payload['sub'])
+        user = User.query.get(user_id)
         if not user or not user.is_active:
             return jsonify({'error': 'User not found or disabled'}), 401
         if not user.can_access_admin_console():

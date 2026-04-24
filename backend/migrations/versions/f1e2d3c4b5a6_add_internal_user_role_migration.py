@@ -65,7 +65,7 @@ def upgrade():
 
     users = sa.table(
         "users",
-        sa.column("id", sa.String(36)),
+        sa.column("id", sa.Integer()),
         sa.column("username", sa.String(50)),
         sa.column("role", sa.String(10)),
     )
@@ -73,7 +73,7 @@ def upgrade():
     settings = sa.table(
         "settings",
         sa.column("id", sa.Integer()),
-        sa.column("owner_user_id", sa.String(36)),
+        sa.column("owner_user_id", sa.Integer()),
         sa.column("ai_provider_format", sa.String(20)),
         sa.column("api_base_url", sa.String(500)),
         sa.column("api_key", sa.String(500)),
@@ -175,7 +175,7 @@ def downgrade():
 
     users = sa.table(
         "users",
-        sa.column("id", sa.String(36)),
+        sa.column("id", sa.Integer()),
         sa.column("username", sa.String(50)),
         sa.column("role", sa.String(10)),
     )
