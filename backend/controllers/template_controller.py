@@ -3,7 +3,7 @@ Template Controller - handles template-related endpoints
 """
 import logging
 from flask import Blueprint, request, current_app
-from models import db, Project, UserTemplate
+from models import db, Project, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
 from datetime import datetime
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
+user_style_template_bp = Blueprint('user_style_templates', __name__, url_prefix='/api/user-style-templates')
 
 
 @template_bp.route('/<project_id>/template', methods=['POST'])
@@ -205,13 +206,67 @@ def delete_user_template(template_id):
         # Delete template file
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_user_template(template_id)
-        
+
         # Delete template record
         db.session.delete(template)
         db.session.commit()
-        
+
         return success_response(message="Template deleted successfully")
-    
+
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+# ========== User Style Template Endpoints ==========
+
+@user_style_template_bp.route('', methods=['POST'])
+def create_user_style_template():
+    try:
+        data = request.get_json()
+        if not data:
+            return bad_request("Request body is required")
+
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        if not name or not description:
+            return bad_request("Name and description are required")
+
+        import uuid
+        template = UserStyleTemplate(
+            id=str(uuid.uuid4()),
+            name=name,
+            description=description,
+            color=data.get('color'),
+        )
+        db.session.add(template)
+        db.session.commit()
+        return success_response(template.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('', methods=['GET'])
+def list_user_style_templates():
+    try:
+        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.created_at.desc()).all()
+        return success_response({
+            'templates': [t.to_dict() for t in templates]
+        })
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('/<template_id>', methods=['DELETE'])
+def delete_user_style_template(template_id):
+    try:
+        template = UserStyleTemplate.query.get(template_id)
+        if not template:
+            return not_found('UserStyleTemplate')
+        db.session.delete(template)
+        db.session.commit()
+        return success_response(message="Style template deleted successfully")
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)

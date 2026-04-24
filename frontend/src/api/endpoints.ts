@@ -900,6 +900,38 @@ export const deleteUserTemplate = async (templateId: string): Promise<ApiRespons
 
 // ===== 参考文件相关 API =====
 
+export interface UserStyleTemplate {
+  id: string;
+  name: string;
+  description: string;
+  color?: string;
+  created_at?: string;
+}
+
+export const createUserStyleTemplate = async (
+  data: { name: string; description: string; color?: string }
+): Promise<ApiResponse<UserStyleTemplate>> => {
+  const response = await apiClient.post<ApiResponse<UserStyleTemplate>>(
+    '/api/user-style-templates',
+    data
+  );
+  return response.data;
+};
+
+export const listUserStyleTemplates = async (): Promise<ApiResponse<{ templates: UserStyleTemplate[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ templates: UserStyleTemplate[] }>>(
+    '/api/user-style-templates'
+  );
+  return response.data;
+};
+
+export const deleteUserStyleTemplate = async (id: string): Promise<ApiResponse> => {
+  const response = await apiClient.delete<ApiResponse>(`/api/user-style-templates/${id}`);
+  return response.data;
+};
+
+// ===== 参考文件相关 API =====
+
 export interface ReferenceFile {
   id: string;
   project_id: string | null;
