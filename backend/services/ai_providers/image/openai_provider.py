@@ -204,14 +204,72 @@ class OpenAIImageProvider(ImageProvider):
         return 'auto'            # gpt-image-* accepts auto / low / medium / high
 
     def _decode_image_response(self, item) -> Image.Image:
-        """Extract PIL Image from an images API response item (b64_json or url)."""
-        if item.b64_json:
-            return Image.open(BytesIO(base64.b64decode(item.b64_json)))
-        if item.url:
-            resp = requests.get(item.url, timeout=60, stream=True)
+        """Extract PIL Image from an images API response item (b64_json, url, or raw string)."""
+        if isinstance(item, str):
+            return self._decode_raw_string(item)
+        b64 = getattr(item, 'b64_json', None)
+        if b64:
+            return Image.open(BytesIO(base64.b64decode(b64)))
+        url = getattr(item, 'url', None)
+        if url:
+            resp = requests.get(url, timeout=60, stream=True)
             resp.raise_for_status()
             return Image.open(BytesIO(resp.content))
+        if isinstance(item, dict):
+            if item.get('b64_json'):
+                return Image.open(BytesIO(base64.b64decode(item['b64_json'])))
+            if item.get('url'):
+                resp = requests.get(item['url'], timeout=60, stream=True)
+                resp.raise_for_status()
+                return Image.open(BytesIO(resp.content))
         raise ValueError("images API returned neither b64_json nor url")
+
+    def _decode_raw_string(self, raw: str) -> Image.Image:
+        """Try to decode a raw string as base64 image data, data-URL, or HTTP URL."""
+        raw = raw.strip()
+        # data:image/...;base64,...
+        if raw.startswith('data:image'):
+            b64 = raw.split(',', 1)[1]
+            return Image.open(BytesIO(base64.b64decode(b64)))
+        # plain HTTP(S) URL
+        if raw.startswith(('http://', 'https://')):
+            resp = requests.get(raw, timeout=60, stream=True)
+            resp.raise_for_status()
+            return Image.open(BytesIO(resp.content))
+        # assume raw base64
+        try:
+            return Image.open(BytesIO(base64.b64decode(raw)))
+        except Exception:
+            raise ValueError(f"Cannot decode raw string as image (len={len(raw)}, prefix={raw[:80]!r})")
+
+    def _extract_from_images_result(self, result) -> Image.Image:
+        """Defensively extract an image from images.generate / images.edit result.
+
+        Standard OpenAI returns an ImagesResponse with .data[0].
+        Proxies (newapi, one-api, etc.) may return strings, dicts, or other shapes.
+        """
+        # Standard path: result.data exists and is iterable
+        data = getattr(result, 'data', None)
+        if data is not None:
+            try:
+                item = data[0]
+                return self._decode_image_response(item)
+            except (TypeError, IndexError, AttributeError) as exc:
+                logger.warning("result.data exists but extraction failed: %s", exc)
+
+        # Proxy returned a plain string (URL or base64)
+        if isinstance(result, str):
+            logger.info("images API returned raw string, attempting decode")
+            return self._decode_raw_string(result)
+
+        # Proxy returned a dict (e.g. {"url": "..."} or {"b64_json": "..."})
+        if isinstance(result, dict):
+            logger.info("images API returned dict, attempting decode")
+            if 'data' in result and isinstance(result['data'], list) and result['data']:
+                return self._decode_image_response(result['data'][0])
+            return self._decode_image_response(result)
+
+        raise ValueError(f"Unexpected images API response type: {type(result)}")
 
     def _generate_with_images_api(
         self,
@@ -255,7 +313,7 @@ class OpenAIImageProvider(ImageProvider):
                 kwargs['response_format'] = response_format
             result = self.client.images.generate(**kwargs)
 
-        return self._decode_image_response(result.data[0])
+        return self._extract_from_images_result(result)
 
     def generate_image(
         self,
