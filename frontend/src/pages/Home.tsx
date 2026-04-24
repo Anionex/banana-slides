@@ -192,7 +192,7 @@ export const Home: React.FC = () => {
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
-  const { user, openLoginModal, requireAuth } = useUserStore();
+  const { user, openLoginModal, requireAuth, canAccessSettingsPage } = useUserStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -806,16 +806,17 @@ export const Home: React.FC = () => {
               <span className="hidden sm:inline">{t('nav.history')}</span>
               <span className="sm:hidden">{t('nav.history')}</span>
             </Button>
-            {user?.role === 'admin' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => navigate('/settings')}
-              className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
-            >
-              <span className="hidden md:inline">{t('nav.settings')}</span>
-            </Button>
+            {canAccessSettingsPage() && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={() => navigate('/settings')}
+                className="hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
+                title={t('nav.settings')}
+              >
+                <span className="hidden lg:inline">{t('nav.settings')}</span>
+              </Button>
             )}
             <Button
               variant="ghost"

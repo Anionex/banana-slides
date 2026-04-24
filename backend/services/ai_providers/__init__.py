@@ -64,7 +64,11 @@ def get_provider_format() -> str:
     return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
 
 
-def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
+def _resolve_setting(
+    key: str,
+    fallback: Optional[str] = None,
+    runtime_config: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
     """Look up a configuration value using the standard priority chain.
 
     Resolution order:
@@ -72,7 +76,17 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         2. OS environment variable
         3. *fallback* argument (may be ``None``)
     """
-    # 1) Try Flask app.config
+    # 1) Explicit runtime_config overrides
+    if runtime_config and key in runtime_config:
+        val = runtime_config[key]
+        if val is None and runtime_config.get('SETTINGS_SCOPE') == 'private':
+            logger.debug("Setting %s explicitly unset in private runtime_config", key)
+            return None
+        if val is not None:
+            logger.debug("Setting %s resolved from runtime_config", key)
+            return str(val)
+
+    # 2) Try Flask app.config
     try:
         from flask import current_app
         if current_app and hasattr(current_app, 'config') and key in current_app.config:
@@ -83,19 +97,34 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
     except RuntimeError:
         pass  # outside Flask request context
 
-    # 2) Try environment
+    # 3) Try environment
     env_val = os.getenv(key)
     if env_val is not None:
         logger.debug("Setting %s resolved from environment", key)
         return env_val
 
-    # 3) Fallback
+    # 4) Fallback
     if fallback is not None:
         logger.debug("Setting %s using fallback: %s", key, fallback)
     return fallback
 
 
-def _build_provider_config() -> Dict[str, Any]:
+def _get_runtime_lazyllm_keys(runtime_config: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    if not runtime_config:
+        return {}
+    keys = runtime_config.get('LAZYLLM_API_KEYS')
+    if isinstance(keys, dict):
+        return {str(vendor): str(key) for vendor, key in keys.items() if key}
+    return {}
+
+
+def _get_runtime_lazyllm_namespace(runtime_config: Optional[Dict[str, Any]] = None) -> str:
+    if runtime_config and runtime_config.get('LAZYLLM_NAMESPACE'):
+        return str(runtime_config['LAZYLLM_NAMESPACE'])
+    return 'BANANA'
+
+
+def _build_provider_config(runtime_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Assemble provider-specific configuration dict.
 
     Returns a dict always containing ``'format'`` plus format-specific keys:
@@ -105,12 +134,22 @@ def _build_provider_config() -> Dict[str, Any]:
 
     Raises ``ValueError`` when required settings are missing.
     """
-    fmt = get_provider_format()
+    fmt = (
+        _resolve_setting('AI_PROVIDER_FORMAT', runtime_config=runtime_config)
+        or get_provider_format()
+    )
     cfg: Dict[str, Any] = {'format': fmt}
 
     if fmt == 'openai':
-        cfg['api_key'] = _resolve_setting('OPENAI_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
-        cfg['api_base'] = _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1')
+        cfg['api_key'] = (
+            _resolve_setting('OPENAI_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('GOOGLE_API_KEY', runtime_config=runtime_config)
+        )
+        cfg['api_base'] = _resolve_setting(
+            'OPENAI_API_BASE',
+            'https://aihubmix.com/v1',
+            runtime_config=runtime_config,
+        )
         if not cfg['api_key']:
             raise ValueError(
                 "OPENAI_API_KEY or GOOGLE_API_KEY (from database settings or environment) "
@@ -119,8 +158,15 @@ def _build_provider_config() -> Dict[str, Any]:
         logger.info("Provider config — format: openai, api_base: %s", cfg['api_base'])
 
     elif fmt == 'anthropic':
-        cfg['api_key'] = _resolve_setting('ANTHROPIC_API_KEY') or _resolve_setting('OPENAI_API_KEY')
-        cfg['api_base'] = _resolve_setting('ANTHROPIC_API_BASE', 'https://api.anthropic.com')
+        cfg['api_key'] = (
+            _resolve_setting('ANTHROPIC_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('OPENAI_API_KEY', runtime_config=runtime_config)
+        )
+        cfg['api_base'] = _resolve_setting(
+            'ANTHROPIC_API_BASE',
+            'https://api.anthropic.com',
+            runtime_config=runtime_config,
+        )
         if not cfg['api_key']:
             raise ValueError(
                 "ANTHROPIC_API_KEY (from database settings or environment) "
@@ -129,8 +175,12 @@ def _build_provider_config() -> Dict[str, Any]:
         logger.info("Provider config — format: anthropic, api_base: %s", cfg['api_base'])
 
     elif fmt == 'vertex':
-        cfg['project_id'] = _resolve_setting('VERTEX_PROJECT_ID')
-        cfg['location'] = _resolve_setting('VERTEX_LOCATION', 'us-central1')
+        cfg['project_id'] = _resolve_setting('VERTEX_PROJECT_ID', runtime_config=runtime_config)
+        cfg['location'] = _resolve_setting(
+            'VERTEX_LOCATION',
+            'us-central1',
+            runtime_config=runtime_config,
+        )
         if not cfg['project_id']:
             raise ValueError(
                 "VERTEX_PROJECT_ID must be set when AI_PROVIDER_FORMAT=vertex. "
@@ -143,8 +193,18 @@ def _build_provider_config() -> Dict[str, Any]:
         # fmt is a specific vendor (e.g., 'doubao') or generic 'lazyllm' (legacy)
         vendor = fmt if fmt in LAZYLLM_VENDORS else None
         cfg['format'] = 'lazyllm'
-        cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE') or vendor or 'deepseek'
-        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or vendor or 'doubao'
+        cfg['text_source'] = (
+            _resolve_setting('TEXT_MODEL_SOURCE', runtime_config=runtime_config)
+            or vendor
+            or 'deepseek'
+        )
+        cfg['image_source'] = (
+            _resolve_setting('IMAGE_MODEL_SOURCE', runtime_config=runtime_config)
+            or vendor
+            or 'doubao'
+        )
+        cfg['lazyllm_api_keys'] = _get_runtime_lazyllm_keys(runtime_config)
+        cfg['lazyllm_namespace'] = _get_runtime_lazyllm_namespace(runtime_config)
         logger.info("Provider config — format: lazyllm, vendor: %s, text_source: %s, image_source: %s",
                      vendor, cfg['text_source'], cfg['image_source'])
 
@@ -153,8 +213,8 @@ def _build_provider_config() -> Dict[str, Any]:
         if fmt != 'gemini':
             logger.warning("Unknown provider format '%s', falling back to gemini", fmt)
             cfg['format'] = 'gemini'
-        cfg['api_key'] = _resolve_setting('GOOGLE_API_KEY')
-        cfg['api_base'] = _resolve_setting('GOOGLE_API_BASE')
+        cfg['api_key'] = _resolve_setting('GOOGLE_API_KEY', runtime_config=runtime_config)
+        cfg['api_base'] = _resolve_setting('GOOGLE_API_BASE', runtime_config=runtime_config)
         if not cfg['api_key']:
             raise ValueError("GOOGLE_API_KEY (from database settings or environment) is required")
         logger.info("Provider config — format: gemini, api_base: %s, api_key: %s",
@@ -163,7 +223,10 @@ def _build_provider_config() -> Dict[str, Any]:
     return cfg
 
 
-def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
+def _get_model_type_provider_config(
+    model_type: str,
+    runtime_config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
     Get provider config for a specific model type, with fallback to global config.
 
@@ -183,17 +246,23 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
     """
     prefix = model_type.upper()  # TEXT, IMAGE, IMAGE_CAPTION
     source_key = f'{prefix}_MODEL_SOURCE'
-    source = _resolve_setting(source_key)
+    source = _resolve_setting(source_key, runtime_config=runtime_config)
 
     if not source:
         # No per-model override, use global config
-        return _build_provider_config()
+        return _build_provider_config(runtime_config=runtime_config)
 
     source_lower = source.lower()
 
     if source_lower == 'gemini':
-        api_key = _resolve_setting(f'{prefix}_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
-        api_base = _resolve_setting(f'{prefix}_API_BASE') or _resolve_setting('GOOGLE_API_BASE')
+        api_key = (
+            _resolve_setting(f'{prefix}_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('GOOGLE_API_KEY', runtime_config=runtime_config)
+        )
+        api_base = (
+            _resolve_setting(f'{prefix}_API_BASE', runtime_config=runtime_config)
+            or _resolve_setting('GOOGLE_API_BASE', runtime_config=runtime_config)
+        )
         if not api_key:
             raise ValueError(
                 f"API key is required for {model_type} model with Gemini provider. "
@@ -203,11 +272,19 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         return {'format': 'gemini', 'api_key': api_key, 'api_base': api_base}
 
     elif source_lower == 'openai':
-        api_key = (_resolve_setting(f'{prefix}_API_KEY')
-                   or _resolve_setting('OPENAI_API_KEY')
-                   or _resolve_setting('GOOGLE_API_KEY'))
-        api_base = (_resolve_setting(f'{prefix}_API_BASE')
-                    or _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1'))
+        api_key = (
+            _resolve_setting(f'{prefix}_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('OPENAI_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('GOOGLE_API_KEY', runtime_config=runtime_config)
+        )
+        api_base = (
+            _resolve_setting(f'{prefix}_API_BASE', runtime_config=runtime_config)
+            or _resolve_setting(
+                'OPENAI_API_BASE',
+                'https://aihubmix.com/v1',
+                runtime_config=runtime_config,
+            )
+        )
         if not api_key:
             raise ValueError(
                 f"API key is required for {model_type} model with OpenAI provider. "
@@ -217,11 +294,19 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
     elif source_lower == 'anthropic':
-        api_key = (_resolve_setting(f'{prefix}_API_KEY')
-                   or _resolve_setting('ANTHROPIC_API_KEY')
-                   or _resolve_setting('OPENAI_API_KEY'))
-        api_base = (_resolve_setting(f'{prefix}_API_BASE')
-                    or _resolve_setting('ANTHROPIC_API_BASE', 'https://api.anthropic.com'))
+        api_key = (
+            _resolve_setting(f'{prefix}_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('ANTHROPIC_API_KEY', runtime_config=runtime_config)
+            or _resolve_setting('OPENAI_API_KEY', runtime_config=runtime_config)
+        )
+        api_base = (
+            _resolve_setting(f'{prefix}_API_BASE', runtime_config=runtime_config)
+            or _resolve_setting(
+                'ANTHROPIC_API_BASE',
+                'https://api.anthropic.com',
+                runtime_config=runtime_config,
+            )
+        )
         if not api_key:
             raise ValueError(
                 f"API key is required for {model_type} model with Anthropic provider. "
@@ -233,17 +318,25 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
     else:
         # Assume it's a LazyLLM vendor name
         logger.info("Per-model config — %s: lazyllm, source: %s", model_type, source_lower)
-        return {'format': 'lazyllm', 'source': source_lower}
+        return {
+            'format': 'lazyllm',
+            'source': source_lower,
+            'api_key': _get_runtime_lazyllm_keys(runtime_config).get(source_lower),
+            'namespace': _get_runtime_lazyllm_namespace(runtime_config),
+        }
 
 
-def get_image_caption_provider_config() -> Dict[str, Any]:
+def get_image_caption_provider_config(runtime_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Get provider config specifically for image caption model."""
-    return _get_model_type_provider_config('image_caption')
+    return _get_model_type_provider_config('image_caption', runtime_config=runtime_config)
 
 
-def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
+def get_caption_provider(
+    model: str = "gemini-3-flash-preview",
+    runtime_config: Optional[Dict[str, Any]] = None,
+) -> TextProvider:
     """Factory: return a TextProvider for image caption (multimodal) tasks."""
-    config = _get_model_type_provider_config('image_caption')
+    config = _get_model_type_provider_config('image_caption', runtime_config=runtime_config)
     fmt = config['format']
 
     if fmt == 'anthropic':
@@ -260,16 +353,21 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         )
     elif fmt == 'lazyllm':
         source = config.get('source') or config.get('text_source', 'doubao')
+        namespace = config.get('namespace') or config.get('lazyllm_namespace') or _get_runtime_lazyllm_namespace(runtime_config)
+        api_key = config.get('api_key') or _get_runtime_lazyllm_keys(runtime_config).get(source)
         logger.info("Caption provider: LazyLLM, model=%s, source=%s", model, source)
-        return LazyLLMTextProvider(source=source, model=model)
+        return LazyLLMTextProvider(source=source, model=model, namespace=namespace, api_key=api_key)
     else:
         logger.info("Caption provider: Gemini, model=%s", model)
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
-def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
+def get_text_provider(
+    model: str = "gemini-3-flash-preview",
+    runtime_config: Optional[Dict[str, Any]] = None,
+) -> TextProvider:
     """Factory: return the appropriate text-generation provider."""
-    config = _get_model_type_provider_config('text')
+    config = _get_model_type_provider_config('text', runtime_config=runtime_config)
     fmt = config['format']
 
     if fmt == 'anthropic':
@@ -286,15 +384,20 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         )
     elif fmt == 'lazyllm':
         source = config.get('source') or config.get('text_source', 'deepseek')
+        namespace = config.get('namespace') or config.get('lazyllm_namespace') or _get_runtime_lazyllm_namespace(runtime_config)
+        api_key = config.get('api_key') or _get_runtime_lazyllm_keys(runtime_config).get(source)
         logger.info("Text provider: LazyLLM, model=%s, source=%s", model, source)
-        return LazyLLMTextProvider(source=source, model=model)
+        return LazyLLMTextProvider(source=source, model=model, namespace=namespace, api_key=api_key)
     else:
         # gemini (default)
         logger.info("Text provider: Gemini, model=%s", model)
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
-def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
+def get_image_provider(
+    model: str = "gemini-3-pro-image-preview",
+    runtime_config: Optional[Dict[str, Any]] = None,
+) -> ImageProvider:
     """Factory: return the appropriate image-generation provider.
 
     Note: OpenAI format does NOT support 4K resolution — only 1K is available.
@@ -303,7 +406,7 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
     Note: Anthropic format doesn't natively support image generation yet.
     This is intended for use with third-party Anthropic-compatible endpoints.
     """
-    config = _get_model_type_provider_config('image')
+    config = _get_model_type_provider_config('image', runtime_config=runtime_config)
     fmt = config['format']
 
     if fmt == 'anthropic':
@@ -322,8 +425,10 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         )
     elif fmt == 'lazyllm':
         source = config.get('source') or config.get('image_source', 'doubao')
+        namespace = config.get('namespace') or config.get('lazyllm_namespace') or _get_runtime_lazyllm_namespace(runtime_config)
+        api_key = config.get('api_key') or _get_runtime_lazyllm_keys(runtime_config).get(source)
         logger.info("Image provider: LazyLLM, model=%s, source=%s", model, source)
-        return LazyLLMImageProvider(source=source, model=model)
+        return LazyLLMImageProvider(source=source, model=model, namespace=namespace, api_key=api_key)
     else:
         # gemini (default)
         logger.info("Image provider: Gemini, model=%s", model)

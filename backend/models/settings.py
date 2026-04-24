@@ -42,10 +42,12 @@ class Settings(db.Model):
         'image_api_base_url',
         'image_caption_api_key',
         'image_caption_api_base_url',
+        'recharge_packages',
+        'subscription_plans',
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    owner_user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, unique=True, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True, index=True)
     ai_provider_format = db.Column(db.String(20), nullable=True)   # AI提供商格式: openai, gemini (NULL=use .env)
     api_base_url = db.Column(db.String(500), nullable=True)        # API基础URL
     api_key = db.Column(db.String(500), nullable=True)             # API密钥
@@ -91,6 +93,8 @@ class Settings(db.Model):
     image_api_base_url = db.Column(db.String(500), nullable=True)
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
+    recharge_packages = db.Column(db.Text, nullable=True)
+    subscription_plans = db.Column(db.Text, nullable=True)
     
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -125,50 +129,88 @@ class Settings(db.Model):
                 pass
         return list(self.DEFAULT_IMAGE_PROMPT_FIELDS)
 
-    def to_dict(self):
-        """Convert to dictionary, merging .env defaults for None fields."""
-        d = Settings._get_config_defaults()
-        api_key = self._val('api_key', d)
-        mineru_token = self._val('mineru_token', d)
-        baidu_api_key = self._val('baidu_api_key', d)
-        text_api_key = self._val('text_api_key', d)
-        image_api_key = self._val('image_api_key', d)
-        image_caption_api_key = self._val('image_caption_api_key', d)
+    def _get_list_value(self, raw_value, default_values, include_defaults=True):
+        if raw_value:
+            try:
+                fields = json.loads(raw_value)
+                if isinstance(fields, list):
+                    return fields
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return list(default_values) if include_defaults else []
+
+    def to_dict(self, include_defaults=True):
+        """Convert to dictionary, optionally merging .env defaults for None fields."""
+        d = Settings._get_config_defaults() if include_defaults else {}
+        api_key = self._val('api_key', d) if include_defaults else self.api_key
+        mineru_token = self._val('mineru_token', d) if include_defaults else self.mineru_token
+        baidu_api_key = self._val('baidu_api_key', d) if include_defaults else self.baidu_api_key
+        text_api_key = self._val('text_api_key', d) if include_defaults else self.text_api_key
+        image_api_key = self._val('image_api_key', d) if include_defaults else self.image_api_key
+        image_caption_api_key = (
+            self._val('image_caption_api_key', d)
+            if include_defaults
+            else self.image_caption_api_key
+        )
         return {
             'id': self.id,
             'owner_user_id': self.owner_user_id,
-            'scope': 'admin' if self.owner_user_id else 'global',
-            'ai_provider_format': self._val('ai_provider_format', d),
-            'api_base_url': self._val('api_base_url', d),
+            'scope': 'private' if self.owner_user_id else 'global',
+            'ai_provider_format': self._val('ai_provider_format', d) if include_defaults else self.ai_provider_format,
+            'api_base_url': self._val('api_base_url', d) if include_defaults else self.api_base_url,
             'api_key_length': len(api_key) if api_key else 0,
-            'image_resolution': self._val('image_resolution', d),
-            'image_aspect_ratio': self._val('image_aspect_ratio', d),
-            'max_description_workers': self._val('max_description_workers', d),
-            'max_image_workers': self._val('max_image_workers', d),
-            'text_model': self._val('text_model', d),
-            'image_model': self._val('image_model', d),
-            'mineru_api_base': self._val('mineru_api_base', d),
+            'image_resolution': self._val('image_resolution', d) if include_defaults else self.image_resolution,
+            'image_aspect_ratio': self._val('image_aspect_ratio', d) if include_defaults else self.image_aspect_ratio,
+            'max_description_workers': self._val('max_description_workers', d) if include_defaults else self.max_description_workers,
+            'max_image_workers': self._val('max_image_workers', d) if include_defaults else self.max_image_workers,
+            'text_model': self._val('text_model', d) if include_defaults else self.text_model,
+            'image_model': self._val('image_model', d) if include_defaults else self.image_model,
+            'mineru_api_base': self._val('mineru_api_base', d) if include_defaults else self.mineru_api_base,
             'mineru_token_length': len(mineru_token) if mineru_token else 0,
-            'image_caption_model': self._val('image_caption_model', d),
-            'output_language': self._val('output_language', d),
-            'description_generation_mode': self._val('description_generation_mode', d) or 'streaming',
-            'description_extra_fields': self.get_description_extra_fields(),
-            'image_prompt_extra_fields': self.get_image_prompt_extra_fields(),
+            'image_caption_model': self._val('image_caption_model', d) if include_defaults else self.image_caption_model,
+            'output_language': self._val('output_language', d) if include_defaults else self.output_language,
+            'description_generation_mode': (
+                (self._val('description_generation_mode', d) or 'streaming')
+                if include_defaults
+                else self.description_generation_mode
+            ),
+            'description_extra_fields': self._get_list_value(
+                self.description_extra_fields,
+                self.DEFAULT_EXTRA_FIELDS,
+                include_defaults=include_defaults,
+            ),
+            'image_prompt_extra_fields': self._get_list_value(
+                self.image_prompt_extra_fields,
+                self.DEFAULT_IMAGE_PROMPT_FIELDS,
+                include_defaults=include_defaults,
+            ),
             'enable_text_reasoning': self.enable_text_reasoning,
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
             'baidu_api_key_length': len(baidu_api_key) if baidu_api_key else 0,
-            'text_model_source': self._val('text_model_source', d),
-            'image_model_source': self._val('image_model_source', d),
-            'image_caption_model_source': self._val('image_caption_model_source', d),
-            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(self._val('lazyllm_api_keys', d)),
+            'text_model_source': self._val('text_model_source', d) if include_defaults else self.text_model_source,
+            'image_model_source': self._val('image_model_source', d) if include_defaults else self.image_model_source,
+            'image_caption_model_source': (
+                self._val('image_caption_model_source', d)
+                if include_defaults
+                else self.image_caption_model_source
+            ),
+            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(
+                self._val('lazyllm_api_keys', d) if include_defaults else self.lazyllm_api_keys
+            ),
             'text_api_key_length': len(text_api_key) if text_api_key else 0,
-            'text_api_base_url': self._val('text_api_base_url', d),
+            'text_api_base_url': self._val('text_api_base_url', d) if include_defaults else self.text_api_base_url,
             'image_api_key_length': len(image_api_key) if image_api_key else 0,
-            'image_api_base_url': self._val('image_api_base_url', d),
+            'image_api_base_url': self._val('image_api_base_url', d) if include_defaults else self.image_api_base_url,
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
-            'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'image_caption_api_base_url': (
+                self._val('image_caption_api_base_url', d)
+                if include_defaults
+                else self.image_caption_api_base_url
+            ),
+            'recharge_packages': self.recharge_packages,
+            'subscription_plans': self.subscription_plans,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -192,6 +234,88 @@ class Settings(db.Model):
             return json.loads(self.lazyllm_api_keys)
         except (json.JSONDecodeError, TypeError):
             return {}
+
+    @staticmethod
+    def _parse_lazyllm_api_keys(raw):
+        """Parse lazyllm_api_keys JSON payload into a plain dict."""
+        if not raw:
+            return {}
+        if isinstance(raw, dict):
+            return {vendor: key for vendor, key in raw.items() if key}
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        return {vendor: key for vendor, key in parsed.items() if key}
+
+    def to_runtime_config(self, include_secret_defaults=True, lazyllm_namespace=None):
+        """
+        Build an internal runtime configuration dict for AI services.
+
+        For private runtime settings, callers can disable secret defaults so that empty
+        private credentials never fall back to shared/global API keys.
+        """
+        defaults = Settings._get_config_defaults()
+
+        def _general(attr):
+            return self._val(attr, defaults)
+
+        def _secret(attr):
+            return self._val(attr, defaults) if include_secret_defaults else getattr(self, attr)
+
+        lazyllm_keys = self.get_lazyllm_api_keys_dict()
+        if include_secret_defaults and not lazyllm_keys:
+            lazyllm_keys = self._parse_lazyllm_api_keys(defaults.get('lazyllm_api_keys'))
+
+        namespace = lazyllm_namespace
+        if not namespace:
+            if self.owner_user_id:
+                namespace = f"BANANA_{self.owner_user_id}"
+            else:
+                namespace = "BANANA"
+
+        global_api_key = _secret('api_key')
+        global_api_base = _general('api_base_url')
+
+        return {
+            'SETTINGS_SCOPE': 'private' if self.owner_user_id else 'global',
+            'SETTINGS_OWNER_USER_ID': self.owner_user_id,
+            'AI_PROVIDER_FORMAT': _general('ai_provider_format'),
+            'GOOGLE_API_KEY': global_api_key,
+            'OPENAI_API_KEY': global_api_key,
+            'GOOGLE_API_BASE': global_api_base,
+            'OPENAI_API_BASE': global_api_base,
+            'TEXT_MODEL': _general('text_model'),
+            'IMAGE_MODEL': _general('image_model'),
+            'IMAGE_CAPTION_MODEL': _general('image_caption_model'),
+            'OUTPUT_LANGUAGE': _general('output_language'),
+            'DEFAULT_RESOLUTION': _general('image_resolution'),
+            'DEFAULT_ASPECT_RATIO': _general('image_aspect_ratio'),
+            'MAX_DESCRIPTION_WORKERS': _general('max_description_workers'),
+            'MAX_IMAGE_WORKERS': _general('max_image_workers'),
+            'DESCRIPTION_EXTRA_FIELDS': self.get_description_extra_fields(),
+            'IMAGE_PROMPT_EXTRA_FIELDS': self.get_image_prompt_extra_fields(),
+            'ENABLE_TEXT_REASONING': self.enable_text_reasoning,
+            'TEXT_THINKING_BUDGET': self.text_thinking_budget,
+            'ENABLE_IMAGE_REASONING': self.enable_image_reasoning,
+            'IMAGE_THINKING_BUDGET': self.image_thinking_budget,
+            'MINERU_API_BASE': _general('mineru_api_base'),
+            'MINERU_TOKEN': _secret('mineru_token'),
+            'BAIDU_API_KEY': _secret('baidu_api_key'),
+            'TEXT_MODEL_SOURCE': _general('text_model_source'),
+            'IMAGE_MODEL_SOURCE': _general('image_model_source'),
+            'IMAGE_CAPTION_MODEL_SOURCE': _general('image_caption_model_source'),
+            'TEXT_API_KEY': _secret('text_api_key'),
+            'TEXT_API_BASE': self.text_api_base_url,
+            'IMAGE_API_KEY': _secret('image_api_key'),
+            'IMAGE_API_BASE': self.image_api_base_url,
+            'IMAGE_CAPTION_API_KEY': _secret('image_caption_api_key'),
+            'IMAGE_CAPTION_API_BASE': self.image_caption_api_base_url,
+            'LAZYLLM_API_KEYS': lazyllm_keys,
+            'LAZYLLM_NAMESPACE': namespace,
+        }
 
     @staticmethod
     def _get_config_defaults():
@@ -247,33 +371,30 @@ class Settings(db.Model):
         return settings
 
     @classmethod
-    def create_admin_settings_from_global(cls, admin_user):
-        """Clone current global settings into a private row for the given admin."""
-        base_settings = cls.get_global_settings()
-        settings = cls(owner_user_id=admin_user.id)
+    def create_private_settings_for_user(cls, user):
+        """Create an empty private settings row for a user with isolated runtime config."""
+        return cls._create_empty_settings(owner_user_id=user.id)
 
-        for field_name in cls.COPYABLE_FIELDS:
-            setattr(settings, field_name, getattr(base_settings, field_name))
-
-        db.session.add(settings)
-        db.session.commit()
+    @classmethod
+    def get_private_settings(cls, user, create_if_missing=True):
+        """Return the user-private settings row, creating an empty one on first use."""
+        settings = cls.query.filter_by(owner_user_id=user.id).first()
+        if settings is None and create_if_missing:
+            settings = cls.create_private_settings_for_user(user)
         return settings
 
     @classmethod
     def get_admin_settings(cls, admin_user, create_if_missing=True):
-        """Return the admin-private settings row, cloning from global on first use."""
-        settings = cls.query.filter_by(owner_user_id=admin_user.id).first()
-        if settings is None and create_if_missing:
-            settings = cls.create_admin_settings_from_global(admin_user)
-        return settings
+        """Backward-compatible alias for legacy private-settings callers."""
+        return cls.get_private_settings(admin_user, create_if_missing=create_if_missing)
 
     @classmethod
     def get_settings(cls, user=None):
         """
-        Return global settings by default, or admin-private settings when an admin is provided.
+        Return global settings by default, or user-private settings when the user uses isolated runtime config.
         """
-        if user is not None and getattr(user, 'role', None) == 'admin':
-            return cls.get_admin_settings(user)
+        if user is not None and hasattr(user, 'uses_private_runtime_settings') and user.uses_private_runtime_settings():
+            return cls.get_private_settings(user)
         return cls.get_global_settings()
 
     def __repr__(self):

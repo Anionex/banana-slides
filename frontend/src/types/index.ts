@@ -129,7 +129,7 @@ export interface ApiResponse<T = any> {
 export interface Settings {
   id: number;
   owner_user_id?: string | null;
-  scope?: 'global' | 'admin';
+  scope?: 'global' | 'private';
   ai_provider_format: string;
   api_base_url?: string;
   api_key_length: number;

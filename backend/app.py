@@ -29,6 +29,8 @@ from controllers import project_bp, page_bp, template_bp, user_template_bp, expo
 from controllers.auth_controller import auth_bp
 from controllers.user_controller import user_bp
 from controllers.admin_controller import admin_bp
+from controllers.payment_controller import payment_bp, payment_compat_bp
+from utils.auth import optional_auth
 
 
 # Enable SQLite WAL mode for all connections
@@ -118,6 +120,8 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(payment_bp)
+    app.register_blueprint(payment_compat_bp)
 
     with app.app_context():
         # Load settings from database and sync to app.config
@@ -136,6 +140,10 @@ def create_app():
             return  # non-API routes (health, static, etc.)
         if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
+        if request.path.startswith('/api/payment/'):
+            return  # allow third-party payment callbacks
+        if request.path.startswith('/api/v1/notify/'):
+            return  # allow third-party payment callbacks compatible with reference config
         code = request.headers.get('X-Access-Code', '')
         if hmac.compare_digest(code, expected):
             return
@@ -167,14 +175,16 @@ def create_app():
     
     # Output language endpoint
     @app.route('/api/output-language', methods=['GET'])
+    @optional_auth
     def get_output_language():
         """
         获取用户的输出语言偏好（从数据库 Settings 读取）
         返回: zh, ja, en, auto
         """
+        from flask import g
         from models import Settings
         try:
-            settings = Settings.get_settings()
+            settings = Settings.get_settings(getattr(g, "current_user", None))
             return {'data': {'language': settings.output_language or Config.OUTPUT_LANGUAGE}}
         except SQLAlchemyError as db_error:
             logging.warning(f"Failed to load output language from settings: {db_error}")
@@ -363,10 +373,15 @@ def _init_admin_user():
                     logging.info(f"Updated admin account: {username}")
                 return
             admin = User(
+                phone=User.build_placeholder_phone("admin"),
                 username=username,
+                display_name=User.build_default_display_name(username=username),
                 password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+                status='active',
+                current_points=0,
                 role='admin',
                 points=0,
+                is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )
@@ -384,8 +399,13 @@ def _init_admin_user():
                 return
             admin = User(
                 phone=phone,
+                username=f"u_{phone}",
+                display_name=User.build_default_display_name(phone=phone),
+                status='active',
+                current_points=0,
                 role='admin',
                 points=0,
+                is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )

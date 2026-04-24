@@ -1,188 +1,161 @@
 """
-AIService singleton manager for optimizing provider initialization
+AI service cache and runtime-config helpers.
 
-This module provides a singleton pattern implementation for AIService to avoid
-repeated initialization of AI providers (TextProvider and ImageProvider) on every request.
-
-Benefits:
-- Reuses AI provider instances across requests
-- Reduces initialization overhead
-- Better resource management
-- Thread-safe for Flask multi-threaded environment
-
-Usage:
-    from services.ai_service_manager import get_ai_service
-    
-    # In your controller
-    ai_service = get_ai_service()
-    outline = ai_service.generate_outline(project_context)
+This module supports both:
+- the legacy/global app-level AI configuration
+- user-scoped runtime AI configuration for isolated private settings
 """
 
 import logging
 from threading import Lock
-from typing import Optional
+from typing import Any, Optional
+
 from flask import current_app, has_app_context
+
 from .ai_service import AIService
-from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 
 logger = logging.getLogger(__name__)
 
-# Global singleton instance
-_ai_service_instance: Optional[AIService] = None
+_ai_service_cache: dict[tuple, AIService] = {}
 _lock = Lock()
 
-# Provider cache to avoid re-initialization when models don't change
-_text_provider_cache: dict = {}
-_image_provider_cache: dict = {}
-_caption_provider_cache: dict = {}
-_cache_lock = Lock()
+_RUNTIME_CONFIG_KEYS = (
+    "AI_PROVIDER_FORMAT",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "GOOGLE_API_BASE",
+    "OPENAI_API_BASE",
+    "TEXT_MODEL",
+    "IMAGE_MODEL",
+    "IMAGE_CAPTION_MODEL",
+    "OUTPUT_LANGUAGE",
+    "DEFAULT_RESOLUTION",
+    "DEFAULT_ASPECT_RATIO",
+    "MAX_DESCRIPTION_WORKERS",
+    "MAX_IMAGE_WORKERS",
+    "DESCRIPTION_EXTRA_FIELDS",
+    "IMAGE_PROMPT_EXTRA_FIELDS",
+    "ENABLE_TEXT_REASONING",
+    "TEXT_THINKING_BUDGET",
+    "ENABLE_IMAGE_REASONING",
+    "IMAGE_THINKING_BUDGET",
+    "MINERU_API_BASE",
+    "MINERU_TOKEN",
+    "BAIDU_API_KEY",
+    "TEXT_MODEL_SOURCE",
+    "IMAGE_MODEL_SOURCE",
+    "IMAGE_CAPTION_MODEL_SOURCE",
+    "TEXT_API_KEY",
+    "TEXT_API_BASE",
+    "IMAGE_API_KEY",
+    "IMAGE_API_BASE",
+    "IMAGE_CAPTION_API_KEY",
+    "IMAGE_CAPTION_API_BASE",
+    "LAZYLLM_NAMESPACE",
+    "SETTINGS_SCOPE",
+    "SETTINGS_OWNER_USER_ID",
+)
 
 
-def _get_cached_text_provider(model: str) -> TextProvider:
-    """
-    Get or create a cached text provider instance
-    
-    Args:
-        model: Model name to use
-        
-    Returns:
-        Cached or new TextProvider instance
-    """
-    with _cache_lock:
-        if model not in _text_provider_cache:
-            logger.info(f"Creating new TextProvider for model: {model}")
-            _text_provider_cache[model] = get_text_provider(model=model)
-        else:
-            logger.debug(f"Reusing cached TextProvider for model: {model}")
-        return _text_provider_cache[model]
+def _freeze(value: Any):
+    if isinstance(value, dict):
+        return tuple((str(k), _freeze(v)) for k, v in sorted(value.items(), key=lambda item: str(item[0])))
+    if isinstance(value, (list, tuple, set)):
+        return tuple(_freeze(v) for v in value)
+    return value
 
 
-def _get_cached_image_provider(model: str) -> ImageProvider:
-    """
-    Get or create a cached image provider instance
-    
-    Args:
-        model: Model name to use
-        
-    Returns:
-        Cached or new ImageProvider instance
-    """
-    with _cache_lock:
-        if model not in _image_provider_cache:
-            logger.info(f"Creating new ImageProvider for model: {model}")
-            _image_provider_cache[model] = get_image_provider(model=model)
-        else:
-            logger.debug(f"Reusing cached ImageProvider for model: {model}")
-        return _image_provider_cache[model]
+def _normalize_runtime_config(runtime_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    if runtime_config is None:
+        from config import get_config
+
+        config = get_config()
+        normalized: dict[str, Any] = {}
+        for key in _RUNTIME_CONFIG_KEYS:
+            fallback = getattr(config, key, None)
+            if has_app_context() and current_app and hasattr(current_app, "config"):
+                normalized[key] = current_app.config.get(key, fallback)
+            else:
+                normalized[key] = fallback
+        normalized["LAZYLLM_API_KEYS"] = {}
+        normalized.setdefault("LAZYLLM_NAMESPACE", "BANANA")
+        return normalized
+
+    normalized = dict(runtime_config)
+    normalized.setdefault("LAZYLLM_API_KEYS", {})
+    normalized.setdefault("LAZYLLM_NAMESPACE", "BANANA")
+    return normalized
 
 
-def _get_cached_caption_provider(model: str) -> TextProvider:
-    """Get or create a cached caption provider instance"""
-    with _cache_lock:
-        if model not in _caption_provider_cache:
-            logger.info(f"Creating new CaptionProvider for model: {model}")
-            _caption_provider_cache[model] = get_caption_provider(model=model)
-        return _caption_provider_cache[model]
+def _runtime_config_cache_key(runtime_config: dict[str, Any]) -> tuple:
+    return _freeze(runtime_config)
 
 
-def get_ai_service(force_new: bool = False) -> AIService:
-    """
-    Get the singleton AIService instance with optimized provider caching
-    
-    This function creates and returns a singleton AIService instance that reuses
-    AI providers (TextProvider and ImageProvider) across requests, significantly
-    reducing initialization overhead.
-    
-    Args:
-        force_new: If True, forces creation of a new instance (useful for testing)
-        
-    Returns:
-        AIService singleton instance with cached providers
-        
-    Note:
-        The providers are cached per model name. If TEXT_MODEL or IMAGE_MODEL
-        changes in Flask config, new providers will be created automatically.
-    """
-    global _ai_service_instance
-    
-    if force_new:
-        with _lock:
-            logger.info("Force creating new AIService instance")
-            _ai_service_instance = None
-    
-    if _ai_service_instance is None:
-        with _lock:
-            # Double-check locking pattern
-            if _ai_service_instance is None:
-                logger.info("Initializing AIService singleton with provider caching")
-                
-                # Get model names from Flask config or use defaults
-                from config import get_config
-                config = get_config()
-                
-                if has_app_context() and current_app and hasattr(current_app, "config"):
-                    text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
-                    image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
-                    caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
-                else:
-                    text_model = config.TEXT_MODEL
-                    image_model = config.IMAGE_MODEL
-                    caption_model = config.IMAGE_CAPTION_MODEL
+def get_runtime_config_for_user(user=None) -> dict[str, Any]:
+    from models import Settings
 
-                # Get cached providers
-                text_provider = _get_cached_text_provider(text_model)
-                image_provider = _get_cached_image_provider(image_model)
-                caption_provider = _get_cached_caption_provider(caption_model)
+    settings = Settings.get_settings(user)
+    include_secret_defaults = not (
+        user is not None
+        and hasattr(user, "uses_private_runtime_settings")
+        and user.uses_private_runtime_settings()
+    )
+    return settings.to_runtime_config(include_secret_defaults=include_secret_defaults)
 
-                # Create AIService with cached providers
-                _ai_service_instance = AIService(
-                    text_provider=text_provider,
-                    image_provider=image_provider,
-                    caption_provider=caption_provider
-                )
 
-                logger.info(f"AIService singleton created with models: text={text_model}, image={image_model}, caption={caption_model}")
-    
-    return _ai_service_instance
+def get_runtime_config_for_user_id(user_id: Optional[str]) -> dict[str, Any]:
+    from models import User
+
+    if not user_id:
+        return get_runtime_config_for_user(None)
+
+    user = User.query.get(user_id)
+    if not user or not user.is_active:
+        return get_runtime_config_for_user(None)
+    return get_runtime_config_for_user(user)
+
+
+def get_ai_service(force_new: bool = False, runtime_config: Optional[dict[str, Any]] = None) -> AIService:
+    normalized_runtime_config = _normalize_runtime_config(runtime_config)
+    cache_key = _runtime_config_cache_key(normalized_runtime_config)
+
+    with _lock:
+        if force_new and cache_key in _ai_service_cache:
+            logger.info("Force clearing AIService cache entry")
+            _ai_service_cache.pop(cache_key, None)
+
+        if cache_key not in _ai_service_cache:
+            logger.info("Creating AIService for runtime scope=%s owner=%s",
+                        normalized_runtime_config.get("SETTINGS_SCOPE"),
+                        normalized_runtime_config.get("SETTINGS_OWNER_USER_ID"))
+            _ai_service_cache[cache_key] = AIService(runtime_config=normalized_runtime_config)
+
+        return _ai_service_cache[cache_key]
+
+
+def get_ai_service_for_user(user=None, force_new: bool = False) -> AIService:
+    return get_ai_service(
+        force_new=force_new,
+        runtime_config=get_runtime_config_for_user(user),
+    )
+
+
+def get_ai_service_for_user_id(user_id: Optional[str], force_new: bool = False) -> AIService:
+    return get_ai_service(
+        force_new=force_new,
+        runtime_config=get_runtime_config_for_user_id(user_id),
+    )
 
 
 def clear_ai_service_cache():
-    """
-    Clear the AIService singleton and provider cache
-    
-    This is useful when:
-    - Configuration changes (API keys, endpoints, models)
-    - Testing scenarios requiring fresh instances
-    - Memory cleanup needed
-    
-    Note:
-    - Uses nested locks to ensure atomic cache clearing operation
-    - Prevents race conditions where new instances could be created
-      with stale cached providers during the clearing process
-    """
-    global _ai_service_instance
-    
     with _lock:
-        _ai_service_instance = None
-        logger.info("AIService singleton cache cleared")
-        with _cache_lock:
-            _text_provider_cache.clear()
-            _image_provider_cache.clear()
-            _caption_provider_cache.clear()
-            logger.info("Provider cache cleared")
+        _ai_service_cache.clear()
+        logger.info("AIService cache cleared")
 
 
 def get_provider_cache_info() -> dict:
-    """
-    Get information about cached providers (for debugging/monitoring)
-    
-    Returns:
-        Dictionary with cache statistics
-    """
-    with _cache_lock:
+    with _lock:
         return {
-            "text_providers": list(_text_provider_cache.keys()),
-            "image_providers": list(_image_provider_cache.keys()),
-            "caption_providers": list(_caption_provider_cache.keys()),
-            "total_cached": len(_text_provider_cache) + len(_image_provider_cache) + len(_caption_provider_cache)
+            "service_cache_entries": len(_ai_service_cache),
+            "cache_keys": [str(key[:4]) for key in _ai_service_cache.keys()],
         }

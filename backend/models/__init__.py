@@ -28,7 +28,7 @@ from .user import User
 from .sms_code import SmsCode
 from .subscription import Subscription
 from .points_transaction import PointsTransaction
+from .recharge_order import RechargeOrder
 
 __all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings',
-           'User', 'SmsCode', 'Subscription', 'PointsTransaction']
-
+           'User', 'SmsCode', 'Subscription', 'PointsTransaction', 'RechargeOrder']

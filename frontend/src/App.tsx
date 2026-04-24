@@ -9,10 +9,15 @@ import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { UserProfile } from './pages/UserProfile';
 import { useProjectStore } from './store/useProjectStore';
+import { useUserStore } from './store/useUserStore';
+import { userApi } from './api/user';
 import { useToast, AccessCodeGuard, LoginModal } from './components/shared';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
+  const accessToken = useUserStore((s) => s.accessToken);
+  const setUser = useUserStore((s) => s.setUser);
+  const logout = useUserStore((s) => s.logout);
   const { show, ToastContainer } = useToast();
 
   useEffect(() => {
@@ -28,6 +33,31 @@ function App() {
       setError(null);
     }
   }, [error, setError, show]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!accessToken) return;
+
+    const refreshCurrentUser = async () => {
+      try {
+        const res = await userApi.getProfile();
+        if (!cancelled) {
+          setUser(res.data.data);
+        }
+      } catch (error: any) {
+        if (!cancelled && error?.response?.status === 401) {
+          logout();
+        }
+      }
+    };
+
+    refreshCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, logout, setUser]);
 
   return (
     <AccessCodeGuard>
@@ -51,4 +81,3 @@ function App() {
 }
 
 export default App;
-

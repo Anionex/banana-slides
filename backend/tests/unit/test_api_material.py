@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from PIL import Image
 from conftest import assert_success_response, assert_error_response
+from utils.auth import generate_tokens
 
 
 def _create_test_image():
@@ -15,6 +16,11 @@ def _create_test_image():
     img.save(img_bytes, format='PNG')
     img_bytes.seek(0)
     return img_bytes
+
+
+def _auth_headers(user):
+    tokens = generate_tokens(user.id, user.role)
+    return {'Authorization': f"Bearer {tokens['access_token']}"}
 
 
 @pytest.mark.unit
@@ -91,6 +97,26 @@ class TestMaterialUpload:
             content_type='multipart/form-data'
         )
         assert response.status_code == 400
+
+    def test_generate_material_image_passes_authenticated_user_to_background_task(self, client, db_session):
+        from models import User
+
+        admin = User(username='material-admin', role='admin', points=0, is_active=True)
+        db_session.add(admin)
+        db_session.commit()
+
+        with patch('controllers.material_controller.task_manager.submit_task') as mock_submit:
+            response = client.post(
+                '/api/projects/none/materials/generate',
+                json={'prompt': 'clean medical illustration'},
+                headers=_auth_headers(admin),
+            )
+
+        data = assert_success_response(response, 202)
+        assert data['data']['status'] == 'PENDING'
+        assert mock_submit.called
+        submit_args = mock_submit.call_args[0]
+        assert submit_args[-1] == admin.id
 
 
 @pytest.mark.unit

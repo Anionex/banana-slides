@@ -1,9 +1,10 @@
-"""Admin controller - user management, admin accounts, and private settings."""
+"""Admin controller - admin console, shared settings, and managed user accounts."""
+
 import logging
 import re
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
 from controllers.settings_controller import (
     SettingsValidationError,
@@ -12,6 +13,14 @@ from controllers.settings_controller import (
     create_settings_test_task,
 )
 from models import PointsTransaction, Settings, Subscription, User, db
+from services.recharge_service import (
+    get_recharge_packages_with_source,
+    get_subscription_plans_with_source,
+    reset_recharge_packages,
+    reset_subscription_plans,
+    save_recharge_packages,
+    save_subscription_plans,
+)
 from utils.auth import generate_tokens, require_admin
 
 logger = logging.getLogger(__name__)
@@ -39,36 +48,46 @@ def _validate_admin_password(password: str):
         )
 
 
-def _get_admin_settings_or_404():
-    settings = Settings.get_admin_settings(g.current_user, create_if_missing=True)
+def _get_shared_settings_or_404():
+    settings = Settings.get_global_settings()
     if not settings:
-        raise SettingsValidationError("Admin settings not found")
+        raise SettingsValidationError("Shared settings not found")
     return settings
+
+
+def _normalize_user_role(raw_role: str | None) -> str:
+    role = (raw_role or "").strip().lower()
+    return role or User.ROLE_USER
+
+
+def _validate_manageable_role(role: str):
+    if role not in (User.ROLE_USER, User.ROLE_INTERNAL, User.ROLE_ADMIN):
+        raise SettingsValidationError("role must be one of 'user', 'internal', or 'admin'")
 
 
 @admin_bp.route("/login", methods=["POST"])
 def admin_login():
-    """Admin-only login: username + password, role must be admin."""
+    """Admin console login: only admin-console roles may sign in here."""
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
     if not username or not password:
-        return jsonify({"error": "请输入账号和密码"}), 400
+        return jsonify({"error": "Username and password are required"}), 400
 
     user = User.query.filter((User.username == username) | (User.phone == username)).first()
 
     if not user or not user.password_hash:
-        return jsonify({"error": "账号或密码错误"}), 401
+        return jsonify({"error": "Invalid username or password"}), 401
 
     if not _check_password(password, user.password_hash):
-        return jsonify({"error": "账号或密码错误"}), 401
+        return jsonify({"error": "Invalid username or password"}), 401
 
     if not user.is_active:
-        return jsonify({"error": "账号已被禁用"}), 403
+        return jsonify({"error": "Account is disabled"}), 403
 
-    if user.role != "admin":
-        return jsonify({"error": "无管理员权限"}), 403
+    if not user.can_access_admin_console():
+        return jsonify({"error": "Admin console access denied"}), 403
 
     tokens = generate_tokens(user.id, user.role)
     return jsonify({"data": {"user": user.to_dict(admin=True), **tokens}})
@@ -103,6 +122,12 @@ def get_stats():
     )
 
 
+@admin_bp.route("/me", methods=["GET"])
+@require_admin
+def get_current_admin():
+    return jsonify({"data": g.current_user.to_dict(admin=True)})
+
+
 @admin_bp.route("/users", methods=["GET"])
 @require_admin
 def list_users():
@@ -132,10 +157,11 @@ def list_users():
 
 @admin_bp.route("/users", methods=["POST"])
 @require_admin
-def create_admin_user():
+def create_managed_user():
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
+    role = _normalize_user_role(data.get("role"))
 
     if not username:
         return jsonify({"error": "Username is required"}), 400
@@ -143,26 +169,32 @@ def create_admin_user():
         return jsonify({"error": "Username already exists"}), 409
 
     try:
+        _validate_manageable_role(role)
         _validate_admin_password(password)
     except SettingsValidationError as exc:
         return jsonify({"error": str(exc)}), 400
 
     now = datetime.utcnow()
-    admin_user = User(
+    managed_user = User(
+        phone=User.build_placeholder_phone("admin"),
         username=username,
+        display_name=User.build_default_display_name(username=username),
         password_hash=_hash_password(password),
-        role="admin",
+        status="active",
+        current_points=0,
+        role=role,
         points=0,
         is_active=True,
         created_at=now,
         updated_at=now,
     )
-    db.session.add(admin_user)
+    db.session.add(managed_user)
     db.session.commit()
 
-    Settings.get_admin_settings(admin_user, create_if_missing=True)
+    if managed_user.uses_private_runtime_settings():
+        Settings.get_private_settings(managed_user, create_if_missing=True)
 
-    return jsonify({"data": admin_user.to_dict(admin=True)}), 201
+    return jsonify({"data": managed_user.to_dict(admin=True)}), 201
 
 
 @admin_bp.route("/users/<string:user_id>", methods=["PUT"])
@@ -171,8 +203,16 @@ def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
 
-    if "role" in data and data["role"] in ("user", "admin"):
-        user.role = data["role"]
+    if "role" in data:
+        role = _normalize_user_role(data["role"])
+        try:
+            _validate_manageable_role(role)
+        except SettingsValidationError as exc:
+            return jsonify({"error": str(exc)}), 400
+        user.role = role
+        if user.uses_private_runtime_settings():
+            Settings.get_private_settings(user, create_if_missing=True)
+
     if "is_active" in data:
         user.is_active = bool(data["is_active"])
 
@@ -187,7 +227,7 @@ def adjust_points(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
     amount = int(data.get("amount", 0))
-    description = (data.get("description") or "管理员调整").strip()
+    description = (data.get("description") or "Admin adjustment").strip()
 
     if amount == 0:
         return jsonify({"error": "amount cannot be 0"}), 400
@@ -216,7 +256,7 @@ def admin_activate_subscription(user_id):
     plan = data.get("plan", "monthly")
 
     if plan not in ("monthly", "yearly"):
-        return jsonify({"error": "无效的订阅方案"}), 400
+        return jsonify({"error": "Invalid subscription plan"}), 400
 
     Subscription.query.filter_by(user_id=user.id, status="active").update({"status": "expired"})
 
@@ -301,6 +341,122 @@ def list_transactions():
     )
 
 
+@admin_bp.route("/recharge/packages", methods=["GET"])
+@require_admin
+def get_recharge_packages():
+    packages, source = get_recharge_packages_with_source()
+    return jsonify(
+        {
+            "data": {
+                "items": [package.to_dict() for package in packages],
+                "source": source,
+            }
+        }
+    )
+
+
+@admin_bp.route("/recharge/packages", methods=["PUT"])
+@require_admin
+def update_recharge_packages():
+    data = request.get_json() or {}
+    try:
+        packages = save_recharge_packages(data.get("items") or [])
+        return jsonify(
+            {
+                "data": {
+                    "items": [package.to_dict() for package in packages],
+                    "source": "database",
+                },
+                "message": "Recharge pricing updated successfully",
+            }
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to update recharge pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to update recharge pricing: {exc}"}), 500
+
+
+@admin_bp.route("/recharge/packages/reset", methods=["POST"])
+@require_admin
+def reset_recharge_pricing():
+    try:
+        reset_recharge_packages()
+        packages, source = get_recharge_packages_with_source()
+        return jsonify(
+            {
+                "data": {
+                    "items": [package.to_dict() for package in packages],
+                    "source": source,
+                },
+                "message": "Recharge pricing reset successfully",
+            }
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to reset recharge pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to reset recharge pricing: {exc}"}), 500
+
+
+@admin_bp.route("/subscription/plans", methods=["GET"])
+@require_admin
+def get_subscription_plans():
+    plans, source = get_subscription_plans_with_source()
+    return jsonify(
+        {
+            "data": {
+                "items": [plan.to_dict() for plan in plans],
+                "source": source,
+            }
+        }
+    )
+
+
+@admin_bp.route("/subscription/plans", methods=["PUT"])
+@require_admin
+def update_subscription_plans():
+    data = request.get_json() or {}
+    try:
+        plans = save_subscription_plans(data.get("items") or [])
+        return jsonify(
+            {
+                "data": {
+                    "items": [plan.to_dict() for plan in plans],
+                    "source": "database",
+                },
+                "message": "Subscription pricing updated successfully",
+            }
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to update subscription pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to update subscription pricing: {exc}"}), 500
+
+
+@admin_bp.route("/subscription/plans/reset", methods=["POST"])
+@require_admin
+def reset_subscription_pricing():
+    try:
+        reset_subscription_plans()
+        plans, source = get_subscription_plans_with_source()
+        return jsonify(
+            {
+                "data": {
+                    "items": [plan.to_dict() for plan in plans],
+                    "source": source,
+                },
+                "message": "Subscription pricing reset successfully",
+            }
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to reset subscription pricing: %s", exc, exc_info=True)
+        return jsonify({"error": f"Failed to reset subscription pricing: {exc}"}), 500
+
+
 @admin_bp.route("/account/password", methods=["POST"])
 @require_admin
 def change_admin_password():
@@ -329,8 +485,8 @@ def change_admin_password():
 @admin_bp.route("/settings", methods=["GET"], strict_slashes=False)
 @require_admin
 def get_admin_settings():
-    settings = _get_admin_settings_or_404()
-    return jsonify({"data": settings.to_dict()})
+    settings = _get_shared_settings_or_404()
+    return jsonify({"data": settings.to_dict(include_defaults=False)})
 
 
 @admin_bp.route("/settings", methods=["PUT"], strict_slashes=False)
@@ -338,10 +494,15 @@ def get_admin_settings():
 def update_admin_settings():
     try:
         data = request.get_json()
-        settings = _get_admin_settings_or_404()
+        settings = _get_shared_settings_or_404()
         _apply_settings_updates(settings, data)
         db.session.commit()
-        return jsonify({"data": settings.to_dict(), "message": "Settings updated successfully"})
+        return jsonify(
+            {
+                "data": settings.to_dict(include_defaults=False),
+                "message": "Settings updated successfully",
+            }
+        )
     except SettingsValidationError as exc:
         db.session.rollback()
         return jsonify({"error": str(exc)}), 400
@@ -355,10 +516,15 @@ def update_admin_settings():
 @require_admin
 def reset_admin_settings():
     try:
-        settings = _get_admin_settings_or_404()
+        settings = _get_shared_settings_or_404()
         _reset_settings_values(settings)
         db.session.commit()
-        return jsonify({"data": settings.to_dict(), "message": "Settings reset to defaults"})
+        return jsonify(
+            {
+                "data": settings.to_dict(include_defaults=False),
+                "message": "Settings reset to defaults",
+            }
+        )
     except Exception as exc:
         db.session.rollback()
         logger.error("Error resetting admin settings: %s", exc, exc_info=True)
@@ -369,7 +535,7 @@ def reset_admin_settings():
 @require_admin
 def run_admin_settings_test(test_name: str):
     try:
-        settings = _get_admin_settings_or_404()
+        settings = _get_shared_settings_or_404()
         override_settings = request.get_json() or {}
         return create_settings_test_task(test_name, settings, override_settings)
     except SettingsValidationError as exc:

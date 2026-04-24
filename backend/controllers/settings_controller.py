@@ -8,10 +8,11 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import contextmanager
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from PIL import Image
 from models import db, Settings, Task
 from utils import success_response, error_response, bad_request
+from utils.auth import optional_auth
 from config import Config, PROJECT_ROOT
 from services.ai_service import AIService
 from services.file_parser_service import FileParserService
@@ -30,6 +31,16 @@ settings_bp = Blueprint(
 
 class SettingsValidationError(ValueError):
     """Raised when settings payload validation fails."""
+
+
+def _serialize_settings_for_request(settings: Settings):
+    user = getattr(g, "current_user", None)
+    include_defaults = not (
+        user is not None
+        and hasattr(user, "uses_private_runtime_settings")
+        and user.uses_private_runtime_settings()
+    )
+    return settings.to_dict(include_defaults=include_defaults)
 
 
 @contextmanager
@@ -158,12 +169,15 @@ def _apply_settings_updates(settings: Settings, data: dict):
 
     if "ai_provider_format" in data:
         provider_format = data["ai_provider_format"]
-        if provider_format not in ALLOWED_PROVIDER_FORMATS:
+        if provider_format in (None, ""):
+            settings.ai_provider_format = None
+        elif provider_format not in ALLOWED_PROVIDER_FORMATS:
             allowed_values = "', '".join(sorted(ALLOWED_PROVIDER_FORMATS))
             raise SettingsValidationError(
                 f"AI provider format must be one of '{allowed_values}'"
             )
-        settings.ai_provider_format = provider_format
+        else:
+            settings.ai_provider_format = provider_format
 
     if "api_base_url" in data:
         raw_base_url = data["api_base_url"]
@@ -178,9 +192,12 @@ def _apply_settings_updates(settings: Settings, data: dict):
 
     if "image_resolution" in data:
         resolution = data["image_resolution"]
-        if resolution not in ["1K", "2K", "4K"]:
+        if resolution in (None, ""):
+            settings.image_resolution = None
+        elif resolution not in ["1K", "2K", "4K"]:
             raise SettingsValidationError("Resolution must be 1K, 2K, or 4K")
-        settings.image_resolution = resolution
+        else:
+            settings.image_resolution = resolution
 
     if "image_aspect_ratio" in data:
         settings.image_aspect_ratio = data["image_aspect_ratio"]
@@ -416,13 +433,14 @@ def create_settings_test_task(test_name: str, base_settings: Settings, override_
 
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
+@optional_auth
 def get_settings():
     """
     GET /api/settings - Get application settings
     """
     try:
-        settings = Settings.get_settings()
-        return success_response(settings.to_dict())
+        settings = Settings.get_settings(getattr(g, "current_user", None))
+        return success_response(_serialize_settings_for_request(settings))
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
         return error_response(
@@ -433,6 +451,7 @@ def get_settings():
 
 
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
+@optional_auth
 def update_settings():
     """
     PUT /api/settings - Update application settings
@@ -450,7 +469,7 @@ def update_settings():
         if not data:
             return bad_request("Request body is required")
 
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -608,12 +627,13 @@ def update_settings():
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        request_user = getattr(g, "current_user", None)
+        if request_user is None or request_user.uses_platform_shared_settings():
+            _sync_settings_to_config(settings)
 
         logger.info("Settings updated successfully")
         return success_response(
-            settings.to_dict(), "Settings updated successfully"
+            _serialize_settings_for_request(settings), "Settings updated successfully"
         )
 
     except Exception as e:
@@ -627,12 +647,13 @@ def update_settings():
 
 
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
+@optional_auth
 def reset_settings():
     """
     POST /api/settings/reset - Reset settings to default values
     """
     try:
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
 
         # Reset all fields to NULL so .env defaults take over via to_dict()
         settings.ai_provider_format = None
@@ -667,12 +688,13 @@ def reset_settings():
 
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        request_user = getattr(g, "current_user", None)
+        if request_user is None or request_user.uses_platform_shared_settings():
+            _sync_settings_to_config(settings)
 
         logger.info("Settings reset to defaults")
         return success_response(
-            settings.to_dict(), "Settings reset to defaults"
+            _serialize_settings_for_request(settings), "Settings reset to defaults"
         )
 
     except Exception as e:
@@ -701,6 +723,7 @@ def get_active_config():
 
 
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
+@optional_auth
 def verify_api_key():
     """
     POST /api/settings/verify - 验证模型配置是否可用
@@ -716,7 +739,7 @@ def verify_api_key():
     """
     try:
         # 获取当前设置
-        settings = Settings.get_settings()
+        settings = Settings.get_settings(getattr(g, "current_user", None))
         if not settings:
             return success_response({
                 "available": False,
@@ -1115,7 +1138,7 @@ def _test_image_model():
     ai_service = AIService()
     test_image_path = _get_test_image_path()
     prompt = "生成一张简洁、明亮、适合演示文稿的背景图。"
-    settings = Settings.get_settings()
+    settings = Settings.get_settings(getattr(g, "current_user", None))
     result = ai_service.generate_image(
         prompt=prompt,
         ref_image_path=str(test_image_path),
@@ -1242,6 +1265,7 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
 
 
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
+@optional_auth
 def run_settings_test(test_name: str):
     """
     POST /api/settings/tests/<test_name> - 启动异步服务测试
@@ -1265,7 +1289,7 @@ def run_settings_test(test_name: str):
     """
     try:
         # 从数据库加载已保存的全局设置作为基础
-        global_settings = Settings.get_settings()
+        global_settings = Settings.get_settings(getattr(g, "current_user", None))
 
         # 构建基础测试设置（使用数据库中已保存的值）
         test_settings = {}

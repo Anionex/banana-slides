@@ -42,16 +42,38 @@ type AdminSettingsUpdatePayload = Partial<
   lazyllm_api_keys?: Record<string, string>;
 };
 
+export interface AdminRechargePackage {
+  id: string;
+  name: string;
+  points: number;
+  amount_cents: number;
+  price: number;
+  popular: boolean;
+  description: string;
+}
+
+export interface AdminSubscriptionPlan {
+  id: 'monthly' | 'yearly';
+  name: string;
+  amount_cents: number;
+  price: number;
+  days: number;
+  popular: boolean;
+  description: string;
+}
+
 export const adminApi = {
   login: (username: string, password: string) =>
     adminClient.post('/api/admin/login', { username, password }),
+
+  getMe: () => adminClient.get('/api/admin/me'),
 
   getStats: () => adminClient.get('/api/admin/stats'),
 
   listUsers: (params?: { page?: number; per_page?: number; search?: string }) =>
     adminClient.get('/api/admin/users', { params }),
 
-  createAdmin: (data: { username: string; password: string }) =>
+  createUser: (data: { username: string; password: string; role?: 'user' | 'internal' | 'admin' }) =>
     adminClient.post('/api/admin/users', data),
 
   updateUser: (id: string, data: { role?: string; is_active?: boolean }) =>
@@ -68,6 +90,26 @@ export const adminApi = {
 
   listTransactions: (params?: { page?: number; per_page?: number; user_id?: string }) =>
     adminClient.get('/api/admin/transactions', { params }),
+
+  getRechargePackages: () =>
+    adminClient.get('/api/admin/recharge/packages'),
+
+  updateRechargePackages: (items: Array<Pick<AdminRechargePackage, 'id' | 'name' | 'points' | 'popular' | 'amount_cents'>>) =>
+    adminClient.put('/api/admin/recharge/packages', { items }),
+
+  resetRechargePackages: () =>
+    adminClient.post('/api/admin/recharge/packages/reset'),
+
+  getSubscriptionPlans: () =>
+    adminClient.get('/api/admin/subscription/plans'),
+
+  updateSubscriptionPlans: (
+    items: Array<Pick<AdminSubscriptionPlan, 'id' | 'name' | 'days' | 'popular' | 'amount_cents'>>,
+  ) =>
+    adminClient.put('/api/admin/subscription/plans', { items }),
+
+  resetSubscriptionPlans: () =>
+    adminClient.post('/api/admin/subscription/plans/reset'),
 
   changePassword: (data: { current_password: string; new_password: string }) =>
     adminClient.post('/api/admin/account/password', data),
