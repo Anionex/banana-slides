@@ -42,6 +42,29 @@ class Settings(db.Model):
         'image_api_base_url',
         'image_caption_api_key',
         'image_caption_api_base_url',
+        'jwt_secret_key',
+        'admin_init_phone',
+        'admin_init_username',
+        'admin_init_password',
+        'sms_provider',
+        'sms_access_key_id',
+        'sms_access_key_secret',
+        'sms_sign_name',
+        'sms_template_code',
+        'sms_endpoint',
+        'sms_code_ttl_minutes',
+        'sms_rate_limit_per_day',
+        'sms_mock_code',
+        'wechat_pay_enabled',
+        'wechat_pay_mock',
+        'wechat_pay_app_id',
+        'wechat_pay_mch_id',
+        'wechat_pay_serial_no',
+        'wechat_pay_private_key',
+        'wechat_pay_api_v3_key',
+        'wechat_pay_gateway_url',
+        'wechat_pay_notify_url',
+        'wechat_pay_order_expire_minutes',
         'recharge_packages',
         'subscription_plans',
     )
@@ -93,6 +116,31 @@ class Settings(db.Model):
     image_api_base_url = db.Column(db.String(500), nullable=True)
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
+
+    # 用户系统配置
+    jwt_secret_key = db.Column(db.String(500), nullable=True)
+    admin_init_phone = db.Column(db.String(20), nullable=True)
+    admin_init_username = db.Column(db.String(50), nullable=True)
+    admin_init_password = db.Column(db.String(255), nullable=True)
+    sms_provider = db.Column(db.String(30), nullable=True)
+    sms_access_key_id = db.Column(db.String(255), nullable=True)
+    sms_access_key_secret = db.Column(db.String(255), nullable=True)
+    sms_sign_name = db.Column(db.String(255), nullable=True)
+    sms_template_code = db.Column(db.String(255), nullable=True)
+    sms_endpoint = db.Column(db.String(500), nullable=True)
+    sms_code_ttl_minutes = db.Column(db.Integer, nullable=True)
+    sms_rate_limit_per_day = db.Column(db.Integer, nullable=True)
+    sms_mock_code = db.Column(db.String(20), nullable=True)
+    wechat_pay_enabled = db.Column(db.Boolean, nullable=True)
+    wechat_pay_mock = db.Column(db.Boolean, nullable=True)
+    wechat_pay_app_id = db.Column(db.String(255), nullable=True)
+    wechat_pay_mch_id = db.Column(db.String(255), nullable=True)
+    wechat_pay_serial_no = db.Column(db.String(255), nullable=True)
+    wechat_pay_private_key = db.Column(db.Text, nullable=True)
+    wechat_pay_api_v3_key = db.Column(db.String(255), nullable=True)
+    wechat_pay_gateway_url = db.Column(db.String(500), nullable=True)
+    wechat_pay_notify_url = db.Column(db.String(500), nullable=True)
+    wechat_pay_order_expire_minutes = db.Column(db.Integer, nullable=True)
     recharge_packages = db.Column(db.Text, nullable=True)
     subscription_plans = db.Column(db.Text, nullable=True)
     
@@ -103,6 +151,16 @@ class Settings(db.Model):
         """Return DB value, falling back to .env default when None."""
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
+
+    @staticmethod
+    def _mask_secret(value, keep_start=4, keep_end=4):
+        """Return a masked preview so UI can show that a secret is configured."""
+        if not value:
+            return None
+        normalized = str(value).replace("\r", "").replace("\n", "\\n")
+        if len(normalized) <= keep_start + keep_end:
+            return "*" * len(normalized)
+        return f"{normalized[:keep_start]}***{normalized[-keep_end:]}"
 
     DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
     DEFAULT_IMAGE_PROMPT_FIELDS = ['视觉元素', '视觉焦点', '排版布局']  # 演讲者备注默认不传入图片生成
@@ -151,6 +209,27 @@ class Settings(db.Model):
             self._val('image_caption_api_key', d)
             if include_defaults
             else self.image_caption_api_key
+        )
+        jwt_secret_key = self._val('jwt_secret_key', d) if include_defaults else self.jwt_secret_key
+        admin_init_password = (
+            self._val('admin_init_password', d)
+            if include_defaults
+            else self.admin_init_password
+        )
+        sms_access_key_secret = (
+            self._val('sms_access_key_secret', d)
+            if include_defaults
+            else self.sms_access_key_secret
+        )
+        wechat_pay_private_key = (
+            self._val('wechat_pay_private_key', d)
+            if include_defaults
+            else self.wechat_pay_private_key
+        )
+        wechat_pay_api_v3_key = (
+            self._val('wechat_pay_api_v3_key', d)
+            if include_defaults
+            else self.wechat_pay_api_v3_key
         )
         return {
             'id': self.id,
@@ -208,6 +287,38 @@ class Settings(db.Model):
                 self._val('image_caption_api_base_url', d)
                 if include_defaults
                 else self.image_caption_api_base_url
+            ),
+            'jwt_secret_key_length': len(jwt_secret_key) if jwt_secret_key else 0,
+            'jwt_secret_key_masked': self._mask_secret(jwt_secret_key),
+            'admin_init_phone': self._val('admin_init_phone', d) if include_defaults else self.admin_init_phone,
+            'admin_init_username': self._val('admin_init_username', d) if include_defaults else self.admin_init_username,
+            'admin_init_password_length': len(admin_init_password) if admin_init_password else 0,
+            'admin_init_password_masked': self._mask_secret(admin_init_password),
+            'sms_provider': self._val('sms_provider', d) if include_defaults else self.sms_provider,
+            'sms_access_key_id': self._val('sms_access_key_id', d) if include_defaults else self.sms_access_key_id,
+            'sms_access_key_secret_length': len(sms_access_key_secret) if sms_access_key_secret else 0,
+            'sms_access_key_secret_masked': self._mask_secret(sms_access_key_secret),
+            'sms_sign_name': self._val('sms_sign_name', d) if include_defaults else self.sms_sign_name,
+            'sms_template_code': self._val('sms_template_code', d) if include_defaults else self.sms_template_code,
+            'sms_endpoint': self._val('sms_endpoint', d) if include_defaults else self.sms_endpoint,
+            'sms_code_ttl_minutes': self._val('sms_code_ttl_minutes', d) if include_defaults else self.sms_code_ttl_minutes,
+            'sms_rate_limit_per_day': self._val('sms_rate_limit_per_day', d) if include_defaults else self.sms_rate_limit_per_day,
+            'sms_mock_code': self._val('sms_mock_code', d) if include_defaults else self.sms_mock_code,
+            'wechat_pay_enabled': self._val('wechat_pay_enabled', d) if include_defaults else self.wechat_pay_enabled,
+            'wechat_pay_mock': self._val('wechat_pay_mock', d) if include_defaults else self.wechat_pay_mock,
+            'wechat_pay_app_id': self._val('wechat_pay_app_id', d) if include_defaults else self.wechat_pay_app_id,
+            'wechat_pay_mch_id': self._val('wechat_pay_mch_id', d) if include_defaults else self.wechat_pay_mch_id,
+            'wechat_pay_serial_no': self._val('wechat_pay_serial_no', d) if include_defaults else self.wechat_pay_serial_no,
+            'wechat_pay_private_key_length': len(wechat_pay_private_key) if wechat_pay_private_key else 0,
+            'wechat_pay_private_key_masked': self._mask_secret(wechat_pay_private_key, keep_start=12, keep_end=12),
+            'wechat_pay_api_v3_key_length': len(wechat_pay_api_v3_key) if wechat_pay_api_v3_key else 0,
+            'wechat_pay_api_v3_key_masked': self._mask_secret(wechat_pay_api_v3_key),
+            'wechat_pay_gateway_url': self._val('wechat_pay_gateway_url', d) if include_defaults else self.wechat_pay_gateway_url,
+            'wechat_pay_notify_url': self._val('wechat_pay_notify_url', d) if include_defaults else self.wechat_pay_notify_url,
+            'wechat_pay_order_expire_minutes': (
+                self._val('wechat_pay_order_expire_minutes', d)
+                if include_defaults
+                else self.wechat_pay_order_expire_minutes
             ),
             'recharge_packages': self.recharge_packages,
             'subscription_plans': self.subscription_plans,
@@ -323,6 +434,33 @@ class Settings(db.Model):
         from config import Config
         from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
 
+        def _env(*names, default=None):
+            for name in names:
+                value = getattr(Config, name, None)
+                if value not in (None, ''):
+                    return value
+                env_value = (__import__('os').getenv(name) or '').strip()
+                if env_value:
+                    return env_value
+            return default
+
+        def _env_int(*names, default=None):
+            value = _env(*names, default=None)
+            if value in (None, ''):
+                return default
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _env_bool(*names, default=None):
+            value = _env(*names, default=None)
+            if value in (None, ''):
+                return default
+            if isinstance(value, bool):
+                return value
+            return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
         provider = (Config.AI_PROVIDER_FORMAT or '').lower()
         if provider == 'openai':
             api_base = Config.OPENAI_API_BASE or None
@@ -353,6 +491,29 @@ class Settings(db.Model):
             'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
             'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
             'lazyllm_api_keys': collect_env_lazyllm_api_keys(),
+            'jwt_secret_key': _env('JWT_SECRET_KEY'),
+            'admin_init_phone': _env('ADMIN_INIT_PHONE'),
+            'admin_init_username': _env('ADMIN_INIT_USERNAME'),
+            'admin_init_password': _env('ADMIN_INIT_PASSWORD'),
+            'sms_provider': _env('sms.provider', 'SMS_PROVIDER', default='mock'),
+            'sms_access_key_id': _env('sms.access_key_id', 'SMS_ACCESS_KEY_ID', 'SMS_SECRET_ID'),
+            'sms_access_key_secret': _env('sms.access_key_secret', 'SMS_ACCESS_KEY_SECRET', 'SMS_SECRET_KEY'),
+            'sms_sign_name': _env('sms.sign_name', 'SMS_SIGN_NAME'),
+            'sms_template_code': _env('sms.template_code', 'SMS_TEMPLATE_CODE', 'SMS_TEMPLATE_ID'),
+            'sms_endpoint': _env('sms.endpoint', 'SMS_ENDPOINT', default='https://dysmsapi.aliyuncs.com/'),
+            'sms_code_ttl_minutes': _env_int('sms.code_ttl_minutes', 'SMS_CODE_TTL_MINUTES', default=5),
+            'sms_rate_limit_per_day': _env_int('sms.rate_limit_per_day', 'SMS_RATE_LIMIT_PER_DAY', default=5),
+            'sms_mock_code': _env('sms.mock_code', 'SMS_MOCK_CODE'),
+            'wechat_pay_enabled': _env_bool('pay.wechat.enabled', 'WECHAT_PAY_ENABLED', default=False),
+            'wechat_pay_mock': _env_bool('pay.wechat.mock', 'WECHAT_PAY_MOCK', default=False),
+            'wechat_pay_app_id': _env('pay.wechat.app_id', 'WECHAT_PAY_APP_ID'),
+            'wechat_pay_mch_id': _env('pay.wechat.mch_id', 'WECHAT_PAY_MCH_ID'),
+            'wechat_pay_serial_no': _env('pay.wechat.serial_no', 'WECHAT_PAY_SERIAL_NO'),
+            'wechat_pay_private_key': _env('pay.wechat.private_key', 'WECHAT_PAY_PRIVATE_KEY'),
+            'wechat_pay_api_v3_key': _env('pay.wechat.api_v3_key', 'WECHAT_PAY_API_V3_KEY'),
+            'wechat_pay_gateway_url': _env('pay.wechat.gateway_url', 'WECHAT_PAY_GATEWAY_URL', default='https://api.mch.weixin.qq.com'),
+            'wechat_pay_notify_url': _env('pay.wechat.notify_url', 'WECHAT_PAY_NOTIFY_URL'),
+            'wechat_pay_order_expire_minutes': _env_int('pay.wechat.order_expire_minutes', 'WECHAT_PAY_ORDER_EXPIRE_MINUTES', default=5),
         }
 
     @staticmethod

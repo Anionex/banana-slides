@@ -54,6 +54,12 @@ def _get_request_ai_service():
     return get_ai_service(runtime_config=_get_request_runtime_config())
 
 
+def _can_access_project(project: Project | None, user) -> bool:
+    if not project or not user:
+        return False
+    return project.owner_user_id == user.id or project.user_id == user.id
+
+
 def _resolve_libreoffice_binary() -> str | None:
     """
     Resolve the office binary used for headless PPT/PPTX -> PDF conversion.
@@ -270,7 +276,7 @@ def _smart_merge_pages(project_id, pages_data):
 
 
 @project_bp.route('', methods=['GET'])
-@optional_auth
+@require_auth
 def list_projects():
     """
     GET /api/projects - Get all projects (for history)
@@ -280,13 +286,9 @@ def list_projects():
         offset = max(0, request.args.get('offset', 0, type=int))
 
         user = g.current_user
-        query = Project.query
-        if user:
-            query = query.filter(
-                or_(Project.owner_user_id == user.id, Project.user_id == user.id)
-            )
-        else:
-            query = query.filter(Project.owner_user_id.is_(None), Project.user_id.is_(None))
+        query = Project.query.filter(
+            or_(Project.owner_user_id == user.id, Project.user_id == user.id)
+        )
 
         total = query.count()
         projects = query.options(joinedload(Project.pages))\
@@ -303,7 +305,7 @@ def list_projects():
 
 
 @project_bp.route('', methods=['POST'])
-@optional_auth
+@require_auth
 def create_project():
     """
     POST /api/projects - Create a new project
@@ -355,6 +357,7 @@ def create_project():
 
 
 @project_bp.route('/<project_id>', methods=['GET'])
+@require_auth
 def get_project(project_id):
     """
     GET /api/projects/{project_id} - Get project details
@@ -368,7 +371,9 @@ def get_project(project_id):
         
         if not project:
             return not_found('Project')
-        
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
+
         return success_response(project.to_dict(include_pages=True))
     
     except Exception as e:
@@ -495,7 +500,7 @@ def delete_project(project_id):
 
 
 @project_bp.route('/<project_id>/generate/outline', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_outline(project_id):
     """
     POST /api/projects/{project_id}/generate/outline - Generate outline
@@ -587,7 +592,7 @@ def generate_outline(project_id):
 
 
 @project_bp.route('/<project_id>/generate/outline/stream', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_outline_stream(project_id):
     """
     POST /api/projects/{project_id}/generate/outline/stream - Stream outline generation via SSE
@@ -708,7 +713,7 @@ def _sse_event(event: str, data: dict) -> str:
 
 
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_from_description(project_id):
     """
     POST /api/projects/{project_id}/generate/from-description
@@ -771,7 +776,7 @@ def generate_from_description(project_id):
 
 
 @project_bp.route('/<project_id>/generate/descriptions', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_descriptions(project_id):
     """
     POST /api/projects/{project_id}/generate/descriptions - Generate descriptions
@@ -866,7 +871,7 @@ def generate_descriptions(project_id):
 
 
 @project_bp.route('/<project_id>/generate/descriptions/stream', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_descriptions_stream(project_id):
     """
     POST /api/projects/{project_id}/generate/descriptions/stream - Stream description generation via SSE
@@ -1010,7 +1015,7 @@ def generate_descriptions_stream(project_id):
 
 
 @project_bp.route('/<project_id>/generate/images', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_images(project_id):
     """
     POST /api/projects/{project_id}/generate/images - Generate images
@@ -1182,7 +1187,7 @@ def get_task_status(project_id, task_id):
 
 
 @project_bp.route('/<project_id>/refine/outline', methods=['POST'])
-@optional_auth
+@require_auth
 def refine_outline(project_id):
     """
     POST /api/projects/{project_id}/refine/outline - Refine outline based on user requirements
@@ -1280,7 +1285,7 @@ def refine_outline(project_id):
 
 
 @project_bp.route('/<project_id>/refine/descriptions', methods=['POST'])
-@optional_auth
+@require_auth
 def refine_descriptions(project_id):
     """
     POST /api/projects/{project_id}/refine/descriptions - Refine page descriptions based on user requirements
@@ -1405,7 +1410,7 @@ def refine_descriptions(project_id):
 
 
 @project_bp.route('/renovation', methods=['POST'])
-@optional_auth
+@require_auth
 def create_ppt_renovation_project():
     """
     POST /api/projects/renovation - Create a PPT renovation project

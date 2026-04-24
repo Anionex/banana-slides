@@ -333,6 +333,41 @@ def _load_settings_to_config(app):
             except (json.JSONDecodeError, TypeError):
                 logging.warning("Failed to parse lazyllm_api_keys from settings")
 
+        defaults = Settings._get_config_defaults()
+
+        def _apply_runtime(config_key, env_names, value):
+            resolved = value if value is not None else defaults.get(config_key.lower())
+            if resolved is None:
+                return
+            app.config[config_key] = resolved
+            env_value = "1" if isinstance(resolved, bool) and resolved else "0" if isinstance(resolved, bool) else str(resolved)
+            for env_name in env_names:
+                os.environ[env_name] = env_value
+
+        _apply_runtime("JWT_SECRET_KEY", ("JWT_SECRET_KEY",), settings.jwt_secret_key)
+        _apply_runtime("ADMIN_INIT_PHONE", ("ADMIN_INIT_PHONE",), settings.admin_init_phone)
+        _apply_runtime("ADMIN_INIT_USERNAME", ("ADMIN_INIT_USERNAME",), settings.admin_init_username)
+        _apply_runtime("ADMIN_INIT_PASSWORD", ("ADMIN_INIT_PASSWORD",), settings.admin_init_password)
+        _apply_runtime("SMS_PROVIDER", ("sms.provider", "SMS_PROVIDER"), settings.sms_provider)
+        _apply_runtime("SMS_ACCESS_KEY_ID", ("sms.access_key_id", "SMS_ACCESS_KEY_ID", "SMS_SECRET_ID"), settings.sms_access_key_id)
+        _apply_runtime("SMS_ACCESS_KEY_SECRET", ("sms.access_key_secret", "SMS_ACCESS_KEY_SECRET", "SMS_SECRET_KEY"), settings.sms_access_key_secret)
+        _apply_runtime("SMS_SIGN_NAME", ("sms.sign_name", "SMS_SIGN_NAME"), settings.sms_sign_name)
+        _apply_runtime("SMS_TEMPLATE_CODE", ("sms.template_code", "SMS_TEMPLATE_CODE", "SMS_TEMPLATE_ID"), settings.sms_template_code)
+        _apply_runtime("SMS_ENDPOINT", ("sms.endpoint", "SMS_ENDPOINT"), settings.sms_endpoint)
+        _apply_runtime("SMS_CODE_TTL_MINUTES", ("sms.code_ttl_minutes", "SMS_CODE_TTL_MINUTES"), settings.sms_code_ttl_minutes)
+        _apply_runtime("SMS_RATE_LIMIT_PER_DAY", ("sms.rate_limit_per_day", "SMS_RATE_LIMIT_PER_DAY"), settings.sms_rate_limit_per_day)
+        _apply_runtime("SMS_MOCK_CODE", ("sms.mock_code", "SMS_MOCK_CODE"), settings.sms_mock_code)
+        _apply_runtime("WECHAT_PAY_ENABLED", ("pay.wechat.enabled", "WECHAT_PAY_ENABLED"), settings.wechat_pay_enabled)
+        _apply_runtime("WECHAT_PAY_MOCK", ("pay.wechat.mock", "WECHAT_PAY_MOCK"), settings.wechat_pay_mock)
+        _apply_runtime("WECHAT_PAY_APP_ID", ("pay.wechat.app_id", "WECHAT_PAY_APP_ID"), settings.wechat_pay_app_id)
+        _apply_runtime("WECHAT_PAY_MCH_ID", ("pay.wechat.mch_id", "WECHAT_PAY_MCH_ID"), settings.wechat_pay_mch_id)
+        _apply_runtime("WECHAT_PAY_SERIAL_NO", ("pay.wechat.serial_no", "WECHAT_PAY_SERIAL_NO"), settings.wechat_pay_serial_no)
+        _apply_runtime("WECHAT_PAY_PRIVATE_KEY", ("pay.wechat.private_key", "WECHAT_PAY_PRIVATE_KEY"), settings.wechat_pay_private_key)
+        _apply_runtime("WECHAT_PAY_API_V3_KEY", ("pay.wechat.api_v3_key", "WECHAT_PAY_API_V3_KEY"), settings.wechat_pay_api_v3_key)
+        _apply_runtime("WECHAT_PAY_GATEWAY_URL", ("pay.wechat.gateway_url", "WECHAT_PAY_GATEWAY_URL"), settings.wechat_pay_gateway_url)
+        _apply_runtime("WECHAT_PAY_NOTIFY_URL", ("pay.wechat.notify_url", "WECHAT_PAY_NOTIFY_URL"), settings.wechat_pay_notify_url)
+        _apply_runtime("WECHAT_PAY_ORDER_EXPIRE_MINUTES", ("pay.wechat.order_expire_minutes", "WECHAT_PAY_ORDER_EXPIRE_MINUTES"), settings.wechat_pay_order_expire_minutes)
+
     except Exception as e:
         if isinstance(e, SQLAlchemyError) and "no such table: settings" in str(e):
             logging.debug(f"Settings table not yet created (expected on first boot): {e}")

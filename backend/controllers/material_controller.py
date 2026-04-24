@@ -4,7 +4,7 @@ Material Controller - handles standalone material image generation
 from flask import Blueprint, request, current_app, send_file, g
 from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
-from utils.auth import optional_auth
+from utils.auth import optional_auth, require_auth
 from services import FileService
 from services.ai_service_manager import get_runtime_config_for_user
 from services.task_manager import task_manager, generate_material_image_task
@@ -422,7 +422,7 @@ def upload_material(project_id):
 
 
 @material_global_bp.route('', methods=['GET'])
-@optional_auth
+@require_auth
 def list_all_materials():
     try:
         filter_project_id = request.args.get('project_id', 'all')
@@ -435,12 +435,13 @@ def list_all_materials():
 
 
 @material_global_bp.route('/upload', methods=['POST'])
-@optional_auth
+@require_auth
 def upload_material_global():
     return _handle_material_upload(default_project_id=None)
 
 
 @material_global_bp.route('/<material_id>', methods=['DELETE'])
+@require_auth
 def delete_material(material_id):
     """
     DELETE /api/materials/{material_id} - Delete a material and its file
@@ -449,6 +450,8 @@ def delete_material(material_id):
         material = Material.query.get(material_id)
         if not material:
             return not_found('Material')
+        if material.user_id != g.current_user.id:
+            return error_response('FORBIDDEN', 'Material access denied', 403)
 
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         material_path = Path(file_service.get_absolute_path(material.relative_path))
@@ -472,6 +475,7 @@ def delete_material(material_id):
 
 
 @material_global_bp.route('/associate', methods=['POST'])
+@require_auth
 def associate_materials_to_project():
     """
     POST /api/materials/associate - Associate materials to a project by URLs
@@ -500,12 +504,15 @@ def associate_materials_to_project():
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
+        if project.owner_user_id != g.current_user.id and project.user_id != g.current_user.id:
+            return error_response('FORBIDDEN', 'Project access denied', 403)
 
         # Find materials by URLs and update their project_id
         updated_ids = []
         materials_to_update = Material.query.filter(
             Material.url.in_(material_urls),
-            Material.project_id.is_(None)
+            Material.project_id.is_(None),
+            Material.user_id == g.current_user.id,
         ).all()
         for material in materials_to_update:
             material.project_id = project_id
@@ -524,6 +531,7 @@ def associate_materials_to_project():
 
 
 @material_global_bp.route('/download', methods=['POST'])
+@require_auth
 def download_materials_zip():
     """Bundle requested materials into a ZIP and stream it back."""
     body = request.get_json(silent=True) or {}
@@ -536,7 +544,10 @@ def download_materials_zip():
     if len(ids) > MAX_BATCH:
         return bad_request(f"Too many materials requested (max {MAX_BATCH})")
 
-    rows = Material.query.filter(Material.id.in_(ids)).all()
+    rows = Material.query.filter(
+        Material.id.in_(ids),
+        Material.user_id == g.current_user.id,
+    ).all()
     if not rows:
         return not_found('Materials')
 
@@ -564,11 +575,14 @@ def download_materials_zip():
 
 
 @material_global_bp.route('/<material_id>/caption', methods=['GET'])
+@require_auth
 def get_material_caption(material_id):
     """Get or generate caption for an existing material"""
     material = Material.query.get(material_id)
     if not material:
         return not_found('Material')
+    if material.user_id != g.current_user.id:
+        return error_response('FORBIDDEN', 'Material access denied', 403)
 
     # Return existing caption if available (None=not yet generated, ''=failed)
     if material.caption is not None:
@@ -588,13 +602,14 @@ def get_material_caption(material_id):
 
 
 @material_global_bp.route('/by-url', methods=['GET'])
+@require_auth
 def get_material_by_url():
     """Get material by URL and ensure it has a caption"""
     url = request.args.get('url', '').strip()
     if not url:
         return bad_request('url parameter is required')
 
-    material = Material.query.filter_by(url=url).first()
+    material = Material.query.filter_by(url=url, user_id=g.current_user.id).first()
     if not material:
         return not_found('Material')
 

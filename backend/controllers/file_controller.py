@@ -1,17 +1,20 @@
 """
 File Controller - handles static file serving
 """
-from flask import Blueprint, send_from_directory, current_app
+from flask import Blueprint, send_from_directory, current_app, g
 from utils import error_response, not_found
 from utils.path_utils import find_file_with_prefix
 import os
 from pathlib import Path
 from werkzeug.utils import secure_filename
+from utils.auth import require_auth
+from models import Project, UserTemplate, Material
 
 file_bp = Blueprint('files', __name__, url_prefix='/files')
 
 
 @file_bp.route('/<project_id>/<file_type>/<filename>', methods=['GET'])
+@require_auth
 def serve_file(project_id, file_type, filename):
     """
     GET /files/{project_id}/{type}/{filename} - Serve static files
@@ -25,6 +28,13 @@ def serve_file(project_id, file_type, filename):
         if file_type not in ['template', 'pages', 'materials', 'exports']:
             return not_found('File')
         
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+        user = getattr(g, 'current_user', None)
+        if not user or (project.owner_user_id != user.id and project.user_id != user.id):
+            return error_response('FORBIDDEN', 'File access denied', 403)
+
         # Construct file path
         file_dir = os.path.join(
             current_app.config['UPLOAD_FOLDER'],
@@ -49,6 +59,7 @@ def serve_file(project_id, file_type, filename):
 
 
 @file_bp.route('/user-templates/<template_id>/<filename>', methods=['GET'])
+@require_auth
 def serve_user_template(template_id, filename):
     """
     GET /files/user-templates/{template_id}/{filename} - Serve user template files
@@ -58,6 +69,13 @@ def serve_user_template(template_id, filename):
         filename: File name
     """
     try:
+        template = UserTemplate.query.get(template_id)
+        if not template:
+            return not_found('UserTemplate')
+        user = getattr(g, 'current_user', None)
+        if not user or template.user_id != user.id:
+            return error_response('FORBIDDEN', 'File access denied', 403)
+
         # Construct file path
         file_dir = os.path.join(
             current_app.config['UPLOAD_FOLDER'],
@@ -82,6 +100,7 @@ def serve_user_template(template_id, filename):
 
 
 @file_bp.route('/materials/<filename>', methods=['GET'])
+@require_auth
 def serve_global_material(filename):
     """
     GET /files/materials/{filename} - Serve global material files (not bound to a project)
@@ -91,6 +110,12 @@ def serve_global_material(filename):
     """
     try:
         safe_filename = secure_filename(filename)
+        user = getattr(g, 'current_user', None)
+        if not user:
+            return error_response('FORBIDDEN', 'File access denied', 403)
+        material = Material.query.filter_by(filename=safe_filename, user_id=user.id, project_id=None).first()
+        if not material:
+            return not_found('Material')
         # Construct file path
         file_dir = os.path.join(
             current_app.config['UPLOAD_FOLDER'],

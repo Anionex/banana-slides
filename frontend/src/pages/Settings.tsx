@@ -17,6 +17,7 @@ const settingsI18n = {
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
+        userSystemConfig: "用户系统配置",
         vendorApiKeys: "厂商 API Key 配置"
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
@@ -67,6 +68,37 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
+        jwtSecretKey: "JWT 密钥",
+        jwtSecretKeyPlaceholder: "输入新的 JWT 密钥",
+        jwtSecretKeyDesc: "用于签发用户 token，留空则保持当前设置不变",
+        adminInitPhone: "初始管理员手机号",
+        adminInitPhonePlaceholder: "13800138000",
+        adminInitPhoneDesc: "首次启动时自动创建或提升该手机号对应的管理员账号",
+        adminInitUsername: "初始管理员用户名",
+        adminInitUsernamePlaceholder: "admin",
+        adminInitUsernameDesc: "如需用户名密码方式初始化管理员，可在此设置用户名",
+        adminInitPassword: "初始管理员密码",
+        adminInitPasswordPlaceholder: "输入管理员初始密码",
+        adminInitPasswordDesc: "留空则保持当前设置不变",
+        smsProvider: "短信服务商",
+        smsAccessKeyId: "短信 Access Key ID",
+        smsAccessKeySecret: "短信 Access Key Secret",
+        smsSignName: "短信签名",
+        smsTemplateCode: "短信模板代码",
+        smsEndpoint: "短信接口地址",
+        smsCodeTtlMinutes: "验证码有效期（分钟）",
+        smsRateLimitPerDay: "每日发送上限",
+        smsMockCode: "Mock 验证码",
+        wechatPayEnabled: "启用微信支付",
+        wechatPayMock: "微信支付 Mock 模式",
+        wechatPayAppId: "微信支付 App ID",
+        wechatPayMchId: "微信支付商户号",
+        wechatPaySerialNo: "微信支付证书序列号",
+        wechatPayPrivateKey: "微信支付商户私钥",
+        wechatPayApiV3Key: "微信支付 API V3 Key",
+        wechatPayGatewayUrl: "微信支付网关地址",
+        wechatPayNotifyUrl: "微信支付回调地址",
+        wechatPayOrderExpireMinutes: "订单过期时间（分钟）",
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
@@ -117,6 +149,7 @@ const settingsI18n = {
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
+        userSystemConfig: "User System Configuration",
         vendorApiKeys: "Vendor API Key Configuration"
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
@@ -167,6 +200,37 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
+        jwtSecretKey: "JWT Secret Key",
+        jwtSecretKeyPlaceholder: "Enter JWT secret key",
+        jwtSecretKeyDesc: "Used to sign user tokens. Leave empty to keep current setting",
+        adminInitPhone: "Initial Admin Phone",
+        adminInitPhonePlaceholder: "13800138000",
+        adminInitPhoneDesc: "Auto-create or promote this phone number as admin on startup",
+        adminInitUsername: "Initial Admin Username",
+        adminInitUsernamePlaceholder: "admin",
+        adminInitUsernameDesc: "Used when initializing admin by username/password",
+        adminInitPassword: "Initial Admin Password",
+        adminInitPasswordPlaceholder: "Enter initial admin password",
+        adminInitPasswordDesc: "Leave empty to keep current setting",
+        smsProvider: "SMS Provider",
+        smsAccessKeyId: "SMS Access Key ID",
+        smsAccessKeySecret: "SMS Access Key Secret",
+        smsSignName: "SMS Sign Name",
+        smsTemplateCode: "SMS Template Code",
+        smsEndpoint: "SMS Endpoint",
+        smsCodeTtlMinutes: "Code TTL (minutes)",
+        smsRateLimitPerDay: "Daily Send Limit",
+        smsMockCode: "Mock Code",
+        wechatPayEnabled: "Enable WeChat Pay",
+        wechatPayMock: "WeChat Pay Mock Mode",
+        wechatPayAppId: "WeChat Pay App ID",
+        wechatPayMchId: "WeChat Pay Merchant ID",
+        wechatPaySerialNo: "WeChat Pay Serial No",
+        wechatPayPrivateKey: "WeChat Pay Private Key",
+        wechatPayApiV3Key: "WeChat Pay API V3 Key",
+        wechatPayGatewayUrl: "WeChat Pay Gateway URL",
+        wechatPayNotifyUrl: "WeChat Pay Notify URL",
+        wechatPayOrderExpireMinutes: "Order Expire Minutes",
       },
       apiKeyHelp: {
         title: "How to get an API key",
@@ -246,6 +310,7 @@ interface FieldConfig {
   description?: string;
   sensitiveField?: boolean;  // 是否为敏感字段（如 API Key）
   lengthKey?: keyof SettingsType;  // 用于显示已有长度的 key（如 api_key_length）
+  maskedKey?: keyof SettingsType;
   options?: { value: string; label: string }[];  // select 类型的选项
   min?: number;
   max?: number;
@@ -256,6 +321,7 @@ interface SectionConfig {
   title: string;
   icon: React.ReactNode;
   fields: FieldConfig[];
+  adminOnlyGlobal?: boolean;
 }
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -324,6 +390,29 @@ const buildInitialFormData = (mode: 'global' | 'private' = 'global') => ({
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  jwt_secret_key: '',
+  admin_init_phone: '',
+  admin_init_username: '',
+  admin_init_password: '',
+  sms_provider: 'mock',
+  sms_access_key_id: '',
+  sms_access_key_secret: '',
+  sms_sign_name: '',
+  sms_template_code: '',
+  sms_endpoint: '',
+  sms_code_ttl_minutes: 5,
+  sms_rate_limit_per_day: 5,
+  sms_mock_code: '',
+  wechat_pay_enabled: false,
+  wechat_pay_mock: false,
+  wechat_pay_app_id: '',
+  wechat_pay_mch_id: '',
+  wechat_pay_serial_no: '',
+  wechat_pay_private_key: '',
+  wechat_pay_api_v3_key: '',
+  wechat_pay_gateway_url: '',
+  wechat_pay_notify_url: '',
+  wechat_pay_order_expire_minutes: 5,
 });
 
 const initialFormData = buildInitialFormData();
@@ -405,6 +494,29 @@ const formDataFromSettings = (
   image_api_base_url: data.image_api_base_url || '',
   image_caption_api_key: '',
   image_caption_api_base_url: data.image_caption_api_base_url || '',
+  jwt_secret_key: '',
+  admin_init_phone: data.admin_init_phone || '',
+  admin_init_username: data.admin_init_username || '',
+  admin_init_password: '',
+  sms_provider: data.sms_provider || 'mock',
+  sms_access_key_id: data.sms_access_key_id || '',
+  sms_access_key_secret: '',
+  sms_sign_name: data.sms_sign_name || '',
+  sms_template_code: data.sms_template_code || '',
+  sms_endpoint: data.sms_endpoint || '',
+  sms_code_ttl_minutes: data.sms_code_ttl_minutes || 5,
+  sms_rate_limit_per_day: data.sms_rate_limit_per_day || 5,
+  sms_mock_code: data.sms_mock_code || '',
+  wechat_pay_enabled: Boolean(data.wechat_pay_enabled),
+  wechat_pay_mock: Boolean(data.wechat_pay_mock),
+  wechat_pay_app_id: data.wechat_pay_app_id || '',
+  wechat_pay_mch_id: data.wechat_pay_mch_id || '',
+  wechat_pay_serial_no: data.wechat_pay_serial_no || '',
+  wechat_pay_private_key: '',
+  wechat_pay_api_v3_key: '',
+  wechat_pay_gateway_url: data.wechat_pay_gateway_url || '',
+  wechat_pay_notify_url: data.wechat_pay_notify_url || '',
+  wechat_pay_order_expire_minutes: data.wechat_pay_order_expire_minutes || 5,
 });
 
 // Settings 组件 - 纯嵌入模式（可复用）
@@ -442,10 +554,169 @@ export const Settings: React.FC<SettingsProps> = ({
   const [formData, setFormData] = useState<SettingsFormData>(() => buildInitialFormData(effectiveMode));
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
+  const showUserSystemConfig = effectiveMode === 'global';
 
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
     // Global API config & Model config are rendered separately above
+    {
+      title: t('settings.sections.userSystemConfig'),
+      icon: <Key size={20} />,
+      adminOnlyGlobal: true,
+      fields: [
+        {
+          key: 'jwt_secret_key',
+          label: t('settings.fields.jwtSecretKey'),
+          type: 'password',
+          placeholder: t('settings.fields.jwtSecretKeyPlaceholder'),
+          sensitiveField: true,
+          lengthKey: 'jwt_secret_key_length',
+          maskedKey: 'jwt_secret_key_masked',
+          description: t('settings.fields.jwtSecretKeyDesc'),
+        },
+        {
+          key: 'admin_init_phone',
+          label: t('settings.fields.adminInitPhone'),
+          type: 'text',
+          placeholder: t('settings.fields.adminInitPhonePlaceholder'),
+          description: t('settings.fields.adminInitPhoneDesc'),
+        },
+        {
+          key: 'admin_init_username',
+          label: t('settings.fields.adminInitUsername'),
+          type: 'text',
+          placeholder: t('settings.fields.adminInitUsernamePlaceholder'),
+          description: t('settings.fields.adminInitUsernameDesc'),
+        },
+        {
+          key: 'admin_init_password',
+          label: t('settings.fields.adminInitPassword'),
+          type: 'password',
+          placeholder: t('settings.fields.adminInitPasswordPlaceholder'),
+          sensitiveField: true,
+          lengthKey: 'admin_init_password_length',
+          maskedKey: 'admin_init_password_masked',
+          description: t('settings.fields.adminInitPasswordDesc'),
+        },
+        {
+          key: 'sms_provider',
+          label: t('settings.fields.smsProvider'),
+          type: 'select',
+          options: [
+            { value: 'mock', label: 'mock' },
+            { value: 'dysmsapi', label: 'dysmsapi' },
+            { value: 'aliyun', label: 'aliyun' },
+            { value: 'tencent', label: 'tencent' },
+            { value: 'dypnsapi', label: 'dypnsapi' },
+          ],
+        },
+        {
+          key: 'sms_access_key_id',
+          label: t('settings.fields.smsAccessKeyId'),
+          type: 'text',
+        },
+        {
+          key: 'sms_access_key_secret',
+          label: t('settings.fields.smsAccessKeySecret'),
+          type: 'password',
+          sensitiveField: true,
+          lengthKey: 'sms_access_key_secret_length',
+          maskedKey: 'sms_access_key_secret_masked',
+        },
+        {
+          key: 'sms_sign_name',
+          label: t('settings.fields.smsSignName'),
+          type: 'text',
+        },
+        {
+          key: 'sms_template_code',
+          label: t('settings.fields.smsTemplateCode'),
+          type: 'text',
+        },
+        {
+          key: 'sms_endpoint',
+          label: t('settings.fields.smsEndpoint'),
+          type: 'text',
+        },
+        {
+          key: 'sms_code_ttl_minutes',
+          label: t('settings.fields.smsCodeTtlMinutes'),
+          type: 'number',
+          min: 1,
+          max: 120,
+        },
+        {
+          key: 'sms_rate_limit_per_day',
+          label: t('settings.fields.smsRateLimitPerDay'),
+          type: 'number',
+          min: 1,
+          max: 1000,
+        },
+        {
+          key: 'sms_mock_code',
+          label: t('settings.fields.smsMockCode'),
+          type: 'text',
+        },
+        {
+          key: 'wechat_pay_enabled',
+          label: t('settings.fields.wechatPayEnabled'),
+          type: 'switch',
+        },
+        {
+          key: 'wechat_pay_mock',
+          label: t('settings.fields.wechatPayMock'),
+          type: 'switch',
+        },
+        {
+          key: 'wechat_pay_app_id',
+          label: t('settings.fields.wechatPayAppId'),
+          type: 'text',
+        },
+        {
+          key: 'wechat_pay_mch_id',
+          label: t('settings.fields.wechatPayMchId'),
+          type: 'text',
+        },
+        {
+          key: 'wechat_pay_serial_no',
+          label: t('settings.fields.wechatPaySerialNo'),
+          type: 'text',
+        },
+        {
+          key: 'wechat_pay_private_key',
+          label: t('settings.fields.wechatPayPrivateKey'),
+          type: 'password',
+          sensitiveField: true,
+          lengthKey: 'wechat_pay_private_key_length',
+          maskedKey: 'wechat_pay_private_key_masked',
+        },
+        {
+          key: 'wechat_pay_api_v3_key',
+          label: t('settings.fields.wechatPayApiV3Key'),
+          type: 'password',
+          sensitiveField: true,
+          lengthKey: 'wechat_pay_api_v3_key_length',
+          maskedKey: 'wechat_pay_api_v3_key_masked',
+        },
+        {
+          key: 'wechat_pay_gateway_url',
+          label: t('settings.fields.wechatPayGatewayUrl'),
+          type: 'text',
+        },
+        {
+          key: 'wechat_pay_notify_url',
+          label: t('settings.fields.wechatPayNotifyUrl'),
+          type: 'text',
+        },
+        {
+          key: 'wechat_pay_order_expire_minutes',
+          label: t('settings.fields.wechatPayOrderExpireMinutes'),
+          type: 'number',
+          min: 1,
+          max: 1440,
+        },
+      ],
+    },
     {
       title: t('settings.sections.mineruConfig'),
       icon: <FileText size={20} />,
@@ -577,7 +848,7 @@ export const Settings: React.FC<SettingsProps> = ({
         },
       ],
     },
-  ];
+  ].filter((section) => showUserSystemConfig || !section.adminOnlyGlobal);
 
   useEffect(() => {
     loadSettings();
@@ -610,6 +881,8 @@ export const Settings: React.FC<SettingsProps> = ({
       const {
         api_key, mineru_token, baidu_api_key, lazyllm_api_keys,
         text_api_key, image_api_key, image_caption_api_key,
+        jwt_secret_key, admin_init_password, sms_access_key_secret,
+        wechat_pay_private_key, wechat_pay_api_v3_key,
         ...otherData
       } = formData;
       const payload: UpdateSettingsPayload = {};
@@ -633,6 +906,11 @@ export const Settings: React.FC<SettingsProps> = ({
       if (text_api_key) payload.text_api_key = text_api_key;
       if (image_api_key) payload.image_api_key = image_api_key;
       if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
+      if (jwt_secret_key) payload.jwt_secret_key = jwt_secret_key;
+      if (admin_init_password) payload.admin_init_password = admin_init_password;
+      if (sms_access_key_secret) payload.sms_access_key_secret = sms_access_key_secret;
+      if (wechat_pay_private_key) payload.wechat_pay_private_key = wechat_pay_private_key;
+      if (wechat_pay_api_v3_key) payload.wechat_pay_api_v3_key = wechat_pay_api_v3_key;
 
       // Send lazyllm API keys (only non-empty values)
       const nonEmptyKeys = Object.fromEntries(
@@ -902,9 +1180,15 @@ export const Settings: React.FC<SettingsProps> = ({
     }
 
     // text, password, number 类型
-    const placeholder = field.sensitiveField && settings && field.lengthKey && (settings[field.lengthKey] as number) > 0
-      ? t('settings.fields.apiKeySet', { length: settings[field.lengthKey] as string | number })
-      : field.placeholder || '';
+    const maskedPlaceholder =
+      field.sensitiveField && settings && field.maskedKey
+        ? settings[field.maskedKey]
+        : undefined;
+    const placeholder = maskedPlaceholder
+      ? String(maskedPlaceholder)
+      : field.sensitiveField && settings && field.lengthKey && (settings[field.lengthKey] as number) > 0
+        ? t('settings.fields.apiKeySet', { length: settings[field.lengthKey] as string | number })
+        : field.placeholder || '';
 
     // 判断是否禁用（思考负载字段在对应开关关闭时禁用）
     let isDisabled = false;

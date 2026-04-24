@@ -266,8 +266,24 @@ export const Home: React.FC = () => {
   }, []);
 
   const handleOpenMaterialModal = () => {
+    if (!requireAuth()) return;
     // 在主页始终生成全局素材，不关联任何项目
     setIsMaterialModalOpen(true);
+  };
+
+  const handleOpenMaterialCenter = () => {
+    if (!requireAuth()) return;
+    setIsMaterialCenterOpen(true);
+  };
+
+  const handleOpenHistory = () => {
+    if (!requireAuth()) return;
+    navigate('/history');
+  };
+
+  const handleOpenSettings = () => {
+    if (!requireAuth()) return;
+    navigate('/settings');
   };
 
   const validateRenovationFile = useCallback((file: File): boolean => {
@@ -783,7 +799,7 @@ export const Home: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<FolderOpen size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => setIsMaterialCenterOpen(true)}
+              onClick={handleOpenMaterialCenter}
               className="hidden sm:inline-flex hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
               <span className="hidden md:inline">{t('nav.materialCenter')}</span>
@@ -793,14 +809,14 @@ export const Home: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<FolderOpen size={16} />}
-              onClick={() => setIsMaterialCenterOpen(true)}
+              onClick={handleOpenMaterialCenter}
               className="sm:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
               title={t('nav.materialCenter')}
             />
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/history')}
+              onClick={handleOpenHistory}
               className="text-xs md:text-sm hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
             >
               <span className="hidden sm:inline">{t('nav.history')}</span>
@@ -811,7 +827,7 @@ export const Home: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 icon={<Settings size={16} className="md:w-[18px] md:h-[18px]" />}
-                onClick={() => navigate('/settings')}
+                onClick={handleOpenSettings}
                 className="hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200 font-medium"
                 title={t('nav.settings')}
               >

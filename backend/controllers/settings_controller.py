@@ -23,6 +23,44 @@ from services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
 ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm"} | LAZYLLM_VENDORS
+ALLOWED_SMS_PROVIDERS = {"mock", "tencent", "aliyun", "dysmsapi", "dypnsapi"}
+USER_SYSTEM_CONFIG_FIELDS = {
+    "jwt_secret_key",
+    "admin_init_phone",
+    "admin_init_username",
+    "admin_init_password",
+    "sms_provider",
+    "sms_access_key_id",
+    "sms_access_key_secret",
+    "sms_sign_name",
+    "sms_template_code",
+    "sms_endpoint",
+    "sms_code_ttl_minutes",
+    "sms_rate_limit_per_day",
+    "sms_mock_code",
+    "wechat_pay_enabled",
+    "wechat_pay_mock",
+    "wechat_pay_app_id",
+    "wechat_pay_mch_id",
+    "wechat_pay_serial_no",
+    "wechat_pay_private_key",
+    "wechat_pay_api_v3_key",
+    "wechat_pay_gateway_url",
+    "wechat_pay_notify_url",
+    "wechat_pay_order_expire_minutes",
+}
+USER_SYSTEM_RESPONSE_FIELDS = USER_SYSTEM_CONFIG_FIELDS | {
+    "jwt_secret_key_length",
+    "jwt_secret_key_masked",
+    "admin_init_password_length",
+    "admin_init_password_masked",
+    "sms_access_key_secret_length",
+    "sms_access_key_secret_masked",
+    "wechat_pay_private_key_length",
+    "wechat_pay_private_key_masked",
+    "wechat_pay_api_v3_key_length",
+    "wechat_pay_api_v3_key_masked",
+}
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
@@ -33,6 +71,43 @@ class SettingsValidationError(ValueError):
     """Raised when settings payload validation fails."""
 
 
+def _normalize_optional_str(value):
+    if value is None:
+        return None
+    return str(value).strip() or None
+
+
+def _normalize_optional_bool(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    return bool(value)
+
+
+def _set_runtime_value(config_key: str, env_names: tuple[str, ...], value):
+    if value is None:
+        current_app.config.pop(config_key, None)
+        for env_name in env_names:
+            os.environ.pop(env_name, None)
+        return
+
+    current_app.config[config_key] = value
+    env_value = value
+    if isinstance(value, bool):
+        env_value = "1" if value else "0"
+    else:
+        env_value = str(value)
+    for env_name in env_names:
+        os.environ[env_name] = env_value
+
+
 def _serialize_settings_for_request(settings: Settings):
     user = getattr(g, "current_user", None)
     include_defaults = not (
@@ -40,7 +115,22 @@ def _serialize_settings_for_request(settings: Settings):
         and hasattr(user, "uses_private_runtime_settings")
         and user.uses_private_runtime_settings()
     )
-    return settings.to_dict(include_defaults=include_defaults)
+    data = settings.to_dict(include_defaults=include_defaults)
+    if user is not None and user.uses_private_runtime_settings():
+        for field in USER_SYSTEM_RESPONSE_FIELDS:
+            data.pop(field, None)
+    return data
+
+
+def _validate_request_scope_for_settings_payload(payload: dict | None):
+    """Prevent private/internal settings from reading or writing platform-only config."""
+    if not payload:
+        return
+    user = getattr(g, "current_user", None)
+    if user is not None and user.uses_private_runtime_settings():
+        forbidden_fields = sorted(USER_SYSTEM_CONFIG_FIELDS.intersection(payload.keys()))
+        if forbidden_fields:
+            raise SettingsValidationError("User system configuration is only available to admins")
 
 
 @contextmanager
@@ -325,6 +415,60 @@ def _apply_settings_updates(settings: Settings, data: dict):
         elif keys_data is None:
             settings.lazyllm_api_keys = None
 
+    if "jwt_secret_key" in data:
+        settings.jwt_secret_key = data["jwt_secret_key"] or None
+
+    if "admin_init_phone" in data:
+        settings.admin_init_phone = _normalize_optional_str(data["admin_init_phone"])
+
+    if "admin_init_username" in data:
+        settings.admin_init_username = _normalize_optional_str(data["admin_init_username"])
+
+    if "admin_init_password" in data:
+        settings.admin_init_password = data["admin_init_password"] or None
+
+    if "sms_provider" in data:
+        provider = _normalize_optional_str(data["sms_provider"])
+        if provider and provider not in ALLOWED_SMS_PROVIDERS:
+            allowed_values = "', '".join(sorted(ALLOWED_SMS_PROVIDERS))
+            raise SettingsValidationError(
+                f"SMS provider must be one of '{allowed_values}'"
+            )
+        settings.sms_provider = provider
+
+    for field in (
+        "sms_access_key_id",
+        "sms_access_key_secret",
+        "sms_sign_name",
+        "sms_template_code",
+        "sms_endpoint",
+        "sms_mock_code",
+        "wechat_pay_app_id",
+        "wechat_pay_mch_id",
+        "wechat_pay_serial_no",
+        "wechat_pay_private_key",
+        "wechat_pay_api_v3_key",
+        "wechat_pay_gateway_url",
+        "wechat_pay_notify_url",
+    ):
+        if field in data:
+            setattr(settings, field, data[field] or None)
+
+    for field in ("sms_code_ttl_minutes", "sms_rate_limit_per_day", "wechat_pay_order_expire_minutes"):
+        if field in data:
+            raw_value = data[field]
+            if raw_value in (None, ""):
+                setattr(settings, field, None)
+            else:
+                number = int(raw_value)
+                if number < 1:
+                    raise SettingsValidationError(f"{field} must be greater than 0")
+                setattr(settings, field, number)
+
+    for field in ("wechat_pay_enabled", "wechat_pay_mock"):
+        if field in data:
+            setattr(settings, field, _normalize_optional_bool(data[field]))
+
     settings.updated_at = datetime.now(timezone.utc)
 
 
@@ -358,6 +502,29 @@ def _reset_settings_values(settings: Settings):
     settings.image_aspect_ratio = None
     settings.max_description_workers = None
     settings.max_image_workers = None
+    settings.jwt_secret_key = None
+    settings.admin_init_phone = None
+    settings.admin_init_username = None
+    settings.admin_init_password = None
+    settings.sms_provider = None
+    settings.sms_access_key_id = None
+    settings.sms_access_key_secret = None
+    settings.sms_sign_name = None
+    settings.sms_template_code = None
+    settings.sms_endpoint = None
+    settings.sms_code_ttl_minutes = None
+    settings.sms_rate_limit_per_day = None
+    settings.sms_mock_code = None
+    settings.wechat_pay_enabled = None
+    settings.wechat_pay_mock = None
+    settings.wechat_pay_app_id = None
+    settings.wechat_pay_mch_id = None
+    settings.wechat_pay_serial_no = None
+    settings.wechat_pay_private_key = None
+    settings.wechat_pay_api_v3_key = None
+    settings.wechat_pay_gateway_url = None
+    settings.wechat_pay_notify_url = None
+    settings.wechat_pay_order_expire_minutes = None
     settings.updated_at = datetime.now(timezone.utc)
 
 
@@ -468,163 +635,10 @@ def update_settings():
         data = request.get_json()
         if not data:
             return bad_request("Request body is required")
+        _validate_request_scope_for_settings_payload(data)
 
         settings = Settings.get_settings(getattr(g, "current_user", None))
-
-        # Update AI provider format configuration
-        if "ai_provider_format" in data:
-            provider_format = data["ai_provider_format"]
-            if provider_format not in ALLOWED_PROVIDER_FORMATS:
-                allowed_values = "', '".join(sorted(ALLOWED_PROVIDER_FORMATS))
-                return bad_request(f"AI provider format must be one of '{allowed_values}'")
-            settings.ai_provider_format = provider_format
-
-        # Update API configuration
-        if "api_base_url" in data:
-            raw_base_url = data["api_base_url"]
-            # Empty string from frontend means "clear override, fall back to env/default"
-            if raw_base_url is None:
-                settings.api_base_url = None
-            else:
-                value = str(raw_base_url).strip()
-                settings.api_base_url = value if value != "" else None
-
-        if "api_key" in data:
-            settings.api_key = data["api_key"]
-
-        # Update image generation configuration
-        if "image_resolution" in data:
-            resolution = data["image_resolution"]
-            if resolution not in ["1K", "2K", "4K"]:
-                return bad_request("Resolution must be 1K, 2K, or 4K")
-            settings.image_resolution = resolution
-
-        if "image_aspect_ratio" in data:
-            aspect_ratio = data["image_aspect_ratio"]
-            settings.image_aspect_ratio = aspect_ratio
-
-        # Update worker configuration
-        if "max_description_workers" in data:
-            workers = int(data["max_description_workers"])
-            if workers < 1 or workers > 20:
-                return bad_request(
-                    "Max description workers must be between 1 and 20"
-                )
-            settings.max_description_workers = workers
-
-        if "max_image_workers" in data:
-            workers = int(data["max_image_workers"])
-            if workers < 1 or workers > 20:
-                return bad_request(
-                    "Max image workers must be between 1 and 20"
-                )
-            settings.max_image_workers = workers
-
-        # Update model & MinerU configuration (optional, empty values fall back to Config)
-        if "text_model" in data:
-            settings.text_model = (data["text_model"] or "").strip() or None
-
-        if "image_model" in data:
-            settings.image_model = (data["image_model"] or "").strip() or None
-
-        if "mineru_api_base" in data:
-            settings.mineru_api_base = (data["mineru_api_base"] or "").strip() or None
-
-        if "mineru_token" in data:
-            settings.mineru_token = data["mineru_token"]
-
-        if "image_caption_model" in data:
-            settings.image_caption_model = (data["image_caption_model"] or "").strip() or None
-
-        if "output_language" in data:
-            language = data["output_language"]
-            if language in ["zh", "en", "ja", "auto"]:
-                settings.output_language = language
-            else:
-                return bad_request("Output language must be 'zh', 'en', 'ja', or 'auto'")
-
-        # Update description generation mode
-        if "description_generation_mode" in data:
-            mode = data["description_generation_mode"]
-            if mode not in ("streaming", "parallel"):
-                return bad_request("description_generation_mode must be 'streaming' or 'parallel'")
-            settings.description_generation_mode = mode
-
-        # Update description extra fields
-        if "description_extra_fields" in data:
-            fields = data["description_extra_fields"]
-            if not isinstance(fields, list) or not fields:
-                return bad_request("description_extra_fields must be a non-empty array of strings")
-            if len(fields) > 10:
-                return bad_request("description_extra_fields allows at most 10 items")
-            if not all(isinstance(f, str) and f.strip() for f in fields):
-                return bad_request("Each extra field must be a non-empty string")
-            settings.description_extra_fields = json.dumps([f.strip() for f in fields], ensure_ascii=False)
-
-        if "image_prompt_extra_fields" in data:
-            fields = data["image_prompt_extra_fields"]
-            if not isinstance(fields, list):
-                return bad_request("image_prompt_extra_fields must be an array of strings")
-            # 空数组表示不传任何额外字段给图片生成
-            settings.image_prompt_extra_fields = json.dumps([f.strip() for f in fields if isinstance(f, str) and f.strip()], ensure_ascii=False)
-
-        # Update reasoning mode configuration (separate for text and image)
-        if "enable_text_reasoning" in data:
-            settings.enable_text_reasoning = bool(data["enable_text_reasoning"])
-        
-        if "text_thinking_budget" in data:
-            budget = int(data["text_thinking_budget"])
-            if budget < 1 or budget > 8192:
-                return bad_request("Text thinking budget must be between 1 and 8192")
-            settings.text_thinking_budget = budget
-        
-        if "enable_image_reasoning" in data:
-            settings.enable_image_reasoning = bool(data["enable_image_reasoning"])
-        
-        if "image_thinking_budget" in data:
-            budget = int(data["image_thinking_budget"])
-            if budget < 1 or budget > 8192:
-                return bad_request("Image thinking budget must be between 1 and 8192")
-            settings.image_thinking_budget = budget
-
-        # Update Baidu OCR configuration
-        if "baidu_api_key" in data:
-            settings.baidu_api_key = data["baidu_api_key"] or None
-
-        # Update per-model provider source configuration
-        if "text_model_source" in data:
-            settings.text_model_source = (data["text_model_source"] or "").strip() or None
-
-        if "image_model_source" in data:
-            settings.image_model_source = (data["image_model_source"] or "").strip() or None
-
-        if "image_caption_model_source" in data:
-            settings.image_caption_model_source = (data["image_caption_model_source"] or "").strip() or None
-
-        # Update per-model API credentials (for gemini/openai per-model overrides)
-        for model_type in ('text', 'image', 'image_caption'):
-            key_field = f'{model_type}_api_key'
-            base_field = f'{model_type}_api_base_url'
-
-            if key_field in data:
-                setattr(settings, key_field, data[key_field] or None)
-
-            if base_field in data:
-                setattr(settings, base_field, (data[base_field] or "").strip() or None)
-
-        if "lazyllm_api_keys" in data:
-            keys_data = data["lazyllm_api_keys"]
-            if isinstance(keys_data, dict):
-                # Merge with existing keys (only update non-empty values)
-                existing = settings.get_lazyllm_api_keys_dict()
-                for vendor, key in keys_data.items():
-                    if key:  # Only update if a new value is provided
-                        existing[vendor] = key
-                settings.lazyllm_api_keys = json.dumps(existing) if existing else None
-            elif keys_data is None:
-                settings.lazyllm_api_keys = None
-
-        settings.updated_at = datetime.now(timezone.utc)
+        _apply_settings_updates(settings, data)
         db.session.commit()
 
         request_user = getattr(g, "current_user", None)
@@ -654,37 +668,7 @@ def reset_settings():
     """
     try:
         settings = Settings.get_settings(getattr(g, "current_user", None))
-
-        # Reset all fields to NULL so .env defaults take over via to_dict()
-        settings.ai_provider_format = None
-        settings.api_base_url = None
-        settings.api_key = None
-        settings.text_model = None
-        settings.image_model = None
-        settings.mineru_api_base = None
-        settings.mineru_token = None
-        settings.image_caption_model = None
-        settings.output_language = None
-        settings.enable_text_reasoning = False
-        settings.text_thinking_budget = 1024
-        settings.enable_image_reasoning = False
-        settings.image_thinking_budget = 1024
-        settings.description_generation_mode = None
-        settings.description_extra_fields = None
-        settings.image_prompt_extra_fields = None
-        settings.baidu_api_key = None
-        settings.text_model_source = None
-        settings.image_model_source = None
-        settings.image_caption_model_source = None
-        settings.lazyllm_api_keys = None
-        for model_type in ('text', 'image', 'image_caption'):
-            setattr(settings, f'{model_type}_api_key', None)
-            setattr(settings, f'{model_type}_api_base_url', None)
-        settings.image_resolution = None
-        settings.image_aspect_ratio = None
-        settings.max_description_workers = None
-        settings.max_image_workers = None
-        settings.updated_at = datetime.now(timezone.utc)
+        _reset_settings_values(settings)
 
         db.session.commit()
 
@@ -968,6 +952,62 @@ def _sync_settings_to_config(settings: Settings):
                     os.environ[env_key] = key
         except (json.JSONDecodeError, TypeError):
             pass
+
+    defaults = Settings._get_config_defaults()
+    runtime_value_map = {
+        "JWT_SECRET_KEY": ("JWT_SECRET_KEY", settings.jwt_secret_key, defaults.get("jwt_secret_key")),
+        "ADMIN_INIT_PHONE": ("ADMIN_INIT_PHONE", settings.admin_init_phone, defaults.get("admin_init_phone")),
+        "ADMIN_INIT_USERNAME": ("ADMIN_INIT_USERNAME", settings.admin_init_username, defaults.get("admin_init_username")),
+        "ADMIN_INIT_PASSWORD": ("ADMIN_INIT_PASSWORD", settings.admin_init_password, defaults.get("admin_init_password")),
+        "SMS_PROVIDER": ("SMS_PROVIDER", settings.sms_provider, defaults.get("sms_provider")),
+        "SMS_ACCESS_KEY_ID": ("SMS_ACCESS_KEY_ID", settings.sms_access_key_id, defaults.get("sms_access_key_id")),
+        "SMS_SECRET_ID": ("SMS_SECRET_ID", settings.sms_access_key_id, defaults.get("sms_access_key_id")),
+        "SMS_ACCESS_KEY_SECRET": ("SMS_ACCESS_KEY_SECRET", settings.sms_access_key_secret, defaults.get("sms_access_key_secret")),
+        "SMS_SECRET_KEY": ("SMS_SECRET_KEY", settings.sms_access_key_secret, defaults.get("sms_access_key_secret")),
+        "SMS_SIGN_NAME": ("SMS_SIGN_NAME", settings.sms_sign_name, defaults.get("sms_sign_name")),
+        "SMS_TEMPLATE_CODE": ("SMS_TEMPLATE_CODE", settings.sms_template_code, defaults.get("sms_template_code")),
+        "SMS_TEMPLATE_ID": ("SMS_TEMPLATE_ID", settings.sms_template_code, defaults.get("sms_template_code")),
+        "SMS_ENDPOINT": ("SMS_ENDPOINT", settings.sms_endpoint, defaults.get("sms_endpoint")),
+        "SMS_CODE_TTL_MINUTES": ("SMS_CODE_TTL_MINUTES", settings.sms_code_ttl_minutes, defaults.get("sms_code_ttl_minutes")),
+        "SMS_RATE_LIMIT_PER_DAY": ("SMS_RATE_LIMIT_PER_DAY", settings.sms_rate_limit_per_day, defaults.get("sms_rate_limit_per_day")),
+        "SMS_MOCK_CODE": ("SMS_MOCK_CODE", settings.sms_mock_code, defaults.get("sms_mock_code")),
+        "WECHAT_PAY_ENABLED": ("WECHAT_PAY_ENABLED", settings.wechat_pay_enabled, defaults.get("wechat_pay_enabled")),
+        "WECHAT_PAY_MOCK": ("WECHAT_PAY_MOCK", settings.wechat_pay_mock, defaults.get("wechat_pay_mock")),
+        "WECHAT_PAY_APP_ID": ("WECHAT_PAY_APP_ID", settings.wechat_pay_app_id, defaults.get("wechat_pay_app_id")),
+        "WECHAT_PAY_MCH_ID": ("WECHAT_PAY_MCH_ID", settings.wechat_pay_mch_id, defaults.get("wechat_pay_mch_id")),
+        "WECHAT_PAY_SERIAL_NO": ("WECHAT_PAY_SERIAL_NO", settings.wechat_pay_serial_no, defaults.get("wechat_pay_serial_no")),
+        "WECHAT_PAY_PRIVATE_KEY": ("WECHAT_PAY_PRIVATE_KEY", settings.wechat_pay_private_key, defaults.get("wechat_pay_private_key")),
+        "WECHAT_PAY_API_V3_KEY": ("WECHAT_PAY_API_V3_KEY", settings.wechat_pay_api_v3_key, defaults.get("wechat_pay_api_v3_key")),
+        "WECHAT_PAY_GATEWAY_URL": ("WECHAT_PAY_GATEWAY_URL", settings.wechat_pay_gateway_url, defaults.get("wechat_pay_gateway_url")),
+        "WECHAT_PAY_NOTIFY_URL": ("WECHAT_PAY_NOTIFY_URL", settings.wechat_pay_notify_url, defaults.get("wechat_pay_notify_url")),
+        "WECHAT_PAY_ORDER_EXPIRE_MINUTES": ("WECHAT_PAY_ORDER_EXPIRE_MINUTES", settings.wechat_pay_order_expire_minutes, defaults.get("wechat_pay_order_expire_minutes")),
+    }
+    for config_key, (_, current_value, default_value) in runtime_value_map.items():
+        current_app.config[config_key] = current_value if current_value is not None else default_value
+
+    _set_runtime_value("JWT_SECRET_KEY", ("JWT_SECRET_KEY",), settings.jwt_secret_key if settings.jwt_secret_key is not None else defaults.get("jwt_secret_key"))
+    _set_runtime_value("ADMIN_INIT_PHONE", ("ADMIN_INIT_PHONE",), settings.admin_init_phone if settings.admin_init_phone is not None else defaults.get("admin_init_phone"))
+    _set_runtime_value("ADMIN_INIT_USERNAME", ("ADMIN_INIT_USERNAME",), settings.admin_init_username if settings.admin_init_username is not None else defaults.get("admin_init_username"))
+    _set_runtime_value("ADMIN_INIT_PASSWORD", ("ADMIN_INIT_PASSWORD",), settings.admin_init_password if settings.admin_init_password is not None else defaults.get("admin_init_password"))
+    _set_runtime_value("SMS_PROVIDER", ("sms.provider", "SMS_PROVIDER"), settings.sms_provider if settings.sms_provider is not None else defaults.get("sms_provider"))
+    _set_runtime_value("SMS_ACCESS_KEY_ID", ("sms.access_key_id", "SMS_ACCESS_KEY_ID", "SMS_SECRET_ID"), settings.sms_access_key_id if settings.sms_access_key_id is not None else defaults.get("sms_access_key_id"))
+    _set_runtime_value("SMS_ACCESS_KEY_SECRET", ("sms.access_key_secret", "SMS_ACCESS_KEY_SECRET", "SMS_SECRET_KEY"), settings.sms_access_key_secret if settings.sms_access_key_secret is not None else defaults.get("sms_access_key_secret"))
+    _set_runtime_value("SMS_SIGN_NAME", ("sms.sign_name", "SMS_SIGN_NAME"), settings.sms_sign_name if settings.sms_sign_name is not None else defaults.get("sms_sign_name"))
+    _set_runtime_value("SMS_TEMPLATE_CODE", ("sms.template_code", "SMS_TEMPLATE_CODE", "SMS_TEMPLATE_ID"), settings.sms_template_code if settings.sms_template_code is not None else defaults.get("sms_template_code"))
+    _set_runtime_value("SMS_ENDPOINT", ("sms.endpoint", "SMS_ENDPOINT"), settings.sms_endpoint if settings.sms_endpoint is not None else defaults.get("sms_endpoint"))
+    _set_runtime_value("SMS_CODE_TTL_MINUTES", ("sms.code_ttl_minutes", "SMS_CODE_TTL_MINUTES"), settings.sms_code_ttl_minutes if settings.sms_code_ttl_minutes is not None else defaults.get("sms_code_ttl_minutes"))
+    _set_runtime_value("SMS_RATE_LIMIT_PER_DAY", ("sms.rate_limit_per_day", "SMS_RATE_LIMIT_PER_DAY"), settings.sms_rate_limit_per_day if settings.sms_rate_limit_per_day is not None else defaults.get("sms_rate_limit_per_day"))
+    _set_runtime_value("SMS_MOCK_CODE", ("sms.mock_code", "SMS_MOCK_CODE"), settings.sms_mock_code if settings.sms_mock_code is not None else defaults.get("sms_mock_code"))
+    _set_runtime_value("WECHAT_PAY_ENABLED", ("pay.wechat.enabled", "WECHAT_PAY_ENABLED"), settings.wechat_pay_enabled if settings.wechat_pay_enabled is not None else defaults.get("wechat_pay_enabled"))
+    _set_runtime_value("WECHAT_PAY_MOCK", ("pay.wechat.mock", "WECHAT_PAY_MOCK"), settings.wechat_pay_mock if settings.wechat_pay_mock is not None else defaults.get("wechat_pay_mock"))
+    _set_runtime_value("WECHAT_PAY_APP_ID", ("pay.wechat.app_id", "WECHAT_PAY_APP_ID"), settings.wechat_pay_app_id if settings.wechat_pay_app_id is not None else defaults.get("wechat_pay_app_id"))
+    _set_runtime_value("WECHAT_PAY_MCH_ID", ("pay.wechat.mch_id", "WECHAT_PAY_MCH_ID"), settings.wechat_pay_mch_id if settings.wechat_pay_mch_id is not None else defaults.get("wechat_pay_mch_id"))
+    _set_runtime_value("WECHAT_PAY_SERIAL_NO", ("pay.wechat.serial_no", "WECHAT_PAY_SERIAL_NO"), settings.wechat_pay_serial_no if settings.wechat_pay_serial_no is not None else defaults.get("wechat_pay_serial_no"))
+    _set_runtime_value("WECHAT_PAY_PRIVATE_KEY", ("pay.wechat.private_key", "WECHAT_PAY_PRIVATE_KEY"), settings.wechat_pay_private_key if settings.wechat_pay_private_key is not None else defaults.get("wechat_pay_private_key"))
+    _set_runtime_value("WECHAT_PAY_API_V3_KEY", ("pay.wechat.api_v3_key", "WECHAT_PAY_API_V3_KEY"), settings.wechat_pay_api_v3_key if settings.wechat_pay_api_v3_key is not None else defaults.get("wechat_pay_api_v3_key"))
+    _set_runtime_value("WECHAT_PAY_GATEWAY_URL", ("pay.wechat.gateway_url", "WECHAT_PAY_GATEWAY_URL"), settings.wechat_pay_gateway_url if settings.wechat_pay_gateway_url is not None else defaults.get("wechat_pay_gateway_url"))
+    _set_runtime_value("WECHAT_PAY_NOTIFY_URL", ("pay.wechat.notify_url", "WECHAT_PAY_NOTIFY_URL"), settings.wechat_pay_notify_url if settings.wechat_pay_notify_url is not None else defaults.get("wechat_pay_notify_url"))
+    _set_runtime_value("WECHAT_PAY_ORDER_EXPIRE_MINUTES", ("pay.wechat.order_expire_minutes", "WECHAT_PAY_ORDER_EXPIRE_MINUTES"), settings.wechat_pay_order_expire_minutes if settings.wechat_pay_order_expire_minutes is not None else defaults.get("wechat_pay_order_expire_minutes"))
     
     # Clear AI service cache if AI-related configuration changed
     if ai_config_changed:
