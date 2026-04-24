@@ -10,7 +10,7 @@ def _secret():
     return os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in-production')
 
 
-def generate_tokens(user_id: int, role: str) -> dict:
+def generate_tokens(user_id: str, role: str) -> dict:
     now = datetime.utcnow()
     subject = str(user_id)
     access_payload = {
@@ -36,8 +36,8 @@ def decode_token(token: str) -> dict:
     return jwt.decode(token, _secret(), algorithms=['HS256'])
 
 
-def token_user_id(payload: dict) -> int:
-    return int(payload['sub'])
+def token_user_id(payload: dict) -> str:
+    return str(payload['sub'])
 
 
 def require_auth(f):

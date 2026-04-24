@@ -15,6 +15,14 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 PHONE_RE = re.compile(r"^1[3-9]\d{9}$")
 
 
+def _normalize_phone_login_username(phone: str) -> str:
+    return f"u_{phone}"
+
+
+def _client_ip() -> str | None:
+    return (request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip() or None)
+
+
 def _hash_password(password: str) -> str:
     import bcrypt
 
@@ -28,14 +36,24 @@ def _check_password(password: str, hashed: str) -> bool:
 
 
 def _create_user_with_bonus(*, username=None, phone=None, password=None):
+    normalized_phone = (phone or "").strip() or User.build_placeholder_phone()
+    normalized_username = (username or "").strip() or _normalize_phone_login_username(normalized_phone)
+    now = datetime.utcnow()
+
     user = User(
-        phone=phone,
-        username=username,
+        phone=normalized_phone,
+        username=normalized_username,
+        display_name=User.build_default_display_name(username=normalized_username, phone=normalized_phone),
         password_hash=_hash_password(password) if password else None,
+        status="active",
+        current_points=100,
         role=User.ROLE_USER,
         points=100,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        is_active=True,
+        last_login_at=now if phone else None,
+        last_login_ip=_client_ip() if phone else None,
+        created_at=now,
+        updated_at=now,
     )
     db.session.add(user)
     db.session.flush()
@@ -45,8 +63,8 @@ def _create_user_with_bonus(*, username=None, phone=None, password=None):
             user_id=user.id,
             amount=100,
             type="register_bonus",
-            description="新用户注册赠送积分",
-            created_at=datetime.utcnow(),
+            description="New user register bonus",
+            created_at=now,
         )
     )
     db.session.commit()
@@ -145,6 +163,10 @@ def login_phone():
     if not user.is_active:
         return jsonify({"error": "账号已被禁用"}), 403
 
+    user.last_login_at = datetime.utcnow()
+    user.last_login_ip = _client_ip()
+    db.session.commit()
+
     tokens = generate_tokens(user.id, user.role)
     return jsonify({"data": {"user": user.to_dict(), **tokens}})
 
@@ -168,6 +190,10 @@ def login_password():
 
     if not user.is_active:
         return jsonify({"error": "账号已被禁用"}), 403
+
+    user.last_login_at = datetime.utcnow()
+    user.last_login_ip = _client_ip()
+    db.session.commit()
 
     tokens = generate_tokens(user.id, user.role)
     return jsonify({"data": {"user": user.to_dict(), **tokens}})

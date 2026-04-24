@@ -373,10 +373,15 @@ def _init_admin_user():
                     logging.info(f"Updated admin account: {username}")
                 return
             admin = User(
+                phone=User.build_placeholder_phone("admin"),
                 username=username,
+                display_name=User.build_default_display_name(username=username),
                 password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+                status='active',
+                current_points=0,
                 role='admin',
                 points=0,
+                is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )
@@ -394,8 +399,13 @@ def _init_admin_user():
                 return
             admin = User(
                 phone=phone,
+                username=f"u_{phone}",
+                display_name=User.build_default_display_name(phone=phone),
+                status='active',
+                current_points=0,
                 role='admin',
                 points=0,
+                is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )

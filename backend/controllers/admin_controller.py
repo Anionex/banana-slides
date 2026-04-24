@@ -176,8 +176,12 @@ def create_managed_user():
 
     now = datetime.utcnow()
     managed_user = User(
+        phone=User.build_placeholder_phone("admin"),
         username=username,
+        display_name=User.build_default_display_name(username=username),
         password_hash=_hash_password(password),
+        status="active",
+        current_points=0,
         role=role,
         points=0,
         is_active=True,
