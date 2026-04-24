@@ -16,10 +16,28 @@ import threading
 from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
+from utils.auth import require_auth
 
 logger = logging.getLogger(__name__)
 
 reference_file_bp = Blueprint('reference_file', __name__)
+
+
+def _get_request_user():
+    from flask import g
+    return getattr(g, 'current_user', None)
+
+
+def _can_access_project(project, user) -> bool:
+    if not project or not user:
+        return False
+    return project.owner_user_id == user.id or project.user_id == user.id
+
+
+def _can_access_reference_file(reference_file, user) -> bool:
+    if not reference_file or not user:
+        return False
+    return reference_file.user_id == user.id
 
 
 def _allowed_file(filename: str, allowed_extensions: set) -> bool:
@@ -104,6 +122,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
 
 
 @reference_file_bp.route('/upload', methods=['POST'])
+@require_auth
 def upload_reference_file():
     """
     POST /api/reference-files/upload - Upload a reference file
@@ -157,6 +176,8 @@ def upload_reference_file():
             project = Project.query.get(project_id)
             if not project:
                 return not_found('Project')
+            if not _can_access_project(project, _get_request_user()):
+                return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # Secure filename for filesystem (but keep original for database)
         # secure_filename removes non-ASCII chars, so we need to handle Chinese characters
@@ -189,6 +210,7 @@ def upload_reference_file():
         # Create database record
         reference_file = ReferenceFile(
             project_id=project_id,
+            user_id=_get_request_user().id,
             filename=original_filename,
             file_path=str(file_path.relative_to(upload_folder)),
             file_size=file_size,
@@ -212,6 +234,7 @@ def upload_reference_file():
 
 
 @reference_file_bp.route('/<file_id>', methods=['GET'])
+@require_auth
 def get_reference_file(file_id):
     """
     GET /api/reference-files/<file_id> - Get reference file information
@@ -223,6 +246,8 @@ def get_reference_file(file_id):
         reference_file = ReferenceFile.query.get(file_id)
         if not reference_file:
             return not_found('Reference file')
+        if not _can_access_reference_file(reference_file, _get_request_user()):
+            return error_response('FORBIDDEN', 'Reference file access denied', 403)
         
         # 单个文件查询时包含内容和失败计数（会在 to_dict 中根据状态判断是否计算）
         return success_response({'file': reference_file.to_dict(include_content=True, include_failed_count=True)})
@@ -233,6 +258,7 @@ def get_reference_file(file_id):
 
 
 @reference_file_bp.route('/<file_id>', methods=['DELETE'])
+@require_auth
 def delete_reference_file(file_id):
     """
     DELETE /api/reference-files/<file_id> - Delete a reference file
@@ -244,6 +270,8 @@ def delete_reference_file(file_id):
         reference_file = ReferenceFile.query.get(file_id)
         if not reference_file:
             return not_found('Reference file')
+        if not _can_access_reference_file(reference_file, _get_request_user()):
+            return error_response('FORBIDDEN', 'Reference file access denied', 403)
         
         # Delete file from disk
         try:
@@ -269,6 +297,7 @@ def delete_reference_file(file_id):
 
 
 @reference_file_bp.route('/project/<project_id>', methods=['GET'])
+@require_auth
 def list_project_reference_files(project_id):
     """
     GET /api/reference-files/project/<project_id> - List all reference files for a project
@@ -282,19 +311,23 @@ def list_project_reference_files(project_id):
         List of reference files
     """
     try:
-        # Special case: 'all' means list all files
+        user = _get_request_user()
+
+        # Special case: 'all' means list all files for current user
         if project_id == 'all':
-            reference_files = ReferenceFile.query.all()
+            reference_files = ReferenceFile.query.filter_by(user_id=user.id).all()
         # Special case: 'global' or 'none' means list global files (not associated with any project)
         elif project_id in ['global', 'none']:
-            reference_files = ReferenceFile.query.filter_by(project_id=None).all()
+            reference_files = ReferenceFile.query.filter_by(project_id=None, user_id=user.id).all()
         else:
             # Verify project exists
             project = Project.query.get(project_id)
             if not project:
                 return not_found('Project')
+            if not _can_access_project(project, user):
+                return error_response('FORBIDDEN', 'Project access denied', 403)
             
-            reference_files = ReferenceFile.query.filter_by(project_id=project_id).all()
+            reference_files = ReferenceFile.query.filter_by(project_id=project_id, user_id=user.id).all()
         
         # 列表查询时不包含 markdown_content 和失败计数，加快响应速度
         return success_response({
@@ -307,6 +340,7 @@ def list_project_reference_files(project_id):
 
 
 @reference_file_bp.route('/<file_id>/parse', methods=['POST'])
+@require_auth
 def trigger_file_parse(file_id):
     """
     POST /api/reference-files/<file_id>/parse - Trigger parsing for a reference file
@@ -318,6 +352,8 @@ def trigger_file_parse(file_id):
         reference_file = ReferenceFile.query.get(file_id)
         if not reference_file:
             return not_found('Reference file')
+        if not _can_access_reference_file(reference_file, _get_request_user()):
+            return error_response('FORBIDDEN', 'Reference file access denied', 403)
         
         # 如果正在解析，直接返回
         if reference_file.parse_status == 'parsing':
@@ -363,6 +399,7 @@ def trigger_file_parse(file_id):
 
 
 @reference_file_bp.route('/<file_id>/associate', methods=['POST'])
+@require_auth
 def associate_file_to_project(file_id):
     """
     POST /api/reference-files/<file_id>/associate - Associate a reference file to a project
@@ -379,6 +416,8 @@ def associate_file_to_project(file_id):
         reference_file = ReferenceFile.query.get(file_id)
         if not reference_file:
             return not_found('Reference file')
+        if not _can_access_reference_file(reference_file, _get_request_user()):
+            return error_response('FORBIDDEN', 'Reference file access denied', 403)
         
         data = request.get_json() or {}
         project_id = data.get('project_id')
@@ -390,6 +429,8 @@ def associate_file_to_project(file_id):
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, _get_request_user()):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # Update file's project_id
         reference_file.project_id = project_id
@@ -406,6 +447,7 @@ def associate_file_to_project(file_id):
 
 
 @reference_file_bp.route('/<file_id>/dissociate', methods=['POST'])
+@require_auth
 def dissociate_file_from_project(file_id):
     """
     POST /api/reference-files/<file_id>/dissociate - Remove a reference file from its project
@@ -420,6 +462,8 @@ def dissociate_file_from_project(file_id):
         reference_file = ReferenceFile.query.get(file_id)
         if not reference_file:
             return not_found('Reference file')
+        if not _can_access_reference_file(reference_file, _get_request_user()):
+            return error_response('FORBIDDEN', 'Reference file access denied', 403)
         
         # Remove project association
         reference_file.project_id = None

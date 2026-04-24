@@ -8,7 +8,7 @@ import shutil
 import time
 import zipfile
 
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, g
 from werkzeug.utils import secure_filename
 from models import db, Project, Page, Task
 from utils import (
@@ -17,13 +17,21 @@ from utils import (
 )
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
+from utils.auth import require_auth
 
 logger = logging.getLogger(__name__)
 
 export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
 
 
+def _can_access_project(project, user) -> bool:
+    if not project or not user:
+        return False
+    return project.owner_user_id == user.id or project.user_id == user.id
+
+
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
+@require_auth
 def export_pptx(project_id):
     """
     GET /api/projects/{project_id}/export/pptx?filename=...&page_ids=id1,id2,id3 - Export PPTX
@@ -47,6 +55,8 @@ def export_pptx(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # Get page_ids from query params and fetch filtered pages
         selected_page_ids = parse_page_ids_from_query(request)
@@ -101,6 +111,7 @@ def export_pptx(project_id):
 
 
 @export_bp.route('/<project_id>/export/pdf', methods=['GET'])
+@require_auth
 def export_pdf(project_id):
     """
     GET /api/projects/{project_id}/export/pdf?filename=...&page_ids=id1,id2,id3 - Export PDF
@@ -124,6 +135,8 @@ def export_pdf(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # Get page_ids from query params and fetch filtered pages
         selected_page_ids = parse_page_ids_from_query(request)
@@ -175,6 +188,7 @@ def export_pdf(project_id):
 
 
 @export_bp.route('/<project_id>/export/images', methods=['GET'])
+@require_auth
 def export_images(project_id):
     """
     GET /api/projects/{project_id}/export/images?page_ids=id1,id2,id3 - Export images
@@ -192,6 +206,8 @@ def export_images(project_id):
         project = Project.query.get(s_project_id)
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
 
         selected_page_ids = parse_page_ids_from_query(request)
         pages = get_filtered_pages(s_project_id, selected_page_ids if selected_page_ids else None)
@@ -243,6 +259,7 @@ def export_images(project_id):
 
 
 @export_bp.route('/<project_id>/export/editable-pptx', methods=['POST'])
+@require_auth
 def export_editable_pptx(project_id):
     """
     POST /api/projects/{project_id}/export/editable-pptx - 导出可编辑PPTX（异步）
@@ -284,6 +301,8 @@ def export_editable_pptx(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # Get parameters from request body
         data = request.get_json() or {}

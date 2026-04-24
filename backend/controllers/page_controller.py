@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, request, current_app, g
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
-from utils.auth import optional_auth
+from utils.auth import optional_auth, require_auth
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service, get_runtime_config_for_user
 from services.task_manager import (
@@ -39,7 +39,14 @@ def _get_request_ai_service():
     return get_ai_service(runtime_config=_get_request_runtime_config())
 
 
+def _can_access_project(project, user) -> bool:
+    if not project or not user:
+        return False
+    return project.owner_user_id == user.id or project.user_id == user.id
+
+
 @page_bp.route('/<project_id>/pages', methods=['POST'])
+@require_auth
 def create_page(project_id):
     """
     POST /api/projects/{project_id}/pages - Add new page
@@ -56,6 +63,8 @@ def create_page(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json()
         
@@ -100,6 +109,7 @@ def create_page(project_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>', methods=['DELETE'])
+@require_auth
 def delete_page(project_id, page_id):
     """
     DELETE /api/projects/{project_id}/pages/{page_id} - Delete page
@@ -109,6 +119,8 @@ def delete_page(project_id, page_id):
 
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
 
         # Delete page image if exists
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
@@ -132,6 +144,7 @@ def delete_page(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>', methods=['PUT'])
+@require_auth
 def update_page(project_id, page_id):
     """
     PUT /api/projects/{project_id}/pages/{page_id} - Update page fields
@@ -146,6 +159,8 @@ def update_page(project_id, page_id):
 
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
 
         data = request.get_json()
 
@@ -173,6 +188,7 @@ def update_page(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])
+@require_auth
 def update_page_outline(project_id, page_id):
     """
     PUT /api/projects/{project_id}/pages/{page_id}/outline - Edit page outline
@@ -187,6 +203,8 @@ def update_page_outline(project_id, page_id):
         
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json()
         
@@ -211,6 +229,7 @@ def update_page_outline(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/description', methods=['PUT'])
+@require_auth
 def update_page_description(project_id, page_id):
     """
     PUT /api/projects/{project_id}/pages/{page_id}/description - Edit description
@@ -229,6 +248,8 @@ def update_page_description(project_id, page_id):
         
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json()
         
@@ -253,7 +274,7 @@ def update_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/description', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_page_description(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/description - Generate single page description
@@ -272,6 +293,8 @@ def generate_page_description(project_id, page_id):
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json() or {}
         runtime_config = _get_request_runtime_config()
@@ -343,7 +366,7 @@ def generate_page_description(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/generate/image', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/generate/image - Generate single page image
@@ -363,6 +386,8 @@ def generate_page_image(project_id, page_id):
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json() or {}
         _auth_user = _get_request_user()
@@ -524,7 +549,7 @@ def generate_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/edit/image', methods=['POST'])
-@optional_auth
+@require_auth
 def edit_page_image(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/edit/image - Edit page image
@@ -550,6 +575,8 @@ def edit_page_image(project_id, page_id):
         
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         if not page.generated_image_path:
             return bad_request("Page must have generated image first")
@@ -688,6 +715,7 @@ def edit_page_image(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/image-versions', methods=['GET'])
+@require_auth
 def get_page_image_versions(project_id, page_id):
     """
     GET /api/projects/{project_id}/pages/{page_id}/image-versions - Get all image versions for a page
@@ -697,6 +725,8 @@ def get_page_image_versions(project_id, page_id):
         
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         versions = PageImageVersion.query.filter_by(page_id=page_id)\
             .order_by(PageImageVersion.version_number.desc()).all()
@@ -710,6 +740,7 @@ def get_page_image_versions(project_id, page_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/image-versions/<version_id>/set-current', methods=['POST'])
+@require_auth
 def set_current_image_version(project_id, page_id, version_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/image-versions/{version_id}/set-current
@@ -720,6 +751,8 @@ def set_current_image_version(project_id, page_id, version_id):
         
         if not page or page.project_id != project_id:
             return not_found('Page')
+        if not _can_access_project(page.project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         version = PageImageVersion.query.get(version_id)
         
@@ -754,7 +787,7 @@ def set_current_image_version(project_id, page_id, version_id):
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/regenerate-renovation', methods=['POST'])
-@optional_auth
+@require_auth
 def regenerate_renovation_page(project_id, page_id):
     """
     POST /api/projects/{project_id}/pages/{page_id}/regenerate-renovation
@@ -771,6 +804,8 @@ def regenerate_renovation_page(project_id, page_id):
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
 
         # Verify this is a renovation project
         if project.creation_type != 'ppt_renovation':

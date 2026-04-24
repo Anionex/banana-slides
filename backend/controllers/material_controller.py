@@ -36,6 +36,12 @@ def _get_request_runtime_config():
     return get_runtime_config_for_user(_get_request_user())
 
 
+def _can_access_project(project, user) -> bool:
+    if not project or not user:
+        return False
+    return project.owner_user_id == user.id or project.user_id == user.id
+
+
 def _generate_image_caption(filepath: str) -> str:
     """Generate AI caption for an uploaded image. Returns empty string on failure."""
     if filepath.lower().endswith('.svg'):
@@ -131,6 +137,8 @@ def _build_material_query(filter_project_id: str):
     project = Project.query.get(filter_project_id)
     if not project:
         return None, not_found('Project')
+    if not _can_access_project(project, user):
+        return None, error_response('FORBIDDEN', 'Project access denied', 403)
 
     return query.filter(Material.project_id == filter_project_id), None
 
@@ -253,7 +261,7 @@ def _save_material_file(file, target_project_id: Optional[str]):
 
 
 @material_bp.route('/<project_id>/materials/generate', methods=['POST'])
-@optional_auth
+@require_auth
 def generate_material_image(project_id):
     """
     POST /api/projects/{project_id}/materials/generate - Generate a standalone material image
@@ -271,6 +279,8 @@ def generate_material_image(project_id):
             project = Project.query.get(project_id)
             if not project:
                 return not_found('Project')
+            if not _can_access_project(project, _get_request_user()):
+                return error_response('FORBIDDEN', 'Project access denied', 403)
         else:
             project = None
             project_id = None  # 设置为None表示全局素材
@@ -305,6 +315,8 @@ def generate_material_image(project_id):
             project = Project.query.get(task_project_id)
             if not project:
                 return not_found('Project')
+            if not _can_access_project(project, _get_request_user()):
+                return error_response('FORBIDDEN', 'Project access denied', 403)
 
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
@@ -385,6 +397,7 @@ def generate_material_image(project_id):
 
 
 @material_bp.route('/<project_id>/materials', methods=['GET'])
+@require_auth
 def list_materials(project_id):
     """
     GET /api/projects/{project_id}/materials - List materials for a specific project
@@ -407,6 +420,7 @@ def list_materials(project_id):
 
 
 @material_bp.route('/<project_id>/materials/upload', methods=['POST'])
+@require_auth
 def upload_material(project_id):
     """
     POST /api/projects/{project_id}/materials/upload - Upload a material image

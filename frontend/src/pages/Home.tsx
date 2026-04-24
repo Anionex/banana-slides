@@ -255,7 +255,7 @@ export const Home: React.FC = () => {
   // 首次访问自动弹出帮助模态框
   useEffect(() => {
     const hasSeenHelp = localStorage.getItem('hasSeenHelpModal');
-    if (!hasSeenHelp) {
+    if (!hasSeenHelp && user) {
       // 延迟500ms打开，让页面先渲染完成
       const timer = setTimeout(() => {
         setIsHelpModalOpen(true);
@@ -263,7 +263,14 @@ export const Home: React.FC = () => {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [user]);
+
+  const handleUnauthedHomeInteraction = useCallback((event: React.SyntheticEvent<HTMLElement>) => {
+    if (user) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openLoginModal();
+  }, [user, openLoginModal]);
 
   const handleOpenMaterialModal = () => {
     if (!requireAuth()) return;
@@ -274,6 +281,16 @@ export const Home: React.FC = () => {
   const handleOpenMaterialCenter = () => {
     if (!requireAuth()) return;
     setIsMaterialCenterOpen(true);
+  };
+
+  const handleOpenHelp = () => {
+    if (!requireAuth()) return;
+    setIsHelpModalOpen(true);
+  };
+
+  const handleOpenProfile = () => {
+    if (!requireAuth()) return;
+    navigate('/profile');
   };
 
   const handleOpenHistory = () => {
@@ -334,6 +351,10 @@ export const Home: React.FC = () => {
 
   // 检测粘贴事件，图片走 hook，文档走独立逻辑
   const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {
+    if (!requireAuth()) {
+      e.preventDefault();
+      return;
+    }
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -382,6 +403,7 @@ export const Home: React.FC = () => {
   // 上传文件
   // 在 Home 页面，文件始终上传为全局文件（不关联项目），因为此时还没有项目
   const handleFileUpload = useCallback(async (file: File) => {
+    if (!requireAuth()) return;
     if (isUploadingFile) return;
 
     // 检查文件大小（前端预检查）
@@ -454,6 +476,7 @@ export const Home: React.FC = () => {
 
   // 拖拽进来的文档文件：按扩展名过滤后复用 handleFileUpload（逐个上传+自动触发解析）
   const handleDocumentFiles = useCallback(async (files: File[]) => {
+    if (!requireAuth()) return;
     // 已有上传在进行时告知用户，避免文件被静默丢弃（handleFileUpload 的 isUploadingFile 守卫）
     if (isUploadingFile) {
       show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
@@ -484,10 +507,11 @@ export const Home: React.FC = () => {
     for (const file of accepted) {
       await handleFileUpload(file);
     }
-  }, [isUploadingFile, handleFileUpload, show, t]);
+  }, [isUploadingFile, handleFileUpload, requireAuth, show, t]);
 
   // 从当前项目移除文件引用（不删除文件本身）
   const handleFileRemove = (fileId: string) => {
+    if (!requireAuth()) return;
     setReferenceFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
@@ -500,11 +524,13 @@ export const Home: React.FC = () => {
 
   // 点击回形针按钮 - 打开文件选择器
   const handlePaperclipClick = () => {
+    if (!requireAuth()) return;
     setIsFileSelectorOpen(true);
   };
 
   // 从选择器选择文件后的回调
   const handleFilesSelected = (selectedFiles: ReferenceFile[]) => {
+    if (!requireAuth()) return;
     // 合并新选择的文件到列表（去重）
     setReferenceFiles(prev => {
       const existingIds = new Set(prev.map(f => f.id));
@@ -526,6 +552,10 @@ export const Home: React.FC = () => {
 
   // 文件选择变化
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!requireAuth()) {
+      e.target.value = '';
+      return;
+    }
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -569,6 +599,7 @@ export const Home: React.FC = () => {
   };
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
+    if (!requireAuth()) return;
     // 总是设置文件（如果提供）
     if (templateFile) {
       setSelectedTemplate(templateFile);
@@ -837,7 +868,7 @@ export const Home: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsHelpModalOpen(true)}
+              onClick={handleOpenHelp}
               className="hidden md:inline-flex hover:bg-banana-50/50"
             >
               {t('nav.help')}
@@ -847,7 +878,7 @@ export const Home: React.FC = () => {
               variant="ghost"
               size="sm"
               icon={<HelpCircle size={16} />}
-              onClick={() => setIsHelpModalOpen(true)}
+              onClick={handleOpenHelp}
               className="md:hidden hover:bg-banana-100/60 hover:shadow-sm hover:scale-105 transition-all duration-200"
               title={t('nav.help')}
             />
@@ -910,7 +941,7 @@ export const Home: React.FC = () => {
             <div className="h-5 w-px bg-gray-300 dark:bg-border-primary mx-1" />
             {user ? (
               <button
-                onClick={() => navigate('/profile')}
+                onClick={handleOpenProfile}
                 className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-banana-100/60 dark:hover:bg-background-hover transition-all"
                 title="用户中心"
               >
@@ -984,7 +1015,10 @@ export const Home: React.FC = () => {
               return (
                 <button
                   key={type}
-                  onClick={() => setActiveTab(type)}
+                  onClick={() => {
+                    if (!requireAuth()) return;
+                    setActiveTab(type);
+                  }}
                   className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 rounded-lg dark:rounded-xl font-medium transition-all text-sm md:text-base touch-manipulation ${
                     activeTab === type
                       ? 'bg-gradient-to-r from-banana-500 to-banana-600 dark:from-banana dark:to-banana text-white shadow-yellow dark:shadow-lg dark:shadow-banana/20'
@@ -1026,12 +1060,20 @@ export const Home: React.FC = () => {
               <div className="space-y-4">
                 <div
                   className="border-2 border-dashed border-gray-300 dark:border-border-primary rounded-xl p-8 text-center cursor-pointer hover:border-banana-400 dark:hover:border-banana transition-colors duration-200"
-                  onClick={() => renovationFileInputRef.current?.click()}
+                  onClick={() => {
+                    if (!requireAuth()) return;
+                    renovationFileInputRef.current?.click();
+                  }}
                   onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onDrop={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const file = e.dataTransfer.files[0];
+                    if (!requireAuth()) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
                     if (file && validateRenovationFile(file)) {
                       setRenovationFile(file);
                     }
@@ -1046,7 +1088,11 @@ export const Home: React.FC = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setRenovationFile(null); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!requireAuth()) return;
+                          setRenovationFile(null);
+                        }}
                         className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
                       >
                         ✕
@@ -1064,8 +1110,13 @@ export const Home: React.FC = () => {
                   ref={renovationFileInputRef}
                   type="file"
                   accept=".pdf,.pptx,.ppt"
+                  onClick={handleUnauthedHomeInteraction}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
+                    if (!requireAuth()) {
+                      e.target.value = '';
+                      return;
+                    }
                     if (file && validateRenovationFile(file)) {
                       setRenovationFile(file);
                     }
@@ -1084,7 +1135,11 @@ export const Home: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={keepLayout}
-                        onChange={(e) => setKeepLayout(e.target.checked)}
+                        onClick={handleUnauthedHomeInteraction}
+                        onChange={(e) => {
+                          if (!requireAuth()) return;
+                          setKeepLayout(e.target.checked);
+                        }}
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
@@ -1107,10 +1162,18 @@ export const Home: React.FC = () => {
               placeholder={tabConfig[activeTab].placeholder}
               value={content}
               onChange={setContent}
+              onFocus={() => {
+                if (!user) {
+                  openLoginModal();
+                }
+              }}
               onPaste={handlePaste}
               onFiles={handleImageFiles}
               onDocumentFiles={handleDocumentFiles}
-              onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
+              onSelectFromLibrary={() => {
+                if (!requireAuth()) return;
+                setIsMaterialSelectorOpen(true);
+              }}
               rows={activeTab === 'idea' ? 4 : 8}
               className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
               toolbarLeft={
@@ -1127,7 +1190,10 @@ export const Home: React.FC = () => {
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setIsAspectRatioOpen(!isAspectRatioOpen)}
+                      onClick={() => {
+                        if (!requireAuth()) return;
+                        setIsAspectRatioOpen(!isAspectRatioOpen);
+                      }}
                       className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors"
                       title={i18n.language?.startsWith('zh') ? '画面比例' : 'Aspect Ratio'}
                     >
@@ -1141,7 +1207,11 @@ export const Home: React.FC = () => {
                           {ASPECT_RATIO_OPTIONS.map((opt) => (
                             <button
                               key={opt.value}
-                              onClick={() => { setAspectRatio(opt.value); setIsAspectRatioOpen(false); }}
+                              onClick={() => {
+                                if (!requireAuth()) return;
+                                setAspectRatio(opt.value);
+                                setIsAspectRatioOpen(false);
+                              }}
                               className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${aspectRatio === opt.value ? 'text-banana font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
                             >
                               {opt.label}
@@ -1219,7 +1289,9 @@ export const Home: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={useTemplateStyle}
+                    onClick={handleUnauthedHomeInteraction}
                     onChange={(e) => {
+                      if (!requireAuth()) return;
                       setUseTemplateStyle(e.target.checked);
                       // 切换到无模板图模式时，清空模板选择
                       if (e.target.checked) {
@@ -1240,7 +1312,10 @@ export const Home: React.FC = () => {
             {useTemplateStyle ? (
               <TextStyleSelector
                 value={templateStyle}
-                onChange={setTemplateStyle}
+                onChange={(value) => {
+                  if (!requireAuth()) return;
+                  setTemplateStyle(value);
+                }}
                 onToast={show}
               />
             ) : (

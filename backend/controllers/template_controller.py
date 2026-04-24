@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, request, current_app, g
 from models import db, Project, UserTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
-from utils.auth import optional_auth, require_auth
+from utils.auth import require_auth
 from services import FileService
 from datetime import datetime
 
@@ -105,6 +105,7 @@ def delete_template(project_id):
 
 
 @template_bp.route('/templates', methods=['GET'])
+@require_auth
 def get_system_templates():
     """
     GET /api/templates - Get system preset templates

@@ -382,6 +382,7 @@ def get_project(project_id):
 
 
 @project_bp.route('/<project_id>', methods=['PUT'])
+@require_auth
 def update_project(project_id):
     """
     PUT /api/projects/{project_id} - Update project
@@ -401,6 +402,8 @@ def update_project(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json()
         
@@ -472,6 +475,7 @@ def update_project(project_id):
 
 
 @project_bp.route('/<project_id>', methods=['DELETE'])
+@require_auth
 def delete_project(project_id):
     """
     DELETE /api/projects/{project_id} - Delete project
@@ -481,6 +485,8 @@ def delete_project(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # Delete project files
         from services import FileService
@@ -520,6 +526,8 @@ def generate_outline(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
 
         # Get request data and language parameter
@@ -609,6 +617,8 @@ def generate_outline_stream(project_id):
     project = Project.query.get(project_id)
     if not project:
         return not_found('Project')
+    if not _can_access_project(project, g.current_user):
+        return error_response('FORBIDDEN', 'Project access denied', 403)
 
     data = request.get_json() or {}
     runtime_config = _get_request_runtime_config()
@@ -723,6 +733,8 @@ def generate_from_description(project_id):
         project = Project.query.get(project_id)
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
 
         if project.creation_type != 'descriptions':
             return bad_request("This endpoint is only for descriptions type projects")
@@ -792,6 +804,8 @@ def generate_descriptions(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         if not project.pages:
             return bad_request("Project must have outline generated first")
@@ -886,6 +900,8 @@ def generate_descriptions_stream(project_id):
     project = Project.query.get(project_id)
     if not project:
         return not_found('Project')
+    if not _can_access_project(project, g.current_user):
+        return error_response('FORBIDDEN', 'Project access denied', 403)
 
     if not project.pages:
         return bad_request("Project must have outline generated first")
@@ -1033,6 +1049,8 @@ def generate_images(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         # if project.status not in ['DESCRIPTIONS_GENERATED', 'OUTLINE_GENERATED']:
         #     return bad_request("Project must have descriptions generated first")
@@ -1169,6 +1187,7 @@ def generate_images(project_id):
 
 
 @project_bp.route('/<project_id>/tasks/<task_id>', methods=['GET'])
+@require_auth
 def get_task_status(project_id, task_id):
     """
     GET /api/projects/{project_id}/tasks/{task_id} - Get task status
@@ -1178,6 +1197,9 @@ def get_task_status(project_id, task_id):
         
         if not task or task.project_id != project_id:
             return not_found('Task')
+        project = Project.query.get(project_id)
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         return success_response(task.to_dict())
     
@@ -1203,6 +1225,8 @@ def refine_outline(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json()
         
@@ -1301,6 +1325,8 @@ def refine_descriptions(project_id):
         
         if not project:
             return not_found('Project')
+        if not _can_access_project(project, g.current_user):
+            return error_response('FORBIDDEN', 'Project access denied', 403)
         
         data = request.get_json()
         
@@ -1636,7 +1662,7 @@ style_bp = Blueprint('style', __name__, url_prefix='/api')
 
 
 @style_bp.route('/extract-style', methods=['POST'])
-@optional_auth
+@require_auth
 def extract_style():
     """
     POST /api/extract-style - Extract style description from an image

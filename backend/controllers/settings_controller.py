@@ -12,7 +12,7 @@ from flask import Blueprint, request, current_app, g
 from PIL import Image
 from models import db, Settings, Task
 from utils import success_response, error_response, bad_request
-from utils.auth import optional_auth
+from utils.auth import optional_auth, require_auth
 from config import Config, PROJECT_ROOT
 from services.ai_service import AIService
 from services.file_parser_service import FileParserService
@@ -600,7 +600,7 @@ def create_settings_test_task(test_name: str, base_settings: Settings, override_
 
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
-@optional_auth
+@require_auth
 def get_settings():
     """
     GET /api/settings - Get application settings
@@ -618,7 +618,7 @@ def get_settings():
 
 
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
-@optional_auth
+@require_auth
 def update_settings():
     """
     PUT /api/settings - Update application settings
@@ -661,7 +661,7 @@ def update_settings():
 
 
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
-@optional_auth
+@require_auth
 def reset_settings():
     """
     POST /api/settings/reset - Reset settings to default values
@@ -692,6 +692,7 @@ def reset_settings():
 
 
 @settings_bp.route("/active-config", methods=["GET"], strict_slashes=False)
+@require_auth
 def get_active_config():
     """
     GET /api/settings/active-config - Return current app.config values for AI settings.
@@ -707,7 +708,7 @@ def get_active_config():
 
 
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
-@optional_auth
+@require_auth
 def verify_api_key():
     """
     POST /api/settings/verify - 验证模型配置是否可用
@@ -1305,7 +1306,7 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
 
 
 @settings_bp.route("/tests/<test_name>", methods=["POST"], strict_slashes=False)
-@optional_auth
+@require_auth
 def run_settings_test(test_name: str):
     """
     POST /api/settings/tests/<test_name> - 启动异步服务测试
@@ -1411,6 +1412,7 @@ def run_settings_test(test_name: str):
 
 
 @settings_bp.route("/tests/<task_id>/status", methods=["GET"], strict_slashes=False)
+@require_auth
 def get_test_status(task_id: str):
     """
     GET /api/settings/tests/<task_id>/status - 查询测试任务状态
@@ -1428,6 +1430,8 @@ def get_test_status(task_id: str):
     try:
         task = Task.query.get(task_id)
         if not task:
+            return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
+        if task.project_id != 'settings-test':
             return error_response("TASK_NOT_FOUND", "测试任务不存在", 404)
 
         # 构建响应数据
