@@ -108,8 +108,8 @@ class CodexImageProvider(ImageProvider):
         try:
             payload = self._build_payload(prompt, aspect_ratio)
             logger.debug(
-                "Codex image request: model=%s, image_model=%s, aspect=%s",
-                self.model, self.image_model, aspect_ratio,
+                "Codex image request: image_model=%s, aspect=%s",
+                self.image_model, aspect_ratio,
             )
 
             resp = http_requests.post(
@@ -126,7 +126,7 @@ class CodexImageProvider(ImageProvider):
         except Exception as e:
             error_detail = (
                 f"Error generating image with Codex "
-                f"(model={self.model}, image_model={self.image_model}): "
+                f"(image_model={self.image_model}): "
                 f"{type(e).__name__}: {e}"
             )
             logger.error(error_detail, exc_info=True)
