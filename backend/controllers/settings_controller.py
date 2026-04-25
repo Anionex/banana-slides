@@ -21,7 +21,7 @@ from services.ai_providers import LAZYLLM_VENDORS
 from services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm"} | LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm", "codex"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"

@@ -163,6 +163,16 @@ def _build_provider_config() -> Dict[str, Any]:
         logger.info("Provider config — format: vertex, project: %s, location: %s",
                      cfg['project_id'], cfg['location'])
 
+    elif fmt == 'codex':
+        oauth_token = _get_openai_oauth_token()
+        if not oauth_token:
+            raise ValueError(
+                "OpenAI OAuth is not connected. Please log in with your OpenAI account in Settings."
+            )
+        cfg['api_key'] = oauth_token
+        cfg['api_base'] = 'https://chatgpt.com/backend-api/codex'
+        logger.info("Provider config — format: codex (OAuth), api_base: %s", cfg['api_base'])
+
     elif fmt in LAZYLLM_VENDORS or fmt == 'lazyllm':
         # fmt is a specific vendor (e.g., 'doubao') or generic 'lazyllm' (legacy)
         vendor = fmt if fmt in LAZYLLM_VENDORS else None
