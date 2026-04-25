@@ -129,6 +129,11 @@ class Config:
     # 百度 API 配置（用于 OCR 和图像修复）
     BAIDU_API_KEY = os.getenv('BAIDU_API_KEY', '') or os.getenv('BAIDU_OCR_API_KEY', '')
 
+    # Tavily 联网搜索配置
+    TAVILY_API_KEY = os.getenv('TAVILY_API_KEY', '')
+    ENABLE_WEB_SEARCH = os.getenv('ENABLE_WEB_SEARCH', 'false').lower() == 'true'
+    WEB_SEARCH_MAX_RESULTS = int(os.getenv('WEB_SEARCH_MAX_RESULTS', '5'))
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

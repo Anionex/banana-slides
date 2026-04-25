@@ -35,6 +35,7 @@ dependencies = [
     "PyPDF2>=3.0.0",
     "PyMuPDF>=1.24.0",
     "socksio>=1.0.0",
+    "tavily-python>=0.7.23",
 ]
 
 [project.optional-dependencies]

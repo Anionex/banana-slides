@@ -136,6 +136,19 @@ def temporary_settings_override(settings_override: dict):
             original_values["IMAGE_THINKING_BUDGET"] = current_app.config.get("IMAGE_THINKING_BUDGET")
             current_app.config["IMAGE_THINKING_BUDGET"] = settings_override["image_thinking_budget"]
 
+        # Tavily web search overrides
+        if "enable_web_search" in settings_override:
+            original_values["ENABLE_WEB_SEARCH"] = current_app.config.get("ENABLE_WEB_SEARCH")
+            current_app.config["ENABLE_WEB_SEARCH"] = settings_override["enable_web_search"]
+
+        if "web_search_max_results" in settings_override:
+            original_values["WEB_SEARCH_MAX_RESULTS"] = current_app.config.get("WEB_SEARCH_MAX_RESULTS")
+            current_app.config["WEB_SEARCH_MAX_RESULTS"] = settings_override["web_search_max_results"]
+
+        if settings_override.get("tavily_api_key"):
+            original_values["TAVILY_API_KEY"] = current_app.config.get("TAVILY_API_KEY")
+            current_app.config["TAVILY_API_KEY"] = settings_override["tavily_api_key"]
+
         yield
 
     finally:
@@ -300,6 +313,19 @@ def update_settings():
                 return bad_request("Image thinking budget must be between 1 and 8192")
             settings.image_thinking_budget = budget
 
+        # Update Tavily web search configuration
+        if "enable_web_search" in data:
+            settings.enable_web_search = bool(data["enable_web_search"])
+
+        if "web_search_max_results" in data:
+            max_results = int(data["web_search_max_results"])
+            if max_results < 1 or max_results > 20:
+                return bad_request("Web search max results must be between 1 and 20")
+            settings.web_search_max_results = max_results
+
+        if "tavily_api_key" in data:
+            settings.tavily_api_key = data["tavily_api_key"] or None
+
         # Update Baidu OCR configuration
         if "baidu_api_key" in data:
             settings.baidu_api_key = data["baidu_api_key"] or None
@@ -388,6 +414,9 @@ def reset_settings():
         settings.image_model_source = None
         settings.image_caption_model_source = None
         settings.lazyllm_api_keys = None
+        settings.enable_web_search = False
+        settings.web_search_max_results = 5
+        settings.tavily_api_key = None
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
             setattr(settings, f'{model_type}_api_base_url', None)
@@ -634,6 +663,11 @@ def _sync_settings_to_config(settings: Settings):
     
     # Sync Baidu OCR settings (fall back to Config default when NULL)
     current_app.config["BAIDU_API_KEY"] = settings.baidu_api_key or Config.BAIDU_API_KEY
+
+    # Sync Tavily web search settings
+    current_app.config["ENABLE_WEB_SEARCH"] = settings.enable_web_search if settings.enable_web_search is not None else getattr(Config, 'ENABLE_WEB_SEARCH', False)
+    current_app.config["WEB_SEARCH_MAX_RESULTS"] = settings.web_search_max_results or getattr(Config, 'WEB_SEARCH_MAX_RESULTS', 5)
+    current_app.config["TAVILY_API_KEY"] = settings.tavily_api_key or getattr(Config, 'TAVILY_API_KEY', '')
 
     # Sync per-model provider source settings
     for model_type, source_attr in [('TEXT', 'text_model_source'), ('IMAGE', 'image_model_source'), ('IMAGE_CAPTION', 'image_caption_model_source')]:

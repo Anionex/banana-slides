@@ -56,6 +56,11 @@ class Settings(db.Model):
     image_api_base_url = db.Column(db.String(500), nullable=True)
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
+
+    # Tavily 联网搜索配置
+    enable_web_search = db.Column(db.Boolean, nullable=False, default=False)
+    web_search_max_results = db.Column(db.Integer, nullable=False, default=5)
+    tavily_api_key = db.Column(db.String(500), nullable=True)
     
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -132,6 +137,9 @@ class Settings(db.Model):
             'image_api_base_url': self._val('image_api_base_url', d),
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
             'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'enable_web_search': self.enable_web_search,
+            'web_search_max_results': self.web_search_max_results,
+            'tavily_api_key_length': len(self.tavily_api_key) if self.tavily_api_key else 0,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -192,6 +200,9 @@ class Settings(db.Model):
             'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
             'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
             'lazyllm_api_keys': collect_env_lazyllm_api_keys(),
+            'enable_web_search': getattr(Config, 'ENABLE_WEB_SEARCH', False),
+            'web_search_max_results': getattr(Config, 'WEB_SEARCH_MAX_RESULTS', 5),
+            'tavily_api_key': getattr(Config, 'TAVILY_API_KEY', None),
         }
 
     @staticmethod

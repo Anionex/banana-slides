@@ -64,6 +64,7 @@ class ProjectContext:
             self.description_requirements = project_or_dict.get('description_requirements')
 
         self.reference_files_content = reference_files_content or []
+        self.web_search_content = ""
 
     def to_dict(self) -> Dict:
         """转换为字典，方便传递"""
@@ -74,7 +75,8 @@ class ProjectContext:
             'creation_type': self.creation_type,
             'outline_requirements': self.outline_requirements,
             'description_requirements': self.description_requirements,
-            'reference_files_content': self.reference_files_content
+            'reference_files_content': self.reference_files_content,
+            'web_search_content': self.web_search_content
         }
 
 
