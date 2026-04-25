@@ -1,6 +1,7 @@
 """OpenAI Codex OAuth Controller — PKCE authorization flow for OpenAI accounts"""
 
 import hashlib
+import json
 import logging
 import os
 import secrets
@@ -152,8 +153,11 @@ def _extract_account_id(id_token: str | None) -> str | None:
 
 def _callback_html(success: bool, message: str) -> str:
     """Return an HTML page that notifies the opener window and closes itself."""
-    status_text = "Connected" if success else f"Error: {message}"
+    import html as html_mod
+    safe_message = html_mod.escape(message)
+    status_text = "Connected" if success else f"Error: {safe_message}"
     color = "#22c55e" if success else "#ef4444"
+    json_message = json.dumps(message)
     return f"""<!DOCTYPE html>
 <html><head><title>OpenAI OAuth</title></head>
 <body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
@@ -163,7 +167,7 @@ def _callback_html(success: bool, message: str) -> str:
 </div>
 <script>
 if (window.opener) {{
-    window.opener.postMessage({{type:'openai-oauth-callback',success:{str(success).lower()},message:'{message}'}}, '*');
+    window.opener.postMessage({{type:'openai-oauth-callback',success:{str(success).lower()},message:{json_message}}}, '*');
 }}
 setTimeout(function(){{ window.close(); }}, 2000);
 </script>

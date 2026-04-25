@@ -45,7 +45,8 @@ def _get_openai_oauth_token() -> Optional[str]:
         from models import Settings
         settings = Settings.get_settings()
         return settings.get_openai_oauth_token()
-    except Exception:
+    except Exception as e:
+        logger.error("从设置中获取 OpenAI OAuth 令牌失败: %s", e)
         return None
 
 
