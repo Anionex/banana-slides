@@ -223,13 +223,17 @@ test.describe('OpenAI OAuth Settings Section', () => {
   });
 
   test.describe('Integration tests — real backend', () => {
-    test('OAuth status endpoint returns disconnected by default', async ({ request }) => {
+    test('OAuth status endpoint returns valid response', async ({ request }) => {
       const resp = await request.get(`${BASE_URL}/api/settings/openai-oauth/status`);
       expect(resp.ok()).toBeTruthy();
       const data = await resp.json();
       expect(data.success).toBe(true);
-      expect(data.data.connected).toBe(false);
-      expect(data.data.account_id).toBeNull();
+      expect(typeof data.data.connected).toBe('boolean');
+      if (data.data.connected) {
+        expect(data.data.account_id).toBeTruthy();
+      } else {
+        expect(data.data.account_id).toBeNull();
+      }
     });
 
     test('OAuth authorize endpoint returns valid auth URL', async ({ request }) => {

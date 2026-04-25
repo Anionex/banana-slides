@@ -99,6 +99,33 @@ def status():
     })
 
 
+@openai_oauth_bp.route("/models", methods=["GET"])
+def list_models():
+    """Fetch available models from OpenAI using the OAuth token."""
+    settings = Settings.get_settings()
+    token = settings.get_openai_oauth_token()
+    if not token:
+        return error_response("OpenAI OAuth is not connected", 401)
+
+    try:
+        resp = http_requests.get(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        logger.error("Failed to fetch models: %s", e)
+        return error_response(f"Failed to fetch models: {e}", 502)
+
+    models = sorted(
+        [m["id"] for m in data.get("data", [])],
+        key=str.lower,
+    )
+    return success_response({"models": models})
+
+
 # ---------------------------------------------------------------------------
 # Standalone callback server on port 1455
 # ---------------------------------------------------------------------------

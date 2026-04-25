@@ -1209,6 +1209,14 @@ export const getOpenAIOAuthStatus = async (): Promise<ApiResponse<{ connected: b
 };
 
 /**
+ * OpenAI OAuth: list available models
+ */
+export const getOpenAIOAuthModels = async (): Promise<ApiResponse<{ models: string[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ models: string[] }>>('/api/settings/openai-oauth/models');
+  return response.data;
+};
+
+/**
  * 验证 API key 是否可用
  */
 export const verifyApiKey = async (): Promise<ApiResponse<{ available: boolean; message: string }>> => {

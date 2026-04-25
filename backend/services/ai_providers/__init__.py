@@ -250,6 +250,16 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         logger.info("Per-model config — %s: openai, api_base: %s", model_type, api_base)
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
+    elif source_lower == 'codex':
+        oauth_token = _get_openai_oauth_token()
+        if not oauth_token:
+            raise ValueError(
+                f"OpenAI OAuth is not connected. Please log in with your OpenAI account "
+                f"in Settings to use Codex as the provider for {model_type}."
+            )
+        logger.info("Per-model config — %s: codex (OAuth), api_base: https://api.openai.com/v1", model_type)
+        return {'format': 'openai', 'api_key': oauth_token, 'api_base': 'https://api.openai.com/v1'}
+
     elif source_lower == 'anthropic':
         api_key = (_resolve_setting(f'{prefix}_API_KEY')
                    or _resolve_setting('ANTHROPIC_API_KEY')

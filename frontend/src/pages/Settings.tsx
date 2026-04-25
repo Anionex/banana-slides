@@ -33,6 +33,10 @@ const settingsI18n = {
         disconnectFailed: "断开失败",
         disconnectSuccess: "已断开 OpenAI 账号",
         hint: "连接后，当 OpenAI 格式的模型未配置 API Key 时，将自动使用 OAuth 凭证",
+        availableModels: "可用模型",
+        selectModel: "选择模型...",
+        loadingModels: "正在加载可用模型...",
+        connectFirst: "请先连接 OpenAI 账号",
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
       language: { label: "界面语言", zh: "中文", en: "English" },
@@ -148,6 +152,10 @@ const settingsI18n = {
         disconnectFailed: "Disconnect failed",
         disconnectSuccess: "OpenAI account disconnected",
         hint: "When connected, OAuth credentials are used automatically for OpenAI models without an explicit API key",
+        availableModels: "Available Models",
+        selectModel: "Select a model...",
+        loadingModels: "Loading available models...",
+        connectFirst: "Please connect your OpenAI account first",
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
       language: { label: "Interface Language", zh: "中文", en: "English" },
@@ -286,10 +294,11 @@ const LAZYLLM_SOURCES = [
   { value: 'kimi', label: 'Kimi' },
 ];
 
-// 所有可用的提供商选项（Gemini/OpenAI + LazyLLM 厂商）
+// 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
 const ALL_PROVIDER_SOURCES = [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'codex', label: 'Codex (OpenAI OAuth)' },
   ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai'), // avoid duplicate 'openai'
 ];
 
@@ -433,6 +442,7 @@ export const Settings: React.FC = () => {
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [oauthConnecting, setOauthConnecting] = useState(false);
+  const [codexModels, setCodexModels] = useState<string[]>([]);
 
   const handleOAuthLogin = async () => {
     setOauthConnecting(true);
@@ -628,6 +638,18 @@ export const Settings: React.FC = () => {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (settings?.openai_oauth_connected) {
+      api.getOpenAIOAuthModels().then(resp => {
+        if (resp.success && resp.data?.models) {
+          setCodexModels(resp.data.models);
+        }
+      }).catch(() => {});
+    } else {
+      setCodexModels([]);
+    }
+  }, [settings?.openai_oauth_connected]);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -1050,8 +1072,12 @@ export const Settings: React.FC = () => {
           >
             <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
             {ALL_PROVIDER_SOURCES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+              <option
+                key={option.value}
+                value={option.value}
+                disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
+              >
+                {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
               </option>
             ))}
           </select>
@@ -1086,6 +1112,35 @@ export const Settings: React.FC = () => {
                 {t('settings.fields.perModelApiKeyDesc')}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Codex (OAuth)：显示可用模型列表 */}
+        {sourceValue === 'codex' && (
+          <div className="pl-3 border-l-2 border-green-400 dark:border-green-600 space-y-2">
+            {codexModels.length > 0 ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+                  {t('settings.openaiOAuth.availableModels')}
+                </label>
+                <select
+                  value={formData[item.modelKey] as string}
+                  onChange={(e) => handleFieldChange(item.modelKey, e.target.value)}
+                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+                >
+                  <option value="">{t('settings.openaiOAuth.selectModel')}</option>
+                  {codexModels.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
+                {settings?.openai_oauth_connected
+                  ? t('settings.openaiOAuth.loadingModels')
+                  : t('settings.openaiOAuth.connectFirst')}
+              </p>
+            )}
           </div>
         )}
 
