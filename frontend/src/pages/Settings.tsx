@@ -17,7 +17,8 @@ const settingsI18n = {
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
-        vendorApiKeys: "厂商 API Key 配置"
+        vendorApiKeys: "厂商 API Key 配置",
+        webSearch: "联网搜索配置"
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
       language: { label: "界面语言", zh: "中文", en: "English" },
@@ -67,6 +68,11 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
+        enableWebSearch: "启用联网搜索", enableWebSearchDesc: "生成大纲时自动从网络搜索相关素材并融入 AI 生成",
+        webSearchMaxResults: "搜索结果数量", webSearchMaxResultsDesc: "每次搜索返回的最大结果数 (1-20)",
+        tavilyApiKey: "Tavily API Key", tavilyApiKeyPlaceholder: "输入 Tavily API Key",
+        tavilyApiKeyDesc: "用于联网搜索的 Tavily API Key，留空则保持当前设置不变",
+        tavilyApiKeySet: "已设置（长度: {{length}}）",
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
@@ -117,7 +123,8 @@ const settingsI18n = {
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
-        vendorApiKeys: "Vendor API Key Configuration"
+        vendorApiKeys: "Vendor API Key Configuration",
+        webSearch: "Web Search Configuration"
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
       language: { label: "Interface Language", zh: "中文", en: "English" },
@@ -167,6 +174,11 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
+        enableWebSearch: "Enable Web Search", enableWebSearchDesc: "Automatically search the web for relevant materials when generating outlines",
+        webSearchMaxResults: "Search Result Count", webSearchMaxResultsDesc: "Maximum number of results per search (1-20)",
+        tavilyApiKey: "Tavily API Key", tavilyApiKeyPlaceholder: "Enter Tavily API Key",
+        tavilyApiKeyDesc: "Tavily API Key for web search, leave empty to keep current setting",
+        tavilyApiKeySet: "Set (length: {{length}})",
       },
       apiKeyHelp: {
         title: "How to get an API key",
@@ -301,6 +313,9 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  enable_web_search: false,
+  web_search_max_results: 5,
+  tavily_api_key: '',
 };
 
 const isLazyllmVendor = (vendor: string) =>
@@ -373,6 +388,9 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   image_api_base_url: data.image_api_base_url || '',
   image_caption_api_key: '',
   image_caption_api_base_url: data.image_caption_api_base_url || '',
+  enable_web_search: data.enable_web_search || false,
+  web_search_max_results: data.web_search_max_results || 5,
+  tavily_api_key: '',
 });
 
 // Settings 组件 - 纯嵌入模式（可复用）
@@ -537,6 +555,36 @@ export const Settings: React.FC = () => {
         },
       ],
     },
+    {
+      title: t('settings.sections.webSearch'),
+      icon: <Globe size={20} />,
+      fields: [
+        {
+          key: 'enable_web_search',
+          label: t('settings.fields.enableWebSearch'),
+          type: 'switch',
+          description: t('settings.fields.enableWebSearchDesc'),
+        },
+        {
+          key: 'web_search_max_results',
+          label: t('settings.fields.webSearchMaxResults'),
+          type: 'number',
+          min: 1,
+          max: 20,
+          description: t('settings.fields.webSearchMaxResultsDesc'),
+        },
+        {
+          key: 'tavily_api_key',
+          label: t('settings.fields.tavilyApiKey'),
+          type: 'password',
+          placeholder: t('settings.fields.tavilyApiKeyPlaceholder'),
+          sensitiveField: true,
+          lengthKey: 'tavily_api_key_length',
+          description: t('settings.fields.tavilyApiKeyDesc'),
+          link: 'https://tavily.com/',
+        },
+      ],
+    },
   ];
 
   useEffect(() => {
@@ -568,7 +616,7 @@ export const Settings: React.FC = () => {
     try {
       const {
         api_key, mineru_token, baidu_api_key, lazyllm_api_keys,
-        text_api_key, image_api_key, image_caption_api_key,
+        text_api_key, image_api_key, image_caption_api_key, tavily_api_key,
         ...otherData
       } = formData;
       const payload: Parameters<typeof api.updateSettings>[0] = {
@@ -583,6 +631,7 @@ export const Settings: React.FC = () => {
       if (text_api_key) payload.text_api_key = text_api_key;
       if (image_api_key) payload.image_api_key = image_api_key;
       if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
+      if (tavily_api_key) payload.tavily_api_key = tavily_api_key;
 
       // Send lazyllm API keys (only non-empty values)
       const nonEmptyKeys = Object.fromEntries(
@@ -604,6 +653,7 @@ export const Settings: React.FC = () => {
           api_key: '', mineru_token: '', baidu_api_key: '',
           lazyllm_api_keys: {},
           text_api_key: '', image_api_key: '', image_caption_api_key: '',
+          tavily_api_key: '',
         }));
       }
     } catch (error: any) {

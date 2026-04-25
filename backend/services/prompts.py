@@ -80,10 +80,11 @@ _OUTLINE_JSON_FORMAT = """\
 
 # --- 辅助函数 ---
 
-def _build_prompt(prompt_text: str, reference_files_content=None, *, tag: str = '') -> str:
+def _build_prompt(prompt_text: str, reference_files_content=None, web_search_content: str = "", *, tag: str = '') -> str:
     """Prepend reference files XML and log the final prompt."""
     files_xml = _format_reference_files_xml(reference_files_content)
-    final = files_xml + prompt_text
+    search_section = _format_web_search_content(web_search_content)
+    final = files_xml + search_section + prompt_text
     if tag:
         logger.debug(f"[{tag}] Final prompt:\n{final}")
     return final
@@ -146,6 +147,19 @@ def _format_reference_files_xml(reference_files_content: Optional[List[Dict[str,
     xml_parts.append('</uploaded_files>')
     xml_parts.append('')  # Empty line after XML
     return '\n'.join(xml_parts)
+
+
+def _format_web_search_content(web_search_content: str) -> str:
+    """Format web search content for prompt injection."""
+    if not web_search_content or not web_search_content.strip():
+        return ""
+    return (
+        "<web_search_results>\n"
+        "以下是通过联网搜索获取的参考素材，请结合这些信息来生成内容，"
+        "提升内容的准确性和时效性。\n\n"
+        f"{web_search_content.strip()}\n"
+        "</web_search_results>\n\n"
+    )
 
 
 def _format_requirements(requirements: str, context: str = "outline") -> str:
@@ -221,7 +235,7 @@ The user's request: {idea_prompt}.
 {get_language_instruction(language)}
 """)
 
-    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_generation_prompt')
+    return _build_prompt(prompt, project_context.reference_files_content, project_context.web_search_content, tag='get_outline_generation_prompt')
 
 
 def get_outline_generation_prompt_markdown(project_context: 'ProjectContext', language: str = None) -> str:
@@ -271,7 +285,7 @@ The user's request: {idea_prompt}.
 {get_language_instruction(language)}
 """)
 
-    return _build_prompt(prompt, project_context.reference_files_content, tag='get_outline_generation_prompt_markdown')
+    return _build_prompt(prompt, project_context.reference_files_content, project_context.web_search_content, tag='get_outline_generation_prompt_markdown')
 
 
 def get_outline_parsing_prompt(project_context: 'ProjectContext', language: str = None) -> str:

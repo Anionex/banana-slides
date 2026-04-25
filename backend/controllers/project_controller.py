@@ -19,6 +19,7 @@ from werkzeug.utils import secure_filename
 from models import db, Project, Page, Task, ReferenceFile
 from services import ProjectContext, FileService
 from services.ai_service_manager import get_ai_service
+from services.search_service import search_for_project
 from services.task_manager import (
     task_manager,
     generate_descriptions_task,
@@ -33,6 +34,46 @@ from utils import (
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
+
+
+def _inject_web_search(project_context: ProjectContext) -> None:
+    """
+    如果用户启用了联网搜索，执行 Tavily 搜索并将结果注入 ProjectContext。
+    """
+    try:
+        from models.settings import Settings
+        settings = Settings.get_settings()
+        if not settings.enable_web_search:
+            return
+
+        api_key = settings.tavily_api_key or current_app.config.get('TAVILY_API_KEY', '')
+        if not api_key:
+            logger.warning("联网搜索已启用但 API Key 未配置，跳过搜索")
+            return
+
+        max_results = settings.web_search_max_results or current_app.config.get('WEB_SEARCH_MAX_RESULTS', 5)
+
+        # 确定搜索词
+        search_topic = project_context.idea_prompt or ""
+        if not search_topic and project_context.outline_text:
+            search_topic = project_context.outline_text[:200]
+        if not search_topic:
+            logger.info("无有效搜索词，跳过联网搜索")
+            return
+
+        language = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
+        search_content = search_for_project(
+            topic=search_topic,
+            api_key=api_key,
+            max_results=max_results,
+            language=language,
+        )
+        if search_content:
+            project_context.web_search_content = search_content
+            logger.info(f"联网搜索结果已注入，长度: {len(search_content)} 字符")
+    except Exception as e:
+        logger.error(f"联网搜索注入失败: {e}", exc_info=True)
+        # 搜索失败不阻断主流程
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -467,6 +508,7 @@ def generate_outline(project_id):
             
             # Create project context and generate outline from idea
             project_context = ProjectContext(project, reference_files_content)
+            _inject_web_search(project_context)
             outline = ai_service.generate_outline(project_context, language=language)
         
         # Flatten outline to pages and smart merge with existing
@@ -544,6 +586,7 @@ def generate_outline_stream(project_id):
                     proj.idea_prompt = idea_prompt
 
                 project_context = ProjectContext(proj, reference_files_content)
+                _inject_web_search(project_context)
 
                 # Stream pages from AI
                 streamed_pages = []

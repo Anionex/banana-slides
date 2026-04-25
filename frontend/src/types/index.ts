@@ -164,6 +164,10 @@ export interface Settings {
   image_api_base_url?: string;
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
+  // Tavily web search
+  enable_web_search: boolean;
+  web_search_max_results: number;
+  tavily_api_key_length: number;
   created_at?: string;
   updated_at?: string;
 }
