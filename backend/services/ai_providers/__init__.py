@@ -20,14 +20,14 @@ import os
 import logging
 from typing import Any, Dict, Optional
 
-from .text import TextProvider, GenAITextProvider, OpenAITextProvider, AnthropicTextProvider, LazyLLMTextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider
+from .text import TextProvider, GenAITextProvider, OpenAITextProvider, AnthropicTextProvider, LazyLLMTextProvider, CodexTextProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider, CodexImageProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'AnthropicTextProvider', 'LazyLLMTextProvider',
-    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'AnthropicImageProvider', 'LazyLLMImageProvider',
+    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'AnthropicTextProvider', 'LazyLLMTextProvider', 'CodexTextProvider',
+    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'AnthropicImageProvider', 'LazyLLMImageProvider', 'CodexImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format',
     'get_caption_provider', 'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
 ]
@@ -257,8 +257,8 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
                 f"OpenAI OAuth is not connected. Please log in with your OpenAI account "
                 f"in Settings to use Codex as the provider for {model_type}."
             )
-        logger.info("Per-model config — %s: codex (OAuth), api_base: https://api.openai.com/v1", model_type)
-        return {'format': 'openai', 'api_key': oauth_token, 'api_base': 'https://api.openai.com/v1'}
+        logger.info("Per-model config — %s: codex (OAuth)", model_type)
+        return {'format': 'codex', 'api_key': oauth_token}
 
     elif source_lower == 'anthropic':
         api_key = (_resolve_setting(f'{prefix}_API_KEY')
@@ -306,6 +306,9 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         source = config.get('source') or config.get('text_source', 'doubao')
         logger.info("Caption provider: LazyLLM, model=%s, source=%s", model, source)
         return LazyLLMTextProvider(source=source, model=model)
+    elif fmt == 'codex':
+        logger.info("Caption provider: Codex (OAuth), model=%s", model)
+        return CodexTextProvider(api_key=config['api_key'], model=model)
     else:
         logger.info("Caption provider: Gemini, model=%s", model)
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
@@ -332,6 +335,9 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         source = config.get('source') or config.get('text_source', 'deepseek')
         logger.info("Text provider: LazyLLM, model=%s, source=%s", model, source)
         return LazyLLMTextProvider(source=source, model=model)
+    elif fmt == 'codex':
+        logger.info("Text provider: Codex (OAuth), model=%s", model)
+        return CodexTextProvider(api_key=config['api_key'], model=model)
     else:
         # gemini (default)
         logger.info("Text provider: Gemini, model=%s", model)
@@ -368,6 +374,9 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         source = config.get('source') or config.get('image_source', 'doubao')
         logger.info("Image provider: LazyLLM, model=%s, source=%s", model, source)
         return LazyLLMImageProvider(source=source, model=model)
+    elif fmt == 'codex':
+        logger.info("Image provider: Codex (OAuth), model=%s", model)
+        return CodexImageProvider(api_key=config['api_key'], model=model)
     else:
         # gemini (default)
         logger.info("Image provider: Gemini, model=%s", model)

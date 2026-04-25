@@ -101,13 +101,13 @@ def status():
 
 @openai_oauth_bp.route("/models", methods=["GET"])
 def list_models():
-    """Return commonly available OpenAI models for Codex OAuth users."""
+    """Return available models for Codex OAuth users, split by type."""
     settings = Settings.get_settings()
     token = settings.get_openai_oauth_token()
     if not token:
         return error_response("OpenAI OAuth is not connected", 401)
 
-    models = [
+    text_models = [
         "gpt-4.1",
         "gpt-4.1-mini",
         "gpt-4.1-nano",
@@ -115,9 +115,16 @@ def list_models():
         "gpt-4o-mini",
         "o3",
         "o4-mini",
+    ]
+    image_models = [
         "gpt-image-1",
     ]
-    return success_response({"models": models})
+    return success_response({
+        "text_models": text_models,
+        "image_models": image_models,
+        # Keep flat list for backward compatibility
+        "models": text_models + image_models,
+    })
 
 
 # ---------------------------------------------------------------------------
