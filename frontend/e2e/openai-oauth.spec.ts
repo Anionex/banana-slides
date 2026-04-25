@@ -243,6 +243,10 @@ test.describe('OpenAI OAuth Settings Section', () => {
       expect(data.data.auth_url).toContain('code_challenge_method=S256');
       expect(data.data.auth_url).toContain('response_type=code');
       expect(data.data.auth_url).toContain('scope=');
+      expect(data.data.auth_url).toContain('api.connectors.read');
+      expect(data.data.auth_url).toContain('codex_cli_simplified_flow=true');
+      // redirect_uri should use the actual backend port, not default 5000
+      expect(data.data.auth_url).not.toContain('localhost%3A5000');
     });
 
     test('OAuth disconnect endpoint works even when not connected', async ({ request }) => {

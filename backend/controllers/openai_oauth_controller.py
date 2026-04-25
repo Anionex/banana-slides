@@ -23,12 +23,27 @@ openai_oauth_bp = Blueprint(
 _OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 _OPENAI_AUTH_URL = "https://auth.openai.com/oauth/authorize"
 _OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token"
-_SCOPES = "openid profile email offline_access"
+_SCOPES = "openid profile email offline_access api.connectors.read api.connectors.invoke"
+
+
+def _get_actual_port() -> int:
+    """Get the actual port the Flask app is running on."""
+    from flask import current_app
+    try:
+        server = current_app.extensions.get('_server_port')
+        if server:
+            return server
+    except Exception:
+        pass
+    port_env = os.getenv("BACKEND_PORT")
+    if port_env:
+        return int(port_env)
+    return int(request.host.split(':')[-1]) if ':' in request.host else 5000
 
 
 def _build_redirect_uri() -> str:
-    backend_port = os.getenv("BACKEND_PORT", "5000")
-    return f"http://localhost:{backend_port}/api/settings/openai-oauth/callback"
+    port = _get_actual_port()
+    return f"http://localhost:{port}/api/settings/openai-oauth/callback"
 
 
 @openai_oauth_bp.route("/authorize", methods=["GET"])
@@ -50,6 +65,8 @@ def authorize():
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "state": state,
+        "id_token_add_organizations": "true",
+        "codex_cli_simplified_flow": "true",
     }
     qs = "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
     auth_url = f"{_OPENAI_AUTH_URL}?{qs}"
