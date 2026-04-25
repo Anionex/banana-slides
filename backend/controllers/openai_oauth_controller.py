@@ -108,16 +108,30 @@ def list_models():
         return error_response("OpenAI OAuth is not connected", 401)
 
     text_models = [
+        "gpt-5.5",
+        "gpt-5.5-pro",
+        "gpt-5.4",
+        "gpt-5.4-pro",
+        "gpt-5.4-mini",
+        "gpt-5.3-codex",
+        "gpt-5.2",
         "gpt-4.1",
         "gpt-4.1-mini",
         "gpt-4.1-nano",
         "gpt-4o",
         "gpt-4o-mini",
         "o3",
+        "o3-pro",
         "o4-mini",
+        "o1",
+        "o1-pro",
+        "codex-mini-latest",
     ]
     image_models = [
+        "gpt-image-2",
+        "gpt-image-1.5",
         "gpt-image-1",
+        "gpt-image-1-mini",
     ]
     return success_response({
         "text_models": text_models,
