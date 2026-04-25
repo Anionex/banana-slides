@@ -99,6 +99,44 @@ class CodexTextProvider(TextProvider):
 
         yield from self._iter_sse_text(resp)
 
+    def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
+        """Generate text from a prompt + image (multimodal) via Responses API."""
+        import base64
+        with open(image_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        ext = image_path.rsplit(".", 1)[-1].lower()
+        mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/png")
+
+        payload = {
+            "model": self.model,
+            "instructions": "You are a helpful assistant.",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_image", "image_url": f"data:{mime};base64,{b64}"},
+                        {"type": "input_text", "text": prompt},
+                    ],
+                }
+            ],
+            "store": False,
+            "stream": True,
+        }
+
+        resp = http_requests.post(
+            _RESPONSES_ENDPOINT,
+            headers=self._headers(),
+            json=payload,
+            timeout=_DEFAULT_TIMEOUT,
+            stream=True,
+        )
+        resp.raise_for_status()
+
+        collected = []
+        for chunk in self._iter_sse_text(resp):
+            collected.append(chunk)
+        return strip_think_tags("".join(collected))
+
     # ------------------------------------------------------------------
     # SSE parsing
     # ------------------------------------------------------------------
