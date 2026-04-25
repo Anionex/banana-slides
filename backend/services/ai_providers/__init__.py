@@ -126,19 +126,10 @@ def _build_provider_config() -> Dict[str, Any]:
         cfg['api_key'] = _resolve_setting('OPENAI_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
         cfg['api_base'] = _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1')
 
-        # Fallback to OAuth token if no explicit key
-        if not cfg['api_key']:
-            oauth_token = _get_openai_oauth_token()
-            if oauth_token:
-                cfg['api_key'] = oauth_token
-                cfg['api_base'] = 'https://api.openai.com/v1'
-                logger.info("Provider config — format: openai (OAuth), api_base: %s", cfg['api_base'])
-                return cfg
-
         if not cfg['api_key']:
             raise ValueError(
                 "OPENAI_API_KEY or GOOGLE_API_KEY (from database settings or environment) "
-                "is required when AI_PROVIDER_FORMAT=openai, or connect your OpenAI account via OAuth."
+                "is required when AI_PROVIDER_FORMAT=openai."
             )
         logger.info("Provider config — format: openai, api_base: %s", cfg['api_base'])
 
@@ -243,19 +234,10 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         api_base = (_resolve_setting(f'{prefix}_API_BASE')
                     or _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1'))
 
-        # If no explicit API key, try OAuth token
-        if not api_key:
-            oauth_token = _get_openai_oauth_token()
-            if oauth_token:
-                api_key = oauth_token
-                api_base = 'https://api.openai.com/v1'
-                logger.info("Per-model config — %s: openai (OAuth), api_base: %s", model_type, api_base)
-                return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
-
         if not api_key:
             raise ValueError(
                 f"API key is required for {model_type} model with OpenAI provider. "
-                f"Set {prefix}_API_KEY or OPENAI_API_KEY, or connect your OpenAI account via OAuth."
+                f"Set {prefix}_API_KEY or OPENAI_API_KEY."
             )
         logger.info("Per-model config — %s: openai, api_base: %s", model_type, api_base)
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
