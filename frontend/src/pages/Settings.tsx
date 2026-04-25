@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2 } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -17,7 +17,8 @@ const settingsI18n = {
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
-        vendorApiKeys: "厂商 API Key 配置"
+        vendorApiKeys: "厂商 API Key 配置",
+        advancedSettings: "高级设置"
       },
       openaiOAuth: {
         title: "OpenAI 账号连接",
@@ -136,7 +137,8 @@ const settingsI18n = {
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
-        vendorApiKeys: "Vendor API Key Configuration"
+        vendorApiKeys: "Vendor API Key Configuration",
+        advancedSettings: "Advanced Settings"
       },
       openaiOAuth: {
         title: "OpenAI Account",
@@ -443,6 +445,7 @@ export const Settings: React.FC = () => {
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [oauthConnecting, setOauthConnecting] = useState(false);
   const [codexModels, setCodexModels] = useState<string[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleOAuthLogin = async () => {
     setOauthConnecting(true);
@@ -1188,51 +1191,6 @@ export const Settings: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <div className="space-y-8">
-        {/* OpenAI OAuth 连接区块 */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
-            <Link2 size={20} />
-            <span className="ml-2">{t('settings.openaiOAuth.title')}</span>
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.openaiOAuth.description')}</p>
-          <div className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-2.5 h-2.5 rounded-full ${settings?.openai_oauth_connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                <div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
-                    {settings?.openai_oauth_connected ? t('settings.openaiOAuth.connected') : t('settings.openaiOAuth.disconnected')}
-                  </span>
-                  {settings?.openai_oauth_connected && settings?.openai_oauth_account_id && (
-                    <span className="ml-2 text-sm text-gray-500 dark:text-foreground-tertiary">
-                      ({settings.openai_oauth_account_id})
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div>
-                {settings?.openai_oauth_connected ? (
-                  <button
-                    onClick={handleOAuthDisconnect}
-                    className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                  >
-                    {t('settings.openaiOAuth.disconnectBtn')}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleOAuthLogin}
-                    disabled={oauthConnecting}
-                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
-                  >
-                    {oauthConnecting ? t('settings.openaiOAuth.connecting') : t('settings.openaiOAuth.loginBtn')}
-                  </button>
-                )}
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-gray-500 dark:text-foreground-tertiary">{t('settings.openaiOAuth.hint')}</p>
-          </div>
-        </div>
-
         {/* 默认 API 配置区块 */}
         <div data-testid="global-api-config-section">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
@@ -1345,9 +1303,9 @@ export const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 其余配置区块（配置驱动） */}
+        {/* 其余配置区块（配置驱动，排除性能配置） */}
         <div className="space-y-8">
-          {settingsSections.map((section) => (
+          {settingsSections.filter((section) => section.title !== t('settings.sections.performanceConfig')).map((section) => (
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                 {section.icon}
@@ -1358,6 +1316,84 @@ export const Settings: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 高级设置（折叠区域） */}
+        <div className="border border-gray-200 dark:border-border-primary rounded-lg">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-background-hover rounded-lg transition-colors"
+          >
+            <span className="text-lg font-semibold text-gray-900 dark:text-foreground-primary">
+              {t('settings.sections.advancedSettings')}
+            </span>
+            <ChevronDown
+              size={20}
+              className={`text-gray-500 dark:text-foreground-tertiary transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {advancedOpen && (
+            <div className="px-4 pb-4 space-y-8">
+              {/* OpenAI OAuth 连接区块 */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
+                  <Link2 size={20} />
+                  <span className="ml-2">{t('settings.openaiOAuth.title')}</span>
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.openaiOAuth.description')}</p>
+                <div className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${settings?.openai_oauth_connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
+                          {settings?.openai_oauth_connected ? t('settings.openaiOAuth.connected') : t('settings.openaiOAuth.disconnected')}
+                        </span>
+                        {settings?.openai_oauth_connected && settings?.openai_oauth_account_id && (
+                          <span className="ml-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                            ({settings.openai_oauth_account_id})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {settings?.openai_oauth_connected ? (
+                        <button
+                          onClick={handleOAuthDisconnect}
+                          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        >
+                          {t('settings.openaiOAuth.disconnectBtn')}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleOAuthLogin}
+                          disabled={oauthConnecting}
+                          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+                        >
+                          {oauthConnecting ? t('settings.openaiOAuth.connecting') : t('settings.openaiOAuth.loginBtn')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500 dark:text-foreground-tertiary">{t('settings.openaiOAuth.hint')}</p>
+                </div>
+              </div>
+
+              {/* 并发性能配置 */}
+              {settingsSections.filter((section) => section.title === t('settings.sections.performanceConfig')).map((section) => (
+                <div key={section.title}>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
+                    {section.icon}
+                    <span className="ml-2">{section.title}</span>
+                  </h2>
+                  <div className="space-y-4">
+                    {section.fields.map((field) => renderField(field))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 服务测试区 */}
