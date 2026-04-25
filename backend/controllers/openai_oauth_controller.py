@@ -101,28 +101,22 @@ def status():
 
 @openai_oauth_bp.route("/models", methods=["GET"])
 def list_models():
-    """Fetch available models from OpenAI using the OAuth token."""
+    """Return commonly available OpenAI models for Codex OAuth users."""
     settings = Settings.get_settings()
     token = settings.get_openai_oauth_token()
     if not token:
         return error_response("OpenAI OAuth is not connected", 401)
 
-    try:
-        resp = http_requests.get(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.error("Failed to fetch models: %s", e)
-        return error_response(f"Failed to fetch models: {e}", 502)
-
-    models = sorted(
-        [m["id"] for m in data.get("data", [])],
-        key=str.lower,
-    )
+    models = [
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o3",
+        "o4-mini",
+        "gpt-image-1",
+    ]
     return success_response({"models": models})
 
 
@@ -194,7 +188,7 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
             settings = Settings.get_settings()
             settings.openai_oauth_access_token = access_token
             settings.openai_oauth_refresh_token = refresh_token
-            settings.openai_oauth_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+            settings.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
             settings.openai_oauth_account_id = account_id
             db.session.commit()
 

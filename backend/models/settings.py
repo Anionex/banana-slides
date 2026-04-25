@@ -168,10 +168,12 @@ class Settings(db.Model):
         """Return a valid OAuth access token, or None if not connected / expired without refresh."""
         if not self.openai_oauth_access_token:
             return None
-        if self.openai_oauth_expires_at and self.openai_oauth_expires_at < datetime.now(timezone.utc):
-            if self.openai_oauth_refresh_token:
-                return self._refresh_openai_oauth()
-            return None
+        if self.openai_oauth_expires_at:
+            now = datetime.utcnow()
+            if self.openai_oauth_expires_at < now:
+                if self.openai_oauth_refresh_token:
+                    return self._refresh_openai_oauth()
+                return None
         return self.openai_oauth_access_token
 
     def _refresh_openai_oauth(self):
@@ -195,7 +197,7 @@ class Settings(db.Model):
                 self.openai_oauth_refresh_token = data['refresh_token']
             expires_in = data.get('expires_in', 3600)
             from datetime import timedelta
-            self.openai_oauth_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+            self.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
             db.session.commit()
             return self.openai_oauth_access_token
         except Exception:
