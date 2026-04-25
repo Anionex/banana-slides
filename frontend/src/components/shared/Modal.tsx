@@ -10,6 +10,7 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   showCloseButton?: boolean;
+  headerActions?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -19,6 +20,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
   showCloseButton = true,
+  headerActions,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -96,7 +98,7 @@ export const Modal: React.FC<ModalProps> = ({
           aria-labelledby={title ? 'modal-title' : undefined}
           className={cn(
             'relative w-full flex flex-col',
-            'max-h-[85vh]',
+            size === 'full' ? 'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]' : 'max-h-[85vh]',
             // 背景和边框
             'bg-white/95 dark:bg-[#1a1a24]/95',
             'backdrop-blur-xl',
@@ -129,10 +131,24 @@ export const Modal: React.FC<ModalProps> = ({
             <div className="relative flex-shrink-0 px-7 pt-7 pb-5">
               <h2
                 id="modal-title"
-                className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight pr-10"
+                className={cn(
+                  'text-xl font-semibold text-gray-900 dark:text-white tracking-tight',
+                  showCloseButton || headerActions ? 'pr-24' : ''
+                )}
               >
                 {title}
               </h2>
+            </div>
+          )}
+
+          {headerActions && (
+            <div
+              className={cn(
+                'absolute z-20 flex items-center gap-2',
+                title ? 'top-5 right-16' : 'top-4 right-14'
+              )}
+            >
+              {headerActions}
             </div>
           )}
 
@@ -166,6 +182,7 @@ export const Modal: React.FC<ModalProps> = ({
           <div
             className={cn(
               'relative px-7 pb-7 overflow-y-auto flex-1',
+              size === 'full' ? 'max-h-[calc(100vh-8rem)]' : 'max-h-[85vh]',
               'scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600',
               title ? '' : 'pt-7'
             )}

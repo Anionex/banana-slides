@@ -707,6 +707,69 @@ export const generateMaterialImage = async (
   return response.data;
 };
 
+export type MaterialProcessOperation =
+  | 'generate'
+  | 'edit_full'
+  | 'region_edit'
+  | 'erase_region';
+
+export interface MaterialSelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  image_width: number;
+  image_height: number;
+}
+
+export interface ProcessMaterialOptions {
+  operation: MaterialProcessOperation;
+  prompt?: string;
+  sourceImage?: File | null;
+  refImage?: File | null;
+  extraImages?: File[];
+  aspectRatio?: string;
+  selection?: MaterialSelectionRect | null;
+  applyMode?: 'overlay_selection' | 'replace_full';
+}
+
+export const processMaterialImage = async (
+  projectId: string,
+  options: ProcessMaterialOptions
+): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const formData = new FormData();
+  formData.append('operation', options.operation);
+  if (options.prompt) {
+    formData.append('prompt', options.prompt);
+  }
+  if (options.aspectRatio) {
+    formData.append('aspect_ratio', options.aspectRatio);
+  }
+  if (options.applyMode) {
+    formData.append('apply_mode', options.applyMode);
+  }
+  if (options.selection) {
+    formData.append('selection', JSON.stringify(options.selection));
+  }
+  if (options.sourceImage) {
+    formData.append('source_image', options.sourceImage);
+  }
+  if (options.refImage) {
+    formData.append('ref_image', options.refImage);
+  }
+  if (options.extraImages && options.extraImages.length > 0) {
+    options.extraImages.forEach((file) => {
+      formData.append('extra_images', file);
+    });
+  }
+
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
+    `/api/projects/${projectId}/materials/process`,
+    formData
+  );
+  return response.data;
+};
+
 /**
  * 素材信息接口
  */

@@ -1,5 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, ImagePlus, Upload, X, FolderOpen, Info } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Crop,
+  Eraser,
+  FolderOpen,
+  Image as ImageIcon,
+  ImagePlus,
+  Info,
+  Layers,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+  Upload,
+  Wand2,
+  X,
+} from 'lucide-react';
 import { Modal } from './Modal';
 import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
@@ -8,56 +22,184 @@ import { useToast } from './Toast';
 import { MaterialSelector, materialUrlToFile } from './MaterialSelector';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { useProjectStore } from '@/store/useProjectStore';
+import { Skeleton } from './Loading';
+import {
+  getTaskStatus,
+  processMaterialImage,
+  type Material,
+  type MaterialProcessOperation,
+  type MaterialSelectionRect,
+} from '@/api/endpoints';
+import { getImageUrl } from '@/api/client';
+import type { Task } from '@/types';
 
-// MaterialGeneratorModal 组件自包含翻译
 const materialGeneratorI18n = {
   zh: {
     material: {
-      title: "素材生成", saveToLibraryNote: "生成的素材会保存到素材库",
-      generatedResult: "生成结果", generatedMaterial: "生成的素材", generatedPreview: "生成的素材会展示在这里",
-      promptLabel: "提示词（原样发送给文生图模型）",
-      promptPlaceholder: "例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页...",
-      aspectRatioLabel: "生成比例",
-      referenceImages: "参考图片（可选）", mainReference: "主参考图（可选）", extraReference: "额外参考图（可选，多张）",
-      clickToUpload: "点击上传", selectFromLibrary: "从素材库选择", generateMaterial: "生成素材",
+      title: '素材工具箱',
+      saveToLibraryNote: '所有处理结果都会作为新素材保存到素材库，原图不会被覆盖。',
+      generatedResult: '处理结果',
+      generatedPreview: '处理结果会展示在这里',
+      sourceImage: '处理目标图',
+      sourceImageHint: '整图编辑、框选编辑、智能擦除都需要先选择一张目标图。',
+      referenceImages: '参考图片（可选）',
+      mainReference: '主参考图',
+      extraReference: '额外参考图',
+      clickToUpload: '点击上传',
+      selectFromLibrary: '从素材库选择',
+      promptLabel: '编辑指令',
+      promptPlaceholderGenerate: '例如：蓝紫色渐变背景，带几何图形和科技感线条，用于科技主题标题页...',
+      promptPlaceholderEdit: '例如：把主视觉改成银色金属质感，整体更高级，保留主体构图...',
+      promptPlaceholderRegion: '例如：把选区里的按钮改成玻璃拟态风格，并补上高光细节...',
+      promptPlaceholderErase: '可选：补充擦除后的背景要求，例如“补成纯白台面纹理”',
+      aspectRatioLabel: '生成比例',
+      toolModeLabel: '工具模式',
+      toolGenerate: '生成新素材',
+      toolEditFull: '整图编辑',
+      toolRegionEdit: '框选编辑',
+      toolEraseRegion: '智能擦除',
+      runTool: '执行工具',
+      toolGenerateDesc: '从文本或参考图生成新图',
+      toolEditFullDesc: '基于现有图整体重绘',
+      toolRegionEditDesc: '只聚焦选区进行修改',
+      toolEraseRegionDesc: '擦掉选区内容并补背景',
+      selectionLabel: '选区',
+      selectionHint: '打开选区模式后，在图片上拖拽框选要处理的区域。',
+      selectionReady: '已选择 {{width}} × {{height}} px 区域',
+      selectionEmpty: '尚未选择区域',
+      startSelection: '开始框选',
+      stopSelection: '结束框选',
+      applyModeLabel: '区域结果应用方式',
+      applyOverlay: '只把选区覆盖回原图',
+      applyReplaceFull: '直接用整张结果覆盖',
+      useResultAsSource: '将结果作为新源图继续处理',
+      clearResult: '清空结果',
+      enterFullscreen: '全屏展开',
+      exitFullscreen: '退出全屏',
       messages: {
-        enterPrompt: "请输入提示词", materialAdded: "已添加 {{count}} 个素材",
-        generateSuccess: "素材生成成功，已保存到历史素材库", generateSuccessGlobal: "素材生成成功，已保存到全局素材库",
-        generateComplete: "素材生成完成，但未找到图片地址", generateFailed: "素材生成失败",
-        generateTimeout: "素材生成超时，请稍后查看素材库", pollingFailed: "轮询任务状态失败，请稍后查看素材库",
-        noTaskId: "素材生成失败：未返回任务ID"
-      }
-    }
+        enterPrompt: '请输入编辑指令',
+        chooseSource: '请先选择一张处理目标图',
+        chooseSelection: '请先框选要处理的区域',
+        materialAdded: '已添加 {{count}} 个素材',
+        sourceLoaded: '已载入源图',
+        generateSuccess: '素材处理成功，已保存到历史素材库',
+        generateSuccessGlobal: '素材处理成功，已保存到全局素材库',
+        generateComplete: '处理完成，但未找到结果图片地址',
+        generateFailed: '素材处理失败',
+        generateTimeout: '处理超时，请稍后到素材库查看',
+        pollingFailed: '轮询任务状态失败，请稍后到素材库查看',
+        noTaskId: '素材处理失败：未返回任务ID',
+        loadMaterialFailed: '加载素材失败',
+        resultPromoted: '已将结果设为新的源图',
+      },
+    },
   },
   en: {
     material: {
-      title: "Generate Material", saveToLibraryNote: "Generated materials will be saved to the library",
-      generatedResult: "Generated Result", generatedMaterial: "Generated Material", generatedPreview: "Generated materials will be displayed here",
-      promptLabel: "Prompt (sent directly to text-to-image model)",
-      promptPlaceholder: "e.g., Blue-purple gradient background with geometric shapes and tech-style lines for a tech-themed title page...",
-      aspectRatioLabel: "Aspect Ratio",
-      referenceImages: "Reference Images (Optional)", mainReference: "Main Reference (Optional)", extraReference: "Extra References (Optional, multiple)",
-      clickToUpload: "Click to upload", selectFromLibrary: "Select from Library", generateMaterial: "Generate Material",
+      title: 'Material Toolbox',
+      saveToLibraryNote: 'Every processed result is saved as a new material. The original image stays untouched.',
+      generatedResult: 'Result',
+      generatedPreview: 'Processed output will appear here',
+      sourceImage: 'Source Image',
+      sourceImageHint: 'Full-image edit, region edit, and smart erase all need a source image first.',
+      referenceImages: 'Reference Images (Optional)',
+      mainReference: 'Primary Reference',
+      extraReference: 'Extra References',
+      clickToUpload: 'Click to upload',
+      selectFromLibrary: 'Select from Library',
+      promptLabel: 'Instruction',
+      promptPlaceholderGenerate: 'e.g. Blue-purple gradient background with geometric shapes and tech-style lines for a tech-themed title page...',
+      promptPlaceholderEdit: 'e.g. Restyle the image with brushed silver metal details while keeping the main composition...',
+      promptPlaceholderRegion: 'e.g. Turn the selected button into glassmorphism with subtle highlights...',
+      promptPlaceholderErase: 'Optional: describe what should fill the erased region, such as "clean white tabletop texture"',
+      aspectRatioLabel: 'Aspect Ratio',
+      toolModeLabel: 'Tool Mode',
+      toolGenerate: 'Generate',
+      toolEditFull: 'Full Edit',
+      toolRegionEdit: 'Region Edit',
+      toolEraseRegion: 'Smart Erase',
+      runTool: 'Run Tool',
+      toolGenerateDesc: 'Create a new material from prompt or refs',
+      toolEditFullDesc: 'Restyle the whole source image',
+      toolRegionEditDesc: 'Focus edits on the selected region',
+      toolEraseRegionDesc: 'Remove selected content and heal the background',
+      selectionLabel: 'Selection',
+      selectionHint: 'Turn on selection mode, then drag on the image to choose the target region.',
+      selectionReady: 'Selected {{width}} × {{height}} px area',
+      selectionEmpty: 'No selection yet',
+      startSelection: 'Start Selection',
+      stopSelection: 'End Selection',
+      applyModeLabel: 'How to apply the region result',
+      applyOverlay: 'Overlay only the selected region',
+      applyReplaceFull: 'Replace with the full generated image',
+      useResultAsSource: 'Use result as new source',
+      clearResult: 'Clear Result',
+      enterFullscreen: 'Expand Fullscreen',
+      exitFullscreen: 'Exit Fullscreen',
       messages: {
-        enterPrompt: "Please enter a prompt", materialAdded: "Added {{count}} material(s)",
-        generateSuccess: "Material generated successfully, saved to history library", generateSuccessGlobal: "Material generated successfully, saved to global library",
-        generateComplete: "Material generation complete, but image URL not found", generateFailed: "Failed to generate material",
-        generateTimeout: "Material generation timeout, please check the library later", pollingFailed: "Failed to poll task status, please check the library later",
-        noTaskId: "Material generation failed: No task ID returned"
-      }
-    }
-  }
+        enterPrompt: 'Please enter an instruction',
+        chooseSource: 'Please choose a source image first',
+        chooseSelection: 'Please select a region first',
+        materialAdded: 'Added {{count}} material(s)',
+        sourceLoaded: 'Source image loaded',
+        generateSuccess: 'Material processed successfully and saved to the project library',
+        generateSuccessGlobal: 'Material processed successfully and saved to the global library',
+        generateComplete: 'Processing finished, but no result image URL was returned',
+        generateFailed: 'Failed to process material',
+        generateTimeout: 'Processing timed out. Please check the material library later',
+        pollingFailed: 'Failed to poll task status. Please check the material library later',
+        noTaskId: 'Processing failed: no task ID returned',
+        loadMaterialFailed: 'Failed to load materials',
+        resultPromoted: 'Result is now the new source image',
+      },
+    },
+  },
 };
-import { Skeleton } from './Loading';
-import { generateMaterialImage, getTaskStatus } from '@/api/endpoints';
-import { getImageUrl } from '@/api/client';
-import type { Material } from '@/api/endpoints';
-import type { Task } from '@/types';
 
 interface MaterialGeneratorModalProps {
   projectId?: string | null;
   isOpen: boolean;
   onClose: () => void;
+}
+
+type SelectorTarget = 'source' | 'references';
+type DisplayRect = { left: number; top: number; width: number; height: number };
+type PersistedMaterialRun = {
+  taskId: string | null;
+  previewUrl: string | null;
+  status: 'idle' | 'pending' | 'completed' | 'failed';
+  updatedAt: number;
+};
+type ToolCard = {
+  value: MaterialProcessOperation;
+  icon: React.ReactNode;
+  labelKey: string;
+  descKey: string;
+};
+
+function getRenderedImageRect(img: HTMLImageElement) {
+  const naturalWidth = img.naturalWidth || 1;
+  const naturalHeight = img.naturalHeight || 1;
+  const scale = Math.min(img.clientWidth / naturalWidth, img.clientHeight / naturalHeight);
+  const width = naturalWidth * scale;
+  const height = naturalHeight * scale;
+  const left = (img.clientWidth - width) / 2;
+  const top = (img.clientHeight - height) / 2;
+  return { left, top, width, height, naturalWidth, naturalHeight };
+}
+
+const TOOL_CARDS: ToolCard[] = [
+  { value: 'generate', icon: <Sparkles size={16} />, labelKey: 'material.toolGenerate', descKey: 'material.toolGenerateDesc' },
+  { value: 'edit_full', icon: <Wand2 size={16} />, labelKey: 'material.toolEditFull', descKey: 'material.toolEditFullDesc' },
+  { value: 'region_edit', icon: <Crop size={16} />, labelKey: 'material.toolRegionEdit', descKey: 'material.toolRegionEditDesc' },
+  { value: 'erase_region', icon: <Eraser size={16} />, labelKey: 'material.toolEraseRegion', descKey: 'material.toolEraseRegionDesc' },
+];
+
+const MATERIAL_POLL_INTERVAL_MS = 2000;
+const MATERIAL_MAX_POLL_ATTEMPTS = 90;
+
+function getMaterialRunStorageKey(projectId?: string | null) {
+  return `banana-material-toolbox:${projectId || 'global'}`;
 }
 
 export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
@@ -68,60 +210,194 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
   const t = useT(materialGeneratorI18n);
   const { show } = useToast();
   const currentProject = useProjectStore((s) => s.currentProject);
+
+  const [toolMode, setToolMode] = useState<MaterialProcessOperation>('generate');
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [applyMode, setApplyMode] = useState<'overlay_selection' | 'replace_full'>('overlay_selection');
+  const [sourceImage, setSourceImage] = useState<File | null>(null);
+  const [refImage, setRefImage] = useState<File | null>(null);
+  const [extraImages, setExtraImages] = useState<File[]>([]);
+  const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
+  const [refImageUrl, setRefImageUrl] = useState<string | null>(null);
+  const [extraImageUrls, setExtraImageUrls] = useState<string[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+  const [selectorTarget, setSelectorTarget] = useState<SelectorTarget>('references');
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionRect, setSelectionRect] = useState<DisplayRect | null>(null);
+  const [selectionPixels, setSelectionPixels] = useState<MaterialSelectionRect | null>(null);
 
-  // Reset aspect ratio to project default when modal opens,
-  // so newly opened modals always reflect current project settings.
-  // Verify the store's currentProject matches the projectId prop to avoid
-  // using a stale/wrong project's aspect ratio.
+  const sourceImageRef = useRef<HTMLImageElement | null>(null);
+  const sourceInputRef = useRef<HTMLInputElement | null>(null);
+  const refInputRef = useRef<HTMLInputElement | null>(null);
+  const extraInputRef = useRef<HTMLInputElement | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isSelectingRegionRef = useRef(false);
+
+  const persistRunState = (next: Partial<PersistedMaterialRun>) => {
+    const key = getMaterialRunStorageKey(projectId);
+    const current: PersistedMaterialRun = (() => {
+      try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) {
+          return { taskId: null, previewUrl: null, status: 'idle', updatedAt: Date.now() };
+        }
+        return JSON.parse(raw);
+      } catch {
+        return { taskId: null, previewUrl: null, status: 'idle', updatedAt: Date.now() };
+      }
+    })();
+
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        ...current,
+        ...next,
+        updatedAt: Date.now(),
+      } satisfies PersistedMaterialRun)
+    );
+  };
+
+  const readPersistedRunState = (): PersistedMaterialRun | null => {
+    try {
+      const raw = sessionStorage.getItem(getMaterialRunStorageKey(projectId));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       const projectAspectRatio =
         (projectId && currentProject?.id === projectId && currentProject.image_aspect_ratio) || '16:9';
       setAspectRatio(projectAspectRatio);
+      setApplyMode('overlay_selection');
     }
   }, [isOpen, projectId, currentProject]);
-  const [refImage, setRefImage] = useState<File | null>(null);
-  const [extraImages, setExtraImages] = useState<File[]>([]);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+
+  useEffect(() => {
+    const nextUrl = sourceImage ? URL.createObjectURL(sourceImage) : null;
+    setSourceImageUrl(nextUrl);
+    return () => {
+      if (nextUrl) URL.revokeObjectURL(nextUrl);
+    };
+  }, [sourceImage]);
+
+  useEffect(() => {
+    const nextUrl = refImage ? URL.createObjectURL(refImage) : null;
+    setRefImageUrl(nextUrl);
+    return () => {
+      if (nextUrl) URL.revokeObjectURL(nextUrl);
+    };
+  }, [refImage]);
+
+  useEffect(() => {
+    const nextUrls = extraImages.map((file) => URL.createObjectURL(file));
+    setExtraImageUrls(nextUrls);
+    return () => {
+      nextUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [extraImages]);
+
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (toolMode === 'generate') {
+      setIsSelectionMode(false);
+      setSelectionStart(null);
+      setSelectionRect(null);
+      setSelectionPixels(null);
+    }
+  }, [toolMode]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsFullscreen(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const persisted = readPersistedRunState();
+    if (!persisted) return;
+
+    if (persisted.previewUrl) {
+      setPreviewUrl(persisted.previewUrl);
+      setIsCompleted(persisted.status === 'completed');
+    }
+
+    if (persisted.taskId && persisted.status === 'pending') {
+      setIsGenerating(true);
+      void pollMaterialTask(persisted.taskId);
+    }
+  }, [isOpen, projectId]);
+
+  const handleSourceImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = (e.target.files && e.target.files[0]) || null;
+    if (!file) return;
+    setSourceImage(file);
+    setSelectionRect(null);
+    setSelectionPixels(null);
+    setSelectionStart(null);
+    setIsSelectionMode(false);
+    if (isCompleted) setIsCompleted(false);
+  };
 
   const handleRefImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = (e.target.files && e.target.files[0]) || null;
-    if (file) {
-      setRefImage(file);
-    }
+    if (!file) return;
+    setRefImage(file);
+    if (isCompleted) setIsCompleted(false);
   };
 
   const handleExtraImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-
-    if (!refImage) {
-      const [first, ...rest] = files;
-      setRefImage(first);
-      if (rest.length > 0) {
-        setExtraImages((prev) => [...prev, ...rest]);
-      }
-    } else {
-      setExtraImages((prev) => [...prev, ...files]);
-    }
+    setExtraImages((prev) => [...prev, ...files]);
+    if (isCompleted) setIsCompleted(false);
   };
 
   const removeExtraImage = (index: number) => {
     setExtraImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleOpenMaterialSelector = (target: SelectorTarget) => {
+    setSelectorTarget(target);
+    setIsMaterialSelectorOpen(true);
+  };
+
   const handleSelectMaterials = async (materials: Material[]) => {
     try {
-      const files = await Promise.all(
-        materials.map((material) => materialUrlToFile(material))
-      );
-
+      const files = await Promise.all(materials.map((material) => materialUrlToFile(material)));
       if (files.length === 0) return;
+
+      if (selectorTarget === 'source') {
+        setSourceImage(files[0]);
+        setSelectionRect(null);
+        setSelectionPixels(null);
+        setSelectionStart(null);
+        setIsSelectionMode(false);
+        show({ message: t('material.messages.sourceLoaded'), type: 'success' });
+        return;
+      }
 
       if (!refImage) {
         const [first, ...rest] = files;
@@ -132,135 +408,143 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
       } else {
         setExtraImages((prev) => [...prev, ...files]);
       }
-
       show({ message: t('material.messages.materialAdded', { count: files.length }), type: 'success' });
     } catch (error: any) {
       console.error('Failed to load materials:', error);
       show({
-        message: t('material.messages.loadMaterialFailed') + ': ' + (error.message || t('common.unknownError')),
+        message: `${t('material.messages.loadMaterialFailed')}: ${error.message || t('common.unknownError')}`,
         type: 'error',
       });
     }
   };
 
-  // Manage object URLs to prevent memory leaks
-  const refImageUrl = useRef<string | null>(null);
-  const extraImageUrls = useRef<string[]>([]);
-
-  useEffect(() => {
-    // Revoke previous URL
-    if (refImageUrl.current) URL.revokeObjectURL(refImageUrl.current);
-    refImageUrl.current = refImage ? URL.createObjectURL(refImage) : null;
-  }, [refImage]);
-
-  useEffect(() => {
-    // Revoke all previous URLs
-    extraImageUrls.current.forEach(url => URL.revokeObjectURL(url));
-    extraImageUrls.current = extraImages.map(file => URL.createObjectURL(file));
-  }, [extraImages]);
-
-  useEffect(() => {
-    return () => {
-      if (refImageUrl.current) URL.revokeObjectURL(refImageUrl.current);
-      extraImageUrls.current.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, []);
-
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, []);
-
   const pollMaterialTask = async (taskId: string) => {
     const targetProjectId = projectId || 'global';
-    const maxAttempts = 60;
     let attempts = 0;
+    stopPolling();
 
     const poll = async () => {
       try {
-        attempts++;
+        attempts += 1;
         const response = await getTaskStatus(targetProjectId, taskId);
         const task: Task = response.data;
 
         if (task.status === 'COMPLETED') {
           const progress = task.progress || {};
           const imageUrl = progress.image_url;
-          
           if (imageUrl) {
-            setPreviewUrl(getImageUrl(imageUrl));
+            const nextPreviewUrl = getImageUrl(imageUrl);
+            setPreviewUrl(nextPreviewUrl);
             const message = projectId
               ? t('material.messages.generateSuccess')
               : t('material.messages.generateSuccessGlobal');
             show({ message, type: 'success' });
             setIsCompleted(true);
+            persistRunState({ taskId, previewUrl: nextPreviewUrl, status: 'completed' });
           } else {
             show({ message: t('material.messages.generateComplete'), type: 'error' });
+            persistRunState({ taskId, status: 'failed' });
           }
-
           setIsGenerating(false);
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
+          return;
         } else if (task.status === 'FAILED') {
           show({
             message: task.error_message || t('material.messages.generateFailed'),
             type: 'error',
           });
           setIsGenerating(false);
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-        } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
-          if (attempts >= maxAttempts) {
-            show({ message: t('material.messages.generateTimeout'), type: 'warning' });
-            setIsGenerating(false);
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-          }
+          persistRunState({ taskId, status: 'failed' });
+          return;
+        } else if (attempts >= MATERIAL_MAX_POLL_ATTEMPTS) {
+          show({ message: t('material.messages.generateTimeout'), type: 'warning' });
+          setIsGenerating(false);
+          persistRunState({ taskId, status: 'pending' });
+          return;
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Failed to poll task status:', error);
-        if (attempts >= maxAttempts) {
+        if (attempts >= MATERIAL_MAX_POLL_ATTEMPTS) {
           show({ message: t('material.messages.pollingFailed'), type: 'error' });
           setIsGenerating(false);
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
+          persistRunState({ taskId, status: 'pending' });
+          return;
         }
       }
+      pollingIntervalRef.current = setTimeout(poll, MATERIAL_POLL_INTERVAL_MS);
     };
 
-    poll();
-    pollingIntervalRef.current = setInterval(poll, 2000);
+    await poll();
+  };
+
+  const handleUseResultAsSource = async () => {
+    if (!previewUrl) return;
+    try {
+      const response = await fetch(previewUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const ext = blob.type.includes('png') ? 'png' : 'jpg';
+      const nextSource = new File([blob], `material-result.${ext}`, { type: blob.type || 'image/png' });
+      setSourceImage(nextSource);
+      setToolMode('edit_full');
+      setSelectionRect(null);
+      setSelectionPixels(null);
+      setIsSelectionMode(false);
+      show({ message: t('material.messages.resultPromoted'), type: 'success' });
+    } catch (error: any) {
+      console.error('Failed to load result as source:', error);
+      show({ message: t('material.messages.loadMaterialFailed'), type: 'error' });
+    }
+  };
+
+  const buildSelectionPayload = () => {
+    if (!selectionPixels) return null;
+    return selectionPixels;
+  };
+
+  const validateBeforeSubmit = () => {
+    if (toolMode !== 'erase_region' && !prompt.trim()) {
+      show({ message: t('material.messages.enterPrompt'), type: 'error' });
+      return false;
+    }
+
+    if (toolMode !== 'generate' && !sourceImage) {
+      show({ message: t('material.messages.chooseSource'), type: 'error' });
+      return false;
+    }
+
+    if ((toolMode === 'region_edit' || toolMode === 'erase_region') && !selectionPixels) {
+      show({ message: t('material.messages.chooseSelection'), type: 'error' });
+      return false;
+    }
+
+    return true;
   };
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      show({ message: t('material.messages.enterPrompt'), type: 'error' });
-      return;
-    }
+    if (!validateBeforeSubmit()) return;
 
     setIsGenerating(true);
+    setIsCompleted(false);
     try {
       const targetProjectId = projectId || 'none';
-      const resp = await generateMaterialImage(targetProjectId, prompt.trim(), refImage as File, extraImages, aspectRatio);
+      const resp = await processMaterialImage(targetProjectId, {
+        operation: toolMode,
+        prompt: prompt.trim(),
+        sourceImage,
+        refImage,
+        extraImages,
+        aspectRatio,
+        selection: buildSelectionPayload(),
+        applyMode,
+      });
       const taskId = resp.data?.task_id;
-      
       if (taskId) {
+        persistRunState({ taskId, status: 'pending' });
         await pollMaterialTask(taskId);
       } else {
         show({ message: t('material.messages.noTaskId'), type: 'error' });
         setIsGenerating(false);
+        persistRunState({ taskId: null, status: 'failed' });
       }
     } catch (error: any) {
       show({
@@ -268,6 +552,7 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
         type: 'error',
       });
       setIsGenerating(false);
+      persistRunState({ taskId: null, status: 'failed' });
     }
   };
 
@@ -275,44 +560,304 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
     onClose();
   };
 
+  const updateSelectionFromPointer = (clientX: number, clientY: number) => {
+    const img = sourceImageRef.current;
+    if (!img || !selectionStart) return;
+
+    const containerRect = img.getBoundingClientRect();
+    const rendered = getRenderedImageRect(img);
+
+    const currentX = Math.min(
+      Math.max(clientX - containerRect.left, rendered.left),
+      rendered.left + rendered.width
+    );
+    const currentY = Math.min(
+      Math.max(clientY - containerRect.top, rendered.top),
+      rendered.top + rendered.height
+    );
+
+    const left = Math.min(selectionStart.x, currentX);
+    const top = Math.min(selectionStart.y, currentY);
+    const width = Math.abs(currentX - selectionStart.x);
+    const height = Math.abs(currentY - selectionStart.y);
+
+    setSelectionRect({ left, top, width, height });
+  };
+
+  const finalizeSelection = () => {
+    const img = sourceImageRef.current;
+    if (!img || !selectionRect) {
+      isSelectingRegionRef.current = false;
+      setSelectionStart(null);
+      return;
+    }
+
+    const rendered = getRenderedImageRect(img);
+    const x = Math.round(((selectionRect.left - rendered.left) / rendered.width) * rendered.naturalWidth);
+    const y = Math.round(((selectionRect.top - rendered.top) / rendered.height) * rendered.naturalHeight);
+    const width = Math.round((selectionRect.width / rendered.width) * rendered.naturalWidth);
+    const height = Math.round((selectionRect.height / rendered.height) * rendered.naturalHeight);
+
+    if (width > 2 && height > 2) {
+      setSelectionPixels({
+        x,
+        y,
+        width,
+        height,
+        image_width: rendered.naturalWidth,
+        image_height: rendered.naturalHeight,
+      });
+    } else {
+      setSelectionRect(null);
+      setSelectionPixels(null);
+    }
+
+    isSelectingRegionRef.current = false;
+    setSelectionStart(null);
+  };
+
+  const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isSelectionMode || !sourceImageRef.current) return;
+
+    const img = sourceImageRef.current;
+    const containerRect = img.getBoundingClientRect();
+    const rendered = getRenderedImageRect(img);
+
+    const x = Math.min(
+      Math.max(e.clientX - containerRect.left, rendered.left),
+      rendered.left + rendered.width
+    );
+    const y = Math.min(
+      Math.max(e.clientY - containerRect.top, rendered.top),
+      rendered.top + rendered.height
+    );
+
+    isSelectingRegionRef.current = true;
+    setSelectionStart({ x, y });
+    setSelectionRect({ left: x, top: y, width: 0, height: 0 });
+  };
+
+  const handleSelectionMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isSelectionMode || !isSelectingRegionRef.current || !selectionStart) return;
+    updateSelectionFromPointer(e.clientX, e.clientY);
+  };
+
+  const handleSelectionMouseUp = () => {
+    if (!isSelectionMode || !isSelectingRegionRef.current) return;
+    finalizeSelection();
+  };
+
+  const currentPromptPlaceholder =
+    toolMode === 'generate'
+      ? t('material.promptPlaceholderGenerate')
+      : toolMode === 'edit_full'
+      ? t('material.promptPlaceholderEdit')
+      : toolMode === 'region_edit'
+      ? t('material.promptPlaceholderRegion')
+      : t('material.promptPlaceholderErase');
+
+  const selectionEnabled = toolMode === 'region_edit' || toolMode === 'erase_region';
+
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={t('material.title')} size="lg">
-      {/* 顶部提示信息 */}
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={t('material.title')}
+      size={isFullscreen ? 'full' : 'xl'}
+      headerActions={(
+        <button
+          type="button"
+          data-testid="material-fullscreen-toggle"
+          onClick={() => setIsFullscreen((prev) => !prev)}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-white/10 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-banana-400/50"
+          aria-label={isFullscreen ? t('material.exitFullscreen') : t('material.enterFullscreen')}
+          title={isFullscreen ? t('material.exitFullscreen') : t('material.enterFullscreen')}
+        >
+          {isFullscreen ? <Minimize2 size={17} strokeWidth={2} /> : <Maximize2 size={17} strokeWidth={2} />}
+        </button>
+      )}
+    >
       <div className="mb-5 px-4 py-3 rounded-xl bg-gradient-to-r from-banana-50/80 to-amber-50/80 dark:from-banana-900/20 dark:to-amber-900/20 border border-banana-200/50 dark:border-banana-700/30 backdrop-blur-sm">
         <p className="text-sm text-banana-800 dark:text-banana-200 flex items-center gap-2">
           <Info size={16} className="flex-shrink-0" />
           {t('material.saveToLibraryNote')}
         </p>
       </div>
+
       <div className="space-y-5">
-        {/* 生成结果预览卡片 - 使用现代渐变和光晕效果 */}
-        <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-gray-50/80 via-white/80 to-gray-50/80 dark:from-gray-900/40 dark:via-gray-800/40 dark:to-gray-900/40 backdrop-blur-xl shadow-lg">
-          {/* 内部光晕 */}
-          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-            <div className="absolute -top-20 -left-20 w-40 h-40 bg-banana-400/10 dark:bg-banana-400/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-purple-400/10 dark:bg-purple-400/5 rounded-full blur-3xl" />
+        <div>
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {t('material.toolModeLabel')}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {TOOL_CARDS.map((tool) => (
+              <button
+                key={tool.value}
+                type="button"
+                onClick={() => {
+                  setToolMode(tool.value);
+                  if (isCompleted) setIsCompleted(false);
+                }}
+                className={`rounded-2xl border p-4 text-left transition-all ${
+                  toolMode === tool.value
+                    ? 'border-banana-500 bg-banana-50 dark:bg-banana-900/20 shadow-sm'
+                    : 'border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary hover:border-banana-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-foreground-primary">
+                  <span className="text-banana-500">{tool.icon}</span>
+                  {t(tool.labelKey)}
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-foreground-tertiary">
+                  {t(tool.descKey)}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/80 dark:bg-gray-900/30 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                  <Layers size={16} className="text-banana-500" />
+                  {t('material.sourceImage')}
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('material.sourceImageHint')}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" icon={<FolderOpen size={16} />} onClick={() => handleOpenMaterialSelector('source')} />
+                <Button
+                  data-testid="material-source-trigger"
+                  variant="ghost"
+                  size="sm"
+                  icon={<Upload size={16} />}
+                  onClick={() => sourceInputRef.current?.click()}
+                />
+                <input
+                  ref={sourceInputRef}
+                  data-testid="material-source-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSourceImageChange}
+                />
+              </div>
+            </div>
+
+            <div
+              data-testid="material-source-canvas"
+              className="relative rounded-xl overflow-hidden border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/40"
+              style={{ aspectRatio: selectionEnabled ? '4 / 3' : '16 / 10' }}
+              onMouseDown={handleSelectionMouseDown}
+              onMouseMove={handleSelectionMouseMove}
+              onMouseUp={handleSelectionMouseUp}
+              onMouseLeave={handleSelectionMouseUp}
+            >
+              {sourceImageUrl ? (
+                <>
+                  {selectionEnabled && (
+                    <button
+                      data-testid="material-selection-toggle"
+                      type="button"
+                      onClick={() => {
+                        setIsSelectionMode((prev) => !prev);
+                        isSelectingRegionRef.current = false;
+                        setSelectionStart(null);
+                      }}
+                      className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-full bg-white/85 dark:bg-black/55 text-xs font-medium text-gray-700 dark:text-gray-100 shadow-sm flex items-center gap-1.5"
+                    >
+                      <Crop size={13} />
+                      {isSelectionMode ? t('material.stopSelection') : t('material.startSelection')}
+                    </button>
+                  )}
+                  <img
+                    ref={sourceImageRef}
+                    src={sourceImageUrl}
+                    alt={t('material.sourceImage')}
+                    className="w-full h-full object-contain select-none"
+                    draggable={false}
+                  />
+                  {selectionRect && (
+                    <div
+                      className="absolute border-2 border-banana-500 bg-banana-400/15 pointer-events-none"
+                      style={{
+                        left: selectionRect.left,
+                        top: selectionRect.top,
+                        width: selectionRect.width,
+                        height: selectionRect.height,
+                      }}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 p-6">
+                  <ImagePlus size={42} className="mb-3" />
+                  <div className="text-sm font-medium">{t('material.sourceImage')}</div>
+                  <div className="text-xs mt-1">{t('material.sourceImageHint')}</div>
+                </div>
+              )}
+            </div>
+
+            {selectionEnabled && (
+              <div className="mt-3 rounded-xl border border-gray-200 dark:border-border-primary bg-gray-50 dark:bg-background-primary p-3">
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  {t('material.selectionLabel')}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {selectionPixels
+                    ? t('material.selectionReady', { width: selectionPixels.width, height: selectionPixels.height })
+                    : t('material.selectionHint')}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="relative">
-            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-              <span className="w-1 h-4 bg-gradient-to-b from-banana-400 to-banana-500 rounded-full" />
-              {t('material.generatedResult')}
-            </h4>
+          <div className="rounded-2xl border border-gray-200/60 dark:border-white/10 bg-white/80 dark:bg-gray-900/30 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <Sparkles size={16} className="text-banana-500" />
+                {t('material.generatedResult')}
+              </h4>
+              <div className="flex gap-2">
+                {previewUrl && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={handleUseResultAsSource}>
+                      {t('material.useResultAsSource')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPreviewUrl(null);
+                        setIsCompleted(false);
+                        persistRunState({ previewUrl: null, status: 'idle', taskId: null });
+                      }}
+                    >
+                      {t('material.clearResult')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
             {isGenerating ? (
-              <div className="rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
+              <div className="rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 shadow-inner" style={{ aspectRatio: '4 / 3' }}>
                 <Skeleton className="w-full h-full" />
               </div>
             ) : previewUrl ? (
-              <div className="bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
+              <div className="bg-white/50 dark:bg-gray-900/50 rounded-xl overflow-hidden border border-gray-200/50 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm" style={{ aspectRatio: '4 / 3' }}>
                 <img
                   src={previewUrl}
-                  alt={t('material.generatedMaterial')}
+                  alt={t('material.generatedResult')}
                   className="w-full h-full object-contain"
                 />
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
-                <ImageIcon size={48} className="mb-3 animate-pulse opacity-50" />
+              <div className="bg-gradient-to-br from-gray-100/50 via-gray-50/50 to-gray-100/50 dark:from-gray-800/30 dark:via-gray-900/30 dark:to-gray-800/30 rounded-xl flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-300/50 dark:border-gray-600/50 backdrop-blur-sm" style={{ aspectRatio: '4 / 3' }}>
+                <ImageIcon size={48} className="mb-3 opacity-50" />
                 <div className="font-medium">{t('material.generatedPreview')}</div>
               </div>
             )}
@@ -321,44 +866,71 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
 
         <Textarea
           label={t('material.promptLabel')}
-          placeholder={t('material.promptPlaceholder')}
+          placeholder={currentPromptPlaceholder}
           value={prompt}
           onChange={(e) => {
             setPrompt(e.target.value);
             if (isCompleted) setIsCompleted(false);
           }}
-          rows={3}
+          rows={4}
         />
 
-        {/* 生成比例选择 */}
-        <div>
-          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('material.aspectRatioLabel')}</div>
-          <div className="flex flex-wrap gap-1.5">
-            {ASPECT_RATIO_OPTIONS.map((opt) => (
+        {toolMode === 'generate' && (
+          <div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('material.aspectRatioLabel')}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {ASPECT_RATIO_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setAspectRatio(opt.value);
+                    if (isCompleted) setIsCompleted(false);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                    aspectRatio === opt.value
+                      ? 'border-banana-500 bg-banana-50 dark:bg-banana-900/30 text-banana-700 dark:text-banana'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {toolMode === 'region_edit' && (
+          <div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('material.applyModeLabel')}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
-                key={opt.value}
                 type="button"
-                onClick={() => { setAspectRatio(opt.value); if (isCompleted) setIsCompleted(false); }}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                  aspectRatio === opt.value
-                    ? 'border-banana-500 bg-banana-50 dark:bg-banana-900/30 text-banana-700 dark:text-banana'
-                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
+                onClick={() => setApplyMode('overlay_selection')}
+                className={`rounded-xl border p-3 text-left transition-all ${
+                  applyMode === 'overlay_selection'
+                    ? 'border-banana-500 bg-banana-50 dark:bg-banana-900/20'
+                    : 'border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary'
                 }`}
               >
-                {opt.label}
+                <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('material.applyOverlay')}</div>
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setApplyMode('replace_full')}
+                className={`rounded-xl border p-3 text-left transition-all ${
+                  applyMode === 'replace_full'
+                    ? 'border-banana-500 bg-banana-50 dark:bg-banana-900/20'
+                    : 'border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary'
+                }`}
+              >
+                <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('material.applyReplaceFull')}</div>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 参考图片上传区域 - 现代渐变设计 */}
         <div className="relative rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/10 p-5 bg-gradient-to-br from-indigo-50/30 via-white/80 to-purple-50/30 dark:from-indigo-950/20 dark:via-gray-800/40 dark:to-purple-950/20 backdrop-blur-xl shadow-lg">
-          {/* 内部光晕 */}
-          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-            <div className="absolute top-0 left-1/4 w-32 h-32 bg-indigo-400/10 dark:bg-indigo-400/5 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 right-1/4 w-32 h-32 bg-purple-400/10 dark:bg-purple-400/5 rounded-full blur-3xl" />
-          </div>
-
           <div className="relative space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200 font-medium">
@@ -369,22 +941,18 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                 variant="ghost"
                 size="sm"
                 icon={<FolderOpen size={16} />}
-                onClick={() => setIsMaterialSelectorOpen(true)}
-                className="hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30"
-              >
-                {t('material.selectFromLibrary')}
-              </Button>
+                onClick={() => handleOpenMaterialSelector('references')}
+              />
             </div>
 
             <div className="flex flex-wrap gap-4">
-              {/* 主参考图 */}
               <div className="space-y-2">
                 <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.mainReference')}</div>
-                <label className="w-40 h-28 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm relative group shadow-sm hover:shadow-md">
+                <div className="w-40 h-28 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm relative group shadow-sm hover:shadow-md">
                   {refImage ? (
                     <>
                       <img
-                        src={refImageUrl.current || ''}
+                        src={refImageUrl || ''}
                         alt={t('material.mainReference')}
                         className="w-full h-full object-cover rounded-xl"
                       />
@@ -395,63 +963,77 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
                           e.stopPropagation();
                           setRefImage(null);
                         }}
-                        className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110 active:scale-95 z-10"
+                        className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg z-10"
                       >
                         <X size={14} strokeWidth={2.5} />
                       </button>
                     </>
                   ) : (
                     <>
-                      <ImageIcon size={28} className="text-indigo-400 dark:text-indigo-500 mb-1.5 group-hover:scale-110 transition-transform duration-200" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.clickToUpload')}</span>
+                      <ImageIcon size={28} className="text-indigo-400 dark:text-indigo-500 mb-1.5" />
+                      <button
+                        data-testid="material-ref-trigger"
+                        type="button"
+                        onClick={() => refInputRef.current?.click()}
+                        className="text-xs text-gray-600 dark:text-gray-400 font-medium"
+                      >
+                        {t('material.clickToUpload')}
+                      </button>
                     </>
                   )}
                   <input
+                    ref={refInputRef}
+                    data-testid="material-ref-input"
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={handleRefImageChange}
                   />
-                </label>
+                </div>
               </div>
 
-              {/* 额外参考图 */}
               <div className="flex-1 space-y-2 min-w-[180px]">
                 <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('material.extraReference')}</div>
                 <div className="flex flex-wrap gap-2">
                   {extraImages.map((file, idx) => (
-                    <div key={idx} className="relative group">
+                    <div key={`${file.name}-${idx}`} className="relative group">
                       <img
-                        src={extraImageUrls.current[idx] || ''}
+                        src={extraImageUrls[idx] || ''}
                         alt={`extra-${idx + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200/50 dark:border-indigo-500/30 shadow-sm group-hover:shadow-md transition-all duration-200"
+                        className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200/50 dark:border-indigo-500/30 shadow-sm"
                       />
                       <button
                         onClick={() => removeExtraImage(idx)}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110 active:scale-95"
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
                       >
                         <X size={12} strokeWidth={2.5} />
                       </button>
                     </div>
                   ))}
-                  <label className="w-20 h-20 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm group shadow-sm hover:shadow-md">
-                    <Upload size={20} className="text-indigo-400 dark:text-indigo-500 mb-1 group-hover:scale-110 transition-transform duration-200" />
+                  <button
+                    data-testid="material-extra-trigger"
+                    type="button"
+                    onClick={() => extraInputRef.current?.click()}
+                    className="w-20 h-20 border-2 border-dashed border-indigo-300/50 dark:border-indigo-500/30 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all duration-200 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm group shadow-sm"
+                  >
+                    <Upload size={20} className="text-indigo-400 dark:text-indigo-500 mb-1" />
                     <span className="text-[10px] text-gray-600 dark:text-gray-400 font-medium">{t('common.add')}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleExtraImagesChange}
-                    />
-                  </label>
+                  </button>
+                  <input
+                    ref={extraInputRef}
+                    data-testid="material-extra-input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleExtraImagesChange}
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 底部按钮区域 */}
         <div className="flex justify-end gap-3 pt-3">
           <Button variant="ghost" onClick={handleClose} disabled={isGenerating}>
             {t('common.close')}
@@ -459,19 +1041,20 @@ export const MaterialGeneratorModal: React.FC<MaterialGeneratorModalProps> = ({
           <Button
             variant="primary"
             onClick={handleGenerate}
-            disabled={isGenerating || isCompleted || !prompt.trim()}
-            className="shadow-lg shadow-banana-500/20 hover:shadow-xl hover:shadow-banana-500/30 transition-all duration-200"
+            disabled={isGenerating || isCompleted || (toolMode !== 'erase_region' && !prompt.trim())}
+            className="shadow-lg shadow-banana-500/20"
           >
-            {isGenerating ? t('common.generating') : isCompleted ? t('common.completed') : t('material.generateMaterial')}
+            {isGenerating ? t('common.generating') : isCompleted ? t('common.completed') : t('material.runTool')}
           </Button>
         </div>
       </div>
+
       <MaterialSelector
-        projectId={projectId}
+        projectId={projectId || undefined}
         isOpen={isMaterialSelectorOpen}
         onClose={() => setIsMaterialSelectorOpen(false)}
         onSelect={handleSelectMaterials}
-        multiple={true}
+        multiple={selectorTarget === 'references'}
       />
     </Modal>
   );
