@@ -233,7 +233,7 @@ def _ensure_callback_server():
         if _callback_server is not None:
             return
         try:
-            server = HTTPServer(("127.0.0.1", _CALLBACK_PORT), _OAuthCallbackHandler)
+            server = HTTPServer(("0.0.0.0", _CALLBACK_PORT), _OAuthCallbackHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             _callback_server = server
