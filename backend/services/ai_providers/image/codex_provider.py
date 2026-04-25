@@ -69,6 +69,7 @@ class CodexImageProvider(ImageProvider):
         size = _SIZE_MAP.get(aspect_ratio, "1024x1024")
         return {
             "model": self.model,
+            "instructions": "You are a helpful assistant that generates images.",
             "input": [
                 {
                     "role": "user",
@@ -84,6 +85,7 @@ class CodexImageProvider(ImageProvider):
                 }
             ],
             "tool_choice": {"type": "image_generation"},
+            "store": False,
             "stream": True,
         }
 
@@ -147,7 +149,8 @@ class CodexImageProvider(ImageProvider):
         """
         completed_data = None
 
-        for line in resp.iter_lines(decode_unicode=True):
+        for raw_line in resp.iter_lines():
+            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
             if not line or not line.startswith("data: "):
                 continue
             raw = line[len("data: "):]

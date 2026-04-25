@@ -46,12 +46,14 @@ class CodexTextProvider(TextProvider):
             "Content-Type": "application/json",
         }
 
-    def _build_payload(self, prompt: str, *, stream: bool = False) -> dict:
-        """Build a Responses API request body."""
+    def _build_payload(self, prompt: str) -> dict:
+        """Build a Responses API request body. Stream is always true (required by Codex)."""
         return {
             "model": self.model,
+            "instructions": "You are a helpful assistant.",
             "input": [{"role": "user", "content": prompt}],
-            "stream": stream,
+            "store": False,
+            "stream": True,
         }
 
     # ------------------------------------------------------------------
@@ -59,20 +61,23 @@ class CodexTextProvider(TextProvider):
     # ------------------------------------------------------------------
 
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
-        """Generate text (non-streaming) via the Responses API."""
-        payload = self._build_payload(prompt, stream=False)
-        logger.debug("Codex text request (non-stream): model=%s", self.model)
+        """Generate text via the Responses API (always streaming, collected into full result)."""
+        payload = self._build_payload(prompt)
+        logger.debug("Codex text request: model=%s", self.model)
 
         resp = http_requests.post(
             _RESPONSES_ENDPOINT,
             headers=self._headers(),
             json=payload,
             timeout=_DEFAULT_TIMEOUT,
+            stream=True,
         )
         resp.raise_for_status()
-        data = resp.json()
 
-        return strip_think_tags(self._extract_text(data))
+        collected = []
+        for chunk in self._iter_sse_text(resp):
+            collected.append(chunk)
+        return strip_think_tags("".join(collected))
 
     # ------------------------------------------------------------------
     # Streaming
@@ -80,7 +85,7 @@ class CodexTextProvider(TextProvider):
 
     def generate_text_stream(self, prompt: str, thinking_budget: int = 0) -> Generator[str, None, None]:
         """Stream text via the Responses API (SSE)."""
-        payload = self._build_payload(prompt, stream=True)
+        payload = self._build_payload(prompt)
         logger.debug("Codex text request (stream): model=%s", self.model)
 
         resp = http_requests.post(
@@ -92,7 +97,17 @@ class CodexTextProvider(TextProvider):
         )
         resp.raise_for_status()
 
-        for line in resp.iter_lines(decode_unicode=True):
+        yield from self._iter_sse_text(resp)
+
+    # ------------------------------------------------------------------
+    # SSE parsing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _iter_sse_text(resp) -> Generator[str, None, None]:
+        """Parse SSE stream and yield text deltas."""
+        for raw_line in resp.iter_lines():
+            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
             if not line or not line.startswith("data: "):
                 continue
             raw = line[len("data: "):]
@@ -103,38 +118,7 @@ class CodexTextProvider(TextProvider):
             except json.JSONDecodeError:
                 continue
 
-            # Responses API emits several event types.  We care about:
-            #   response.output_text.delta  — incremental text chunk
-            #   response.completed          — final full response (fallback)
-            event_type = event.get("type", "")
-
-            if event_type == "response.output_text.delta":
+            if event.get("type") == "response.output_text.delta":
                 delta = event.get("delta", "")
                 if delta:
                     yield delta
-
-    # ------------------------------------------------------------------
-    # Response parsing
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _extract_text(data: dict) -> str:
-        """Extract the final text from a non-streaming Responses API result.
-
-        The response structure looks like:
-        {
-          "output": [
-            {"type": "message", "content": [{"type": "output_text", "text": "..."}]}
-          ]
-        }
-        """
-        for item in data.get("output", []):
-            if item.get("type") == "message":
-                for part in item.get("content", []):
-                    if part.get("type") == "output_text":
-                        return part.get("text", "")
-        # Fallback: some responses put text directly
-        if "output_text" in data:
-            return data["output_text"]
-        logger.warning("Could not extract text from Codex response: %s", str(data)[:500])
-        return ""
