@@ -385,8 +385,9 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         logger.info("Image provider: LazyLLM, model=%s, source=%s", model, source)
         return LazyLLMImageProvider(source=source, model=model)
     elif fmt == 'codex':
-        logger.info("Image provider: Codex (OAuth), model=%s", model)
-        return CodexImageProvider(api_key=config['api_key'], model=model)
+        resolution = _resolve_setting('DEFAULT_RESOLUTION', '2K') or '2K'
+        logger.info("Image provider: Codex (OAuth), model=%s, resolution=%s", model, resolution)
+        return CodexImageProvider(api_key=config['api_key'], model=model, resolution=resolution)
     else:
         # gemini (default)
         logger.info("Image provider: Gemini, model=%s", model)

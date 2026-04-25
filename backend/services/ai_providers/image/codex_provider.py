@@ -18,6 +18,7 @@ import requests as http_requests
 from PIL import Image
 
 from .base import ImageProvider
+from .openai_provider import _compute_gpt_image_size
 
 logger = logging.getLogger(__name__)
 
@@ -26,30 +27,21 @@ _RESPONSES_ENDPOINT = f"{_CODEX_BASE_URL}/responses"
 
 _DEFAULT_TIMEOUT = 180  # image generation can be slow
 
-# Aspect-ratio → size mapping for the image_generation tool
-_SIZE_MAP = {
-    "16:9": "1536x1024",
-    "9:16": "1024x1536",
-    "1:1":  "1024x1024",
-    "3:2":  "1536x1024",
-    "2:3":  "1024x1536",
-    "4:3":  "1536x1024",
-    "3:4":  "1024x1536",
-}
-
 
 class CodexImageProvider(ImageProvider):
     """Image generation via the ChatGPT Codex Responses API (OAuth)."""
 
-    def __init__(self, api_key: str, model: str = "gpt-image-1"):
+    def __init__(self, api_key: str, model: str = "gpt-image-1", resolution: str = "2K"):
         """
         Args:
             api_key: OAuth access token.
             model:   The image model (e.g. gpt-image-1, gpt-image-2).
                      Used inside the image_generation tool definition.
+            resolution: Target resolution (1K/2K/4K) for dynamic size calculation.
         """
         self.api_key = api_key
         self.image_model = model
+        self.resolution = resolution
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -63,7 +55,7 @@ class CodexImageProvider(ImageProvider):
 
     def _build_payload(self, prompt: str, aspect_ratio: str, quality: str = "high") -> dict:
         """Build a Responses API request with image_generation tool."""
-        size = _SIZE_MAP.get(aspect_ratio, "1024x1024")
+        size = _compute_gpt_image_size(aspect_ratio, self.resolution)
         return {
             "model": "gpt-5.4",
             "instructions": "You are a helpful assistant that generates images.",
