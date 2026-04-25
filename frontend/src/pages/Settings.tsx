@@ -444,7 +444,6 @@ export const Settings: React.FC = () => {
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
   const [oauthConnecting, setOauthConnecting] = useState(false);
-  const [codexModels, setCodexModels] = useState<string[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleOAuthLogin = async () => {
@@ -641,18 +640,6 @@ export const Settings: React.FC = () => {
   useEffect(() => {
     loadSettings();
   }, []);
-
-  useEffect(() => {
-    if (settings?.openai_oauth_connected) {
-      api.getOpenAIOAuthModels().then(resp => {
-        if (resp.success && resp.data?.models) {
-          setCodexModels(resp.data.models);
-        }
-      }).catch(() => {});
-    } else {
-      setCodexModels([]);
-    }
-  }, [settings?.openai_oauth_connected]);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -1118,35 +1105,6 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* Codex (OAuth)：显示可用模型列表 */}
-        {sourceValue === 'codex' && (
-          <div className="pl-3 border-l-2 border-green-400 dark:border-green-600 space-y-2">
-            {codexModels.length > 0 ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
-                  {t('settings.openaiOAuth.availableModels')}
-                </label>
-                <select
-                  value={formData[item.modelKey] as string}
-                  onChange={(e) => handleFieldChange(item.modelKey, e.target.value)}
-                  className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
-                >
-                  <option value="">{t('settings.openaiOAuth.selectModel')}</option>
-                  {codexModels.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
-                {settings?.openai_oauth_connected
-                  ? t('settings.openaiOAuth.loadingModels')
-                  : t('settings.openaiOAuth.connectFirst')}
-              </p>
-            )}
-          </div>
-        )}
-
         {/* LazyLLM 厂商：显示厂商 API Key */}
         {isLazyllm && (() => {
           const vendorLabel = LAZYLLM_SOURCES.find(s => s.value === sourceValue)?.label || sourceValue.toUpperCase();
@@ -1303,9 +1261,13 @@ export const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 其余配置区块（配置驱动，排除性能配置） */}
+        {/* 其余配置区块（配置驱动，排除性能配置和推理模式） */}
         <div className="space-y-8">
-          {settingsSections.filter((section) => section.title !== t('settings.sections.performanceConfig')).map((section) => (
+          {settingsSections.filter((section) =>
+            section.title !== t('settings.sections.performanceConfig') &&
+            section.title !== t('settings.sections.textReasoning') &&
+            section.title !== t('settings.sections.imageReasoning')
+          ).map((section) => (
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                 {section.icon}
@@ -1380,8 +1342,12 @@ export const Settings: React.FC = () => {
                 </div>
               </div>
 
-              {/* 并发性能配置 */}
-              {settingsSections.filter((section) => section.title === t('settings.sections.performanceConfig')).map((section) => (
+              {/* 并发性能配置 + 推理模式 */}
+              {settingsSections.filter((section) =>
+                section.title === t('settings.sections.performanceConfig') ||
+                section.title === t('settings.sections.textReasoning') ||
+                section.title === t('settings.sections.imageReasoning')
+              ).map((section) => (
                 <div key={section.title}>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                     {section.icon}
