@@ -9,6 +9,7 @@ tools=[{"type": "image_generation", ...}] and tool_choice={"type": "image_genera
 The result contains a base64-encoded image in the output.
 """
 import base64
+import io
 import json
 import logging
 from io import BytesIO
@@ -53,18 +54,27 @@ class CodexImageProvider(ImageProvider):
             "Content-Type": "application/json",
         }
 
-    def _build_payload(self, prompt: str, aspect_ratio: str, quality: str = "high") -> dict:
+    def _build_payload(self, prompt: str, aspect_ratio: str, ref_images: Optional[List[Image.Image]] = None, quality: str = "high") -> dict:
         """Build a Responses API request with image_generation tool."""
         size = _compute_gpt_image_size(aspect_ratio, self.resolution)
+
+        content = []
+        if ref_images:
+            for img in ref_images:
+                buffered = io.BytesIO()
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    bg = Image.new('RGB', img.size, (255, 255, 255))
+                    bg.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                    img = bg
+                img.save(buffered, format="PNG")
+                b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                content.append({"type": "input_image", "image_url": f"data:image/png;base64,{b64}"})
+        content.append({"type": "input_text", "text": prompt})
+
         return {
             "model": "gpt-5.4",
             "instructions": "You are a helpful assistant that generates images.",
-            "input": [
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": prompt}],
-                }
-            ],
+            "input": [{"role": "user", "content": content}],
             "tools": [
                 {
                     "type": "image_generation",
@@ -98,10 +108,10 @@ class CodexImageProvider(ImageProvider):
         tool does not support these features.
         """
         try:
-            payload = self._build_payload(prompt, aspect_ratio)
+            payload = self._build_payload(prompt, aspect_ratio, ref_images=ref_images)
             logger.debug(
-                "Codex image request: image_model=%s, aspect=%s",
-                self.image_model, aspect_ratio,
+                "Codex image request: image_model=%s, aspect=%s, ref_images=%d",
+                self.image_model, aspect_ratio, len(ref_images) if ref_images else 0,
             )
 
             resp = http_requests.post(
