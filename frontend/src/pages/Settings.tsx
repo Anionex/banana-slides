@@ -1251,7 +1251,7 @@ export const Settings: React.FC = () => {
                 onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
-                {ALL_PROVIDER_SOURCES.map((option) => (
+                {ALL_PROVIDER_SOURCES.filter(o => o.value !== 'codex').map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
