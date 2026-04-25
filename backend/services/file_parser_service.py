@@ -768,6 +768,54 @@ class FileParserService:
                         os.remove(temp_path)
                     except OSError:
                         pass
+            elif self._provider_format == 'codex':
+                from services.ai_providers import _get_openai_oauth_token
+                token = _get_openai_oauth_token()
+                if not token:
+                    logger.warning("Codex OAuth token not available, skipping caption generation")
+                    return ""
+
+                buffered = io.BytesIO()
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    image = image.convert('RGB')
+                image.save(buffered, format="JPEG", quality=95)
+                base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+                import requests as http_req
+                import json as json_mod
+                resp = http_req.post(
+                    "https://chatgpt.com/backend-api/codex/responses",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json={
+                        "model": self._image_caption_model,
+                        "instructions": "You are a helpful assistant that describes images.",
+                        "input": [{"role": "user", "content": [
+                            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{base64_image}"},
+                            {"type": "input_text", "text": prompt},
+                        ]}],
+                        "store": False,
+                        "stream": True,
+                    },
+                    timeout=60,
+                    stream=True,
+                )
+                resp.raise_for_status()
+
+                collected = []
+                for raw_line in resp.iter_lines():
+                    line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                    if not line or not line.startswith("data: "):
+                        continue
+                    raw = line[len("data: "):]
+                    if raw.strip() == "[DONE]":
+                        break
+                    try:
+                        evt = json_mod.loads(raw)
+                        if evt.get("type") == "response.output_text.delta":
+                            collected.append(evt.get("delta", ""))
+                    except (ValueError, KeyError):
+                        continue
+                caption = "".join(collected).strip()
             else:
                 # Use Gemini SDK format (default)
                 from google.genai import types

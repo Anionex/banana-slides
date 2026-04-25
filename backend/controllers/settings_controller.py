@@ -717,6 +717,8 @@ def _create_file_parser():
             caption_format = 'gemini'
         elif source_lower == 'openai':
             caption_format = 'openai'
+        elif source_lower == 'codex':
+            caption_format = 'codex'
         elif source_lower in LAZYLLM_VENDORS:
             caption_format = 'lazyllm'
         else:
@@ -735,6 +737,11 @@ def _create_file_parser():
         google_base = ""
         openai_key = current_app.config.get("IMAGE_CAPTION_API_KEY") or current_app.config.get("OPENAI_API_KEY", "")
         openai_base = current_app.config.get("IMAGE_CAPTION_API_BASE") or current_app.config.get("OPENAI_API_BASE", "")
+    elif caption_format == 'codex':
+        google_key = ""
+        google_base = ""
+        openai_key = ""
+        openai_base = ""
     else:
         # lazyllm or global fallback
         google_key = current_app.config.get("GOOGLE_API_KEY", "")
