@@ -1167,8 +1167,14 @@ export const Settings: React.FC = () => {
                 onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
-                {ALL_PROVIDER_SOURCES.filter(o => o.value !== 'codex').map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                {ALL_PROVIDER_SOURCES.map((option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
+                  >
+                    {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
+                  </option>
                 ))}
               </select>
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
