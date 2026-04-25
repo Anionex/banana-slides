@@ -41,18 +41,15 @@ _SIZE_MAP = {
 class CodexImageProvider(ImageProvider):
     """Image generation via the ChatGPT Codex Responses API (OAuth)."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4.1"):
+    def __init__(self, api_key: str, model: str = "gpt-image-1"):
         """
         Args:
             api_key: OAuth access token.
-            model:   The *text* model that orchestrates the tool call
-                     (e.g. gpt-4.1). The actual image model is specified
-                     inside the tool definition.
+            model:   The image model (e.g. gpt-image-1, gpt-image-2).
+                     Used inside the image_generation tool definition.
         """
         self.api_key = api_key
-        self.model = model
-        # The image model used inside the tool definition
-        self.image_model = "gpt-image-1"
+        self.image_model = model
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -68,7 +65,7 @@ class CodexImageProvider(ImageProvider):
         """Build a Responses API request with image_generation tool."""
         size = _SIZE_MAP.get(aspect_ratio, "1024x1024")
         return {
-            "model": self.model,
+            "model": "gpt-5.4",
             "instructions": "You are a helpful assistant that generates images.",
             "input": [
                 {
