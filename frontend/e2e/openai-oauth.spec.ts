@@ -245,8 +245,9 @@ test.describe('OpenAI OAuth Settings Section', () => {
       expect(data.data.auth_url).toContain('scope=');
       expect(data.data.auth_url).toContain('api.connectors.read');
       expect(data.data.auth_url).toContain('codex_cli_simplified_flow=true');
-      // redirect_uri should use the actual backend port, not default 5000
-      expect(data.data.auth_url).not.toContain('localhost%3A5000');
+      expect(data.data.auth_url).toContain('originator=codex_cli_rs');
+      // redirect_uri must use port 1455 (OpenAI's registered callback port)
+      expect(data.data.auth_url).toContain('localhost%3A1455');
     });
 
     test('OAuth disconnect endpoint works even when not connected', async ({ request }) => {

@@ -177,12 +177,17 @@ class Settings(db.Model):
     def _refresh_openai_oauth(self):
         """Refresh the OpenAI OAuth token using the refresh token."""
         import requests
+        from urllib.parse import urlencode
         try:
-            resp = requests.post('https://auth.openai.com/oauth/token', json={
-                'grant_type': 'refresh_token',
-                'refresh_token': self.openai_oauth_refresh_token,
-                'client_id': 'app_EMoamEEZ73f0CkXaXp7hrann',
-            }, timeout=15)
+            resp = requests.post('https://auth.openai.com/oauth/token',
+                data=urlencode({
+                    'grant_type': 'refresh_token',
+                    'refresh_token': self.openai_oauth_refresh_token,
+                    'client_id': 'app_EMoamEEZ73f0CkXaXp7hrann',
+                }),
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=15,
+            )
             resp.raise_for_status()
             data = resp.json()
             self.openai_oauth_access_token = data['access_token']

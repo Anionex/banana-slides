@@ -1,4 +1,9 @@
-"""OpenAI Codex OAuth Controller — PKCE authorization flow for OpenAI accounts"""
+"""OpenAI Codex OAuth Controller — PKCE authorization flow for OpenAI accounts.
+
+The OAuth callback must arrive at localhost:1455/auth/callback (the only redirect_uri
+registered with OpenAI's auth server). We spin up a temporary HTTP server on that port
+to receive the callback, exchange the code for tokens, and store them in the database.
+"""
 
 import hashlib
 import json
@@ -6,10 +11,13 @@ import logging
 import os
 import secrets
 import base64
+import threading
 from datetime import datetime, timedelta, timezone
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlencode, urlparse, parse_qs
 
-import requests
-from flask import Blueprint, redirect, request, session
+import requests as http_requests
+from flask import Blueprint, request
 
 from models import db, Settings
 from utils import success_response, error_response
@@ -24,105 +32,47 @@ _OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 _OPENAI_AUTH_URL = "https://auth.openai.com/oauth/authorize"
 _OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token"
 _SCOPES = "openid profile email offline_access api.connectors.read api.connectors.invoke"
+_CALLBACK_PORT = 1455
 
-
-def _get_actual_port() -> int:
-    """Get the actual port the Flask app is running on."""
-    from flask import current_app
-    try:
-        server = current_app.extensions.get('_server_port')
-        if server:
-            return server
-    except Exception:
-        pass
-    port_env = os.getenv("BACKEND_PORT")
-    if port_env:
-        return int(port_env)
-    return int(request.host.split(':')[-1]) if ':' in request.host else 5000
+# In-memory store for pending OAuth flows (state -> {code_verifier, app_context})
+_pending_flows: dict[str, dict] = {}
 
 
 def _build_redirect_uri() -> str:
-    port = _get_actual_port()
-    return f"http://localhost:{port}/api/settings/openai-oauth/callback"
+    return f"http://localhost:{_CALLBACK_PORT}/auth/callback"
 
 
 @openai_oauth_bp.route("/authorize", methods=["GET"])
 def authorize():
-    """Generate PKCE params and return the authorization URL."""
+    """Generate PKCE params, start callback server, return authorization URL."""
     code_verifier = secrets.token_urlsafe(64)
     digest = hashlib.sha256(code_verifier.encode()).digest()
     code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     state = secrets.token_urlsafe(32)
 
-    session["openai_oauth_verifier"] = code_verifier
-    session["openai_oauth_state"] = state
+    from flask import current_app
+    _pending_flows[state] = {
+        "code_verifier": code_verifier,
+        "app": current_app._get_current_object(),
+    }
+
+    _ensure_callback_server()
 
     params = {
+        "response_type": "code",
         "client_id": _OPENAI_CLIENT_ID,
         "redirect_uri": _build_redirect_uri(),
-        "response_type": "code",
         "scope": _SCOPES,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
-        "state": state,
         "id_token_add_organizations": "true",
         "codex_cli_simplified_flow": "true",
+        "state": state,
+        "originator": "codex_cli_rs",
     }
-    qs = "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
+    qs = urlencode(params)
     auth_url = f"{_OPENAI_AUTH_URL}?{qs}"
     return success_response({"auth_url": auth_url})
-
-
-@openai_oauth_bp.route("/callback", methods=["GET"])
-def callback():
-    """Receive the authorization code, exchange for tokens, store in DB."""
-    code = request.args.get("code")
-    state = request.args.get("state")
-    error = request.args.get("error")
-
-    if error:
-        logger.warning("OAuth callback error: %s", error)
-        return _callback_html(success=False, message=error)
-
-    expected_state = session.pop("openai_oauth_state", None)
-    code_verifier = session.pop("openai_oauth_verifier", None)
-
-    if not code or not state:
-        return _callback_html(success=False, message="Missing code or state")
-    if state != expected_state:
-        return _callback_html(success=False, message="State mismatch — possible CSRF")
-    if not code_verifier:
-        return _callback_html(success=False, message="Missing PKCE verifier — please retry")
-
-    try:
-        resp = requests.post(_OPENAI_TOKEN_URL, json={
-            "grant_type": "authorization_code",
-            "client_id": _OPENAI_CLIENT_ID,
-            "code": code,
-            "redirect_uri": _build_redirect_uri(),
-            "code_verifier": code_verifier,
-        }, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as e:
-        logger.error("Token exchange failed: %s", e)
-        return _callback_html(success=False, message="Token exchange failed")
-
-    access_token = data.get("access_token")
-    refresh_token = data.get("refresh_token")
-    expires_in = data.get("expires_in", 3600)
-
-    account_id = _extract_account_id(data.get("id_token"))
-
-    settings = Settings.get_settings()
-    settings.openai_oauth_access_token = access_token
-    settings.openai_oauth_refresh_token = refresh_token
-    settings.openai_oauth_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-    settings.openai_oauth_account_id = account_id
-    db.session.commit()
-
-    logger.info("OpenAI OAuth connected for account: %s", account_id)
-    return _callback_html(success=True, message="Connected")
 
 
 @openai_oauth_bp.route("/disconnect", methods=["POST"])
@@ -149,6 +99,108 @@ def status():
     })
 
 
+# ---------------------------------------------------------------------------
+# Standalone callback server on port 1455
+# ---------------------------------------------------------------------------
+
+_callback_server: HTTPServer | None = None
+_callback_lock = threading.Lock()
+
+
+class _OAuthCallbackHandler(BaseHTTPRequestHandler):
+    """Handles GET /auth/callback from OpenAI's auth redirect."""
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/auth/callback":
+            self.send_error(404)
+            return
+
+        params = parse_qs(parsed.query)
+        code = params.get("code", [None])[0]
+        state = params.get("state", [None])[0]
+        error = params.get("error", [None])[0]
+
+        if error:
+            logger.warning("OAuth callback error: %s", error)
+            self._send_html(_build_callback_html(False, error))
+            return
+
+        if not code or not state:
+            self._send_html(_build_callback_html(False, "Missing code or state"))
+            return
+
+        flow = _pending_flows.pop(state, None)
+        if not flow:
+            self._send_html(_build_callback_html(False, "Unknown state — please retry"))
+            return
+
+        code_verifier = flow["code_verifier"]
+        app = flow["app"]
+
+        try:
+            resp = http_requests.post(
+                _OPENAI_TOKEN_URL,
+                data=urlencode({
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": _build_redirect_uri(),
+                    "client_id": _OPENAI_CLIENT_ID,
+                    "code_verifier": code_verifier,
+                }),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error("Token exchange failed: %s", e)
+            self._send_html(_build_callback_html(False, "Token exchange failed"))
+            return
+
+        access_token = data.get("access_token")
+        refresh_token = data.get("refresh_token")
+        expires_in = data.get("expires_in", 3600)
+        account_id = _extract_account_id(data.get("id_token"))
+
+        with app.app_context():
+            settings = Settings.get_settings()
+            settings.openai_oauth_access_token = access_token
+            settings.openai_oauth_refresh_token = refresh_token
+            settings.openai_oauth_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+            settings.openai_oauth_account_id = account_id
+            db.session.commit()
+
+        logger.info("OpenAI OAuth connected for account: %s", account_id)
+        self._send_html(_build_callback_html(True, "Connected"))
+
+    def _send_html(self, html: str):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(html.encode())
+
+    def log_message(self, format, *args):
+        logger.debug("OAuth callback server: %s", format % args)
+
+
+def _ensure_callback_server():
+    """Start the callback server on port 1455 if not already running."""
+    global _callback_server
+    with _callback_lock:
+        if _callback_server is not None:
+            return
+        try:
+            server = HTTPServer(("127.0.0.1", _CALLBACK_PORT), _OAuthCallbackHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            _callback_server = server
+            logger.info("OAuth callback server started on port %d", _CALLBACK_PORT)
+        except OSError as e:
+            logger.error("Failed to start OAuth callback server on port %d: %s", _CALLBACK_PORT, e)
+            raise
+
+
 def _extract_account_id(id_token: str | None) -> str | None:
     """Decode the JWT id_token (without verification) to get the subject."""
     if not id_token:
@@ -161,15 +213,14 @@ def _extract_account_id(id_token: str | None) -> str | None:
         padding = 4 - len(payload) % 4
         if padding != 4:
             payload += "=" * padding
-        import json
         claims = json.loads(base64.urlsafe_b64decode(payload))
         return claims.get("email") or claims.get("sub")
     except Exception:
         return None
 
 
-def _callback_html(success: bool, message: str) -> str:
-    """Return an HTML page that notifies the opener window and closes itself."""
+def _build_callback_html(success: bool, message: str) -> str:
+    """Return HTML that notifies the opener window and closes itself."""
     import html as html_mod
     safe_message = html_mod.escape(message)
     status_text = "Connected" if success else f"Error: {safe_message}"
@@ -188,4 +239,4 @@ if (window.opener) {{
 }}
 setTimeout(function(){{ window.close(); }}, 2000);
 </script>
-</body></html>""", 200, {"Content-Type": "text/html"}
+</body></html>"""

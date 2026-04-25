@@ -131,8 +131,6 @@ def create_app():
             return  # non-API routes (health, static, etc.)
         if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
-        if request.path.startswith('/api/settings/openai-oauth/callback'):
-            return  # OAuth callback comes from browser redirect, not frontend
         code = request.headers.get('X-Access-Code', '')
         if hmac.compare_digest(code, expected):
             return
