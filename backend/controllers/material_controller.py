@@ -47,9 +47,62 @@ def _generate_image_caption(filepath: str) -> str:
             prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
 
         provider_format = (current_app.config.get('AI_PROVIDER_FORMAT') or 'gemini').lower()
+        caption_source = (current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE') or '').lower()
         caption_model = current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
 
-        if provider_format == 'openai':
+        # Determine effective format: per-model source overrides global
+        effective_format = caption_source or provider_format
+
+        if effective_format == 'codex':
+            from services.ai_providers import _get_openai_oauth_token
+            token = _get_openai_oauth_token()
+            if not token:
+                return ""
+
+            buffered = io.BytesIO()
+            if image.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+                image = background
+            image.save(buffered, format="JPEG", quality=95)
+            base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+            import requests as http_requests
+            resp = http_requests.post(
+                'https://chatgpt.com/backend-api/codex/responses',
+                headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+                json={
+                    'model': caption_model,
+                    'instructions': 'You are a helpful assistant that describes images.',
+                    'input': [{'role': 'user', 'content': [
+                        {'type': 'input_image', 'image_url': f'data:image/jpeg;base64,{base64_image}'},
+                        {'type': 'input_text', 'text': prompt},
+                    ]}],
+                    'store': False,
+                    'stream': True,
+                },
+                timeout=60,
+                stream=True,
+            )
+            resp.raise_for_status()
+            collected = []
+            for raw_line in resp.iter_lines():
+                line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
+                if not line or not line.startswith('data: '):
+                    continue
+                raw = line[6:]
+                if raw.strip() == '[DONE]':
+                    break
+                try:
+                    import json as json_mod
+                    evt = json_mod.loads(raw)
+                    if evt.get('type') == 'response.output_text.delta':
+                        collected.append(evt.get('delta', ''))
+                except Exception:
+                    pass
+            return ''.join(collected).strip()
+
+        elif effective_format == 'openai':
             from openai import OpenAI
             api_key = current_app.config.get('OPENAI_API_KEY', '')
             if not api_key:
