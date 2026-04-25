@@ -1043,12 +1043,12 @@ def process_material_image_task(
 
                 bbox = _normalize_selection_bbox(selection, source_image.size)
                 marked_reference = _create_marked_reference_image(source_image, bbox)
-                if temp_dir:
-                    marked_reference_path = str(Path(temp_dir) / f"{task_id}_marked_region.png")
-                    marked_reference.save(marked_reference_path)
-                    refs.insert(0, marked_reference_path)
-                else:
-                    refs.insert(0, marked_reference)
+                if not temp_dir:
+                    raise ValueError("区域操作需要 temp_dir")
+
+                marked_reference_path = str(Path(temp_dir) / f"{task_id}_marked_region.png")
+                marked_reference.save(marked_reference_path)
+                refs.insert(0, marked_reference_path)
 
                 if ref_image_path:
                     refs.insert(0, ref_image_path)
