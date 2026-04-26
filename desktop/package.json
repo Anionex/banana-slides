@@ -20,6 +20,5 @@
     "cross-env": "^7.0.3",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
-  },
-  "build": {}
+  }
 }
