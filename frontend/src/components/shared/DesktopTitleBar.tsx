@@ -42,15 +42,14 @@ export function DesktopTitleBar() {
         top: 0,
         left: 0,
         right: 0,
-        zIndex: 50,
+        zIndex: 9999,
         height: 34,
         display: 'flex',
         alignItems: 'center',
         userSelect: 'none',
         WebkitAppRegion: 'drag' as any,
-        backdropFilter: 'blur(16px) saturate(1.2)',
-        backgroundColor: 'rgba(255, 255, 255, 0.96)',
-        borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
       }}
     >
       {/* macOS: traffic light space */}
