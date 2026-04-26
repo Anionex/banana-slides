@@ -13,6 +13,9 @@
 *.avif
 
 !frontend/public/**/*.png
+!desktop/logo.png
+!desktop/resources/icon.png
+!desktop/resources/icon.ico
 !frontend/public/**/*.jpg
 !frontend/public/**/*.jpeg
 !frontend/public/**/*.gif

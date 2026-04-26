@@ -107,7 +107,7 @@ export function DesktopTitleBar() {
           paddingLeft: isMac ? 0 : 12,
         }}
       >
-        <span style={{ fontSize: 14, lineHeight: 1 }}>🍌</span>
+        <img src="/logo.png" alt="" style={{ width: 20, height: 'auto' }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: '0.3px' }}>
           Banana Slides
         </span>

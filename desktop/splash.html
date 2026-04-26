@@ -9,73 +9,63 @@
   body {
     width: 480px; height: 360px; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(145deg, #0f0f14 0%, #1a1a2e 40%, #16213e 100%);
+    background: linear-gradient(150deg, #ffffff 0%, #fefce8 40%, #fef3c7 100%);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     user-select: none; -webkit-app-region: drag;
     position: relative;
   }
-  body::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 50% 30%, rgba(250, 200, 60, 0.08) 0%, transparent 60%);
-    pointer-events: none;
-  }
   .logo-area {
     display: flex; flex-direction: column;
-    align-items: center; gap: 14px;
-    position: relative; z-index: 1;
+    align-items: center; gap: 16px;
   }
-  .logo-icon {
-    font-size: 52px;
-    filter: drop-shadow(0 4px 20px rgba(250, 200, 60, 0.3));
+  .logo-img {
+    width: 80px; height: auto;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.08));
     animation: float 3s ease-in-out infinite;
   }
   @keyframes float {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
+    50% { transform: translateY(-5px); }
   }
   .app-name {
-    font-size: 26px; font-weight: 600;
-    color: #f0f0f0; letter-spacing: 2px;
-    text-transform: uppercase;
+    font-size: 24px; font-weight: 700;
+    color: #292524; letter-spacing: 1px;
   }
   .tagline {
-    font-size: 12px; color: rgba(255, 255, 255, 0.4);
-    margin-top: 2px; font-weight: 300;
-    letter-spacing: 3px; text-transform: uppercase;
+    font-size: 12px; color: #78716c;
+    font-weight: 400; letter-spacing: 2px;
+    text-transform: uppercase;
   }
   .progress-area {
     position: absolute; bottom: 44px;
-    width: 180px; text-align: center;
-    z-index: 1;
+    width: 160px; text-align: center;
   }
   .progress-bar {
     width: 100%; height: 2px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.06);
     border-radius: 1px; overflow: hidden;
   }
   .progress-fill {
     height: 100%; width: 30%;
-    background: linear-gradient(90deg, rgba(250, 200, 60, 0.6), rgba(250, 200, 60, 0.9));
+    background: linear-gradient(90deg, #f59e0b, #d97706);
     border-radius: 1px;
     animation: progress 2.4s ease-in-out infinite;
   }
   @keyframes progress {
-    0% { width: 8%; margin-left: 0; opacity: 0.5; }
+    0% { width: 8%; margin-left: 0; opacity: 0.4; }
     50% { width: 35%; margin-left: 32%; opacity: 1; }
-    100% { width: 8%; margin-left: 92%; opacity: 0.5; }
+    100% { width: 8%; margin-left: 92%; opacity: 0.4; }
   }
   .status-text {
     margin-top: 10px; font-size: 11px;
-    color: rgba(255, 255, 255, 0.3);
-    letter-spacing: 1px;
+    color: #a8a29e; letter-spacing: 0.5px;
   }
 </style>
 </head>
 <body>
   <div class="logo-area">
-    <div class="logo-icon">🍌</div>
+    <img class="logo-img" src="logo.png" alt="Banana Slides" onerror="this.outerHTML='<div style=&quot;font-size:52px&quot;>🍌</div>'" />
     <div class="app-name">Banana Slides</div>
     <div class="tagline">AI-Native Presentation Generator</div>
   </div>
