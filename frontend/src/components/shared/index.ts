@@ -30,4 +30,5 @@ export { AccessCodeGuard } from './AccessCodeGuard';
 export { TextStyleSelector } from './TextStyleSelector';
 export { Pagination } from './Pagination';
 export { DesktopTitleBar } from './DesktopTitleBar';
+export { TitleBarPortal } from './TitleBarPortal';
 export { UpdateChecker } from './UpdateChecker';

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
-import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
+import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector, TitleBarPortal } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
@@ -180,8 +180,9 @@ const homeI18n = {
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
-  const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
+  const t = useT(homeI18n);
   const { theme, isDark, setTheme } = useTheme();
+  const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
@@ -693,7 +694,84 @@ export const Home: React.FC = () => {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-yellow-400/5 rounded-full blur-3xl"></div>
       </div>
 
-      {/* 导航栏 */}
+      {/* Desktop: portal nav buttons into title bar */}
+      {isDesktop && (
+        <TitleBarPortal>
+          <div className="flex items-center gap-1 h-full" style={{ fontSize: 12 }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ImagePlus size={14} />}
+              onClick={handleOpenMaterialModal}
+              className="hover:bg-gray-100 transition-colors h-7 text-xs px-2"
+            >
+              {t('nav.materialGenerate')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<FolderOpen size={14} />}
+              onClick={() => setIsMaterialCenterOpen(true)}
+              className="hover:bg-gray-100 transition-colors h-7 text-xs px-2"
+            >
+              {t('nav.materialCenter')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/history')}
+              className="hover:bg-gray-100 transition-colors h-7 text-xs px-2"
+            >
+              {t('nav.history')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Settings size={14} />}
+              onClick={() => navigate('/settings')}
+              className="hover:bg-gray-100 transition-colors h-7 text-xs px-2"
+            >
+              {t('nav.settings')}
+            </Button>
+            <div className="h-4 w-px bg-gray-300 mx-1" />
+            <button
+              onClick={() => i18n.changeLanguage(i18n.language?.startsWith('zh') ? 'en' : 'zh')}
+              className="flex items-center gap-1 px-1.5 py-0.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all"
+            >
+              <Globe size={12} />
+              <span>{i18n.language?.startsWith('zh') ? 'EN' : '中'}</span>
+            </button>
+            <div className="relative" ref={themeMenuRef}>
+              <button
+                onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+                className="flex items-center gap-0.5 p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all"
+              >
+                {theme === 'system' ? <Monitor size={14} /> : isDark ? <Moon size={14} /> : <Sun size={14} />}
+                <ChevronDown size={10} className={`transition-transform ${isThemeMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isThemeMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[10000]" onClick={() => setIsThemeMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-[10001] bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[100px]">
+                    <button onClick={() => { setTheme('light'); setIsThemeMenuOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-100 ${theme === 'light' ? 'text-orange-500' : 'text-gray-700'}`}>
+                      <Sun size={12} /><span>{t('settings.theme.light')}</span>
+                    </button>
+                    <button onClick={() => { setTheme('dark'); setIsThemeMenuOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-100 ${theme === 'dark' ? 'text-orange-500' : 'text-gray-700'}`}>
+                      <Moon size={12} /><span>{t('settings.theme.dark')}</span>
+                    </button>
+                    <button onClick={() => { setTheme('system'); setIsThemeMenuOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-100 ${theme === 'system' ? 'text-orange-500' : 'text-gray-700'}`}>
+                      <Monitor size={12} /><span>{t('settings.theme.system')}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </TitleBarPortal>
+      )}
+
+      {/* 导航栏 — web only */}
+      {!isDesktop && (
       <nav className="relative z-50 h-16 md:h-18 bg-white/40 dark:bg-background-primary backdrop-blur-2xl dark:backdrop-blur-none dark:border-b dark:border-border-primary">
 
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
@@ -842,6 +920,7 @@ export const Home: React.FC = () => {
           </div>
         </div>
       </nav>
+      )}
 
       {/* 主内容 */}
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">

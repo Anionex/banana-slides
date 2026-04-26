@@ -37,6 +37,7 @@ export function DesktopTitleBar() {
 
   return (
     <div
+      id="desktop-titlebar"
       style={{
         position: 'fixed',
         top: 0,
@@ -79,8 +80,20 @@ export function DesktopTitleBar() {
         </span>
       </div>
 
-      {/* Center spacer */}
-      <div style={{ flex: 1 }} />
+      {/* Portal target: pages inject their nav buttons here */}
+      <div
+        id="desktop-titlebar-actions"
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 2,
+          paddingRight: 4,
+          height: '100%',
+          WebkitAppRegion: 'no-drag' as any,
+        }}
+      />
 
       {/* Window controls — Windows only */}
       {!isMac && (
@@ -146,3 +159,4 @@ export function DesktopTitleBar() {
     </div>
   );
 }
+
