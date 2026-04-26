@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
+import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 import { isDesktop } from '@/utils';
 
@@ -715,7 +716,7 @@ export const Home: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="flex items-center">
               <img
-                src="/logo.png"
+                src={logoUrl}
                 alt="蕉幻 Banana Slides Logo"
                 className="h-10 md:h-12 w-auto rounded-lg object-contain"
               />

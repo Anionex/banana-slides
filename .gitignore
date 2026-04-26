@@ -13,6 +13,7 @@
 *.avif
 
 !frontend/public/**/*.png
+!frontend/src/assets/**/*.png
 !desktop/logo.png
 !desktop/resources/icon.png
 !desktop/resources/icon.ico

@@ -44,6 +44,18 @@ mac:
         - arm64
   artifactName: "BananaSlides-${version}.${ext}"
 
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: resources/icon.png
+  category: Office
+  artifactName: "BananaSlides-${version}.${ext}"
+
 nsis:
   oneClick: false
   perMachine: false

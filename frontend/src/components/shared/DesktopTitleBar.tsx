@@ -5,6 +5,7 @@ import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown
 import { useTheme } from '@/hooks/useTheme';
 import { useT } from '@/hooks/useT';
 import { isDesktop } from '@/utils';
+import logoUrl from '@/assets/logo.png';
 
 const titleBarI18n = {
   zh: {
@@ -107,7 +108,7 @@ export function DesktopTitleBar() {
           paddingLeft: isMac ? 0 : 12,
         }}
       >
-        <img src="/logo.png" alt="" style={{ width: 20, height: 'auto' }} />
+        <img src={logoUrl} alt="" style={{ width: 20, height: 'auto' }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: '0.3px' }}>
           Banana Slides
         </span>
