@@ -1,0 +1,52 @@
+appId: com.banana.slides
+productName: Banana Slides
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - "main.js"
+  - "python-manager.js"
+  - "preload.js"
+  - "auto-updater.js"
+  - "splash.html"
+  - "package.json"
+  - "node_modules/**/*"
+
+extraResources:
+  - from: "backend/"
+    to: "backend"
+    filter:
+      - "**/*"
+  - from: "frontend/"
+    to: "frontend"
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: "BananaSlides-${version}-Setup.${ext}"
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: resources/icon.icns
+  artifactName: "BananaSlides-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Banana Slides"
+
+compression: maximum
