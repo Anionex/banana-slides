@@ -16,21 +16,22 @@ files:
   - "node_modules/**/*"
 
 extraResources:
-  - from: "backend/"
+  - from: "../backend/"
     to: "backend"
     filter:
       - "**/*"
-  - from: "frontend/"
+  - from: "../frontend/"
     to: "frontend"
     filter:
       - "**/*"
+
+icon: resources/icon
 
 win:
   target:
     - target: nsis
       arch:
         - x64
-  icon: resources/icon.ico
   artifactName: "BananaSlides-${version}-Setup.${ext}"
 
 mac:
@@ -39,7 +40,6 @@ mac:
       arch:
         - x64
         - arm64
-  icon: resources/icon.icns
   artifactName: "BananaSlides-${version}.${ext}"
 
 nsis:
@@ -49,5 +49,7 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Banana Slides"
+  installerSidebar: resources/installerSidebar.bmp
+  installerHeader: resources/installerHeader.bmp
 
 compression: maximum
