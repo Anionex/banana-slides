@@ -16,6 +16,8 @@
 !desktop/logo.png
 !desktop/resources/icon.png
 !desktop/resources/icon.ico
+!desktop/resources/installerSidebar.bmp
+!desktop/resources/installerHeader.bmp
 !frontend/public/**/*.jpg
 !frontend/public/**/*.jpeg
 !frontend/public/**/*.gif
