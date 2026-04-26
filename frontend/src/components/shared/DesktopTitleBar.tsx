@@ -49,7 +49,7 @@ export function DesktopTitleBar() {
         userSelect: 'none',
         WebkitAppRegion: 'drag' as any,
         backdropFilter: 'blur(16px) saturate(1.2)',
-        backgroundColor: 'rgba(255, 255, 255, 0.82)',
+        backgroundColor: 'rgba(255, 255, 255, 0.96)',
         borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
       }}
     >
