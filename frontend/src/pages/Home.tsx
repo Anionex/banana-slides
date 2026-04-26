@@ -13,6 +13,7 @@ import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
+import { isDesktop } from '@/utils';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -182,7 +183,6 @@ export const Home: React.FC = () => {
   const { i18n } = useTranslation();
   const t = useT(homeI18n);
   const { theme, isDark, setTheme } = useTheme();
-  const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
   

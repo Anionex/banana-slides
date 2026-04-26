@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useT } from '@/hooks/useT';
-
-const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+import { isDesktop } from '@/utils';
 
 const titleBarI18n = {
   zh: {

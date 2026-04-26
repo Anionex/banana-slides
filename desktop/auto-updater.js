@@ -15,9 +15,10 @@ function checkForUpdates() {
     };
 
     const req = https.get(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      const chunks = [];
+      res.on('data', (chunk) => { chunks.push(chunk); });
       res.on('end', () => {
+        const data = chunks.join('');
         try {
           if (res.statusCode !== 200) {
             resolve(null);

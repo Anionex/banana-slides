@@ -121,8 +121,8 @@ describe('UpdateChecker', () => {
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
     await act(async () => { vi.advanceTimersByTime(6000); });
-    expect(screen.getByText(/新版本 v1.0.0 可用/)).toBeInTheDocument();
-    expect(screen.getByText('前往下载')).toBeInTheDocument();
+    expect(screen.getByText(/v1.0.0/)).toBeInTheDocument();
+    expect(screen.getByText('Download')).toBeInTheDocument();
   });
 
   it('opens external URL when download button clicked', async () => {
@@ -135,7 +135,7 @@ describe('UpdateChecker', () => {
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
     await act(async () => { vi.advanceTimersByTime(6000); });
-    fireEvent.click(screen.getByText('前往下载'));
+    fireEvent.click(screen.getByText('Download'));
     expect(mockElectronAPI.openExternal).toHaveBeenCalledWith(releaseUrl);
   });
 
@@ -148,11 +148,11 @@ describe('UpdateChecker', () => {
     const { UpdateChecker } = await import('../components/shared/UpdateChecker');
     render(<UpdateChecker />);
     await act(async () => { vi.advanceTimersByTime(6000); });
-    expect(screen.getByText(/新版本 v1.0.0 可用/)).toBeInTheDocument();
+    expect(screen.getByText(/v1.0.0/)).toBeInTheDocument();
     const closeButtons = screen.getAllByRole('button');
-    const dismissBtn = closeButtons.find(btn => !btn.textContent?.includes('前往下载'));
+    const dismissBtn = closeButtons.find(btn => !btn.textContent?.includes('Download'));
     fireEvent.click(dismissBtn!);
-    expect(screen.queryByText(/新版本 v1.0.0 可用/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/v1.0.0/)).not.toBeInTheDocument();
   });
 
   it('silently handles update check failure', async () => {

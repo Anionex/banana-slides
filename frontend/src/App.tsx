@@ -9,6 +9,7 @@ import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { useProjectStore } from './store/useProjectStore';
 import { useToast, AccessCodeGuard, DesktopTitleBar, UpdateChecker } from './components/shared';
+import { isDesktop } from '@/utils';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
@@ -30,7 +31,6 @@ function App() {
     }
   }, [error, setError, show]);
 
-  const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
 
   return (
     <>

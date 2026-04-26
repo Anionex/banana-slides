@@ -1,12 +1,10 @@
 import axios from 'axios';
-
-// Desktop mode detection
-const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+import { isDesktop } from '@/utils';
 
 if (isDesktop) {
   (window as any).electronAPI.getBackendPort().then((port: number) => {
     (window as any).__BACKEND_PORT__ = port;
-  });
+  }).catch(() => {});
 }
 
 function getBaseURL(): string {

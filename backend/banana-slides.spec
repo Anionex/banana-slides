@@ -1,30 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-import sys
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
-
 backend_dir = os.path.abspath('.')
 
-hiddenimports = []
-for pkg in [
-    'flask', 'flask_cors', 'flask_sqlalchemy', 'flask_migrate',
-    'sqlalchemy', 'alembic',
-    'google.genai', 'google.generativeai',
-    'openai', 'anthropic', 'httpx',
-    'pptx', 'docx', 'lxml',
-    'reportlab', 'markitdown',
-    'PIL', 'img2pdf', 'fitz',
-    'pydantic', 'tenacity',
-    'dotenv', 'werkzeug', 'jinja2',
-]:
-    try:
-        hiddenimports += collect_submodules(pkg)
-    except Exception:
-        pass
-
-hiddenimports += [
+hiddenimports = [
+    # App modules
     'controllers', 'controllers.project_controller',
     'controllers.page_controller', 'controllers.export_controller',
     'controllers.settings_controller', 'controllers.file_controller',
@@ -37,8 +18,23 @@ hiddenimports += [
     'services.pdf_service', 'services.inpainting_service',
     'services.ai_providers',
     'models', 'models.project', 'models.page', 'models.task',
-    'models.settings',
-    'config',
+    'models.settings', 'config',
+    # Flask ecosystem
+    'flask', 'flask.json', 'flask_cors', 'flask_sqlalchemy', 'flask_migrate',
+    'werkzeug', 'werkzeug.serving', 'jinja2',
+    # Database
+    'sqlalchemy', 'sqlalchemy.dialects.sqlite', 'alembic',
+    # AI providers
+    'google.genai', 'google.generativeai', 'openai', 'anthropic',
+    'httpx', 'httpx._transports',
+    # Document processing
+    'pptx', 'docx', 'lxml', 'lxml.etree', 'lxml._elementpath',
+    'reportlab', 'reportlab.lib', 'reportlab.platypus',
+    'markitdown',
+    # Image processing
+    'PIL', 'PIL.Image', 'img2pdf', 'fitz',
+    # Utilities
+    'pydantic', 'tenacity', 'dotenv',
 ]
 
 datas = [

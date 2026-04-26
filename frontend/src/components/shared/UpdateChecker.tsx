@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { useT } from '@/hooks/useT';
+import { isDesktop } from '@/utils';
 
 interface UpdateInfo {
   version: string;
@@ -7,11 +9,15 @@ interface UpdateInfo {
   url: string;
 }
 
-const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+const updateI18n = {
+  zh: { newVersion: '新版本', available: '可用', download: '前往下载' },
+  en: { newVersion: 'New version', available: 'available', download: 'Download' },
+};
 
 export function UpdateChecker() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const t = useT(updateI18n);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -41,7 +47,7 @@ export function UpdateChecker() {
     >
       <div className="flex items-center gap-3 text-sm text-amber-900">
         <span className="font-medium">
-          新版本 v{update.version} 可用
+          {t('newVersion')} v{update.version} {t('available')}
         </span>
         <button
           onClick={() => (window as any).electronAPI.openExternal(update.url)}
@@ -49,7 +55,7 @@ export function UpdateChecker() {
           // @ts-expect-error -- WebkitAppRegion is a non-standard Electron CSS property
           style={{ WebkitAppRegion: 'no-drag' }}
         >
-          前往下载
+          {t('download')}
         </button>
         <button
           onClick={() => setDismissed(true)}

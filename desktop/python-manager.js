@@ -113,6 +113,7 @@ function waitForBackend(port, timeoutMs = 30000) {
 function stopBackend() {
   if (!backendProcess) return Promise.resolve();
 
+  const isWin = process.platform === 'win32';
   return new Promise((resolve) => {
     const pid = backendProcess.pid;
     log.info(`[python-manager] Stopping backend (PID: ${pid})`);
@@ -120,7 +121,7 @@ function stopBackend() {
     const forceKillTimer = setTimeout(() => {
       log.warn('[python-manager] Force killing backend');
       try {
-        if (process.platform === 'win32') {
+        if (isWin) {
           spawn('taskkill', ['/F', '/PID', String(pid)], { windowsHide: true });
         } else {
           backendProcess.kill('SIGKILL');
@@ -137,7 +138,7 @@ function stopBackend() {
     });
 
     try {
-      if (process.platform === 'win32') {
+      if (isWin) {
         spawn('taskkill', ['/PID', String(pid)], { windowsHide: true });
       } else {
         backendProcess.kill('SIGTERM');

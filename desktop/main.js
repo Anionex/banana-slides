@@ -74,15 +74,15 @@ function createTray() {
   tray.setToolTip('Banana Slides');
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { mainWindow.show(); mainWindow.focus(); } },
+    { label: '显示主窗口', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
     { type: 'separator' },
     { label: '退出', click: () => { isQuitting = true; app.quit(); } },
   ]);
   tray.setContextMenu(contextMenu);
 
   tray.on('double-click', () => {
-    mainWindow.show();
-    mainWindow.focus();
+    mainWindow?.show();
+    mainWindow?.focus();
   });
 }
 
