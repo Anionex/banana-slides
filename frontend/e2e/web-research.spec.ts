@@ -116,6 +116,92 @@ test.describe('Web Research Feature', () => {
       expect(researchCalled).toBe(true);
     });
 
+    test('progress log panel shows messages during research', async ({ page }) => {
+      let progressCallCount = 0;
+
+      await page.route('**/api/projects', async (route) => {
+        if (route.request().method() === 'POST') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: { project_id: 'test-project-log' } }),
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/projects/test-project-log/research', async (route) => {
+        await route.fulfill({
+          status: 202,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { task_id: 'log-task-1' } }),
+        });
+      });
+
+      await page.route('**/api/projects/test-project-log/research/log-task-1/progress', async (route) => {
+        progressCallCount++;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { messages: ['Searching for AI trends...', 'Analyzing sources...'] } }),
+        });
+      });
+
+      let taskCallCount = 0;
+      await page.route('**/api/projects/test-project-log/tasks/log-task-1', async (route) => {
+        taskCallCount++;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: { id: 'log-task-1', status: taskCallCount >= 3 ? 'COMPLETED' : 'RUNNING' },
+          }),
+        });
+      });
+
+      await page.route('**/api/projects/test-project-log/generate/outline', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { pages: [] } }),
+        });
+      });
+
+      await page.route('**/api/projects/test-project-log', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: { id: 'test-project-log', title: 'Test', status: 'OUTLINE_READY', pages: [] },
+            }),
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.goto(`${BASE_URL}/`);
+      await page.waitForLoadState('networkidle');
+
+      const label = page.locator('label:has-text("联网搜索"), label:has-text("Web Research")').first();
+      await label.click();
+
+      const editor = page.locator('[role="textbox"][contenteditable="true"]').first();
+      await editor.click();
+      await editor.pressSequentially('AI trends in 2026', { delay: 10 });
+
+      await page.locator('button').filter({ hasText: /下一步|Next/i }).click();
+
+      // Wait for log panel to appear with messages
+      const logPanel = page.locator('text=Searching for AI trends...').first();
+      await expect(logPanel).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=Analyzing sources...').first()).toBeVisible();
+    });
+
     test('research API is NOT called when toggle is disabled', async ({ page }) => {
       let researchCalled = false;
 
