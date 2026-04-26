@@ -34,11 +34,11 @@ function App() {
 
   return (
     <>
-      <DesktopTitleBar />
       <UpdateChecker />
       <div style={isDesktop ? { paddingTop: '34px' } : undefined}>
         <AccessCodeGuard>
           <BrowserRouter>
+            <DesktopTitleBar />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/landing" element={<Landing />} />
