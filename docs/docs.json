@@ -35,6 +35,10 @@
             ]
           },
           {
+            "group": "开发者",
+            "pages": ["zh/cli"]
+          },
+          {
             "group": "其他",
             "pages": [
               "zh/history",
@@ -67,6 +71,10 @@
               "features/export",
               "features/import-export"
             ]
+          },
+          {
+            "group": "Developer",
+            "pages": ["cli"]
           },
           {
             "group": "More",

@@ -10,8 +10,8 @@ db = SQLAlchemy(
         },
         'pool_pre_ping': True,  # 连接前检查，确保连接有效
         'pool_recycle': 3600,  # 1小时回收连接，释放文件句柄
-        'pool_size': 5,  # SQLite连接池不需要太大（建议5-10）
-        'max_overflow': 10,  # 溢出连接数（SQLite受文件锁限制，不宜过大）
+        'pool_size': 10,
+        'max_overflow': 50,
         'pool_timeout': 30,  # 获取连接的超时时间（秒）
     }
 )
@@ -24,6 +24,7 @@ from .page_image_version import PageImageVersion
 from .material import Material
 from .reference_file import ReferenceFile
 from .settings import Settings
+from .user_style_template import UserStyleTemplate
 
-__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings']
+__all__ = ['db', 'Project', 'Page', 'Task', 'UserTemplate', 'PageImageVersion', 'Material', 'ReferenceFile', 'Settings', 'UserStyleTemplate']
 

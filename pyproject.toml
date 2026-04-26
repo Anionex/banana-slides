@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "banana-slides"
 version = "0.3.0"
@@ -10,10 +14,15 @@ dependencies = [
     "flask-sqlalchemy>=3.1.1",
     "google-genai>=1.52.0",
     "openai>=1.0.0",
+    "anthropic>=0.30.0",
+    "httpx>=0.25.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
     "pydantic>=2.9.0",
     "pillow>=12.0.0",
     "python-pptx>=1.0.0",
     "python-dotenv>=1.0.1",
+    "tomli>=2.0.1; python_version < '3.11'",
     "reportlab>=4.1.0",
     "werkzeug>=3.0.1",
     "markitdown[all]",
@@ -26,6 +35,7 @@ dependencies = [
     "PyPDF2>=3.0.0",
     "PyMuPDF>=1.24.0",
     "edge-tts>=6.1.0",
+    "socksio>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -34,10 +44,15 @@ test = [
     "pytest-mock>=3.12.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.21.0",
-    "httpx>=0.25.0",
     "flake8>=6.1.0",
     "black>=23.0.0",
 ]
+
+[project.scripts]
+banana-cli = "cli.banana_cli.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["cli*"]
 
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
@@ -47,3 +62,8 @@ testpaths = ["backend/tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

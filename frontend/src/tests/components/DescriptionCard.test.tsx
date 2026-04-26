@@ -155,6 +155,7 @@ describe('DescriptionCard', () => {
           getAsFile: () => file,
         },
       ],
+      getData: () => '',
     }
 
     // Fire paste event
@@ -189,6 +190,7 @@ describe('DescriptionCard', () => {
           getAsFile: () => null,
         },
       ],
+      getData: () => '',
     }
 
     fireEvent.paste(textarea, { clipboardData })
@@ -229,6 +231,7 @@ describe('DescriptionCard', () => {
           type: 'image/png',
           getAsFile: () => file,
         }],
+        getData: () => '',
       },
     })
 
@@ -256,6 +259,7 @@ describe('DescriptionCard', () => {
           type: 'image/png',
           getAsFile: () => file,
         }],
+        getData: () => '',
       },
     })
 

@@ -4,12 +4,16 @@ No need for Celery or Redis, uses in-memory task tracking
 """
 import logging
 import os
+import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
+from math import gcd
+import time
 from sqlalchemy import func
-from PIL import Image
+from sqlalchemy.exc import OperationalError
+from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
@@ -156,12 +160,119 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         page_obj.status = 'COMPLETED'
         page_obj.updated_at = datetime.utcnow()
 
-    # 提交事务
-    db.session.commit()
+    _commit_with_retry()
 
     logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}, cached: {cached_image_path}")
 
     return image_path, next_version
+
+
+def _commit_with_retry(max_retries=5, base_delay=0.5):
+    for attempt in range(max_retries):
+        try:
+            db.session.commit()
+            return
+        except OperationalError as e:
+            if "database is locked" in str(e) and attempt < max_retries - 1:
+                db.session.rollback()
+                delay = base_delay * (2 ** attempt)
+                logger.warning(f"Database locked, retrying commit in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(delay)
+            else:
+                raise
+
+
+SUPPORTED_IMAGE_ASPECT_RATIOS = (
+    '1:1',
+    '1:4',
+    '1:8',
+    '2:3',
+    '3:2',
+    '3:4',
+    '4:1',
+    '4:3',
+    '4:5',
+    '5:4',
+    '8:1',
+    '9:16',
+    '16:9',
+    '21:9',
+)
+
+
+def _aspect_ratio_from_size(width: int, height: int) -> str:
+    """Map arbitrary pixel dimensions to the nearest provider-supported aspect ratio."""
+    safe_width = max(1, width)
+    safe_height = max(1, height)
+    divisor = gcd(safe_width, safe_height)
+    normalized = f"{safe_width // divisor}:{safe_height // divisor}"
+    if normalized in SUPPORTED_IMAGE_ASPECT_RATIOS:
+        return normalized
+
+    source_ratio = safe_width / safe_height
+    return min(
+        SUPPORTED_IMAGE_ASPECT_RATIOS,
+        key=lambda candidate: abs(source_ratio - (int(candidate.split(':')[0]) / int(candidate.split(':')[1]))),
+    )
+
+
+def _normalize_selection_bbox(selection: dict, image_size: tuple[int, int]) -> tuple[int, int, int, int]:
+    """Clamp a selection rectangle into source image bounds."""
+    width, height = image_size
+    x0 = max(0, min(int(selection['x']), width - 1))
+    y0 = max(0, min(int(selection['y']), height - 1))
+    x1 = max(x0 + 1, min(x0 + int(selection['width']), width))
+    y1 = max(y0 + 1, min(y0 + int(selection['height']), height))
+    return x0, y0, x1, y1
+
+
+def _create_marked_reference_image(source_image: Image.Image, bbox: tuple[int, int, int, int]) -> Image.Image:
+    """Highlight the selected region so edit models can focus on it reliably."""
+    marked = source_image.convert('RGB').copy()
+    draw = ImageDraw.Draw(marked, 'RGBA')
+    outline_width = max(4, min(source_image.size) // 120)
+    draw.rectangle(bbox, fill=(0, 0, 0, 190), outline=(255, 255, 255, 255), width=outline_width)
+    return marked
+
+
+def _blend_region_into_source(
+    source_image: Image.Image,
+    edited_image: Image.Image,
+    bbox: tuple[int, int, int, int],
+    feather_radius: int = 12,
+) -> Image.Image:
+    """Blend only the selected region from the edited result back into the source image."""
+    if edited_image.size != source_image.size:
+        edited_image = edited_image.resize(source_image.size, Image.Resampling.LANCZOS)
+
+    source_rgb = source_image.convert('RGB')
+    edited_rgb = edited_image.convert('RGB')
+    mask = Image.new('L', source_rgb.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle(bbox, fill=255)
+    if feather_radius > 0:
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=feather_radius))
+    return Image.composite(edited_rgb, source_rgb, mask)
+
+
+def _build_region_edit_instruction(prompt: str, operation: str) -> str:
+    """Create a focused prompt for region-based edits using a marked reference image."""
+    cleaned_prompt = (prompt or '').strip()
+    if operation == 'erase_region':
+        user_goal = cleaned_prompt or "移除黑色标记区域中的主体内容，并自然补全背景纹理与光影。"
+        return (
+            "用户会提供两张参考图：一张原图，一张带有黑色实心选区标记的图。\n"
+            "请只处理黑色标记区域，将该区域内容移除，并根据周围视觉自然补全。\n"
+            "黑色区域之外的构图、文字、光影、色调尽量保持不变。\n"
+            f"额外要求：{user_goal}"
+        )
+
+    return (
+        "用户会提供两张参考图：一张原图，一张带有黑色实心选区标记的图。\n"
+        "请重点修改黑色标记区域，严格围绕该区域执行用户指令。\n"
+        "未标记区域尽量保持原样，不要无关改动整体构图。\n"
+        f"用户编辑要求：{cleaned_prompt}"
+    )
 
 
 def generate_descriptions_task(task_id: str, project_id: str, ai_service,
@@ -872,9 +983,161 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 db.session.commit()
         
         finally:
-            # Clean up temp directory
             if temp_dir:
                 import shutil
+                temp_path = Path(temp_dir)
+                if temp_path.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def process_material_image_task(
+    task_id: str,
+    project_id: str,
+    operation: str,
+    prompt: str,
+    ai_service,
+    file_service,
+    source_image_path: str = None,
+    ref_image_path: str = None,
+    additional_ref_images: List[str] = None,
+    aspect_ratio: str = "16:9",
+    resolution: str = "2K",
+    selection: Optional[dict] = None,
+    apply_mode: str = "overlay_selection",
+    temp_dir: str = None,
+    app=None,
+):
+    """Unified material processing task for generate/edit/region-edit workflows."""
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            refs = list(additional_ref_images or [])
+            result_image: Optional[Image.Image] = None
+            source_image = None
+            source_aspect_ratio = aspect_ratio
+
+            if source_image_path:
+                source_image = Image.open(source_image_path).convert('RGB')
+                source_aspect_ratio = _aspect_ratio_from_size(*source_image.size)
+
+            if operation == 'generate':
+                result_image = ai_service.generate_image(
+                    prompt=prompt,
+                    ref_image_path=ref_image_path,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=refs if refs else None,
+                )
+            elif operation == 'edit_full':
+                if not source_image_path:
+                    raise ValueError("source_image_path is required for edit_full")
+
+                if ref_image_path:
+                    refs.insert(0, ref_image_path)
+
+                result_image = ai_service.edit_image(
+                    prompt=prompt,
+                    current_image_path=source_image_path,
+                    aspect_ratio=source_aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=refs if refs else None,
+                )
+            elif operation in {'region_edit', 'erase_region'}:
+                if not source_image or not source_image_path:
+                    raise ValueError("source_image_path is required for region operations")
+                if not selection:
+                    raise ValueError("selection is required for region operations")
+
+                bbox = _normalize_selection_bbox(selection, source_image.size)
+                marked_reference = _create_marked_reference_image(source_image, bbox)
+                if not temp_dir:
+                    raise ValueError("区域操作需要 temp_dir")
+
+                marked_reference_path = str(Path(temp_dir) / f"{task_id}_marked_region.png")
+                marked_reference.save(marked_reference_path)
+                refs.insert(0, marked_reference_path)
+
+                if ref_image_path:
+                    refs.insert(0, ref_image_path)
+
+                instruction = _build_region_edit_instruction(prompt, operation)
+                generated = ai_service.edit_image(
+                    prompt=instruction,
+                    current_image_path=source_image_path,
+                    aspect_ratio=source_aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=refs if refs else None,
+                )
+
+                if generated is None:
+                    raise ValueError("Failed to process region edit")
+
+                if generated.size != source_image.size:
+                    generated = generated.resize(source_image.size, Image.Resampling.LANCZOS)
+
+                if operation == 'erase_region' or apply_mode == 'overlay_selection':
+                    result_image = _blend_region_into_source(source_image, generated, bbox)
+                else:
+                    result_image = generated
+            else:
+                raise ValueError(f"Unsupported material operation: {operation}")
+
+            if result_image is None:
+                raise ValueError("Failed to generate image")
+
+            actual_project_id = None if (project_id == 'global' or project_id is None) else project_id
+            relative_path = file_service.save_material_image(result_image, actual_project_id)
+            relative = Path(relative_path)
+            filename = relative.name
+            image_url = file_service.get_file_url(actual_project_id, 'materials', filename)
+
+            material = Material(
+                project_id=actual_project_id,
+                filename=filename,
+                relative_path=relative_path,
+                url=image_url
+            )
+            db.session.add(material)
+
+            task.status = 'COMPLETED'
+            task.completed_at = datetime.utcnow()
+            task.set_progress({
+                "total": 1,
+                "completed": 1,
+                "failed": 0,
+                "operation": operation,
+                "apply_mode": apply_mode if operation == 'region_edit' else None,
+                "selection": selection if operation in {'region_edit', 'erase_region'} else None,
+                "material_id": material.id,
+                "image_url": image_url
+            })
+            db.session.commit()
+
+            logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} processed via {operation}")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+
+        finally:
+            if temp_dir:
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir, ignore_errors=True)

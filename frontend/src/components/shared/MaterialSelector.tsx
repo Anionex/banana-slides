@@ -182,7 +182,8 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
 
       const response = await uploadMaterial(
         file,
-        targetProjectId
+        targetProjectId,
+        true
       );
       
       if (response.data) {

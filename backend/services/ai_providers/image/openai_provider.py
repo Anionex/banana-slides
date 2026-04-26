@@ -1,12 +1,12 @@
 """
 OpenAI SDK implementation for image generation
 
-Supports multiple resolution parameter formats for different OpenAI-compatible providers:
-- Flat style: extra_body.aspect_ratio + extra_body.resolution
-- Nested style: extra_body.generationConfig.imageConfig.aspectRatio + imageSize
+Two code paths:
+1. Native images API (gpt-image-2, dall-e-3, dall-e-2): uses client.images.generate /
+   client.images.edit, returns b64_json directly.
+2. Chat completions path (Gemini-via-proxy, etc.): uses client.chat.completions.create
+   with modalities=["text","image"] and extra_body resolution hints.
 
-Note: Not all providers support 2K/4K resolution in OpenAI format.
-Some may only return 1K regardless of settings.
 Resolution validation is handled at the task_manager level for all providers.
 """
 import logging
@@ -23,10 +23,77 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+# Models that use the native OpenAI images API (images.generate / images.edit)
+# rather than the chat completions multimodal path.
+_GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'}
+_DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
+_NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
+
+# Aspect-ratio → size per model family.
+# DALL-E models only support fixed sizes; gpt-image-* uses dynamic calculation.
+_DALLE3_SIZE_MAP = {
+    '16:9': '1792x1024',
+    '9:16': '1024x1792',
+    '1:1':  '1024x1024',
+    '3:2':  '1792x1024',
+    '2:3':  '1024x1792',
+}
+_DALLE2_SIZE_MAP = {
+    '1:1':  '1024x1024',
+}
+
+_RESOLUTION_LONG_EDGE = {
+    '1K': 1280,
+    '2K': 2048,
+    '4K': 3840,
+}
+
+
+def _compute_gpt_image_size(aspect_ratio: str, resolution: str = '2K') -> str:
+    """Dynamically compute WxH for gpt-image-* from aspect ratio and resolution.
+
+    Rules: both edges multiples of 16, max edge ≤ 3840, ratio ≤ 3:1.
+    """
+    parts = aspect_ratio.split(':')
+    if len(parts) != 2:
+        return 'auto'
+    try:
+        aw, ah = int(parts[0]), int(parts[1])
+    except ValueError:
+        return 'auto'
+    if aw <= 0 or ah <= 0:
+        return 'auto'
+
+    long_edge = _RESOLUTION_LONG_EDGE.get(resolution.upper(), 2048)
+
+    if aw >= ah:
+        w = long_edge
+        h = round(w * ah / aw)
+    else:
+        h = long_edge
+        w = round(h * aw / ah)
+
+    w = max(16, (w // 16) * 16)
+    h = max(16, (h // 16) * 16)
+
+    # Clamp total pixels to API limit (max 8,294,400)
+    max_pixels = 8_294_400
+    if w * h > max_pixels:
+        scale = (max_pixels / (w * h)) ** 0.5
+        w = max(16, (int(w * scale) // 16) * 16)
+        h = max(16, (int(h * scale) // 16) * 16)
+
+    return f'{w}x{h}'
+
+
 class OpenAIImageProvider(ImageProvider):
     """
-    Image generation using OpenAI SDK (compatible with Gemini via proxy)
-    
+    Image generation using OpenAI SDK.
+
+    Two code paths selected by model name:
+    • Native images API (gpt-image-2 / dall-e-*): images.generate / images.edit
+    • Chat completions path (Gemini via proxy, etc.): chat.completions with modalities
+
     Supports multiple resolution parameter formats for different providers.
     Resolution support varies by provider:
     - Some providers support 2K/4K via extra_body parameters
@@ -105,6 +172,149 @@ class OpenAIImageProvider(ImageProvider):
         
         return extra_body
 
+    def _is_native_images_api_model(self) -> bool:
+        """Return True when the model should use images.generate / images.edit."""
+        return self.model.lower() in _NATIVE_IMAGES_API_MODELS
+
+    def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
+        buf = BytesIO()
+        # Preserve alpha channel: the images.edit endpoint uses it as a mask
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        image.save(buf, format='PNG')
+        buf.seek(0)
+        return buf.read()
+
+    def _resolve_size(self, aspect_ratio: str, resolution: str = '2K') -> str:
+        """Map aspect_ratio to a size string appropriate for the current model."""
+        model = self.model.lower()
+        if model == 'dall-e-3':
+            return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        if model == 'dall-e-2':
+            return _DALLE2_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        return _compute_gpt_image_size(aspect_ratio, resolution)
+
+    def _resolve_quality(self):
+        """Return quality param appropriate for the current model, or None to omit."""
+        model = self.model.lower()
+        if model == 'dall-e-3':
+            return 'standard'   # dall-e-3 only accepts standard / hd
+        if model == 'dall-e-2':
+            return None          # dall-e-2 has no quality param
+        return 'auto'            # gpt-image-* accepts auto / low / medium / high
+
+    def _decode_image_response(self, item) -> Image.Image:
+        """Extract PIL Image from an images API response item (b64_json, url, or raw string)."""
+        if isinstance(item, str):
+            return self._decode_raw_string(item)
+        b64 = getattr(item, 'b64_json', None)
+        if b64:
+            return Image.open(BytesIO(base64.b64decode(b64)))
+        url = getattr(item, 'url', None)
+        if url:
+            with requests.get(url, timeout=60, stream=True) as resp:
+                resp.raise_for_status()
+                return Image.open(BytesIO(resp.content))
+        if isinstance(item, dict):
+            if item.get('b64_json'):
+                return Image.open(BytesIO(base64.b64decode(item['b64_json'])))
+            if item.get('url'):
+                with requests.get(item['url'], timeout=60, stream=True) as resp:
+                    resp.raise_for_status()
+                    return Image.open(BytesIO(resp.content))
+        raise ValueError("images API returned neither b64_json nor url")
+
+    def _decode_raw_string(self, raw: str) -> Image.Image:
+        """Try to decode a raw string as base64 image data, data-URL, or HTTP URL."""
+        raw = raw.strip()
+        # data:image/...;base64,...
+        if raw.startswith('data:image') and ',' in raw:
+            b64 = raw.split(',', 1)[1]
+            return Image.open(BytesIO(base64.b64decode(b64)))
+        # plain HTTP(S) URL
+        if raw.startswith(('http://', 'https://')):
+            with requests.get(raw, timeout=60, stream=True) as resp:
+                resp.raise_for_status()
+                return Image.open(BytesIO(resp.content))
+        # assume raw base64
+        try:
+            return Image.open(BytesIO(base64.b64decode(raw)))
+        except Exception:
+            raise ValueError(f"Cannot decode raw string as image (len={len(raw)}, prefix={raw[:80]!r})")
+
+    def _extract_from_images_result(self, result) -> Image.Image:
+        """Defensively extract an image from images.generate / images.edit result.
+
+        Standard OpenAI returns an ImagesResponse with .data[0].
+        Proxies (newapi, one-api, etc.) may return strings, dicts, or other shapes.
+        """
+        # Standard path: result.data exists and is iterable
+        data = getattr(result, 'data', None)
+        if data is not None:
+            try:
+                item = data[0]
+                return self._decode_image_response(item)
+            except (TypeError, IndexError, AttributeError) as exc:
+                logger.warning("result.data exists but extraction failed: %s", exc)
+
+        # Proxy returned a plain string (URL or base64)
+        if isinstance(result, str):
+            logger.info("images API returned raw string, attempting decode")
+            return self._decode_raw_string(result)
+
+        # Proxy returned a dict (e.g. {"url": "..."} or {"b64_json": "..."})
+        if isinstance(result, dict):
+            logger.info("images API returned dict, attempting decode")
+            if 'data' in result and isinstance(result['data'], list) and result['data']:
+                return self._decode_image_response(result['data'][0])
+            return self._decode_image_response(result)
+
+        raise ValueError(f"Unexpected images API response type: {type(result)}")
+
+    def _generate_with_images_api(
+        self,
+        prompt: str,
+        ref_images: Optional[List[Image.Image]],
+        aspect_ratio: str,
+        resolution: str = '2K',
+    ) -> Optional[Image.Image]:
+        """Use the native OpenAI images API (gpt-image-* / dall-e-*)."""
+        size = self._resolve_size(aspect_ratio, resolution)
+        quality = self._resolve_quality()
+        # GPT image models always return b64_json; DALL-E models default to url
+        is_dalle = self.model.lower() in _DALLE_MODELS
+        response_format = 'b64_json' if is_dalle else None
+
+        if ref_images and self.model.lower() != 'dall-e-3':
+            # dall-e-3 does not support images.edit; all other native models do
+            # Resize ref image to match target size so the API doesn't reject mismatched dimensions
+            w, h = map(int, size.split('x'))
+            ref_img = ref_images[0]
+            if ref_img.size != (w, h):
+                ref_img = ref_img.resize((w, h), Image.LANCZOS)
+            image_bytes = self._pil_to_png_bytes(ref_img)
+            image_file = BytesIO(image_bytes)
+            image_file.name = 'image.png'
+            logger.debug("%s: images.edit, size=%s", self.model, size)
+            kwargs = dict(model=self.model, image=image_file, prompt=prompt, n=1, size=size)
+            if quality:
+                kwargs['quality'] = quality
+            if response_format:
+                kwargs['response_format'] = response_format
+            result = self.client.images.edit(**kwargs)
+        else:
+            if ref_images:
+                logger.warning("dall-e-3 does not support images.edit; ignoring ref_images")
+            logger.debug("%s: images.generate, size=%s, quality=%s", self.model, size, quality)
+            kwargs = dict(model=self.model, prompt=prompt, n=1, size=size)
+            if quality:
+                kwargs['quality'] = quality
+            if response_format:
+                kwargs['response_format'] = response_format
+            result = self.client.images.generate(**kwargs)
+
+        return self._extract_from_images_result(result)
+
     def generate_image(
         self,
         prompt: str,
@@ -137,6 +347,10 @@ class OpenAIImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
+            # Route gpt-image-2 / dall-e-* to the native images API
+            if self._is_native_images_api_model():
+                return self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)
+
             # Build message content
             content = []
             
@@ -159,8 +373,9 @@ class OpenAIImageProvider(ImageProvider):
             
             # Build extra_body with resolution parameters for compatible providers
             extra_body = self._build_extra_body(aspect_ratio, resolution)
-            logger.debug(f"Using extra_body for resolution control: {extra_body}")
-            
+            extra_body["modalities"] = ["text", "image"]
+            logger.debug(f"Using extra_body: {extra_body}")
+
             # Use both system message (for basic providers) and extra_body (for advanced providers)
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -176,11 +391,27 @@ class OpenAIImageProvider(ImageProvider):
             
             # Extract image from response - handle different response formats
             message = response.choices[0].message
-            
+
             # Debug: log available attributes
             logger.debug(f"Response message attributes: {dir(message)}")
-            
-            # Try multi_mod_content first (custom format from some proxies)
+
+            # Try message.images first (OpenRouter format)
+            images_attr = getattr(message, 'images', None)
+            if images_attr:
+                for img_item in images_attr:
+                    url = None
+                    if isinstance(img_item, dict):
+                        url = img_item.get('image_url', {}).get('url', '')
+                    elif hasattr(img_item, 'image_url'):
+                        iu = img_item.image_url
+                        url = iu.get('url', '') if isinstance(iu, dict) else getattr(iu, 'url', '')
+                    if url and url.startswith('data:image'):
+                        base64_data = url.split(',', 1)[1]
+                        image = Image.open(BytesIO(base64.b64decode(base64_data)))
+                        logger.debug(f"Extracted image from message.images: {image.size}")
+                        return image
+
+            # Try multi_mod_content (custom format from some proxies)
             if hasattr(message, 'multi_mod_content') and message.multi_mod_content:
                 parts = message.multi_mod_content
                 for part in parts:
@@ -283,6 +514,7 @@ class OpenAIImageProvider(ImageProvider):
             logger.warning(f"Message content type: {type(getattr(message, 'content', None))}")
             raw = str(getattr(message, 'content', 'N/A'))
             logger.warning(f"Message content: {raw[:300]}{'...(truncated)' if len(raw) > 300 else ''}")
+            logger.warning(f"Message all attrs: {vars(message) if hasattr(message, '__dict__') else dir(message)}"[:500])
             
             raise ValueError("No valid multimodal response received from OpenAI API")
             

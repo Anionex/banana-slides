@@ -343,8 +343,9 @@ class AIService:
 
         Format:
           # Part Name        → sets current part
-          ## Page Title       → starts a new page
-          - Point text        → adds a bullet point to current page
+          ## Page Title      → starts a new page
+          - Point text       → adds a bullet point to current page
+          Plain sentence     → also treated as a point for sentence-style outlines
 
         Returns list of dicts: [{"title": ..., "points": [...], "part": ...}, ...]
         """
@@ -372,6 +373,10 @@ class AIService:
                     current_page['part'] = current_part
             elif stripped.startswith('- ') and current_page is not None:
                 current_page['points'].append(stripped[2:].strip())
+            elif current_page is not None:
+                # Backward/forward compatible: support sentence-style outline lines
+                # generated under each title (without "- " prefix).
+                current_page['points'].append(stripped)
 
         # Flush last page
         if current_page:
@@ -429,6 +434,9 @@ class AIService:
                         current_page['part'] = current_part
                 elif stripped.startswith('- ') and current_page is not None:
                     current_page['points'].append(stripped[2:].strip())
+                elif current_page is not None:
+                    # Also accept sentence-style content line under the title.
+                    current_page['points'].append(stripped)
 
         # Process remaining buffer (same logic as main loop)
         if buffer.strip():
@@ -454,6 +462,9 @@ class AIService:
                         current_page['part'] = current_part
                 elif stripped.startswith('- ') and current_page is not None:
                     current_page['points'].append(stripped[2:].strip())
+                elif current_page is not None:
+                    # Also accept sentence-style content line under the title.
+                    current_page['points'].append(stripped)
 
         # Yield last page
         if current_page:

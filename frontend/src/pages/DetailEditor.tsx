@@ -4,7 +4,8 @@ import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDow
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
-import { useImagePaste } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
+import type { Material } from '@/types';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -98,7 +99,7 @@ const detailI18n = {
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
@@ -278,9 +279,12 @@ export const DetailEditor: React.FC = () => {
   const [descRequirements, setDescRequirements] = useState('');
   const [isDescReqDirty, setIsDescReqDirty] = useState(false);
   const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
-  const [isDescReqOpen, setIsDescReqOpen] = useState(
-    () => localStorage.getItem('descReqOpen') !== 'false'
-  );
+
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = buildMaterialsMarkdown(materials, setDescRequirements);
+    reqTextareaRef.current?.insertAtCursor(markdown + '\n');
+  }, []);
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -684,11 +688,11 @@ export const DetailEditor: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSettingsOpen(!settingsOpen)}
-                icon={<Settings2 size={16} />}
+                icon={<span className="relative"><Settings2 size={16} />{descRequirements && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-banana-400" />}</span>}
                 title={t('detail.descSettings')}
               />
               {settingsOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 w-72 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
+                <div className="absolute top-full left-0 mt-1 z-50 w-80 rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
                   {/* 生成模式 */}
                   <div>
                     <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
@@ -813,6 +817,34 @@ export const DetailEditor: React.FC = () => {
                       </button>
                     </div>
                   </div>
+
+                  {/* 生成要求 */}
+                  <div className="border-t border-gray-100 dark:border-border-primary pt-3">
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
+                      {t('detail.descRequirements')}
+                    </label>
+                    <div data-testid="desc-requirements-textarea">
+                      <MarkdownTextarea
+                        ref={reqTextareaRef}
+                        value={descRequirements}
+                        onChange={(val) => { setDescRequirements(val); setIsDescReqDirty(true); }}
+                        onPaste={handleReqImagePaste}
+                        onFiles={handleReqImageFiles}
+                        onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
+                        placeholder={t('detail.descRequirementsPlaceholder')}
+                        className="ring-inset"
+                        rows={2}
+                        showImagePreview={false}
+                      />
+                    </div>
+                    <PresetCapsules
+                      type="description"
+                      onAppend={(text) => {
+                        setDescRequirements((prev) => prev ? `${prev}\n${text}` : text);
+                        setIsDescReqDirty(true);
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -869,53 +901,6 @@ export const DetailEditor: React.FC = () => {
           </div>
         </div>
         )}
-      </div>
-
-      {/* 描述生成要求 - 可折叠 */}
-      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary flex-shrink-0">
-        <button
-          type="button"
-          data-testid="desc-requirements-toggle"
-          onClick={() => { const next = !isDescReqOpen; setIsDescReqOpen(next); localStorage.setItem('descReqOpen', String(next)); }}
-          className="w-full px-3 md:px-6 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
-        >
-          <Settings2 size={12} className="flex-shrink-0" />
-          <span className="font-medium">{t('detail.descRequirements')}</span>
-          {descRequirements && !isDescReqOpen && (
-            <span className="w-1.5 h-1.5 rounded-full bg-banana-400 flex-shrink-0" />
-          )}
-          <ChevronDown
-            size={12}
-            className={`ml-auto transition-transform duration-200 ${isDescReqOpen ? 'rotate-180' : ''}`}
-          />
-        </button>
-        <div
-          className="overflow-hidden transition-all duration-200 ease-in-out"
-          style={{ maxHeight: isDescReqOpen ? '600px' : '0px' }}
-        >
-          <div className="px-3 md:px-6 pb-3">
-            <div data-testid="desc-requirements-textarea">
-              <MarkdownTextarea
-                ref={reqTextareaRef}
-                value={descRequirements}
-                onChange={(val) => { setDescRequirements(val); setIsDescReqDirty(true); }}
-                onPaste={handleReqImagePaste}
-                onFiles={handleReqImageFiles}
-                placeholder={t('detail.descRequirementsPlaceholder')}
-                className="ring-inset"
-                rows={2}
-                showImagePreview={false}
-              />
-            </div>
-            <PresetCapsules
-              type="description"
-              onAppend={(text) => {
-                setDescRequirements((prev) => prev ? `${prev}\n${text}` : text);
-                setIsDescReqDirty(true);
-              }}
-            />
-          </div>
-        </div>
       </div>
 
       {/* 主内容区 */}
@@ -994,6 +979,13 @@ export const DetailEditor: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
+      />
     </div>
   );
 };

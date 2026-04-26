@@ -53,16 +53,60 @@ Upload an image as a visual style reference — AI will match its color palette,
 
 Upload in the **Select Style Template** section on the home page, or in the **Upload Images** section of single-page editing.
 
-## Material Generator
+## Material Toolbox
 
-Click **Generate Material** in the top navigation bar to create custom AI-generated images:
+Click **Generate Material** in the top navigation bar to open the unified **Material Toolbox**. It now covers more than prompt-to-image generation: you can also take an existing image, edit the whole frame, edit a selected region, or erase content from a selected region.
 
-1. Describe the image you want, e.g.: `Blue-purple gradient background with geometric shapes and tech-style lines`
-2. Select an aspect ratio
-3. Optionally upload a reference image to guide the style
-4. Click **Generate Material**
+### Generate
 
-Generated images are automatically saved to the material library and available for reuse in projects.
+Use this mode to create a brand-new image from text:
+
+1. Enter a prompt such as `Blue-purple gradient background with geometric shapes and tech-style lines`
+2. Pick an aspect ratio
+3. Optionally add a primary reference image and extra references
+4. Click **Run Tool**
+
+### Full Image Edit
+
+Use this mode when you already have an image and want to restyle or rewrite the whole frame:
+
+1. Choose a **Source Image**
+2. Enter an instruction such as `Restyle the image with brushed silver metal while keeping the main composition`
+3. Optionally add reference images
+4. Click **Run Tool**
+
+### Region Edit
+
+Use this mode when only part of the image should change, such as a CTA, title block, object, or foreground detail:
+
+1. Switch to **Region Edit**
+2. Load a source image
+3. Click **Start Selection** and drag over the area to change
+4. Enter the edit instruction
+5. Choose how the result should be applied:
+   - **Overlay only the selected region**: keep the unselected area as stable as possible and only patch the selected area back into the original image
+   - **Replace with the full generated image**: still focus the edit on the selected area, but use the model's full-frame output as the final result
+6. Click **Run Tool**
+
+### Smart Erase
+
+Use this mode to remove logos, watermarks, clutter, or other unwanted elements:
+
+1. Switch to **Smart Erase**
+2. Load a source image
+3. Select the region to remove
+4. Optionally add a short note for what should fill the erased area, such as `clean light gray stone texture`
+5. Click **Run Tool**
+
+### Continue Editing
+
+After a run completes, click **Use result as new source** to send the latest output back into the toolbox for another pass. This works well for flows like:
+
+- erase first, then refine a local area
+- restyle the whole image, then polish one component
+- generate a material, then keep iterating on details
+
+Every processed result is saved as a **new material** in the library. The original source image is not overwritten.
 
 ## Material Center
 

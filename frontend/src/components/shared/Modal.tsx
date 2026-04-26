@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
 
@@ -7,8 +8,9 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'full';
   showCloseButton?: boolean;
+  headerActions?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -18,6 +20,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
   showCloseButton = true,
+  headerActions,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -67,15 +70,16 @@ export const Modal: React.FC<ModalProps> = ({
     md: 'max-w-[480px]',
     lg: 'max-w-[640px]',
     xl: 'max-w-[800px]',
+    wide: 'max-w-[1120px]',
     full: 'max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-4rem)]',
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
       {/* 遮罩 */}
       <div
         className={cn(
-          'fixed inset-0 transition-all duration-300',
+          'fixed inset-0 z-0 transition-all duration-300',
           'bg-gradient-to-br from-black/50 via-black/40 to-black/50',
           'backdrop-blur-md',
           isAnimating ? 'opacity-100' : 'opacity-0'
@@ -86,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* 容器 */}
       <div
-        className="relative flex min-h-full items-center justify-center p-4 sm:p-6"
+        className="relative z-10 flex min-h-full items-center justify-center p-4 sm:p-6"
         onClick={handleBackdropClick}
       >
         <div
@@ -95,7 +99,7 @@ export const Modal: React.FC<ModalProps> = ({
           aria-labelledby={title ? 'modal-title' : undefined}
           className={cn(
             'relative w-full flex flex-col',
-            'max-h-[85vh]',
+            size === 'full' ? 'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]' : 'max-h-[85vh]',
             // 背景和边框
             'bg-white/95 dark:bg-[#1a1a24]/95',
             'backdrop-blur-xl',
@@ -128,10 +132,24 @@ export const Modal: React.FC<ModalProps> = ({
             <div className="relative flex-shrink-0 px-7 pt-7 pb-5">
               <h2
                 id="modal-title"
-                className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight pr-10"
+                className={cn(
+                  'text-xl font-semibold text-gray-900 dark:text-white tracking-tight',
+                  showCloseButton || headerActions ? 'pr-24' : ''
+                )}
               >
                 {title}
               </h2>
+            </div>
+          )}
+
+          {headerActions && (
+            <div
+              className={cn(
+                'absolute z-20 flex items-center gap-2',
+                title ? 'top-5 right-16' : 'top-4 right-14'
+              )}
+            >
+              {headerActions}
             </div>
           )}
 
@@ -165,6 +183,7 @@ export const Modal: React.FC<ModalProps> = ({
           <div
             className={cn(
               'relative px-7 pb-7 overflow-y-auto flex-1',
+              size === 'full' ? 'max-h-[calc(100vh-8rem)]' : 'max-h-[85vh]',
               'scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600',
               title ? '' : 'pt-7'
             )}
@@ -176,6 +195,7 @@ export const Modal: React.FC<ModalProps> = ({
           <div className="absolute -bottom-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent" />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

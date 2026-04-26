@@ -7,6 +7,8 @@ import os
 import json
 import logging
 import tempfile
+import base64
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -18,6 +20,7 @@ from PIL import Image
 import io
 import tempfile
 import img2pdf
+import fitz  # PyMuPDF
 logger = logging.getLogger(__name__)
 
 
@@ -192,6 +195,41 @@ class ExportService:
     # - DefaultInpaintProvider: 基于mask的精确区域重绘（Volcengine）
     # - GenerativeEditInpaintProvider: 基于生成式大模型的整图编辑重绘（Gemini等）
     # 使用方式: from services.image_editability import InpaintProviderFactory
+
+    @staticmethod
+    def _build_style_extraction_error(
+        message: str,
+        *,
+        element_id: Optional[str] = None,
+        text_content: Optional[str] = None,
+        page_idx: Optional[int] = None
+    ) -> ExportError:
+        details: Dict[str, Any] = {}
+        if element_id:
+            details['element_id'] = element_id
+        if text_content:
+            details['text_content'] = text_content[:50]
+        if page_idx is not None:
+            details['page'] = page_idx + 1
+
+        lowered = message.lower()
+        if '不支持图片输入' in message or 'support image input' in lowered:
+            help_text = (
+                '当前用于图片样式提取的 caption/image_caption 模型不支持图片输入。'
+                '请在设置中改成支持视觉输入的模型，或检查 OpenAI 格式下的 image caption provider / model 配置。'
+            )
+        else:
+            help_text = (
+                '文本样式提取依赖视觉模型分析文本截图。请检查 image caption provider、模型名与 API 权限；'
+                '如果只想先拿到可编辑结果，也可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+            )
+
+        return ExportError(
+            message=f"文本样式提取失败: {message}",
+            error_type='style_extraction',
+            details=details,
+            help_text=help_text,
+        )
     
     @staticmethod
     def create_pptx_from_images(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> bytes:
@@ -285,11 +323,14 @@ class ExportService:
             page_w, page_h = _get_page_size_inches(aspect_ratio)
             layout_fun = img2pdf.get_layout_fun(
                 pagesize=(img2pdf.in_to_pt(page_w), img2pdf.in_to_pt(page_h)),
-                fit=img2pdf.FitMode.exact,
+                fit=img2pdf.FitMode.fill,
             )
 
             # Convert images to PDF
             pdf_bytes = img2pdf.convert(valid_paths, layout_fun=layout_fun)
+
+            # Add metadata
+            pdf_bytes = ExportService._add_pdf_metadata(pdf_bytes)
 
             if output_file:
                 with open(output_file, "wb") as f:
@@ -300,6 +341,51 @@ class ExportService:
         except (img2pdf.ImageOpenError, ValueError, IOError) as e:
             logger.warning(f"img2pdf conversion failed: {e}. Falling back to Pillow (high memory usage).")
             return ExportService.create_pdf_from_images_pillow(valid_paths, output_file, aspect_ratio)
+
+    @staticmethod
+    def _add_pdf_metadata(pdf_bytes: bytes) -> bytes:
+        """Add author metadata to PDF (including XMP for Windows compatibility)"""
+        try:
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            doc.set_metadata({
+                "author": "banana-slides",
+                "producer": "banana-slides",
+                "creator": "banana-slides"
+            })
+
+            now = datetime.now(timezone.utc)
+            iso_time = now.isoformat()
+
+            content_hash = hashlib.md5(pdf_bytes[:1024]).hexdigest()
+
+            xmp = dedent(f'''\
+                <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+                <x:xmpmeta xmlns:x="adobe:ns:meta/">
+                  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+                      <dc:creator><rdf:Seq><rdf:li>banana-slides</rdf:li></rdf:Seq></dc:creator>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+                      <pdf:Producer>banana-slides</pdf:Producer>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                      <xmp:CreatorTool>banana-slides</xmp:CreatorTool>
+                      <xmp:CreateDate>{iso_time}</xmp:CreateDate>
+                      <xmp:MetadataDate>{iso_time}</xmp:MetadataDate>
+                    </rdf:Description>
+                    <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/">
+                      <xmpMM:DocumentID>uuid:{content_hash}</xmpMM:DocumentID>
+                    </rdf:Description>
+                  </rdf:RDF>
+                </x:xmpmeta>
+                <?xpacket end="w"?>''')
+            doc.set_xml_metadata(xmp)
+
+            return doc.tobytes()
+        except Exception as e:
+            logger.warning(f"Failed to add PDF metadata: {e}")
+            return pdf_bytes
 
     @staticmethod
     def create_pdf_from_images_pillow(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> Optional[bytes]:
@@ -358,7 +444,7 @@ class ExportService:
                 format='PDF'
             )
             pdf_bytes.seek(0)
-            return pdf_bytes.getvalue()
+            return ExportService._add_pdf_metadata(pdf_bytes.getvalue())
        
     @staticmethod
     def _add_mineru_text_to_slide(builder, slide, text_item: Dict[str, Any], scale_x: float = 1.0, scale_y: float = 1.0):
@@ -910,10 +996,10 @@ class ExportService:
                     full_image=page_data['image_path'],
                     text_elements=page_data['elements']
                 )
-                return page_idx, results
+                return page_idx, results, None
             except Exception as e:
                 logger.warning(f"全局识别页面 {page_idx + 1} 失败: {e}")
-                return page_idx, {}
+                return page_idx, {}, str(e)
         
         # 收集失败信息
         failed_extractions = []  # [(element_id, reason), ...]
@@ -934,10 +1020,10 @@ class ExportService:
                 else:
                     error_msg = style.metadata.get('error', '样式提取返回空') if style else "样式提取返回空"
                     if fail_fast:
-                        raise ExportError(
-                            message=f"文本样式提取失败: {error_msg}",
-                            error_type='style_extraction',
-                            details={'element_id': element_id, 'text_content': text_content[:50]}
+                        raise ExportService._build_style_extraction_error(
+                            error_msg,
+                            element_id=element_id,
+                            text_content=text_content
                         )
                     return element_id, None, error_msg
             except ExportError:
@@ -945,10 +1031,10 @@ class ExportService:
             except Exception as e:
                 logger.warning(f"单个识别失败 [{element_id}]: {e}")
                 if fail_fast:
-                    raise ExportError(
-                        message=f"文本样式提取失败: {str(e)}",
-                        error_type='style_extraction',
-                        details={'element_id': element_id, 'text_content': text_content[:50]}
+                    raise ExportService._build_style_extraction_error(
+                        str(e),
+                        element_id=element_id,
+                        text_content=text_content
                     )
                 return element_id, None, str(e)
         
@@ -972,10 +1058,37 @@ class ExportService:
             for future in as_completed(global_futures):
                 task_type, page_idx = global_futures[future]
                 try:
-                    _, page_results = future.result()
+                    _, page_results, page_error = future.result()
                     global_results.update(page_results)
+                    expected_element_ids = {
+                        element['element_id'] for element in page_text_elements[page_idx]['elements']
+                    }
+                    missing_element_ids = expected_element_ids - set(page_results.keys())
+                    if page_error:
+                        if fail_fast:
+                            raise ExportService._build_style_extraction_error(page_error, page_idx=page_idx)
+                        failed_extractions.extend(
+                            (element_id, f"全局识别失败: {page_error}")
+                            for element_id in expected_element_ids
+                        )
+                    elif missing_element_ids:
+                        reason = "全局识别未返回完整结果"
+                        if fail_fast:
+                            raise ExportService._build_style_extraction_error(reason, page_idx=page_idx)
+                        failed_extractions.extend((element_id, reason) for element_id in missing_element_ids)
                 except Exception as e:
                     logger.error(f"全局识别任务失败: {e}")
+                    if fail_fast:
+                        if isinstance(e, ExportError):
+                            raise
+                        raise ExportService._build_style_extraction_error(str(e), page_idx=page_idx) from e
+                    expected_element_ids = [
+                        element['element_id'] for element in page_text_elements[page_idx]['elements']
+                    ]
+                    failed_extractions.extend(
+                        (element_id, f"全局识别失败: {e}")
+                        for element_id in expected_element_ids
+                    )
             
             # 收集单个裁剪识别结果
             for future in as_completed(local_futures):
@@ -988,6 +1101,8 @@ class ExportService:
                         failed_extractions.append((elem_id, error))
                 except Exception as e:
                     logger.error(f"单个识别任务失败: {e}")
+                    if fail_fast:
+                        raise
                     failed_extractions.append((element_id, str(e)))
         
         # Step 3: 合并结果
@@ -1486,4 +1601,3 @@ class ExportService:
                 # 其他类型
                 logger.debug(f"{'  ' * depth}  跳过未知类型: {elem_type}")
     
-

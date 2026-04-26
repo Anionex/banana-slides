@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -17,7 +17,27 @@ const settingsI18n = {
         performanceConfig: "性能配置", outputLanguage: "输出语言设置",
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
-        vendorApiKeys: "厂商 API Key 配置"
+        vendorApiKeys: "厂商 API Key 配置",
+        advancedSettings: "高级设置"
+      },
+      openaiOAuth: {
+        title: "OpenAI 账号连接",
+        description: "通过 OAuth 登录 OpenAI 账号，无需手动输入 API Key 即可使用 OpenAI 的模型（如 GPT Image）",
+        loginBtn: "Login with OpenAI",
+        disconnectBtn: "断开连接",
+        connected: "已连接",
+        disconnected: "未连接",
+        account: "账号",
+        connecting: "连接中...",
+        disconnecting: "断开中...",
+        connectFailed: "连接失败",
+        disconnectFailed: "断开失败",
+        disconnectSuccess: "已断开 OpenAI 账号",
+        hint: "连接后，可在上方模型配置中选择 Codex 作为提供商，使用你的 OpenAI 账号额度",
+        availableModels: "可用模型",
+        selectModel: "选择模型...",
+        loadingModels: "正在加载可用模型...",
+        connectFirst: "请先连接 OpenAI 账号",
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
       language: { label: "界面语言", zh: "中文", en: "English" },
@@ -78,7 +98,7 @@ const settingsI18n = {
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", after: "" },
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
-        tip: "提示：图像生成和 MinerU 测试可能需要 30-60 秒，请耐心等待。",
+        tip: "提示：图像生成测试可能需要数分钟（取决于模型），请耐心等待。",
         startTest: "开始测试", testing: "测试中...", testTimeout: "测试超时，请重试", testFailed: "测试失败",
         tests: {
           baiduOcr: { title: "Baidu OCR 服务", description: "识别测试图片文字，验证 BAIDU_API_KEY 配置" },
@@ -117,7 +137,27 @@ const settingsI18n = {
         performanceConfig: "Performance Configuration", outputLanguage: "Output Language Settings",
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
-        vendorApiKeys: "Vendor API Key Configuration"
+        vendorApiKeys: "Vendor API Key Configuration",
+        advancedSettings: "Advanced Settings"
+      },
+      openaiOAuth: {
+        title: "OpenAI Account",
+        description: "Log in with your OpenAI account via OAuth to use OpenAI models (e.g. GPT Image) without entering an API key",
+        loginBtn: "Login with OpenAI",
+        disconnectBtn: "Disconnect",
+        connected: "Connected",
+        disconnected: "Not connected",
+        account: "Account",
+        connecting: "Connecting...",
+        disconnecting: "Disconnecting...",
+        connectFailed: "Connection failed",
+        disconnectFailed: "Disconnect failed",
+        disconnectSuccess: "OpenAI account disconnected",
+        hint: "When connected, select Codex as the provider in model configuration above to use your OpenAI account credits",
+        availableModels: "Available Models",
+        selectModel: "Select a model...",
+        loadingModels: "Loading available models...",
+        connectFirst: "Please connect your OpenAI account first",
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
       language: { label: "Interface Language", zh: "中文", en: "English" },
@@ -178,7 +218,7 @@ const settingsI18n = {
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", after: "" },
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
-        tip: "Tip: Image generation and MinerU tests may take 30-60 seconds, please be patient.",
+        tip: "Tip: Image generation tests may take several minutes depending on the model, please be patient.",
         startTest: "Start Test", testing: "Testing...", testTimeout: "Test timeout, please retry", testFailed: "Test failed",
         tests: {
           baiduOcr: { title: "Baidu OCR Service", description: "Recognize text in test image, verify BAIDU_API_KEY configuration" },
@@ -256,10 +296,11 @@ const LAZYLLM_SOURCES = [
   { value: 'kimi', label: 'Kimi' },
 ];
 
-// 所有可用的提供商选项（Gemini/OpenAI + LazyLLM 厂商）
+// 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
 const ALL_PROVIDER_SOURCES = [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'codex', label: 'Codex (OpenAI OAuth)' },
   ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai'), // avoid duplicate 'openai'
 ];
 
@@ -402,6 +443,63 @@ export const Settings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
+  const [oauthConnecting, setOauthConnecting] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const handleOAuthLogin = async () => {
+    setOauthConnecting(true);
+    try {
+      const resp = await api.getOpenAIOAuthUrl();
+      if (resp.success && resp.data?.auth_url) {
+        const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
+        const onMessage = async (event: MessageEvent) => {
+          if (event.data?.type === 'openai-oauth-callback') {
+            window.removeEventListener('message', onMessage);
+            setOauthConnecting(false);
+            if (event.data.success) {
+              const statusResp = await api.getOpenAIOAuthStatus();
+              if (statusResp.success && statusResp.data) {
+                setSettings(prev => prev ? {
+                  ...prev,
+                  openai_oauth_connected: statusResp.data!.connected,
+                  openai_oauth_account_id: statusResp.data!.account_id || undefined,
+                } : prev);
+              }
+            } else {
+              show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
+            }
+          }
+        };
+        window.addEventListener('message', onMessage);
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            setOauthConnecting(false);
+            window.removeEventListener('message', onMessage);
+          }
+        }, 1000);
+      }
+    } catch {
+      setOauthConnecting(false);
+      show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
+    }
+  };
+
+  const handleOAuthDisconnect = async () => {
+    try {
+      const resp = await api.disconnectOpenAIOAuth();
+      if (resp.success) {
+        setSettings(prev => prev ? {
+          ...prev,
+          openai_oauth_connected: false,
+          openai_oauth_account_id: undefined,
+        } : prev);
+        show({ message: t('settings.openaiOAuth.disconnectSuccess'), type: 'success' });
+      }
+    } catch {
+      show({ message: t('settings.openaiOAuth.disconnectFailed'), type: 'error' });
+    }
+  };
 
   // 配置驱动的表单区块定义（使用翻译）
   const settingsSections: SectionConfig[] = [
@@ -711,41 +809,43 @@ export const Settings: React.FC = () => {
       const response = await action(testSettings);
       const taskId = response.data.task_id;
 
+      // isActive tracks whether this test round is still pending — avoids stale closure
+      let isActive = true;
+      // eslint-disable-next-line prefer-const
+      let pollInterval: ReturnType<typeof setInterval>;
+      const finish = (nextState: ServiceTestState, toastMsg: string, toastType: 'success' | 'error') => {
+        if (!isActive) return;
+        isActive = false;
+        clearInterval(pollInterval);
+        updateServiceTest(key, nextState);
+        show({ message: toastMsg, type: toastType });
+      };
+
       // 开始轮询任务状态
-      const pollInterval = setInterval(async () => {
+      pollInterval = setInterval(async () => {
         try {
           const statusResponse = await api.getTestStatus(taskId);
           const taskStatus = statusResponse.data.status;
 
           if (taskStatus === 'COMPLETED') {
-            clearInterval(pollInterval);
             const detail = formatDetail(statusResponse.data.result || {});
             const message = statusResponse.data.message || t('settings.messages.testSuccess');
-            updateServiceTest(key, { status: 'success', message, detail });
-            show({ message, type: 'success' });
+            finish({ status: 'success', message, detail }, message, 'success');
           } else if (taskStatus === 'FAILED') {
-            clearInterval(pollInterval);
             const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
-            updateServiceTest(key, { status: 'error', message: errorMessage });
-            show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
+            finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
         } catch (pollError: any) {
-          clearInterval(pollInterval);
           const errorMessage = pollError?.response?.data?.error?.message || pollError?.message || t('settings.serviceTest.testFailed');
-          updateServiceTest(key, { status: 'error', message: errorMessage });
-          show({ message: `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, type: 'error' });
+          finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
         }
       }, 2000); // 每2秒轮询一次
 
       // 设置最大轮询时间（2分钟）
       setTimeout(() => {
-        clearInterval(pollInterval);
-        if (serviceTestStates[key]?.status === 'loading') {
-          updateServiceTest(key, { status: 'error', message: t('settings.serviceTest.testTimeout') });
-          show({ message: t('settings.serviceTest.testTimeout'), type: 'error' });
-        }
-      }, 120000);
+        finish({ status: 'error', message: t('settings.serviceTest.testTimeout') }, t('settings.serviceTest.testTimeout'), 'error');
+      }, 600000); // 10 分钟，覆盖 gpt-image-2 等慢模型的生成时间
 
     } catch (error: any) {
       const errorMessage = error?.response?.data?.error?.message || error?.message || t('common.unknownError');
@@ -937,7 +1037,7 @@ export const Settings: React.FC = () => {
     // lazyllm openai vendor is handled separately
 
     return (
-      <div key={item.modelKey} className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-3">
+      <div key={item.modelKey} className="pb-6 border-b border-gray-200 dark:border-border-primary last:border-b-0 last:pb-0 space-y-3">
         {/* 模型名称 */}
         <Input
           label={item.label}
@@ -962,8 +1062,12 @@ export const Settings: React.FC = () => {
           >
             <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
             {ALL_PROVIDER_SOURCES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+              <option
+                key={option.value}
+                value={option.value}
+                disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
+              >
+                {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
               </option>
             ))}
           </select>
@@ -1052,7 +1156,7 @@ export const Settings: React.FC = () => {
             <span className="ml-2">{t('settings.sections.apiConfig')}</span>
           </h2>
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.sections.apiConfigDesc')}</p>
-          <div className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-3">
+          <div className="space-y-3">
             {/* 提供商下拉 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
@@ -1064,7 +1168,13 @@ export const Settings: React.FC = () => {
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
                 {ALL_PROVIDER_SOURCES.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.value === 'codex' && !settings?.openai_oauth_connected}
+                  >
+                    {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
+                  </option>
                 ))}
               </select>
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
@@ -1105,7 +1215,7 @@ export const Settings: React.FC = () => {
           </div>
 
           {/* AIHubmix 提示 */}
-          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+          <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
             <p className="text-sm text-gray-700 dark:text-foreground-secondary">
               {t('settings.apiKeyTip.before')}
               <a href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">AIHubmix 申请 API key</a>
@@ -1113,7 +1223,7 @@ export const Settings: React.FC = () => {
           </div>
 
           {/* API Key 获取指南 */}
-          <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+          <div className="mt-2 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
             <p className="text-sm font-medium text-gray-800 dark:text-foreground-primary flex items-center gap-1.5 mb-2">
               <HelpCircle size={15} className="text-blue-500" />
               {t('settings.apiKeyHelp.title')}
@@ -1157,9 +1267,13 @@ export const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* 其余配置区块（配置驱动） */}
+        {/* 其余配置区块（配置驱动，排除性能配置和推理模式） */}
         <div className="space-y-8">
-          {settingsSections.map((section) => (
+          {settingsSections.filter((section) =>
+            section.title !== t('settings.sections.performanceConfig') &&
+            section.title !== t('settings.sections.textReasoning') &&
+            section.title !== t('settings.sections.imageReasoning')
+          ).map((section) => (
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
                 {section.icon}
@@ -1172,6 +1286,88 @@ export const Settings: React.FC = () => {
           ))}
         </div>
 
+        {/* 高级设置（折叠区域） */}
+        <div className="border-t border-gray-200 dark:border-border-primary pt-2">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+            className="w-full flex items-center justify-between px-0 py-3 text-left hover:opacity-80 transition-opacity"
+          >
+            <span className="text-lg font-semibold text-gray-900 dark:text-foreground-primary">
+              {t('settings.sections.advancedSettings')}
+            </span>
+            <ChevronDown
+              size={20}
+              className={`text-gray-500 dark:text-foreground-tertiary transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {advancedOpen && (
+            <div className="pb-4 space-y-8">
+              {/* OpenAI OAuth 连接区块 */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
+                  <Link2 size={20} />
+                  <span className="ml-2">{t('settings.openaiOAuth.title')}</span>
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-foreground-tertiary mb-4">{t('settings.openaiOAuth.description')}</p>
+                <div className="p-4 border border-gray-200 dark:border-border-primary rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${settings?.openai_oauth_connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
+                          {settings?.openai_oauth_connected ? t('settings.openaiOAuth.connected') : t('settings.openaiOAuth.disconnected')}
+                        </span>
+                        {settings?.openai_oauth_connected && settings?.openai_oauth_account_id && (
+                          <span className="ml-2 text-sm text-gray-500 dark:text-foreground-tertiary">
+                            ({settings.openai_oauth_account_id})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {settings?.openai_oauth_connected ? (
+                        <button
+                          onClick={handleOAuthDisconnect}
+                          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        >
+                          {t('settings.openaiOAuth.disconnectBtn')}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleOAuthLogin}
+                          disabled={oauthConnecting}
+                          className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+                        >
+                          {oauthConnecting ? t('settings.openaiOAuth.connecting') : t('settings.openaiOAuth.loginBtn')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500 dark:text-foreground-tertiary">{t('settings.openaiOAuth.hint')}</p>
+                </div>
+              </div>
+
+              {/* 并发性能配置 + 推理模式 */}
+              {settingsSections.filter((section) =>
+                section.title === t('settings.sections.performanceConfig') ||
+                section.title === t('settings.sections.textReasoning') ||
+                section.title === t('settings.sections.imageReasoning')
+              ).map((section) => (
+                <div key={section.title}>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-4 flex items-center">
+                    {section.icon}
+                    <span className="ml-2">{section.title}</span>
+                  </h2>
+                  <div className="space-y-4">
+                    {section.fields.map((field) => renderField(field))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* 服务测试区 */}
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-2 flex items-center">
@@ -1181,7 +1377,7 @@ export const Settings: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.serviceTest.description')}
           </p>
-          <div className="p-3 bg-yellow-50 dark:bg-background-primary border border-yellow-200 dark:border-yellow-700 rounded-lg">
+          <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600">
             <p className="text-sm text-gray-700 dark:text-foreground-secondary">
               💡 {t('settings.serviceTest.tip')}
             </p>
@@ -1242,7 +1438,7 @@ export const Settings: React.FC = () => {
               return (
                 <div
                   key={item.key}
-                  className="p-4 bg-gray-50 dark:bg-background-primary border border-gray-200 dark:border-border-primary rounded-lg space-y-2"
+                  className="py-4 border-b border-gray-200 dark:border-border-primary last:border-b-0 space-y-2"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>

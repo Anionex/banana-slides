@@ -37,17 +37,27 @@ class LazyLLMTextProvider(TextProvider):
         self._vlm_client = None
         self._vlm_lock = threading.Lock()
         ensure_lazyllm_namespace_key(source, namespace='BANANA')
+        # Omit type so lazyllm auto-detects LLM vs VLM from the model name.
+        # VLM-only models (e.g. qwen-vl-max) are auto-set to VLM; regular
+        # LLM models default to LLM. This avoids the AssertionError lazyllm
+        # raises when type='llm' is passed explicitly for a VLM model.
         self.client = lazyllm.namespace('BANANA').OnlineModule(
-            source = source,
-            model = model,
-            type = 'llm',
-            )
-        
+            source=source,
+            model=model,
+        )
+        # Detect VLM-only status from the type lazyllm actually assigned.
+        LLMType = type(self.client._type)
+        self._is_vlm_only = (self.client._type == LLMType.VLM)
+
     def generate_text(self, prompt, thinking_budget = 1000):
         message = self.client(prompt)
         return strip_think_tags(message)
 
     def generate_with_image(self, prompt: str, image_path: str, thinking_budget: int = 0) -> str:
+        if self._is_vlm_only:
+            # Reuse the VLM client created during __init__
+            message = self.client(prompt, lazyllm_files=[image_path])
+            return strip_think_tags(message)
         if self._vlm_client is None:
             with self._vlm_lock:
                 if self._vlm_client is None:
