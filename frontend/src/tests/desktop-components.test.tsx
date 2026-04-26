@@ -40,12 +40,31 @@ describe('DesktopTitleBar', () => {
     expect(screen.getByText('Banana Slides')).toBeInTheDocument();
   });
 
-  it('does not show app name on macOS (traffic lights area instead)', async () => {
+  it('shows app name on macOS too (logo + name always visible)', async () => {
     mockElectronAPI.getPlatform.mockReturnValue('darwin');
     const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
     render(<DesktopTitleBar />);
     await act(() => vi.runAllTimers());
-    expect(screen.queryByText('Banana Slides')).not.toBeInTheDocument();
+    expect(screen.getByText('Banana Slides')).toBeInTheDocument();
+  });
+
+  it('does not show window control buttons on macOS', async () => {
+    mockElectronAPI.getPlatform.mockReturnValue('darwin');
+    const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
+    render(<DesktopTitleBar />);
+    await act(() => vi.runAllTimers());
+    expect(screen.queryByTitle('最小化')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('关闭')).not.toBeInTheDocument();
+  });
+
+  it('shows window control buttons on Windows with hover behavior', async () => {
+    mockElectronAPI.getPlatform.mockReturnValue('win32');
+    const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
+    render(<DesktopTitleBar />);
+    await act(() => vi.runAllTimers());
+    expect(screen.getByTitle('最小化')).toBeInTheDocument();
+    expect(screen.getByTitle('最大化')).toBeInTheDocument();
+    expect(screen.getByTitle('关闭')).toBeInTheDocument();
   });
 
   it('calls getPlatform on mount', async () => {
