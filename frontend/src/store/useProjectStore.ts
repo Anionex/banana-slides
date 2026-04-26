@@ -95,7 +95,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string, enableWebResearch?: boolean) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -197,7 +197,7 @@ const debouncedUpdatePage = debounce(
   setError: (error) => set({ error }),
 
   // 初始化项目
-  initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio) => {
+  initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio, enableWebResearch) => {
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
@@ -250,7 +250,39 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 根据类型调用 AI 生成，失败时回滚项目
+      // 4. 网络调研（仅 idea 类型且启用时）
+      if (enableWebResearch && type === 'idea') {
+        try {
+          const researchResponse = await api.startResearch(projectId);
+          const researchTaskId = researchResponse.data?.task_id;
+          if (researchTaskId) {
+            await new Promise<void>((resolve) => {
+              const pollResearch = async () => {
+                try {
+                  const taskResponse = await api.getTaskStatus(projectId, researchTaskId);
+                  const task = taskResponse.data;
+                  if (task?.status === 'COMPLETED') {
+                    resolve();
+                  } else if (task?.status === 'FAILED') {
+                    console.warn('[Research] Task failed:', task.error_message);
+                    resolve(); // Non-blocking
+                  } else {
+                    setTimeout(pollResearch, 2000);
+                  }
+                } catch (err) {
+                  console.warn('[Research] Poll error:', err);
+                  resolve(); // Non-blocking
+                }
+              };
+              pollResearch();
+            });
+          }
+        } catch (error) {
+          console.warn('[Research] Failed to start research:', error);
+        }
+      }
+
+      // 5. 根据类型调用 AI 生成，失败时回滚项目
       const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
         try {
           await fn();
@@ -268,7 +300,7 @@ const debouncedUpdatePage = debounce(
         await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
       }
 
-      // 5. 获取完整项目信息
+      // 6. 获取完整项目信息
       const projectResponse = await api.getProject(projectId);
       const project = normalizeProject(projectResponse.data);
 
