@@ -92,6 +92,11 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
+        imageApiProtocol: "图片 API 协议",
+        imageApiProtocolDesc: "选择图片生成使用的 API 路径。自动检测根据模型名判断，也可强制指定",
+        imageApiProtocolAuto: "自动检测",
+        imageApiProtocolImages: "images.generate",
+        imageApiProtocolChat: "chat.completions",
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
@@ -217,6 +222,11 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
+        imageApiProtocol: "Image API Protocol",
+        imageApiProtocolDesc: "Select the API path for image generation. Auto detects by model name, or force a specific path",
+        imageApiProtocolAuto: "Auto detect",
+        imageApiProtocolImages: "images.generate",
+        imageApiProtocolChat: "chat.completions",
       },
       apiKeyHelp: {
         title: "How to get an API key",
@@ -352,6 +362,7 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  openai_image_api_protocol: 'auto',
 };
 
 const isLazyllmVendor = (vendor: string) =>
@@ -424,6 +435,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   image_api_base_url: data.image_api_base_url || '',
   image_caption_api_key: '',
   image_caption_api_base_url: data.image_caption_api_base_url || '',
+  openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
 });
 
 // Settings 组件 - 纯嵌入模式（可复用）
@@ -1142,6 +1154,27 @@ export const Settings: React.FC = () => {
                 {t('settings.fields.perModelApiKeyDesc')}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Image API Protocol: for image model when effective provider is openai */}
+        {item.sourceKey === 'image_model_source' && (sourceValue === 'openai' || (!sourceValue && formData.ai_provider_format === 'openai')) && (
+          <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+              {t('settings.fields.imageApiProtocol')}
+            </label>
+            <select
+              value={formData.openai_image_api_protocol}
+              onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+              className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+            >
+              <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+              <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+              <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+            </select>
+            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+              {t('settings.fields.imageApiProtocolDesc')}
+            </p>
           </div>
         )}
 

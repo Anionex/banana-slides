@@ -311,6 +311,12 @@ def update_settings():
         if "image_model_source" in data:
             settings.image_model_source = (data["image_model_source"] or "").strip() or None
 
+        if "openai_image_api_protocol" in data:
+            protocol = data["openai_image_api_protocol"]
+            if protocol not in ("auto", "images", "chat"):
+                return bad_request("openai_image_api_protocol must be 'auto', 'images', or 'chat'")
+            settings.openai_image_api_protocol = protocol if protocol != "auto" else None
+
         if "image_caption_model_source" in data:
             settings.image_caption_model_source = (data["image_caption_model_source"] or "").strip() or None
 
@@ -387,6 +393,7 @@ def reset_settings():
         settings.text_model_source = None
         settings.image_model_source = None
         settings.image_caption_model_source = None
+        settings.openai_image_api_protocol = None
         settings.lazyllm_api_keys = None
         for model_type in ('text', 'image', 'image_caption'):
             setattr(settings, f'{model_type}_api_key', None)
@@ -663,6 +670,12 @@ def _sync_settings_to_config(settings: Settings):
                 if config_key in current_app.config:
                     ai_config_changed = True
                 current_app.config.pop(config_key, None)
+
+    # Sync OpenAI image API protocol
+    new_protocol = settings.openai_image_api_protocol or 'auto'
+    if current_app.config.get('OPENAI_IMAGE_API_PROTOCOL') != new_protocol:
+        ai_config_changed = True
+    current_app.config['OPENAI_IMAGE_API_PROTOCOL'] = new_protocol
 
     # Sync LazyLLM vendor API keys to environment variables
     # (lazyllm_env.py reads from os.environ via {SOURCE}_API_KEY)

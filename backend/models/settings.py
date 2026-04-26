@@ -57,6 +57,9 @@ class Settings(db.Model):
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
 
+    # OpenAI image API protocol: auto (default), images (force images.generate), chat (force chat.completions)
+    openai_image_api_protocol = db.Column(db.String(10), nullable=True)
+
     # OpenAI Codex OAuth credentials
     openai_oauth_access_token = db.Column(db.Text, nullable=True)
     openai_oauth_refresh_token = db.Column(db.Text, nullable=True)
@@ -138,6 +141,7 @@ class Settings(db.Model):
             'image_api_base_url': self._val('image_api_base_url', d),
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
             'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'openai_image_api_protocol': self._val('openai_image_api_protocol', d) or 'auto',
             'openai_oauth_connected': bool(self.openai_oauth_access_token),
             'openai_oauth_account_id': self.openai_oauth_account_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,

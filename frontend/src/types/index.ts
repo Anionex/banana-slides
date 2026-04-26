@@ -165,6 +165,8 @@ export interface Settings {
   image_api_base_url?: string;
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
+  // OpenAI image API protocol
+  openai_image_api_protocol?: string;
   // OpenAI Codex OAuth
   openai_oauth_connected: boolean;
   openai_oauth_account_id?: string;
