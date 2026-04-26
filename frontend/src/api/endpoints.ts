@@ -1217,14 +1217,6 @@ export const getOpenAIOAuthModels = async (): Promise<ApiResponse<{ models: stri
 };
 
 /**
- * 手动提交 OAuth 回调 URL（端口 1455 不可用时的兜底）
- */
-export const submitOAuthManualCallback = async (callbackUrl: string): Promise<ApiResponse<{ message: string; account_id: string | null }>> => {
-  const response = await apiClient.post<ApiResponse<{ message: string; account_id: string | null }>>('/api/settings/openai-oauth/manual-callback', { callback_url: callbackUrl });
-  return response.data;
-};
-
-/**
  * 验证 API key 是否可用
  */
 export const verifyApiKey = async (): Promise<ApiResponse<{ available: boolean; message: string }>> => {

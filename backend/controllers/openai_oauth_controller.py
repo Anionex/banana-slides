@@ -141,100 +141,12 @@ def list_models():
     })
 
 
-@openai_oauth_bp.route("/manual-callback", methods=["POST"])
-def manual_callback():
-    """Accept a pasted callback URL and complete the token exchange.
-
-    Used when port 1455 is blocked (e.g. Windows Hyper-V reserved ports)
-    and the automatic callback server cannot receive the redirect.
-    """
-    data = request.get_json(silent=True) or {}
-    callback_url = data.get("callback_url", "")
-    if not callback_url:
-        return error_response("callback_url is required", 400)
-
-    parsed = urlparse(callback_url)
-    params = parse_qs(parsed.query)
-    code = params.get("code", [None])[0]
-    state = params.get("state", [None])[0]
-    error_param = params.get("error", [None])[0]
-
-    if error_param:
-        return error_response(f"OAuth error: {error_param}", 400)
-    if not code or not state:
-        return error_response("URL missing code or state parameter", 400)
-
-    from flask import current_app
-    result = _exchange_and_store(code, state, current_app._get_current_object())
-    if not result["success"]:
-        return error_response(result["message"], 400)
-
-    return success_response({
-        "message": "Connected",
-        "account_id": result.get("account_id"),
-    })
-
-
 # ---------------------------------------------------------------------------
 # Standalone callback server on port 1455
 # ---------------------------------------------------------------------------
 
 _callback_server: HTTPServer | None = None
 _callback_lock = threading.Lock()
-
-
-def _exchange_and_store(code: str, state: str, app=None) -> dict:
-    """Exchange an authorization code for tokens and persist them.
-
-    Returns {"success": True, "account_id": ...} or {"success": False, "message": ...}.
-    """
-    flow = _pending_flows.get(state)
-    if not flow:
-        return {"success": False, "message": "Unknown state — please retry"}
-
-    code_verifier = flow["code_verifier"]
-    if app is None:
-        app = flow.get("app")
-
-    try:
-        resp = http_requests.post(
-            _OPENAI_TOKEN_URL,
-            data=urlencode({
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": _build_redirect_uri(),
-                "client_id": _OPENAI_CLIENT_ID,
-                "code_verifier": code_verifier,
-            }),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.error("Token exchange failed: %s", e)
-        return {"success": False, "message": "Token exchange failed"}
-
-    access_token = data.get("access_token")
-    refresh_token = data.get("refresh_token")
-    expires_in = data.get("expires_in", 3600)
-    account_id = _extract_account_id(data.get("id_token"))
-
-    try:
-        with app.app_context():
-            settings = Settings.get_settings()
-            settings.openai_oauth_access_token = access_token
-            settings.openai_oauth_refresh_token = refresh_token
-            settings.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
-            settings.openai_oauth_account_id = account_id
-            db.session.commit()
-    except Exception as e:
-        logger.error("Failed to store OAuth tokens: %s", e)
-        return {"success": False, "message": "Failed to store tokens"}
-
-    _pending_flows.pop(state, None)
-    logger.info("OpenAI OAuth connected for account: %s", account_id)
-    return {"success": True, "account_id": account_id}
 
 
 class _OAuthCallbackHandler(BaseHTTPRequestHandler):
@@ -260,19 +172,55 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
             self._send_html(_build_callback_html(False, "Missing code or state"))
             return
 
-        result = _exchange_and_store(code, state)
-        if result["success"]:
-            self._send_html(_build_callback_html(True, "Connected"))
-        else:
-            self._send_html(_build_callback_html(False, result["message"]))
+        flow = _pending_flows.pop(state, None)
+        if not flow:
+            self._send_html(_build_callback_html(False, "Unknown state — please retry"))
+            return
+
+        code_verifier = flow["code_verifier"]
+        app = flow["app"]
+
+        try:
+            resp = http_requests.post(
+                _OPENAI_TOKEN_URL,
+                data=urlencode({
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": _build_redirect_uri(),
+                    "client_id": _OPENAI_CLIENT_ID,
+                    "code_verifier": code_verifier,
+                }),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error("Token exchange failed: %s", e)
+            self._send_html(_build_callback_html(False, "Token exchange failed"))
+            return
+
+        access_token = data.get("access_token")
+        refresh_token = data.get("refresh_token")
+        expires_in = data.get("expires_in", 3600)
+        account_id = _extract_account_id(data.get("id_token"))
+
+        with app.app_context():
+            settings = Settings.get_settings()
+            settings.openai_oauth_access_token = access_token
+            settings.openai_oauth_refresh_token = refresh_token
+            settings.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            settings.openai_oauth_account_id = account_id
+            db.session.commit()
+
+        logger.info("OpenAI OAuth connected for account: %s", account_id)
+        self._send_html(_build_callback_html(True, "Connected"))
 
     def _send_html(self, html: str):
-        encoded = html.encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Content-Type", "text/html")
         self.end_headers()
-        self.wfile.write(encoded)
+        self.wfile.write(html.encode())
 
     def log_message(self, format, *args):
         logger.debug("OAuth callback server: %s", format % args)
@@ -320,19 +268,17 @@ def _build_callback_html(success: bool, message: str) -> str:
     status_text = "Connected" if success else f"Error: {safe_message}"
     color = "#22c55e" if success else "#ef4444"
     json_message = json.dumps(message)
-    close_script = "setTimeout(function(){ window.close(); }, 2000);" if success else ""
-    hint = "" if success else "<p style='margin-top:1rem;font-size:0.85rem;color:#666'>Please copy the full URL from the address bar and paste it into the manual input on the Settings page.</p>"
     return f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>OpenAI OAuth</title></head>
+<html><head><title>OpenAI OAuth</title></head>
 <body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <div style="text-align:center">
 <p style="font-size:1.5rem;color:{color}">{status_text}</p>
-{"<p>This window will close automatically.</p>" if success else ""}{hint}
+<p>This window will close automatically.</p>
 </div>
 <script>
 if (window.opener) {{
     window.opener.postMessage({{type:'openai-oauth-callback',success:{str(success).lower()},message:{json_message}}}, '*');
 }}
-{close_script}
+setTimeout(function(){{ window.close(); }}, 2000);
 </script>
 </body></html>"""
