@@ -44,7 +44,6 @@ _prompts_mod = _load_module_directly(
 get_default_voice = _tts_mod.get_default_voice
 check_ffmpeg_available = _tts_mod.check_ffmpeg_available
 get_audio_duration = _tts_mod.get_audio_duration
-_build_zoompan_filter = _tts_mod._build_zoompan_filter
 KEN_BURNS_EFFECTS = _tts_mod.KEN_BURNS_EFFECTS
 composite_video = _tts_mod.composite_video
 _split_narration_to_sentences = _tts_mod._split_narration_to_sentences
@@ -124,32 +123,6 @@ class TestGetAudioDuration:
         duration = get_audio_duration('/fake/audio.mp3')
         assert abs(duration - 12.345) < 0.001
 
-
-class TestBuildZoompanFilter:
-    """测试 zoompan 滤镜构建"""
-
-    def test_zoom_in(self):
-        result = _build_zoompan_filter('zoom_in', 250, 1920, 1080, 25)
-        assert 'zoompan' in result
-        assert 'min(zoom+0.0015,1.5)' in result
-        assert 's=1920x1080' in result
-        assert 'd=250' in result
-
-    def test_zoom_out(self):
-        result = _build_zoompan_filter('zoom_out', 250, 1920, 1080, 25)
-        assert 'max(zoom-0.0015,1.0)' in result
-
-    def test_pan_left(self):
-        result = _build_zoompan_filter('pan_left', 250, 1920, 1080, 25)
-        assert '1-on/' in result
-
-    def test_pan_right(self):
-        result = _build_zoompan_filter('pan_right', 250, 1920, 1080, 25)
-        assert 'on/' in result
-
-    def test_unknown_effect_fallback(self):
-        result = _build_zoompan_filter('unknown', 250, 1920, 1080, 25)
-        assert 'zoompan' in result
 
 
 class TestKenBurnsEffects:
