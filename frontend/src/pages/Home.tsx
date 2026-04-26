@@ -73,6 +73,7 @@ const homeI18n = {
       webResearch: {
         label: '联网搜索',
         tooltip: '生成前先搜索网络资料，提升内容质量',
+        searching: '正在搜索网络资料...',
       },
       renovation: {
         uploadHint: '点击或拖拽上传 PDF / PPTX 文件',
@@ -154,6 +155,7 @@ const homeI18n = {
       webResearch: {
         label: 'Web Research',
         tooltip: 'Search the web before generating for better content',
+        searching: 'Searching the web...',
       },
       renovation: {
         uploadHint: 'Click or drag to upload PDF / PPTX file',
@@ -190,7 +192,7 @@ export const Home: React.FC = () => {
   const { i18n } = useTranslation();
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
-  const { initializeProject, isGlobalLoading } = useProjectStore();
+  const { initializeProject, isGlobalLoading, isResearching } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -1114,7 +1116,9 @@ export const Home: React.FC = () => {
                   }
                   className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
                 >
-                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                  {isResearching
+                    ? t('home.webResearch.searching')
+                    : referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                     ? t('home.actions.parsing')
                     : t('common.next')}
                 </Button>

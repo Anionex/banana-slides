@@ -88,6 +88,8 @@ interface ProjectState {
   isOutlineStreaming: boolean;
   // 流式描述生成中
   isDescriptionStreaming: boolean;
+  // 联网搜索状态
+  isResearching: boolean;
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -190,6 +192,7 @@ const debouncedUpdatePage = debounce(
   warningMessage: null,
   isOutlineStreaming: false,
   isDescriptionStreaming: false,
+  isResearching: false,
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -252,6 +255,7 @@ const debouncedUpdatePage = debounce(
 
       // 4. 网络调研（仅 idea 类型且启用时）
       if (enableWebResearch && type === 'idea') {
+        set({ isResearching: true });
         try {
           const researchResponse = await api.startResearch(projectId);
           const researchTaskId = researchResponse.data?.task_id;
@@ -279,6 +283,8 @@ const debouncedUpdatePage = debounce(
           }
         } catch (error) {
           console.warn('[Research] Failed to start research:', error);
+        } finally {
+          set({ isResearching: false });
         }
       }
 
