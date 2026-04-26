@@ -689,6 +689,7 @@ class FileParserService:
                 if image.mode in ('RGBA', 'LA', 'P'):
                     image = image.convert('RGB')
                 image.save(temp_path, format="JPEG", quality=95)
+                image.close()
 
                 provider = self._get_caption_provider()
                 caption = provider.generate_with_image(prompt, temp_path)
