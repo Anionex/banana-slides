@@ -267,10 +267,12 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
             self._send_html(_build_callback_html(False, result["message"]))
 
     def _send_html(self, html: str):
+        encoded = html.encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(html.encode())
+        self.wfile.write(encoded)
 
     def log_message(self, format, *args):
         logger.debug("OAuth callback server: %s", format % args)
@@ -321,7 +323,7 @@ def _build_callback_html(success: bool, message: str) -> str:
     close_script = "setTimeout(function(){ window.close(); }, 2000);" if success else ""
     hint = "" if success else "<p style='margin-top:1rem;font-size:0.85rem;color:#666'>Please copy the full URL from the address bar and paste it into the manual input on the Settings page.</p>"
     return f"""<!DOCTYPE html>
-<html><head><title>OpenAI OAuth</title></head>
+<html><head><meta charset="utf-8"><title>OpenAI OAuth</title></head>
 <body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <div style="text-align:center">
 <p style="font-size:1.5rem;color:{color}">{status_text}</p>
