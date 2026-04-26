@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 user_bp = Blueprint('user', __name__, url_prefix='/api/user')
 
 
+def _require_platform_billing_user(user):
+    if not user.uses_platform_billing():
+        return jsonify({'error': '当前账号不适用积分和付费功能'}), 403
+    return None
+
+
 def _build_notify_url():
     # 优先使用商户后台配置的公网回调地址；未配置时按当前请求域名兜底。
     configured = wechat_pay_notify_url()
@@ -75,6 +81,9 @@ def update_profile():
 @require_auth
 def points_history():
     user = g.current_user
+    billing_guard = _require_platform_billing_user(user)
+    if billing_guard:
+        return billing_guard
     page = int(request.args.get('page', 1))
     per_page = min(int(request.args.get('per_page', 20)), 100)
 
@@ -94,6 +103,9 @@ def points_history():
 @user_bp.route('/recharge/packages', methods=['GET'])
 @require_auth
 def recharge_packages():
+    billing_guard = _require_platform_billing_user(g.current_user)
+    if billing_guard:
+        return billing_guard
     configured = is_wechat_pay_configured()
     packages, source = get_recharge_packages_with_source()
     return jsonify({'data': {
@@ -110,6 +122,9 @@ def recharge_packages():
 @require_auth
 def create_recharge_order():
     user = g.current_user
+    billing_guard = _require_platform_billing_user(user)
+    if billing_guard:
+        return billing_guard
     data = request.get_json() or {}
     package_id = (data.get('package_id') or '').strip()
     package = get_recharge_package(package_id)
@@ -167,6 +182,9 @@ def create_recharge_order():
 @require_auth
 def get_recharge_order(order_no):
     user = g.current_user
+    billing_guard = _require_platform_billing_user(user)
+    if billing_guard:
+        return billing_guard
     order = RechargeOrder.query.filter_by(order_no=order_no, user_id=user.id).first()
     if not order:
         return jsonify({'error': '订单不存在'}), 404
@@ -189,6 +207,9 @@ def get_recharge_order(order_no):
 @user_bp.route('/subscription/plans', methods=['GET'])
 @require_auth
 def subscription_plans():
+    billing_guard = _require_platform_billing_user(g.current_user)
+    if billing_guard:
+        return billing_guard
     configured = is_wechat_pay_configured()
     plans, source = get_subscription_plans_with_source()
     return jsonify({'data': {
@@ -206,6 +227,9 @@ def subscription_plans():
 def subscribe():
     """Create a WeChat subscription order."""
     user = g.current_user
+    billing_guard = _require_platform_billing_user(user)
+    if billing_guard:
+        return billing_guard
     data = request.get_json() or {}
     plan = data.get('plan', 'monthly')  # monthly | yearly
     payment_method = data.get('payment_method', 'wechat')  # wechat | alipay

@@ -50,8 +50,10 @@ export const useUserStore = create<UserStore>()(
 
       setUser: (user) => set({ user }),
 
-      logout: () =>
-        set({ user: null, accessToken: null, refreshToken: null }),
+      logout: () => {
+        localStorage.removeItem('currentProjectId');
+        set({ user: null, accessToken: null, refreshToken: null });
+      },
 
       openLoginModal: () => set({ loginModalOpen: true }),
       closeLoginModal: () => set({ loginModalOpen: false }),

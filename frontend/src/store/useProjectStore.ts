@@ -328,8 +328,8 @@ const debouncedUpdatePage = debounce(
       if (error.response) {
         // 服务器返回了错误响应
         const errorData = error.response.data;
-        if (error.response.status === 404) {
-          // 404错误：项目不存在，清除localStorage
+        if (error.response.status === 404 || error.response.status === 401 || error.response.status === 403) {
+          // 404/401/403: stale project id, unauthenticated auto-sync, or inaccessible project; clear local storage silently
           errorMessage = errorData?.error?.message || t('store.projectNotFound');
           shouldClearStorage = true;
         } else if (errorData?.error?.message) {

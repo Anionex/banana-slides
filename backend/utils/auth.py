@@ -40,24 +40,48 @@ def token_user_id(payload: dict) -> str:
     return str(payload['sub'])
 
 
+def _extract_bearer_token() -> str | None:
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        return auth_header[7:]
+
+    # Image/file requests initiated by the browser cannot attach axios headers,
+    # so protected file URLs may include the access token as a query parameter.
+    token = request.args.get('access_token', '').strip()
+    return token or None
+
+
+def _load_current_user(required_role: str | None = None):
+    token = _extract_bearer_token()
+    if not token:
+        return None, ('Authentication required', 401)
+
+    try:
+        payload = decode_token(token)
+        if payload.get('type') != 'access':
+            raise ValueError('Not an access token')
+        user_id = token_user_id(payload)
+    except Exception:
+        return None, ('Invalid or expired token', 401)
+
+    from models import User
+    user = User.query.get(user_id)
+    if not user or not user.is_active:
+        return None, ('User not found or disabled', 401)
+
+    if required_role == 'admin' and not user.can_access_admin_console():
+        return None, ('Admin access required', 403)
+
+    return user, None
+
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Authentication required'}), 401
-        token = auth_header[7:]
-        try:
-            payload = decode_token(token)
-            if payload.get('type') != 'access':
-                raise ValueError('Not an access token')
-            user_id = token_user_id(payload)
-        except Exception:
-            return jsonify({'error': 'Invalid or expired token'}), 401
-        from models import User
-        user = User.query.get(user_id)
-        if not user or not user.is_active:
-            return jsonify({'error': 'User not found or disabled'}), 401
+        user, error = _load_current_user()
+        if error:
+            message, status = error
+            return jsonify({'error': message}), status
         g.current_user = user
         return f(*args, **kwargs)
     return decorated
@@ -87,23 +111,10 @@ def optional_auth(f):
 def require_admin(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Authentication required'}), 401
-        token = auth_header[7:]
-        try:
-            payload = decode_token(token)
-            if payload.get('type') != 'access':
-                raise ValueError('Not an access token')
-            user_id = token_user_id(payload)
-        except Exception:
-            return jsonify({'error': 'Invalid or expired token'}), 401
-        from models import User
-        user = User.query.get(user_id)
-        if not user or not user.is_active:
-            return jsonify({'error': 'User not found or disabled'}), 401
-        if not user.can_access_admin_console():
-            return jsonify({'error': 'Admin access required'}), 403
+        user, error = _load_current_user(required_role='admin')
+        if error:
+            message, status = error
+            return jsonify({'error': message}), status
         g.current_user = user
         return f(*args, **kwargs)
     return decorated

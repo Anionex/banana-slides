@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, useToast, MaterialSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { getImageUrl } from '@/api/client';
+import { useUserStore } from '@/store/useUserStore';
 
 // Template 组件自包含翻译
 const templateI18n = {
@@ -63,6 +64,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(true);
   const { show, ToastContainer } = useToast();
+  const accessToken = useUserStore((state) => state.accessToken);
 
   const presetTemplates = [
     { id: '1', nameKey: 'template.presets.retroScroll', preview: '/templates/template_y.png', thumb: '/templates/template_y-thumb.webp' },
@@ -71,8 +73,12 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   ];
 
   useEffect(() => {
+    if (!accessToken) {
+      setUserTemplates([]);
+      return;
+    }
     loadUserTemplates();
-  }, []);
+  }, [accessToken]);
 
   const loadUserTemplates = async () => {
     setIsLoadingTemplates(true);

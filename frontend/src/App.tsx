@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Landing } from './pages/Landing';
@@ -16,16 +16,20 @@ import { useToast, AccessCodeGuard, LoginModal } from './components/shared';
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
   const accessToken = useUserStore((s) => s.accessToken);
+  const user = useUserStore((s) => s.user);
   const setUser = useUserStore((s) => s.setUser);
   const logout = useUserStore((s) => s.logout);
   const { show, ToastContainer } = useToast();
+  const [authBootstrapDone, setAuthBootstrapDone] = useState(!accessToken);
 
   useEffect(() => {
+    if (!accessToken || !user) return;
+
     const savedProjectId = localStorage.getItem('currentProjectId');
     if (savedProjectId && !currentProject) {
       syncProject();
     }
-  }, [currentProject, syncProject]);
+  }, [accessToken, user, currentProject, syncProject]);
 
   useEffect(() => {
     if (error) {
@@ -37,27 +41,39 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!accessToken) return;
+    if (!accessToken) {
+      setAuthBootstrapDone(true);
+      return;
+    }
 
     const refreshCurrentUser = async () => {
       try {
         const res = await userApi.getProfile();
         if (!cancelled) {
           setUser(res.data.data);
+          setAuthBootstrapDone(true);
         }
       } catch (error: any) {
         if (!cancelled && error?.response?.status === 401) {
           logout();
         }
+        if (!cancelled) {
+          setAuthBootstrapDone(true);
+        }
       }
     };
 
+    setAuthBootstrapDone(false);
     refreshCurrentUser();
 
     return () => {
       cancelled = true;
     };
   }, [accessToken, logout, setUser]);
+
+  if (!authBootstrapDone) {
+    return null;
+  }
 
   return (
     <AccessCodeGuard>
