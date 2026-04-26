@@ -95,3 +95,15 @@ class TestBuildResearchEnv:
         assert env['SMART_LLM'] == 'openai:qwen-plus'
         assert env['OPENAI_API_KEY'] == 'lazyllm-key'
         assert env['OPENAI_BASE_URL'] == 'https://api.lazyllm.com/v1'
+
+    def test_codex_provider(self):
+        from services.research_service import _build_research_env
+        env = _build_research_env(
+            provider_format='codex',
+            text_model='gpt-4o',
+            api_key='oauth-token',
+            api_base='',
+            tavily_api_key='',
+        )
+        assert env['SMART_LLM'] == 'openai:gpt-4o'
+        assert env['OPENAI_API_KEY'] == 'oauth-token'
