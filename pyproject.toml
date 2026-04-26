@@ -36,6 +36,7 @@ dependencies = [
     "PyMuPDF>=1.24.0",
     "edge-tts>=6.1.0",
     "socksio>=1.0.0",
+    "opencv-python-headless>=4.13.0.92",
 ]
 
 [project.optional-dependencies]

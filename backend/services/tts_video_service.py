@@ -222,36 +222,29 @@ def generate_tts_audio_sync(
 KEN_BURNS_EFFECTS = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right']
 
 
-def _build_zoompan_filter(
-    effect_type: str,
-    total_frames: int,
-    width: int,
-    height: int,
-    fps: int,
-) -> str:
-    """构建 FFmpeg zoompan 滤镜字符串"""
-    common = f"d={total_frames}:s={width}x{height}:fps={fps}"
+def _prepare_canvas(src, content_w: int, content_h: int, canvas_w: int, canvas_h: int):
+    """将任意画幅的图片 contain 到 content 区域，居中放置在 canvas 上，空白用高斯模糊填充。
 
-    if effect_type == 'zoom_in':
-        return f"zoompan=z='min(zoom+0.0015,1.5)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':{common}"
-    elif effect_type == 'zoom_out':
-        return (
-            f"zoompan=z='if(eq(on,1),1.5,max(zoom-0.0015,1.0))':"
-            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':{common}"
-        )
-    elif effect_type == 'pan_left':
-        return (
-            f"zoompan=z='1.1':"
-            f"x='iw*0.1*(1-on/{total_frames})':y='ih/2-(ih/zoom/2)':{common}"
-        )
-    elif effect_type == 'pan_right':
-        return (
-            f"zoompan=z='1.1':"
-            f"x='iw*0.1*(on/{total_frames})':y='ih/2-(ih/zoom/2)':{common}"
-        )
-    else:
-        # fallback to zoom_in
-        return f"zoompan=z='min(zoom+0.0015,1.5)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':{common}"
+    content_w/h: 内容区域（zoom=1.0 时可见的区域）
+    canvas_w/h: 画布总尺寸（包含动效余量）
+    """
+    import cv2
+
+    sh, sw = src.shape[:2]
+
+    bg = cv2.resize(src, (canvas_w, canvas_h), interpolation=cv2.INTER_LINEAR)
+    ksize = max(canvas_w, canvas_h) // 10 | 1
+    bg = cv2.GaussianBlur(bg, (ksize, ksize), 0)
+
+    scale = min(content_w / sw, content_h / sh)
+    new_w = int(sw * scale)
+    new_h = int(sh * scale)
+    fg = cv2.resize(src, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
+    x_off = (canvas_w - new_w) // 2
+    y_off = (canvas_h - new_h) // 2
+    bg[y_off:y_off + new_h, x_off:x_off + new_w] = fg
+    return bg
 
 
 def create_ken_burns_clip(
@@ -265,45 +258,78 @@ def create_ken_burns_clip(
     ffmpeg_path: str = 'ffmpeg',
     timeout: int = 120,
 ) -> None:
-    """
-    使用 FFmpeg zoompan 滤镜从单张图片创建 Ken Burns 动效视频片段。
+    """OpenCV 逐帧渲染 Ken Burns 动效，pipe rawvideo 给 FFmpeg 编码。
+    用 _prepare_canvas 适配任意画幅，getRectSubPix 实现浮点精度裁切。"""
+    import cv2
 
-    Args:
-        image_path: 输入图片路径
-        output_path: 输出视频路径（MP4）
-        duration: 视频时长（秒），需匹配 TTS 音频
-        width: 输出视频宽度
-        height: 输出视频高度
-        fps: 帧率
-        effect_type: 动效类型 (zoom_in / zoom_out / pan_left / pan_right)
-        ffmpeg_path: ffmpeg 路径
-        timeout: 超时秒数
-    """
-    total_frames = int(duration * fps)
-    if total_frames < 1:
-        total_frames = 1
+    total_frames = max(int(duration * fps), 1)
+    src = cv2.imread(image_path)
+    if src is None:
+        raise FileNotFoundError(f"Cannot read image: {image_path}")
 
-    vf = _build_zoompan_filter(effect_type, total_frames, width, height, fps)
+    max_zoom = 1.15
+    pan_zoom = 1.1
+    canvas_scale = max(max_zoom, pan_zoom)
+    canvas_w = int(width * canvas_scale)
+    canvas_h = int(height * canvas_scale)
+    img = _prepare_canvas(src, width, height, canvas_w, canvas_h)
+    ih, iw = img.shape[:2]
 
     cmd = [
         ffmpeg_path, '-y',
-        '-loop', '1',
-        '-i', image_path,
-        '-vf', vf,
+        '-f', 'rawvideo', '-pix_fmt', 'bgr24',
+        '-s', f'{width}x{height}', '-r', str(fps),
+        '-i', 'pipe:0',
         '-t', str(duration),
-        '-r', str(fps),
-        '-c:v', 'libx264',
-        '-pix_fmt', 'yuv420p',
-        '-preset', 'medium',
-        '-crf', '23',
+        '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+        '-preset', 'medium', '-crf', '23',
         '-movflags', '+faststart',
         output_path,
     ]
 
-    logger.debug(f"Ken Burns clip: {effect_type}, {duration:.1f}s, {width}x{height}")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed for Ken Burns clip: {result.stderr[-500:]}")
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    try:
+        for i in range(total_frames):
+            t = i / max(total_frames - 1, 1)
+
+            if effect_type == 'zoom_in':
+                z = 1.0 + (max_zoom - 1.0) * t
+                cx, cy = iw / 2.0, ih / 2.0
+            elif effect_type == 'zoom_out':
+                z = max_zoom - (max_zoom - 1.0) * t
+                cx, cy = iw / 2.0, ih / 2.0
+            elif effect_type == 'pan_right':
+                z = 1.0
+                margin = iw - width
+                cx = width / 2.0 + margin * t
+                cy = ih / 2.0
+            elif effect_type == 'pan_left':
+                z = 1.0
+                margin = iw - width
+                cx = iw - width / 2.0 - margin * t
+                cy = ih / 2.0
+            else:
+                z = 1.0 + (max_zoom - 1.0) * t
+                cx, cy = iw / 2.0, ih / 2.0
+
+            crop_w = width / z
+            crop_h = height / z
+            cx = max(crop_w / 2.0, min(cx, iw - crop_w / 2.0))
+            cy = max(crop_h / 2.0, min(cy, ih - crop_h / 2.0))
+
+            patch = cv2.getRectSubPix(img, (int(crop_w + 0.5), int(crop_h + 0.5)), (cx, cy))
+            frame = cv2.resize(patch, (width, height), interpolation=cv2.INTER_LINEAR)
+            proc.stdin.write(frame.tobytes())
+
+        proc.stdin.close()
+        proc.wait(timeout=timeout)
+        if proc.returncode != 0:
+            raise RuntimeError(f"FFmpeg failed for Ken Burns clip: {proc.stderr.read().decode()[-500:]}")
+    except Exception:
+        proc.kill()
+        proc.wait()
+        raise
 
 
 def create_silent_clip(
@@ -319,36 +345,44 @@ def create_silent_clip(
     timeout: int = 60,
 ) -> None:
     """创建无声视频片段（用于没有旁白的页面）"""
-    total_frames = int(duration * fps)
-    if total_frames < 1:
-        total_frames = 1
-
     if enable_ken_burns:
-        vf = _build_zoompan_filter(effect_type, total_frames, width, height, fps)
+        tmp_video = output_path + '.tmp.mp4'
+        create_ken_burns_clip(
+            image_path, tmp_video, duration,
+            width=width, height=height, fps=fps,
+            effect_type=effect_type, ffmpeg_path=ffmpeg_path, timeout=timeout,
+        )
+        cmd = [
+            ffmpeg_path, '-y',
+            '-i', tmp_video,
+            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+            '-c:v', 'copy', '-c:a', 'aac', '-shortest',
+            '-movflags', '+faststart',
+            output_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        os.remove(tmp_video)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg failed for silent clip: {result.stderr[-500:]}")
     else:
         vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
-
-    cmd = [
-        ffmpeg_path, '-y',
-        '-loop', '1',
-        '-i', image_path,
-        '-f', 'lavfi', '-i', f'anullsrc=r=44100:cl=stereo',
-        '-vf', vf,
-        '-t', str(duration),
-        '-r', str(fps),
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-pix_fmt', 'yuv420p',
-        '-preset', 'medium',
-        '-crf', '23',
-        '-shortest',
-        '-movflags', '+faststart',
-        output_path,
-    ]
-
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed for silent clip: {result.stderr[-500:]}")
+        cmd = [
+            ffmpeg_path, '-y',
+            '-loop', '1',
+            '-i', image_path,
+            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+            '-vf', vf,
+            '-t', str(duration),
+            '-r', str(fps),
+            '-c:v', 'libx264', '-c:a', 'aac',
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'medium', '-crf', '23',
+            '-shortest', '-movflags', '+faststart',
+            output_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg failed for silent clip: {result.stderr[-500:]}")
 
 
 def create_static_clip(

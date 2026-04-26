@@ -29,7 +29,8 @@ const previewI18n = {
       exportVideo: "导出为讲解视频",
       videoExportTitle: "讲解视频导出设置",
       videoVoiceLabel: "语音音色",
-      videoEnableKenBurns: "启用画面动效（Ken Burns）",
+      videoEnableKenBurns: "启用画面动效",
+      videoKenBurnsTip: "为每页幻灯片添加缓慢的缩放或平移动画，让视频画面更有节奏感",
       videoIncludeNoImage: "包含未配图页面（生成占位帧）",
       videoStartExport: "开始导出",
       videoCancel: "取消",
@@ -103,7 +104,8 @@ const previewI18n = {
       exportVideo: "Export as Narration Video",
       videoExportTitle: "Narration Video Export Settings",
       videoVoiceLabel: "Voice",
-      videoEnableKenBurns: "Enable Ken Burns effect (zoom/pan animation)",
+      videoEnableKenBurns: "Enable camera motion",
+      videoKenBurnsTip: "Adds slow zoom or pan animation to each slide for a more dynamic video",
       videoIncludeNoImage: "Include pages without images (placeholder frames)",
       videoStartExport: "Start Export",
       videoCancel: "Cancel",
@@ -1538,6 +1540,12 @@ export const SlidePreview: React.FC = () => {
                   className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
                 />
                 <span className="text-sm">{t('preview.videoEnableKenBurns')}</span>
+                <span className="relative group">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 text-[10px] text-gray-500 dark:text-gray-300 cursor-help">?</span>
+                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 text-xs text-white bg-gray-800 dark:bg-gray-700 rounded-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                    {t('preview.videoKenBurnsTip')}
+                  </span>
+                </span>
               </label>
               {/* 包含未配图页面 */}
               <label className="flex items-center gap-3 cursor-pointer">
