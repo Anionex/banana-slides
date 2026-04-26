@@ -129,6 +129,9 @@ class Config:
     # 百度 API 配置（用于 OCR 和图像修复）
     BAIDU_API_KEY = os.getenv('BAIDU_API_KEY', '') or os.getenv('BAIDU_OCR_API_KEY', '')
 
+    # Web Research (gpt-researcher) configuration
+    TAVILY_API_KEY = os.getenv('TAVILY_API_KEY', '')
+
     # TTS 视频导出配置
     TTS_DEFAULT_VOICE_ZH = os.getenv('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural')
     TTS_DEFAULT_VOICE_EN = os.getenv('TTS_DEFAULT_VOICE_EN', 'en-US-JennyNeural')

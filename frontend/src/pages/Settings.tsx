@@ -18,7 +18,8 @@ const settingsI18n = {
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
         vendorApiKeys: "厂商 API Key 配置",
-        advancedSettings: "高级设置"
+        advancedSettings: "高级设置",
+        webResearchConfig: '网络搜索'
       },
       openaiOAuth: {
         title: "OpenAI 账号连接",
@@ -92,6 +93,9 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
+        tavilyApiKey: 'Tavily API Key',
+        tavilyApiKeyPlaceholder: '留空则使用 DuckDuckGo（免费）',
+        tavilyApiKeyDesc: '可选。Tavily 提供更高质量的搜索结果。',
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
@@ -143,7 +147,8 @@ const settingsI18n = {
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
         vendorApiKeys: "Vendor API Key Configuration",
-        advancedSettings: "Advanced Settings"
+        advancedSettings: "Advanced Settings",
+        webResearchConfig: 'Web Research'
       },
       openaiOAuth: {
         title: "OpenAI Account",
@@ -217,6 +222,9 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
+        tavilyApiKey: 'Tavily API Key',
+        tavilyApiKeyPlaceholder: 'Leave empty to use DuckDuckGo (free)',
+        tavilyApiKeyDesc: 'Optional. Tavily provides higher quality search results.',
       },
       apiKeyHelp: {
         title: "How to get an API key",
@@ -352,6 +360,7 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  tavily_api_key: '',
 };
 
 const isLazyllmVendor = (vendor: string) =>
@@ -414,7 +423,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   enable_image_reasoning: data.enable_image_reasoning || false,
   image_thinking_budget: data.image_thinking_budget || 1024,
   baidu_api_key: '',
-  text_model_source: data.text_model_source || '',
+  tavily_api_key: '',
   image_model_source: data.image_model_source || '',
   image_caption_model_source: data.image_caption_model_source || '',
   lazyllm_api_keys: {},
@@ -672,6 +681,22 @@ export const Settings: React.FC = () => {
           lengthKey: 'baidu_api_key_length',
           description: t('settings.fields.baiduOcrApiKeyDesc'),
           link: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
+        },
+      ],
+    },
+    {
+      title: t('settings.sections.webResearchConfig'),
+      icon: <Globe size={20} />,
+      fields: [
+        {
+          key: 'tavily_api_key',
+          label: t('settings.fields.tavilyApiKey'),
+          type: 'password',
+          placeholder: t('settings.fields.tavilyApiKeyPlaceholder'),
+          sensitiveField: true,
+          lengthKey: 'tavily_api_key_length',
+          description: t('settings.fields.tavilyApiKeyDesc'),
+          link: 'https://app.tavily.com/home',
         },
       ],
     },

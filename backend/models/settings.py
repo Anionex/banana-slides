@@ -43,6 +43,9 @@ class Settings(db.Model):
     # 百度 API 配置
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 API Key
 
+    # Web Research (gpt-researcher) 配置
+    tavily_api_key = db.Column(db.String(500), nullable=True)  # Tavily API Key for web research
+
     # 每种模型类型的提供商配置（source 可选 gemini/openai/lazyllm厂商名，NULL=使用全局配置）
     text_model_source = db.Column(db.String(50), nullable=True)           # 文本模型提供商 (gemini, openai, qwen, doubao, deepseek, ...)
     image_model_source = db.Column(db.String(50), nullable=True)          # 图片模型提供商
@@ -102,6 +105,7 @@ class Settings(db.Model):
         api_key = self._val('api_key', d)
         mineru_token = self._val('mineru_token', d)
         baidu_api_key = self._val('baidu_api_key', d)
+        tavily_api_key = self._val('tavily_api_key', d)
         text_api_key = self._val('text_api_key', d)
         image_api_key = self._val('image_api_key', d)
         image_caption_api_key = self._val('image_caption_api_key', d)
@@ -128,6 +132,7 @@ class Settings(db.Model):
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
             'baidu_api_key_length': len(baidu_api_key) if baidu_api_key else 0,
+            'tavily_api_key_length': len(tavily_api_key) if tavily_api_key else 0,
             'text_model_source': self._val('text_model_source', d),
             'image_model_source': self._val('image_model_source', d),
             'image_caption_model_source': self._val('image_caption_model_source', d),
@@ -235,6 +240,7 @@ class Settings(db.Model):
             'image_caption_model': Config.IMAGE_CAPTION_MODEL,
             'output_language': Config.OUTPUT_LANGUAGE,
             'baidu_api_key': Config.BAIDU_API_KEY or None,
+            'tavily_api_key': Config.TAVILY_API_KEY or None,
             'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
             'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
             'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),

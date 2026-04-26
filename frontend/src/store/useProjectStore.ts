@@ -88,6 +88,9 @@ interface ProjectState {
   isOutlineStreaming: boolean;
   // 流式描述生成中
   isDescriptionStreaming: boolean;
+  // 联网搜索状态
+  isResearching: boolean;
+  researchLogs: string[];
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -95,7 +98,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string, enableWebResearch?: boolean) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -190,6 +193,8 @@ const debouncedUpdatePage = debounce(
   warningMessage: null,
   isOutlineStreaming: false,
   isDescriptionStreaming: false,
+  isResearching: false,
+  researchLogs: [],
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -197,7 +202,7 @@ const debouncedUpdatePage = debounce(
   setError: (error) => set({ error }),
 
   // 初始化项目
-  initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio) => {
+  initializeProject: async (type, content, templateImage, templateStyle, referenceFileIds, aspectRatio, enableWebResearch) => {
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
@@ -250,7 +255,56 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 根据类型调用 AI 生成，失败时回滚项目
+      // 4. 网络调研（仅 idea 类型且启用时）
+      if (enableWebResearch && type === 'idea') {
+        set({ isResearching: true, researchLogs: [] });
+        try {
+          const researchResponse = await api.startResearch(projectId);
+          const researchTaskId = researchResponse.data?.task_id;
+          if (researchTaskId) {
+            await new Promise<void>((resolve) => {
+              // Poll task status + progress logs in parallel
+              let progressInterval: ReturnType<typeof setInterval> | null = null;
+
+              progressInterval = setInterval(async () => {
+                try {
+                  const prog = await api.getResearchProgress(projectId, researchTaskId);
+                  if (prog.data?.messages?.length) {
+                    set({ researchLogs: prog.data.messages });
+                  }
+                } catch { /* ignore */ }
+              }, 1000);
+
+              const pollResearch = async () => {
+                try {
+                  const taskResponse = await api.getTaskStatus(projectId, researchTaskId);
+                  const task = taskResponse.data;
+                  if (task?.status === 'COMPLETED' || task?.status === 'FAILED') {
+                    if (task.status === 'FAILED') {
+                      console.warn('[Research] Task failed:', task.error_message);
+                    }
+                    if (progressInterval) clearInterval(progressInterval);
+                    resolve();
+                  } else {
+                    setTimeout(pollResearch, 2000);
+                  }
+                } catch (err) {
+                  console.warn('[Research] Poll error:', err);
+                  if (progressInterval) clearInterval(progressInterval);
+                  resolve();
+                }
+              };
+              pollResearch();
+            });
+          }
+        } catch (error) {
+          console.warn('[Research] Failed to start research:', error);
+        } finally {
+          set({ isResearching: false });
+        }
+      }
+
+      // 5. 根据类型调用 AI 生成，失败时回滚项目
       const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
         try {
           await fn();
@@ -268,7 +322,7 @@ const debouncedUpdatePage = debounce(
         await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
       }
 
-      // 5. 获取完整项目信息
+      // 6. 获取完整项目信息
       const projectResponse = await api.getProject(projectId);
       const project = normalizeProject(projectResponse.data);
 

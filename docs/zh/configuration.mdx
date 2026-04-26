@@ -99,6 +99,16 @@ BAIDU_API_KEY=your-baidu-api-key
 
 从百度智能云[申请 IAM API Key](https://console.bce.baidu.com/iam/#/iam/apikey/list)。
 
+## 联网搜索（可选）
+
+联网搜索默认使用 DuckDuckGo（免费，无需配置）。配置 Tavily API Key 可获得更高质量的搜索结果：
+
+```env
+TAVILY_API_KEY=tvly-your-tavily-api-key
+```
+
+从 [Tavily 官网](https://app.tavily.com/home) 注册并获取 API Key（有免费额度）。
+
 ## 运行时设置覆盖
 
 以上所有配置也可通过网页设置页面进行配置。通过设置页面配置的参数会存储在数据库中，优先级高于 `.env`。点击"还原默认设置"可恢复为 `.env` 中的值。

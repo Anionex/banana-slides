@@ -377,6 +377,49 @@ def update_project(project_id):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+@project_bp.route('/<project_id>/research', methods=['POST'])
+def start_research(project_id):
+    """
+    POST /api/projects/{project_id}/research
+    Body: { "query": "..." }  # optional, defaults to project.idea_prompt
+    Response: { "task_id": "..." }
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return error_response('NOT_FOUND', 'Project not found', 404)
+
+        data = request.get_json() or {}
+        query = data.get('query') or project.idea_prompt
+        if not query:
+            return error_response('INVALID_REQUEST', 'No query provided and project has no idea_prompt', 400)
+
+        task = Task(
+            project_id=project_id,
+            task_type='RESEARCH',
+            status='PENDING'
+        )
+        db.session.add(task)
+        db.session.commit()
+
+        from services.research_service import run_research_task
+        app = current_app._get_current_object()
+        task_manager.submit_task(task.id, run_research_task, query, project_id, app, task.id)
+
+        return success_response({'task_id': task.id})
+    except Exception as e:
+        logger.error(f"Error starting research for project {project_id}: {e}")
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@project_bp.route('/<project_id>/research/<task_id>/progress', methods=['GET'])
+def get_research_progress(project_id, task_id):
+    """GET /api/projects/{project_id}/research/{task_id}/progress — returns accumulated log messages."""
+    from services.research_service import get_research_progress as _get_progress
+    messages = _get_progress(task_id)
+    return success_response({'messages': messages})
+
+
 @project_bp.route('/<project_id>', methods=['DELETE'])
 def delete_project(project_id):
     """

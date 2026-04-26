@@ -70,6 +70,11 @@ const homeI18n = {
         parsing: '解析中...',
         createProject: '创建新项目',
       },
+      webResearch: {
+        label: '联网搜索',
+        tooltip: '生成前先搜索网络资料，提升内容质量',
+        searching: '正在搜索网络资料...',
+      },
       renovation: {
         uploadHint: '点击或拖拽上传 PDF / PPTX 文件',
         formatHint: '支持 .pdf, .pptx, .ppt 格式（推荐上传 PDF）',
@@ -147,6 +152,11 @@ const homeI18n = {
         parsing: 'Parsing...',
         createProject: 'Create New Project',
       },
+      webResearch: {
+        label: 'Web Research',
+        tooltip: 'Search the web before generating for better content',
+        searching: 'Searching the web...',
+      },
       renovation: {
         uploadHint: 'Click or drag to upload PDF / PPTX file',
         formatHint: 'Supports .pdf, .pptx, .ppt formats (PDF recommended)',
@@ -182,7 +192,7 @@ export const Home: React.FC = () => {
   const { i18n } = useTranslation();
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
-  const { initializeProject, isGlobalLoading } = useProjectStore();
+  const { initializeProject, isGlobalLoading, isResearching, researchLogs } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -207,9 +217,18 @@ export const Home: React.FC = () => {
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
   const [keepLayout, setKeepLayout] = useState(false);
+  const [enableWebResearch, setEnableWebResearch] = useState(false);
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const researchLogRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll research log to bottom when new messages arrive
+  useEffect(() => {
+    if (researchLogRef.current && researchLogs.length > 0) {
+      researchLogRef.current.scrollTop = researchLogRef.current.scrollHeight;
+    }
+  }, [researchLogs]);
 
   // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
   useEffect(() => {
@@ -621,7 +640,7 @@ export const Home: React.FC = () => {
         .filter(f => f.parse_status === 'completed')
         .map(f => f.id);
 
-      await initializeProject(activeTab as 'idea' | 'outline' | 'description', content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined, aspectRatio);
+      await initializeProject(activeTab as 'idea' | 'outline' | 'description', content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined, aspectRatio, enableWebResearch);
       
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
@@ -1071,6 +1090,26 @@ export const Home: React.FC = () => {
                       </>
                     )}
                   </div>
+                  {activeTab === 'idea' && (
+                    <label
+                      className="flex items-center gap-1.5 cursor-pointer group ml-1"
+                      title={t('home.webResearch.tooltip')}
+                    >
+                      <Globe size={16} className={`transition-colors ${enableWebResearch ? 'text-banana' : 'text-gray-400 dark:text-foreground-tertiary group-hover:text-gray-600 dark:group-hover:text-foreground-secondary'}`} />
+                      <span className={`text-xs transition-colors ${enableWebResearch ? 'text-banana font-medium' : 'text-gray-400 dark:text-foreground-tertiary group-hover:text-gray-600 dark:group-hover:text-foreground-secondary'}`}>
+                        {t('home.webResearch.label')}
+                      </span>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={enableWebResearch}
+                          onChange={(e) => setEnableWebResearch(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4 bg-gray-200 dark:bg-background-hover peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-banana"></div>
+                      </div>
+                    </label>
+                  )}
                 </div>
               }
               toolbarRight={
@@ -1085,13 +1124,27 @@ export const Home: React.FC = () => {
                   }
                   className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
                 >
-                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                  {isResearching
+                    ? t('home.webResearch.searching')
+                    : referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                     ? t('home.actions.parsing')
                     : t('common.next')}
                 </Button>
               }
             />
             )}
+
+          {/* 联网搜索进度日志 */}
+          {isResearching && researchLogs.length > 0 && (
+            <div
+              ref={researchLogRef}
+              className="mt-2 max-h-32 overflow-y-auto rounded-lg bg-gray-50 dark:bg-background-secondary border border-gray-200 dark:border-border-primary px-3 py-2 text-xs font-mono text-gray-600 dark:text-foreground-secondary space-y-0.5"
+            >
+              {researchLogs.map((msg, i) => (
+                <div key={i} className="leading-relaxed">{msg}</div>
+              ))}
+            </div>
+          )}
           </div>
 
           {/* 隐藏的文件输入 */}

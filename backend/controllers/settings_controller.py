@@ -304,6 +304,10 @@ def update_settings():
         if "baidu_api_key" in data:
             settings.baidu_api_key = data["baidu_api_key"] or None
 
+        # Update Web Research configuration
+        if "tavily_api_key" in data:
+            settings.tavily_api_key = data["tavily_api_key"] or None
+
         # Update per-model provider source configuration
         if "text_model_source" in data:
             settings.text_model_source = (data["text_model_source"] or "").strip() or None
@@ -384,6 +388,7 @@ def reset_settings():
         settings.description_extra_fields = None
         settings.image_prompt_extra_fields = None
         settings.baidu_api_key = None
+        settings.tavily_api_key = None
         settings.text_model_source = None
         settings.image_model_source = None
         settings.image_caption_model_source = None
