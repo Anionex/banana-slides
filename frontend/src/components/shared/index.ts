@@ -29,3 +29,5 @@ export { ExportTasksPanel } from './ExportTasksPanel';
 export { AccessCodeGuard } from './AccessCodeGuard';
 export { TextStyleSelector } from './TextStyleSelector';
 export { Pagination } from './Pagination';
+export { DesktopTitleBar } from './DesktopTitleBar';
+export { UpdateChecker } from './UpdateChecker';
