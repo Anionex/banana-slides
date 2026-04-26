@@ -136,6 +136,10 @@ def temporary_settings_override(settings_override: dict):
             original_values["IMAGE_THINKING_BUDGET"] = current_app.config.get("IMAGE_THINKING_BUDGET")
             current_app.config["IMAGE_THINKING_BUDGET"] = settings_override["image_thinking_budget"]
 
+        if "openai_image_api_protocol" in settings_override:
+            original_values["OPENAI_IMAGE_API_PROTOCOL"] = current_app.config.get("OPENAI_IMAGE_API_PROTOCOL")
+            current_app.config["OPENAI_IMAGE_API_PROTOCOL"] = settings_override["openai_image_api_protocol"]
+
         yield
 
     finally:
@@ -1055,6 +1059,7 @@ def run_settings_test(test_name: str):
         test_settings["text_thinking_budget"] = global_settings.text_thinking_budget
         test_settings["enable_image_reasoning"] = global_settings.enable_image_reasoning
         test_settings["image_thinking_budget"] = global_settings.image_thinking_budget
+        test_settings["openai_image_api_protocol"] = global_settings.openai_image_api_protocol or 'auto'
 
         # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
         override_settings = request.get_json() or {}
