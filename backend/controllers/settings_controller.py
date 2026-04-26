@@ -676,10 +676,16 @@ def _sync_settings_to_config(settings: Settings):
                 current_app.config.pop(config_key, None)
 
     # Sync OpenAI image API protocol
-    new_protocol = settings.openai_image_api_protocol or 'auto'
-    if current_app.config.get('OPENAI_IMAGE_API_PROTOCOL') != new_protocol:
-        ai_config_changed = True
-    current_app.config['OPENAI_IMAGE_API_PROTOCOL'] = new_protocol
+    config_key = 'OPENAI_IMAGE_API_PROTOCOL'
+    val = settings.openai_image_api_protocol
+    if val:
+        if current_app.config.get(config_key) != val:
+            ai_config_changed = True
+        current_app.config[config_key] = val
+    else:
+        if config_key in current_app.config:
+            ai_config_changed = True
+        current_app.config.pop(config_key, None)
 
     # Sync LazyLLM vendor API keys to environment variables
     # (lazyllm_env.py reads from os.environ via {SOURCE}_API_KEY)
@@ -1059,7 +1065,7 @@ def run_settings_test(test_name: str):
         test_settings["text_thinking_budget"] = global_settings.text_thinking_budget
         test_settings["enable_image_reasoning"] = global_settings.enable_image_reasoning
         test_settings["image_thinking_budget"] = global_settings.image_thinking_budget
-        test_settings["openai_image_api_protocol"] = global_settings.openai_image_api_protocol or 'auto'
+        test_settings["openai_image_api_protocol"] = global_settings.openai_image_api_protocol or current_app.config.get('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
 
         # 应用前端发送的覆盖参数（如果有的话，用于测试未保存的配置）
         override_settings = request.get_json() or {}
