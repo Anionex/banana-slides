@@ -402,12 +402,20 @@ def start_research(project_id):
 
         from services.research_service import run_research_task
         app = current_app._get_current_object()
-        task_manager.submit_task(task.id, run_research_task, query, project_id, app)
+        task_manager.submit_task(task.id, run_research_task, query, project_id, app, task.id)
 
         return success_response({'task_id': task.id})
     except Exception as e:
         logger.error(f"Error starting research for project {project_id}: {e}")
         return error_response('SERVER_ERROR', str(e), 500)
+
+
+@project_bp.route('/<project_id>/research/<task_id>/progress', methods=['GET'])
+def get_research_progress(project_id, task_id):
+    """GET /api/projects/{project_id}/research/{task_id}/progress — returns accumulated log messages."""
+    from services.research_service import get_research_progress as _get_progress
+    messages = _get_progress(task_id)
+    return success_response({'messages': messages})
 
 
 @project_bp.route('/<project_id>', methods=['DELETE'])

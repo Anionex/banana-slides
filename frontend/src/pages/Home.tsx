@@ -192,7 +192,7 @@ export const Home: React.FC = () => {
   const { i18n } = useTranslation();
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
-  const { initializeProject, isGlobalLoading, isResearching } = useProjectStore();
+  const { initializeProject, isGlobalLoading, isResearching, researchLogs } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -221,6 +221,14 @@ export const Home: React.FC = () => {
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const researchLogRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll research log to bottom when new messages arrive
+  useEffect(() => {
+    if (researchLogRef.current && researchLogs.length > 0) {
+      researchLogRef.current.scrollTop = researchLogRef.current.scrollHeight;
+    }
+  }, [researchLogs]);
 
   // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
   useEffect(() => {
@@ -1125,6 +1133,18 @@ export const Home: React.FC = () => {
               }
             />
             )}
+
+          {/* 联网搜索进度日志 */}
+          {isResearching && researchLogs.length > 0 && (
+            <div
+              ref={researchLogRef}
+              className="mt-2 max-h-32 overflow-y-auto rounded-lg bg-gray-50 dark:bg-background-secondary border border-gray-200 dark:border-border-primary px-3 py-2 text-xs font-mono text-gray-600 dark:text-foreground-secondary space-y-0.5"
+            >
+              {researchLogs.map((msg, i) => (
+                <div key={i} className="leading-relaxed">{msg}</div>
+              ))}
+            </div>
+          )}
           </div>
 
           {/* 隐藏的文件输入 */}

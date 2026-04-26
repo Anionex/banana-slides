@@ -4,8 +4,13 @@ import logging
 import os
 import uuid
 from contextlib import contextmanager
+from collections import deque
 
 logger = logging.getLogger(__name__)
+
+# In-memory progress store: task_id → deque of message strings
+_progress_store: dict[str, deque] = {}
+_MAX_MESSAGES = 50
 
 # Provider format mapping: banana-slides format → gpt-researcher LLM prefix
 _PROVIDER_LLM_PREFIX = {
@@ -22,6 +27,32 @@ _PROVIDER_API_KEY_ENV = {
     'anthropic': 'ANTHROPIC_API_KEY',
     'codex': 'OPENAI_API_KEY',
 }
+
+
+def get_research_progress(task_id: str) -> list[str]:
+    """Return accumulated progress messages for a research task."""
+    return list(_progress_store.get(task_id, []))
+
+
+def clear_research_progress(task_id: str) -> None:
+    _progress_store.pop(task_id, None)
+
+
+class _ProgressCollector:
+    """Fake websocket that collects gpt-researcher progress messages."""
+
+    def __init__(self, task_id: str):
+        _progress_store[task_id] = deque(maxlen=_MAX_MESSAGES)
+        self._queue = _progress_store[task_id]
+
+    async def send_json(self, data: dict) -> None:
+        msg_type = data.get('type', '')
+        content = data.get('content', '') or data.get('output', '')
+        if not content:
+            return
+        # Filter to meaningful message types
+        if msg_type in ('logs', 'report', 'path'):
+            self._queue.append(str(content))
 
 
 def _build_research_env(
@@ -91,13 +122,14 @@ def _temp_env(env_vars: dict):
                 os.environ[k] = orig
 
 
-def _run_gpt_researcher(query: str, env_config: dict) -> tuple:
+def _run_gpt_researcher(query: str, env_config: dict, task_id: str) -> tuple:
     """Run gpt-researcher in a new event loop. Returns (report, sources)."""
     from gpt_researcher import GPTResearcher
+    collector = _ProgressCollector(task_id)
     with _temp_env(env_config):
         loop = asyncio.new_event_loop()
         try:
-            researcher = GPTResearcher(query=query, report_type='research_report')
+            researcher = GPTResearcher(query=query, report_type='research_report', websocket=collector)
             loop.run_until_complete(researcher.conduct_research())
             report = loop.run_until_complete(researcher.write_report())
             sources = researcher.get_source_urls()
@@ -106,7 +138,7 @@ def _run_gpt_researcher(query: str, env_config: dict) -> tuple:
             loop.close()
 
 
-def run_research_task(query: str, project_id: str, app) -> dict:
+def run_research_task(query: str, project_id: str, app, task_id: str = '') -> dict:
     """
     Run web research and save the report as a ReferenceFile.
 
@@ -153,7 +185,7 @@ def run_research_task(query: str, project_id: str, app) -> dict:
         )
 
         logger.info(f"Starting research for project {project_id}: {query[:80]}")
-        report, sources = _run_gpt_researcher(query, env_config)
+        report, sources = _run_gpt_researcher(query, env_config, task_id)
 
         # Save report as ReferenceFile
         upload_dir = os.path.join(Config.UPLOAD_FOLDER, project_id)

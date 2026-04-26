@@ -528,6 +528,16 @@ export const startResearch = async (
   return response.data;
 };
 
+export const getResearchProgress = async (
+  projectId: string,
+  taskId: string
+): Promise<ApiResponse<{ messages: string[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ messages: string[] }>>(
+    `/api/projects/${projectId}/research/${taskId}/progress`
+  );
+  return response.data;
+};
+
 // ===== 页面操作 =====
 
 /**

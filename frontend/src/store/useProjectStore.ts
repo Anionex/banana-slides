@@ -90,6 +90,7 @@ interface ProjectState {
   isDescriptionStreaming: boolean;
   // 联网搜索状态
   isResearching: boolean;
+  researchLogs: string[];
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -193,6 +194,7 @@ const debouncedUpdatePage = debounce(
   isOutlineStreaming: false,
   isDescriptionStreaming: false,
   isResearching: false,
+  researchLogs: [],
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -255,27 +257,41 @@ const debouncedUpdatePage = debounce(
 
       // 4. 网络调研（仅 idea 类型且启用时）
       if (enableWebResearch && type === 'idea') {
-        set({ isResearching: true });
+        set({ isResearching: true, researchLogs: [] });
         try {
           const researchResponse = await api.startResearch(projectId);
           const researchTaskId = researchResponse.data?.task_id;
           if (researchTaskId) {
             await new Promise<void>((resolve) => {
+              // Poll task status + progress logs in parallel
+              let progressInterval: ReturnType<typeof setInterval> | null = null;
+
+              progressInterval = setInterval(async () => {
+                try {
+                  const prog = await api.getResearchProgress(projectId, researchTaskId);
+                  if (prog.data?.messages?.length) {
+                    set({ researchLogs: prog.data.messages });
+                  }
+                } catch { /* ignore */ }
+              }, 1000);
+
               const pollResearch = async () => {
                 try {
                   const taskResponse = await api.getTaskStatus(projectId, researchTaskId);
                   const task = taskResponse.data;
-                  if (task?.status === 'COMPLETED') {
+                  if (task?.status === 'COMPLETED' || task?.status === 'FAILED') {
+                    if (task.status === 'FAILED') {
+                      console.warn('[Research] Task failed:', task.error_message);
+                    }
+                    if (progressInterval) clearInterval(progressInterval);
                     resolve();
-                  } else if (task?.status === 'FAILED') {
-                    console.warn('[Research] Task failed:', task.error_message);
-                    resolve(); // Non-blocking
                   } else {
                     setTimeout(pollResearch, 2000);
                   }
                 } catch (err) {
                   console.warn('[Research] Poll error:', err);
-                  resolve(); // Non-blocking
+                  if (progressInterval) clearInterval(progressInterval);
+                  resolve();
                 }
               };
               pollResearch();
