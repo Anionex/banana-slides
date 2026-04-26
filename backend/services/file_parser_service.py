@@ -7,14 +7,12 @@ import time
 import logging
 import zipfile
 import io
-import base64
 import requests
 import tempfile
 from typing import Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 from markitdown import MarkItDown
-from services.ai_providers.lazyllm_env import ensure_lazyllm_namespace_key, get_lazyllm_api_key
 from services.ai_providers.text import strip_think_tags
 
 logger = logging.getLogger(__name__)
@@ -82,65 +80,23 @@ class FileParserService:
         self.get_upload_url_api = f"{mineru_api_base}/api/v4/file-urls/batch"
         self.get_result_api_template = f"{mineru_api_base}/api/v4/extract-results/batch/{{}}"
         
-        # Store config for lazy initialization
-        self._google_api_key = google_api_key
-        self._google_api_base = google_api_base
-        self._openai_api_key = openai_api_key
-        self._openai_api_base = openai_api_base
         self._image_caption_model = image_caption_model
-        self._lazyllm_image_caption_source = lazyllm_image_caption_source
-        
-        # Clients will be initialized lazily based on AI_PROVIDER_FORMAT
-        self._gemini_client = None
-        self._openai_client = None
-        self._lazyllm_client = None
         self._provider_format = _get_ai_provider_format(provider_format)
+        self._caption_provider = None
     
-    def _get_gemini_client(self):
-        """Lazily initialize Gemini client"""
-        if self._gemini_client is None and self._google_api_key:
-            from google import genai
-            from google.genai import types
-            self._gemini_client = genai.Client(
-                http_options=types.HttpOptions(base_url=self._google_api_base) if self._google_api_base else None,
-                api_key=self._google_api_key
-            )
-        return self._gemini_client
-    
-    def _get_openai_client(self):
-        """Lazily initialize OpenAI client"""
-        if self._openai_client is None and self._openai_api_key:
-            from openai import OpenAI
-            self._openai_client = OpenAI(
-                api_key=self._openai_api_key,
-                base_url=self._openai_api_base
-            )
-        return self._openai_client
-    
-    def _get_lazyllm_client(self):
-        """Lazily initialize LazyLLM client"""
-        if self._lazyllm_client is None:
-            import lazyllm
-            source = self._lazyllm_image_caption_source or "qwen"
-            model = self._image_caption_model or "qwen-vl-plus"
-            ensure_lazyllm_namespace_key(source, namespace='BANANA')
-
-            self._lazyllm_client = lazyllm.namespace('BANANA').OnlineModule(
-                source=source,
-                model=model,
-                type="vlm",
-            )
-        return self._lazyllm_client
+    def _get_caption_provider(self):
+        """Lazily initialize caption provider via the provider factory"""
+        if self._caption_provider is None:
+            from services.ai_providers import get_caption_provider
+            self._caption_provider = get_caption_provider(model=self._image_caption_model)
+        return self._caption_provider
     
     def _can_generate_captions(self) -> bool:
         """Check if image caption generation is available"""
-        if self._provider_format == 'openai':
-            return bool(self._openai_api_key)
-        elif self._provider_format == 'lazyllm':
-            source = self._lazyllm_image_caption_source or "qwen"
-            return bool(get_lazyllm_api_key(source, namespace='BANANA'))
-        else:
-            return bool(self._google_api_key)
+        try:
+            return self._get_caption_provider() is not None
+        except (ValueError, ImportError):
+            return False
     
     def parse_file(self, file_path: str, filename: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], int]:
         """
@@ -724,114 +680,23 @@ class FileParserService:
                 logger.warning(f"Unsupported image path type: {image_url}")
                 return ""
             
-            # Generate caption based on provider format
+            # Generate caption via provider factory
             prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
-            
-            if self._provider_format == 'openai':
-                # Use OpenAI SDK format
-                client = self._get_openai_client()
-                if not client:
-                    logger.warning("OpenAI client not initialized, skipping caption generation")
-                    return ""
-                
-                # Encode image to base64
-                buffered = io.BytesIO()
+
+            with tempfile.NamedTemporaryFile(prefix='caption_', suffix='.jpg', delete=False) as tmp:
+                temp_path = tmp.name
+            try:
                 if image.mode in ('RGBA', 'LA', 'P'):
                     image = image.convert('RGB')
-                image.save(buffered, format="JPEG", quality=95)
-                base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                
-                response = client.chat.completions.create(
-                    model=self._image_caption_model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                                {"type": "text", "text": prompt}
-                            ]
-                        }
-                    ],
-                    temperature=0.3
-                )
-                caption = response.choices[0].message.content.strip()
-            elif self._provider_format == 'lazyllm':
-                # Use LazyLLM format
-                client = self._get_lazyllm_client()
-                with tempfile.NamedTemporaryFile(prefix='lazyllm_ref_', suffix='.png', delete=False) as tmp:
-                    temp_path = tmp.name
+                image.save(temp_path, format="JPEG", quality=95)
+
+                provider = self._get_caption_provider()
+                caption = provider.generate_with_image(prompt, temp_path)
+            finally:
                 try:
-                    image.save(temp_path)
-                    caption = client(prompt, lazyllm_files=[temp_path])
-                finally:
-                    try:
-                        os.remove(temp_path)
-                    except OSError:
-                        pass
-            elif self._provider_format == 'codex':
-                from services.ai_providers import _get_openai_oauth_token
-                token = _get_openai_oauth_token()
-                if not token:
-                    logger.warning("Codex OAuth token not available, skipping caption generation")
-                    return ""
-
-                buffered = io.BytesIO()
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    image = image.convert('RGB')
-                image.save(buffered, format="JPEG", quality=95)
-                base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-
-                import requests as http_req
-                import json as json_mod
-                resp = http_req.post(
-                    "https://chatgpt.com/backend-api/codex/responses",
-                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                    json={
-                        "model": self._image_caption_model,
-                        "instructions": "You are a helpful assistant that describes images.",
-                        "input": [{"role": "user", "content": [
-                            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{base64_image}"},
-                            {"type": "input_text", "text": prompt},
-                        ]}],
-                        "store": False,
-                        "stream": True,
-                    },
-                    timeout=60,
-                    stream=True,
-                )
-                resp.raise_for_status()
-
-                collected = []
-                for raw_line in resp.iter_lines():
-                    line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
-                    if not line or not line.startswith("data: "):
-                        continue
-                    raw = line[len("data: "):]
-                    if raw.strip() == "[DONE]":
-                        break
-                    try:
-                        evt = json_mod.loads(raw)
-                        if evt.get("type") == "response.output_text.delta":
-                            collected.append(evt.get("delta", ""))
-                    except (ValueError, KeyError):
-                        continue
-                caption = "".join(collected).strip()
-            else:
-                # Use Gemini SDK format (default)
-                from google.genai import types
-                client = self._get_gemini_client()
-                if not client:
-                    logger.warning("Gemini client not initialized, skipping caption generation")
-                    return ""
-
-                result = client.models.generate_content(
-                    model=self._image_caption_model,
-                    contents=[image, prompt],
-                    config=types.GenerateContentConfig(
-                        temperature=0.3,  # Lower temperature for more consistent captions
-                    )
-                )
-                caption = result.text.strip()
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
             # Strip <think>...</think> tags from reasoning models
             caption = strip_think_tags(caption)
