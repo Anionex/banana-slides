@@ -40,8 +40,8 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    minWidth: 680,
+    minHeight: 480,
     show: false,
     frame: false,
     icon: getIconPath(),
