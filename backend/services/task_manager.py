@@ -1744,7 +1744,7 @@ def export_video_task(
             if include_no_image_pages:
                 video_width = app.config.get('VIDEO_OUTPUT_WIDTH', 1920)
                 video_height = app.config.get('VIDEO_OUTPUT_HEIGHT', 1080)
-                placeholder_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports', '_placeholder_tmp')
+                placeholder_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports', f'_placeholder_{task_id}')
                 os.makedirs(placeholder_dir, exist_ok=True)
 
             for page in pages:

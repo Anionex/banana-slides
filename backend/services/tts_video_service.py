@@ -491,7 +491,7 @@ def _build_timed_subtitle_entries(
     t = page_start
     for sent in sentences:
         # 按字符比例分配时长，至少 0.8 秒
-        seg_duration = max(0.8, page_duration * len(sent) / total_chars)
+        seg_duration = page_duration * len(sent) / total_chars
         entries.append({
             'start': t,
             'end': t + seg_duration,
@@ -603,7 +603,7 @@ def burn_subtitles(
 ) -> None:
     """将 ASS 字幕烧录到视频中"""
     # fontsdir 让 libass 知道系统字体位置
-    escaped_sub = subtitle_path.replace('\\', '/').replace(':', '\\:').replace("'", "\\'")
+    escaped_sub = subtitle_path.replace('\\', '/').replace(':', '\\:').replace("'", "\\'").replace(',', '\\,')
 
     cmd = [
         ffmpeg_path, '-y',
@@ -682,7 +682,7 @@ def composite_video(
                 if '\n' in safe_path or '\r' in safe_path:
                     raise ValueError(f"Invalid clip path contains newline: {safe_path}")
                 # 转义单引号
-                escaped = safe_path.replace("'", "'\\''")
+                escaped = safe_path.replace("'", "''")
                 f.write(f"file '{escaped}'\n")
 
         cmd = [
