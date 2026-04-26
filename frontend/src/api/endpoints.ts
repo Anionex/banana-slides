@@ -512,6 +512,22 @@ export const setCurrentImageVersion = async (
   return response.data;
 };
 
+// ===== 网络搜索 =====
+
+/**
+ * 启动网络搜索
+ */
+export const startResearch = async (
+  projectId: string,
+  query?: string
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/research`,
+    query ? { query } : {}
+  );
+  return response.data;
+};
+
 // ===== 页面操作 =====
 
 /**
