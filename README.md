@@ -506,7 +506,13 @@ npm run dev
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
+关注作者的社交媒体，获取项目最新动态：
 
+<p>
+  <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
+  <a href="https://www.xiaohongshu.com/user/profile/62e8f580000000001902fc9d"><img src="https://img.shields.io/badge/小红书-Anion-FF2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书"></a>
+  <a href="https://space.bilibili.com/477162339"><img src="https://img.shields.io/badge/Bilibili-Anion-00A1D6?style=flat-square&logo=bilibili&logoColor=white" alt="Bilibili"></a>
+</p>
 
 <img width="302" alt="image" src="https://github.com/user-attachments/assets/e5ccc7ac-3944-4d29-8a49-638401683888" />
 

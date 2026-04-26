@@ -637,7 +637,13 @@ To facilitate communication and mutual assistance, this WeChat group has been cr
 
 New feature suggestions or feedback are welcome. I will also answer your questions ~~casually~~.
 
+Follow the author on social media for the latest project updates:
 
+<p>
+  <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
+  <a href="https://www.xiaohongshu.com/user/profile/62e8f580000000001902fc9d"><img src="https://img.shields.io/badge/小红书-Anion-FF2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="Xiaohongshu"></a>
+  <a href="https://space.bilibili.com/477162339"><img src="https://img.shields.io/badge/Bilibili-Anion-00A1D6?style=flat-square&logo=bilibili&logoColor=white" alt="Bilibili"></a>
+</p>
 
 <img width="302" alt="image" src="https://github.com/user-attachments/assets/e5ccc7ac-3944-4d29-8a49-638401683888" />
 
