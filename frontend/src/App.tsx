@@ -35,7 +35,7 @@ function App() {
   return (
     <>
       <UpdateChecker />
-      <div style={isDesktop ? { paddingTop: '34px' } : undefined}>
+      <div style={isDesktop ? { paddingTop: '50px' } : undefined}>
         <AccessCodeGuard>
           <BrowserRouter>
             <DesktopTitleBar />

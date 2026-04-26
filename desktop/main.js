@@ -220,6 +220,21 @@ function setupIPC() {
     }
   });
   ipcMain.on('window-close', () => { mainWindow?.close(); });
+
+  ipcMain.on('zoom-in', () => {
+    const wc = mainWindow?.webContents;
+    if (wc) wc.setZoomLevel(wc.getZoomLevel() + 0.5);
+  });
+  ipcMain.on('zoom-out', () => {
+    const wc = mainWindow?.webContents;
+    if (wc) wc.setZoomLevel(wc.getZoomLevel() - 0.5);
+  });
+  ipcMain.on('zoom-reset', () => {
+    mainWindow?.webContents?.setZoomLevel(0);
+  });
+  ipcMain.handle('get-zoom-level', () => {
+    return mainWindow?.webContents?.getZoomLevel() ?? 0;
+  });
 }
 
 async function bootstrap() {

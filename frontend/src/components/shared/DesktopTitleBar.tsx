@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown } from 'lucide-react';
+import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useT } from '@/hooks/useT';
 import { isDesktop } from '@/utils';
@@ -63,7 +63,7 @@ export function DesktopTitleBar() {
 
   const winBtnBase: React.CSSProperties = {
     width: 46,
-    height: 34,
+    height: 50,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -86,7 +86,7 @@ export function DesktopTitleBar() {
         left: 0,
         right: 0,
         zIndex: 9999,
-        height: 34,
+        height: 50,
         display: 'flex',
         alignItems: 'center',
         userSelect: 'none',
@@ -141,6 +141,19 @@ export function DesktopTitleBar() {
         <button className={navBtnClass} onClick={() => navigate('/settings')}>
           <Settings size={14} />
           <span>{t('settings')}</span>
+        </button>
+
+        <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
+
+        {/* Zoom controls */}
+        <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomOut()} title="Ctrl+-">
+          <ZoomOut size={14} />
+        </button>
+        <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomReset()} title="Ctrl+0">
+          <RotateCcw size={12} />
+        </button>
+        <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomIn()} title="Ctrl+=">
+          <ZoomIn size={14} />
         </button>
 
         <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
