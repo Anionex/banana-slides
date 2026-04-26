@@ -203,7 +203,16 @@ function setupIPC() {
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('get-backend-port', () => pythonManager.getPort());
   ipcMain.handle('check-for-updates', () => autoUpdater.checkForUpdates());
-  ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
+  ipcMain.handle('open-external', (_, url) => {
+    try {
+      const parsedUrl = new URL(url);
+      if (['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return shell.openExternal(url);
+      }
+    } catch (e) {
+      log.error('[main] Invalid URL for open-external:', url);
+    }
+  });
 
   ipcMain.on('window-minimize', () => { mainWindow?.minimize(); });
   ipcMain.on('window-maximize', () => {
@@ -227,11 +236,11 @@ async function bootstrap() {
     const port = await pythonManager.startBackend(app.getPath('userData'));
     await pythonManager.waitForBackend(port);
 
-    const frontendUrl = isDev()
-      ? `http://localhost:${process.env.FRONTEND_PORT || 3000}`
-      : `file://${path.join(process.resourcesPath, 'frontend', 'index.html')}`;
-
-    mainWindow.loadURL(frontendUrl);
+    if (isDev()) {
+      mainWindow.loadURL(`http://localhost:${process.env.FRONTEND_PORT || 3000}`);
+    } else {
+      mainWindow.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'));
+    }
   } catch (err) {
     log.error('[main] Startup failed:', err);
     if (splashWindow) splashWindow.close();

@@ -20,21 +20,22 @@ function getBackendPath() {
   return path.join(resourcesPath, 'backend', exeName);
 }
 
-function findAvailablePort(startPort) {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(startPort, () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
-    server.on('error', () => {
-      if (startPort < 65535) {
-        resolve(findAvailablePort(startPort + 1));
-      } else {
-        reject(new Error('No available port found'));
-      }
-    });
-  });
+async function findAvailablePort(startPort) {
+  let port = startPort;
+  while (port <= 65535) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.listen(port, () => {
+          server.close(() => resolve(port));
+        });
+        server.on('error', reject);
+      });
+    } catch (err) {
+      port++;
+    }
+  }
+  throw new Error('No available port found');
 }
 
 async function startBackend(userDataPath) {

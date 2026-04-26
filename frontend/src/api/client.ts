@@ -17,13 +17,14 @@ function getBaseURL(): string {
 
 // 创建 axios 实例
 export const apiClient = axios.create({
-  baseURL: getBaseURL(),
   timeout: 300000, // 5分钟超时（AI生成可能很慢）
 });
 
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    config.baseURL = getBaseURL();
+
     // Attach access code header for backend enforcement
     const accessCode = localStorage.getItem('banana-access-code');
     if (accessCode && config.headers) {
