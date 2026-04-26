@@ -1,8 +1,14 @@
+import sys
+if sys.platform == 'win32':
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr is not None:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 """
 Simplified Flask Application Entry Point
 """
 import os
-import sys
 import hmac
 import logging
 from pathlib import Path
@@ -71,6 +77,21 @@ def create_app():
     os.makedirs(upload_folder, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_folder
     
+    # Desktop environment overrides (set by Electron python-manager)
+    db_path_env = os.environ.get('DATABASE_PATH')
+    upload_folder_env = os.environ.get('UPLOAD_FOLDER')
+    export_folder_env = os.environ.get('EXPORT_FOLDER')
+
+    if db_path_env:
+        os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path_env}'
+    if upload_folder_env:
+        os.makedirs(upload_folder_env, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = upload_folder_env
+    if export_folder_env:
+        os.makedirs(export_folder_env, exist_ok=True)
+        app.config['EXPORT_FOLDER'] = export_folder_env
+
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
     if raw_cors.strip() == '*':
@@ -117,6 +138,9 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
+        # Ensure tables exist (no-op when Alembic-managed tables are present,
+        # but creates them on first run in packaged desktop mode)
+        db.create_all()
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
