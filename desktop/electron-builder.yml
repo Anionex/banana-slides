@@ -63,6 +63,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Banana Slides"
+  installerIcon: resources/installer-icon.ico
+  uninstallerIcon: resources/installer-icon.ico
   installerSidebar: resources/installerSidebar.bmp
   installerHeader: resources/installerHeader.bmp
 
