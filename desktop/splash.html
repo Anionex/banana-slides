@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banana Slides</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 480px; height: 360px; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #FFF8E1 0%, #FFE082 40%, #FFB74D 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    user-select: none; -webkit-app-region: drag;
+  }
+  .logo-area {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    font-size: 56px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.1));
+  }
+  .app-name {
+    font-size: 28px; font-weight: 700;
+    color: #4E342E; letter-spacing: 1px;
+  }
+  .tagline {
+    font-size: 13px; color: #795548;
+    margin-top: 4px; font-weight: 400;
+  }
+  .progress-area {
+    position: absolute; bottom: 40px;
+    width: 200px; text-align: center;
+  }
+  .progress-bar {
+    width: 100%; height: 3px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 2px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 30%;
+    background: linear-gradient(90deg, #FF8F00, #F57C00);
+    border-radius: 2px;
+    animation: progress 2s ease-in-out infinite;
+  }
+  @keyframes progress {
+    0% { width: 10%; margin-left: 0; }
+    50% { width: 40%; margin-left: 30%; }
+    100% { width: 10%; margin-left: 90%; }
+  }
+  .status-text {
+    margin-top: 10px; font-size: 12px;
+    color: #6D4C41; opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+  <div class="logo-area">
+    <div class="logo-icon">🍌</div>
+    <div class="app-name">Banana Slides</div>
+    <div class="tagline">AI-Native Presentation Generator</div>
+  </div>
+  <div class="progress-area">
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="status-text" id="status">正在启动...</div>
+  </div>
+</body>
+</html>
