@@ -43,14 +43,7 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 700,
     show: false,
-    titleBarStyle: 'hidden',
-    ...(process.platform !== 'darwin' ? {
-      titleBarOverlay: {
-        color: '#00000000',
-        symbolColor: '#6b7280',
-        height: 48,
-      },
-    } : {}),
+    frame: false,
     icon: getIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

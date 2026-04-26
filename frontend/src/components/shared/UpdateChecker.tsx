@@ -32,8 +32,9 @@ export function UpdateChecker() {
 
   return (
     <div
-      className="fixed top-12 left-0 right-0 z-40 flex items-center justify-center px-4 py-2"
+      className="fixed left-0 right-0 z-40 flex items-center justify-center px-4 py-1.5"
       style={{
+        top: 34,
         background: 'linear-gradient(135deg, #FFF8E1, #FFE082)',
         borderBottom: '1px solid rgba(255, 183, 77, 0.3)',
       }}

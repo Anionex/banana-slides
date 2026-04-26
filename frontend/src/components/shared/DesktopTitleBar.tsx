@@ -23,8 +23,8 @@ export function DesktopTitleBar() {
   const btnBase: React.CSSProperties = {
     WebkitAppRegion: 'no-drag' as any,
     width: 46,
-    height: 32,
-    display: 'flex',
+    height: 34,
+    display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     border: 'none',
@@ -32,38 +32,48 @@ export function DesktopTitleBar() {
     cursor: 'pointer',
     transition: 'background-color 0.15s ease, color 0.15s ease',
     color: '#6b7280',
-    borderRadius: 6,
+    padding: 0,
   };
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 h-12 flex items-center select-none"
       style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        height: 34,
+        display: 'flex',
+        alignItems: 'center',
+        userSelect: 'none',
         WebkitAppRegion: 'drag' as any,
         backdropFilter: 'blur(16px) saturate(1.2)',
         backgroundColor: 'rgba(255, 255, 255, 0.82)',
         borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
       }}
     >
       {/* macOS: traffic light space */}
-      {isMac && <div className="w-[78px] flex-shrink-0" />}
+      {isMac && <div style={{ width: 78, flexShrink: 0 }} />}
 
       {/* Logo + app name */}
       <div
-        className="flex items-center gap-2.5 flex-shrink-0"
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexShrink: 0,
+          paddingLeft: isMac ? 0 : 12,
           WebkitAppRegion: 'no-drag' as any,
-          paddingLeft: isMac ? 0 : 16,
         }}
       >
-        <span style={{ fontSize: 18, lineHeight: 1 }}>🍌</span>
+        <span style={{ fontSize: 14, lineHeight: 1 }}>🍌</span>
         <span
           style={{
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: 600,
             color: '#374151',
-            letterSpacing: '0.5px',
+            letterSpacing: '0.3px',
           }}
         >
           Banana Slides
@@ -71,15 +81,18 @@ export function DesktopTitleBar() {
       </div>
 
       {/* Center spacer */}
-      <div className="flex-1" />
+      <div style={{ flex: 1 }} />
 
-      {/* Window controls — Windows only, custom buttons */}
+      {/* Window controls — Windows only */}
       {!isMac && (
         <div
-          className="flex items-center mr-1"
-          style={{ WebkitAppRegion: 'no-drag' as any }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: '100%',
+            WebkitAppRegion: 'no-drag' as any,
+          }}
         >
-          {/* Minimize */}
           <button
             onClick={handleMinimize}
             onMouseEnter={() => setHoveredBtn('min')}
@@ -90,12 +103,11 @@ export function DesktopTitleBar() {
             }}
             title="最小化"
           >
-            <svg width="10" height="1" viewBox="0 0 10 1">
-              <rect width="10" height="1" fill="currentColor" />
+            <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
+              <line x1="0" y1="0.5" x2="10" y2="0.5" stroke="currentColor" strokeWidth="1" />
             </svg>
           </button>
 
-          {/* Maximize */}
           <button
             onClick={handleMaximize}
             onMouseEnter={() => setHoveredBtn('max')}
@@ -111,7 +123,6 @@ export function DesktopTitleBar() {
             </svg>
           </button>
 
-          {/* Close */}
           <button
             onClick={handleClose}
             onMouseEnter={() => setHoveredBtn('close')}
@@ -120,19 +131,19 @@ export function DesktopTitleBar() {
               ...btnBase,
               backgroundColor: hoveredBtn === 'close' ? '#e81123' : 'transparent',
               color: hoveredBtn === 'close' ? '#ffffff' : '#6b7280',
-              borderRadius: '0 8px 0 0',
             }}
             title="关闭"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10">
-              <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.2" />
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" strokeWidth="1.2" />
+              <line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" strokeWidth="1.2" />
             </svg>
           </button>
         </div>
       )}
 
       {/* macOS right padding */}
-      {isMac && <div className="w-3 flex-shrink-0" />}
+      {isMac && <div style={{ width: 12, flexShrink: 0 }} />}
     </div>
   );
 }
