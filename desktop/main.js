@@ -127,11 +127,15 @@ function createAppMenu() {
     {
       label: '视图',
       submenu: [
+        { label: '放大', role: 'zoomIn', accelerator: 'CmdOrCtrl+=' },
+        { label: '缩小', role: 'zoomOut', accelerator: 'CmdOrCtrl+-' },
+        { label: '重置缩放', role: 'resetZoom', accelerator: 'CmdOrCtrl+0' },
+        { type: 'separator' },
+        { label: '全屏', role: 'togglefullscreen' },
+        { type: 'separator' },
         { label: '重新加载', role: 'reload' },
         { label: '强制重新加载', role: 'forceReload' },
         { label: '开发者工具', role: 'toggleDevTools' },
-        { type: 'separator' },
-        { label: '全屏', role: 'togglefullscreen' },
       ],
     },
     {
