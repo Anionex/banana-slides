@@ -697,7 +697,7 @@ export const Home: React.FC = () => {
       {/* Desktop: portal nav buttons into title bar */}
       {isDesktop && (
         <TitleBarPortal>
-          <div className="flex items-center gap-1 h-full" style={{ fontSize: 12 }}>
+          <div className="flex items-center gap-1 h-full" style={{ fontSize: 12, WebkitAppRegion: 'no-drag' as any }}>
             <Button
               variant="ghost"
               size="sm"

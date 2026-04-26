@@ -91,7 +91,6 @@ export function DesktopTitleBar() {
           gap: 2,
           paddingRight: 4,
           height: '100%',
-          WebkitAppRegion: 'no-drag' as any,
         }}
       />
 
