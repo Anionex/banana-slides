@@ -52,6 +52,15 @@ export function UserProfile() {
   const [newUsername, setNewUsername] = useState('');
   const [saveError, setSaveError] = useState('');
 
+  const [passwordForm, setPasswordForm] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [rechargePackages, setRechargePackages] = useState<RechargePackage[]>([]);
   const [selectedPackageId, setSelectedPackageId] = useState('');
@@ -95,7 +104,6 @@ export function UserProfile() {
     if (!rechargeOpen || !rechargeOrder || rechargeOrder.status !== 'pending') return;
 
     let cancelled = false;
-    // 微信支付结果由后端回调确认，前端只轮询本地订单状态并刷新积分余额。
     const timer = window.setInterval(async () => {
       try {
         const res = await userApi.getRechargeOrder(rechargeOrder.order_no);
@@ -123,7 +131,6 @@ export function UserProfile() {
     if (!subscriptionOpen || !subscriptionOrder || subscriptionOrder.status !== 'pending') return;
 
     let cancelled = false;
-    // 订阅支付同样通过订单轮询刷新，避免用户支付完成后还看到旧订阅状态。
     const timer = window.setInterval(async () => {
       try {
         const res = await userApi.getRechargeOrder(subscriptionOrder.order_no);
@@ -154,7 +161,11 @@ export function UserProfile() {
   const monthlyPlan = subscriptionPlans.find((item) => item.id === 'monthly') || null;
   const yearlyPlan = subscriptionPlans.find((item) => item.id === 'yearly') || null;
   const selectedSubscriptionPlan = subscriptionPlans.find((item) => item.id === subscriptionOrder?.subscription_plan) || null;
-  const showRechargePricing = Boolean(user);
+
+  const isAdmin = user?.role === 'admin';
+  const isInternal = user?.role === 'internal';
+  const usesPlatformBilling = user?.role === 'user';
+  const showRechargePricing = Boolean(user && usesPlatformBilling);
 
   const loadRechargePackages = useCallback(async (showSpinner = true) => {
     setRechargeError('');
@@ -214,7 +225,6 @@ export function UserProfile() {
       return;
     }
 
-    // 后端若未返回二维码图片，就在浏览器端用 code_url 生成，防止二维码空白。
     QRCode.toDataURL(codeUrl, { width: 240, margin: 2 })
       .then((url) => {
         if (!cancelled) setClientQrCodeUrl(url);
@@ -237,7 +247,6 @@ export function UserProfile() {
       return;
     }
 
-    // 订阅二维码也保留同样的前端兜底逻辑。
     QRCode.toDataURL(codeUrl, { width: 240, margin: 2 })
       .then((url) => {
         if (!cancelled) setSubscriptionQrCodeUrl(url);
@@ -252,7 +261,6 @@ export function UserProfile() {
   }, [subscriptionResult?.code_url, subscriptionResult?.qr_code_url]);
 
   const createSubscriptionOrder = async (plan: 'monthly' | 'yearly') => {
-    // 每次购买订阅都重置弹窗状态，避免上一笔订单的二维码或错误信息残留。
     setSubscriptionOpen(true);
     setSubscriptionError('');
     setSubscriptionOrder(null);
@@ -279,7 +287,6 @@ export function UserProfile() {
   };
 
   const openRecharge = async () => {
-    // 打开充值弹窗时清空上一笔订单状态，再加载后台配置的套餐。
     setRechargeOpen(true);
     setRechargeError('');
     setRechargeOrder(null);
@@ -296,7 +303,6 @@ export function UserProfile() {
   const createRechargeOrder = async (packageId = selectedPackageId) => {
     const targetPackageId = packageId || selectedPackageId;
     if (!targetPackageId) return;
-    // 用户确认套餐后才创建微信订单，订单有效期由后端统一计算。
     setSelectedPackageId(targetPackageId);
     setRechargeOpen(true);
     setRechargeError('');
@@ -343,6 +349,51 @@ export function UserProfile() {
     }
   };
 
+  const handlePasswordInputChange = (field: 'oldPassword' | 'newPassword' | 'confirmPassword', value: string) => {
+    setPasswordForm((current) => ({ ...current, [field]: value }));
+    setPasswordError('');
+    setPasswordSuccess('');
+  };
+
+  const handleSavePassword = async () => {
+    const oldPassword = passwordForm.oldPassword.trim();
+    const newPassword = passwordForm.newPassword.trim();
+    const confirmPassword = passwordForm.confirmPassword.trim();
+
+    if (!newPassword) {
+      setPasswordError('请输入新密码');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('新密码至少需要 6 位');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('两次输入的新密码不一致');
+      return;
+    }
+
+    try {
+      setSavingPassword(true);
+      setPasswordError('');
+      setPasswordSuccess('');
+      const payload: { password: string; old_password?: string } = { password: newPassword };
+      if (oldPassword) payload.old_password = oldPassword;
+      const res = await userApi.updateProfile(payload);
+      setUser(res.data.data);
+      setPasswordForm({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordSuccess('密码修改成功');
+    } catch (e: any) {
+      setPasswordError(e.response?.data?.error || '修改密码失败');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -360,8 +411,6 @@ export function UserProfile() {
 
   const sub = user.subscription;
   const isSubscribed = sub?.status === 'active';
-  const isAdmin = user.role === 'admin';
-  const isInternal = user.role === 'internal';
   const rechargePaid = rechargeOrder?.status === 'paid';
   const rechargeExpired = rechargeOrder?.status === 'expired';
   const rechargeFailed = rechargeOrder?.status === 'failed';
@@ -452,15 +501,18 @@ export function UserProfile() {
               <Coins size={18} className="text-[var(--banana-yellow-dark)]" />
               <span className="text-sm font-medium text-[var(--text-secondary)]">积分余额</span>
             </div>
-            <div className="text-3xl font-bold text-[var(--text-primary)] mb-1">{user.points}</div>
+            <div className="text-3xl font-bold text-[var(--text-primary)] mb-1">
+              {usesPlatformBilling ? user.points : '--'}
+            </div>
             <p className="text-xs text-[var(--text-tertiary)] mb-4">
-              每生成 1 页 PPT 消耗 3 积分
+              {usesPlatformBilling ? '每生成 1 页 PPT 消耗 3 积分' : '管理员和内部用户不参与积分结算'}
             </p>
             <button
-              onClick={openRecharge}
-              className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] transition-colors"
+              onClick={usesPlatformBilling ? openRecharge : undefined}
+              disabled={!usesPlatformBilling}
+              className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-tertiary)] transition-colors disabled:cursor-not-allowed"
             >
-              微信充值
+              {usesPlatformBilling ? '微信充值' : '不适用'}
             </button>
           </div>
 
@@ -469,7 +521,18 @@ export function UserProfile() {
               <Crown size={18} className="text-amber-500" />
               <span className="text-sm font-medium text-[var(--text-secondary)]">订阅状态</span>
             </div>
-            {isSubscribed ? (
+            {!usesPlatformBilling ? (
+              <>
+                <div className="text-base font-bold text-[var(--text-primary)] mb-1">不适用</div>
+                <p className="text-xs text-[var(--text-tertiary)] mb-4">管理员和内部用户不显示付费与订阅能力</p>
+                <button
+                  disabled
+                  className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-tertiary)] disabled:cursor-not-allowed"
+                >
+                  不适用
+                </button>
+              </>
+            ) : isSubscribed ? (
               <>
                 <div className="text-base font-bold text-[var(--text-primary)] mb-1">
                   {PLAN_LABELS[sub.plan] || sub.plan}
@@ -514,6 +577,53 @@ export function UserProfile() {
               </>
             )}
           </div>
+        </div>
+
+        <div className="bg-[var(--bg-elevated)] rounded-2xl p-5 mb-4 shadow-sm border border-[var(--border-secondary)]">
+          <div className="flex items-center gap-2 mb-4">
+            <User size={18} className="text-[var(--banana-yellow-dark)]" />
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">修改密码</h2>
+              <p className="text-xs text-[var(--text-tertiary)]">
+                {user.password_hash ? '请输入当前密码后设置新密码' : '当前账号尚未设置密码，可直接设置新密码'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <input
+              type="password"
+              value={passwordForm.oldPassword}
+              onChange={(e) => handlePasswordInputChange('oldPassword', e.target.value)}
+              placeholder="当前密码"
+              className="w-full rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-secondary)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--banana-yellow)]"
+            />
+            <input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(e) => handlePasswordInputChange('newPassword', e.target.value)}
+              placeholder="新密码"
+              className="w-full rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-secondary)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--banana-yellow)]"
+            />
+            <input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => handlePasswordInputChange('confirmPassword', e.target.value)}
+              placeholder="确认新密码"
+              className="w-full rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-secondary)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--banana-yellow)]"
+            />
+          </div>
+
+          {passwordError && <p className="mt-3 text-xs text-red-500">{passwordError}</p>}
+          {passwordSuccess && <p className="mt-3 text-xs text-green-600">{passwordSuccess}</p>}
+
+          <button
+            onClick={handleSavePassword}
+            disabled={savingPassword}
+            className="mt-4 w-full py-2.5 rounded-xl text-sm font-medium bg-[var(--banana-yellow-pale)] text-[var(--banana-yellow-dark)] hover:bg-[var(--bg-hover)] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {savingPassword ? '保存中...' : '保存新密码'}
+          </button>
         </div>
 
         {showRechargePricing && (
@@ -605,7 +715,7 @@ export function UserProfile() {
         )}
       </div>
 
-      {rechargeOpen && (
+      {showRechargePricing && rechargeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRechargeOpen(false)} />
           <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl p-6 w-full max-w-lg">
@@ -756,7 +866,7 @@ export function UserProfile() {
         </div>
       )}
 
-      {subscriptionOpen && (
+      {showRechargePricing && subscriptionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSubscriptionOpen(false)} />
           <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl p-6 w-full max-w-lg">

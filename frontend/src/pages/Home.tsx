@@ -192,7 +192,7 @@ export const Home: React.FC = () => {
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
-  const { user, openLoginModal, requireAuth, canAccessSettingsPage } = useUserStore();
+  const { user, accessToken, openLoginModal, requireAuth, canAccessSettingsPage } = useUserStore();
   const { show, ToastContainer } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
@@ -238,6 +238,11 @@ export const Home: React.FC = () => {
     const projectId = localStorage.getItem('currentProjectId');
     setCurrentProjectId(projectId);
 
+    if (!accessToken) {
+      setUserTemplates([]);
+      return;
+    }
+
     // 加载用户模板列表（用于按需获取File）
     const loadTemplates = async () => {
       try {
@@ -250,7 +255,7 @@ export const Home: React.FC = () => {
       }
     };
     loadTemplates();
-  }, []);
+  }, [accessToken]);
 
   // 首次访问自动弹出帮助模态框
   useEffect(() => {

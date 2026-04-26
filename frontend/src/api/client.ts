@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { useAdminStore } from '@/store/useAdminStore';
+import { useUserStore } from '@/store/useUserStore';
 
 // 开发环境：通过 Vite proxy 转发
 // 生产环境：通过 nginx proxy 转发
@@ -9,6 +11,126 @@ export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 300000, // 5分钟超时（AI生成可能很慢）
 });
+
+const getStoredUserAccessToken = (): string | null => {
+  try {
+    const userState = localStorage.getItem('feiye-user');
+    return JSON.parse(userState || 'null')?.state?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredAdminAccessToken = (): string | null => {
+  try {
+    const adminState = localStorage.getItem('feiye-admin');
+    return JSON.parse(adminState || 'null')?.state?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredUserRefreshToken = (): string | null => {
+  try {
+    const userState = localStorage.getItem('feiye-user');
+    return JSON.parse(userState || 'null')?.state?.refreshToken ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredAdminRefreshToken = (): string | null => {
+  try {
+    const adminState = localStorage.getItem('feiye-admin');
+    return JSON.parse(adminState || 'null')?.state?.refreshToken ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const getPreferredAccessToken = (requestUrl?: string): string | null => {
+  const isAdminRoute = requestUrl?.startsWith('/api/admin/');
+  const userToken = getStoredUserAccessToken();
+  const adminToken = getStoredAdminAccessToken();
+
+  if (isAdminRoute) {
+    return adminToken || userToken;
+  }
+
+  return userToken || adminToken;
+};
+
+type AuthStoreKind = 'user' | 'admin';
+
+const getPreferredAuthStoreKind = (requestUrl?: string): AuthStoreKind | null => {
+  const isAdminRoute = requestUrl?.startsWith('/api/admin/');
+  const hasUserToken = !!getStoredUserAccessToken();
+  const hasAdminToken = !!getStoredAdminAccessToken();
+
+  if (isAdminRoute) {
+    if (hasAdminToken) return 'admin';
+    if (hasUserToken) return 'user';
+    return null;
+  }
+
+  if (hasUserToken) return 'user';
+  if (hasAdminToken) return 'admin';
+  return null;
+};
+
+const getRefreshTokenForStore = (kind: AuthStoreKind): string | null =>
+  kind === 'user' ? getStoredUserRefreshToken() : getStoredAdminRefreshToken();
+
+const updateTokensForStore = (kind: AuthStoreKind, accessToken: string, refreshToken: string) => {
+  if (kind === 'user') {
+    useUserStore.setState({ accessToken, refreshToken });
+    return;
+  }
+  useAdminStore.setState({ accessToken, refreshToken });
+};
+
+const clearAuthStore = (kind: AuthStoreKind) => {
+  if (kind === 'user') {
+    const userStore = useUserStore.getState();
+    userStore.logout();
+    userStore.openLoginModal();
+    return;
+  }
+  useAdminStore.getState().logout();
+};
+
+let refreshPromise: Promise<string | null> | null = null;
+
+const tryRefreshAccessToken = async (kind: AuthStoreKind): Promise<string | null> => {
+  const refreshToken = getRefreshTokenForStore(kind);
+  if (!refreshToken) {
+    clearAuthStore(kind);
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post('/api/auth/refresh', { refresh_token: refreshToken }, { baseURL: API_BASE_URL, timeout: 300000 })
+      .then((response) => {
+        const accessToken = response.data?.data?.access_token as string | undefined;
+        const nextRefreshToken = response.data?.data?.refresh_token as string | undefined;
+        if (!accessToken || !nextRefreshToken) {
+          throw new Error('Token refresh response is incomplete');
+        }
+        updateTokensForStore(kind, accessToken, nextRefreshToken);
+        return accessToken;
+      })
+      .catch(() => {
+        clearAuthStore(kind);
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
 
 // 请求拦截器
 apiClient.interceptors.request.use(
@@ -21,17 +143,7 @@ apiClient.interceptors.request.use(
 
     // Attach JWT token: admin token takes priority for /api/admin/* routes
     try {
-      const isAdminRoute = config.url?.startsWith('/api/admin/');
-      const adminState = localStorage.getItem('feiye-admin');
-      const userState = localStorage.getItem('feiye-user');
-
-      let token: string | null = null;
-      if (isAdminRoute && adminState) {
-        token = JSON.parse(adminState)?.state?.accessToken ?? null;
-      }
-      if (!token && userState) {
-        token = JSON.parse(userState)?.state?.accessToken ?? null;
-      }
+      const token = getPreferredAccessToken(config.url);
       if (token && config.headers) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
@@ -64,6 +176,40 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
+    const status = error?.response?.status;
+    const requestUrl = error?.config?.url || '';
+    const hasAnyToken = !!getPreferredAccessToken(requestUrl);
+    const authStoreKind = getPreferredAuthStoreKind(requestUrl);
+    const originalRequest = error?.config;
+
+    const isExpectedAnonymousAuthFailure =
+      !hasAnyToken &&
+      (status === 401 || status === 403) &&
+      (
+        requestUrl.startsWith('/api/projects') ||
+        requestUrl.startsWith('/api/user-templates') ||
+        requestUrl.startsWith('/api/user/profile') ||
+        requestUrl.startsWith('/api/reference-files') ||
+        requestUrl.startsWith('/api/materials')
+      );
+
+    if (isExpectedAnonymousAuthFailure) {
+      return Promise.reject(error);
+    }
+
+    if (status === 401 && originalRequest && !originalRequest._retry && authStoreKind) {
+      originalRequest._retry = true;
+      return tryRefreshAccessToken(authStoreKind).then((nextAccessToken) => {
+        if (!nextAccessToken) {
+          return Promise.reject(error);
+        }
+
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers['Authorization'] = `Bearer ${nextAccessToken}`;
+        return apiClient(originalRequest);
+      });
+    }
+
     // 统一错误处理
     if (error.response) {
       // 服务器返回错误状态码
@@ -97,9 +243,16 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
       : timestamp;
     url += `?v=${ts}`;
   }
+
+  if (url.startsWith('/files/')) {
+    const accessToken = getPreferredAccessToken(url);
+    if (accessToken) {
+      const separator = url.includes('?') ? '&' : '?';
+      url += `${separator}access_token=${encodeURIComponent(accessToken)}`;
+    }
+  }
   
   return url;
 };
 
 export default apiClient;
-
