@@ -12,6 +12,8 @@ files:
   - "auto-updater.js"
   - "splash.html"
   - "logo.png"
+  - "resources/icon.ico"
+  - "resources/icon.png"
   - "package.json"
   - "node_modules/**/*"
 

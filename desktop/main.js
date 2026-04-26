@@ -15,10 +15,7 @@ function isDev() {
 
 function getIconPath() {
   const ext = process.platform === 'win32' ? 'ico' : 'png';
-  if (isDev()) {
-    return path.join(__dirname, 'resources', `icon.${ext}`);
-  }
-  return path.join(process.resourcesPath, `icon.${ext}`);
+  return path.join(__dirname, 'resources', `icon.${ext}`);
 }
 
 function createSplashWindow() {

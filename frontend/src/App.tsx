@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Landing } from './pages/Landing';
 import { History } from './pages/History';
@@ -37,20 +37,25 @@ function App() {
       <UpdateChecker />
       <div style={isDesktop ? { paddingTop: '50px' } : undefined}>
         <AccessCodeGuard>
-          <BrowserRouter>
-            <DesktopTitleBar />
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/landing" element={<Landing />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
-              <Route path="/project/:projectId/detail" element={<DetailEditor />} />
-              <Route path="/project/:projectId/preview" element={<SlidePreview />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <ToastContainer />
-          </BrowserRouter>
+          {(() => {
+            const Router = isDesktop ? HashRouter : BrowserRouter;
+            return (
+              <Router>
+                <DesktopTitleBar />
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/landing" element={<Landing />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
+                  <Route path="/project/:projectId/detail" element={<DetailEditor />} />
+                  <Route path="/project/:projectId/preview" element={<SlidePreview />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+                <ToastContainer />
+              </Router>
+            );
+          })()}
         </AccessCodeGuard>
       </div>
     </>
