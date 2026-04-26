@@ -33,6 +33,7 @@ export default defineConfig(({ mode }) => {
   const backendUrl = `http://localhost:${backendPort}`
   
   return {
+    base: './',
     envDir,
     plugins: [react()],
     resolve: {

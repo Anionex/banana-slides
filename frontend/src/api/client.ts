@@ -1,12 +1,23 @@
 import axios from 'axios';
 
-// 开发环境：通过 Vite proxy 转发
-// 生产环境：通过 nginx proxy 转发
-const API_BASE_URL = '';
+// Desktop mode detection
+const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+
+if (isDesktop) {
+  (window as any).electronAPI.getBackendPort().then((port: number) => {
+    (window as any).__BACKEND_PORT__ = port;
+  });
+}
+
+function getBaseURL(): string {
+  if (!isDesktop) return '';
+  const port = (window as any).__BACKEND_PORT__ || 5000;
+  return `http://localhost:${port}`;
+}
 
 // 创建 axios 实例
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getBaseURL(),
   timeout: 300000, // 5分钟超时（AI生成可能很慢）
 });
 
