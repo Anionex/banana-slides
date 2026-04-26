@@ -127,11 +127,11 @@ export function DesktopTitleBar() {
           WebkitAppRegion: 'no-drag' as any,
         }}
       >
-        <button className={navBtnClass} onClick={() => navigate('/')}>
+        <button className={navBtnClass} onClick={() => navigate('/?action=material-generate')}>
           <ImagePlus size={14} />
           <span>{t('materialGenerate')}</span>
         </button>
-        <button className={navBtnClass} onClick={() => navigate('/')}>
+        <button className={navBtnClass} onClick={() => navigate('/?action=material-center')}>
           <FolderOpen size={14} />
           <span>{t('materialCenter')}</span>
         </button>
