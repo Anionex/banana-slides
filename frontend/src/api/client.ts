@@ -13,7 +13,7 @@ if (isDesktop) {
   });
 }
 
-function getBaseURL(): string {
+export function getBaseURL(): string {
   if (!isDesktop) return '';
   const port = (window as any).__BACKEND_PORT__ || 5000;
   return `http://localhost:${port}`;
