@@ -59,6 +59,7 @@ async function startBackend(userDataPath) {
     UPLOAD_FOLDER: uploadsDir,
     EXPORT_FOLDER: exportsDir,
     FLASK_ENV: 'production',
+    CORS_ORIGINS: '*',
   };
 
   log.info(`[python-manager] Starting backend: ${backendPath} on port ${backendPort}`);
