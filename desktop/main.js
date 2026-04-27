@@ -15,6 +15,9 @@ function isDev() {
 
 function getIconPath() {
   const ext = process.platform === 'win32' ? 'ico' : 'png';
+  if (app.isPackaged) {
+    return path.join(path.dirname(process.execPath), 'resources', `icon.${ext}`);
+  }
   return path.join(__dirname, 'resources', `icon.${ext}`);
 }
 
