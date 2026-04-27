@@ -5,7 +5,6 @@
 - 分支：`feat/electron-desktop`
 - Worktree：`/home/aa/banana-slides-electron`
 - PR：https://github.com/Anionex/banana-slides/pull/377
-- 相关 Issue（设计目标）：https://github.com/Anionex/banana-slides/issues/382
 
 ---
 
