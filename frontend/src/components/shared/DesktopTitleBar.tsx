@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Settings, ImagePlus, FolderOpen, Globe, Sun, Moon, Monitor, ChevronDown, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useT } from '@/hooks/useT';
-import { isDesktop } from '@/utils';
+import { DESKTOP_TITLEBAR_HEIGHT, isDesktop } from '@/utils';
 import logoUrl from '@/assets/logo.png';
 
 const titleBarI18n = {
@@ -63,8 +63,8 @@ export function DesktopTitleBar() {
   const handleClose = () => (window as any).electronAPI.closeWindow();
 
   const winBtnBase: React.CSSProperties = {
-    width: 46,
-    height: 50,
+    width: 40,
+    height: DESKTOP_TITLEBAR_HEIGHT,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -76,7 +76,7 @@ export function DesktopTitleBar() {
     padding: 0,
   };
 
-  const navBtnClass = 'flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all cursor-pointer';
+  const navBtnClass = 'flex h-7 items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all cursor-pointer';
 
   return (
     <div
@@ -87,7 +87,7 @@ export function DesktopTitleBar() {
         left: 0,
         right: 0,
         zIndex: 9999,
-        height: 50,
+        height: DESKTOP_TITLEBAR_HEIGHT,
         display: 'flex',
         alignItems: 'center',
         userSelect: 'none',
@@ -105,11 +105,11 @@ export function DesktopTitleBar() {
           alignItems: 'center',
           gap: 8,
           flexShrink: 0,
-          paddingLeft: isMac ? 0 : 12,
+          paddingLeft: isMac ? 0 : 14,
         }}
       >
-        <img src={logoUrl} alt="" style={{ width: 20, height: 'auto' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: '0.3px' }}>
+        <img src={logoUrl} alt="" style={{ width: 18, height: 'auto' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: '0.2px' }}>
           Banana Slides
         </span>
       </div>
@@ -147,14 +147,14 @@ export function DesktopTitleBar() {
         <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
 
         {/* Zoom controls */}
-        <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomOut()} title="Ctrl+-">
-          <ZoomOut size={14} />
+        <button className={navBtnClass} onClick={() => window.location.reload()} title="刷新">
+          <RefreshCw size={12} />
         </button>
-        <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomReset()} title="Ctrl+0">
-          <RotateCcw size={12} />
+        <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomOut()} title="Ctrl+-">
+          <ZoomOut size={13} />
         </button>
         <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomIn()} title="Ctrl+=">
-          <ZoomIn size={14} />
+          <ZoomIn size={13} />
         </button>
 
         <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
