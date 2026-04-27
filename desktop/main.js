@@ -80,9 +80,8 @@ function createMainWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (shouldOpenInExternalBrowser(url)) {
       shell.openExternal(url);
-      return { action: 'deny' };
     }
-    return { action: 'allow' };
+    return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -314,6 +313,22 @@ function setupIPC() {
   });
   ipcMain.handle('get-zoom-level', () => {
     return mainWindow?.webContents?.getZoomLevel() ?? 0;
+  });
+
+  // 原生下载对话框：前端传入绝对 URL + 建议文件名
+  ipcMain.handle('download-file', async (_, { url, filename }) => {
+    if (!mainWindow) return { success: false };
+    const ext = (filename || 'file').split('.').pop() || '*';
+    const savePath = dialog.showSaveDialogSync(mainWindow, {
+      defaultPath: filename || 'download',
+      filters: [{ name: '所有文件', extensions: [ext, '*'] }],
+    });
+    if (!savePath) return { success: false, canceled: true };
+    mainWindow.webContents.session.once('will-download', (_, item) => {
+      item.setSavePath(savePath);
+    });
+    mainWindow.webContents.downloadURL(url);
+    return { success: true };
   });
 }
 

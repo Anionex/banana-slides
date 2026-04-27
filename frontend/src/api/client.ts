@@ -13,6 +13,18 @@ export function getBaseURL(): string {
   return `http://127.0.0.1:${port}`;
 }
 
+// 统一下载入口：desktop 走原生保存对话框，web 走 window.open
+export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string): void {
+  if (isDesktop) {
+    const url = relativeOrAbsoluteUrl.startsWith('http')
+      ? relativeOrAbsoluteUrl
+      : `${getBaseURL()}${relativeOrAbsoluteUrl}`;
+    (window as any).electronAPI.downloadFile(url, filename || url.split('/').pop() || 'download');
+  } else {
+    window.open(relativeOrAbsoluteUrl, '_blank');
+  }
+}
+
 // 创建 axios 实例
 export const apiClient = axios.create({
   timeout: 300000, // 5分钟超时（AI生成可能很慢）

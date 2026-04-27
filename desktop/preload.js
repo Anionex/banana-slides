@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return params.get('backendPort') || '5000';
   },
   isElectron: true,
+  downloadFile: (url, filename) => ipcRenderer.invoke('download-file', { url, filename }),
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),

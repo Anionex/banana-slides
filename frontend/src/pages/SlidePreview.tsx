@@ -183,6 +183,7 @@ import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorMod
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
+import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -1045,7 +1046,7 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          triggerDownload(downloadUrl);
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling

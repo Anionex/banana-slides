@@ -99,6 +99,7 @@ hiddenimports += collect_submodules('PIL')
 hiddenimports += collect_submodules('pydantic')
 hiddenimports += collect_submodules('sqlalchemy')
 hiddenimports += collect_submodules('tenacity')
+hiddenimports += collect_submodules('cv2')
 
 excludes = [
     'tkinter', 'matplotlib', 'scipy',
