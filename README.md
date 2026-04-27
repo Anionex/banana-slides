@@ -523,7 +523,7 @@ npm run dev
 
 <img width="302" alt="image" src="https://github.com/user-attachments/assets/e5ccc7ac-3944-4d29-8a49-638401683888" />
 
-关注作者的社交媒体，获取项目最新动态：
+欢迎关注作者的社交媒体，我会分享有关本项目和有关AI的信息：
 
 <p>
   <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
