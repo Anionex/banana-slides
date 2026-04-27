@@ -138,9 +138,14 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
-        # Ensure tables exist (no-op when Alembic-managed tables are present,
-        # but creates them on first run in packaged desktop mode)
-        db.create_all()
+        # Run Alembic migrations to ensure schema is up to date
+        try:
+            from flask_migrate import upgrade as alembic_upgrade
+            alembic_upgrade()
+        except Exception as e:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
+            db.create_all()
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
