@@ -19,6 +19,9 @@ import sqlite3
 from sqlalchemy.exc import SQLAlchemyError
 from flask_migrate import Migrate
 
+if __name__ == '__main__':
+    sys.modules.setdefault('app', sys.modules[__name__])
+
 # Load environment variables from project root .env file
 _project_root = Path(__file__).parent.parent
 _env_file = _project_root / '.env'
@@ -140,13 +143,14 @@ def create_app():
     with app.app_context():
         if db_path_env:
             db.create_all()
-            logging.info("Desktop database tables created/verified successfully")
+            from desktop_bootstrap import repair_desktop_settings_schema
+            repair_desktop_settings_schema(db)
         else:
             migrations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'migrations')
             if os.path.exists(migrations_dir):
                 try:
                     from flask_migrate import upgrade as alembic_upgrade
-                    alembic_upgrade(directory=migrations_dir)
+                    alembic_upgrade()
                 except Exception as e:
                     logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
                     db.create_all()
@@ -358,7 +362,6 @@ def _load_settings_to_config(app):
             logging.debug(f"Settings table not yet created (expected on first boot): {e}")
         else:
             logging.warning(f"Could not load settings from database: {e}")
-
 
 # Create app instance
 app = create_app()

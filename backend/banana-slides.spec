@@ -18,7 +18,7 @@ hiddenimports = [
     'services.pdf_service', 'services.inpainting_service',
     'services.ai_providers',
     'models', 'models.project', 'models.page', 'models.task',
-    'models.settings', 'config',
+    'models.settings', 'config', 'desktop_bootstrap',
     # Flask ecosystem
     'flask', 'flask.json', 'flask_cors', 'flask_sqlalchemy', 'flask_migrate',
     'werkzeug', 'werkzeug.serving', 'jinja2',

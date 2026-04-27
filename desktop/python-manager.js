@@ -122,7 +122,7 @@ function stopBackend() {
       log.warn('[python-manager] Force killing backend');
       try {
         if (isWin) {
-          spawn('taskkill', ['/F', '/PID', String(pid)], { windowsHide: true });
+          spawn('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true });
         } else {
           backendProcess.kill('SIGKILL');
         }
@@ -139,7 +139,7 @@ function stopBackend() {
 
     try {
       if (isWin) {
-        spawn('taskkill', ['/PID', String(pid)], { windowsHide: true });
+        spawn('taskkill', ['/T', '/PID', String(pid)], { windowsHide: true });
       } else {
         backendProcess.kill('SIGTERM');
       }

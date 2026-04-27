@@ -35,9 +35,9 @@
 
 ---
 
-## 当前未解决的 Bug
+## 已解决的 Bug
 
-### 🔴 后端启动失败（最高优先级）
+### ✅ 后端启动失败
 
 **现象：** 安装后启动，后端进程立即退出，日志报：
 ```
@@ -46,33 +46,22 @@ Error: Path doesn't exist: migrations. Please use the 'init' command to create a
 
 **根本原因：** `flask_migrate.upgrade()` 找不到 migrations 目录。PyInstaller 把 migrations 打包到了 `_internal/migrations/`，但 `flask_migrate` 默认在当前工作目录找 `migrations/`，而不是 `__file__` 所在目录。
 
-**已尝试的修复：**
-- `app.py` 里用 `os.path.dirname(os.path.abspath(__file__))` 构建 migrations 路径 → 无效，flask_migrate 不接受路径参数
-- 检查 migrations 目录是否存在，不存在则 fallback 到 `db.create_all()` → 路径判断逻辑正确但 flask_migrate 仍然报错
+**最终修复：**
+- 桌面模式由 Electron 传入 `DATABASE_PATH` / `UPLOAD_FOLDER` / `EXPORT_FOLDER`，这些运行时路径不会被仓库 `.env` 覆盖。
+- `backend/app.py` 只在桌面模式（`DATABASE_PATH` 存在）跳过 Alembic，使用 `db.create_all()` 初始化本地 SQLite。
+- `backend/desktop_bootstrap.py` 只在桌面模式运行，用于修复旧安装包创建的本地 SQLite schema；Docker/源码部署不执行这段兼容补列逻辑。
+- 非桌面模式保留原有 Alembic/fallback 启动路径，避免桌面兼容逻辑影响 Docker、源码部署等用法。
 
-**推荐修复方向（参考 PR #157）：**
-
-PR #157 的做法是在调用 `alembic_upgrade()` 之前，先把工作目录切换到 migrations 所在目录，或者直接用 `db.create_all()` 而不用 alembic（打包模式下数据库是全新的，不需要迁移）：
-
-```python
-import os as _os
-
-with app.app_context():
-    if _os.getenv('DATABASE_PATH'):
-        # 打包模式：数据库是全新的，直接 create_all
-        db.create_all()
-    else:
-        # 开发模式：用 alembic 迁移
-        from flask_migrate import upgrade as alembic_upgrade
-        alembic_upgrade()
-    _load_settings_to_config(app)
-```
-
-这是最简单可靠的方案。打包模式下数据库总是全新的（在 userData 目录），不需要迁移历史，直接 `create_all()` 即可。
+**验证结果：**
+- 源码模式：从非 `backend/` 工作目录启动，并设置 `DATABASE_PATH`，`/health` 正常返回 200。
+- 旧桌面库：手工创建缺少 `settings.enable_text_reasoning` 的 SQLite 数据库后，启动后端并 PUT `/api/settings` 正常返回 200。
+- 打包模式：`C:\tmp\banana-build\backend\banana-backend.exe` 使用桌面数据目录启动，`/health` 正常返回 200，数据库文件正常创建。
 
 **相关文件：**
-- `backend/app.py` — 第 140-151 行
-- `backend/banana-slides.spec` — datas 里已包含 migrations
+- `backend/app.py`
+- `backend/desktop_bootstrap.py`
+- `backend/banana-slides.spec`
+- `backend/tests/unit/test_desktop_backend_startup.py`
 
 ---
 

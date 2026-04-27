@@ -18,6 +18,10 @@ files:
   - "node_modules/**/*"
 
 extraResources:
+  - from: "resources/icon.ico"
+    to: "icon.ico"
+  - from: "resources/icon.png"
+    to: "icon.png"
   - from: "../backend/"
     to: "backend"
     filter:
@@ -30,6 +34,7 @@ extraResources:
 icon: resources/icon
 
 win:
+  icon: resources/icon.ico
   target:
     - target: nsis
       arch:
