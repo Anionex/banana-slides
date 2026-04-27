@@ -1,10 +1,16 @@
 import axios from 'axios';
 import { isDesktop } from '@/utils';
 
+let backendPortPromise: Promise<number> | null = null;
+
 if (isDesktop) {
-  (window as any).electronAPI.getBackendPort().then((port: number) => {
+  backendPortPromise = (window as any).electronAPI.getBackendPort().then((port: number) => {
     (window as any).__BACKEND_PORT__ = port;
-  }).catch(() => {});
+    return port;
+  }).catch(() => {
+    (window as any).__BACKEND_PORT__ = 5000;
+    return 5000;
+  });
 }
 
 function getBaseURL(): string {
@@ -20,7 +26,11 @@ export const apiClient = axios.create({
 
 // 请求拦截器
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    if (isDesktop && !(window as any).__BACKEND_PORT__ && backendPortPromise) {
+      await backendPortPromise;
+    }
+
     config.baseURL = getBaseURL();
 
     // Attach access code header for backend enforcement
@@ -79,6 +89,10 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
   }
   // 使用相对路径（确保以 / 开头）
   let url = path.startsWith('/') ? path : '/' + path;
+
+  if (isDesktop) {
+    url = `${getBaseURL()}${url}`;
+  }
   
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
@@ -92,4 +106,3 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
 };
 
 export default apiClient;
-
