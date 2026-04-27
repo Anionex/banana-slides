@@ -22,7 +22,7 @@ from flask_migrate import Migrate
 # Load environment variables from project root .env file
 _project_root = Path(__file__).parent.parent
 _env_file = _project_root / '.env'
-load_dotenv(dotenv_path=_env_file, override=True)
+load_dotenv(dotenv_path=_env_file, override=not os.getenv('DATABASE_PATH'))
 
 from flask import Flask
 from flask_cors import CORS
@@ -138,17 +138,20 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
-        migrations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'migrations')
-        if os.path.exists(migrations_dir):
-            try:
-                from flask_migrate import upgrade as alembic_upgrade
-                alembic_upgrade()
-            except Exception as e:
-                import logging as _logging
-                _logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
-                db.create_all()
-        else:
+        if db_path_env:
             db.create_all()
+            logging.info("Desktop database tables created/verified successfully")
+        else:
+            migrations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'migrations')
+            if os.path.exists(migrations_dir):
+                try:
+                    from flask_migrate import upgrade as alembic_upgrade
+                    alembic_upgrade(directory=migrations_dir)
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
+                    db.create_all()
+            else:
+                db.create_all()
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
