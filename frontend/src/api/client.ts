@@ -1,22 +1,16 @@
 import axios from 'axios';
 import { isDesktop } from '@/utils';
 
-let backendPortPromise: Promise<number> | null = null;
-
+// 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态
 if (isDesktop) {
-  backendPortPromise = (window as any).electronAPI.getBackendPort().then((port: number) => {
-    (window as any).__BACKEND_PORT__ = port;
-    return port;
-  }).catch(() => {
-    (window as any).__BACKEND_PORT__ = 5000;
-    return 5000;
-  });
+  const port = parseInt((window as any).electronAPI.getBackendPort(), 10) || 5000;
+  (window as any).__BACKEND_PORT__ = port;
 }
 
 export function getBaseURL(): string {
   if (!isDesktop) return '';
   const port = (window as any).__BACKEND_PORT__ || 5000;
-  return `http://localhost:${port}`;
+  return `http://127.0.0.1:${port}`;
 }
 
 // 创建 axios 实例
@@ -26,11 +20,7 @@ export const apiClient = axios.create({
 
 // 请求拦截器
 apiClient.interceptors.request.use(
-  async (config) => {
-    if (isDesktop && !(window as any).__BACKEND_PORT__ && backendPortPromise) {
-      await backendPortPromise;
-    }
-
+  (config) => {
     config.baseURL = getBaseURL();
 
     // Attach access code header for backend enforcement

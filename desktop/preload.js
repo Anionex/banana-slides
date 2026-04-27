@@ -4,7 +4,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   getPlatform: () => process.platform,
-  getBackendPort: () => ipcRenderer.invoke('get-backend-port'),
+  getBackendPort: () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('backendPort') || '5000';
+  },
+  isElectron: true,
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),

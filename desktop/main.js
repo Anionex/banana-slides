@@ -21,6 +21,15 @@ function getIconPath() {
   return path.join(__dirname, 'resources', `icon.${ext}`);
 }
 
+function shouldOpenInExternalBrowser(targetUrl) {
+  try {
+    const parsedUrl = new URL(targetUrl);
+    return ['http:', 'https:'].includes(parsedUrl.protocol);
+  } catch (error) {
+    return false;
+  }
+}
+
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 480,
@@ -65,6 +74,21 @@ function createMainWindow() {
     }
     mainWindow.show();
     mainWindow.focus();
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (shouldOpenInExternalBrowser(url)) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (shouldOpenInExternalBrowser(url)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
   });
 }
 
@@ -251,7 +275,9 @@ async function bootstrap() {
     if (isDev()) {
       mainWindow.loadURL(`http://localhost:${process.env.FRONTEND_PORT || 3000}`);
     } else {
-      mainWindow.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'));
+      mainWindow.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'), {
+        query: { backendPort: String(port) },
+      });
     }
   } catch (err) {
     log.error('[main] Startup failed:', err);
