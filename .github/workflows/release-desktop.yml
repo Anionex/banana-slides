@@ -64,17 +64,11 @@ jobs:
       - name: Package backend
         run: cd backend && uv run pyinstaller banana-slides.spec --noconfirm
 
-      - name: Prepare desktop build
-        shell: bash
-        run: |
-          cp -r frontend/dist desktop/frontend
-          cp -r backend/dist/banana-backend desktop/backend
-
       - name: Install Electron dependencies
         run: cd desktop && npm ci
 
       - name: Build desktop app
-        run: cd desktop && npx electron-builder --${{ matrix.platform }}
+        run: cd desktop && npm run build:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
