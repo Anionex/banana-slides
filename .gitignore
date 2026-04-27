@@ -70,3 +70,4 @@ _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
 .venv
+banana_slides.egg-info/

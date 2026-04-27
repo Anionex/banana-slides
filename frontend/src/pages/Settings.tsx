@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown } from 'lucide-react';
 import { useT } from '@/hooks/useT';
@@ -39,7 +39,7 @@ const settingsI18n = {
         loadingModels: "正在加载可用模型...",
         connectFirst: "请先连接 OpenAI 账号",
         manualCallbackLabel: "登录后连接失败？",
-        manualCallbackHint: "请复制弹窗浏览器地址栏中的完整地址，粘贴到下方即可完成连接",
+        manualCallbackHint: "请复制浏览器地址栏中的完整地址，粘贴到下方即可完成连接",
         manualCallbackPlaceholder: "粘贴回调地址...",
         manualCallbackSubmit: "提交",
         manualCallbackSuccess: "连接成功",
@@ -164,7 +164,7 @@ const settingsI18n = {
         loadingModels: "Loading available models...",
         connectFirst: "Please connect your OpenAI account first",
         manualCallbackLabel: "Connection failed after login?",
-        manualCallbackHint: "Copy the full URL from the popup's address bar and paste it below to complete the connection",
+        manualCallbackHint: "Copy the full URL from the browser address bar and paste it below to complete the connection",
         manualCallbackPlaceholder: "Paste callback URL...",
         manualCallbackSubmit: "Submit",
         manualCallbackSuccess: "Connected successfully",
@@ -458,26 +458,87 @@ export const Settings: React.FC = () => {
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
   const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const oauthPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const oauthPollInFlightRef = useRef(false);
+
+  const clearOAuthPolling = () => {
+    if (oauthPollTimerRef.current) {
+      clearInterval(oauthPollTimerRef.current);
+      oauthPollTimerRef.current = null;
+    }
+    oauthPollInFlightRef.current = false;
+  };
+
+  const stopOAuthPolling = () => {
+    clearOAuthPolling();
+    setOauthConnecting(false);
+  };
+
+  const syncOAuthStatus = async () => {
+    const statusResp = await api.getOpenAIOAuthStatus();
+    if (statusResp.success && statusResp.data) {
+      setSettings(prev => prev ? {
+        ...prev,
+        openai_oauth_connected: statusResp.data.connected,
+        openai_oauth_account_id: statusResp.data.account_id || undefined,
+      } : prev);
+      return statusResp.data.connected;
+    }
+    return false;
+  };
+
+  const startDesktopOAuthPolling = () => {
+    clearOAuthPolling();
+    setOauthConnecting(true);
+    const deadline = Date.now() + 3 * 60 * 1000;
+
+    oauthPollTimerRef.current = setInterval(async () => {
+      if (oauthPollInFlightRef.current) return;
+      if (Date.now() >= deadline) {
+        stopOAuthPolling();
+        return;
+      }
+
+      oauthPollInFlightRef.current = true;
+      try {
+        const connected = await syncOAuthStatus();
+        if (connected) {
+          stopOAuthPolling();
+        }
+      } catch {
+        if (Date.now() >= deadline) {
+          stopOAuthPolling();
+        }
+      } finally {
+        oauthPollInFlightRef.current = false;
+      }
+    }, 1500);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearOAuthPolling();
+    };
+  }, []);
 
   const handleOAuthLogin = async () => {
     setOauthConnecting(true);
     try {
       const resp = await api.getOpenAIOAuthUrl();
       if (resp.success && resp.data?.auth_url) {
+        if ((window as any).electronAPI?.openExternal) {
+          await (window as any).electronAPI.openExternal(resp.data.auth_url);
+          startDesktopOAuthPolling();
+          return;
+        }
+
         const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
         const onMessage = async (event: MessageEvent) => {
           if (event.data?.type === 'openai-oauth-callback') {
             window.removeEventListener('message', onMessage);
             setOauthConnecting(false);
             if (event.data.success) {
-              const statusResp = await api.getOpenAIOAuthStatus();
-              if (statusResp.success && statusResp.data) {
-                setSettings(prev => prev ? {
-                  ...prev,
-                  openai_oauth_connected: statusResp.data!.connected,
-                  openai_oauth_account_id: statusResp.data!.account_id || undefined,
-                } : prev);
-              }
+              await syncOAuthStatus();
             } else {
               show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
             }
@@ -491,6 +552,9 @@ export const Settings: React.FC = () => {
             window.removeEventListener('message', onMessage);
           }
         }, 1000);
+      } else {
+        setOauthConnecting(false);
+        show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
       }
     } catch {
       setOauthConnecting(false);
@@ -522,14 +586,7 @@ export const Settings: React.FC = () => {
       if (resp.success) {
         setManualCallbackUrl('');
         setManualCallbackOpen(false);
-        const statusResp = await api.getOpenAIOAuthStatus();
-        if (statusResp.success && statusResp.data) {
-          setSettings(prev => prev ? {
-            ...prev,
-            openai_oauth_connected: statusResp.data!.connected,
-            openai_oauth_account_id: statusResp.data!.account_id || undefined,
-          } : prev);
-        }
+        await syncOAuthStatus();
         show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
       } else {
         show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });

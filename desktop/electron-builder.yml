@@ -24,15 +24,11 @@ extraResources:
     to: "icon.ico"
   - from: "resources/icon.png"
     to: "icon.png"
-  - from: "../backend/"
+  - from: "backend/"
     to: "backend"
     filter:
       - "**/*"
-      - "!.venv/**"
-      - "!__pycache__/**"
-      - "!**/__pycache__/**"
-      - "!*.pyc"
-  - from: "../frontend/dist/"
+  - from: "frontend/"
     to: "frontend"
     filter:
       - "**/*"

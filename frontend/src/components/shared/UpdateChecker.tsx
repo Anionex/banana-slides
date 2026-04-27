@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { isDesktop } from '@/utils';
+import { DESKTOP_TITLEBAR_HEIGHT, isDesktop } from '@/utils';
 
 interface UpdateInfo {
   version: string;
@@ -40,7 +40,7 @@ export function UpdateChecker() {
     <div
       className="fixed left-0 right-0 z-40 flex items-center justify-center px-4 py-1.5"
       style={{
-        top: 50,
+        top: DESKTOP_TITLEBAR_HEIGHT,
         background: 'linear-gradient(135deg, #FFF8E1, #FFE082)',
         borderBottom: '1px solid rgba(255, 183, 77, 0.3)',
       }}

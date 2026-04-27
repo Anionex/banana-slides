@@ -9,7 +9,7 @@ import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { useProjectStore } from './store/useProjectStore';
 import { useToast, AccessCodeGuard, DesktopTitleBar, UpdateChecker } from './components/shared';
-import { isDesktop } from '@/utils';
+import { DESKTOP_TITLEBAR_HEIGHT, isDesktop } from '@/utils';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
@@ -35,7 +35,7 @@ function App() {
   return (
     <>
       <UpdateChecker />
-      <div style={isDesktop ? { paddingTop: '50px' } : undefined}>
+      <div style={isDesktop ? { paddingTop: `${DESKTOP_TITLEBAR_HEIGHT}px` } : undefined}>
         <AccessCodeGuard>
           {(() => {
             const Router = isDesktop ? HashRouter : BrowserRouter;
@@ -63,4 +63,3 @@ function App() {
 }
 
 export default App;
-

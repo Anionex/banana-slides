@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
@@ -689,10 +690,20 @@ def _sync_settings_to_config(settings: Settings):
 
 
 def _get_test_image_path() -> Path:
-    test_image = Path(PROJECT_ROOT) / "assets" / "test_img.png"
-    if not test_image.exists():
-        raise FileNotFoundError("未找到 test_img.png，请确认已放在项目根目录 assets 下")
-    return test_image
+    candidates = [Path(PROJECT_ROOT) / "assets" / "test_img.png"]
+
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.extend([
+            exe_dir / "assets" / "test_img.png",
+            exe_dir / "_internal" / "assets" / "test_img.png",
+        ])
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError("未找到 test_img.png，请确认打包资源或项目根目录 assets 下存在该文件")
 
 
 def _get_baidu_credentials():

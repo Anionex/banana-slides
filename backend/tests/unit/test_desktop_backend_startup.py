@@ -116,6 +116,53 @@ def test_desktop_backend_repairs_old_settings_schema_before_update(tmp_path):
             "INSERT INTO alembic_version (version_num) VALUES (?)",
             [('267dcee7b580',), ('016_add_narration_text_to_pages',)],
         )
+        conn.execute(
+            """
+            CREATE TABLE projects (
+                id VARCHAR(36) PRIMARY KEY,
+                idea_prompt TEXT,
+                outline_text TEXT,
+                description_text TEXT,
+                extra_requirements TEXT,
+                creation_type VARCHAR(20) NOT NULL,
+                template_image_path VARCHAR(500),
+                status VARCHAR(50) NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO projects (
+                id, idea_prompt, creation_type, status, created_at, updated_at
+            ) VALUES (
+                'old-project', 'legacy idea', 'idea', 'DRAFT',
+                '2026-01-01 00:00:00', '2026-01-01 00:00:00'
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE user_templates (
+                id VARCHAR(36) PRIMARY KEY,
+                name VARCHAR(200),
+                file_path VARCHAR(500) NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO user_templates (
+                id, name, file_path, created_at, updated_at
+            ) VALUES (
+                'old-template', 'Legacy Template', 'templates/old-template.png',
+                '2026-01-01 00:00:00', '2026-01-01 00:00:00'
+            )
+            """
+        )
 
     port, proc = _start_desktop_backend(tmp_path, db_path)
     try:
@@ -136,10 +183,26 @@ def test_desktop_backend_repairs_old_settings_schema_before_update(tmp_path):
         assert response.status == 200
         assert body["success"] is True
 
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/projects?limit=5&offset=0", timeout=5) as response:
+            projects_body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert projects_body["success"] is True
+        assert projects_body["data"]["total"] == 1
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/user-templates", timeout=5) as response:
+            templates_body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert templates_body["success"] is True
+
         with sqlite3.connect(db_path) as conn:
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(settings)")}
-            assert "enable_text_reasoning" in columns
-            assert "text_thinking_budget" in columns
+            settings_columns = {row[1] for row in conn.execute("PRAGMA table_info(settings)")}
+            project_columns = {row[1] for row in conn.execute("PRAGMA table_info(projects)")}
+            template_columns = {row[1] for row in conn.execute("PRAGMA table_info(user_templates)")}
+            assert "enable_text_reasoning" in settings_columns
+            assert "text_thinking_budget" in settings_columns
+            assert "outline_requirements" in project_columns
+            assert "description_requirements" in project_columns
+            assert "thumb_path" in template_columns
             value = conn.execute("SELECT enable_text_reasoning FROM settings WHERE id = 1").fetchone()[0]
             assert value == 1
     finally:

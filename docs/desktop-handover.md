@@ -49,12 +49,12 @@ Error: Path doesn't exist: migrations. Please use the 'init' command to create a
 **最终修复：**
 - 桌面模式由 Electron 传入 `DATABASE_PATH` / `UPLOAD_FOLDER` / `EXPORT_FOLDER`，这些运行时路径不会被仓库 `.env` 覆盖。
 - `backend/app.py` 只在桌面模式（`DATABASE_PATH` 存在）跳过 Alembic，使用 `db.create_all()` 初始化本地 SQLite。
-- `backend/desktop_bootstrap.py` 只在桌面模式运行，用于修复旧安装包创建的本地 SQLite schema；Docker/源码部署不执行这段兼容补列逻辑。
+- `backend/desktop_bootstrap.py` 只在桌面模式运行，用于修复旧安装包创建的本地 SQLite schema；当前会补齐 `settings`、`projects`、`pages`、`user_templates` 等已知缺失列，Docker/源码部署不执行这段兼容补列逻辑。
 - 非桌面模式保留原有 Alembic/fallback 启动路径，避免桌面兼容逻辑影响 Docker、源码部署等用法。
 
 **验证结果：**
 - 源码模式：从非 `backend/` 工作目录启动，并设置 `DATABASE_PATH`，`/health` 正常返回 200。
-- 旧桌面库：手工创建缺少 `settings.enable_text_reasoning` 的 SQLite 数据库后，启动后端并 PUT `/api/settings` 正常返回 200。
+- 旧桌面库：手工创建缺少 `settings.enable_text_reasoning`、`projects.outline_requirements`、`user_templates.thumb_path` 的 SQLite 数据库后，启动后端并请求 `/api/settings`、`/api/projects`、`/api/user-templates` 正常返回 200。
 - 打包模式：`C:\tmp\banana-build\backend\banana-backend.exe` 使用桌面数据目录启动，`/health` 正常返回 200，数据库文件正常创建。
 
 **相关文件：**
@@ -62,6 +62,21 @@ Error: Path doesn't exist: migrations. Please use the 'init' command to create a
 - `backend/desktop_bootstrap.py`
 - `backend/banana-slides.spec`
 - `backend/tests/unit/test_desktop_backend_startup.py`
+
+### ✅ 版本检测误报旧版本
+
+**现象：** 本地新打的桌面包有时会提示 GitHub 上的旧 release 可更新，尤其是在版本号没有变化、但源码提交比线上 release 更新时。
+
+**最终修复：**
+- 版本检测不再只按 `semver` 比较 `app.getVersion()` 和 `releases/latest`。
+- 构建前生成 `desktop/build-meta.json`，记录当前源码提交时间、构建时间和 dirty 状态。
+- 运行时获取最新 release 对应 tag 的提交时间，只在 release 提交时间比当前构建更新时才提示升级。
+- 对本地 dirty 验收包，回退使用构建时间，避免本地新包被旧 release 误报。
+
+**相关文件：**
+- `desktop/auto-updater.js`
+- `desktop/update-policy.js`
+- `desktop/scripts/sync-build-meta.js`
 
 ---
 
@@ -80,25 +95,29 @@ Error: Path doesn't exist: migrations. Please use the 'init' command to create a
 cd /home/aa/banana-slides-electron/frontend
 ./node_modules/.bin/vite build
 
-# 2. 同步文件到 Windows 构建目录
+# 2. 在 WSL 里生成桌面构建元数据（版本检测依赖）
+cd /home/aa/banana-slides-electron/desktop
+node scripts/sync-build-meta.js
+
+# 3. 同步文件到 Windows 构建目录
 rsync -a /home/aa/banana-slides-electron/desktop/ /mnt/c/tmp/banana-build/desktop/ --exclude=node_modules --exclude=dist
 rsync -a /home/aa/banana-slides-electron/frontend/dist/ /mnt/c/tmp/banana-build/frontend/
 rsync -a /home/aa/banana-slides-electron/backend/ /mnt/c/tmp/banana-build/backend_src/ \
   --exclude=__pycache__ --exclude=.venv --exclude=dist --exclude=build --exclude='*.egg-info'
 
-# 3. 在 Windows 侧用干净 venv 跑 PyInstaller（重要：不能用全局 Python，全局有 torch 会卡死）
+# 4. 在 Windows 侧用干净 venv 跑 PyInstaller（重要：不能用全局 Python，全局有 torch 会卡死）
 # 先确保 C:\tmp\banana-build\.venv 存在（uv sync 创建）
 powershell.exe -Command "cd 'C:\tmp\banana-build\backend_src'; & '..\\.venv\\Scripts\\python.exe' -m PyInstaller banana-slides.spec --noconfirm --log-level WARN"
 
-# 4. 把 PyInstaller 输出移到 backend/
+# 5. 把 PyInstaller 输出移到 backend/
 powershell.exe -Command "Remove-Item -Recurse -Force 'C:\tmp\banana-build\backend'; Copy-Item -Recurse 'C:\tmp\banana-build\backend_src\dist\banana-backend' 'C:\tmp\banana-build\backend'"
 
-# 5. electron-builder 打包
+# 6. electron-builder 打包
 powershell.exe -Command "
   \$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'
   \$env:CSC_IDENTITY_AUTO_DISCOVERY='false'
   cd 'C:\tmp\banana-build\desktop'
-  npx electron-builder --win --config.win.signAndEditExecutable=false
+  npx electron-builder --win
 "
 ```
 
@@ -109,7 +128,9 @@ powershell.exe -Command "
 1. **PyInstaller 必须用项目 .venv 的 Python**，不能用全局 Python（全局有 torch 等大包，分析阶段会卡死 10+ 分钟）
 2. **`package.json` 里不能有 `"build": {}`**，空对象会覆盖 `electron-builder.yml` 的所有配置
 3. **`extraResources` 的 `from` 路径**相对于 `desktop/` 目录，backend 和 frontend 是兄弟目录，需要 `../backend/` 和 `../frontend/`
-4. **Windows SmartScreen** 会拦截未签名的 exe，右键 → 属性 → 解除锁定，或右键以管理员身份运行
+4. **打包前先生成 `build-meta.json`**，否则版本检测会退回旧的 semver-only 逻辑
+5. **不要传 `signAndEditExecutable=false`**，否则 Windows 可执行文件图标等资源不会被正确写入
+6. **Windows SmartScreen** 会拦截未签名的 exe，右键 → 属性 → 解除锁定，或右键以管理员身份运行
 
 ---
 
