@@ -32,6 +32,10 @@ extraResources:
     to: "frontend"
     filter:
       - "**/*"
+  - from: "resources/ffmpeg/"
+    to: "ffmpeg"
+    filter:
+      - "**/*"
 
 icon: resources/icon
 

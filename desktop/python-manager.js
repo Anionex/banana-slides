@@ -52,6 +52,9 @@ async function startBackend(userDataPath) {
   const uploadsDir = path.join(userDataPath, 'uploads');
   const exportsDir = path.join(userDataPath, 'exports');
 
+  const ffmpegDir = path.join(process.resourcesPath, 'ffmpeg');
+  const ffmpegExe = path.join(ffmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+
   const env = {
     ...process.env,
     BACKEND_PORT: String(backendPort),
@@ -60,6 +63,7 @@ async function startBackend(userDataPath) {
     EXPORT_FOLDER: exportsDir,
     FLASK_ENV: 'production',
     CORS_ORIGINS: '*',
+    FFMPEG_PATH: ffmpegExe,
   };
 
   log.info(`[python-manager] Starting backend: ${backendPath} on port ${backendPort}`);

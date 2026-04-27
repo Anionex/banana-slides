@@ -73,6 +73,7 @@ function createMainWindow() {
     if (splashWindow) {
       splashWindow.close();
     }
+    mainWindow.webContents.setZoomFactor(0.8);
     mainWindow.show();
     mainWindow.focus();
   });
