@@ -2,7 +2,7 @@ appId: com.banana.slides
 productName: Banana Slides
 
 directories:
-  output: dist
+  output: C:\tmp\banana-build\desktop\dist
   buildResources: resources
 
 files:
@@ -10,6 +10,8 @@ files:
   - "python-manager.js"
   - "preload.js"
   - "auto-updater.js"
+  - "update-policy.js"
+  - "build-meta.json"
   - "splash.html"
   - "logo.png"
   - "resources/icon.ico"
@@ -26,7 +28,11 @@ extraResources:
     to: "backend"
     filter:
       - "**/*"
-  - from: "../frontend/"
+      - "!.venv/**"
+      - "!__pycache__/**"
+      - "!**/__pycache__/**"
+      - "!*.pyc"
+  - from: "../frontend/dist/"
     to: "frontend"
     filter:
       - "**/*"
@@ -68,9 +74,9 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Banana Slides"
-  installerIcon: resources/installer-icon.ico
-  uninstallerIcon: resources/installer-icon.ico
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
   installerSidebar: resources/installerSidebar.bmp
   installerHeader: resources/installerHeader.bmp
 
-compression: maximum
+compression: normal
