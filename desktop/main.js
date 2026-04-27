@@ -6,6 +6,7 @@ const autoUpdater = require('./auto-updater');
 
 let mainWindow = null;
 let splashWindow = null;
+let trayMenuWindow = null;
 let tray = null;
 let isQuitting = false;
 
@@ -92,22 +93,77 @@ function createMainWindow() {
   });
 }
 
+function createTrayMenuWindow() {
+  const items = [
+    { id: 'show', label: '显示主窗口' },
+    { id: 'sep' },
+    { id: 'quit', label: '退出' },
+  ];
+  const ITEM_H = 28;
+  const SEP_H = 9;
+  const PADDING = 4;
+  const totalH = items.reduce((h, it) => h + (it.id === 'sep' ? SEP_H : ITEM_H), 0) + PADDING * 2;
+
+  trayMenuWindow = new BrowserWindow({
+    width: 150,
+    height: totalH,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: { nodeIntegration: true, contextIsolation: false },
+  });
+
+  const itemsHtml = items.map(it => {
+    if (it.id === 'sep') return `<div style="height:1px;background:#e5e7eb;margin:4px 8px;"></div>`;
+    return `<div class="item" data-id="${it.id}">${it.label}</div>`;
+  }).join('');
+
+  trayMenuWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:${PADDING}px 0;font-family:-apple-system,sans-serif;font-size:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+    .item{height:${ITEM_H}px;display:flex;align-items:center;padding:0 12px;color:#374151;cursor:pointer;user-select:none;white-space:nowrap}
+    .item:hover{background:#f3f4f6;color:#111827}
+  </style></head><body>${itemsHtml}
+  <script>
+    document.querySelectorAll('.item').forEach(el=>{
+      el.addEventListener('click',()=>require('electron').ipcRenderer.send('tray-menu-action',el.dataset.id));
+    });
+    window.addEventListener('blur',()=>require('electron').ipcRenderer.send('tray-menu-close'));
+  </script></body></html>`));
+
+  trayMenuWindow.on('blur', () => trayMenuWindow?.hide());
+}
+
+function showTrayMenu() {
+  if (!trayMenuWindow) createTrayMenuWindow();
+  const { x, y, height } = tray.getBounds();
+  const { height: screenH } = require('electron').screen.getPrimaryDisplay().workAreaSize;
+  const winBounds = trayMenuWindow.getBounds();
+  // Position above or below the tray icon
+  const posY = y + height + winBounds.height > screenH ? y - winBounds.height : y + height;
+  trayMenuWindow.setPosition(Math.round(x - winBounds.width / 2 + 8), Math.round(posY));
+  trayMenuWindow.show();
+  trayMenuWindow.focus();
+}
+
 function createTray() {
   const icon = nativeImage.createFromPath(getIconPath()).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip('Banana Slides');
 
-  const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
-    { type: 'separator' },
-    { label: '退出', click: () => { isQuitting = true; app.quit(); } },
-  ]);
-  tray.setContextMenu(contextMenu);
+  tray.on('right-click', () => showTrayMenu());
+  tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
 
-  tray.on('double-click', () => {
-    mainWindow?.show();
-    mainWindow?.focus();
+  ipcMain.on('tray-menu-action', (_, id) => {
+    trayMenuWindow?.hide();
+    if (id === 'show') { mainWindow?.show(); mainWindow?.focus(); }
+    else if (id === 'quit') { isQuitting = true; app.quit(); }
   });
+  ipcMain.on('tray-menu-close', () => trayMenuWindow?.hide());
 }
 
 function createAppMenu() {
