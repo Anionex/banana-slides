@@ -1,0 +1,29 @@
+{
+  "name": "banana-slides-desktop",
+  "version": "0.3.0",
+  "description": "Banana Slides Desktop App",
+  "main": "main.js",
+  "author": "Anionex",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "prepare": "node scripts/prepare-artifacts.js",
+    "build:meta": "node scripts/sync-build-meta.js",
+    "prebuild:win": "npm run prepare && npm run build:meta",
+    "prebuild:mac": "npm run prepare && npm run build:meta",
+    "prebuild:all": "npm run prepare && npm run build:meta",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder --win --mac"
+  },
+  "dependencies": {
+    "electron-log": "^5.1.0",
+    "semver": "^7.6.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

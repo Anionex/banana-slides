@@ -3,6 +3,7 @@ import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 import { devLog } from '@/utils/logger';
+import { triggerDownload } from '@/api/client';
 import { getT } from '@/utils/i18nHelper';
 
 const storeI18n = {
@@ -521,7 +522,7 @@ const debouncedUpdatePage = debounce(
               devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
               // 延迟一下，确保状态更新完成后再打开下载链接
               setTimeout(() => {
-                window.open(downloadUrl, '_blank');
+                triggerDownload(downloadUrl);
               }, 500);
             } else {
               console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
@@ -1236,7 +1237,7 @@ const debouncedUpdatePage = debounce(
       }
 
       // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      triggerDownload(downloadUrl);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1261,7 +1262,7 @@ const debouncedUpdatePage = debounce(
       }
 
       // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      triggerDownload(downloadUrl);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {

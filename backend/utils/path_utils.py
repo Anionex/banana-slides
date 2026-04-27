@@ -27,15 +27,22 @@ def convert_mineru_path_to_local(mineru_path: str, project_root: Optional[Path] 
         # Remove '/files/mineru/' prefix
         rel_path = mineru_path.replace('/files/mineru/', '')
         
-        # Get project root if not provided
-        if project_root is None:
-            # Navigate to project root (assuming this file is in backend/utils/)
-            current_file = Path(__file__).resolve()
-            backend_dir = current_file.parent.parent
-            project_root = backend_dir.parent
-        
-        # Construct full path: {project_root}/uploads/mineru_files/{rel_path}
-        local_path = project_root / 'uploads' / 'mineru_files' / rel_path
+        # Get upload folder: prefer Flask app config (works in desktop/packaged mode),
+        # fall back to path-based computation from __file__.
+        if project_root is not None:
+            upload_folder = project_root / 'uploads'
+        else:
+            try:
+                from flask import current_app
+                upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+            except (RuntimeError, KeyError):
+                # Not in Flask context — derive from file location
+                current_file = Path(__file__).resolve()
+                backend_dir = current_file.parent.parent
+                upload_folder = backend_dir.parent / 'uploads'
+
+        # Construct full path: {upload_folder}/mineru_files/{rel_path}
+        local_path = upload_folder / 'mineru_files' / rel_path
         
         return local_path
     except Exception as e:

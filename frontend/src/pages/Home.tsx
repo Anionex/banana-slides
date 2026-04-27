@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
@@ -12,7 +13,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
+import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
+import { isDesktop } from '@/utils';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -180,7 +183,7 @@ const homeI18n = {
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
-  const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
+  const t = useT(homeI18n);
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
@@ -254,6 +257,18 @@ export const Home: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, []);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'material-generate') {
+      setIsMaterialModalOpen(true);
+      setSearchParams({}, { replace: true });
+    } else if (action === 'material-center') {
+      setIsMaterialCenterOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleOpenMaterialModal = () => {
     // 在主页始终生成全局素材，不关联任何项目
@@ -693,14 +708,15 @@ export const Home: React.FC = () => {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-yellow-400/5 rounded-full blur-3xl"></div>
       </div>
 
-      {/* 导航栏 */}
+      {/* 导航栏 — web only */}
+      {!isDesktop && (
       <nav className="relative z-50 h-16 md:h-18 bg-white/40 dark:bg-background-primary backdrop-blur-2xl dark:backdrop-blur-none dark:border-b dark:border-border-primary">
 
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center">
               <img
-                src="/logo.png"
+                src={logoUrl}
                 alt="蕉幻 Banana Slides Logo"
                 className="h-10 md:h-12 w-auto rounded-lg object-contain"
               />
@@ -842,6 +858,7 @@ export const Home: React.FC = () => {
           </div>
         </div>
       </nav>
+      )}
 
       {/* 主内容 */}
       <main className="relative max-w-5xl mx-auto px-3 md:px-4 py-8 md:py-12">

@@ -162,3 +162,6 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
 
   return errorMessage;
 }
+
+export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+export const DESKTOP_TITLEBAR_HEIGHT = 38;

@@ -1,18 +1,40 @@
 import axios from 'axios';
+import { isDesktop } from '@/utils';
 
-// 开发环境：通过 Vite proxy 转发
-// 生产环境：通过 nginx proxy 转发
-const API_BASE_URL = '';
+// 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态
+if (isDesktop) {
+  const port = parseInt((window as any).electronAPI.getBackendPort(), 10) || 5000;
+  (window as any).__BACKEND_PORT__ = port;
+}
+
+export function getBaseURL(): string {
+  if (!isDesktop) return '';
+  const port = (window as any).__BACKEND_PORT__ || 5000;
+  return `http://127.0.0.1:${port}`;
+}
+
+// 统一下载入口：desktop 走原生保存对话框，web 走 window.open
+export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string): void {
+  if (isDesktop) {
+    const url = relativeOrAbsoluteUrl.startsWith('http')
+      ? relativeOrAbsoluteUrl
+      : `${getBaseURL()}${relativeOrAbsoluteUrl}`;
+    (window as any).electronAPI.downloadFile(url, filename || url.split('/').pop() || 'download');
+  } else {
+    window.open(relativeOrAbsoluteUrl, '_blank');
+  }
+}
 
 // 创建 axios 实例
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   timeout: 300000, // 5分钟超时（AI生成可能很慢）
 });
 
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    config.baseURL = getBaseURL();
+
     // Attach access code header for backend enforcement
     const accessCode = localStorage.getItem('banana-access-code');
     if (accessCode && config.headers) {
@@ -69,6 +91,10 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
   }
   // 使用相对路径（确保以 / 开头）
   let url = path.startsWith('/') ? path : '/' + path;
+
+  if (isDesktop) {
+    url = `${getBaseURL()}${url}`;
+  }
   
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
@@ -82,4 +108,3 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
 };
 
 export default apiClient;
-

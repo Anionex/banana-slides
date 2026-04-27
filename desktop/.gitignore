@@ -1,0 +1,6 @@
+node_modules/
+dist/
+build/
+frontend/
+*.log
+build-meta.json

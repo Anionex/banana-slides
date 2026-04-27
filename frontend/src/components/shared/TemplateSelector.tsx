@@ -65,9 +65,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const { show, ToastContainer } = useToast();
 
   const presetTemplates = [
-    { id: '1', nameKey: 'template.presets.retroScroll', preview: '/templates/template_y.png', thumb: '/templates/template_y-thumb.webp' },
-    { id: '2', nameKey: 'template.presets.vectorIllustration', preview: '/templates/template_vector_illustration.png', thumb: '/templates/template_vector_illustration-thumb.webp' },
-    { id: '3', nameKey: 'template.presets.glassEffect', preview: '/templates/template_glass.png', thumb: '/templates/template_glass-thumb.webp' },
+    { id: '1', nameKey: 'template.presets.retroScroll', preview: './templates/template_y.png', thumb: './templates/template_y-thumb.webp' },
+    { id: '2', nameKey: 'template.presets.vectorIllustration', preview: './templates/template_vector_illustration.png', thumb: './templates/template_vector_illustration-thumb.webp' },
+    { id: '3', nameKey: 'template.presets.glassEffect', preview: './templates/template_glass.png', thumb: './templates/template_glass-thumb.webp' },
   ];
 
   useEffect(() => {
@@ -316,9 +316,9 @@ export const getTemplateFile = async (
   userTemplates: UserTemplate[]
 ): Promise<File | null> => {
   const presetTemplates = [
-    { id: '1', preview: '/templates/template_y.png' },
-    { id: '2', preview: '/templates/template_vector_illustration.png' },
-    { id: '3', preview: '/templates/template_glass.png' },
+    { id: '1', preview: './templates/template_y.png' },
+    { id: '2', preview: './templates/template_vector_illustration.png' },
+    { id: '3', preview: './templates/template_glass.png' },
   ];
 
   const presetTemplate = presetTemplates.find(t => t.id === templateId);

@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, getBaseURL } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
 import type { Settings } from '../types/index';
 
@@ -153,7 +153,7 @@ export const generateOutlineStream = async (
   const lang = language || await getStoredOutputLanguage();
   const accessCode = localStorage.getItem('banana-access-code');
 
-  const response = await fetch(`/api/projects/${projectId}/generate/outline/stream`, {
+  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/outline/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -266,7 +266,7 @@ export const generateDescriptionsStream = async (
   const lang = language || await getStoredOutputLanguage();
   const accessCode = localStorage.getItem('banana-access-code');
 
-  const response = await fetch(`/api/projects/${projectId}/generate/descriptions/stream`, {
+  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/descriptions/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

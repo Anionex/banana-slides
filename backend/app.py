@@ -1,8 +1,14 @@
+import sys
+if sys.platform == 'win32':
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr is not None:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 """
 Simplified Flask Application Entry Point
 """
 import os
-import sys
 import hmac
 import logging
 from pathlib import Path
@@ -13,10 +19,13 @@ import sqlite3
 from sqlalchemy.exc import SQLAlchemyError
 from flask_migrate import Migrate
 
+if __name__ == '__main__':
+    sys.modules.setdefault('app', sys.modules[__name__])
+
 # Load environment variables from project root .env file
 _project_root = Path(__file__).parent.parent
 _env_file = _project_root / '.env'
-load_dotenv(dotenv_path=_env_file, override=True)
+load_dotenv(dotenv_path=_env_file, override=not os.getenv('DATABASE_PATH'))
 
 from flask import Flask
 from flask_cors import CORS
@@ -71,6 +80,21 @@ def create_app():
     os.makedirs(upload_folder, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_folder
     
+    # Desktop environment overrides (set by Electron python-manager)
+    db_path_env = os.environ.get('DATABASE_PATH')
+    upload_folder_env = os.environ.get('UPLOAD_FOLDER')
+    export_folder_env = os.environ.get('EXPORT_FOLDER')
+
+    if db_path_env:
+        os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path_env}'
+    if upload_folder_env:
+        os.makedirs(upload_folder_env, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = upload_folder_env
+    if export_folder_env:
+        os.makedirs(export_folder_env, exist_ok=True)
+        app.config['EXPORT_FOLDER'] = export_folder_env
+
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
     if raw_cors.strip() == '*':
@@ -117,6 +141,21 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
+        if db_path_env:
+            db.create_all()
+            from desktop_bootstrap import repair_desktop_settings_schema
+            repair_desktop_settings_schema(db)
+        else:
+            migrations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'migrations')
+            if os.path.exists(migrations_dir):
+                try:
+                    from flask_migrate import upgrade as alembic_upgrade
+                    alembic_upgrade()
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
+                    db.create_all()
+            else:
+                db.create_all()
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
@@ -323,7 +362,6 @@ def _load_settings_to_config(app):
             logging.debug(f"Settings table not yet created (expected on first boot): {e}")
         else:
             logging.warning(f"Could not load settings from database: {e}")
-
 
 # Create app instance
 app = create_app()
