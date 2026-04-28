@@ -1,0 +1,8 @@
+# Banana Slides funding links shown in the repository Sponsor button.
+# GitHub currently supports one Open Collective handle plus up to four custom links.
+
+open_collective: anionex
+
+custom:
+  - https://ifdian.net/a/anionex
+  - https://github.com/Anionex/banana-slides#赞赏
