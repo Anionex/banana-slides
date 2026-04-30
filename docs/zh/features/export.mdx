@@ -13,6 +13,10 @@ description: "导出为 PPTX、PDF 或图片"
 | 图片 | 每页导出为独立图片文件 |
 | 讲解视频 | 将幻灯片图片与 AI 旁白合成为 MP4 视频，可选字幕与画面动效 |
 
+<Note>
+  Docker 部署已在镜像内安装好视频导出所需的 FFmpeg 依赖。源码部署请先安装带 `libass` / `ass` 字幕滤镜的 FFmpeg，例如 macOS 运行 `brew install ffmpeg libass`，Ubuntu / Debian 运行 `sudo apt-get update && sudo apt-get install -y ffmpeg libass9`。
+</Note>
+
 ## 画面比例
 
 默认 16:9，也可在创建项目时或项目预览页的「项目设置」中更改。支持 16:9、4:3、21:9、1:1、9:16 等多种比例。比例变更后需重新生成图片才会生效。

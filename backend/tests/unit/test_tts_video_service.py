@@ -46,6 +46,7 @@ _prompts_mod = _load_module_directly(
 
 get_default_voice = _tts_mod.get_default_voice
 check_ffmpeg_available = _tts_mod.check_ffmpeg_available
+check_ffmpeg_ass_filter_available = _tts_mod.check_ffmpeg_ass_filter_available
 get_audio_duration = _tts_mod.get_audio_duration
 KEN_BURNS_EFFECTS = _tts_mod.KEN_BURNS_EFFECTS
 composite_video = _tts_mod.composite_video
@@ -54,6 +55,7 @@ _wait_for_process_with_idle_watchdog = _tts_mod._wait_for_process_with_idle_watc
 _split_narration_to_sentences = _tts_mod._split_narration_to_sentences
 _build_timed_subtitle_entries = _tts_mod._build_timed_subtitle_entries
 generate_ass_subtitle = _tts_mod.generate_ass_subtitle
+burn_subtitles = _tts_mod.burn_subtitles
 _MAX_SUBTITLE_SEGMENT_LENGTH = _tts_mod._MAX_SUBTITLE_SEGMENT_LENGTH
 _DEFAULT_SILENT_DURATION = _tts_mod._DEFAULT_SILENT_DURATION
 _FFMPEG_IDLE_TIMEOUT_SECONDS = _tts_mod._FFMPEG_IDLE_TIMEOUT_SECONDS
@@ -118,6 +120,30 @@ class TestCheckFfmpegAvailable:
     @patch.object(_tts_mod.subprocess, 'run', side_effect=OSError("permission denied"))
     def test_ffmpeg_error(self, mock_run):
         assert check_ffmpeg_available() is False
+
+
+class TestCheckFfmpegAssFilterAvailable:
+    """测试 ASS 字幕滤镜可用性检查"""
+
+    @patch.object(_tts_mod.subprocess, 'run')
+    def test_ass_filter_available(self, mock_run):
+        mock_run.return_value = MagicMock(
+            stdout=" TSC ass              V->V       Render ASS subtitles onto input video using the libass library.\n",
+            stderr='',
+        )
+        assert check_ffmpeg_ass_filter_available() is True
+
+    @patch.object(_tts_mod.subprocess, 'run')
+    def test_ass_filter_missing(self, mock_run):
+        mock_run.return_value = MagicMock(
+            stdout=" .. scale            V->V       Scale the input video size and/or convert the image format.\n",
+            stderr='',
+        )
+        assert check_ffmpeg_ass_filter_available() is False
+
+    @patch.object(_tts_mod.subprocess, 'run', side_effect=FileNotFoundError)
+    def test_ass_filter_check_not_found(self, mock_run):
+        assert check_ffmpeg_ass_filter_available() is False
 
 
 class TestGetAudioDuration:
@@ -345,6 +371,40 @@ class TestSubtitleSplitting:
             assert 'BorderStyle' in content
         finally:
             os.unlink(path)
+
+
+class TestBurnSubtitles:
+    """测试字幕烧录命令构造"""
+
+    @patch.object(_tts_mod, '_run_ffmpeg_command')
+    def test_uses_filename_option_and_escapes_path(self, mock_run_ffmpeg):
+        burn_subtitles(
+            '/tmp/input.mp4',
+            "/tmp/demo:folder/it's,ok[1].ass",
+            '/tmp/output.mp4',
+        )
+
+        mock_run_ffmpeg.assert_called_once()
+        cmd = mock_run_ffmpeg.call_args.args[0]
+        vf_value = cmd[cmd.index('-vf') + 1]
+        assert vf_value == "ass=filename='/tmp/demo\\:folder/it\\'s\\,ok\\[1\\].ass'"
+
+
+class TestGenerateNarrationVideoPrerequisites:
+    """测试视频导出前置依赖检查"""
+
+    @patch.object(_tts_mod, 'check_ffmpeg_ass_filter_available', return_value=False)
+    @patch.object(_tts_mod, 'check_ffmpeg_available', return_value=True)
+    def test_fails_early_when_subtitles_required_but_ass_filter_missing(self, mock_ffmpeg, mock_ass):
+        with pytest.raises(RuntimeError, match='ASS 字幕烧录'):
+            _tts_mod.generate_narration_video(
+                pages_data=[{
+                    'image_path': '/tmp/fake.png',
+                    'narration_text': '有旁白就需要字幕',
+                    'page_index': 0,
+                }],
+                output_path='/tmp/out.mp4',
+            )
 
 
 class TestNarrationPrompt:

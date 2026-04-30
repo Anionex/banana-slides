@@ -242,6 +242,20 @@ def check_ffmpeg_available(ffmpeg_path: str = 'ffmpeg') -> bool:
         return False
 
 
+def check_ffmpeg_ass_filter_available(ffmpeg_path: str = 'ffmpeg') -> bool:
+    """检查 ffmpeg 是否支持 ASS 字幕烧录滤镜。"""
+    try:
+        result = subprocess.run(
+            [ffmpeg_path, '-hide_banner', '-filters'],
+            capture_output=True, text=True, check=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return False
+
+    filter_listing = f"{result.stdout}\n{result.stderr}"
+    return re.search(r'^\s*[TSC\.|]+\s+ass\s+', filter_listing, re.MULTILINE) is not None
+
+
 def get_audio_duration(audio_path: str, ffmpeg_path: str = 'ffmpeg') -> float:
     """使用 ffprobe 获取音频时长（秒）"""
     ffprobe_path = ffmpeg_path.replace('ffmpeg', 'ffprobe')
@@ -700,6 +714,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f.write(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
 
 
+def _escape_ffmpeg_filter_value(value: str) -> str:
+    """转义 FFmpeg filter 参数值，避免路径被误解析为额外选项。"""
+    escaped = value.replace('\\', '/')
+    for old, new in (
+        (':', '\\:'),
+        ("'", "\\'"),
+        (',', '\\,'),
+        ('[', '\\['),
+        (']', '\\]'),
+        (';', '\\;'),
+    ):
+        escaped = escaped.replace(old, new)
+    return escaped
+
+
 def burn_subtitles(
     video_path: str,
     subtitle_path: str,
@@ -708,13 +737,12 @@ def burn_subtitles(
     idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """将 ASS 字幕烧录到视频中"""
-    # fontsdir 让 libass 知道系统字体位置
-    escaped_sub = subtitle_path.replace('\\', '/').replace(':', '\\:').replace("'", "\\'").replace(',', '\\,')
+    escaped_sub = _escape_ffmpeg_filter_value(subtitle_path)
 
     cmd = [
         ffmpeg_path, '-y',
         '-i', video_path,
-        '-vf', f"ass='{escaped_sub}'",
+        '-vf', f"ass=filename='{escaped_sub}'",
         '-c:v', 'libx264',
         '-c:a', 'copy',
         '-pix_fmt', 'yuv420p',
@@ -856,6 +884,14 @@ def generate_narration_video(
         raise RuntimeError(
             "FFmpeg is not installed or not found in PATH. "
             "Please install FFmpeg to use video export."
+        )
+
+    requires_subtitles = any((page.get('narration_text') or '').strip() for page in pages_data)
+    if requires_subtitles and not check_ffmpeg_ass_filter_available(ffmpeg_path):
+        raise RuntimeError(
+            "当前 FFmpeg 不支持 ASS 字幕烧录（缺少 libass / ass filter）。"
+            "视频导出需要安装带 libass 的 FFmpeg。"
+            "请安装或重装支持 ASS 字幕的 FFmpeg 后重试。"
         )
 
     if silent_duration <= 0:

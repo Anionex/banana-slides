@@ -13,6 +13,10 @@ description: "Export presentations as PPTX, PDF, or images"
 | Images | Each page exported as an individual image file |
 | Narration Video | Combines slide images with AI narration into an MP4 video, with optional subtitles and camera motion |
 
+<Note>
+  Docker deployment already installs the FFmpeg dependencies required for narration video export. For source installs, install an FFmpeg build with `libass` / the `ass` subtitle filter first, for example `brew install ffmpeg libass` on macOS or `sudo apt-get update && sudo apt-get install -y ffmpeg libass9` on Ubuntu / Debian.
+</Note>
+
 ## Aspect Ratio
 
 Defaults to 16:9. You can change the ratio when creating a project or in **Project Settings** on the preview page. Supports 16:9, 4:3, 21:9, 1:1, 9:16, and more. Images must be regenerated after changing the ratio.

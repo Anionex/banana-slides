@@ -1674,7 +1674,12 @@ def export_video_task(
     with app.app_context():
         import os
         from models import Project
-        from services.tts_video_service import generate_narration_video, check_ffmpeg_available, create_placeholder_frame
+        from services.tts_video_service import (
+            generate_narration_video,
+            check_ffmpeg_available,
+            check_ffmpeg_ass_filter_available,
+            create_placeholder_frame,
+        )
 
         progress_messages = ["🚀 开始导出讲解视频..."]
         max_messages = 10
@@ -1739,6 +1744,8 @@ def export_video_task(
                 )
 
             progress_callback("准备", "FFmpeg 可用", 2)
+            if not check_ffmpeg_ass_filter_available(ffmpeg_path):
+                progress_callback("准备", "当前 FFmpeg 缺少 ASS 字幕滤镜，若需字幕请先安装带 libass 的版本", 3)
 
             # 获取页面
             pages = get_filtered_pages(project_id, page_ids)

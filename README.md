@@ -390,6 +390,7 @@ docker compose up -d
 - Python 3.10 或更高版本
 - [uv](https://github.com/astral-sh/uv) - Python 包管理器
 - Node.js 16+ 和 npm
+- [FFmpeg](https://ffmpeg.org/) - 讲解视频导出必需，且必须包含 `libass` / `ass` 字幕滤镜支持
 - 有效的 Google Gemini API 密钥
 - （可选）[LibreOffice](https://www.libreoffice.org/) - 使用「PPT 翻新」功能上传 PPTX 文件时需要，用于将 PPTX 转换为 PDF。**推荐先在本地将 PPTX 转为 PDF 后再上传**，原因：LibreOffice 在服务端渲染时可能因缺少字体（如微软雅黑、Calibri 等）导致排版错位，且无法完整还原部分特效。上传 PDF 文件则不需要 LibreOffice。Docker 用户如仍需在容器内支持 PPTX 上传，可执行：
   ```bash
@@ -414,6 +415,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 在项目根目录下运行：
 ```bash
+# macOS（Homebrew）
+brew install ffmpeg libass
+
+# Ubuntu / Debian
+sudo apt-get update
+sudo apt-get install -y ffmpeg libass9
+
+# 然后安装 Python 依赖
 uv sync
 ```
 
