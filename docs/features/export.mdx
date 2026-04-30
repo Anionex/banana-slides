@@ -11,6 +11,7 @@ description: "Export presentations as PPTX, PDF, or images"
 | Editable PPTX (Beta) | Extracts text from slide images and rebuilds it as native PowerPoint text boxes, enabling direct text editing in PowerPoint |
 | PDF | Pixel-perfect output, ready for presentation |
 | Images | Each page exported as an individual image file |
+| Narration Video | Combines slide images with AI narration into an MP4 video, with optional subtitles and camera motion |
 
 ## Aspect Ratio
 
@@ -27,3 +28,10 @@ The extraction process preserves font size, color, bold styling, text positionin
 ## Page Selection
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.
+
+## Allow Partial Results
+
+The **Allow Partial Results** option in **Project Settings → Export Settings** now applies consistently across export flows.
+
+- When disabled: the export fails immediately on critical gaps or errors, such as editable PPTX extraction failure, missing narration text for video export, or failure to generate usable narration audio.
+- When enabled: the system will continue whenever possible. For example, video export can fall back to silent clips for pages that do not have usable narration.

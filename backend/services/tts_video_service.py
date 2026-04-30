@@ -10,9 +10,12 @@ TTS Video Service — 将 PPT 页面转换为带旁白的播报视频
 import asyncio
 import logging
 import os
+import queue
 import re
 import shutil
 import subprocess
+import threading
+import time
 from typing import List, Optional, Callable
 
 logger = logging.getLogger(__name__)
@@ -26,6 +29,104 @@ _MAX_SUBTITLE_SEGMENT_LENGTH = 30
 
 # 无旁白页面的默认静音片段时长（秒）
 _DEFAULT_SILENT_DURATION = 3.0
+
+# FFmpeg 连续多久没有任何输出才视为卡死
+_FFMPEG_IDLE_TIMEOUT_SECONDS = 120.0
+
+# 进度输出频率（秒）
+_FFMPEG_PROGRESS_INTERVAL_SECONDS = 1.0
+
+
+def _inject_ffmpeg_progress_args(cmd: List[str]) -> List[str]:
+    """为 FFmpeg 命令追加进度输出，便于 idle watchdog 判断进程是否卡死。"""
+    if '-progress' in cmd:
+        return cmd
+    return [
+        cmd[0],
+        '-nostats',
+        '-progress', 'pipe:2',
+        '-stats_period', str(_FFMPEG_PROGRESS_INTERVAL_SECONDS),
+        *cmd[1:],
+    ]
+
+
+def _read_process_lines(stream, output_queue: "queue.Queue[str]", collected_lines: List[str]) -> None:
+    """后台读取 stderr，既用于错误回溯，也用于 watchdog 判断是否仍有进展。"""
+    try:
+        for raw_line in iter(stream.readline, b''):
+            line = raw_line.decode('utf-8', errors='replace').strip()
+            if not line:
+                continue
+            collected_lines.append(line)
+            if len(collected_lines) > 200:
+                del collected_lines[:len(collected_lines) - 200]
+            output_queue.put(line)
+    finally:
+        stream.close()
+
+
+def _wait_for_process_with_idle_watchdog(
+    proc: subprocess.Popen,
+    error_prefix: str,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
+) -> None:
+    """
+    等待 FFmpeg 结束。
+
+    不限制总执行时长，只要 stderr/progress 持续有输出就继续等待；
+    连续 idle_timeout 秒没有任何新输出，才认为进程卡死。
+    """
+    stderr_queue: "queue.Queue[str]" = queue.Queue()
+    stderr_lines: List[str] = []
+    reader = threading.Thread(
+        target=_read_process_lines,
+        args=(proc.stderr, stderr_queue, stderr_lines),
+        daemon=True,
+    )
+    reader.start()
+
+    last_output_at = time.monotonic()
+    poll_interval = min(1.0, max(0.01, idle_timeout / 4))
+
+    while True:
+        try:
+            stderr_queue.get(timeout=poll_interval)
+            last_output_at = time.monotonic()
+        except queue.Empty:
+            pass
+
+        if proc.poll() is not None:
+            break
+
+        if time.monotonic() - last_output_at > idle_timeout:
+            proc.kill()
+            proc.wait()
+            reader.join(timeout=1)
+            tail = '\n'.join(stderr_lines[-20:])
+            raise RuntimeError(
+                f"{error_prefix}: FFmpeg stalled after {int(idle_timeout)}s without progress. "
+                f"Last output: {tail[-500:]}"
+            )
+
+    reader.join(timeout=1)
+
+    if proc.returncode != 0:
+        tail = '\n'.join(stderr_lines[-20:])
+        raise RuntimeError(f"{error_prefix}: {tail[-500:]}")
+
+
+def _run_ffmpeg_command(
+    cmd: List[str],
+    error_prefix: str,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
+) -> None:
+    """运行 FFmpeg 命令，仅在无进展卡死时中止，不设置总超时。"""
+    proc = subprocess.Popen(
+        _inject_ffmpeg_progress_args(cmd),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_process_with_idle_watchdog(proc, error_prefix, idle_timeout=idle_timeout)
 
 
 def create_placeholder_frame(
@@ -256,7 +357,7 @@ def create_ken_burns_clip(
     fps: int = 25,
     effect_type: str = 'zoom_in',
     ffmpeg_path: str = 'ffmpeg',
-    timeout: int = 120,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """OpenCV 逐帧渲染 Ken Burns 动效，pipe rawvideo 给 FFmpeg 编码。
     用 _prepare_canvas 适配任意画幅，getRectSubPix 实现浮点精度裁切。"""
@@ -287,7 +388,12 @@ def create_ken_burns_clip(
         output_path,
     ]
 
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(
+        _inject_ffmpeg_progress_args(cmd),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
 
     try:
         for i in range(total_frames):
@@ -323,12 +429,15 @@ def create_ken_burns_clip(
             proc.stdin.write(frame.tobytes())
 
         proc.stdin.close()
-        proc.wait(timeout=timeout)
-        if proc.returncode != 0:
-            raise RuntimeError(f"FFmpeg failed for Ken Burns clip: {proc.stderr.read().decode()[-500:]}")
+        _wait_for_process_with_idle_watchdog(
+            proc,
+            "FFmpeg failed for Ken Burns clip",
+            idle_timeout=idle_timeout,
+        )
     except Exception:
-        proc.kill()
-        proc.wait()
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
         raise
 
 
@@ -342,7 +451,7 @@ def create_silent_clip(
     effect_type: str = 'zoom_in',
     enable_ken_burns: bool = True,
     ffmpeg_path: str = 'ffmpeg',
-    timeout: int = 60,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """创建无声视频片段（用于没有旁白的页面）"""
     if enable_ken_burns:
@@ -350,7 +459,7 @@ def create_silent_clip(
         create_ken_burns_clip(
             image_path, tmp_video, duration,
             width=width, height=height, fps=fps,
-            effect_type=effect_type, ffmpeg_path=ffmpeg_path, timeout=timeout,
+            effect_type=effect_type, ffmpeg_path=ffmpeg_path, idle_timeout=idle_timeout,
         )
         cmd = [
             ffmpeg_path, '-y',
@@ -360,10 +469,11 @@ def create_silent_clip(
             '-movflags', '+faststart',
             output_path,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        os.remove(tmp_video)
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg failed for silent clip: {result.stderr[-500:]}")
+        try:
+            _run_ffmpeg_command(cmd, "FFmpeg failed for silent clip", idle_timeout=idle_timeout)
+        finally:
+            if os.path.exists(tmp_video):
+                os.remove(tmp_video)
     else:
         vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
         cmd = [
@@ -380,9 +490,7 @@ def create_silent_clip(
             '-shortest', '-movflags', '+faststart',
             output_path,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg failed for silent clip: {result.stderr[-500:]}")
+        _run_ffmpeg_command(cmd, "FFmpeg failed for silent clip", idle_timeout=idle_timeout)
 
 
 def create_static_clip(
@@ -393,7 +501,7 @@ def create_static_clip(
     height: int = 1080,
     fps: int = 25,
     ffmpeg_path: str = 'ffmpeg',
-    timeout: int = 120,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """从单张图片创建静态视频片段（无动效）"""
     vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
@@ -414,9 +522,7 @@ def create_static_clip(
     ]
 
     logger.debug(f"Static clip: {duration:.1f}s, {width}x{height}")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed for static clip: {result.stderr[-500:]}")
+    _run_ffmpeg_command(cmd, "FFmpeg failed for static clip", idle_timeout=idle_timeout)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -599,7 +705,7 @@ def burn_subtitles(
     subtitle_path: str,
     output_path: str,
     ffmpeg_path: str = 'ffmpeg',
-    timeout: int = 300,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """将 ASS 字幕烧录到视频中"""
     # fontsdir 让 libass 知道系统字体位置
@@ -617,9 +723,7 @@ def burn_subtitles(
         '-movflags', '+faststart',
         output_path,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg subtitle burn failed: {result.stderr[-500:]}")
+    _run_ffmpeg_command(cmd, "FFmpeg subtitle burn failed", idle_timeout=idle_timeout)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -632,7 +736,7 @@ def mux_video_audio(
     audio_path: str,
     output_path: str,
     ffmpeg_path: str = 'ffmpeg',
-    timeout: int = 60,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """将视频和音频合并为一个 MP4 文件"""
     cmd = [
@@ -645,9 +749,7 @@ def mux_video_audio(
         '-movflags', '+faststart',
         output_path,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg mux failed: {result.stderr[-500:]}")
+    _run_ffmpeg_command(cmd, "FFmpeg mux failed", idle_timeout=idle_timeout)
 
 
 def composite_video(
@@ -655,7 +757,7 @@ def composite_video(
     output_path: str,
     fps: int = 25,
     ffmpeg_path: str = 'ffmpeg',
-    timeout: int = 300,
+    idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
 ) -> None:
     """
     使用 FFmpeg concat demuxer 将多个视频片段拼接为最终 MP4。
@@ -665,7 +767,7 @@ def composite_video(
         output_path: 最终输出 MP4 路径
         fps: 帧率（确保拼接后一致）
         ffmpeg_path: ffmpeg 路径
-        timeout: 超时秒数
+        idle_timeout: 连续无输出多久视为卡死
     """
     if len(clip_paths) == 1:
         # 单片段直接复制
@@ -699,9 +801,7 @@ def composite_video(
             '-movflags', '+faststart',
             output_path,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg concat failed: {result.stderr[-500:]}")
+        _run_ffmpeg_command(cmd, "FFmpeg concat failed", idle_timeout=idle_timeout)
     finally:
         if os.path.exists(concat_file):
             os.remove(concat_file)
@@ -726,6 +826,7 @@ def generate_narration_video(
     ffmpeg_path: str = 'ffmpeg',
     progress_callback: Optional[Callable[[str, str, int], None]] = None,
     silent_duration: float = 0,
+    fail_fast: bool = False,
 ) -> None:
     """
     完整的播报视频生成流水线。
@@ -745,6 +846,7 @@ def generate_narration_video(
         ffmpeg_path: ffmpeg 路径
         progress_callback: 进度回调 (step, message, percent)
         silent_duration: 无旁白页面的静音时长（秒），0 表示使用默认值
+        fail_fast: 是否在缺少有效旁白音频时立即失败
     """
     if not pages_data:
         raise ValueError("No pages to process")
@@ -772,9 +874,11 @@ def generate_narration_video(
         # 先统一生成所有 TTS 音频，获取每页实际时长
         page_durations: List[float] = []
         audio_paths: List[Optional[str]] = []
+        silent_page_indexes: List[int] = []
 
         for i, page in enumerate(pages_data):
             narration = page.get('narration_text')
+            page_idx = page.get('page_index', i)
 
             audio_path = None
             duration = silent_duration
@@ -785,16 +889,38 @@ def generate_narration_video(
                         narration, audio_path, voice=voice, rate=rate, ffmpeg_path=ffmpeg_path,
                     )
                 except Exception as e:
-                    logger.warning(f"TTS failed for page {page.get('page_index', i)}: {e}, using silent clip")
+                    if fail_fast:
+                        raise RuntimeError(
+                            f"第 {page_idx + 1} 页旁白语音生成失败，当前项目未开启“允许返回半成品”，已停止导出: {e}"
+                        ) from e
+
+                    logger.warning(f"TTS failed for page {page_idx}: {e}, using silent clip")
                     audio_path = None
                     duration = silent_duration
+                    silent_page_indexes.append(page_idx + 1)
+            else:
+                if fail_fast:
+                    raise RuntimeError(
+                        f"第 {page_idx + 1} 页缺少旁白文本，当前项目未开启“允许返回半成品”，无法导出视频。"
+                    )
+                silent_page_indexes.append(page_idx + 1)
 
             page_durations.append(duration)
             audio_paths.append(audio_path)
 
             if progress_callback:
                 pct = int(20 + (i + 1) / total * 30)  # 20-50%
-                progress_callback("TTS", f"已生成第 {i+1}/{total} 页音频", pct)
+                if audio_path:
+                    message = f"已生成第 {i+1}/{total} 页音频"
+                else:
+                    message = f"第 {i+1}/{total} 页无有效语音，改为静音片段"
+                progress_callback("TTS", message, pct)
+
+        if fail_fast and silent_page_indexes:
+            pages = '、'.join(str(idx) for idx in silent_page_indexes)
+            raise RuntimeError(
+                f"以下页面没有可用旁白语音：第 {pages} 页。当前项目未开启“允许返回半成品”，已停止导出。"
+            )
 
         # ── Phase B: 视频片段 + 字幕条目 ──
         for i, page in enumerate(pages_data):

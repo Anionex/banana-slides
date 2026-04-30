@@ -8,6 +8,9 @@ import os
 import sys
 import pytest
 import tempfile
+import threading
+import time
+import uuid
 import importlib
 import importlib.util
 from unittest.mock import patch, MagicMock
@@ -46,11 +49,14 @@ check_ffmpeg_available = _tts_mod.check_ffmpeg_available
 get_audio_duration = _tts_mod.get_audio_duration
 KEN_BURNS_EFFECTS = _tts_mod.KEN_BURNS_EFFECTS
 composite_video = _tts_mod.composite_video
+_run_ffmpeg_command = _tts_mod._run_ffmpeg_command
+_wait_for_process_with_idle_watchdog = _tts_mod._wait_for_process_with_idle_watchdog
 _split_narration_to_sentences = _tts_mod._split_narration_to_sentences
 _build_timed_subtitle_entries = _tts_mod._build_timed_subtitle_entries
 generate_ass_subtitle = _tts_mod.generate_ass_subtitle
 _MAX_SUBTITLE_SEGMENT_LENGTH = _tts_mod._MAX_SUBTITLE_SEGMENT_LENGTH
 _DEFAULT_SILENT_DURATION = _tts_mod._DEFAULT_SILENT_DURATION
+_FFMPEG_IDLE_TIMEOUT_SECONDS = _tts_mod._FFMPEG_IDLE_TIMEOUT_SECONDS
 get_narration_generation_prompt = _prompts_mod.get_narration_generation_prompt
 
 
@@ -67,6 +73,9 @@ class TestModuleConstants:
 
     def test_default_silent_duration(self):
         assert _DEFAULT_SILENT_DURATION == 3.0
+
+    def test_ffmpeg_idle_timeout_seconds(self):
+        assert _FFMPEG_IDLE_TIMEOUT_SECONDS == 120.0
 
 
 class TestGetDefaultVoice:
@@ -140,8 +149,8 @@ class TestKenBurnsEffects:
 class TestCompositeVideoConcatFile:
     """测试 concat 列表生成"""
 
-    @patch.object(_tts_mod.subprocess, 'run')
-    def test_single_clip_copies(self, mock_run):
+    @patch.object(_tts_mod, '_run_ffmpeg_command')
+    def test_single_clip_copies(self, mock_run_ffmpeg):
         """单片段直接复制，不调用 ffmpeg"""
         with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as src:
             src.write(b'fake video data')
@@ -151,33 +160,135 @@ class TestCompositeVideoConcatFile:
             out_path = src_path + '_out.mp4'
             composite_video([src_path], out_path)
             assert os.path.exists(out_path)
-            mock_run.assert_not_called()
+            mock_run_ffmpeg.assert_not_called()
         finally:
             for f in [src_path, out_path]:
                 if os.path.exists(f):
                     os.unlink(f)
 
-    @patch.object(_tts_mod.subprocess, 'run')
-    def test_multiple_clips_concat(self, mock_run):
+    @patch.object(_tts_mod, '_run_ffmpeg_command')
+    def test_multiple_clips_concat(self, mock_run_ffmpeg):
         """多片段使用 concat demuxer"""
-        mock_run.return_value = MagicMock(returncode=0, stderr='')
-
         clips = ['/fake/clip1.mp4', '/fake/clip2.mp4']
         out_path = '/tmp/test_concat_output.mp4'
 
         composite_video(clips, out_path)
 
-        mock_run.assert_called_once()
-        args = mock_run.call_args
+        mock_run_ffmpeg.assert_called_once()
+        args = mock_run_ffmpeg.call_args
         cmd = args[0][0]
         assert '-f' in cmd
         assert 'concat' in cmd
+
+
+class _FakeProcess:
+    """最小化的 Popen 替身，用于验证 idle watchdog。"""
+
+    def __init__(self):
+        read_fd, write_fd = os.pipe()
+        self.stderr = os.fdopen(read_fd, 'rb', buffering=0)
+        self._stderr_writer = os.fdopen(write_fd, 'wb', buffering=0)
+        self.returncode = None
+        self._killed = False
+        self._thread = None
+
+    def start(self, lines, interval=0.02, hold_open_seconds=0.0):
+        def _writer():
+            try:
+                for line in lines:
+                    self._stderr_writer.write(line.encode('utf-8') + b'\n')
+                    self._stderr_writer.flush()
+                    time.sleep(interval)
+                if hold_open_seconds > 0:
+                    time.sleep(hold_open_seconds)
+            finally:
+                self._stderr_writer.close()
+                self.returncode = 0 if not self._killed else -9
+
+        self._thread = threading.Thread(target=_writer, daemon=True)
+        self._thread.start()
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self):
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+        return self.returncode
+
+    def kill(self):
+        self._killed = True
+        self.returncode = -9
+        try:
+            self._stderr_writer.close()
+        except OSError:
+            pass
+
+
+class TestIdleWatchdog:
+    def test_wait_allows_long_running_process_with_output(self):
+        proc = _FakeProcess()
+        proc.start(['frame=1', 'frame=2', 'progress=end'], interval=0.02)
+
+        _wait_for_process_with_idle_watchdog(
+            proc,
+            'FFmpeg failed',
+            idle_timeout=0.1,
+        )
+
+        assert proc.returncode == 0
+
+    def test_wait_kills_process_when_output_stalls(self):
+        proc = _FakeProcess()
+        proc.start([], interval=0.02, hold_open_seconds=0.2)
+
+        with pytest.raises(RuntimeError, match='stalled after'):
+            _wait_for_process_with_idle_watchdog(
+                proc,
+                'FFmpeg failed',
+                idle_timeout=0.05,
+            )
+
+        assert proc.returncode == -9
 
     def test_concat_rejects_newline_in_path(self):
         """路径含换行符时应抛出 ValueError（防止 concat 注入）"""
         clips = ['/fake/clip1.mp4', '/fake/clip\n2.mp4']
         with pytest.raises(ValueError, match="newline"):
             composite_video(clips, '/tmp/test_output.mp4')
+
+    def test_multiple_clips_concat_with_real_ffmpeg(self):
+        """真实 FFmpeg 校验：长任务 watchdog 不影响正常 concat 完成。"""
+        if not check_ffmpeg_available():
+            pytest.skip("ffmpeg not available")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            clip1 = os.path.join(tmpdir, 'clip1.mp4')
+            clip2 = os.path.join(tmpdir, 'clip2.mp4')
+            output = os.path.join(tmpdir, 'output.mp4')
+
+            for clip, color in [(clip1, 'red'), (clip2, 'blue')]:
+                subprocess_result = _tts_mod.subprocess.run(
+                    [
+                        'ffmpeg', '-y',
+                        '-f', 'lavfi', '-i', f'color=c={color}:s=160x90:d=0.2',
+                        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                        '-shortest',
+                        '-c:v', 'libx264',
+                        '-c:a', 'aac',
+                        '-pix_fmt', 'yuv420p',
+                        clip,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                assert subprocess_result.returncode == 0, subprocess_result.stderr
+
+            composite_video([clip1, clip2], output, fps=25)
+
+            assert os.path.exists(output)
+            assert os.path.getsize(output) > 0
 
 
 class TestSubtitleSplitting:
@@ -320,6 +431,51 @@ class TestPageNarrationModel:
 class TestExportVideoRoute:
     """测试视频导出 API 路由"""
 
+    def _create_project_with_image_page(self, app, allow_partial: bool):
+        from PIL import Image
+        from models import db, Project, Page
+
+        project = Project(
+            idea_prompt='视频导出测试',
+            creation_type='idea',
+            export_allow_partial=allow_partial,
+            status='COMPLETED',
+        )
+        db.session.add(project)
+        db.session.flush()
+
+        pages_dir = os.path.join(app.config['UPLOAD_FOLDER'], project.id, 'pages')
+        os.makedirs(pages_dir, exist_ok=True)
+
+        filename = f'{uuid.uuid4()}.png'
+        absolute_path = os.path.join(pages_dir, filename)
+        Image.new('RGB', (640, 360), color='navy').save(absolute_path)
+
+        page = Page(
+            project_id=project.id,
+            order_index=0,
+            generated_image_path=f'{project.id}/pages/{filename}',
+            outline_content='{"title": "测试页", "points": ["要点 1"]}',
+            description_content='{"text": "测试描述"}',
+            narration_text=None,
+            status='COMPLETED',
+        )
+        db.session.add(page)
+        db.session.commit()
+
+        return project.id
+
+    def _wait_for_task(self, client, project_id: str, task_id: str, timeout_seconds: float = 15.0):
+        deadline = time.time() + timeout_seconds
+        while time.time() < deadline:
+            response = client.get(f'/api/projects/{project_id}/tasks/{task_id}')
+            assert response.status_code == 200
+            payload = response.get_json()['data']
+            if payload['status'] in ('COMPLETED', 'FAILED'):
+                return payload
+            time.sleep(0.1)
+        pytest.fail(f'Task {task_id} did not finish within {timeout_seconds} seconds')
+
     def test_export_video_project_not_found(self, client):
         response = client.post(
             '/api/projects/nonexistent-id/export/video',
@@ -336,6 +492,53 @@ class TestExportVideoRoute:
             json={},
         )
         assert response.status_code == 400
+
+    @needs_app
+    def test_export_video_without_partial_fails_when_narration_missing(self, client, app):
+        if not check_ffmpeg_available():
+            pytest.skip("ffmpeg not available")
+
+        project_id = self._create_project_with_image_page(app, allow_partial=False)
+
+        response = client.post(
+            f'/api/projects/{project_id}/export/video',
+            json={
+                'generate_narration': False,
+            },
+        )
+        assert response.status_code == 200
+        task_id = response.get_json()['data']['task_id']
+
+        task_payload = self._wait_for_task(client, project_id, task_id)
+        assert task_payload['status'] == 'FAILED'
+        assert '未开启“允许返回半成品”' in task_payload['error_message']
+        assert '缺少旁白文本' in task_payload['error_message']
+
+    @needs_app
+    def test_export_video_with_partial_allows_silent_result(self, client, app):
+        if not check_ffmpeg_available():
+            pytest.skip("ffmpeg not available")
+
+        project_id = self._create_project_with_image_page(app, allow_partial=True)
+
+        response = client.post(
+            f'/api/projects/{project_id}/export/video',
+            json={
+                'generate_narration': False,
+            },
+        )
+        assert response.status_code == 200
+        task_id = response.get_json()['data']['task_id']
+
+        task_payload = self._wait_for_task(client, project_id, task_id)
+        assert task_payload['status'] == 'COMPLETED'
+        progress = task_payload['progress']
+        assert progress['download_url'].endswith('.mp4')
+
+        output_filename = progress['filename']
+        output_path = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports', output_filename)
+        assert os.path.exists(output_path)
+        assert os.path.getsize(output_path) > 0
 
 
 @needs_app

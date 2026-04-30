@@ -1712,6 +1712,14 @@ def export_video_task(
                 logger.error(f"Task {task_id} not found")
                 return
 
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+
+            export_allow_partial = project.export_allow_partial or False
+            fail_fast = not export_allow_partial
+            logger.info(f"视频导出设置: export_allow_partial={export_allow_partial}, fail_fast={fail_fast}")
+
             task.status = 'PROCESSING'
             task.set_progress({
                 "total": 100,
@@ -1804,6 +1812,10 @@ def export_video_task(
                             desc_text = f"{title}\n" + '\n'.join(f'- {p}' for p in points)
 
                     if not desc_text:
+                        if fail_fast:
+                            raise RuntimeError(
+                                f"第 {page.order_index + 1} 页缺少可生成旁白的描述内容，当前项目未开启“允许返回半成品”，无法导出视频。"
+                            )
                         continue  # 无内容可生成旁白
 
                     try:
@@ -1819,7 +1831,15 @@ def export_video_task(
                             page.set_narration_text(narration.strip())
                             db.session.commit()
                             narration_generated += 1
+                        elif fail_fast:
+                            raise RuntimeError(
+                                f"第 {page.order_index + 1} 页旁白生成结果为空，当前项目未开启“允许返回半成品”，已停止导出。"
+                            )
                     except Exception as e:
+                        if fail_fast:
+                            raise RuntimeError(
+                                f"第 {page.order_index + 1} 页旁白生成失败，当前项目未开启“允许返回半成品”，已停止导出: {e}"
+                            ) from e
                         logger.warning(f"生成旁白失败 (page {page.id}): {e}")
 
                     pct = int(5 + (i + 1) / total_pages * 15)  # 5-20%
@@ -1829,9 +1849,12 @@ def export_video_task(
 
             # ── Step 2: 构建 pages_data ──
             pages_data = []
+            missing_narration_pages = []
             for page, img_path in valid_pages:
                 db.session.refresh(page)
                 narration = page.narration_text
+                if not narration or not narration.strip():
+                    missing_narration_pages.append(page.order_index + 1)
                 logger.info(
                     f"[视频导出] 页面 {page.order_index + 1}: "
                     f"title={((page.get_outline_content() or {}).get('title', ''))[:30]}, "
@@ -1843,6 +1866,12 @@ def export_video_task(
                     'narration_text': narration,
                     'page_index': page.order_index,
                 })
+
+            if missing_narration_pages and fail_fast:
+                pages = '、'.join(str(idx) for idx in missing_narration_pages)
+                raise RuntimeError(
+                    f"以下页面缺少旁白文本：第 {pages} 页。当前项目未开启“允许返回半成品”，已停止导出。"
+                )
 
             # ── Step 3: 生成视频 ──
             exports_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports')
@@ -1875,6 +1904,7 @@ def export_video_task(
                 ffmpeg_path=ffmpeg_path,
                 progress_callback=progress_callback,
                 silent_duration=silent_duration,
+                fail_fast=fail_fast,
             )
 
             # ── Step 4: 标记完成 ──
