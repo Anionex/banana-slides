@@ -514,7 +514,6 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
 可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
-<details> 
 
 
 
