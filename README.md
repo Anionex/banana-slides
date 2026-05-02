@@ -196,7 +196,6 @@
 | 🧭 规划中 | 在线播放功能 |
 | 🧭 规划中 | 简单的动画和页面切换效果 |
 | 🚍 部分 | 多语种支持 |
-| 🏢商业版功能 | 用户系统 |
 
 ## 📦 使用方法
 
@@ -516,9 +515,6 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
 可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
 <details> 
-<summary> 详情 </summary>
-需要商业许可证（Commercial License）（例如：希望闭源使用、私有化部署交付、将本项目集成进闭源产品，或在不公开对应源代码的前提下提供服务），请联系作者：davidyang042@gmail.com
-</details>
 
 
 
