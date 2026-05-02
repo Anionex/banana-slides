@@ -1137,6 +1137,11 @@ def process_material_image_task(
                 db.session.commit()
 
         finally:
+            if source_image is not None:
+                try:
+                    source_image.close()
+                except Exception:
+                    pass
             if temp_dir:
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
