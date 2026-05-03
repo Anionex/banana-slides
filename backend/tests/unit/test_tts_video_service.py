@@ -472,29 +472,31 @@ class TestNarrationPrompt:
 
     def test_prompt_contains_required_fields(self):
         prompt = get_narration_generation_prompt(
-            description_text='这是一个关于人工智能发展的介绍页面',
-            outline={'title': 'AI 发展历程', 'points': ['深度学习', '大语言模型']},
-            page_index=2,
-            total_pages=10,
+            pages=[{
+                'page_index': 2,
+                'title': 'AI 发展历程',
+                'points': ['深度学习', '大语言模型'],
+                'description_text': '这是一个关于人工智能发展的介绍页面',
+            }],
             language='zh',
         )
         assert 'AI 发展历程' in prompt
         assert '深度学习' in prompt
         assert '大语言模型' in prompt
         assert '2' in prompt
-        assert '10' in prompt
         assert '中文' in prompt or '全中文' in prompt
-        # 验证用户输入被 XML 标签隔离（防止 prompt injection）
         assert '<slide_description>' in prompt
         assert '</slide_description>' in prompt
         assert '<slide_title>' in prompt
 
     def test_english_prompt(self):
         prompt = get_narration_generation_prompt(
-            description_text='Introduction to machine learning',
-            outline={'title': 'ML Basics', 'points': ['Supervised', 'Unsupervised']},
-            page_index=1,
-            total_pages=5,
+            pages=[{
+                'page_index': 1,
+                'title': 'ML Basics',
+                'points': ['Supervised', 'Unsupervised'],
+                'description_text': 'Introduction to machine learning',
+            }],
             language='en',
         )
         assert 'English' in prompt
