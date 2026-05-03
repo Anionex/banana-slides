@@ -41,6 +41,34 @@ The extraction process preserves font size, color, bold styling, text positionin
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.
 
+## Narration Video
+
+Narration Video combines your slide images with AI-generated narration into a single MP4, complete with subtitles.
+
+**Steps:**
+
+1. Open a project on the **Slide Preview** page.
+2. Click **Export → Narration Video**.
+3. In the export dialog, configure:
+   - **Speaker persona** — the speaking style (e.g. corporate executive, tech storyteller).
+   - **Audience** — who the narration is written for.
+   - **Tone** — the emotional register of the script.
+   - **Voice** — the TTS voice used for audio synthesis (see below).
+   - **Ken Burns effect** — subtle zoom/pan motion on each slide (optional).
+4. Click **Start Export**. Progress is shown in the Export Tasks panel.
+
+### Voice Selection
+
+**Default (edge-tts):** Free voices provided by Microsoft Edge, no API key needed. Options include Chinese (晓晓, 云希), English (Jenny, Guy), and Japanese (Nanami, Keita).
+
+**ElevenLabs:** Higher-quality, more natural voices. Requires an ElevenLabs API key configured in Settings (see [Configuration → ElevenLabs](/configuration#elevenlabs-narration-video-tts)).
+
+When ElevenLabs is enabled in Settings, the voice dropdown in the export dialog switches to ElevenLabs voices — Rachel, Bella, Adam, Josh, and more. The voice ID is handled automatically; you only pick a name.
+
+<Note>
+  ElevenLabs voices are English-optimized. For Chinese narration, edge-tts Chinese voices (e.g. 晓晓) generally produce better results.
+</Note>
+
 ## Allow Partial Results
 
 The **Allow Partial Results** option in **Project Settings → Export Settings** now applies consistently across export flows.
