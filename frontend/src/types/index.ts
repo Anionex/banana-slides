@@ -179,6 +179,10 @@ export interface Settings {
   // OpenAI Codex OAuth
   openai_oauth_connected: boolean;
   openai_oauth_account_id?: string;
+  // ElevenLabs TTS
+  elevenlabs_enabled: boolean;
+  elevenlabs_api_key_length: number;
+  elevenlabs_voice_id?: string;
   created_at?: string;
   updated_at?: string;
 }

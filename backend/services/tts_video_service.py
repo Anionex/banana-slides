@@ -306,7 +306,7 @@ def generate_tts_audio_sync(
     ffmpeg_path: str = 'ffmpeg',
 ) -> float:
     """
-    同步封装：生成 TTS 音频文件。
+    同步封装：生成 TTS 音频文件（edge-tts）。
 
     Args:
         text: 待合成的文本
@@ -326,6 +326,44 @@ def generate_tts_audio_sync(
 
     duration = get_audio_duration(output_path, ffmpeg_path)
     logger.debug(f"TTS audio generated: {output_path} ({duration:.1f}s)")
+    return duration
+
+
+def generate_elevenlabs_audio_sync(
+    text: str,
+    output_path: str,
+    api_key: str,
+    voice_id: str,
+    ffmpeg_path: str = 'ffmpeg',
+) -> float:
+    """
+    同步生成 ElevenLabs TTS 音频文件（MP3）。
+
+    Args:
+        text: 待合成的文本
+        output_path: 输出音频文件路径（MP3）
+        api_key: ElevenLabs API Key
+        voice_id: ElevenLabs Voice ID
+        ffmpeg_path: ffmpeg 路径（用于 ffprobe 获取时长）
+
+    Returns:
+        float: 音频时长（秒）
+    """
+    from elevenlabs.client import ElevenLabs
+
+    client = ElevenLabs(api_key=api_key)
+    audio_chunks = client.text_to_speech.convert(
+        text=text,
+        voice_id=voice_id,
+        model_id='eleven_multilingual_v2',
+        output_format='mp3_44100_128',
+    )
+    with open(output_path, 'wb') as f:
+        for chunk in audio_chunks:
+            f.write(chunk)
+
+    duration = get_audio_duration(output_path, ffmpeg_path)
+    logger.debug(f"ElevenLabs audio generated: {output_path} ({duration:.1f}s)")
     return duration
 
 
@@ -870,6 +908,7 @@ def generate_narration_video(
     progress_callback: Optional[Callable[[str, str, int], None]] = None,
     silent_duration: float = 0,
     fail_fast: bool = False,
+    elevenlabs_config: Optional[dict] = None,
 ) -> None:
     """
     完整的播报视频生成流水线。
@@ -936,9 +975,17 @@ def generate_narration_video(
             if narration and narration.strip():
                 audio_path = os.path.join(tmp_dir, f'audio_{i:03d}.mp3')
                 try:
-                    duration = generate_tts_audio_sync(
-                        narration, audio_path, voice=voice, rate=rate, ffmpeg_path=ffmpeg_path,
-                    )
+                    if elevenlabs_config and elevenlabs_config.get('api_key'):
+                        duration = generate_elevenlabs_audio_sync(
+                            narration, audio_path,
+                            api_key=elevenlabs_config['api_key'],
+                            voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
+                            ffmpeg_path=ffmpeg_path,
+                        )
+                    else:
+                        duration = generate_tts_audio_sync(
+                            narration, audio_path, voice=voice, rate=rate, ffmpeg_path=ffmpeg_path,
+                        )
                 except Exception as e:
                     if fail_fast:
                         raise RuntimeError(

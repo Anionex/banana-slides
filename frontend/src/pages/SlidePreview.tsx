@@ -37,6 +37,7 @@ const previewI18n = {
       videoNarrationTone: "演讲基调",
       videoNarrationTopic: "核心主题",
       videoNarrationTopicPlaceholder: "例如：英伟达的发展史与技术演进",
+      videoNarrationLength: "单页字数范围",
       videoNarrationAdvanced: "高级配置",
       videoNarrationCollapse: "收起高级配置",
       videoNarrationAdvancedHint: "这些参数只在导出前生效，不会影响页面内容本身。",
@@ -126,6 +127,7 @@ const previewI18n = {
       videoNarrationTone: "Speech tone",
       videoNarrationTopic: "Core topic",
       videoNarrationTopicPlaceholder: "For example: the history and technological evolution of Nvidia",
+      videoNarrationLength: "Words per slide",
       videoNarrationAdvanced: "Advanced settings",
       videoNarrationCollapse: "Hide advanced settings",
       videoNarrationAdvancedHint: "These options only affect narration generation during export.",
@@ -240,6 +242,26 @@ const VIDEO_VOICE_OPTIONS = [
   ]},
 ];
 
+// ElevenLabs premade voices（ID 对用户不可见，只展示名字）
+const ELEVENLABS_VOICE_OPTIONS = [
+  { group: 'Female', voices: [
+    { id: 'JBFqnCBsd6RMkjVDRZzb', label: 'Rachel' },
+    { id: 'EXAVITQu4vr4xnSDxMaL', label: 'Bella' },
+    { id: 'MF3mGyEYCl7XYWbV9V6O', label: 'Elli' },
+    { id: 'LcfcDJNUP1GQjkzn1xUU', label: 'Emily' },
+    { id: 'ThT5KcBeYPX3keUQqHPh', label: 'Dorothy' },
+    { id: 'jBpfuIE2acCO8z3wKNLl', label: 'Gigi' },
+  ]},
+  { group: 'Male', voices: [
+    { id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam' },
+    { id: 'ErXwobaYiN019PkySvjV', label: 'Antoni' },
+    { id: 'TxGEqnHWrfWFTfGW9XjX', label: 'Josh' },
+    { id: 'VR6AewLTigWG4xSOukaG', label: 'Arnold' },
+    { id: 'yoZ06aMxZJJ28mfd3POQ', label: 'Sam' },
+    { id: 'TX3LPaxmHKxFdv7VOQHJ', label: 'Liam' },
+  ]},
+];
+
 const NARRATION_PERSONA_OPTIONS = [
   { value: 'charismatic tech visionary', zh: '科技梦想家', en: 'Tech visionary' },
   { value: 'knowledgeable and patient university professor', zh: '大学教授', en: 'University professor' },
@@ -314,6 +336,8 @@ export const SlidePreview: React.FC = () => {
   const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
   const [videoIncludeNoImage, setVideoIncludeNoImage] = useState(false);
   const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
+  const [elevenLabsEnabled, setElevenLabsEnabled] = useState(false);
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('');
   const [videoGenerateNarration, setVideoGenerateNarration] = useState(true);
   const [videoNarrationConfig, setVideoNarrationConfig] = useState<NarrationConfig>(DEFAULT_VIDEO_NARRATION_CONFIG);
   const [videoShowAdvancedNarration, setVideoShowAdvancedNarration] = useState(false);
@@ -1164,12 +1188,13 @@ export const SlidePreview: React.FC = () => {
 
         show({ message: t('slidePreview.exportStarted'), type: 'success' });
 
-        const voiceLang = VIDEO_VOICE_OPTIONS.flatMap(g => g.voices).find(v => v.id === videoVoice)?.lang || 'zh';
+        const activeVoice = elevenLabsEnabled ? elevenLabsVoiceId : videoVoice;
+        const voiceLang = elevenLabsEnabled ? 'en' : (VIDEO_VOICE_OPTIONS.flatMap(g => g.voices).find(v => v.id === videoVoice)?.lang || 'zh');
         const response = await apiExportVideo(projectId, {
           pageIds,
           enableKenBurns: videoEnableKenBurns,
           includeNoImagePages: videoIncludeNoImage,
-          voice: videoVoice,
+          voice: activeVoice,
           language: voiceLang,
           generateNarration: videoGenerateNarration,
           presentationTopic: videoNarrationConfig.presentation_topic,
@@ -1588,7 +1613,18 @@ export const SlidePreview: React.FC = () => {
                   {t('preview.exportImages')}
                 </button>
                 <button
-                  onClick={() => { setShowExportMenu(false); setShowVideoExportDialog(true); }}
+                  onClick={async () => {
+                    setShowExportMenu(false);
+                    try {
+                      const res = await getSettings();
+                      const enabled = res.data?.elevenlabs_enabled ?? false;
+                      setElevenLabsEnabled(enabled);
+                      if (enabled && !elevenLabsVoiceId) {
+                        setElevenLabsVoiceId(ELEVENLABS_VOICE_OPTIONS[0].voices[0].id);
+                      }
+                    } catch {}
+                    setShowVideoExportDialog(true);
+                  }}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
                 >
                   {t('preview.exportVideo')}
@@ -1669,19 +1705,35 @@ export const SlidePreview: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1.5">{t('preview.videoVoiceLabel')}</label>
-                    <select
-                      value={videoVoice}
-                      onChange={e => setVideoVoice(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
-                    >
-                      {VIDEO_VOICE_OPTIONS.map(group => (
-                        <optgroup key={group.group} label={group.group}>
-                          {group.voices.map(v => (
-                            <option key={v.id} value={v.id}>{v.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    {elevenLabsEnabled ? (
+                      <select
+                        value={elevenLabsVoiceId}
+                        onChange={e => setElevenLabsVoiceId(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                      >
+                        {ELEVENLABS_VOICE_OPTIONS.map(group => (
+                          <optgroup key={group.group} label={group.group}>
+                            {group.voices.map(v => (
+                              <option key={v.id} value={v.id}>{v.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        value={videoVoice}
+                        onChange={e => setVideoVoice(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                      >
+                        {VIDEO_VOICE_OPTIONS.map(group => (
+                          <optgroup key={group.group} label={group.group}>
+                            {group.voices.map(v => (
+                              <option key={v.id} value={v.id}>{v.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -1691,7 +1743,7 @@ export const SlidePreview: React.FC = () => {
                     value={videoNarrationConfig.presentation_topic}
                     onChange={e => setVideoNarrationConfig(prev => ({ ...prev, presentation_topic: e.target.value }))}
                     placeholder={t('preview.videoNarrationTopicPlaceholder')}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-banana-400 focus:ring-2"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
                   />
                 </div>
                 {videoShowAdvancedNarration && (
@@ -1704,7 +1756,7 @@ export const SlidePreview: React.FC = () => {
                         max={300}
                         value={videoNarrationConfig.min_words}
                         onChange={e => setVideoNarrationConfig(prev => ({ ...prev, min_words: Number(e.target.value) || 30 }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-banana-400 focus:ring-2"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
                       />
                     </div>
                     <div>
@@ -1715,7 +1767,7 @@ export const SlidePreview: React.FC = () => {
                         max={300}
                         value={videoNarrationConfig.max_words}
                         onChange={e => setVideoNarrationConfig(prev => ({ ...prev, max_words: Number(e.target.value) || 30 }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-banana-400 focus:ring-2"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
                       />
                     </div>
                   </div>

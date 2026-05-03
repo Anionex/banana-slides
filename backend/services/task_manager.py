@@ -1679,13 +1679,22 @@ def export_video_task(
 
     with app.app_context():
         import os
-        from models import Project
+        from models import Project, Settings
         from services.tts_video_service import (
             generate_narration_video,
             check_ffmpeg_available,
             check_ffmpeg_ass_filter_available,
             create_placeholder_frame,
         )
+
+        # 读取 ElevenLabs 配置
+        _settings = Settings.get_settings()
+        elevenlabs_config = None
+        if _settings.elevenlabs_enabled and _settings.elevenlabs_api_key:
+            elevenlabs_config = {
+                'api_key': _settings.elevenlabs_api_key,
+                'voice_id': voice,  # 导出面板传入的 voice 在 ElevenLabs 模式下即为 voice_id
+            }
 
         progress_messages = ["🚀 开始导出讲解视频..."]
         max_messages = 10
@@ -1940,6 +1949,7 @@ def export_video_task(
                 progress_callback=progress_callback,
                 silent_duration=silent_duration,
                 fail_fast=fail_fast,
+                elevenlabs_config=elevenlabs_config,
             )
 
             # ── Step 4: 标记完成 ──

@@ -308,6 +308,14 @@ def update_settings():
         if "baidu_api_key" in data:
             settings.baidu_api_key = data["baidu_api_key"] or None
 
+        # Update ElevenLabs TTS configuration
+        if "elevenlabs_enabled" in data:
+            settings.elevenlabs_enabled = bool(data["elevenlabs_enabled"])
+        if "elevenlabs_api_key" in data:
+            settings.elevenlabs_api_key = data["elevenlabs_api_key"] or None
+        if "elevenlabs_voice_id" in data:
+            settings.elevenlabs_voice_id = (data["elevenlabs_voice_id"] or "").strip() or None
+
         # Update per-model provider source configuration
         if "text_model_source" in data:
             settings.text_model_source = (data["text_model_source"] or "").strip() or None
@@ -394,6 +402,9 @@ def reset_settings():
         settings.description_extra_fields = None
         settings.image_prompt_extra_fields = None
         settings.baidu_api_key = None
+        settings.elevenlabs_enabled = False
+        settings.elevenlabs_api_key = None
+        settings.elevenlabs_voice_id = None
         settings.text_model_source = None
         settings.image_model_source = None
         settings.image_caption_model_source = None
