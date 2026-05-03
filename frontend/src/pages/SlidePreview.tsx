@@ -1612,13 +1612,13 @@ export const SlidePreview: React.FC = () => {
                         try {
                           const voicesRes = await getElevenLabsVoices();
                           setElevenLabsVoices(voicesRes.data?.voices ?? []);
-                        } catch {
-                          // ignore voice fetch failures; user can retry
+                        } catch (error) {
+                          console.error('Failed to load ElevenLabs voices:', error);
                         }
                         setElevenLabsVoicesLoading(false);
                       }
-                    } catch {
-                      // settings fetch failure falls through to default state
+                    } catch (error) {
+                      console.error('Failed to load settings before video export:', error);
                     }
                     setShowVideoExportDialog(true);
                   }}

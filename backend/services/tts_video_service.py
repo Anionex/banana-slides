@@ -1573,7 +1573,7 @@ def generate_narration_video(
             whole_text_pairs = _generate_elevenlabs_whole_and_split(
                 pages_data, narration_indexes, tmp_dir,
                 api_key=elevenlabs_config['api_key'],
-                voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
+                voice_id=elevenlabs_config.get('voice_id') or 'JBFqnCBsd6RMkjVDRZzb',
                 ffmpeg_path=ffmpeg_path,
                 speed=speed,
                 progress_callback=progress_callback,
@@ -1597,7 +1597,7 @@ def generate_narration_video(
                             duration, alignment = generate_elevenlabs_audio_sync(
                                 narration, audio_path,
                                 api_key=elevenlabs_config['api_key'],
-                                voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
+                                voice_id=elevenlabs_config.get('voice_id') or 'JBFqnCBsd6RMkjVDRZzb',
                                 ffmpeg_path=ffmpeg_path,
                                 speed=speed,
                             )
