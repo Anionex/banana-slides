@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import threading
 import time
+import unicodedata
 from typing import List, Optional, Callable, Tuple
 
 logger = logging.getLogger(__name__)
@@ -468,6 +469,160 @@ def generate_elevenlabs_audio_sync(
     return duration, alignment_dict
 
 
+def _slice_audio_by_time(
+    src_path: str,
+    dst_path: str,
+    start_seconds: float,
+    end_seconds: float,
+    ffmpeg_path: str = 'ffmpeg',
+) -> None:
+    """从源音频切出 [start, end] 区间到目标路径（重编码以保证起点精度）。"""
+    if end_seconds <= start_seconds:
+        raise ValueError(f"非法切片区间 [{start_seconds:.3f}, {end_seconds:.3f}]")
+    cmd = [
+        ffmpeg_path, '-y',
+        '-ss', f'{start_seconds:.3f}',
+        '-to', f'{end_seconds:.3f}',
+        '-i', src_path,
+        '-c:a', 'libmp3lame', '-b:a', '128k',
+        dst_path,
+    ]
+    _run_ffmpeg_command(
+        cmd, f"FFmpeg failed to slice audio [{start_seconds:.2f}-{end_seconds:.2f}]"
+    )
+
+
+def _split_alignment_for_pages(
+    page_texts: List[str],
+    alignment: dict,
+) -> List[Tuple[int, int]]:
+    """
+    把整段 alignment 按各页文本的字符序列切分，返回每页对应的 alignment 索引区间
+    [al_start, al_end)（exclusive end）。
+
+    匹配策略与 _build_timed_subtitle_entries_from_alignment 一致：
+      - 跳过两侧 whitespace；
+      - 不区分大小写匹配；
+      - alignment 里多出的字符（规范化插入）跳过。
+    """
+    chars = alignment.get('characters') or []
+    n = len(chars)
+    ranges: List[Tuple[int, int]] = []
+    al_idx = 0
+
+    for page_text in page_texts:
+        while al_idx < n and not chars[al_idx].strip():
+            al_idx += 1
+        start = al_idx
+
+        ti = 0
+        last_match = al_idx - 1
+        while al_idx < n and ti < len(page_text):
+            tch = page_text[ti]
+            ach = chars[al_idx]
+            if not tch.strip():
+                ti += 1
+                continue
+            if not ach.strip():
+                al_idx += 1
+                continue
+            if tch == ach or tch.lower() == ach.lower():
+                last_match = al_idx
+                al_idx += 1
+                ti += 1
+            else:
+                al_idx += 1
+
+        end = last_match + 1 if last_match >= start else start
+        ranges.append((start, end))
+
+    return ranges
+
+
+def _generate_elevenlabs_whole_and_split(
+    pages_data: List[dict],
+    narration_indexes: List[int],
+    tmp_dir: str,
+    api_key: str,
+    voice_id: str,
+    ffmpeg_path: str,
+    speed: float,
+) -> List[Tuple[str, dict, float]]:
+    """
+    一次合成所有非空 narration，再按字符 alignment 切回单页 mp3 + 单页 alignment。
+
+    返回与 narration_indexes 同长的列表，每项 (audio_path, sub_alignment, duration)。
+    任何不一致（alignment 缺失、有页未对齐等）都会 raise，由调用方回退到逐页路径。
+
+    切片边界：第 j 页 [t_j, t_{j+1})，最后一页到全曲末。这样 delimiter 的自然停顿
+    会被分配给前一页的尾部，相邻页拼接时不会丢失停顿。
+    """
+    delimiter = '\n\n'
+    page_texts = [
+        _strip_invisible_unicode(
+            (pages_data[i].get('narration_text') or '').strip(), keep_newlines=True,
+        )
+        for i in narration_indexes
+    ]
+    if not all(page_texts):
+        raise RuntimeError("整段合成：存在空 narration，无法构造完整文本")
+
+    full_text = delimiter.join(page_texts)
+    full_audio_path = os.path.join(tmp_dir, 'audio_full.mp3')
+
+    duration_full, full_alignment = generate_elevenlabs_audio_sync(
+        full_text, full_audio_path,
+        api_key=api_key, voice_id=voice_id,
+        ffmpeg_path=ffmpeg_path, speed=speed,
+    )
+
+    if not full_alignment:
+        raise RuntimeError("ElevenLabs 未返回 alignment，无法做整段切片")
+
+    chars = full_alignment.get('characters') or []
+    starts_ms = full_alignment.get('character_start_times_ms') or []
+    durs_ms = full_alignment.get('character_durations_ms') or []
+    if not chars or len(chars) != len(starts_ms) or len(chars) != len(durs_ms):
+        raise RuntimeError("ElevenLabs alignment 数据不完整")
+
+    page_align_ranges = _split_alignment_for_pages(page_texts, full_alignment)
+    if any(end <= start for start, end in page_align_ranges):
+        raise RuntimeError("整段合成 alignment 切片失败：存在未匹配到字符的页")
+
+    boundaries_sec: List[float] = []
+    for al_start, _al_end in page_align_ranges:
+        boundaries_sec.append(starts_ms[al_start] / 1000.0)
+    boundaries_sec.append(max(duration_full, boundaries_sec[-1] + 0.1))
+
+    results: List[Tuple[str, dict, float]] = []
+    for j, (al_start, al_end) in enumerate(page_align_ranges):
+        t_start = boundaries_sec[j]
+        t_end = boundaries_sec[j + 1]
+        page_idx = narration_indexes[j]
+
+        page_audio_path = os.path.join(tmp_dir, f'audio_{page_idx:03d}.mp3')
+        _slice_audio_by_time(
+            full_audio_path, page_audio_path, t_start, t_end, ffmpeg_path=ffmpeg_path,
+        )
+        page_duration = get_audio_duration(page_audio_path, ffmpeg_path=ffmpeg_path)
+
+        t_start_ms = int(t_start * 1000)
+        sub_alignment = {
+            'characters': list(chars[al_start:al_end]),
+            'character_start_times_ms': [
+                max(s - t_start_ms, 0) for s in starts_ms[al_start:al_end]
+            ],
+            'character_durations_ms': list(durs_ms[al_start:al_end]),
+        }
+        results.append((page_audio_path, sub_alignment, page_duration))
+
+    logger.info(
+        f"整段合成完成：{len(narration_indexes)} 页 → 1 次 ElevenLabs 调用，"
+        f"全曲 {duration_full:.1f}s，已切片为单页"
+    )
+    return results
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Ken Burns 动效
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -877,34 +1032,72 @@ def _build_timed_subtitle_entries(
     return entries
 
 
-def _detect_cjk_font() -> str:
-    """检测系统中可用的 CJK 字体名称，优先选简体中文字体"""
-    preferred = [
-        'Noto Sans CJK SC', 'Noto Serif CJK SC',
-        'Source Han Sans SC', 'Source Han Serif SC',
-        'WenQuanYi Micro Hei', 'Microsoft YaHei',
-        'PingFang SC', 'SimHei',
-    ]
+# macOS / Linux / Windows 已知 CJK 字体文件 → libass 友好的 Latin 家族名。
+# 顺序即优先级。fontsdir 用对应文件所在目录。
+_CJK_FONT_FILE_CANDIDATES: List[Tuple[str, str]] = [
+    # macOS
+    ('/System/Library/Fonts/PingFang.ttc', 'PingFang SC'),
+    ('/System/Library/Fonts/Hiragino Sans GB.ttc', 'Hiragino Sans GB'),
+    ('/System/Library/Fonts/STHeiti Medium.ttc', 'Heiti SC'),
+    ('/System/Library/Fonts/STHeiti Light.ttc', 'Heiti SC'),
+    ('/Library/Fonts/Songti.ttc', 'Songti SC'),
+    # Linux
+    ('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc', 'Noto Sans CJK SC'),
+    ('/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc', 'Noto Sans CJK SC'),
+    ('/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc', 'Noto Sans CJK SC'),
+    ('/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc', 'Noto Sans CJK SC'),
+    ('/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc', 'Noto Serif CJK SC'),
+    # Windows
+    ('C:/Windows/Fonts/msyh.ttc', 'Microsoft YaHei'),
+    ('C:/Windows/Fonts/msyh.ttf', 'Microsoft YaHei'),
+    ('C:/Windows/Fonts/simhei.ttf', 'SimHei'),
+]
+
+
+def _resolve_cjk_font_file() -> Optional[Tuple[str, str]]:
+    """
+    解析当前系统可用的 CJK 字体文件。
+
+    返回 (font_file_path, font_family_name)；找不到时 None。
+    优先扫已知路径（避免 fc-list 在 macOS 上返回本地化名字导致 libass 找不到字体）。
+    """
+    for path, family in _CJK_FONT_FILE_CANDIDATES:
+        if os.path.exists(path):
+            return path, family
+
+    # fc-match 路径回退；强制 LC_ALL=C 拿 Latin 家族名
     try:
+        env = {**os.environ, 'LC_ALL': 'C', 'LANG': 'C'}
         result = subprocess.run(
-            ['fc-list', ':lang=zh', '-f', '%{family}\\n'],
-            capture_output=True, text=True, timeout=5,
+            ['fc-match', '-f', '%{file}|%{family}', ':lang=zh'],
+            capture_output=True, text=True, timeout=5, env=env,
         )
-        available = set()
-        for line in result.stdout.strip().split('\n'):
-            for name in line.strip().split(','):
-                available.add(name.strip())
-        # 按优先级选择
-        for name in preferred:
-            if name in available:
-                return name
-        # 没匹配到优选的，返回第一个可用字体
-        for name in available:
-            if name:
-                return name
+        out = result.stdout.strip()
+        if out and '|' in out:
+            file_part, family_part = out.split('|', 1)
+            family = family_part.split(',')[0].strip()
+            if file_part and os.path.exists(file_part) and family:
+                return file_part, family
     except Exception:
         pass
+
+    return None
+
+
+def _detect_cjk_font() -> str:
+    """返回 ASS Style 用的 CJK 字体家族名（libass 能查到的 Latin 名）。"""
+    resolved = _resolve_cjk_font_file()
+    if resolved:
+        return resolved[1]
     return 'Noto Sans CJK SC'
+
+
+def _detect_cjk_font_dir() -> Optional[str]:
+    """返回检测到的 CJK 字体文件所在目录，作为 ass filter 的 fontsdir。"""
+    resolved = _resolve_cjk_font_file()
+    if resolved:
+        return os.path.dirname(resolved[0])
+    return None
 
 
 def generate_ass_subtitle(
@@ -964,23 +1157,45 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f.write(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
 
 
+def _strip_invisible_unicode(text: str, keep_newlines: bool = False) -> str:
+    """
+    去除不可见 Unicode 控制类字符，避免在 ASS 解析或 TTS alignment 中产生干扰。
+
+    过滤所有 Cc/Cf/Co/Cs/Cn 类，以及行/段分隔符 U+2028/U+2029。
+    keep_newlines=True 时保留 \n / \r / \t（用于 TTS 输入，保留语义换行）。
+    """
+    out = []
+    for ch in text:
+        if keep_newlines and ch in ('\n', '\r', '\t'):
+            out.append(ch)
+            continue
+        if ch in ('\u2028', '\u2029'):
+            continue
+        cat = unicodedata.category(ch)
+        if cat[0] == 'C':
+            continue
+        out.append(ch)
+    return ''.join(out)
+
+
 def _sanitize_ass_dialogue_text(text: str) -> str:
     """
     清洗旁白文本，避免被 libass 当成 ASS override 标签解析。
 
-    ASS Dialogue 的 Text 字段里：
+    libass 在 Dialogue Text 字段里会特殊解析：
       - `{...}` 是内联 override 块，会被吞或错渲染；
-      - `\\N` `\\h` `\\n` 等反斜杠序列是 libass 转义。
+      - `\\N` `\\h` `\\n` 等反斜杠序列是 libass 转义；
+      - 不可见控制字符（ZWSP / BOM / LRE 等）也可能干扰解析或字体 shaping。
+
     旁白偶尔出现这些字符时，整段对白会被错误解析、变成视觉上的"乱码/方块"。
-    把它们替换成全角等价字符，阅读几乎无差异，但对解析器无歧义。
+    先剥掉控制字符，再把 `\\` `{` `}` 替换成全角等价字符。
     """
+    cleaned = _strip_invisible_unicode(text, keep_newlines=False)
     return (
-        text
+        cleaned
         .replace('\\', '＼')
         .replace('{', '｛')
         .replace('}', '｝')
-        .replace('\n', ' ')
-        .replace('\r', '')
     )
 
 
@@ -1009,10 +1224,16 @@ def burn_subtitles(
     """将 ASS 字幕烧录到视频中"""
     escaped_sub = _escape_ffmpeg_filter_value(subtitle_path)
 
+    ass_args = f"ass=filename='{escaped_sub}'"
+    fonts_dir = _detect_cjk_font_dir()
+    if fonts_dir:
+        escaped_fontsdir = _escape_ffmpeg_filter_value(fonts_dir)
+        ass_args += f":fontsdir='{escaped_fontsdir}'"
+
     cmd = [
         ffmpeg_path, '-y',
         '-i', video_path,
-        '-vf', f"ass=filename='{escaped_sub}'",
+        '-vf', ass_args,
         '-c:v', 'libx264',
         '-c:a', 'copy',
         '-pix_fmt', 'yuv420p',
@@ -1185,6 +1406,36 @@ def generate_narration_video(
         alignments: List[Optional[dict]] = []
         silent_page_indexes: List[int] = []
 
+        # 整段合成快路径：ElevenLabs 且至少 2 页有 narration 时，一次合成 + 切片
+        # 解决多页"逐页冷启动"导致的页间割裂感。
+        narration_indexes = [
+            idx for idx, p in enumerate(pages_data)
+            if (p.get('narration_text') or '').strip()
+        ]
+        whole_text_results: Optional[dict] = None
+        if (
+            elevenlabs_config and elevenlabs_config.get('api_key')
+            and len(narration_indexes) >= 2
+        ):
+            try:
+                if progress_callback:
+                    progress_callback(
+                        "TTS",
+                        f"整段合成 ElevenLabs 旁白（{len(narration_indexes)} 页一次）",
+                        22,
+                    )
+                whole_text_pairs = _generate_elevenlabs_whole_and_split(
+                    pages_data, narration_indexes, tmp_dir,
+                    api_key=elevenlabs_config['api_key'],
+                    voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
+                    ffmpeg_path=ffmpeg_path,
+                    speed=speed,
+                )
+                whole_text_results = dict(zip(narration_indexes, whole_text_pairs))
+            except Exception as e:
+                logger.warning(f"整段合成失败，回退到按页合成：{e}")
+                whole_text_results = None
+
         for i, page in enumerate(pages_data):
             narration = page.get('narration_text')
             page_idx = page.get('page_index', i)
@@ -1193,36 +1444,39 @@ def generate_narration_video(
             alignment: Optional[dict] = None
             duration = silent_duration
             if narration and narration.strip():
-                audio_path = os.path.join(tmp_dir, f'audio_{i:03d}.mp3')
-                try:
-                    if elevenlabs_config and elevenlabs_config.get('api_key'):
-                        duration, alignment = generate_elevenlabs_audio_sync(
-                            narration, audio_path,
-                            api_key=elevenlabs_config['api_key'],
-                            voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
-                            ffmpeg_path=ffmpeg_path,
-                            speed=speed,
-                        )
-                    else:
-                        # edge-tts 用 rate 字符串：speed=1.1 → "+10%"
-                        effective_rate = rate
-                        if abs(speed - 1.0) > 1e-3:
-                            pct = int(round((speed - 1.0) * 100))
-                            effective_rate = f"{'+' if pct >= 0 else ''}{pct}%"
-                        duration = generate_tts_audio_sync(
-                            narration, audio_path, voice=voice, rate=effective_rate, ffmpeg_path=ffmpeg_path,
-                        )
-                except Exception as e:
-                    if fail_fast:
-                        raise RuntimeError(
-                            f"第 {page_idx + 1} 页旁白语音生成失败，当前项目未开启“允许返回半成品”，已停止导出: {e}"
-                        ) from e
+                if whole_text_results is not None and i in whole_text_results:
+                    audio_path, alignment, duration = whole_text_results[i]
+                else:
+                    audio_path = os.path.join(tmp_dir, f'audio_{i:03d}.mp3')
+                    try:
+                        if elevenlabs_config and elevenlabs_config.get('api_key'):
+                            duration, alignment = generate_elevenlabs_audio_sync(
+                                narration, audio_path,
+                                api_key=elevenlabs_config['api_key'],
+                                voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
+                                ffmpeg_path=ffmpeg_path,
+                                speed=speed,
+                            )
+                        else:
+                            # edge-tts 用 rate 字符串：speed=1.1 → "+10%"
+                            effective_rate = rate
+                            if abs(speed - 1.0) > 1e-3:
+                                pct = int(round((speed - 1.0) * 100))
+                                effective_rate = f"{'+' if pct >= 0 else ''}{pct}%"
+                            duration = generate_tts_audio_sync(
+                                narration, audio_path, voice=voice, rate=effective_rate, ffmpeg_path=ffmpeg_path,
+                            )
+                    except Exception as e:
+                        if fail_fast:
+                            raise RuntimeError(
+                                f"第 {page_idx + 1} 页旁白语音生成失败，当前项目未开启“允许返回半成品”，已停止导出: {e}"
+                            ) from e
 
-                    logger.warning(f"TTS failed for page {page_idx}: {e}, using silent clip")
-                    audio_path = None
-                    alignment = None
-                    duration = silent_duration
-                    silent_page_indexes.append(page_idx + 1)
+                        logger.warning(f"TTS failed for page {page_idx}: {e}, using silent clip")
+                        audio_path = None
+                        alignment = None
+                        duration = silent_duration
+                        silent_page_indexes.append(page_idx + 1)
             else:
                 if fail_fast:
                     raise RuntimeError(
