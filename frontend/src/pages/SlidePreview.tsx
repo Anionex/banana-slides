@@ -1612,10 +1612,14 @@ export const SlidePreview: React.FC = () => {
                         try {
                           const voicesRes = await getElevenLabsVoices();
                           setElevenLabsVoices(voicesRes.data?.voices ?? []);
-                        } catch {}
+                        } catch {
+                          // ignore voice fetch failures; user can retry
+                        }
                         setElevenLabsVoicesLoading(false);
                       }
-                    } catch {}
+                    } catch {
+                      // settings fetch failure falls through to default state
+                    }
                     setShowVideoExportDialog(true);
                   }}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
