@@ -1806,9 +1806,6 @@ def export_video_task(
                 # 收集需要生成旁白的页面
                 pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
                 for i, (page, _) in enumerate(valid_pages):
-                    if page.narration_text:
-                        continue
-
                     desc_content = page.get_description_content()
                     desc_text = ''
                     if desc_content:
