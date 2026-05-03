@@ -110,7 +110,7 @@ class Settings(db.Model):
         api_key = self._val('api_key', d)
         mineru_token = self._val('mineru_token', d)
         baidu_api_key = self._val('baidu_api_key', d)
-        elevenlabs_api_key = self.elevenlabs_api_key
+        elevenlabs_api_key = self._val('elevenlabs_api_key', d)
         text_api_key = self._val('text_api_key', d)
         image_api_key = self._val('image_api_key', d)
         image_caption_api_key = self._val('image_caption_api_key', d)
