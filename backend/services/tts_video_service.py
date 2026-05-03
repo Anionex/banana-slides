@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import threading
 import time
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,10 @@ _MAX_SUBTITLE_SEGMENT_LENGTH = 30
 
 # 无旁白页面的默认静音片段时长（秒）
 _DEFAULT_SILENT_DURATION = 3.0
+
+# 整片头/尾的静音 padding（秒），避免播放器开场吃掉首词、结尾被截断
+_LEADING_PAD_SECONDS = 0.8
+_TRAILING_PAD_SECONDS = 1.2
 
 # FFmpeg 连续多久没有任何输出才视为卡死
 _FFMPEG_IDLE_TIMEOUT_SECONDS = 120.0
@@ -269,6 +273,35 @@ def get_audio_duration(audio_path: str, ffmpeg_path: str = 'ffmpeg') -> float:
     return float(result.stdout.strip())
 
 
+def pad_audio_with_silence(
+    src_path: str,
+    dst_path: str,
+    leading_seconds: float = 0.0,
+    trailing_seconds: float = 0.0,
+    ffmpeg_path: str = 'ffmpeg',
+) -> float:
+    """在音频两端追加静音，返回新音频时长。"""
+    if leading_seconds <= 0 and trailing_seconds <= 0:
+        shutil.copy2(src_path, dst_path)
+        return get_audio_duration(dst_path, ffmpeg_path)
+
+    filters: List[str] = []
+    if leading_seconds > 0:
+        filters.append(f'adelay={int(leading_seconds * 1000)}|{int(leading_seconds * 1000)}:all=1')
+    if trailing_seconds > 0:
+        filters.append(f'apad=pad_dur={trailing_seconds}')
+
+    cmd = [
+        ffmpeg_path, '-y',
+        '-i', src_path,
+        '-af', ','.join(filters),
+        '-c:a', 'libmp3lame', '-b:a', '128k',
+        dst_path,
+    ]
+    _run_ffmpeg_command(cmd, "FFmpeg failed to pad audio")
+    return get_audio_duration(dst_path, ffmpeg_path)
+
+
 def get_default_voice(language: str, config: Optional[dict] = None) -> str:
     """根据语言返回默认 TTS 语音名称"""
     defaults = {
@@ -335,36 +368,104 @@ def generate_elevenlabs_audio_sync(
     api_key: str,
     voice_id: str,
     ffmpeg_path: str = 'ffmpeg',
-) -> float:
+    speed: float = 1.0,
+) -> Tuple[float, Optional[dict]]:
     """
-    同步生成 ElevenLabs TTS 音频文件（MP3）。
-
-    Args:
-        text: 待合成的文本
-        output_path: 输出音频文件路径（MP3）
-        api_key: ElevenLabs API Key
-        voice_id: ElevenLabs Voice ID
-        ffmpeg_path: ffmpeg 路径（用于 ffprobe 获取时长）
+    同步生成 ElevenLabs TTS 音频文件（MP3），并返回字符级对齐时间戳。
 
     Returns:
-        float: 音频时长（秒）
+        (duration_seconds, alignment) — alignment 形如
+        {'characters': [...], 'character_start_times_ms': [...], 'character_durations_ms': [...]}
+        若接口未返回对齐信息则为 None。
     """
+    import base64
     from elevenlabs.client import ElevenLabs
+    from elevenlabs.core import ApiError as ElevenLabsApiError
+    from elevenlabs import VoiceSettings
 
     client = ElevenLabs(api_key=api_key)
-    audio_chunks = client.text_to_speech.convert(
-        text=text,
-        voice_id=voice_id,
-        model_id='eleven_multilingual_v2',
-        output_format='mp3_44100_128',
+    # ElevenLabs 实际接受 speed 范围 0.7–1.2
+    clamped_speed = max(0.7, min(float(speed), 1.2))
+    voice_settings = VoiceSettings(
+        stability=0.75,
+        similarity_boost=0.75,
+        style=0.0,
+        use_speaker_boost=True,
+        speed=clamped_speed,
     )
-    with open(output_path, 'wb') as f:
-        for chunk in audio_chunks:
-            f.write(chunk)
+
+    def _convert_with_timestamps(model_id: str):
+        return client.text_to_speech.convert_with_timestamps(
+            text=text,
+            voice_id=voice_id,
+            model_id=model_id,
+            output_format='mp3_44100_128',
+            voice_settings=voice_settings,
+        )
+
+    alignment_dict: Optional[dict] = None
+    try:
+        try:
+            response = _convert_with_timestamps('eleven_v3')
+        except ElevenLabsApiError as e:
+            logger.warning(
+                f"eleven_v3 不可用 (status={getattr(e, 'status_code', None)})，回退到 eleven_multilingual_v2"
+            )
+            response = _convert_with_timestamps('eleven_multilingual_v2')
+
+        # SDK 内部使用 audio_base_64（Python 属性名）/ audio_base64（JSON 别名）
+        audio_b64 = (
+            getattr(response, 'audio_base_64', None)
+            or getattr(response, 'audio_base64', None)
+        )
+        if audio_b64 is None and isinstance(response, dict):
+            audio_b64 = response.get('audio_base_64') or response.get('audio_base64')
+        if not audio_b64:
+            raise RuntimeError("ElevenLabs 未返回 audio_base64 数据")
+
+        with open(output_path, 'wb') as f:
+            f.write(base64.b64decode(audio_b64))
+
+        alignment_obj = getattr(response, 'alignment', None)
+        if alignment_obj is None and isinstance(response, dict):
+            alignment_obj = response.get('alignment')
+        if alignment_obj is not None:
+            chars = getattr(alignment_obj, 'characters', None)
+            # SDK 使用 character_start_times_seconds / character_end_times_seconds
+            starts_sec = getattr(alignment_obj, 'character_start_times_seconds', None)
+            ends_sec = getattr(alignment_obj, 'character_end_times_seconds', None)
+            if chars is None and isinstance(alignment_obj, dict):
+                chars = alignment_obj.get('characters')
+                starts_sec = alignment_obj.get('character_start_times_seconds')
+                ends_sec = alignment_obj.get('character_end_times_seconds')
+            if chars and starts_sec and ends_sec and len(chars) == len(starts_sec) == len(ends_sec):
+                alignment_dict = {
+                    'characters': list(chars),
+                    'character_start_times_ms': [int(s * 1000) for s in starts_sec],
+                    'character_durations_ms': [
+                        max(int((e - s) * 1000), 0) for s, e in zip(starts_sec, ends_sec)
+                    ],
+                }
+    except ElevenLabsApiError as e:
+        status = getattr(e, 'status_code', None)
+        body = getattr(e, 'body', None)
+        detail = body.get('detail', {}) if isinstance(body, dict) else {}
+        err_status = detail.get('status', '') if isinstance(detail, dict) else ''
+        msg = (detail.get('message') if isinstance(detail, dict) else None) or str(e)
+        if err_status == 'quota_exceeded' or 'quota' in msg.lower() or 'credits' in msg.lower():
+            raise RuntimeError(f"ElevenLabs 免费配额已不足：{msg}") from e
+        elif err_status == 'invalid_api_key' or status == 401:
+            raise RuntimeError(f"ElevenLabs 认证失败，请检查 API Key 是否有效") from e
+        elif status == 402 or (isinstance(detail, dict) and detail.get('code') == 'paid_plan_required'):
+            raise RuntimeError(f"ElevenLabs 该声音需要付费套餐：{msg}") from e
+        else:
+            raise RuntimeError(f"ElevenLabs API 错误 (HTTP {status})：{msg}") from e
 
     duration = get_audio_duration(output_path, ffmpeg_path)
-    logger.debug(f"ElevenLabs audio generated: {output_path} ({duration:.1f}s)")
-    return duration
+    logger.debug(
+        f"ElevenLabs audio generated: {output_path} ({duration:.1f}s, alignment={'yes' if alignment_dict else 'no'})"
+    )
+    return duration, alignment_dict
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -414,6 +515,8 @@ def create_ken_burns_clip(
     effect_type: str = 'zoom_in',
     ffmpeg_path: str = 'ffmpeg',
     idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
+    fade_in_seconds: float = 0.0,
+    fade_out_seconds: float = 0.0,
 ) -> None:
     """OpenCV 逐帧渲染 Ken Burns 动效，pipe rawvideo 给 FFmpeg 编码。
     用 _prepare_canvas 适配任意画幅，getRectSubPix 实现浮点精度裁切。"""
@@ -441,12 +544,23 @@ def create_ken_burns_clip(
     )
     ih, iw = img.shape[:2]
 
+    fade_filters: List[str] = []
+    if fade_in_seconds > 0:
+        fade_filters.append(f'fade=t=in:st=0:d={fade_in_seconds}')
+    if fade_out_seconds > 0:
+        fade_out_start = max(duration - fade_out_seconds, 0.0)
+        fade_filters.append(f'fade=t=out:st={fade_out_start}:d={fade_out_seconds}')
+
     cmd = [
         ffmpeg_path, '-y',
         '-f', 'rawvideo', '-pix_fmt', 'bgr24',
         '-s', f'{width}x{height}', '-r', str(fps),
         '-i', 'pipe:0',
         '-t', str(duration),
+    ]
+    if fade_filters:
+        cmd += ['-vf', ','.join(fade_filters)]
+    cmd += [
         '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
         '-preset', 'medium', '-crf', '23',
         '-movflags', '+faststart',
@@ -519,6 +633,8 @@ def create_silent_clip(
     enable_ken_burns: bool = True,
     ffmpeg_path: str = 'ffmpeg',
     idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
+    fade_in_seconds: float = 0.0,
+    fade_out_seconds: float = 0.0,
 ) -> None:
     """创建无声视频片段（用于没有旁白的页面）"""
     if enable_ken_burns:
@@ -527,6 +643,7 @@ def create_silent_clip(
             image_path, tmp_video, duration,
             width=width, height=height, fps=fps,
             effect_type=effect_type, ffmpeg_path=ffmpeg_path, idle_timeout=idle_timeout,
+            fade_in_seconds=fade_in_seconds, fade_out_seconds=fade_out_seconds,
         )
         cmd = [
             ffmpeg_path, '-y',
@@ -543,6 +660,11 @@ def create_silent_clip(
                 os.remove(tmp_video)
     else:
         vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
+        if fade_in_seconds > 0:
+            vf += f",fade=t=in:st=0:d={fade_in_seconds}"
+        if fade_out_seconds > 0:
+            fade_out_start = max(duration - fade_out_seconds, 0.0)
+            vf += f",fade=t=out:st={fade_out_start}:d={fade_out_seconds}"
         cmd = [
             ffmpeg_path, '-y',
             '-loop', '1',
@@ -569,9 +691,16 @@ def create_static_clip(
     fps: int = 25,
     ffmpeg_path: str = 'ffmpeg',
     idle_timeout: float = _FFMPEG_IDLE_TIMEOUT_SECONDS,
+    fade_in_seconds: float = 0.0,
+    fade_out_seconds: float = 0.0,
 ) -> None:
     """从单张图片创建静态视频片段（无动效）"""
     vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
+    if fade_in_seconds > 0:
+        vf += f",fade=t=in:st=0:d={fade_in_seconds}"
+    if fade_out_seconds > 0:
+        fade_out_start = max(duration - fade_out_seconds, 0.0)
+        vf += f",fade=t=out:st={fade_out_start}:d={fade_out_seconds}"
 
     cmd = [
         ffmpeg_path, '-y',
@@ -640,6 +769,75 @@ def _split_narration_to_sentences(text: str) -> List[str]:
             result.append(current)
 
     return result if result else [text.strip()]
+
+
+def _build_timed_subtitle_entries_from_alignment(
+    narration_text: str,
+    page_start: float,
+    alignment: dict,
+) -> List[dict]:
+    """
+    使用 ElevenLabs 字符级对齐时间戳生成字幕条目，比按字符比例估算更精准。
+
+    走两路指针：sentence 字符序列 vs alignment.characters 序列，
+    匹配相同字符（忽略空白），用首字符 start 与尾字符 start+duration 作为字幕区间。
+    """
+    sentences = _split_narration_to_sentences(narration_text)
+    if not sentences:
+        return []
+
+    chars = alignment.get('characters') or []
+    starts = alignment.get('character_start_times_ms') or []
+    durs = alignment.get('character_durations_ms') or []
+    if not chars or len(chars) != len(starts) or len(chars) != len(durs):
+        return []
+
+    entries: List[dict] = []
+    align_idx = 0
+    n = len(chars)
+
+    for sent in sentences:
+        target = sent
+        # 跳过对齐序列开头的空白字符
+        while align_idx < n and not chars[align_idx].strip():
+            align_idx += 1
+        if align_idx >= n:
+            break
+
+        sent_start_idx = align_idx
+        # 在对齐序列中匹配该句子的字符（按非空白字符逐个对齐）
+        ti = 0
+        i = align_idx
+        last_match_idx = align_idx
+        while i < n and ti < len(target):
+            tch = target[ti]
+            ach = chars[i]
+            if not tch.strip():
+                ti += 1
+                continue
+            if not ach.strip():
+                i += 1
+                continue
+            # 不区分大小写匹配，宽松一点处理标点变体
+            if tch == ach or tch.lower() == ach.lower():
+                last_match_idx = i
+                i += 1
+                ti += 1
+            else:
+                # 对齐序列里如果出现额外字符（如规范化插入），跳过它
+                i += 1
+
+        sent_end_idx = last_match_idx
+        start_ms = starts[sent_start_idx]
+        end_ms = starts[sent_end_idx] + durs[sent_end_idx]
+        entries.append({
+            'start': page_start + start_ms / 1000.0,
+            'end': page_start + end_ms / 1000.0,
+            'text': sent,
+        })
+        align_idx = i
+
+    return entries
 
 
 def _build_timed_subtitle_entries(
@@ -762,9 +960,28 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for entry in subtitle_entries:
             start = _format_ass_time(entry['start'])
             end = _format_ass_time(entry['end'])
-            # 清理文本中的换行
-            text = entry['text'].replace('\n', ' ').replace('\r', '')
+            text = _sanitize_ass_dialogue_text(entry['text'])
             f.write(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
+
+
+def _sanitize_ass_dialogue_text(text: str) -> str:
+    """
+    清洗旁白文本，避免被 libass 当成 ASS override 标签解析。
+
+    ASS Dialogue 的 Text 字段里：
+      - `{...}` 是内联 override 块，会被吞或错渲染；
+      - `\\N` `\\h` `\\n` 等反斜杠序列是 libass 转义。
+    旁白偶尔出现这些字符时，整段对白会被错误解析、变成视觉上的"乱码/方块"。
+    把它们替换成全角等价字符，阅读几乎无差异，但对解析器无歧义。
+    """
+    return (
+        text
+        .replace('\\', '＼')
+        .replace('{', '｛')
+        .replace('}', '｝')
+        .replace('\n', ' ')
+        .replace('\r', '')
+    )
 
 
 def _escape_ffmpeg_filter_value(value: str) -> str:
@@ -909,6 +1126,7 @@ def generate_narration_video(
     silent_duration: float = 0,
     fail_fast: bool = False,
     elevenlabs_config: Optional[dict] = None,
+    speed: float = 1.0,
 ) -> None:
     """
     完整的播报视频生成流水线。
@@ -964,6 +1182,7 @@ def generate_narration_video(
         # 先统一生成所有 TTS 音频，获取每页实际时长
         page_durations: List[float] = []
         audio_paths: List[Optional[str]] = []
+        alignments: List[Optional[dict]] = []
         silent_page_indexes: List[int] = []
 
         for i, page in enumerate(pages_data):
@@ -971,20 +1190,27 @@ def generate_narration_video(
             page_idx = page.get('page_index', i)
 
             audio_path = None
+            alignment: Optional[dict] = None
             duration = silent_duration
             if narration and narration.strip():
                 audio_path = os.path.join(tmp_dir, f'audio_{i:03d}.mp3')
                 try:
                     if elevenlabs_config and elevenlabs_config.get('api_key'):
-                        duration = generate_elevenlabs_audio_sync(
+                        duration, alignment = generate_elevenlabs_audio_sync(
                             narration, audio_path,
                             api_key=elevenlabs_config['api_key'],
                             voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
                             ffmpeg_path=ffmpeg_path,
+                            speed=speed,
                         )
                     else:
+                        # edge-tts 用 rate 字符串：speed=1.1 → "+10%"
+                        effective_rate = rate
+                        if abs(speed - 1.0) > 1e-3:
+                            pct = int(round((speed - 1.0) * 100))
+                            effective_rate = f"{'+' if pct >= 0 else ''}{pct}%"
                         duration = generate_tts_audio_sync(
-                            narration, audio_path, voice=voice, rate=rate, ffmpeg_path=ffmpeg_path,
+                            narration, audio_path, voice=voice, rate=effective_rate, ffmpeg_path=ffmpeg_path,
                         )
                 except Exception as e:
                     if fail_fast:
@@ -994,6 +1220,7 @@ def generate_narration_video(
 
                     logger.warning(f"TTS failed for page {page_idx}: {e}, using silent clip")
                     audio_path = None
+                    alignment = None
                     duration = silent_duration
                     silent_page_indexes.append(page_idx + 1)
             else:
@@ -1005,6 +1232,7 @@ def generate_narration_video(
 
             page_durations.append(duration)
             audio_paths.append(audio_path)
+            alignments.append(alignment)
 
             if progress_callback:
                 pct = int(20 + (i + 1) / total * 30)  # 20-50%
@@ -1026,30 +1254,59 @@ def generate_narration_video(
             narration = page.get('narration_text')
             page_idx = page.get('page_index', i)
             effect = KEN_BURNS_EFFECTS[page_idx % len(KEN_BURNS_EFFECTS)]
-            duration = page_durations[i]
+            audio_duration = page_durations[i]
             audio_path = audio_paths[i]
+            alignment = alignments[i]
 
-            # 收集字幕条目
-            if narration and narration.strip() and audio_path:
-                page_subs = _build_timed_subtitle_entries(
-                    narration.strip(), cumulative_time, duration,
+            # 整片头/尾的静音 padding 与画面淡入/淡出
+            is_first = (i == 0)
+            is_last = (i == total - 1)
+            leading_pad = _LEADING_PAD_SECONDS if is_first else 0.0
+            trailing_pad = _TRAILING_PAD_SECONDS if is_last else 0.0
+
+            if audio_path and (leading_pad > 0 or trailing_pad > 0):
+                padded_audio = os.path.join(tmp_dir, f'audio_padded_{i:03d}.mp3')
+                pad_audio_with_silence(
+                    audio_path, padded_audio,
+                    leading_seconds=leading_pad,
+                    trailing_seconds=trailing_pad,
+                    ffmpeg_path=ffmpeg_path,
                 )
-                subtitle_entries.extend(page_subs)
-            cumulative_time += duration
+                audio_path = padded_audio
 
-            if audio_path:
+            display_duration = audio_duration + leading_pad + trailing_pad
+
+            # 收集字幕条目（字幕仅覆盖真实语音区间，避开首/末静音）
+            sub_start = cumulative_time + leading_pad
+            if narration and narration.strip() and audio_paths[i]:
+                if alignment:
+                    page_subs = _build_timed_subtitle_entries_from_alignment(
+                        narration.strip(), sub_start, alignment,
+                    )
+                else:
+                    page_subs = _build_timed_subtitle_entries(
+                        narration.strip(), sub_start, audio_duration,
+                    )
+                subtitle_entries.extend(page_subs)
+            cumulative_time += display_duration
+
+            if audio_paths[i]:
                 video_clip = os.path.join(tmp_dir, f'video_{i:03d}.mp4')
                 if enable_ken_burns:
                     create_ken_burns_clip(
-                        image_path, video_clip, duration,
+                        image_path, video_clip, display_duration,
                         width=width, height=height, fps=fps,
                         effect_type=effect, ffmpeg_path=ffmpeg_path,
+                        fade_in_seconds=leading_pad,
+                        fade_out_seconds=trailing_pad,
                     )
                 else:
                     create_static_clip(
-                        image_path, video_clip, duration,
+                        image_path, video_clip, display_duration,
                         width=width, height=height, fps=fps,
                         ffmpeg_path=ffmpeg_path,
+                        fade_in_seconds=leading_pad,
+                        fade_out_seconds=trailing_pad,
                     )
 
                 # Mux video + audio
@@ -1060,10 +1317,12 @@ def generate_narration_video(
                 # 静音片段（含无声音轨以保证 concat 兼容）
                 silent_path = os.path.join(tmp_dir, f'silent_{i:03d}.mp4')
                 create_silent_clip(
-                    image_path, silent_path, duration=duration,
+                    image_path, silent_path, duration=display_duration,
                     width=width, height=height, fps=fps,
                     effect_type=effect, enable_ken_burns=enable_ken_burns,
                     ffmpeg_path=ffmpeg_path,
+                    fade_in_seconds=leading_pad,
+                    fade_out_seconds=trailing_pad,
                 )
                 muxed_clips.append(silent_path)
 

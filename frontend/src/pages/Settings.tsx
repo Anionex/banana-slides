@@ -374,7 +374,6 @@ const initialFormData = {
   image_caption_api_base_url: '',
   openai_image_api_protocol: 'auto',
   // ElevenLabs TTS
-  elevenlabs_enabled: false,
   elevenlabs_api_key: '',
 };
 
@@ -449,7 +448,6 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   image_caption_api_key: '',
   image_caption_api_base_url: data.image_caption_api_base_url || '',
   openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
-  elevenlabs_enabled: data.elevenlabs_enabled ?? false,
   elevenlabs_api_key: '',
 });
 
@@ -706,12 +704,6 @@ export const Settings: React.FC = () => {
       title: t('settings.sections.elevenlabs'),
       icon: <Volume2 size={20} />,
       fields: [
-        {
-          key: 'elevenlabs_enabled',
-          label: t('settings.fields.elevenLabsEnabled'),
-          type: 'switch',
-          description: t('settings.fields.elevenLabsEnabledDesc'),
-        },
         {
           key: 'elevenlabs_api_key',
           label: t('settings.fields.elevenLabsApiKey'),

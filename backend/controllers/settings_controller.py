@@ -439,6 +439,64 @@ def reset_settings():
         )
 
 
+@settings_bp.route("/elevenlabs-voices", methods=["GET"], strict_slashes=False)
+def get_elevenlabs_voices():
+    """GET /api/settings/elevenlabs-voices - 用存储的 API Key 拉取可用声音列表"""
+    from models import Settings
+    db.session.expire_all()
+    settings = Settings.get_settings()
+    api_key = settings.elevenlabs_api_key
+    if not api_key:
+        return error_response("ELEVENLABS_KEY_MISSING", "ElevenLabs API Key 未配置", 400)
+    try:
+        from elevenlabs.client import ElevenLabs
+        from elevenlabs.core import ApiError as ElevenLabsApiError
+        client = ElevenLabs(api_key=api_key)
+        try:
+            voices_response = client.voices.get_all()
+        except ElevenLabsApiError as e:
+            body = getattr(e, 'body', None) or {}
+            detail = body.get('detail', {}) if isinstance(body, dict) else {}
+            status = detail.get('status', '') if isinstance(detail, dict) else ''
+            msg = (detail.get('message') if isinstance(detail, dict) else None) or str(e)
+            if status == 'missing_permissions':
+                return error_response(
+                    "ELEVENLABS_KEY_MISSING_PERMISSION",
+                    "ElevenLabs API Key 缺少 voices_read 权限。请到 ElevenLabs Dashboard 编辑该 Key 并勾选 Voices: Read，或创建 'Has access to all' 的 Key 后重新保存。",
+                    400,
+                )
+            if status == 'invalid_api_key' or e.status_code == 401:
+                return error_response("ELEVENLABS_KEY_INVALID", f"ElevenLabs API Key 无效：{msg}", 400)
+            return error_response("ELEVENLABS_VOICES_ERROR", f"ElevenLabs 错误 (HTTP {e.status_code})：{msg}", 500)
+        voices = []
+        for v in voices_response.voices:
+            labels = getattr(v, "labels", None) or {}
+            verified = getattr(v, "verified_languages", None) or []
+            languages = []
+            seen = set()
+            primary = labels.get("language") if isinstance(labels, dict) else None
+            if primary and primary not in seen:
+                languages.append(primary)
+                seen.add(primary)
+            for entry in verified:
+                lang = entry.get("language") if isinstance(entry, dict) else getattr(entry, "language", None)
+                if lang and lang not in seen:
+                    languages.append(lang)
+                    seen.add(lang)
+            voices.append({
+                "id": v.voice_id,
+                "name": v.name,
+                "category": getattr(v, "category", "premade"),
+                "languages": languages,
+                "accent": labels.get("accent") if isinstance(labels, dict) else None,
+            })
+        voices.sort(key=lambda v: v["name"])
+        return success_response({"voices": voices})
+    except Exception as e:
+        logger.exception("[elevenlabs-voices] 获取声音列表失败")
+        return error_response("ELEVENLABS_VOICES_ERROR", f"获取 ElevenLabs 声音列表失败: {e}", 500)
+
+
 @settings_bp.route("/active-config", methods=["GET"], strict_slashes=False)
 def get_active_config():
     """

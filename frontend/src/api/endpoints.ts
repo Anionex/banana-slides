@@ -749,6 +749,7 @@ export const exportVideo = async (
     pageIds?: string[];
     voice?: string;
     rate?: string;
+    speed?: number;
     language?: string;
     generateNarration?: boolean;
     enableKenBurns?: boolean;
@@ -771,6 +772,7 @@ export const exportVideo = async (
     page_ids: options?.pageIds,
     voice: options?.voice,
     rate: options?.rate,
+    speed: options?.speed,
     language: options?.language,
     generate_narration: options?.generateNarration ?? true,
     enable_ken_burns: options?.enableKenBurns ?? false,
@@ -1264,6 +1266,11 @@ export const getStoredOutputLanguage = async (): Promise<OutputLanguage> => {
  */
 export const getSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.get<ApiResponse<Settings>>('/api/settings');
+  return response.data;
+};
+
+export const getElevenLabsVoices = async (): Promise<ApiResponse<{ voices: { id: string; name: string; category: string; languages?: string[]; accent?: string | null }[] }>> => {
+  const response = await apiClient.get('/api/settings/elevenlabs-voices');
   return response.data;
 };
 
