@@ -634,6 +634,7 @@ def _synthesize_batch_and_split(
     batch_indexes: List[int],
     batch_texts: List[str],
     tmp_dir: str,
+    batch_slug: str,
     batch_label: str,
     api_key: str,
     voice_id: str,
@@ -669,7 +670,7 @@ def _synthesize_batch_and_split(
 
     delimiter = '\n\n'
     full_text = delimiter.join(batch_texts)
-    full_audio_path = os.path.join(tmp_dir, f'audio_full_{batch_label}.mp3')
+    full_audio_path = os.path.join(tmp_dir, f'audio_full_{batch_slug}.mp3')
 
     duration_full, full_alignment = generate_elevenlabs_audio_sync(
         full_text, full_audio_path,
@@ -753,6 +754,7 @@ def _generate_elevenlabs_whole_and_split(
     for b_idx, batch in enumerate(batches):
         batch_indexes = [pair[0] for pair in batch]
         batch_texts = [pair[1] for pair in batch]
+        slug = f"{b_idx + 1:03d}of{len(batches):03d}"
         label = f"{b_idx + 1}/{len(batches)}"
         if progress_callback:
             total_chars = sum(len(t) for t in batch_texts)
@@ -762,7 +764,8 @@ def _generate_elevenlabs_whole_and_split(
                 22,
             )
         batch_results = _synthesize_batch_and_split(
-            batch_indexes, batch_texts, tmp_dir, label,
+            batch_indexes, batch_texts, tmp_dir,
+            batch_slug=slug, batch_label=label,
             api_key=api_key, voice_id=voice_id,
             ffmpeg_path=ffmpeg_path, speed=speed,
         )
