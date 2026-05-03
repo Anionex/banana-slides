@@ -62,6 +62,8 @@ _MAX_SUBTITLE_SEGMENT_LENGTH = _tts_mod._MAX_SUBTITLE_SEGMENT_LENGTH
 _DEFAULT_SILENT_DURATION = _tts_mod._DEFAULT_SILENT_DURATION
 _FFMPEG_IDLE_TIMEOUT_SECONDS = _tts_mod._FFMPEG_IDLE_TIMEOUT_SECONDS
 get_narration_generation_prompt = _prompts_mod.get_narration_generation_prompt
+normalize_narration_generation_config = _prompts_mod.normalize_narration_generation_config
+parse_narration_generation_result = _prompts_mod.parse_narration_generation_result
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -488,6 +490,9 @@ class TestNarrationPrompt:
         assert '<slide_description>' in prompt
         assert '</slide_description>' in prompt
         assert '<slide_title>' in prompt
+        assert 'knowledgeable and patient university professor' in prompt
+        assert 'the general public with no technical background' in prompt
+        assert 'between 100 and 200 words' in prompt
 
     def test_english_prompt(self):
         prompt = get_narration_generation_prompt(
@@ -500,6 +505,46 @@ class TestNarrationPrompt:
             language='en',
         )
         assert 'English' in prompt
+
+    def test_prompt_uses_custom_config(self):
+        prompt = get_narration_generation_prompt(
+            pages=[{
+                'page_index': 1,
+                'title': 'Nvidia Growth',
+                'points': ['Revenue', 'Margin'],
+                'description_text': 'Discussing business momentum',
+            }],
+            language='en',
+            config={
+                'speaker_persona': 'confident corporate executive',
+                'target_audience': 'potential investors and venture capitalists',
+                'speech_tone': 'inspiring, passionate, and persuasive',
+                'presentation_topic': 'our company annual report',
+                'min_words': 60,
+                'max_words': 90,
+            },
+        )
+        assert 'confident corporate executive' in prompt
+        assert 'potential investors and venture capitalists' in prompt
+        assert 'inspiring, passionate, and persuasive' in prompt
+        assert 'our company annual report' in prompt
+        assert 'between 60 and 90 words' in prompt
+
+    def test_normalize_narration_config_clamps_and_defaults(self):
+        config = normalize_narration_generation_config(
+            {'min_words': '12', 'max_words': '500', 'presentation_topic': ' Quarterly review '},
+            fallback_topic='fallback topic',
+        )
+        assert config['min_words'] == 30
+        assert config['max_words'] == 300
+        assert config['presentation_topic'] == 'Quarterly review'
+        assert config['speaker_persona'] == 'knowledgeable and patient university professor'
+
+    def test_parse_narration_generation_result(self):
+        parsed = parse_narration_generation_result(
+            "=== SLIDE 1 ===\nHello world\n=== SLIDE 2 ===\nSecond slide"
+        )
+        assert parsed == {1: 'Hello world', 2: 'Second slide'}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -604,6 +649,27 @@ class TestExportVideoRoute:
             json={},
         )
         assert response.status_code == 404
+
+    def test_export_video_returns_normalized_narration_config(self, client, sample_project):
+        if not sample_project:
+            pytest.skip("sample_project fixture returned None")
+        project_id = sample_project.get('id') or sample_project.get('project_id')
+        response = client.post(
+            f'/api/projects/{project_id}/export/video',
+            json={
+                'include_no_image_pages': True,
+                'narration_config': {
+                    'speaker_persona': 'confident corporate executive',
+                    'min_words': 80,
+                    'max_words': 120,
+                },
+            },
+        )
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['narration_config']['speaker_persona'] == 'confident corporate executive'
+        assert data['narration_config']['min_words'] == 80
+        assert data['narration_config']['max_words'] == 120
 
     def test_export_video_no_pages(self, client, sample_project):
         if not sample_project:

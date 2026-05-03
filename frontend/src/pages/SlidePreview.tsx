@@ -28,7 +28,21 @@ const previewI18n = {
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportVideo: "导出为讲解视频",
       videoExportTitle: "讲解视频导出设置",
+      videoExportSubtitle: "在最后一步统一配置旁白风格，适配路演、总结、发布会或学术报告等不同场景。",
       videoVoiceLabel: "语音音色",
+      videoNarrationPresetTitle: "旁白策略",
+      videoNarrationPersona: "演讲者人设",
+      videoNarrationAudience: "目标受众",
+      videoNarrationTone: "演讲基调",
+      videoNarrationTopic: "核心主题",
+      videoNarrationTopicPlaceholder: "例如：英伟达的发展史与技术演进",
+      videoNarrationAdvanced: "高级配置",
+      videoNarrationCollapse: "收起高级配置",
+      videoNarrationAdvancedHint: "这些参数只在导出前生效，不会影响页面内容本身。",
+      videoNarrationMinWords: "最少字数",
+      videoNarrationMaxWords: "最多字数",
+      videoNarrationSummaryLabel: "当前策略",
+      videoNarrationGenerateMissing: "自动为缺失旁白的页面生成讲稿",
       videoEnableKenBurns: "启用画面动效",
       videoKenBurnsTip: "为每页幻灯片添加缓慢的缩放或平移动画，让视频画面更有节奏感",
       videoIncludeNoImage: "包含未配图页面（生成占位帧）",
@@ -103,7 +117,21 @@ const previewI18n = {
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportVideo: "Export as Narration Video",
       videoExportTitle: "Narration Video Export Settings",
+      videoExportSubtitle: "Tune the narration strategy in the final export step for demos, annual recaps, launches, or academic talks.",
       videoVoiceLabel: "Voice",
+      videoNarrationPresetTitle: "Narration Strategy",
+      videoNarrationPersona: "Speaker persona",
+      videoNarrationAudience: "Target audience",
+      videoNarrationTone: "Speech tone",
+      videoNarrationTopic: "Core topic",
+      videoNarrationTopicPlaceholder: "For example: the history and technological evolution of Nvidia",
+      videoNarrationAdvanced: "Advanced settings",
+      videoNarrationCollapse: "Hide advanced settings",
+      videoNarrationAdvancedHint: "These options only affect narration generation during export.",
+      videoNarrationMinWords: "Min words",
+      videoNarrationMaxWords: "Max words",
+      videoNarrationSummaryLabel: "Current strategy",
+      videoNarrationGenerateMissing: "Auto-generate narration for slides that are missing it",
       videoEnableKenBurns: "Enable camera motion",
       videoKenBurnsTip: "Adds slow zoom or pan animation to each slide for a more dynamic video",
       videoIncludeNoImage: "Include pages without images (placeholder frames)",
@@ -189,7 +217,7 @@ import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings } from '@/api/endpoints';
-import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
+import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page, NarrationConfig } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
 const VIDEO_VOICE_OPTIONS = [
@@ -210,6 +238,36 @@ const VIDEO_VOICE_OPTIONS = [
     { id: 'ja-JP-KeitaNeural', label: 'Keita（男声）', lang: 'ja' },
   ]},
 ];
+
+const NARRATION_PERSONA_OPTIONS = [
+  { value: 'charismatic tech visionary', zh: '科技梦想家', en: 'Tech visionary' },
+  { value: 'knowledgeable and patient university professor', zh: '大学教授', en: 'University professor' },
+  { value: 'confident corporate executive', zh: '企业高管', en: 'Corporate executive' },
+  { value: 'engaging YouTube tech storyteller', zh: '科技自媒体讲述者', en: 'Tech storyteller' },
+];
+
+const NARRATION_AUDIENCE_OPTIONS = [
+  { value: 'the general public with no technical background', zh: '普通大众', en: 'General public' },
+  { value: 'industry experts and seasoned professionals', zh: '行业专家', en: 'Industry experts' },
+  { value: 'potential investors and venture capitalists', zh: '投资人和 VC', en: 'Investors and VCs' },
+  { value: 'internal team members and employees', zh: '内部团队成员', en: 'Internal team' },
+];
+
+const NARRATION_TONE_OPTIONS = [
+  { value: 'inspiring, passionate, and persuasive', zh: '激情说服型', en: 'Inspiring and persuasive' },
+  { value: 'analytical, data-driven, and highly professional', zh: '理性数据流', en: 'Analytical and professional' },
+  { value: 'storytelling-focused, emotional, and captivating', zh: '故事沉浸型', en: 'Storytelling and emotional' },
+  { value: 'conversational, witty, and approachable', zh: '轻松聊天型', en: 'Conversational and witty' },
+];
+
+const DEFAULT_VIDEO_NARRATION_CONFIG: NarrationConfig = {
+  speaker_persona: 'knowledgeable and patient university professor',
+  target_audience: 'the general public with no technical background',
+  speech_tone: 'analytical, data-driven, and highly professional',
+  presentation_topic: '',
+  min_words: 100,
+  max_words: 200,
+};
 
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
@@ -254,6 +312,9 @@ export const SlidePreview: React.FC = () => {
   const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
   const [videoIncludeNoImage, setVideoIncludeNoImage] = useState(false);
   const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
+  const [videoGenerateNarration, setVideoGenerateNarration] = useState(true);
+  const [videoNarrationConfig, setVideoNarrationConfig] = useState<NarrationConfig>(DEFAULT_VIDEO_NARRATION_CONFIG);
+  const [videoShowAdvancedNarration, setVideoShowAdvancedNarration] = useState(false);
   // 多选导出相关状态
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
@@ -361,6 +422,17 @@ export const SlidePreview: React.FC = () => {
     () => currentProject?.pages?.some(p => p.generated_image_path) ?? false,
     [currentProject?.pages]
   );
+
+  useEffect(() => {
+    if (!currentProject) return;
+    const fallbackTopic = currentProject.idea_prompt?.trim()
+      || currentProject.pages.find(page => page.outline_content?.title)?.outline_content?.title
+      || '';
+    setVideoNarrationConfig(prev => ({
+      ...prev,
+      presentation_topic: prev.presentation_topic || fallbackTopic,
+    }));
+  }, [currentProject]);
 
   // 加载项目数据 & 用户模板
   useEffect(() => {
@@ -1097,6 +1169,12 @@ export const SlidePreview: React.FC = () => {
           includeNoImagePages: videoIncludeNoImage,
           voice: videoVoice,
           language: voiceLang,
+          generateNarration: videoGenerateNarration,
+          presentationTopic: videoNarrationConfig.presentation_topic,
+          narrationConfig: {
+            ...videoNarrationConfig,
+            presentation_topic: videoNarrationConfig.presentation_topic,
+          },
         });
         const taskId = response.data?.task_id;
 
@@ -1319,6 +1397,16 @@ export const SlidePreview: React.FC = () => {
     (p) => p.generated_image_path
   );
   const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
+  const getNarrationOptionLabel = (options: Array<{ value: string; zh: string; en: string }>, value: string) => {
+    const match = options.find(item => item.value === value);
+    return match ? match.zh : value;
+  };
+  const narrationSummary = [
+    videoNarrationConfig.presentation_topic,
+    `${t('preview.videoNarrationPersona')} · ${getNarrationOptionLabel(NARRATION_PERSONA_OPTIONS, videoNarrationConfig.speaker_persona)}`,
+    `${t('preview.videoNarrationAudience')} · ${getNarrationOptionLabel(NARRATION_AUDIENCE_OPTIONS, videoNarrationConfig.target_audience)}`,
+    `${t('preview.videoNarrationTone')} · ${getNarrationOptionLabel(NARRATION_TONE_OPTIONS, videoNarrationConfig.speech_tone)}`,
+  ].filter(Boolean).join(' / ');
 
   return (
     <div className="h-screen bg-gray-50 dark:bg-background-primary flex flex-col overflow-hidden">
@@ -1511,52 +1599,160 @@ export const SlidePreview: React.FC = () => {
       {/* 视频导出设置弹窗 */}
       {showVideoExportDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowVideoExportDialog(false)}>
-          <div className="bg-white dark:bg-background-secondary rounded-xl shadow-xl p-6 w-[420px] max-w-[90vw]" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-5">{t('preview.videoExportTitle')}</h3>
-            <div className="space-y-4">
-              {/* 语音选择 */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5">{t('preview.videoVoiceLabel')}</label>
-                <select
-                  value={videoVoice}
-                  onChange={e => setVideoVoice(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
-                >
-                  {VIDEO_VOICE_OPTIONS.map(group => (
-                    <optgroup key={group.group} label={group.group}>
-                      {group.voices.map(v => (
-                        <option key={v.id} value={v.id}>{v.label}</option>
+          <div className="bg-white dark:bg-background-secondary rounded-2xl shadow-xl p-6 w-[680px] max-w-[96vw] max-h-[88vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">{t('preview.videoExportTitle')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.videoExportSubtitle')}</p>
+            <div className="space-y-5">
+              <div className="rounded-xl border border-gray-200 dark:border-border-primary bg-gray-50/80 dark:bg-background-primary p-4 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-medium">{t('preview.videoNarrationPresetTitle')}</div>
+                    <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.videoNarrationAdvancedHint')}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVideoShowAdvancedNarration(prev => !prev)}
+                    className="text-sm text-banana-600 hover:text-banana-700"
+                  >
+                    {videoShowAdvancedNarration ? t('preview.videoNarrationCollapse') : t('preview.videoNarrationAdvanced')}
+                  </button>
+                </div>
+                <div className="rounded-lg bg-white dark:bg-background-secondary border border-gray-200 dark:border-border-primary px-3 py-2 text-sm text-gray-700 dark:text-foreground-secondary">
+                  <span className="font-medium mr-2">{t('preview.videoNarrationSummaryLabel')}</span>
+                  <span>{narrationSummary}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationPersona')}</label>
+                    <select
+                      value={videoNarrationConfig.speaker_persona}
+                      onChange={e => setVideoNarrationConfig(prev => ({ ...prev, speaker_persona: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {NARRATION_PERSONA_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.zh}
+                        </option>
                       ))}
-                    </optgroup>
-                  ))}
-                </select>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationAudience')}</label>
+                    <select
+                      value={videoNarrationConfig.target_audience}
+                      onChange={e => setVideoNarrationConfig(prev => ({ ...prev, target_audience: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {NARRATION_AUDIENCE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.zh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationTone')}</label>
+                    <select
+                      value={videoNarrationConfig.speech_tone}
+                      onChange={e => setVideoNarrationConfig(prev => ({ ...prev, speech_tone: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {NARRATION_TONE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.zh}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('preview.videoVoiceLabel')}</label>
+                    <select
+                      value={videoVoice}
+                      onChange={e => setVideoVoice(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                    >
+                      {VIDEO_VOICE_OPTIONS.map(group => (
+                        <optgroup key={group.group} label={group.group}>
+                          {group.voices.map(v => (
+                            <option key={v.id} value={v.id}>{v.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationTopic')}</label>
+                  <input
+                    type="text"
+                    value={videoNarrationConfig.presentation_topic}
+                    onChange={e => setVideoNarrationConfig(prev => ({ ...prev, presentation_topic: e.target.value }))}
+                    placeholder={t('preview.videoNarrationTopicPlaceholder')}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-banana-400 focus:ring-2"
+                  />
+                </div>
+                {videoShowAdvancedNarration && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationMinWords')}</label>
+                      <input
+                        type="number"
+                        min={30}
+                        max={300}
+                        value={videoNarrationConfig.min_words}
+                        onChange={e => setVideoNarrationConfig(prev => ({ ...prev, min_words: Number(e.target.value) || 30 }))}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-banana-400 focus:ring-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">{t('preview.videoNarrationMaxWords')}</label>
+                      <input
+                        type="number"
+                        min={30}
+                        max={300}
+                        value={videoNarrationConfig.max_words}
+                        onChange={e => setVideoNarrationConfig(prev => ({ ...prev, max_words: Number(e.target.value) || 30 }))}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-border-primary rounded-lg bg-white dark:bg-background-primary focus:outline-none focus:ring-banana-400 focus:ring-2"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              {/* Ken Burns 动效 */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={videoEnableKenBurns}
-                  onChange={e => setVideoEnableKenBurns(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
-                />
-                <span className="text-sm">{t('preview.videoEnableKenBurns')}</span>
-                <span className="relative group">
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 text-[10px] text-gray-500 dark:text-gray-300 cursor-help">?</span>
-                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 text-xs text-white bg-gray-800 dark:bg-gray-700 rounded-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                    {t('preview.videoKenBurnsTip')}
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={videoGenerateNarration}
+                    onChange={e => setVideoGenerateNarration(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                  />
+                  <span className="text-sm">{t('preview.videoNarrationGenerateMissing')}</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={videoEnableKenBurns}
+                    onChange={e => setVideoEnableKenBurns(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                  />
+                  <span className="text-sm">{t('preview.videoEnableKenBurns')}</span>
+                  <span className="relative group">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 text-[10px] text-gray-500 dark:text-gray-300 cursor-help">?</span>
+                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 text-xs text-white bg-gray-800 dark:bg-gray-700 rounded-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                      {t('preview.videoKenBurnsTip')}
+                    </span>
                   </span>
-                </span>
-              </label>
-              {/* 包含未配图页面 */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={videoIncludeNoImage}
-                  onChange={e => setVideoIncludeNoImage(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
-                />
-                <span className="text-sm">{t('preview.videoIncludeNoImage')}</span>
-              </label>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={videoIncludeNoImage}
+                    onChange={e => setVideoIncludeNoImage(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                  />
+                  <span className="text-sm">{t('preview.videoIncludeNoImage')}</span>
+                </label>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button

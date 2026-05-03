@@ -952,13 +952,23 @@ def generate_page_narration(project_id, page_id):
 
         # Generate narration using AI
         ai_service = get_ai_service()
-        from services.prompts import get_narration_generation_prompt
+        from services.prompts import (
+            get_narration_generation_prompt,
+            normalize_narration_generation_config,
+        )
+        narration_config = normalize_narration_generation_config(
+            data.get('narration_config'),
+            fallback_topic=project.idea_prompt or outline_content.get('title', ''),
+        )
         prompt = get_narration_generation_prompt(
-            description_text=desc_text,
-            outline=outline_content,
-            page_index=page.order_index + 1,
-            total_pages=total_pages,
+            pages=[{
+                'page_index': page.order_index + 1,
+                'title': outline_content.get('title', ''),
+                'points': outline_content.get('points', []),
+                'description_text': desc_text,
+            }],
             language=language,
+            config=narration_config,
         )
 
         narration = ai_service.text_provider.generate_text(prompt)
@@ -1004,7 +1014,14 @@ def generate_all_narrations(project_id):
 
         total_pages = len(pages)
         ai_service = get_ai_service()
-        from services.prompts import get_narration_generation_prompt
+        from services.prompts import (
+            get_narration_generation_prompt,
+            normalize_narration_generation_config,
+        )
+        narration_config = normalize_narration_generation_config(
+            data.get('narration_config'),
+            fallback_topic=project.idea_prompt or '',
+        )
 
         generated = 0
         skipped = 0
@@ -1038,11 +1055,14 @@ def generate_all_narrations(project_id):
 
             try:
                 prompt = get_narration_generation_prompt(
-                    description_text=desc_text,
-                    outline=outline_content,
-                    page_index=page.order_index + 1,
-                    total_pages=total_pages,
+                    pages=[{
+                        'page_index': page.order_index + 1,
+                        'title': outline_content.get('title', ''),
+                        'points': outline_content.get('points', []),
+                        'description_text': desc_text,
+                    }],
                     language=language,
+                    config=narration_config,
                 )
                 narration = ai_service.text_provider.generate_text(prompt)
 

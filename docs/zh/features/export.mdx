@@ -17,6 +17,14 @@ description: "导出为 PPTX、PDF 或图片"
   Docker 部署已在镜像内安装好视频导出所需的 FFmpeg 依赖。源码部署请先安装带 `libass` / `ass` 字幕滤镜的 FFmpeg，例如 macOS 运行 `brew install ffmpeg-full && brew unlink ffmpeg 2>/dev/null || true && brew link --overwrite --force ffmpeg-full`，Ubuntu / Debian 运行 `sudo apt-get update && sudo apt-get install -y ffmpeg libass9`。
 </Note>
 
+## 讲解视频旁白策略
+
+讲解视频导出会在最后一步弹出单独的配置面板，可在真正开始导出前调整旁白生成策略，而不影响页面内容本身。
+
+- 可配置演讲者人设、目标受众、演讲基调、核心主题
+- 可配置单页旁白字数范围，适配快节奏短视频或更完整的深度讲解
+- 缺失旁白时可选择由系统自动生成，生成结果会按整套演示文稿保持前后衔接
+
 ## 画面比例
 
 默认 16:9，也可在创建项目时或项目预览页的「项目设置」中更改。支持 16:9、4:3、21:9、1:1、9:16 等多种比例。比例变更后需重新生成图片才会生效。
