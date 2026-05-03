@@ -466,6 +466,11 @@ def export_video(project_id):
 
         voice = data.get('voice', current_app.config.get('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural'))
         rate = data.get('rate', current_app.config.get('TTS_DEFAULT_RATE', '+0%'))
+        try:
+            speed = float(data.get('speed', 1.0))
+        except (TypeError, ValueError):
+            speed = 1.0
+        speed = max(0.7, min(speed, 1.2))
         generate_narration = data.get('generate_narration', True)
         enable_ken_burns = data.get('enable_ken_burns', False)
         include_no_image_pages = data.get('include_no_image_pages', False)
@@ -519,6 +524,7 @@ def export_video(project_id):
             file_service=file_service,
             voice=voice,
             rate=rate,
+            speed=speed,
             generate_narration=generate_narration,
             enable_ken_burns=enable_ken_burns,
             include_no_image_pages=include_no_image_pages,

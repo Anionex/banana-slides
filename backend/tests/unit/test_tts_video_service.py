@@ -439,7 +439,8 @@ class TestBurnSubtitles:
     """测试字幕烧录命令构造"""
 
     @patch.object(_tts_mod, '_run_ffmpeg_command')
-    def test_uses_filename_option_and_escapes_path(self, mock_run_ffmpeg):
+    @patch.object(_tts_mod, '_detect_cjk_font_dir', return_value=None)
+    def test_uses_filename_option_and_escapes_path(self, mock_fonts_dir, mock_run_ffmpeg):
         burn_subtitles(
             '/tmp/input.mp4',
             "/tmp/demo:folder/it's,ok[1].ass",
@@ -450,6 +451,16 @@ class TestBurnSubtitles:
         cmd = mock_run_ffmpeg.call_args.args[0]
         vf_value = cmd[cmd.index('-vf') + 1]
         assert vf_value == "ass=filename='/tmp/demo\\:folder/it\\'s\\,ok\\[1\\].ass'"
+
+    @patch.object(_tts_mod, '_run_ffmpeg_command')
+    @patch.object(_tts_mod, '_detect_cjk_font_dir', return_value='/some/fonts:dir')
+    def test_appends_fontsdir_when_detected(self, mock_fonts_dir, mock_run_ffmpeg):
+        burn_subtitles('/tmp/input.mp4', '/tmp/sub.ass', '/tmp/out.mp4')
+
+        cmd = mock_run_ffmpeg.call_args.args[0]
+        vf_value = cmd[cmd.index('-vf') + 1]
+        assert vf_value.startswith("ass=filename='/tmp/sub.ass'")
+        assert ":fontsdir='/some/fonts\\:dir'" in vf_value
 
 
 class TestGenerateNarrationVideoPrerequisites:

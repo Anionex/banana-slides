@@ -43,6 +43,11 @@ class Settings(db.Model):
     # 百度 API 配置
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 API Key
 
+    # ElevenLabs TTS 配置
+    elevenlabs_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    elevenlabs_api_key = db.Column(db.String(500), nullable=True)
+    elevenlabs_voice_id = db.Column(db.String(100), nullable=True)
+
     # 每种模型类型的提供商配置（source 可选 gemini/openai/lazyllm厂商名，NULL=使用全局配置）
     text_model_source = db.Column(db.String(50), nullable=True)           # 文本模型提供商 (gemini, openai, qwen, doubao, deepseek, ...)
     image_model_source = db.Column(db.String(50), nullable=True)          # 图片模型提供商
@@ -105,6 +110,7 @@ class Settings(db.Model):
         api_key = self._val('api_key', d)
         mineru_token = self._val('mineru_token', d)
         baidu_api_key = self._val('baidu_api_key', d)
+        elevenlabs_api_key = self.elevenlabs_api_key
         text_api_key = self._val('text_api_key', d)
         image_api_key = self._val('image_api_key', d)
         image_caption_api_key = self._val('image_caption_api_key', d)
@@ -142,6 +148,9 @@ class Settings(db.Model):
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
             'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
             'openai_image_api_protocol': self._val('openai_image_api_protocol', d) or 'auto',
+            'elevenlabs_enabled': self.elevenlabs_enabled,
+            'elevenlabs_api_key_length': len(elevenlabs_api_key) if elevenlabs_api_key else 0,
+            'elevenlabs_voice_id': self.elevenlabs_voice_id or '',
             'openai_oauth_connected': bool(self.openai_oauth_access_token),
             'openai_oauth_account_id': self.openai_oauth_account_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
