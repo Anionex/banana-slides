@@ -17,6 +17,7 @@ from utils import (
 )
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
+from services.prompts import normalize_narration_generation_config
 
 logger = logging.getLogger(__name__)
 
@@ -455,18 +456,6 @@ def export_video(project_id):
 
         data = request.get_json() or {}
 
-        # 获取页面
-        selected_page_ids = parse_page_ids_from_body(data)
-
-        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
-
-        if not pages:
-            return bad_request("No pages found for project")
-
-        has_images = any(page.generated_image_path for page in pages)
-        if not has_images and not include_no_image_pages:
-            return bad_request("No generated images found for project. Enable 'include pages without images' to export all pages.")
-
         # 参数 — 使用 secure_filename 防止路径遍历
         raw_filename = data.get('filename', f'narration_{project_id}.mp4')
         filename = secure_filename(raw_filename)
@@ -481,6 +470,23 @@ def export_video(project_id):
         enable_ken_burns = data.get('enable_ken_burns', False)
         include_no_image_pages = data.get('include_no_image_pages', False)
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        presentation_topic = data.get('presentation_topic') or project.idea_prompt or ''
+        narration_config = normalize_narration_generation_config(
+            data.get('narration_config'),
+            fallback_topic=presentation_topic,
+        )
+
+        # 获取页面
+        selected_page_ids = parse_page_ids_from_body(data)
+
+        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+
+        if not pages:
+            return bad_request("No pages found for project")
+
+        has_images = any(page.generated_image_path for page in pages)
+        if not has_images and not include_no_image_pages:
+            return bad_request("No generated images found for project. Enable 'include pages without images' to export all pages.")
 
         # 根据语言自动选择默认语音
         if 'voice' not in data:
@@ -518,6 +524,7 @@ def export_video(project_id):
             include_no_image_pages=include_no_image_pages,
             page_ids=selected_page_ids if selected_page_ids else None,
             language=language,
+            narration_config=narration_config,
             app=app,
         )
 
@@ -528,6 +535,7 @@ def export_video(project_id):
                 "generate_narration": generate_narration,
                 "enable_ken_burns": enable_ken_burns,
                 "include_no_image_pages": include_no_image_pages,
+                "narration_config": narration_config,
             },
             message="Video export task created"
         )

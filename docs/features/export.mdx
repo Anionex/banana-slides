@@ -17,6 +17,14 @@ description: "Export presentations as PPTX, PDF, or images"
   Docker deployment already installs the FFmpeg dependencies required for narration video export. For source installs, install an FFmpeg build with `libass` / the `ass` subtitle filter first, for example `brew install ffmpeg-full && brew unlink ffmpeg 2>/dev/null || true && brew link --overwrite --force ffmpeg-full` on macOS or `sudo apt-get update && sudo apt-get install -y ffmpeg libass9` on Ubuntu / Debian.
 </Note>
 
+## Narration Strategy
+
+Narration video export now includes a final-step configuration panel so you can tune narration generation without changing the slide content itself.
+
+- Configure the speaker persona, target audience, speech tone, and core topic
+- Set the per-slide narration length to fit either shorter clips or deeper walkthroughs
+- Auto-generate missing narration while keeping the overall presentation flow connected from slide to slide
+
 ## Aspect Ratio
 
 Defaults to 16:9. You can change the ratio when creating a project or in **Project Settings** on the preview page. Supports 16:9, 4:3, 21:9, 1:1, 9:16, and more. Images must be regenerated after changing the ratio.

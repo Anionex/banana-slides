@@ -1662,6 +1662,7 @@ def export_video_task(
     include_no_image_pages: bool = False,
     page_ids: list = None,
     language: str = 'zh',
+    narration_config: dict | None = None,
     app=None,
 ):
     """
@@ -1796,12 +1797,20 @@ def export_video_task(
 
             # ── Step 1: 生成缺失的旁白 ──
             if generate_narration:
-                from services.prompts import get_narration_generation_prompt
+                from services.prompts import (
+                    get_narration_generation_prompt,
+                    normalize_narration_generation_config,
+                    parse_narration_generation_result,
+                )
                 from services.ai_service_manager import get_ai_service
-                import re as _re
 
                 ai_service = get_ai_service()
                 narration_generated = 0
+                project_topic = (project.idea_prompt or '').strip() if project else ''
+                normalized_narration_config = normalize_narration_generation_config(
+                    narration_config,
+                    fallback_topic=project_topic,
+                )
 
                 # 收集需要生成旁白的页面
                 pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
@@ -1843,16 +1852,13 @@ def export_video_task(
                             }
                             for _, seq, outline, desc_text in pages_needing_narration
                         ]
-                        prompt = get_narration_generation_prompt(prompt_pages, language=language)
+                        prompt = get_narration_generation_prompt(
+                            prompt_pages,
+                            language=language,
+                            config=normalized_narration_config,
+                        )
                         result = ai_service.text_provider.generate_text(prompt)
-
-                        # 解析输出：按 === SLIDE n === 分割
-                        sections = _re.split(r'===\s*SLIDE\s+(\d+)\s*===', result)
-                        # sections: ['', '1', 'narration1', '2', 'narration2', ...]
-                        parsed = {}
-                        it = iter(sections[1:])  # 跳过开头空串
-                        for idx_str, text in zip(it, it):
-                            parsed[int(idx_str)] = text.strip()
+                        parsed = parse_narration_generation_result(result)
 
                         for page, seq, _, _ in pages_needing_narration:
                             narration = parsed.get(seq, '')

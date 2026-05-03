@@ -54,6 +54,15 @@ export interface Page {
   image_versions?: ImageVersion[]; // 历史版本列表
 }
 
+export interface NarrationConfig {
+  speaker_persona: string;
+  target_audience: string;
+  speech_tone: string;
+  presentation_topic: string;
+  min_words: number;
+  max_words: number;
+}
+
 // 导出设置 - 组件提取方法
 export type ExportExtractorMethod = 'mineru' | 'hybrid';
 
@@ -173,4 +182,3 @@ export interface Settings {
   created_at?: string;
   updated_at?: string;
 }
-

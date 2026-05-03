@@ -753,6 +753,15 @@ export const exportVideo = async (
     generateNarration?: boolean;
     enableKenBurns?: boolean;
     includeNoImagePages?: boolean;
+    presentationTopic?: string;
+    narrationConfig?: {
+      speaker_persona?: string;
+      target_audience?: string;
+      speech_tone?: string;
+      presentation_topic?: string;
+      min_words?: number;
+      max_words?: number;
+    };
   }
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
@@ -766,6 +775,8 @@ export const exportVideo = async (
     generate_narration: options?.generateNarration ?? true,
     enable_ken_burns: options?.enableKenBurns ?? false,
     include_no_image_pages: options?.includeNoImagePages ?? false,
+    presentation_topic: options?.presentationTopic,
+    narration_config: options?.narrationConfig,
   });
   return response.data;
 };
