@@ -1817,6 +1817,9 @@ def export_video_task(
 
                     outline_content = page.get_outline_content() or {}
 
+                    if desc_content:
+                        desc_text = _append_extra_fields(desc_text, desc_content)
+
                     if not desc_text:
                         title = outline_content.get('title', '')
                         points = outline_content.get('points', [])
