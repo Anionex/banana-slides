@@ -37,6 +37,16 @@ The extraction process preserves font size, color, bold styling, text positionin
   For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).
 </Note>
 
+## Icon Transparent Background (Baidu Subject Extraction)
+
+In **Project Settings → Export Settings** you can toggle **Icon Transparent Background (Baidu Subject Extraction)**, which is enabled by default. When enabled, small icon images detected during editable PPTX export are processed via Baidu's subject extraction API to produce transparent-background PNGs before being placed in the PPT, avoiding the icon's original background clashing with the new slide background.
+
+Only small icons qualify (short edge < 200px, area < 5% of the page, aspect ratio between 0.4 and 2.5). Photos and illustrations keep the original rectangular crop to avoid mistakes.
+
+<Note>
+  Requires `BAIDU_API_KEY` configured in **Global Settings** (shared with the existing editable PPTX text recognition). If the key is missing or extraction fails for an individual icon, the system silently falls back to the original rectangular crop without affecting export.
+</Note>
+
 ## Page Selection
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.

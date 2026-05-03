@@ -464,11 +464,13 @@ class ServiceConfig:
         inpaint_registry: InpaintProviderRegistry,
         max_depth: int = 1,
         min_image_size: int = 200,
-        min_image_area: int = 40000
+        min_image_area: int = 40000,
+        segmentation_provider: Optional[Any] = None,
+        enable_icon_subject_extraction: bool = False,
     ):
         """
         初始化服务配置
-        
+
         Args:
             upload_folder: 上传文件夹路径
             extractor_registry: 元素类型到提取器的注册表
@@ -476,6 +478,8 @@ class ServiceConfig:
             max_depth: 最大递归深度（默认1）
             min_image_size: 最小图片尺寸
             min_image_area: 最小图片面积
+            segmentation_provider: 百度智能抠图 Provider（可选），用于图标主体提取
+            enable_icon_subject_extraction: 是否启用图标主体提取（默认 False，需配合 provider）
         """
         self.upload_folder = upload_folder
         self.extractor_registry = extractor_registry
@@ -483,6 +487,8 @@ class ServiceConfig:
         self.max_depth = max_depth
         self.min_image_size = min_image_size
         self.min_image_area = min_image_area
+        self.segmentation_provider = segmentation_provider
+        self.enable_icon_subject_extraction = enable_icon_subject_extraction
     
     @classmethod
     def from_defaults(
@@ -662,13 +668,29 @@ class ServiceConfig:
             inpaint_registry.register_default(generative_provider)
             logger.info("✅ 重绘注册表已创建（GenerativeEdit通用）")
         
+        # 创建百度智能抠图 Provider（用于图标主体提取，可选）
+        enable_icon_subject_extraction = kwargs.get('enable_icon_subject_extraction', False)
+        segmentation_provider = None
+        if enable_icon_subject_extraction:
+            try:
+                from services.ai_providers.image import create_baidu_segmentation_provider
+                segmentation_provider = create_baidu_segmentation_provider()
+                if segmentation_provider:
+                    logger.info("✅ 百度智能抠图 Provider 已创建（用于图标主体提取）")
+                else:
+                    logger.warning("⚠️ 启用了图标主体提取但 BAIDU_API_KEY 未配置，跳过")
+            except Exception as e:
+                logger.warning(f"创建百度智能抠图 Provider 失败: {e}")
+
         return cls(
             upload_folder=upload_path,
             extractor_registry=extractor_registry,
             inpaint_registry=inpaint_registry,
             max_depth=kwargs.get('max_depth', 1),
             min_image_size=kwargs.get('min_image_size', 200),
-            min_image_area=kwargs.get('min_image_area', 40000)
+            min_image_area=kwargs.get('min_image_area', 40000),
+            segmentation_provider=segmentation_provider,
+            enable_icon_subject_extraction=enable_icon_subject_extraction and segmentation_provider is not None,
         )
 
 

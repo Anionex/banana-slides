@@ -17,7 +17,7 @@ from .coordinate_mapper import CoordinateMapper
 from .extractors import ElementExtractor, ExtractionResult
 from .inpaint_providers import InpaintProvider
 from .factories import ServiceConfig
-from .helpers import collect_bboxes_from_elements, should_recurse_into_element, crop_element_from_image
+from .helpers import collect_bboxes_from_elements, should_recurse_into_element, crop_element_from_image, is_icon_element
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,8 @@ class ImageEditabilityService:
         self._min_image_size = config.min_image_size
         self._min_image_area = config.min_image_area
         self._max_child_coverage_ratio = 0.85
+        self._segmentation_provider = config.segmentation_provider
+        self._enable_icon_subject_extraction = config.enable_icon_subject_extraction
         
         extractors = self._extractor_registry.get_all_extractors()
         inpaint_providers = self._inpaint_registry.get_all_providers()
@@ -138,8 +140,17 @@ class ImageEditabilityService:
             root_image_size=root_image_size,
             source_image_path=image_path  # 传入源图片路径用于裁剪
         )
-        
+
         logger.info(f"{'  ' * depth}提取到 {len(elements)} 个元素")
+
+        # 2.5 对小尺寸图标元素跑 Baidu 主体提取，替换为透明背景 PNG
+        if self._enable_icon_subject_extraction and self._segmentation_provider:
+            self._enhance_icon_elements_with_subject_extraction(
+                elements=elements,
+                image_id=image_id,
+                parent_image_size=(width, height),
+                depth=depth,
+            )
         
         # 3. 生成clean background（根据元素类型选择重绘方法）
         clean_background = None
@@ -295,6 +306,58 @@ class ImageEditabilityService:
         
         return elements
     
+    def _enhance_icon_elements_with_subject_extraction(
+        self,
+        elements: List[EditableElement],
+        image_id: str,
+        parent_image_size: Tuple[int, int],
+        depth: int,
+    ) -> None:
+        """
+        对识别为 icon 的元素调用 Baidu 主体提取，替换 image_path 为透明背景 PNG
+
+        失败（含未识别到主体、API 错误等）保留原矩形 crop，不抛异常。
+        """
+        icons = [
+            elem for elem in elements
+            if elem.image_path and is_icon_element(elem, parent_image_size)
+        ]
+        if not icons:
+            return
+
+        output_dir = self._upload_folder / 'editable_images' / image_id / 'icon_cutouts'
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"{'  ' * depth}🎨 对 {len(icons)} 个图标调用百度主体提取")
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def process(elem: EditableElement) -> Tuple[EditableElement, Optional[str]]:
+            try:
+                with Image.open(elem.image_path) as src:
+                    cutout = self._segmentation_provider.extract_subject(src)
+                if cutout is None:
+                    return elem, None
+                cutout_path = output_dir / f"{elem.element_id}.png"
+                cutout.save(str(cutout_path))
+                return elem, str(cutout_path)
+            except Exception as e:
+                logger.warning(f"{'  ' * depth}  ✗ 图标 {elem.element_id} 主体提取失败: {e}")
+                return elem, None
+
+        max_workers = min(8, len(icons))
+        success = 0
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process, elem) for elem in icons]
+            for future in as_completed(futures):
+                elem, new_path = future.result()
+                if new_path:
+                    elem.image_path = new_path
+                    elem.metadata['subject_extracted'] = True
+                    success += 1
+
+        logger.info(f"{'  ' * depth}✅ 主体提取完成: {success}/{len(icons)} 成功（其余回退原 crop）")
+
     def _generate_clean_background(
         self,
         image_path: str,

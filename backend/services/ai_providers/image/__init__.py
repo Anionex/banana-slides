@@ -4,6 +4,7 @@ from .genai_provider import GenAIImageProvider
 from .openai_provider import OpenAIImageProvider
 from .anthropic_provider import AnthropicImageProvider
 from .baidu_inpainting_provider import BaiduInpaintingProvider, create_baidu_inpainting_provider
+from .baidu_segmentation_provider import BaiduSegmentationProvider, create_baidu_segmentation_provider
 from .lazyllm_provider import LazyLLMImageProvider
 from .codex_provider import CodexImageProvider
 
@@ -14,6 +15,8 @@ __all__ = [
     'AnthropicImageProvider',
     'BaiduInpaintingProvider',
     'create_baidu_inpainting_provider',
+    'BaiduSegmentationProvider',
+    'create_baidu_segmentation_provider',
     'LazyLLMImageProvider',
     'CodexImageProvider',
 ]
