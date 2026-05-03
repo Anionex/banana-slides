@@ -1798,14 +1798,16 @@ def export_video_task(
             if generate_narration:
                 from services.prompts import get_narration_generation_prompt
                 from services.ai_service_manager import get_ai_service
+                import re as _re
 
                 ai_service = get_ai_service()
-                total_pages = len(valid_pages)
                 narration_generated = 0
 
+                # 收集需要生成旁白的页面
+                pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
                 for i, (page, _) in enumerate(valid_pages):
                     if page.narration_text:
-                        continue  # 已有旁白，跳过
+                        continue
 
                     desc_content = page.get_description_content()
                     desc_text = ''
@@ -1814,51 +1816,66 @@ def export_video_task(
                         if not desc_text and desc_content.get('text_content'):
                             tc = desc_content.get('text_content', [])
                             desc_text = '\n'.join(tc) if isinstance(tc, list) else str(tc)
-
-                    outline_content = page.get_outline_content() or {}
-
-                    if desc_content:
                         desc_text = _append_extra_fields(desc_text, desc_content)
 
+                    outline_content = page.get_outline_content() or {}
                     if not desc_text:
                         title = outline_content.get('title', '')
                         points = outline_content.get('points', [])
                         if title or points:
-                            desc_text = f"{title}\n" + '\n'.join(f'- {p}' for p in points)
+                            desc_text = f'{title}\n' + '\n'.join(f'- {p}' for p in points)
 
                     if not desc_text:
                         if fail_fast:
                             raise RuntimeError(
                                 f"第 {page.order_index + 1} 页缺少可生成旁白的描述内容，当前项目未开启“允许返回半成品”，无法导出视频。"
                             )
-                        continue  # 无内容可生成旁白
+                        continue
 
+                    pages_needing_narration.append((page, i + 1, outline_content, desc_text))
+
+                if pages_needing_narration:
+                    progress_callback("旁白", f"正在生成 {len(pages_needing_narration)} 页旁白...", 5)
                     try:
-                        prompt = get_narration_generation_prompt(
-                            description_text=desc_text,
-                            outline=outline_content,
-                            page_index=i + 1,
-                            total_pages=total_pages,
-                            language=language,
-                        )
-                        narration = ai_service.text_provider.generate_text(prompt)
-                        if narration and narration.strip():
-                            page.set_narration_text(narration.strip())
-                            db.session.commit()
-                            narration_generated += 1
-                        elif fail_fast:
-                            raise RuntimeError(
-                                f"第 {page.order_index + 1} 页旁白生成结果为空，当前项目未开启“允许返回半成品”，已停止导出。"
-                            )
+                        prompt_pages = [
+                            {
+                                'page_index': seq,
+                                'title': outline.get('title', ''),
+                                'points': outline.get('points', []),
+                                'description_text': desc_text,
+                            }
+                            for _, seq, outline, desc_text in pages_needing_narration
+                        ]
+                        prompt = get_narration_generation_prompt(prompt_pages, language=language)
+                        result = ai_service.text_provider.generate_text(prompt)
+
+                        # 解析输出：按 === SLIDE n === 分割
+                        sections = _re.split(r'===\s*SLIDE\s+(\d+)\s*===', result)
+                        # sections: ['', '1', 'narration1', '2', 'narration2', ...]
+                        parsed = {}
+                        it = iter(sections[1:])  # 跳过开头空串
+                        for idx_str, text in zip(it, it):
+                            parsed[int(idx_str)] = text.strip()
+
+                        for page, seq, _, _ in pages_needing_narration:
+                            narration = parsed.get(seq, '')
+                            if narration:
+                                page.set_narration_text(narration)
+                                narration_generated += 1
+                            elif fail_fast:
+                                raise RuntimeError(
+                                    f"第 {page.order_index + 1} 页旁白生成结果为空，当前项目未开启“允许返回半成品”，已停止导出。"
+                                )
+                        db.session.commit()
+
+                    except RuntimeError:
+                        raise
                     except Exception as e:
                         if fail_fast:
-                            raise RuntimeError(
-                                f"第 {page.order_index + 1} 页旁白生成失败，当前项目未开启“允许返回半成品”，已停止导出: {e}"
-                            ) from e
-                        logger.warning(f"生成旁白失败 (page {page.id}): {e}")
+                            raise RuntimeError(f"旁白生成失败，已停止导出: {e}") from e
+                        logger.warning(f"批量生成旁白失败: {e}")
 
-                    pct = int(5 + (i + 1) / total_pages * 15)  # 5-20%
-                    progress_callback("旁白", f"已生成 {narration_generated} 页旁白", pct)
+                progress_callback("旁白", f"已生成 {narration_generated} 页旁白", 20)
 
             progress_callback("旁白", "旁白准备完成", 20)
 
