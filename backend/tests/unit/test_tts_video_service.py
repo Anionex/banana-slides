@@ -49,6 +49,7 @@ check_ffmpeg_available = _tts_mod.check_ffmpeg_available
 check_ffmpeg_ass_filter_available = _tts_mod.check_ffmpeg_ass_filter_available
 get_audio_duration = _tts_mod.get_audio_duration
 KEN_BURNS_EFFECTS = _tts_mod.KEN_BURNS_EFFECTS
+KEN_BURNS_MAX_ZOOM = _tts_mod.KEN_BURNS_MAX_ZOOM
 composite_video = _tts_mod.composite_video
 _run_ffmpeg_command = _tts_mod._run_ffmpeg_command
 _wait_for_process_with_idle_watchdog = _tts_mod._wait_for_process_with_idle_watchdog
@@ -56,6 +57,7 @@ _split_narration_to_sentences = _tts_mod._split_narration_to_sentences
 _build_timed_subtitle_entries = _tts_mod._build_timed_subtitle_entries
 generate_ass_subtitle = _tts_mod.generate_ass_subtitle
 burn_subtitles = _tts_mod.burn_subtitles
+create_ken_burns_clip = _tts_mod.create_ken_burns_clip
 _MAX_SUBTITLE_SEGMENT_LENGTH = _tts_mod._MAX_SUBTITLE_SEGMENT_LENGTH
 _DEFAULT_SILENT_DURATION = _tts_mod._DEFAULT_SILENT_DURATION
 _FFMPEG_IDLE_TIMEOUT_SECONDS = _tts_mod._FFMPEG_IDLE_TIMEOUT_SECONDS
@@ -170,6 +172,64 @@ class TestKenBurnsEffects:
         assert KEN_BURNS_EFFECTS[2] == 'pan_left'
         assert KEN_BURNS_EFFECTS[3] == 'pan_right'
         assert KEN_BURNS_EFFECTS[4 % 4] == 'zoom_in'
+
+    def test_zoom_strength_is_conservative(self):
+        assert KEN_BURNS_MAX_ZOOM == pytest.approx(1.08)
+
+    @pytest.mark.parametrize(
+        ('effect_type', 'frame_index'),
+        [
+            ('zoom_in', -1),
+            ('zoom_out', 0),
+        ],
+    )
+    def test_zoom_effect_keeps_slide_corners_visible_with_real_ffmpeg(self, effect_type, frame_index):
+        """真实 FFmpeg/OpenCV 验证：缩放动效不能把整张 slide 的四角裁掉。"""
+        if not check_ffmpeg_available():
+            pytest.skip("ffmpeg not available")
+
+        cv2 = pytest.importorskip('cv2')
+        pil_image = pytest.importorskip('PIL.Image')
+        pil_draw = pytest.importorskip('PIL.ImageDraw')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image_path = os.path.join(tmpdir, 'source.png')
+            video_path = os.path.join(tmpdir, f'{effect_type}.mp4')
+
+            image = pil_image.new('RGB', (320, 180), 'white')
+            draw = pil_draw.Draw(image)
+            draw.rectangle((0, 0, 319, 179), outline=(255, 0, 0), width=18)
+            image.save(image_path)
+
+            create_ken_burns_clip(
+                image_path,
+                video_path,
+                duration=0.6,
+                width=320,
+                height=180,
+                fps=12,
+                effect_type=effect_type,
+            )
+
+            capture = cv2.VideoCapture(video_path)
+            frames = []
+            while True:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                frames.append(frame)
+            capture.release()
+
+            assert frames, "Expected at least one rendered frame"
+            frame = frames[frame_index]
+            h, w = frame.shape[:2]
+            corner_points = [(6, 6), (w - 7, 6), (6, h - 7), (w - 7, h - 7)]
+
+            for x, y in corner_points:
+                blue, green, red = frame[y, x]
+                assert red > 120
+                assert red > green + 40
+                assert red > blue + 40
 
 
 class TestCompositeVideoConcatFile:

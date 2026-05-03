@@ -336,6 +336,10 @@ def generate_tts_audio_sync(
 # 四种交替动效
 KEN_BURNS_EFFECTS = ['zoom_in', 'zoom_out', 'pan_left', 'pan_right']
 
+# 轻量动效参数：既保留镜头感，也避免把边缘文字裁出屏幕
+KEN_BURNS_MAX_ZOOM = 1.08
+KEN_BURNS_PAN_CANVAS_SCALE = 1.08
+
 
 def _prepare_canvas(src, content_w: int, content_h: int, canvas_w: int, canvas_h: int):
     """将任意画幅的图片 contain 到 content 区域，居中放置在 canvas 上，空白用高斯模糊填充。
@@ -359,7 +363,7 @@ def _prepare_canvas(src, content_w: int, content_h: int, canvas_w: int, canvas_h
     x_off = (canvas_w - new_w) // 2
     y_off = (canvas_h - new_h) // 2
     bg[y_off:y_off + new_h, x_off:x_off + new_w] = fg
-    return bg
+    return bg, (x_off, y_off, new_w, new_h)
 
 
 def create_ken_burns_clip(
@@ -382,12 +386,21 @@ def create_ken_burns_clip(
     if src is None:
         raise FileNotFoundError(f"Cannot read image: {image_path}")
 
-    max_zoom = 1.15
-    pan_zoom = 1.1
-    canvas_scale = max(max_zoom, pan_zoom)
+    max_zoom = KEN_BURNS_MAX_ZOOM
+    pan_canvas_scale = KEN_BURNS_PAN_CANVAS_SCALE
+    canvas_scale = max(max_zoom, pan_canvas_scale)
     canvas_w = int(width * canvas_scale)
     canvas_h = int(height * canvas_scale)
-    img = _prepare_canvas(src, width, height, canvas_w, canvas_h)
+    # 先把整张 slide 缩进一个安全边距内，再做镜头运动，避免边缘文字被裁出画面。
+    safe_content_w = max(1, int(width / max_zoom))
+    safe_content_h = max(1, int(height / max_zoom))
+    img, (slide_x, slide_y, slide_w, slide_h) = _prepare_canvas(
+        src,
+        safe_content_w,
+        safe_content_h,
+        canvas_w,
+        canvas_h,
+    )
     ih, iw = img.shape[:2]
 
     cmd = [
@@ -421,13 +434,15 @@ def create_ken_burns_clip(
                 cx, cy = iw / 2.0, ih / 2.0
             elif effect_type == 'pan_right':
                 z = 1.0
-                margin = iw - width
-                cx = width / 2.0 + margin * t
+                min_cx = max(width / 2.0, slide_x + slide_w - width / 2.0)
+                max_cx = min(iw - width / 2.0, slide_x + width / 2.0)
+                cx = min_cx + max(max_cx - min_cx, 0.0) * t
                 cy = ih / 2.0
             elif effect_type == 'pan_left':
                 z = 1.0
-                margin = iw - width
-                cx = iw - width / 2.0 - margin * t
+                min_cx = max(width / 2.0, slide_x + slide_w - width / 2.0)
+                max_cx = min(iw - width / 2.0, slide_x + width / 2.0)
+                cx = max_cx - max(max_cx - min_cx, 0.0) * t
                 cy = ih / 2.0
             else:
                 z = 1.0 + (max_zoom - 1.0) * t
