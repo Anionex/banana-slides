@@ -492,51 +492,107 @@ def _slice_audio_by_time(
     )
 
 
-def _split_alignment_for_pages(
+def _find_page_boundaries_sec(
     page_texts: List[str],
-    alignment: dict,
-) -> List[Tuple[int, int]]:
+    full_duration_sec: float,
+    full_alignment: dict,
+    snap_window_sec: float = 2.0,
+) -> List[float]:
     """
-    把整段 alignment 按各页文本的字符序列切分，返回每页对应的 alignment 索引区间
-    [al_start, al_end)（exclusive end）。
+    返回 N+1 个递增时间点 [t_0, ..., t_N]，t_0=0、t_N=full_duration。
+    内部 N-1 个边界用 "字符比例估算 + 就近最长 pause 吸附" 算法定位：
 
-    匹配策略与 _build_timed_subtitle_entries_from_alignment 一致：
-      - 跳过两侧 whitespace；
-      - 不区分大小写匹配；
-      - alignment 里多出的字符（规范化插入）跳过。
+      1. 按源字符数比例算出每页边界的目标时间；
+      2. 在目标时间 ±snap_window_sec 内寻找最长的 alignment 间隙（gap）；
+      3. 吸附到该间隙的中点；找不到合适 gap 就用纯比例。
+
+    依赖：TTS 在页边界 delimiter（\\n\\n）处会产生比页内常规停顿更长的 pause。
+    实测 ElevenLabs 满足这个假设，且不依赖源字符与 alignment 字符 1:1 对齐。
     """
-    chars = alignment.get('characters') or []
-    n = len(chars)
-    ranges: List[Tuple[int, int]] = []
-    al_idx = 0
+    n_pages = len(page_texts)
+    if n_pages <= 1:
+        return [0.0, full_duration_sec]
 
-    for page_text in page_texts:
-        while al_idx < n and not chars[al_idx].strip():
-            al_idx += 1
-        start = al_idx
+    chars_per_page = [len(t) for t in page_texts]
+    total_chars = sum(chars_per_page) or 1
 
-        ti = 0
-        last_match = al_idx - 1
-        while al_idx < n and ti < len(page_text):
-            tch = page_text[ti]
-            ach = chars[al_idx]
-            if not tch.strip():
-                ti += 1
+    # 内部边界目标时间（按源字符比例）
+    target_times_sec: List[float] = []
+    cum = 0
+    for c in chars_per_page[:-1]:
+        cum += c
+        target_times_sec.append(full_duration_sec * cum / total_chars)
+
+    starts_ms = full_alignment.get('character_start_times_ms') or []
+    durs_ms = full_alignment.get('character_durations_ms') or []
+
+    # 计算所有相邻字符间的间隙：(gap_size_ms, gap_midpoint_ms)
+    gaps: List[Tuple[float, float]] = []
+    if len(starts_ms) >= 2 and len(durs_ms) >= 2:
+        for i in range(len(starts_ms) - 1):
+            gap_start_ms = starts_ms[i] + durs_ms[i]
+            gap_end_ms = starts_ms[i + 1]
+            gap_size = max(gap_end_ms - gap_start_ms, 0)
+            gap_mid = (gap_start_ms + gap_end_ms) / 2.0
+            gaps.append((gap_size, gap_mid))
+
+    snap_window_ms = snap_window_sec * 1000
+    boundaries_sec: List[float] = [0.0]
+    used_gap_indices: set = set()
+    last_t_ms = 0.0
+
+    for target_t in target_times_sec:
+        target_ms = target_t * 1000
+        best_gap = -1.0
+        best_idx = -1
+        best_mid_ms = target_ms
+        for idx, (gap_size, gap_mid) in enumerate(gaps):
+            if idx in used_gap_indices:
                 continue
-            if not ach.strip():
-                al_idx += 1
+            if gap_mid <= last_t_ms:
                 continue
-            if tch == ach or tch.lower() == ach.lower():
-                last_match = al_idx
-                al_idx += 1
-                ti += 1
-            else:
-                al_idx += 1
+            if abs(gap_mid - target_ms) > snap_window_ms:
+                continue
+            if gap_size > best_gap:
+                best_gap = gap_size
+                best_idx = idx
+                best_mid_ms = gap_mid
+        if best_idx >= 0:
+            used_gap_indices.add(best_idx)
+            chosen_ms = best_mid_ms
+        else:
+            chosen_ms = target_ms
+        # 单调保护
+        if chosen_ms <= last_t_ms:
+            chosen_ms = last_t_ms + 100
+        boundaries_sec.append(chosen_ms / 1000.0)
+        last_t_ms = chosen_ms
 
-        end = last_match + 1 if last_match >= start else start
-        ranges.append((start, end))
+    final_t = max(full_duration_sec, last_t_ms / 1000.0 + 0.1)
+    boundaries_sec.append(final_t)
+    return boundaries_sec
 
-    return ranges
+
+def _slice_alignment_by_time(
+    full_alignment: dict, t_start_ms: int, t_end_ms: int,
+) -> dict:
+    """提取 [t_start_ms, t_end_ms) 区间内字符的 sub-alignment，时间归零到 t_start_ms。"""
+    chars = full_alignment.get('characters') or []
+    starts = full_alignment.get('character_start_times_ms') or []
+    durs = full_alignment.get('character_durations_ms') or []
+    sub_chars: List[str] = []
+    sub_starts: List[int] = []
+    sub_durs: List[int] = []
+    for c, s, d in zip(chars, starts, durs):
+        if t_start_ms <= s < t_end_ms:
+            sub_chars.append(c)
+            sub_starts.append(max(s - t_start_ms, 0))
+            sub_durs.append(d)
+    return {
+        'characters': sub_chars,
+        'character_start_times_ms': sub_starts,
+        'character_durations_ms': sub_durs,
+    }
 
 
 # ElevenLabs 单次合成的字符上限保守阈值（含拼接 delimiter）。
@@ -634,26 +690,12 @@ def _synthesize_batch_and_split(
             f"ElevenLabs alignment 数据不完整（batch {batch_label}），已停止导出"
         )
 
-    page_align_ranges = _split_alignment_for_pages(batch_texts, full_alignment)
-    bad_pages = [
-        batch_indexes[j] + 1
-        for j, (s, e) in enumerate(page_align_ranges) if e <= s
-    ]
-    if bad_pages:
-        raise RuntimeError(
-            f"整段合成 alignment 与原文无法对齐（batch {batch_label}，涉及第 "
-            f"{'、'.join(map(str, bad_pages))} 页）。"
-            "通常是旁白里有数字或符号被 TTS 引擎念成英文（如 '5' → 'five'），"
-            "导致字符序列对不上。已停止导出。"
-        )
-
-    boundaries_sec: List[float] = []
-    for al_start, _al_end in page_align_ranges:
-        boundaries_sec.append(starts_ms[al_start] / 1000.0)
-    boundaries_sec.append(max(duration_full, boundaries_sec[-1] + 0.1))
+    boundaries_sec = _find_page_boundaries_sec(
+        batch_texts, full_duration_sec=duration_full, full_alignment=full_alignment,
+    )
 
     results: List[Tuple[str, dict, float]] = []
-    for j, (al_start, al_end) in enumerate(page_align_ranges):
+    for j in range(len(batch_texts)):
         t_start = boundaries_sec[j]
         t_end = boundaries_sec[j + 1]
         page_idx = batch_indexes[j]
@@ -664,19 +706,14 @@ def _synthesize_batch_and_split(
         )
         page_duration = get_audio_duration(page_audio_path, ffmpeg_path=ffmpeg_path)
 
-        t_start_ms = int(t_start * 1000)
-        sub_alignment = {
-            'characters': list(chars[al_start:al_end]),
-            'character_start_times_ms': [
-                max(s - t_start_ms, 0) for s in starts_ms[al_start:al_end]
-            ],
-            'character_durations_ms': list(durs_ms[al_start:al_end]),
-        }
+        sub_alignment = _slice_alignment_by_time(
+            full_alignment, int(t_start * 1000), int(t_end * 1000),
+        )
         results.append((page_audio_path, sub_alignment, page_duration))
 
     logger.info(
         f"batch {batch_label} 整段合成完成：{len(batch_texts)} 页 → 1 次 ElevenLabs 调用，"
-        f"全曲 {duration_full:.1f}s"
+        f"全曲 {duration_full:.1f}s，边界吸附 {len(boundaries_sec) - 2} 处"
     )
     return results
 
