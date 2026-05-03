@@ -52,7 +52,7 @@ LANGUAGE_CONFIG = {
 
 DETAIL_LEVEL_SPECS = {
     'concise': '文字极致地压缩和精简，每条要点用一个核心词语或数据代替，例如效率↑80%',
-    'default': '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
+    'default': '清晰明了，每条要点控制在15-20字以内，优先使用短语而非完整句子；落地到页面的文字建议在2-6句之内，避免冗长和复杂表述，为演示服务，而不是代替演讲人叙述。',
     'detailed': '忠于原文的基础上做到内容详实，逻辑清晰。',
 }
 
@@ -472,13 +472,6 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     """生成单个页面描述的 prompt"""
     original_input = _get_original_input(project_context)
 
-    # 单页版使用简短的 concise 描述（与流式版略有不同）
-    detail_level_specs = {
-        'concise': '文字极致地压缩和精简',
-        'default': '清晰明了，每条要点控制在15-20字以内, 避免冗长的句子和复杂的表述',
-        'detailed': '忠于原文的基础上做到内容详实，逻辑清晰。',
-    }
-
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
@@ -493,7 +486,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 --- 页面文字 ---
 
-[此处使用markdown直接放置正文文字, 细致程度要求：{detail_level_specs[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
+[此处使用markdown直接放置正文文字, 细致程度要求：{DETAIL_LEVEL_SPECS[detail_level]}\n\n, 可包含latex公式、表格等内容, 不要重复添加]
 
 --- 页面文字结束 ---
 
@@ -545,7 +538,7 @@ def get_all_descriptions_stream_prompt(project_context: 'ProjectContext',
 <!-- BEGIN -->
 
 --- 页面文字 ---
-[第1页文字内容，可包含标题、副标题、要点、latex公式、表格等，根据实际需求选择，避免堆砌和重复. 不要把用户的设计意图显式地放在页面文字中]
+[第1页文字内容，可包含标题、副标题、要点、latex公式、表格等，根据实际需求选择，避免堆砌和重复. 不要把用户的设计意图显式地放在页面文字中。]
 
 --- 页面文字结束 ---
 
