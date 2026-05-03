@@ -56,7 +56,11 @@ def create_app():
     
     # Load configuration from Config class
     app.config.from_object(Config)
-    
+
+    # Allow DATABASE_URL env var to override config at runtime (supports test isolation)
+    if os.getenv('DATABASE_URL'):
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+
     # Ensure instance directory exists for the default SQLite path in Config
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     instance_dir = os.path.join(backend_dir, 'instance')
