@@ -124,12 +124,19 @@ class TestBaiduSegmentationProvider:
         url = mock_post.call_args.args[0]
         assert "access_token=legacy-access-token-xyz" in url
 
-    def test_extract_subject_too_small_skipped(self):
+    def test_extract_subject_small_image_upscaled_before_api(self):
+        # 64x64 短边 < 128px API 下限；新逻辑应放大后调用 API 而不是跳过
         provider = BaiduSegmentationProvider(api_key="test-key")
-        with patch("requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"image": self._make_rgba_response_b64(size=(256, 256))}
+        mock_response.raise_for_status.return_value = None
+
+        with patch("requests.post", return_value=mock_response) as mock_post:
             result = provider.extract_subject(self._make_test_image(size=(64, 64)))
-        assert result is None
-        mock_post.assert_not_called()
+
+        assert result is not None
+        assert result.mode == "RGBA"
+        mock_post.assert_called_once()
 
     def test_extract_subject_api_error_raises(self):
         provider = BaiduSegmentationProvider(api_key="test-key")
