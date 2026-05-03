@@ -1,6 +1,7 @@
 // TODO: split components
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import { devLog } from '@/utils/logger';
 
@@ -272,6 +273,7 @@ const DEFAULT_VIDEO_NARRATION_CONFIG: NarrationConfig = {
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { i18n } = useTranslation();
   const t = useT(previewI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
@@ -1397,9 +1399,10 @@ export const SlidePreview: React.FC = () => {
     (p) => p.generated_image_path
   );
   const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
+  const isEnglishUi = i18n.language?.startsWith('en');
   const getNarrationOptionLabel = (options: Array<{ value: string; zh: string; en: string }>, value: string) => {
     const match = options.find(item => item.value === value);
-    return match ? match.zh : value;
+    return match ? (isEnglishUi ? match.en : match.zh) : value;
   };
   const narrationSummary = [
     videoNarrationConfig.presentation_topic,
@@ -1631,7 +1634,7 @@ export const SlidePreview: React.FC = () => {
                     >
                       {NARRATION_PERSONA_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>
-                          {option.zh}
+                          {isEnglishUi ? option.en : option.zh}
                         </option>
                       ))}
                     </select>
@@ -1645,7 +1648,7 @@ export const SlidePreview: React.FC = () => {
                     >
                       {NARRATION_AUDIENCE_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>
-                          {option.zh}
+                          {isEnglishUi ? option.en : option.zh}
                         </option>
                       ))}
                     </select>
@@ -1659,7 +1662,7 @@ export const SlidePreview: React.FC = () => {
                     >
                       {NARRATION_TONE_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>
-                          {option.zh}
+                          {isEnglishUi ? option.en : option.zh}
                         </option>
                       ))}
                     </select>
