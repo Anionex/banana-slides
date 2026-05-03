@@ -539,36 +539,81 @@ def _split_alignment_for_pages(
     return ranges
 
 
-def _generate_elevenlabs_whole_and_split(
-    pages_data: List[dict],
+# ElevenLabs 单次合成的字符上限保守阈值（含拼接 delimiter）。
+# multilingual_v2 官方上限 5000，eleven_v3 略高但未公开稳定上限；
+# 取 4500 留出 margin，超出时按页贪婪打包成多个批次。
+_ELEVENLABS_BATCH_CHAR_LIMIT = 4500
+
+
+def _pack_pages_into_batches(
     narration_indexes: List[int],
+    page_texts: List[str],
+    char_limit: int,
+    delimiter: str,
+) -> List[List[Tuple[int, str]]]:
+    """
+    把连续的 narration 页贪婪打包成 N 个批次，每批拼接后字符数 ≤ char_limit。
+
+    单页若本身已超 char_limit，独占一批（让 ElevenLabs 自己处理或在调用时报错）。
+    """
+    batches: List[List[Tuple[int, str]]] = []
+    cur: List[Tuple[int, str]] = []
+    cur_chars = 0
+    delim_len = len(delimiter)
+    for idx, text in zip(narration_indexes, page_texts):
+        added = len(text) + (delim_len if cur else 0)
+        if cur and cur_chars + added > char_limit:
+            batches.append(cur)
+            cur = []
+            cur_chars = 0
+            added = len(text)
+        cur.append((idx, text))
+        cur_chars += added
+    if cur:
+        batches.append(cur)
+    return batches
+
+
+def _synthesize_batch_and_split(
+    batch_indexes: List[int],
+    batch_texts: List[str],
     tmp_dir: str,
+    batch_label: str,
     api_key: str,
     voice_id: str,
     ffmpeg_path: str,
     speed: float,
 ) -> List[Tuple[str, dict, float]]:
     """
-    一次合成所有非空 narration，再按字符 alignment 切回单页 mp3 + 单页 alignment。
+    一批连续页：拼接 → 一次 ElevenLabs 调用 → 按字符 alignment 切回单页。
 
-    返回与 narration_indexes 同长的列表，每项 (audio_path, sub_alignment, duration)。
-    任何不一致（alignment 缺失、有页未对齐等）都会 raise，由调用方回退到逐页路径。
+    返回与 batch_indexes 同长的 (audio_path, sub_alignment, duration) 列表。
+    alignment 缺失或某页未对齐时直接 raise，由上层 fail-fast 中断导出。
 
-    切片边界：第 j 页 [t_j, t_{j+1})，最后一页到全曲末。这样 delimiter 的自然停顿
-    会被分配给前一页的尾部，相邻页拼接时不会丢失停顿。
+    切片边界：第 j 页 [t_j, t_{j+1})，最后一页到全曲末。delimiter 的自然停顿
+    分配给前一页尾部，相邻页拼接时不丢失停顿。
     """
-    delimiter = '\n\n'
-    page_texts = [
-        _strip_invisible_unicode(
-            (pages_data[i].get('narration_text') or '').strip(), keep_newlines=True,
-        )
-        for i in narration_indexes
-    ]
-    if not all(page_texts):
-        raise RuntimeError("整段合成：存在空 narration，无法构造完整文本")
+    if not batch_texts:
+        return []
 
-    full_text = delimiter.join(page_texts)
-    full_audio_path = os.path.join(tmp_dir, 'audio_full.mp3')
+    # 单页批次：直接合成、不切片
+    if len(batch_texts) == 1:
+        page_idx = batch_indexes[0]
+        audio_path = os.path.join(tmp_dir, f'audio_{page_idx:03d}.mp3')
+        duration, alignment = generate_elevenlabs_audio_sync(
+            batch_texts[0], audio_path,
+            api_key=api_key, voice_id=voice_id,
+            ffmpeg_path=ffmpeg_path, speed=speed,
+        )
+        if not alignment:
+            raise RuntimeError(
+                f"ElevenLabs 未返回字符级 alignment（batch {batch_label}），无法定位字幕时间，已停止导出"
+            )
+        return [(audio_path, alignment, duration)]
+
+    delimiter = '\n\n'
+    full_text = delimiter.join(batch_texts)
+    full_audio_path = os.path.join(tmp_dir, f'audio_full_{batch_label}.mp3')
 
     duration_full, full_alignment = generate_elevenlabs_audio_sync(
         full_text, full_audio_path,
@@ -577,17 +622,30 @@ def _generate_elevenlabs_whole_and_split(
     )
 
     if not full_alignment:
-        raise RuntimeError("ElevenLabs 未返回 alignment，无法做整段切片")
+        raise RuntimeError(
+            f"ElevenLabs 未返回字符级 alignment（batch {batch_label}），无法做整段切片，已停止导出"
+        )
 
     chars = full_alignment.get('characters') or []
     starts_ms = full_alignment.get('character_start_times_ms') or []
     durs_ms = full_alignment.get('character_durations_ms') or []
     if not chars or len(chars) != len(starts_ms) or len(chars) != len(durs_ms):
-        raise RuntimeError("ElevenLabs alignment 数据不完整")
+        raise RuntimeError(
+            f"ElevenLabs alignment 数据不完整（batch {batch_label}），已停止导出"
+        )
 
-    page_align_ranges = _split_alignment_for_pages(page_texts, full_alignment)
-    if any(end <= start for start, end in page_align_ranges):
-        raise RuntimeError("整段合成 alignment 切片失败：存在未匹配到字符的页")
+    page_align_ranges = _split_alignment_for_pages(batch_texts, full_alignment)
+    bad_pages = [
+        batch_indexes[j] + 1
+        for j, (s, e) in enumerate(page_align_ranges) if e <= s
+    ]
+    if bad_pages:
+        raise RuntimeError(
+            f"整段合成 alignment 与原文无法对齐（batch {batch_label}，涉及第 "
+            f"{'、'.join(map(str, bad_pages))} 页）。"
+            "通常是旁白里有数字或符号被 TTS 引擎念成英文（如 '5' → 'five'），"
+            "导致字符序列对不上。已停止导出。"
+        )
 
     boundaries_sec: List[float] = []
     for al_start, _al_end in page_align_ranges:
@@ -598,7 +656,7 @@ def _generate_elevenlabs_whole_and_split(
     for j, (al_start, al_end) in enumerate(page_align_ranges):
         t_start = boundaries_sec[j]
         t_end = boundaries_sec[j + 1]
-        page_idx = narration_indexes[j]
+        page_idx = batch_indexes[j]
 
         page_audio_path = os.path.join(tmp_dir, f'audio_{page_idx:03d}.mp3')
         _slice_audio_by_time(
@@ -617,10 +675,64 @@ def _generate_elevenlabs_whole_and_split(
         results.append((page_audio_path, sub_alignment, page_duration))
 
     logger.info(
-        f"整段合成完成：{len(narration_indexes)} 页 → 1 次 ElevenLabs 调用，"
-        f"全曲 {duration_full:.1f}s，已切片为单页"
+        f"batch {batch_label} 整段合成完成：{len(batch_texts)} 页 → 1 次 ElevenLabs 调用，"
+        f"全曲 {duration_full:.1f}s"
     )
     return results
+
+
+def _generate_elevenlabs_whole_and_split(
+    pages_data: List[dict],
+    narration_indexes: List[int],
+    tmp_dir: str,
+    api_key: str,
+    voice_id: str,
+    ffmpeg_path: str,
+    speed: float,
+    progress_callback: Optional[Callable[[str, str, int], None]] = None,
+) -> List[Tuple[str, dict, float]]:
+    """
+    把所有非空 narration 页按字符上限切成若干批次，每批一次合成 + 切片回单页。
+
+    返回与 narration_indexes 同长的列表，每项 (audio_path, sub_alignment, duration)。
+    任何 alignment 缺失 / 页未对齐 / API 错误都直接 raise（fail-fast，不回退到逐页）。
+    """
+    delimiter = '\n\n'
+    page_texts = [
+        _strip_invisible_unicode(
+            (pages_data[i].get('narration_text') or '').strip(), keep_newlines=True,
+        )
+        for i in narration_indexes
+    ]
+    if not all(page_texts):
+        raise RuntimeError("整段合成：存在空 narration，无法构造完整文本")
+
+    batches = _pack_pages_into_batches(
+        narration_indexes, page_texts,
+        char_limit=_ELEVENLABS_BATCH_CHAR_LIMIT, delimiter=delimiter,
+    )
+
+    results_by_index: dict = {}
+    for b_idx, batch in enumerate(batches):
+        batch_indexes = [pair[0] for pair in batch]
+        batch_texts = [pair[1] for pair in batch]
+        label = f"{b_idx + 1}/{len(batches)}"
+        if progress_callback:
+            total_chars = sum(len(t) for t in batch_texts)
+            progress_callback(
+                "TTS",
+                f"整段合成第 {label} 批（{len(batch)} 页 / {total_chars} 字）",
+                22,
+            )
+        batch_results = _synthesize_batch_and_split(
+            batch_indexes, batch_texts, tmp_dir, label,
+            api_key=api_key, voice_id=voice_id,
+            ffmpeg_path=ffmpeg_path, speed=speed,
+        )
+        for idx, r in zip(batch_indexes, batch_results):
+            results_by_index[idx] = r
+
+    return [results_by_index[i] for i in narration_indexes]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1406,8 +1518,9 @@ def generate_narration_video(
         alignments: List[Optional[dict]] = []
         silent_page_indexes: List[int] = []
 
-        # 整段合成快路径：ElevenLabs 且至少 2 页有 narration 时，一次合成 + 切片
-        # 解决多页"逐页冷启动"导致的页间割裂感。
+        # 整段合成快路径：ElevenLabs 且至少 2 页有 narration 时，按字符上限拆批
+        # 一批一合成 + 切片回单页，解决"逐页冷启动"导致的页间割裂感。
+        # 失败（alignment 缺失 / 某页未对齐 / API 错）直接 raise，fail-fast，不回退。
         narration_indexes = [
             idx for idx, p in enumerate(pages_data)
             if (p.get('narration_text') or '').strip()
@@ -1417,24 +1530,15 @@ def generate_narration_video(
             elevenlabs_config and elevenlabs_config.get('api_key')
             and len(narration_indexes) >= 2
         ):
-            try:
-                if progress_callback:
-                    progress_callback(
-                        "TTS",
-                        f"整段合成 ElevenLabs 旁白（{len(narration_indexes)} 页一次）",
-                        22,
-                    )
-                whole_text_pairs = _generate_elevenlabs_whole_and_split(
-                    pages_data, narration_indexes, tmp_dir,
-                    api_key=elevenlabs_config['api_key'],
-                    voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
-                    ffmpeg_path=ffmpeg_path,
-                    speed=speed,
-                )
-                whole_text_results = dict(zip(narration_indexes, whole_text_pairs))
-            except Exception as e:
-                logger.warning(f"整段合成失败，回退到按页合成：{e}")
-                whole_text_results = None
+            whole_text_pairs = _generate_elevenlabs_whole_and_split(
+                pages_data, narration_indexes, tmp_dir,
+                api_key=elevenlabs_config['api_key'],
+                voice_id=elevenlabs_config.get('voice_id', 'JBFqnCBsd6RMkjVDRZzb'),
+                ffmpeg_path=ffmpeg_path,
+                speed=speed,
+                progress_callback=progress_callback,
+            )
+            whole_text_results = dict(zip(narration_indexes, whole_text_pairs))
 
         for i, page in enumerate(pages_data):
             narration = page.get('narration_text')
