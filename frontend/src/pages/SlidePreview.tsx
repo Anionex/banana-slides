@@ -297,6 +297,9 @@ export const SlidePreview: React.FC = () => {
   const [exportAllowPartial, setExportAllowPartial] = useState<boolean>(
     currentProject?.export_allow_partial || false
   );
+  const [enableIconSubjectExtraction, setEnableIconSubjectExtraction] = useState<boolean>(
+    currentProject?.enable_icon_subject_extraction ?? true
+  );
   const [isSavingExportSettings, setIsSavingExportSettings] = useState(false);
   // 画面比例
   const [aspectRatio, setAspectRatio] = useState<string>(
@@ -412,6 +415,7 @@ export const SlidePreview: React.FC = () => {
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
         setExportAllowPartial(currentProject.export_allow_partial || false);
+        setEnableIconSubjectExtraction(currentProject.enable_icon_subject_extraction ?? true);
         setAspectRatio(currentProject.image_aspect_ratio || '16:9');
         lastProjectId.current = currentProject.id || null;
         isEditingRequirements.current = false;
@@ -429,10 +433,11 @@ export const SlidePreview: React.FC = () => {
         setExportExtractorMethod((currentProject.export_extractor_method as ExportExtractorMethod) || 'hybrid');
         setExportInpaintMethod((currentProject.export_inpaint_method as ExportInpaintMethod) || 'hybrid');
         setExportAllowPartial(currentProject.export_allow_partial || false);
+        setEnableIconSubjectExtraction(currentProject.enable_icon_subject_extraction ?? true);
       }
       // 如果用户正在编辑，则不更新本地状态
     }
-  }, [currentProject?.id, currentProject?.extra_requirements, currentProject?.template_style, currentProject?.image_aspect_ratio, currentProject?.export_extractor_method, currentProject?.export_inpaint_method, currentProject?.export_allow_partial]);
+  }, [currentProject?.id, currentProject?.extra_requirements, currentProject?.template_style, currentProject?.image_aspect_ratio, currentProject?.export_extractor_method, currentProject?.export_inpaint_method, currentProject?.export_allow_partial, currentProject?.enable_icon_subject_extraction]);
 
   // 加载当前页面的历史版本
   useEffect(() => {
@@ -1199,7 +1204,8 @@ export const SlidePreview: React.FC = () => {
       await updateProject(projectId, {
         export_extractor_method: exportExtractorMethod,
         export_inpaint_method: exportInpaintMethod,
-        export_allow_partial: exportAllowPartial
+        export_allow_partial: exportAllowPartial,
+        enable_icon_subject_extraction: enableIconSubjectExtraction
       });
       // 更新本地项目状态
       await syncProject(projectId);
@@ -1212,7 +1218,7 @@ export const SlidePreview: React.FC = () => {
     } finally {
       setIsSavingExportSettings(false);
     }
-  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, syncProject, show]);
+  }, [currentProject, projectId, exportExtractorMethod, exportInpaintMethod, exportAllowPartial, enableIconSubjectExtraction, syncProject, show, t]);
 
   const handleSaveAspectRatio = useCallback(async () => {
     if (!currentProject || !projectId) return;
@@ -2326,9 +2332,11 @@ export const SlidePreview: React.FC = () => {
             exportExtractorMethod={exportExtractorMethod}
             exportInpaintMethod={exportInpaintMethod}
             exportAllowPartial={exportAllowPartial}
+            enableIconSubjectExtraction={enableIconSubjectExtraction}
             onExportExtractorMethodChange={setExportExtractorMethod}
             onExportInpaintMethodChange={setExportInpaintMethod}
             onExportAllowPartialChange={setExportAllowPartial}
+            onEnableIconSubjectExtractionChange={setEnableIconSubjectExtraction}
             onSaveExportSettings={handleSaveExportSettings}
             isSavingExportSettings={isSavingExportSettings}
             // 画面比例

@@ -101,5 +101,61 @@ def should_recurse_into_element(
     if coverage_ratio > max_child_coverage_ratio:
         logger.info(f"  元素 {element.element_id} 占父图面积 {coverage_ratio*100:.1f}% (>{max_child_coverage_ratio*100:.0f}%)，不递归")
         return False
-    
+
+    return True
+
+
+def is_icon_element(
+    element: EditableElement,
+    parent_image_size: tuple,
+    max_short_edge: int = 200,
+    max_area_ratio: float = 0.05,
+    aspect_ratio_range: tuple = (0.4, 2.5),
+) -> bool:
+    """
+    启发式判断元素是否为图标（icon），用于决定是否对其调用 Baidu 主体提取
+
+    判定条件（必须全部满足）：
+    - 类型是 image/figure
+    - 短边 < max_short_edge（默认 200px）
+    - 面积占父图比例 < max_area_ratio（默认 5%）
+    - 宽高比在 aspect_ratio_range 内（默认 0.4~2.5，排除细长 banner）
+
+    Args:
+        element: 待判断的元素
+        parent_image_size: 父图尺寸 (width, height)
+        max_short_edge: 短边阈值
+        max_area_ratio: 面积占父图比例阈值
+        aspect_ratio_range: 允许的宽高比范围 (min, max)
+
+    Returns:
+        True 表示是 icon，应走主体提取
+    """
+    if element.element_type not in ('image', 'figure'):
+        return False
+
+    bbox = element.bbox
+    width = bbox.width
+    height = bbox.height
+
+    if width <= 0 or height <= 0:
+        return False
+
+    short_edge = min(width, height)
+    if short_edge >= max_short_edge:
+        return False
+
+    parent_width, parent_height = parent_image_size
+    parent_area = parent_width * parent_height
+    if parent_area <= 0:
+        return False
+
+    if bbox.area / parent_area >= max_area_ratio:
+        return False
+
+    aspect_ratio = width / height
+    min_ratio, max_ratio = aspect_ratio_range
+    if not (min_ratio <= aspect_ratio <= max_ratio):
+        return False
+
     return True

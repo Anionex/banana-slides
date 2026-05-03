@@ -1155,6 +1155,7 @@ class ExportService:
         progress_callback = None,  # 可选：进度回调函数 (step, message, percent) -> None
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
+        enable_icon_subject_extraction: bool = False,  # 是否对小尺寸图标走百度智能抠图
         fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
@@ -1215,11 +1216,16 @@ class ExportService:
             report_progress("开始", f"准备分析 {total_pages} 页幻灯片...", 0)
             
             # 1. 创建ImageEditabilityService（配置自动从 Flask config 获取，使用项目导出设置）
-            logger.info(f"使用导出设置: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
+            logger.info(
+                f"使用导出设置: extractor={export_extractor_method}, "
+                f"inpaint={export_inpaint_method}, "
+                f"icon_subject_extraction={enable_icon_subject_extraction}"
+            )
             config = ServiceConfig.from_defaults(
                 max_depth=max_depth,
                 extractor_method=export_extractor_method,
-                inpaint_method=export_inpaint_method
+                inpaint_method=export_inpaint_method,
+                enable_icon_subject_extraction=enable_icon_subject_extraction,
             )
             editability_service = ImageEditabilityService(config)
             

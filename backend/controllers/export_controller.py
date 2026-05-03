@@ -393,8 +393,16 @@ def export_editable_pptx(project_id):
         # 读取项目的导出设置
         export_extractor_method = project.export_extractor_method or 'hybrid'
         export_inpaint_method = project.export_inpaint_method or 'hybrid'
-        logger.info(f"Export settings: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
-        
+        enable_icon_subject_extraction = (
+            True if project.enable_icon_subject_extraction is None
+            else bool(project.enable_icon_subject_extraction)
+        )
+        logger.info(
+            f"Export settings: extractor={export_extractor_method}, "
+            f"inpaint={export_inpaint_method}, "
+            f"icon_subject_extraction={enable_icon_subject_extraction}"
+        )
+
         # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
         task_manager.submit_task(
             task.id,
@@ -407,6 +415,7 @@ def export_editable_pptx(project_id):
             max_workers=max_workers,
             export_extractor_method=export_extractor_method,
             export_inpaint_method=export_inpaint_method,
+            enable_icon_subject_extraction=enable_icon_subject_extraction,
             app=app
         )
         

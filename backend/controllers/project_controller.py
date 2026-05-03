@@ -348,6 +348,8 @@ def update_project(project_id):
             project.export_inpaint_method = data['export_inpaint_method']
         if 'export_allow_partial' in data:
             project.export_allow_partial = data['export_allow_partial']
+        if 'enable_icon_subject_extraction' in data:
+            project.enable_icon_subject_extraction = bool(data['enable_icon_subject_extraction'])
         
         # Update page order if provided
         if 'pages_order' in data:
