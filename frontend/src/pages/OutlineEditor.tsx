@@ -25,6 +25,15 @@ const outlineI18n = {
       inputPlaceholder: { idea: "输入你的 PPT 构想...", outline: "输入大纲内容...", description: "输入页面描述...", ppt_renovation: "已从 PDF 中提取内容" },
       outlineRequirements: "大纲生成要求",
       outlineRequirementsPlaceholder: "例如：限制在10页以内、每页要点不超过3条、多使用图表...",
+      importModalTitle: "导入 Markdown",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importPasteLabel: "粘贴内容",
+      importPastePlaceholder: "把大纲或大纲+描述的 Markdown 粘贴到这里...",
+      importUploadLabel: "上传文件",
+      importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
+      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importConfirm: "导入到项目",
+      importCancel: "取消",
       messages: {
         outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
         generateIncomplete: "大纲生成可能不完整，请检查后重试",
@@ -34,6 +43,8 @@ const outlineI18n = {
         refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
         importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
+        importContentEmpty: "请先粘贴内容或上传文件",
+        importReadFailed: "读取文件失败，请重试",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
         saveFailed: "保存失败",
       }
@@ -58,6 +69,15 @@ const outlineI18n = {
       inputPlaceholder: { idea: "Enter your PPT idea...", outline: "Enter outline content...", description: "Enter page descriptions...", ppt_renovation: "Content extracted from PDF" },
       outlineRequirements: "Generation Requirements",
       outlineRequirementsPlaceholder: "e.g., Limit to 10 pages, max 3 points per page, use more charts...",
+      importModalTitle: "Import Markdown",
+      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importPasteLabel: "Paste Content",
+      importPastePlaceholder: "Paste outline or outline+description Markdown here...",
+      importUploadLabel: "Upload File",
+      importUploadHint: "Click to choose a file, or drag a Markdown file here",
+      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importConfirm: "Import into Project",
+      importCancel: "Cancel",
       messages: {
         outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
         generateIncomplete: "Outline generation may be incomplete, please review and retry",
@@ -67,6 +87,8 @@ const outlineI18n = {
         refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
         importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
+        importContentEmpty: "Paste some content or upload a file first",
+        importReadFailed: "Failed to read file, please try again",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
         saveFailed: "Save failed",
       }
@@ -90,7 +112,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -176,8 +198,8 @@ export const OutlineEditor: React.FC = () => {
   // the shared-ref bug where insertAtCursor targets the wrong (hidden) instance.
   const desktopTextareaRef = useRef<MarkdownTextareaRef>(null);
   const mobileTextareaRef = useRef<MarkdownTextareaRef>(null);
-  const importFileRef = useRef<HTMLInputElement>(null);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const getInputText = useCallback((project: typeof currentProject) => {
     if (!project) return '';
@@ -411,17 +433,14 @@ export const OutlineEditor: React.FC = () => {
     show({ message: t('outline.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show]);
 
-  // 导入大纲 Markdown 文件（追加新页面）
-  const handleImportOutline = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (importFileRef.current) importFileRef.current.value = '';
-    if (!file || !currentProject || !projectId) return;
+  // 导入大纲 Markdown（追加新页面）
+  const handleImportOutline = useCallback(async (text: string) => {
+    if (!currentProject || !projectId) return;
     try {
-      const text = await file.text();
       const parsed = parseMarkdownPages(text);
       if (parsed.length === 0) {
         show({ message: t('outline.messages.importEmpty'), type: 'error' });
-        return;
+        throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
       await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
@@ -434,8 +453,12 @@ export const OutlineEditor: React.FC = () => {
       ));
       await syncProject(projectId);
       show({ message: t('outline.messages.importSuccess'), type: 'success' });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'empty-import') {
+        throw error;
+      }
       show({ message: t('outline.messages.importFailed'), type: 'error' });
+      throw error;
     }
   }, [currentProject, projectId, syncProject, show, t]);
 
@@ -627,7 +650,7 @@ export const OutlineEditor: React.FC = () => {
                   <div className="border-t border-gray-100 dark:border-border-primary" />
                   <button
                     type="button"
-                    onClick={() => { importFileRef.current?.click(); setFileMenuOpen(false); }}
+                    onClick={() => { setIsImportModalOpen(true); setFileMenuOpen(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors duration-150"
                   >
                     <Upload size={14} />
@@ -636,7 +659,6 @@ export const OutlineEditor: React.FC = () => {
                 </div>
               )}
             </div>
-            <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportOutline} />
             {/* 手机端：保存按钮 */}
             <Button
               variant="secondary"
@@ -826,6 +848,22 @@ export const OutlineEditor: React.FC = () => {
       {ConfirmDialog}
       <ToastContainer />
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <ImportMarkdownModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportOutline}
+        title={t('outline.importModalTitle')}
+        description={t('outline.importModalDesc')}
+        pasteLabel={t('outline.importPasteLabel')}
+        pastePlaceholder={t('outline.importPastePlaceholder')}
+        uploadLabel={t('outline.importUploadLabel')}
+        uploadHint={t('outline.importUploadHint')}
+        uploadFormatsHint={t('outline.importUploadFormatsHint')}
+        importButtonLabel={t('outline.importConfirm')}
+        cancelButtonLabel={t('outline.importCancel')}
+        emptyError={t('outline.messages.importContentEmpty')}
+        readFileError={t('outline.messages.importReadFailed')}
+      />
       <MaterialSelector
         projectId={projectId}
         isOpen={isMaterialSelectorOpen}

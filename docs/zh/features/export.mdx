@@ -14,7 +14,7 @@ description: "导出为 PPTX、PDF 或图片"
 | 讲解视频 | 将幻灯片图片与 AI 旁白合成为 MP4 视频，可选字幕与画面动效 |
 
 <Note>
-  Docker 部署已在镜像内安装好视频导出所需的 FFmpeg 依赖。源码部署请先安装带 `libass` / `ass` 字幕滤镜的 FFmpeg，例如 macOS 运行 `brew install ffmpeg libass`，Ubuntu / Debian 运行 `sudo apt-get update && sudo apt-get install -y ffmpeg libass9`。
+  Docker 部署已在镜像内安装好视频导出所需的 FFmpeg 依赖。源码部署请先安装带 `libass` / `ass` 字幕滤镜的 FFmpeg，例如 macOS 运行 `brew install ffmpeg-full && brew unlink ffmpeg 2>/dev/null || true && brew link --overwrite --force ffmpeg-full`，Ubuntu / Debian 运行 `sudo apt-get update && sudo apt-get install -y ffmpeg libass9`。
 </Note>
 
 ## 画面比例
