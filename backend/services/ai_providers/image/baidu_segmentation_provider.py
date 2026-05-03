@@ -59,10 +59,18 @@ class BaiduSegmentationProvider:
         else:
             rgb_image = image
 
-        # API 限制：短边 ≥ 128px，长边 ≤ 3000px
-        if min(rgb_image.size) < 128:
-            logger.warning(f"图片短边 {min(rgb_image.size)}px < 128px，跳过主体提取")
-            return None
+        original_size = rgb_image.size
+        upscaled = False
+
+        # API 限制：短边 ≥ 128px。图标通常很小，需要先放大到 256px 短边再调用 API。
+        # 提取后由调用方按原 bbox 渲染，所以放大不影响最终 PPT 上的尺寸。
+        min_short_edge = 256
+        if min(rgb_image.size) < min_short_edge:
+            scale = min_short_edge / min(rgb_image.size)
+            new_size = (max(1, int(rgb_image.width * scale)), max(1, int(rgb_image.height * scale)))
+            rgb_image = rgb_image.resize(new_size, Image.Resampling.LANCZOS)
+            upscaled = True
+            logger.info(f"🔍 放大到 {new_size}（API 要求短边 ≥ 128px，原始 {original_size}）")
 
         max_size = 3000
         if max(rgb_image.size) > max_size:
