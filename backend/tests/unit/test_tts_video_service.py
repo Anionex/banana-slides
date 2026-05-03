@@ -650,14 +650,11 @@ class TestExportVideoRoute:
         )
         assert response.status_code == 404
 
-    def test_export_video_returns_normalized_narration_config(self, client, sample_project):
-        if not sample_project:
-            pytest.skip("sample_project fixture returned None")
-        project_id = sample_project.get('id') or sample_project.get('project_id')
+    def test_export_video_returns_normalized_narration_config(self, client, app):
+        project_id = self._create_project_with_image_page(app, allow_partial=True)
         response = client.post(
             f'/api/projects/{project_id}/export/video',
             json={
-                'include_no_image_pages': True,
                 'narration_config': {
                     'speaker_persona': 'confident corporate executive',
                     'min_words': 80,
