@@ -269,10 +269,14 @@ class AIService:
             )
         else:
             raise ValueError("caption_provider 不支持图片输入")
-        
+
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        
+        cleaned_text = (response_text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+        if not cleaned_text:
+            logger.warning("视觉模型返回空响应（带图片），将重试")
+            raise ValueError("视觉模型返回空响应")
+
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
