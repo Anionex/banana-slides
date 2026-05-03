@@ -416,7 +416,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 在项目根目录下运行：
 ```bash
 # macOS（Homebrew）
-brew install ffmpeg libass
+brew install ffmpeg-full
+brew unlink ffmpeg 2>/dev/null || true
+brew link --overwrite --force ffmpeg-full
 
 # Ubuntu / Debian
 sudo apt-get update
