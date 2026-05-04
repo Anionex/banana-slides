@@ -37,14 +37,14 @@ The extraction process preserves font size, color, bold styling, text positionin
   For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).
 </Note>
 
-## Icon Transparent Background (Baidu Subject Extraction)
+## Icon Transparent Background
 
-In **Project Settings → Export Settings** you can toggle **Icon Transparent Background (Baidu Subject Extraction)**, which is enabled by default. When enabled, small icon images detected during editable PPTX export are processed via Baidu's subject extraction API to produce transparent-background PNGs before being placed in the PPT, avoiding the icon's original background clashing with the new slide background.
+In **Project Settings → Export Settings** you can toggle **Icon Transparent Background**, which is enabled by default. When enabled, images classified as icons during editable PPTX export are processed via the local RMBG-2.0 model to produce transparent-background PNGs before being placed in the PPT, avoiding the icon's original background clashing with the new slide background.
 
-Only small icons qualify (short edge < 200px, area < 5% of the page, aspect ratio between 0.4 and 2.5). Photos and illustrations keep the original rectangular crop to avoid mistakes.
+Only elements classified as icons qualify (an OpenCV flood-fill heuristic runs on the ROI). Photos and illustrations keep the original rectangular crop to avoid mistakes.
 
 <Note>
-  Requires `BAIDU_API_KEY` configured in **Global Settings** (shared with the existing editable PPTX text recognition). If the key is missing or extraction fails for an individual icon, the system silently falls back to the original rectangular crop without affecting export.
+  Powered by local RMBG-2.0 ONNX inference on CPU. The ~1GB model is downloaded automatically on first use to `~/.cache/banana-slides/models/`; set `RMBG_MODEL_PATH` to point at an existing local copy. If extraction fails for an individual icon, the system silently falls back to the original rectangular crop without affecting export.
 </Note>
 
 ## Page Selection
