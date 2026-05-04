@@ -193,6 +193,28 @@ class TestRmbgSegmentationProvider:
         mock_get.assert_called_once()
 
 
+class TestBBoxExpand:
+    """BBox.expand(px, max_w, max_h) - 源头扩张图标 BBox 的工具方法"""
+
+    def test_expand_inside_bounds(self):
+        bbox = BBox(100, 100, 200, 200).expand(5, 1000, 1000)
+        assert (bbox.x0, bbox.y0, bbox.x1, bbox.y1) == (95, 95, 205, 205)
+
+    def test_expand_clamps_to_zero(self):
+        bbox = BBox(2, 2, 50, 50).expand(10, 1000, 1000)
+        assert bbox.x0 == 0 and bbox.y0 == 0
+        assert bbox.x1 == 60 and bbox.y1 == 60
+
+    def test_expand_clamps_to_max(self):
+        bbox = BBox(900, 900, 995, 995).expand(20, 1000, 1000)
+        assert bbox.x1 == 1000 and bbox.y1 == 1000
+        assert bbox.x0 == 880 and bbox.y0 == 880
+
+    def test_expand_zero_is_noop(self):
+        bbox = BBox(10, 20, 30, 40).expand(0, 1000, 1000)
+        assert (bbox.x0, bbox.y0, bbox.x1, bbox.y1) == (10, 20, 30, 40)
+
+
 class TestRmbgFactory:
     def test_factory_returns_singleton(self):
         import services.ai_providers.image.rmbg_segmentation_provider as mod

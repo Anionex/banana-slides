@@ -209,15 +209,3 @@ def should_extract_subject(
         return False
 
     return True
-
-
-def load_slide_bgr(slide_image_path: str) -> Optional[np.ndarray]:
-    """加载幻灯片图片为 OpenCV BGR ndarray，失败返回 None。"""
-    try:
-        with Image.open(slide_image_path) as img:
-            rgb = img.convert("RGB")
-            arr = np.array(rgb)
-        return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-    except Exception as e:
-        logger.warning(f"加载幻灯片图像失败: {slide_image_path}: {e}")
-        return None
