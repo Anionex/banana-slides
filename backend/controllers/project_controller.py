@@ -346,6 +346,8 @@ def update_project(project_id):
             project.export_extractor_method = data['export_extractor_method']
         if 'export_inpaint_method' in data:
             project.export_inpaint_method = data['export_inpaint_method']
+        if 'export_allow_partial' in data:
+            project.export_allow_partial = data['export_allow_partial']
         
         # Update page order if provided
         if 'pages_order' in data:

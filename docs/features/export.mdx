@@ -11,6 +11,19 @@ description: "Export presentations as PPTX, PDF, or images"
 | Editable PPTX (Beta) | Extracts text from slide images and rebuilds it as native PowerPoint text boxes, enabling direct text editing in PowerPoint |
 | PDF | Pixel-perfect output, ready for presentation |
 | Images | Each page exported as an individual image file |
+| Narration Video | Combines slide images with AI narration into an MP4 video, with optional subtitles and camera motion |
+
+<Note>
+  Docker deployment already installs the FFmpeg dependencies required for narration video export. For source installs, install an FFmpeg build with `libass` / the `ass` subtitle filter first, for example `brew install ffmpeg-full && brew unlink ffmpeg 2>/dev/null || true && brew link --overwrite --force ffmpeg-full` on macOS or `sudo apt-get update && sudo apt-get install -y ffmpeg libass9` on Ubuntu / Debian.
+</Note>
+
+## Narration Strategy
+
+Narration video export now includes a final-step configuration panel so you can tune narration generation without changing the slide content itself.
+
+- Configure the speaker persona, target audience, speech tone, and core topic
+- Set the per-slide narration length to fit either shorter clips or deeper walkthroughs
+- Auto-generate missing narration while keeping the overall presentation flow connected from slide to slide
 
 ## Aspect Ratio
 
@@ -27,3 +40,38 @@ The extraction process preserves font size, color, bold styling, text positionin
 ## Page Selection
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.
+
+## Narration Video
+
+Narration Video combines your slide images with AI-generated narration into a single MP4, complete with subtitles.
+
+**Steps:**
+
+1. Open a project on the **Slide Preview** page.
+2. Click **Export → Narration Video**.
+3. In the export dialog, configure:
+   - **Speaker persona** — the speaking style (e.g. corporate executive, content creator).
+   - **Audience** — who the narration is written for.
+   - **Tone** — the emotional register of the script.
+   - **Voice** — the TTS voice used for audio synthesis (see below).
+   - **Ken Burns effect** — subtle zoom/pan motion on each slide (optional).
+4. Click **Start Export**. Progress is shown in the Export Tasks panel.
+
+### Voice Selection
+
+**Default (edge-tts):** Free voices provided by Microsoft Edge, no API key needed. Options include Chinese (晓晓, 云希), English (Jenny, Guy), and Japanese (Nanami, Keita).
+
+**ElevenLabs:** Higher-quality, more natural voices. Requires an ElevenLabs API key configured in Settings (see [Configuration → ElevenLabs](/configuration#elevenlabs-narration-video-tts)).
+
+When ElevenLabs is enabled in Settings, the voice dropdown in the export dialog switches to ElevenLabs voices — Rachel, Bella, Adam, Josh, and more. The voice ID is handled automatically; you only pick a name.
+
+<Note>
+  ElevenLabs voices are English-optimized. For Chinese narration, edge-tts Chinese voices (e.g. 晓晓) generally produce better results.
+</Note>
+
+## Allow Partial Results
+
+The **Allow Partial Results** option in **Project Settings → Export Settings** now applies consistently across export flows.
+
+- When disabled: the export fails immediately on critical gaps or errors, such as editable PPTX extraction failure, missing narration text for video export, or failure to generate usable narration audio.
+- When enabled: the system will continue whenever possible. For example, video export can fall back to silent clips for pages that do not have usable narration.

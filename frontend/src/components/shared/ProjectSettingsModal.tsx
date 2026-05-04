@@ -209,7 +209,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 </div>
 
                 {/* 画面比例 */}
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary">{t('projectSettings.aspectRatio')}</h4>
@@ -256,7 +256,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   )}
                 </div>
 
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extraRequirements')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -281,7 +281,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </Button>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-6 space-y-4">
+                <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.styleDescription')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -306,8 +306,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       {isSavingTemplateStyle ? t('shared.saving') : t('projectSettings.saveStyleDescription')}
                     </Button>
                   </div>
-                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-md p-3">
-                    <p className="text-xs text-blue-900 dark:text-blue-300">
+                  <div className="pl-4 border-l-4 border-blue-300 dark:border-blue-600">
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
                     </p>
                   </div>
@@ -322,7 +322,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </p>
                 </div>
 
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extractorMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -356,7 +356,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.backgroundMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -396,15 +396,15 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </label>
                     ))}
                   </div>
-                  <div className="bg-amber-100 dark:bg-amber-900/20 rounded-md p-3 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-amber-700 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-900 dark:text-amber-300">
+                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 space-y-4">
+                <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.errorHandling')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -425,9 +425,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </div>
                     </div>
                   </label>
-                  <div className="bg-red-100 dark:bg-red-900/20 rounded-md p-3 flex items-start gap-2">
+                  <div className="pl-4 border-l-4 border-red-300 dark:border-red-600 flex items-start gap-2">
                     <AlertTriangle size={16} className="text-red-700 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-900 dark:text-red-300">
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       <strong>{t('common.warning')}：</strong>{t('projectSettings.allowPartialResultWarning')}
                     </p>
                   </div>

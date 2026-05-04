@@ -17,10 +17,62 @@ from utils import (
 )
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
+from services.prompts import normalize_narration_generation_config
 
 logger = logging.getLogger(__name__)
 
 export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
+
+
+@export_bp.route('/<project_id>/exports', methods=['GET'])
+def list_exports(project_id):
+    """
+    GET /api/projects/{project_id}/exports - 列出项目已导出的文件
+
+    返回 exports 目录下的文件列表（名称、大小、修改时间、下载链接）。
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        exports_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], project_id, 'exports')
+
+        if not os.path.isdir(exports_dir):
+            return success_response(data={"files": []})
+
+        files = []
+        for name in sorted(os.listdir(exports_dir)):
+            filepath = os.path.join(exports_dir, name)
+            if not os.path.isfile(filepath):
+                continue
+            # 跳过临时目录和隐藏文件
+            if name.startswith('.') or name.startswith('_'):
+                continue
+
+            stat = os.stat(filepath)
+            ext = os.path.splitext(name)[1].lower()
+            file_type = {
+                '.mp4': 'video', '.pptx': 'pptx', '.pdf': 'pdf',
+                '.zip': 'images', '.png': 'image', '.jpg': 'image',
+            }.get(ext, 'other')
+
+            files.append({
+                "filename": name,
+                "type": file_type,
+                "size": stat.st_size,
+                "modified_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(stat.st_mtime)),
+                "download_url": f"/files/{project_id}/exports/{name}",
+            })
+
+        # 按修改时间倒序
+        files.sort(key=lambda f: f['modified_at'], reverse=True)
+
+        return success_response(data={"files": files})
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
@@ -373,4 +425,127 @@ def export_editable_pptx(project_id):
     
     except Exception as e:
         logger.exception("Error creating export task")
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@export_bp.route('/<project_id>/export/video', methods=['POST'])
+def export_video(project_id):
+    """
+    POST /api/projects/{project_id}/export/video - 导出讲解视频（异步）
+
+    将幻灯片图片 + TTS 旁白合成为 MP4 视频，含 Ken Burns 动效。
+
+    Request body (JSON):
+        {
+            "filename": "optional_custom_name.mp4",
+            "page_ids": ["id1", "id2"],          // 可选
+            "voice": "zh-CN-XiaoxiaoNeural",     // 可选 TTS 语音
+            "rate": "+0%",                        // 可选语速
+            "generate_narration": true,            // 是否自动生成缺失旁白（默认 true）
+            "language": "zh"                       // 可选输出语言
+        }
+
+    Returns:
+        JSON with task_id for polling via /api/projects/{project_id}/tasks/{task_id}
+    """
+    try:
+        project = Project.query.get(project_id)
+
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json() or {}
+
+        # 参数 — 使用 secure_filename 防止路径遍历
+        raw_filename = data.get('filename', f'narration_{project_id}.mp4')
+        filename = secure_filename(raw_filename)
+        if not filename:
+            filename = f'narration_{project_id}.mp4'
+        if not filename.endswith('.mp4'):
+            filename += '.mp4'
+
+        voice = data.get('voice', current_app.config.get('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural'))
+        rate = data.get('rate', current_app.config.get('TTS_DEFAULT_RATE', '+0%'))
+        try:
+            speed = float(data.get('speed', 1.0))
+        except (TypeError, ValueError):
+            speed = 1.0
+        speed = max(0.7, min(speed, 1.2))
+        generate_narration = data.get('generate_narration', True)
+        enable_ken_burns = data.get('enable_ken_burns', False)
+        include_no_image_pages = data.get('include_no_image_pages', False)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        presentation_topic = data.get('presentation_topic') or project.idea_prompt or ''
+        narration_config = normalize_narration_generation_config(
+            data.get('narration_config'),
+            fallback_topic=presentation_topic,
+        )
+
+        # 获取页面
+        selected_page_ids = parse_page_ids_from_body(data)
+
+        pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+
+        if not pages:
+            return bad_request("No pages found for project")
+
+        has_images = any(page.generated_image_path for page in pages)
+        if not has_images and not include_no_image_pages:
+            return bad_request("No generated images found for project. Enable 'include pages without images' to export all pages.")
+
+        # 根据语言自动选择默认语音
+        if 'voice' not in data:
+            from services.tts_video_service import get_default_voice
+            voice = get_default_voice(language, dict(current_app.config))
+
+        # 创建任务
+        task = Task(
+            project_id=project_id,
+            task_type='EXPORT_VIDEO',
+            status='PENDING',
+        )
+        db.session.add(task)
+        db.session.commit()
+
+        logger.info(f"Created video export task {task.id} for project {project_id}")
+
+        # 提交后台任务
+        from services.file_service import FileService
+        from services.task_manager import task_manager, export_video_task
+
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        app = current_app._get_current_object()
+
+        task_manager.submit_task(
+            task.id,
+            export_video_task,
+            project_id=project_id,
+            filename=filename,
+            file_service=file_service,
+            voice=voice,
+            rate=rate,
+            speed=speed,
+            generate_narration=generate_narration,
+            enable_ken_burns=enable_ken_burns,
+            include_no_image_pages=include_no_image_pages,
+            page_ids=selected_page_ids if selected_page_ids else None,
+            language=language,
+            narration_config=narration_config,
+            app=app,
+        )
+
+        return success_response(
+            data={
+                "task_id": task.id,
+                "voice": voice,
+                "generate_narration": generate_narration,
+                "enable_ken_burns": enable_ken_burns,
+                "include_no_image_pages": include_no_image_pages,
+                "narration_config": narration_config,
+            },
+            message="Video export task created"
+        )
+
+    except Exception as e:
+        logger.exception("Error creating video export task")
         return error_response('SERVER_ERROR', str(e), 500)

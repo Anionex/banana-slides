@@ -31,7 +31,7 @@ ARG PYPI_INDEX_URL=
 
 WORKDIR /app
 
-# 安装系统依赖：nginx + supervisor + curl
+# 安装系统依赖：nginx + supervisor + curl + ffmpeg
 RUN if [ -n "$APT_MIRROR" ]; then \
         if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
             sed -i "s@deb.debian.org@$APT_MIRROR@g" /etc/apt/sources.list.d/debian.sources; \
@@ -39,6 +39,8 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     fi && \
     apt-get update && apt-get install -y \
         curl \
+        ffmpeg \
+        fonts-noto-cjk \
         nginx \
         supervisor \
     && rm -rf /var/lib/apt/lists/*

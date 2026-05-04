@@ -97,6 +97,30 @@ For enhanced editable PPTX export with OCR-based text extraction, apply for an [
 BAIDU_API_KEY=your-baidu-api-key
 ```
 
+## ElevenLabs (Narration Video TTS)
+
+By default, narration videos use [edge-tts](https://github.com/rany2/edge-tts) (Microsoft Edge voices, free, no API key required). You can switch to [ElevenLabs](https://elevenlabs.io) for higher-quality, more natural-sounding voices.
+
+**How to get an API key:**
+
+1. Sign up at [elevenlabs.io](https://elevenlabs.io) — a free tier is available (10,000 characters/month).
+2. Go to **Profile → API Keys** (or visit [elevenlabs.io/app/settings/api-keys](https://elevenlabs.io/app/settings/api-keys)).
+3. Click **Create API Key**, copy the key.
+
+**Configure via Settings UI (recommended):**
+
+Open **Settings → ElevenLabs Text-to-Speech**, enable the toggle, and paste your API key. No restart required.
+
+**Configure via `.env`:**
+
+```env
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+```
+
+<Note>
+  The free tier provides 10,000 characters per month. Each page of narration typically uses 200–500 characters. A 10-page presentation costs roughly 2,000–5,000 characters per export.
+</Note>
+
 ## Runtime Settings Override
 
 All of the above can also be configured via the web UI's Settings page. Settings configured there are stored in the database and override `.env` values. Use "Reset to Default" in Settings to revert to `.env` values.

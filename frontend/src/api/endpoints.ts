@@ -594,6 +594,55 @@ export const getTaskStatus = async (projectId: string, taskId: string): Promise<
   return response.data;
 };
 
+// ===== 旁白 (Narration) =====
+
+/**
+ * 更新页面旁白文本
+ */
+export const updatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  narrationText: string
+): Promise<ApiResponse<Page>> => {
+  const response = await apiClient.put<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/narration`,
+    { narration_text: narrationText }
+  );
+  return response.data;
+};
+
+/**
+ * AI 生成单页旁白
+ */
+export const generatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  language?: OutputLanguage
+): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/generate/narration`,
+    { language: lang }
+  );
+  return response.data;
+};
+
+/**
+ * 批量生成所有页面旁白
+ */
+export const generateAllNarrations = async (
+  projectId: string,
+  language?: OutputLanguage,
+  forceRegenerate?: boolean
+): Promise<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>>(
+    `/api/projects/${projectId}/generate/narrations`,
+    { language: lang, force_regenerate: forceRegenerate || false }
+  );
+  return response.data;
+};
+
 // ===== 导出 =====
 
 /**
@@ -672,6 +721,68 @@ export const exportEditablePPTX = async (
   return response.data;
 };
 
+/**
+ * 列出项目已导出的文件
+ */
+export const listExports = async (
+  projectId: string,
+): Promise<ApiResponse<{ files: Array<{
+  filename: string;
+  type: string;
+  size: number;
+  modified_at: string;
+  download_url: string;
+}> }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+/**
+ * 导出为讲解视频（异步任务）
+ * @param projectId 项目ID
+ * @param options 导出选项
+ */
+export const exportVideo = async (
+  projectId: string,
+  options?: {
+    filename?: string;
+    pageIds?: string[];
+    voice?: string;
+    rate?: string;
+    speed?: number;
+    language?: string;
+    generateNarration?: boolean;
+    enableKenBurns?: boolean;
+    includeNoImagePages?: boolean;
+    presentationTopic?: string;
+    narrationConfig?: {
+      speaker_persona?: string;
+      target_audience?: string;
+      speech_tone?: string;
+      presentation_topic?: string;
+      min_words?: number;
+      max_words?: number;
+    };
+  }
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<
+    ApiResponse<{ task_id: string }>
+  >(`/api/projects/${projectId}/export/video`, {
+    filename: options?.filename,
+    page_ids: options?.pageIds,
+    voice: options?.voice,
+    rate: options?.rate,
+    speed: options?.speed,
+    language: options?.language,
+    generate_narration: options?.generateNarration ?? true,
+    enable_ken_burns: options?.enableKenBurns ?? false,
+    include_no_image_pages: options?.includeNoImagePages ?? false,
+    presentation_topic: options?.presentationTopic,
+    narration_config: options?.narrationConfig,
+  });
+  return response.data;
+};
+
 // ===== 素材生成 =====
 
 /**
@@ -702,6 +813,69 @@ export const generateMaterialImage = async (
 
   const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
     `/api/projects/${projectId}/materials/generate`,
+    formData
+  );
+  return response.data;
+};
+
+export type MaterialProcessOperation =
+  | 'generate'
+  | 'edit_full'
+  | 'region_edit'
+  | 'erase_region';
+
+export interface MaterialSelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  image_width: number;
+  image_height: number;
+}
+
+export interface ProcessMaterialOptions {
+  operation: MaterialProcessOperation;
+  prompt?: string;
+  sourceImage?: File | null;
+  refImage?: File | null;
+  extraImages?: File[];
+  aspectRatio?: string;
+  selection?: MaterialSelectionRect | null;
+  applyMode?: 'overlay_selection' | 'replace_full';
+}
+
+export const processMaterialImage = async (
+  projectId: string,
+  options: ProcessMaterialOptions
+): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const formData = new FormData();
+  formData.append('operation', options.operation);
+  if (options.prompt) {
+    formData.append('prompt', options.prompt);
+  }
+  if (options.aspectRatio) {
+    formData.append('aspect_ratio', options.aspectRatio);
+  }
+  if (options.applyMode) {
+    formData.append('apply_mode', options.applyMode);
+  }
+  if (options.selection) {
+    formData.append('selection', JSON.stringify(options.selection));
+  }
+  if (options.sourceImage) {
+    formData.append('source_image', options.sourceImage);
+  }
+  if (options.refImage) {
+    formData.append('ref_image', options.refImage);
+  }
+  if (options.extraImages && options.extraImages.length > 0) {
+    options.extraImages.forEach((file) => {
+      formData.append('extra_images', file);
+    });
+  }
+
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
+    `/api/projects/${projectId}/materials/process`,
     formData
   );
   return response.data;
@@ -900,6 +1074,38 @@ export const deleteUserTemplate = async (templateId: string): Promise<ApiRespons
 
 // ===== 参考文件相关 API =====
 
+export interface UserStyleTemplate {
+  id: string;
+  name: string;
+  description: string;
+  color?: string;
+  created_at?: string;
+}
+
+export const createUserStyleTemplate = async (
+  data: { name: string; description: string; color?: string }
+): Promise<ApiResponse<UserStyleTemplate>> => {
+  const response = await apiClient.post<ApiResponse<UserStyleTemplate>>(
+    '/api/user-style-templates',
+    data
+  );
+  return response.data;
+};
+
+export const listUserStyleTemplates = async (): Promise<ApiResponse<{ templates: UserStyleTemplate[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ templates: UserStyleTemplate[] }>>(
+    '/api/user-style-templates'
+  );
+  return response.data;
+};
+
+export const deleteUserStyleTemplate = async (id: string): Promise<ApiResponse> => {
+  const response = await apiClient.delete<ApiResponse>(`/api/user-style-templates/${id}`);
+  return response.data;
+};
+
+// ===== 参考文件相关 API =====
+
 export interface ReferenceFile {
   id: string;
   project_id: string | null;
@@ -1063,14 +1269,20 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
   return response.data;
 };
 
+export const getElevenLabsVoices = async (): Promise<ApiResponse<{ voices: { id: string; name: string; category: string; languages?: string[]; accent?: string | null }[] }>> => {
+  const response = await apiClient.get('/api/settings/elevenlabs-voices');
+  return response.data;
+};
+
 /**
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'elevenlabs_api_key_length' | 'created_at' | 'updated_at'>> & {
     api_key?: string;
     mineru_token?: string;
     baidu_api_key?: string;
+    elevenlabs_api_key?: string;
     text_api_key?: string;
     image_api_key?: string;
     image_caption_api_key?: string;
@@ -1086,6 +1298,46 @@ export const updateSettings = async (
  */
 export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: get authorization URL
+ */
+export const getOpenAIOAuthUrl = async (): Promise<ApiResponse<{ auth_url: string }>> => {
+  const response = await apiClient.get<ApiResponse<{ auth_url: string }>>('/api/settings/openai-oauth/authorize');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: disconnect
+ */
+export const disconnectOpenAIOAuth = async (): Promise<ApiResponse<{ message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ message: string }>>('/api/settings/openai-oauth/disconnect');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: get connection status
+ */
+export const getOpenAIOAuthStatus = async (): Promise<ApiResponse<{ connected: boolean; account_id: string | null }>> => {
+  const response = await apiClient.get<ApiResponse<{ connected: boolean; account_id: string | null }>>('/api/settings/openai-oauth/status');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: list available models
+ */
+export const getOpenAIOAuthModels = async (): Promise<ApiResponse<{ models: string[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ models: string[] }>>('/api/settings/openai-oauth/models');
+  return response.data;
+};
+
+/**
+ * 手动提交 OAuth 回调 URL（端口 1455 不可用时的兜底）
+ */
+export const submitOAuthManualCallback = async (callbackUrl: string): Promise<ApiResponse<{ message: string; account_id: string | null }>> => {
+  const response = await apiClient.post<ApiResponse<{ message: string; account_id: string | null }>>('/api/settings/openai-oauth/manual-callback', { callback_url: callbackUrl });
   return response.data;
 };
 

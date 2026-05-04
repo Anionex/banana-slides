@@ -25,7 +25,8 @@ from config import Config
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
-from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp, style_bp
+from controllers.openai_oauth_controller import openai_oauth_bp
+from controllers import project_bp, page_bp, template_bp, user_template_bp, user_style_template_bp, export_bp, file_bp, style_bp
 
 
 # Enable SQLite WAL mode for all connections
@@ -44,7 +45,7 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     try:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA busy_timeout=30000")  # 30 seconds timeout
+        cursor.execute("PRAGMA busy_timeout=60000")  # 60 seconds timeout
     finally:
         cursor.close()
 
@@ -55,15 +56,16 @@ def create_app():
     
     # Load configuration from Config class
     app.config.from_object(Config)
-    
-    # Override with environment-specific paths (use absolute path)
+
+    # Allow DATABASE_URL env var to override config at runtime (supports test isolation)
+    if os.getenv('DATABASE_URL'):
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+
+    # Ensure instance directory exists for the default SQLite path in Config
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     instance_dir = os.path.join(backend_dir, 'instance')
     os.makedirs(instance_dir, exist_ok=True)
-    
-    db_path = os.path.join(instance_dir, 'database.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    
+
     # Ensure upload folder exists
     project_root = os.path.dirname(backend_dir)
     upload_folder = os.path.join(project_root, 'uploads')
@@ -105,12 +107,14 @@ def create_app():
     app.register_blueprint(page_bp)
     app.register_blueprint(template_bp)
     app.register_blueprint(user_template_bp)
+    app.register_blueprint(user_style_template_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(file_bp)
     app.register_blueprint(material_bp)
     app.register_blueprint(material_global_bp)
     app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
     app.register_blueprint(settings_bp)
+    app.register_blueprint(openai_oauth_bp)
     app.register_blueprint(style_bp)
 
     with app.app_context():

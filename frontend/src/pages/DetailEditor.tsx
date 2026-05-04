@@ -45,6 +45,15 @@ const detailI18n = {
       addField: "添加字段",
       descRequirements: "描述生成要求",
       descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
+      importModalTitle: "导入 Markdown",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importPasteLabel: "粘贴内容",
+      importPastePlaceholder: "把描述或大纲+描述的 Markdown 粘贴到这里...",
+      importUploadLabel: "上传文件",
+      importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
+      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importConfirm: "导入到项目",
+      importCancel: "取消",
       messages: {
         confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成",
@@ -53,6 +62,8 @@ const detailI18n = {
         confirmRenovationRegenerateTitle: "重新解析此页",
         refineSuccess: "页面描述修改成功", refineFailed: "修改失败，请稍后重试",
         exportSuccess: "导出成功", importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
+        importContentEmpty: "请先粘贴内容或上传文件",
+        importReadFailed: "读取文件失败，请重试",
         loadingProject: "加载项目中..."
       }
     }
@@ -85,6 +96,15 @@ const detailI18n = {
       addField: "Add Field",
       descRequirements: "Generation Requirements",
       descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
+      importModalTitle: "Import Markdown",
+      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importPasteLabel: "Paste Content",
+      importPastePlaceholder: "Paste description or outline+description Markdown here...",
+      importUploadLabel: "Upload File",
+      importUploadHint: "Click to choose a file, or drag a Markdown file here",
+      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importConfirm: "Import into Project",
+      importCancel: "Cancel",
       messages: {
         generateSuccess: "Generated successfully", generateFailed: "Generation failed",
         confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
@@ -94,12 +114,14 @@ const detailI18n = {
         confirmRenovationRegenerateTitle: "Re-parse This Page",
         refineSuccess: "Descriptions modified successfully", refineFailed: "Modification failed, please try again",
         exportSuccess: "Export successful", importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
+        importContentEmpty: "Paste some content or upload a file first",
+        importReadFailed: "Failed to read file, please try again",
         loadingProject: "Loading project..."
       }
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
@@ -183,7 +205,6 @@ export const DetailEditor: React.FC = () => {
   const t = useT(detailI18n);
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
-  const importFileRef = useRef<HTMLInputElement>(null);
   const {
     currentProject,
     syncProject,
@@ -213,6 +234,7 @@ export const DetailEditor: React.FC = () => {
   const settingsRef = useRef<HTMLDivElement>(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -279,9 +301,6 @@ export const DetailEditor: React.FC = () => {
   const [descRequirements, setDescRequirements] = useState('');
   const [isDescReqDirty, setIsDescReqDirty] = useState(false);
   const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
-  const [isDescReqOpen, setIsDescReqOpen] = useState(
-    () => localStorage.getItem('descReqOpen') !== 'false'
-  );
 
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const handleMaterialSelect = useCallback((materials: Material[]) => {
@@ -525,17 +544,14 @@ export const DetailEditor: React.FC = () => {
     show({ message: t('detail.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show, t]);
 
-  // 导入描述 Markdown 文件（追加新页面）
-  const handleImportDescriptions = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (importFileRef.current) importFileRef.current.value = '';
-    if (!file || !currentProject || !projectId) return;
+  // 导入描述 Markdown（追加新页面）
+  const handleImportDescriptions = useCallback(async (text: string) => {
+    if (!currentProject || !projectId) return;
     try {
-      const text = await file.text();
       const parsed = parseMarkdownPages(text);
       if (parsed.length === 0) {
         show({ message: t('detail.messages.importEmpty'), type: 'error' });
-        return;
+        throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
       await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
@@ -548,8 +564,12 @@ export const DetailEditor: React.FC = () => {
       ));
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'empty-import') {
+        throw error;
+      }
       show({ message: t('detail.messages.importFailed'), type: 'error' });
+      throw error;
     }
   }, [currentProject, projectId, syncProject, show, t]);
 
@@ -691,11 +711,11 @@ export const DetailEditor: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSettingsOpen(!settingsOpen)}
-                icon={<Settings2 size={16} />}
+                icon={<span className="relative"><Settings2 size={16} />{descRequirements && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-banana-400" />}</span>}
                 title={t('detail.descSettings')}
               />
               {settingsOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 w-72 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
+                <div className="absolute top-full left-0 mt-1 z-50 w-80 rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
                   {/* 生成模式 */}
                   <div>
                     <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
@@ -820,6 +840,34 @@ export const DetailEditor: React.FC = () => {
                       </button>
                     </div>
                   </div>
+
+                  {/* 生成要求 */}
+                  <div className="border-t border-gray-100 dark:border-border-primary pt-3">
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
+                      {t('detail.descRequirements')}
+                    </label>
+                    <div data-testid="desc-requirements-textarea">
+                      <MarkdownTextarea
+                        ref={reqTextareaRef}
+                        value={descRequirements}
+                        onChange={(val) => { setDescRequirements(val); setIsDescReqDirty(true); }}
+                        onPaste={handleReqImagePaste}
+                        onFiles={handleReqImageFiles}
+                        onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
+                        placeholder={t('detail.descRequirementsPlaceholder')}
+                        className="ring-inset"
+                        rows={2}
+                        showImagePreview={false}
+                      />
+                    </div>
+                    <PresetCapsules
+                      type="description"
+                      onAppend={(text) => {
+                        setDescRequirements((prev) => prev ? `${prev}\n${text}` : text);
+                        setIsDescReqDirty(true);
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -859,7 +907,7 @@ export const DetailEditor: React.FC = () => {
                   <div className="border-t border-gray-100 dark:border-border-primary" />
                   <button
                     type="button"
-                    onClick={() => { importFileRef.current?.click(); setFileMenuOpen(false); }}
+                    onClick={() => { setIsImportModalOpen(true); setFileMenuOpen(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors duration-150"
                   >
                     <Upload size={14} />
@@ -868,7 +916,6 @@ export const DetailEditor: React.FC = () => {
                 </div>
               )}
             </div>
-            <input ref={importFileRef} type="file" accept=".md,.txt" className="hidden" onChange={handleImportDescriptions} />
             <span className="text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary whitespace-nowrap">
               {currentProject.pages.filter((p) => p.description_content).length} /{' '}
               {currentProject.pages.length} {t('detail.pagesCompleted')}
@@ -876,54 +923,6 @@ export const DetailEditor: React.FC = () => {
           </div>
         </div>
         )}
-      </div>
-
-      {/* 描述生成要求 - 可折叠 */}
-      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary flex-shrink-0">
-        <button
-          type="button"
-          data-testid="desc-requirements-toggle"
-          onClick={() => { const next = !isDescReqOpen; setIsDescReqOpen(next); localStorage.setItem('descReqOpen', String(next)); }}
-          className="w-full px-3 md:px-6 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-foreground-tertiary hover:text-gray-700 dark:hover:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
-        >
-          <Settings2 size={12} className="flex-shrink-0" />
-          <span className="font-medium">{t('detail.descRequirements')}</span>
-          {descRequirements && !isDescReqOpen && (
-            <span className="w-1.5 h-1.5 rounded-full bg-banana-400 flex-shrink-0" />
-          )}
-          <ChevronDown
-            size={12}
-            className={`ml-auto transition-transform duration-200 ${isDescReqOpen ? 'rotate-180' : ''}`}
-          />
-        </button>
-        <div
-          className={`transition-all duration-200 ease-in-out ${isDescReqOpen ? 'overflow-visible' : 'overflow-hidden'}`}
-          style={{ maxHeight: isDescReqOpen ? '600px' : '0px' }}
-        >
-          <div className="px-3 md:px-6 pb-3">
-            <div data-testid="desc-requirements-textarea">
-              <MarkdownTextarea
-                ref={reqTextareaRef}
-                value={descRequirements}
-                onChange={(val) => { setDescRequirements(val); setIsDescReqDirty(true); }}
-                onPaste={handleReqImagePaste}
-                onFiles={handleReqImageFiles}
-                onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
-                placeholder={t('detail.descRequirementsPlaceholder')}
-                className="ring-inset"
-                rows={2}
-                showImagePreview={false}
-              />
-            </div>
-            <PresetCapsules
-              type="description"
-              onAppend={(text) => {
-                setDescRequirements((prev) => prev ? `${prev}\n${text}` : text);
-                setIsDescReqDirty(true);
-              }}
-            />
-          </div>
-        </div>
       </div>
 
       {/* 主内容区 */}
@@ -1002,6 +1001,22 @@ export const DetailEditor: React.FC = () => {
       <ToastContainer />
       {ConfirmDialog}
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <ImportMarkdownModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportDescriptions}
+        title={t('detail.importModalTitle')}
+        description={t('detail.importModalDesc')}
+        pasteLabel={t('detail.importPasteLabel')}
+        pastePlaceholder={t('detail.importPastePlaceholder')}
+        uploadLabel={t('detail.importUploadLabel')}
+        uploadHint={t('detail.importUploadHint')}
+        uploadFormatsHint={t('detail.importUploadFormatsHint')}
+        importButtonLabel={t('detail.importConfirm')}
+        cancelButtonLabel={t('detail.importCancel')}
+        emptyError={t('detail.messages.importContentEmpty')}
+        readFileError={t('detail.messages.importReadFailed')}
+      />
       <MaterialSelector
         projectId={projectId}
         isOpen={isMaterialSelectorOpen}
@@ -1012,4 +1027,3 @@ export const DetailEditor: React.FC = () => {
     </div>
   );
 };
-

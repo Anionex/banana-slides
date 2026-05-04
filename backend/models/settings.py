@@ -43,6 +43,11 @@ class Settings(db.Model):
     # 百度 API 配置
     baidu_api_key = db.Column(db.String(500), nullable=True)  # 百度 API Key
 
+    # ElevenLabs TTS 配置
+    elevenlabs_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    elevenlabs_api_key = db.Column(db.String(500), nullable=True)
+    elevenlabs_voice_id = db.Column(db.String(100), nullable=True)
+
     # 每种模型类型的提供商配置（source 可选 gemini/openai/lazyllm厂商名，NULL=使用全局配置）
     text_model_source = db.Column(db.String(50), nullable=True)           # 文本模型提供商 (gemini, openai, qwen, doubao, deepseek, ...)
     image_model_source = db.Column(db.String(50), nullable=True)          # 图片模型提供商
@@ -56,7 +61,16 @@ class Settings(db.Model):
     image_api_base_url = db.Column(db.String(500), nullable=True)
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
-    
+
+    # OpenAI image API protocol: auto (default), images (force images.generate), chat (force chat.completions)
+    openai_image_api_protocol = db.Column(db.String(10), nullable=True)
+
+    # OpenAI Codex OAuth credentials
+    openai_oauth_access_token = db.Column(db.Text, nullable=True)
+    openai_oauth_refresh_token = db.Column(db.Text, nullable=True)
+    openai_oauth_expires_at = db.Column(db.DateTime, nullable=True)
+    openai_oauth_account_id = db.Column(db.String(100), nullable=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -96,6 +110,7 @@ class Settings(db.Model):
         api_key = self._val('api_key', d)
         mineru_token = self._val('mineru_token', d)
         baidu_api_key = self._val('baidu_api_key', d)
+        elevenlabs_api_key = self._val('elevenlabs_api_key', d)
         text_api_key = self._val('text_api_key', d)
         image_api_key = self._val('image_api_key', d)
         image_caption_api_key = self._val('image_caption_api_key', d)
@@ -132,6 +147,12 @@ class Settings(db.Model):
             'image_api_base_url': self._val('image_api_base_url', d),
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
             'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'openai_image_api_protocol': self._val('openai_image_api_protocol', d) or 'auto',
+            'elevenlabs_enabled': self.elevenlabs_enabled,
+            'elevenlabs_api_key_length': len(elevenlabs_api_key) if elevenlabs_api_key else 0,
+            'elevenlabs_voice_id': self.elevenlabs_voice_id or '',
+            'openai_oauth_connected': bool(self.openai_oauth_access_token),
+            'openai_oauth_account_id': self.openai_oauth_account_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -155,6 +176,45 @@ class Settings(db.Model):
             return json.loads(self.lazyllm_api_keys)
         except (json.JSONDecodeError, TypeError):
             return {}
+
+    def get_openai_oauth_token(self):
+        """Return a valid OAuth access token, or None if not connected / expired without refresh."""
+        if not self.openai_oauth_access_token:
+            return None
+        if self.openai_oauth_expires_at:
+            now = datetime.utcnow()
+            if self.openai_oauth_expires_at < now:
+                if self.openai_oauth_refresh_token:
+                    return self._refresh_openai_oauth()
+                return None
+        return self.openai_oauth_access_token
+
+    def _refresh_openai_oauth(self):
+        """Refresh the OpenAI OAuth token using the refresh token."""
+        import requests
+        from urllib.parse import urlencode
+        try:
+            resp = requests.post('https://auth.openai.com/oauth/token',
+                data=urlencode({
+                    'grant_type': 'refresh_token',
+                    'refresh_token': self.openai_oauth_refresh_token,
+                    'client_id': 'app_EMoamEEZ73f0CkXaXp7hrann',
+                }),
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            self.openai_oauth_access_token = data['access_token']
+            if 'refresh_token' in data:
+                self.openai_oauth_refresh_token = data['refresh_token']
+            expires_in = data.get('expires_in', 3600)
+            from datetime import timedelta
+            self.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            db.session.commit()
+            return self.openai_oauth_access_token
+        except Exception:
+            return None
 
     @staticmethod
     def _get_config_defaults():
