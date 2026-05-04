@@ -55,6 +55,17 @@ const previewI18n = {
       videoIncludeNoImage: "包含未配图页面（生成占位帧）",
       videoStartExport: "开始导出",
       videoCancel: "取消",
+      editablePptxDialogTitle: "导出可编辑 PPTX",
+      editablePptxDialogSubtitle: "选择本次导出的处理选项。",
+      editablePptxIconTransparent: "图标透明背景",
+      editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
+      editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，CPU 推理对内存要求较高，建议机器有 ≥ 16GB 可用内存。",
+      editablePptxRangeLabel: "导出范围",
+      editablePptxRangeAll: "全部 {{count}} 页",
+      editablePptxRangePages: "第 {{pages}} 页（共 {{count}} 页）",
+      editablePptxRangeTip: "如果只想导出特定页面，请在左侧侧栏上方点「多选」勾选要导出的页面后再点击「导出」。",
+      editablePptxStartExport: "开始导出",
+      editablePptxCancel: "取消",
       exportSelectedPages: "将导出选中的 {{count}} 页",
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
@@ -150,6 +161,17 @@ const previewI18n = {
       videoIncludeNoImage: "Include pages without images (placeholder frames)",
       videoStartExport: "Start Export",
       videoCancel: "Cancel",
+      editablePptxDialogTitle: "Export Editable PPTX",
+      editablePptxDialogSubtitle: "Choose processing options for this export.",
+      editablePptxIconTransparent: "Icon Transparent Background",
+      editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
+      editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. CPU inference is memory-intensive; recommended: ≥16GB free memory.",
+      editablePptxRangeLabel: "Export range",
+      editablePptxRangeAll: "All {{count}} pages",
+      editablePptxRangePages: "Pages {{pages}} ({{count}} total)",
+      editablePptxRangeTip: "To export specific pages only, click \"Multi-select\" at the top of the left sidebar and check the pages first.",
+      editablePptxStartExport: "Start Export",
+      editablePptxCancel: "Cancel",
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
@@ -218,6 +240,7 @@ import {
   Check,
   FileText,
   Loader2,
+  Info,
 } from 'lucide-react';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
@@ -322,6 +345,8 @@ export const SlidePreview: React.FC = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
+  const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
+  const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
   const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
   const [videoIncludeNoImage, setVideoIncludeNoImage] = useState(false);
   const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
@@ -1583,7 +1608,11 @@ export const SlidePreview: React.FC = () => {
                   {t('preview.exportPptx')}
                 </button>
                 <button
-                  onClick={() => handleExport('editable-pptx')}
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    setEditablePptxDialogIconTransparent(currentProject?.enable_icon_subject_extraction ?? true);
+                    setShowEditablePptxDialog(true);
+                  }}
                   disabled={!hasAllImages}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -1895,6 +1924,82 @@ export const SlidePreview: React.FC = () => {
                 className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
               >
                 {t('preview.videoStartExport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditablePptxDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEditablePptxDialog(false)}>
+          <div className="bg-white dark:bg-background-secondary rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">{t('preview.editablePptxDialogTitle')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.editablePptxDialogSubtitle')}</p>
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+              <input
+                type="checkbox"
+                checked={editablePptxDialogIconTransparent}
+                onChange={(e) => setEditablePptxDialogIconTransparent(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">{t('preview.editablePptxIconTransparent')}</div>
+                <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.editablePptxIconTransparentDesc')}</div>
+                {editablePptxDialogIconTransparent && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 leading-relaxed">
+                    {t('preview.editablePptxModelHint')}
+                  </div>
+                )}
+              </div>
+            </label>
+            {(() => {
+              const totalPages = currentProject?.pages?.length ?? 0;
+              const isPartial = isMultiSelectMode && selectedPageIds.size > 0;
+              const selectedNumbers = isPartial && currentProject
+                ? currentProject.pages
+                    .map((p, i) => ({ id: p.id, num: i + 1 }))
+                    .filter(({ id }) => id && selectedPageIds.has(id))
+                    .map(({ num }) => num)
+                : [];
+              const rangeText = isPartial
+                ? t('preview.editablePptxRangePages', { pages: selectedNumbers.join(', '), count: selectedNumbers.length })
+                : t('preview.editablePptxRangeAll', { count: totalPages });
+              return (
+                <div className="mt-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-background-tertiary flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{t('preview.editablePptxRangeLabel')}</div>
+                    <div className="text-sm mt-0.5 break-words">{rangeText}</div>
+                  </div>
+                  <span className="flex-shrink-0 text-gray-400 dark:text-foreground-tertiary cursor-help" title={t('preview.editablePptxRangeTip')}>
+                    <Info size={16} />
+                  </span>
+                </div>
+              );
+            })()}
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowEditablePptxDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
+              >
+                {t('preview.editablePptxCancel')}
+              </button>
+              <button
+                onClick={async () => {
+                  setShowEditablePptxDialog(false);
+                  if (projectId && (currentProject?.enable_icon_subject_extraction ?? true) !== editablePptxDialogIconTransparent) {
+                    try {
+                      await updateProject(projectId, { enable_icon_subject_extraction: editablePptxDialogIconTransparent });
+                      await syncProject(projectId);
+                    } catch (error: any) {
+                      show({ message: t('slidePreview.saveFailed', { error: error?.message || t('slidePreview.unknownError') }), type: 'error' });
+                      return;
+                    }
+                  }
+                  handleExport('editable-pptx');
+                }}
+                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
+              >
+                {t('preview.editablePptxStartExport')}
               </button>
             </div>
           </div>
