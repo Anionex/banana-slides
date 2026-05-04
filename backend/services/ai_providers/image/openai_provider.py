@@ -14,13 +14,17 @@ import base64
 import re
 import requests
 from io import BytesIO
-from typing import Optional, List
+from typing import Optional, List, Any
 from openai import OpenAI
 from PIL import Image
 from .base import ImageProvider
 from config import get_config
 
 logger = logging.getLogger(__name__)
+
+
+OPENAI_IMAGES_API_MODELS = {"dall-e-2", "dall-e-3"}
+OPENAI_IMAGES_API_PREFIXES = ("gpt-image-",)
 
 
 class OpenAIImageProvider(ImageProvider):
@@ -69,6 +73,147 @@ class OpenAIImageProvider(ImageProvider):
             image = image.convert('RGB')
         image.save(buffered, format="JPEG", quality=95)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+    def _uses_openai_images_api(self) -> bool:
+        """Return True for official OpenAI image models.
+
+        OpenAI image models such as gpt-image-* and dall-e-* are not chat
+        completion models; they must use /v1/images/generations or
+        /v1/images/edits.
+        """
+        model = (self.model or "").lower()
+        return model in OPENAI_IMAGES_API_MODELS or model.startswith(OPENAI_IMAGES_API_PREFIXES)
+
+    def _supports_openai_image_edits(self) -> bool:
+        """Return True when the selected Images API model supports edits."""
+        model = (self.model or "").lower()
+        return model.startswith("gpt-image-") or model == "dall-e-2"
+
+    def _get_images_api_size(self, aspect_ratio: str) -> str:
+        """Map project aspect ratios to sizes accepted by OpenAI Images API."""
+        model = (self.model or "").lower()
+        aspect = (aspect_ratio or "16:9").strip()
+
+        if model == "dall-e-2":
+            return "1024x1024"
+
+        if aspect == "1:1":
+            return "1024x1024"
+
+        portrait_ratios = {"9:16", "3:4", "2:3"}
+        is_portrait = aspect in portrait_ratios
+
+        if model == "dall-e-3":
+            return "1024x1792" if is_portrait else "1792x1024"
+
+        # gpt-image-* supports square, landscape, and portrait sizes.
+        return "1024x1536" if is_portrait else "1536x1024"
+
+    def _image_to_png_file(self, image: Image.Image, index: int) -> BytesIO:
+        """Convert a PIL image to a named in-memory PNG file for uploads."""
+        buffered = BytesIO()
+        image_to_save = image
+        if image_to_save.mode not in ("RGB", "RGBA"):
+            image_to_save = image_to_save.convert("RGBA")
+        image_to_save.save(buffered, format="PNG")
+        buffered.seek(0)
+        buffered.name = f"reference_{index}.png"
+        return buffered
+
+    def _extract_image_from_images_response(self, response: Any) -> Image.Image:
+        """Extract a PIL image from OpenAI Images API response data."""
+        data = getattr(response, "data", None)
+        if data is None and isinstance(response, dict):
+            data = response.get("data")
+        if not data:
+            raise ValueError("OpenAI Images API response did not contain image data")
+
+        first = data[0]
+        if isinstance(first, dict):
+            b64_json = first.get("b64_json")
+            image_url = first.get("url")
+        else:
+            b64_json = getattr(first, "b64_json", None)
+            image_url = getattr(first, "url", None)
+
+        if b64_json:
+            if "," in b64_json and b64_json.startswith("data:image"):
+                b64_json = b64_json.split(",", 1)[1]
+            image_data = base64.b64decode(b64_json)
+            image = Image.open(BytesIO(image_data))
+            image.load()
+            logger.debug(f"Successfully extracted OpenAI Images API image: {image.size}, {image.mode}")
+            return image
+
+        if image_url:
+            download = requests.get(image_url, timeout=30, stream=True)
+            download.raise_for_status()
+            image = Image.open(BytesIO(download.content))
+            image.load()
+            logger.debug(f"Successfully downloaded OpenAI Images API image: {image.size}, {image.mode}")
+            return image
+
+        raise ValueError("OpenAI Images API response contained neither b64_json nor url")
+
+    def _generate_with_images_api(
+        self,
+        prompt: str,
+        ref_images: Optional[List[Image.Image]],
+        aspect_ratio: str,
+        resolution: str,
+    ) -> Optional[Image.Image]:
+        """Generate or edit an image using OpenAI's dedicated Images API."""
+        size = self._get_images_api_size(aspect_ratio)
+        if resolution and resolution.upper() not in ("1K", "2K"):
+            logger.warning(
+                "OpenAI Images API does not support project resolution %s; using size=%s",
+                resolution,
+                size,
+            )
+
+        logger.info(
+            "Calling OpenAI Images API for image generation: model=%s, size=%s, refs=%s",
+            self.model,
+            size,
+            len(ref_images) if ref_images else 0,
+        )
+
+        if ref_images:
+            if not self._supports_openai_image_edits():
+                logger.warning(
+                    "Model %s does not support OpenAI image edits; reference images will be ignored",
+                    self.model,
+                )
+                response = self.client.images.generate(
+                    model=self.model,
+                    prompt=prompt,
+                    size=size,
+                    n=1,
+                )
+                return self._extract_image_from_images_response(response)
+
+            image_files = [self._image_to_png_file(img, idx) for idx, img in enumerate(ref_images)]
+            try:
+                image_payload = image_files[0] if (self.model or "").lower() == "dall-e-2" else image_files
+                response = self.client.images.edit(
+                    model=self.model,
+                    image=image_payload,
+                    prompt=prompt,
+                    size=size,
+                    n=1,
+                )
+                return self._extract_image_from_images_response(response)
+            finally:
+                for image_file in image_files:
+                    image_file.close()
+
+        response = self.client.images.generate(
+            model=self.model,
+            prompt=prompt,
+            size=size,
+            n=1,
+        )
+        return self._extract_image_from_images_response(response)
     
     def _build_extra_body(self, aspect_ratio: str, resolution: str) -> dict:
         """
@@ -137,6 +282,14 @@ class OpenAIImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
+            if self._uses_openai_images_api():
+                return self._generate_with_images_api(
+                    prompt=prompt,
+                    ref_images=ref_images,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                )
+
             # Build message content
             content = []
             
