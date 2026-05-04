@@ -38,7 +38,7 @@ def _download_model(target: Path) -> None:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + ".part")
-    logger.info(f"📥 开始下载 RMBG-2.0 模型 (~1GB) 到 {target} ...")
+    logger.info(f"📥 开始下载 RMBG-2.0 模型 (~512MB) 到 {target} ...")
 
     chunk_size = 1024 * 1024
     log_step = 5 * 1024 * 1024

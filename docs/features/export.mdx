@@ -44,7 +44,7 @@ In **Project Settings → Export Settings** you can toggle **Icon Transparent Ba
 Only elements classified as icons qualify (an OpenCV flood-fill heuristic runs on the ROI). Photos and illustrations keep the original rectangular crop to avoid mistakes.
 
 <Note>
-  Powered by local RMBG-2.0 ONNX inference on CPU. The ~1GB model is downloaded automatically on first use to `~/.cache/banana-slides/models/`; set `RMBG_MODEL_PATH` to point at an existing local copy. If extraction fails for an individual icon, the system silently falls back to the original rectangular crop without affecting export.
+  Powered by local RMBG-2.0 ONNX inference on CPU. The ~512MB model is downloaded automatically on first use to `~/.cache/banana-slides/models/`; set `RMBG_MODEL_PATH` to point at an existing local copy. If extraction fails for an individual icon, the system silently falls back to the original rectangular crop without affecting export.
 </Note>
 
 <Note>

@@ -44,7 +44,7 @@ description: "导出为 PPTX、PDF 或图片"
 仅对识别为图标的元素生效（用 OpenCV flood-fill 在 ROI 上做轻量分类，照片/插图保持原矩形裁剪，避免误处理）。
 
 <Note>
-  基于 RMBG-2.0 ONNX 模型本地推理（CPU），首次使用会自动下载约 1GB 模型到 `~/.cache/banana-slides/models/`，可通过 `RMBG_MODEL_PATH` 环境变量指定本地模型文件位置。单张图标抠图失败时会自动回退到原矩形裁剪，不影响导出。
+  基于 RMBG-2.0 ONNX 模型本地推理（CPU），首次使用会自动下载约 512MB 模型到 `~/.cache/banana-slides/models/`，可通过 `RMBG_MODEL_PATH` 环境变量指定本地模型文件位置。单张图标抠图失败时会自动回退到原矩形裁剪，不影响导出。
 </Note>
 
 <Note>
