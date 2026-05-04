@@ -668,19 +668,16 @@ class ServiceConfig:
             inpaint_registry.register_default(generative_provider)
             logger.info("✅ 重绘注册表已创建（GenerativeEdit通用）")
         
-        # 创建百度智能抠图 Provider（用于图标主体提取，可选）
+        # 创建主体抠图 Provider（默认 RMBG-2.0 ONNX 本地推理，用于图标透明背景）
         enable_icon_subject_extraction = kwargs.get('enable_icon_subject_extraction', False)
         segmentation_provider = None
         if enable_icon_subject_extraction:
             try:
-                from services.ai_providers.image import create_baidu_segmentation_provider
-                segmentation_provider = create_baidu_segmentation_provider()
-                if segmentation_provider:
-                    logger.info("✅ 百度智能抠图 Provider 已创建（用于图标主体提取）")
-                else:
-                    logger.warning("⚠️ 启用了图标主体提取但 BAIDU_API_KEY 未配置，跳过")
+                from services.ai_providers.image import create_rmbg_segmentation_provider
+                segmentation_provider = create_rmbg_segmentation_provider()
+                logger.info("✅ RMBG-2.0 主体抠图 Provider 已创建（用于图标透明背景）")
             except Exception as e:
-                logger.warning(f"创建百度智能抠图 Provider 失败: {e}")
+                logger.warning(f"创建主体抠图 Provider 失败: {e}")
 
         return cls(
             upload_folder=upload_path,
