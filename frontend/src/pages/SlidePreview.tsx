@@ -59,6 +59,11 @@ const previewI18n = {
       editablePptxDialogSubtitle: "选择本次导出的处理选项。",
       editablePptxIconTransparent: "图标透明背景",
       editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
+      editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，建议机器至少 8GB 可用内存 + 多核 CPU。",
+      editablePptxRangeLabel: "导出范围",
+      editablePptxRangeAll: "全部 {{count}} 页",
+      editablePptxRangePages: "第 {{pages}} 页（共 {{count}} 页）",
+      editablePptxRangeTip: "如果只想导出特定页面，请在左侧侧栏上方点「多选」勾选要导出的页面后再点击「导出」。",
       editablePptxStartExport: "开始导出",
       editablePptxCancel: "取消",
       exportSelectedPages: "将导出选中的 {{count}} 页",
@@ -160,6 +165,11 @@ const previewI18n = {
       editablePptxDialogSubtitle: "Choose processing options for this export.",
       editablePptxIconTransparent: "Icon Transparent Background",
       editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
+      editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. Recommended: at least 8GB free RAM and a multi-core CPU.",
+      editablePptxRangeLabel: "Export range",
+      editablePptxRangeAll: "All {{count}} pages",
+      editablePptxRangePages: "Pages {{pages}} ({{count}} total)",
+      editablePptxRangeTip: "To export specific pages only, click \"Multi-select\" at the top of the left sidebar and check the pages first.",
       editablePptxStartExport: "Start Export",
       editablePptxCancel: "Cancel",
       exportSelectedPages: "Will export {{count}} selected page(s)",
@@ -230,6 +240,7 @@ import {
   Check,
   FileText,
   Loader2,
+  Info,
 } from 'lucide-react';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
@@ -1934,8 +1945,37 @@ export const SlidePreview: React.FC = () => {
               <div className="flex-1">
                 <div className="text-sm font-medium">{t('preview.editablePptxIconTransparent')}</div>
                 <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.editablePptxIconTransparentDesc')}</div>
+                {editablePptxDialogIconTransparent && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 leading-relaxed">
+                    {t('preview.editablePptxModelHint')}
+                  </div>
+                )}
               </div>
             </label>
+            {(() => {
+              const totalPages = currentProject?.pages?.length ?? 0;
+              const isPartial = isMultiSelectMode && selectedPageIds.size > 0;
+              const selectedNumbers = isPartial && currentProject
+                ? currentProject.pages
+                    .map((p, i) => ({ id: p.id, num: i + 1 }))
+                    .filter(({ id }) => id && selectedPageIds.has(id))
+                    .map(({ num }) => num)
+                : [];
+              const rangeText = isPartial
+                ? t('preview.editablePptxRangePages', { pages: selectedNumbers.join(', '), count: selectedNumbers.length })
+                : t('preview.editablePptxRangeAll', { count: totalPages });
+              return (
+                <div className="mt-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-background-tertiary flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{t('preview.editablePptxRangeLabel')}</div>
+                    <div className="text-sm mt-0.5 break-words">{rangeText}</div>
+                  </div>
+                  <span className="flex-shrink-0 text-gray-400 dark:text-foreground-tertiary cursor-help" title={t('preview.editablePptxRangeTip')}>
+                    <Info size={16} />
+                  </span>
+                </div>
+              );
+            })()}
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowEditablePptxDialog(false)}
