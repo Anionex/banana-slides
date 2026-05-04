@@ -18,9 +18,9 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 _MODEL_URL = "https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model_fp16.onnx"
-_DEFAULT_MODEL_PATH = (
-    Path.home() / ".cache" / "banana-slides" / "models" / "rmbg-2.0" / "model_fp16.onnx"
-)
+# repo 根目录：rmbg_segmentation_provider.py → backend/services/ai_providers/image/...
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_DEFAULT_MODEL_PATH = _PROJECT_ROOT / "models" / "rmbg-2.0" / "model_fp16.onnx"
 _INPUT_SIZE = 1024
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -72,6 +72,30 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-x))
 
 
+def _decontaminate_foreground(
+    rgb: np.ndarray,
+    alpha: np.ndarray,
+    bg_alpha_threshold: float = 0.05,
+    fg_alpha_floor: float = 0.1,
+) -> np.ndarray:
+    """从软 alpha 边缘像素里去掉原背景色的贡献，返回近似的真前景 RGB。
+
+    - 用 alpha < bg_alpha_threshold 的像素均值估计原背景色 B
+    - 对其他像素套 F = (C - (1-α)·B) / α，alpha 太小（< fg_alpha_floor）时
+      限制分母避免噪声放大
+    - 估不出背景（这种像素太少）时直接原样返回
+    """
+    bg_mask = alpha < bg_alpha_threshold
+    if bg_mask.sum() < 100:
+        return rgb
+
+    bg_color = rgb[bg_mask].mean(axis=0)
+    a = np.clip(alpha[..., None], fg_alpha_floor, 1.0)
+    fg = (rgb - (1.0 - a) * bg_color) / a
+    fg = np.clip(fg, 0.0, 255.0)
+    return np.where(alpha[..., None] >= bg_alpha_threshold, fg, rgb)
+
+
 class RmbgSegmentationProvider:
     """RMBG-2.0 ONNX FP16 本地推理 provider。"""
 
@@ -108,7 +132,7 @@ class RmbgSegmentationProvider:
 
             arr = np.asarray(resized, dtype=np.float32) / 255.0
             arr = (arr - _MEAN) / _STD
-            tensor = arr.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float16)
+            tensor = arr.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
 
             outputs = self._session.run(None, {self._input_name: tensor})
             mask = outputs[-1] if isinstance(outputs, (list, tuple)) else outputs
@@ -119,15 +143,26 @@ class RmbgSegmentationProvider:
                 logger.warning(f"RMBG 输出 shape 异常: {mask.shape}，跳过")
                 return None
 
-            if mask.min() < 0.0 or mask.max() > 1.0:
+            # RMBG-2.0 输出已应用 sigmoid，落在 [0,1]，但数值噪声可能略微越界。
+            # 仅在显著超出 [0,1] 时（明显是 raw logits）才补 sigmoid，否则裁剪即可。
+            if mask.min() < -0.5 or mask.max() > 1.5:
                 mask = _sigmoid(mask)
 
-            mask_uint8 = np.clip(mask * 255.0, 0, 255).astype(np.uint8)
+            mask = np.clip(mask, 0.0, 1.0)
+            mask_uint8 = (mask * 255.0).astype(np.uint8)
             mask_pil = Image.fromarray(mask_uint8, mode="L").resize(orig_size, Image.LANCZOS)
+            alpha_full = np.asarray(mask_pil, dtype=np.float32) / 255.0
 
-            result = rgb.copy()
-            result.putalpha(mask_pil)
-            return result
+            # 边缘去污染：模型给的软 alpha 边缘 RGB 仍然混着原背景色，
+            # 合成到新底色时会漏出旧背景。用 F=(C-(1-α)B)/α 反解真前景色。
+            rgb_decont = _decontaminate_foreground(np.asarray(rgb, dtype=np.float32), alpha_full)
+
+            # 极薄 alpha（<0.05）一律拍零，防止 1/α 放大噪声造成色斑。
+            alpha_full = np.where(alpha_full < 0.05, 0.0, alpha_full)
+            alpha_uint8 = np.clip(alpha_full * 255.0, 0, 255).astype(np.uint8)
+
+            rgba = np.dstack([rgb_decont.astype(np.uint8), alpha_uint8])
+            return Image.fromarray(rgba, mode="RGBA")
         except Exception as e:
             logger.warning(f"RMBG 抠图失败: {e}")
             return None

@@ -100,7 +100,7 @@ class TestRmbgSegmentationProvider:
         model_path.write_bytes(b"fake-model")
         provider = self._new_provider(model_path)
 
-        mask = np.full((1, 1, 1024, 1024), 1.0, dtype=np.float16)
+        mask = np.full((1, 1, 1024, 1024), 1.0, dtype=np.float32)
         mock_session = _build_mock_session([mask])
 
         with _install_fake_onnxruntime(mock_session):
@@ -119,8 +119,8 @@ class TestRmbgSegmentationProvider:
         provider = self._new_provider(model_path)
 
         # 多尺度输出：第一个低分辨率应被忽略，最后一个是高分辨率
-        low_res = np.full((1, 1, 256, 256), 0.0, dtype=np.float16)
-        high_res = np.full((1, 1, 1024, 1024), 1.0, dtype=np.float16)
+        low_res = np.full((1, 1, 256, 256), 0.0, dtype=np.float32)
+        high_res = np.full((1, 1, 1024, 1024), 1.0, dtype=np.float32)
         mock_session = _build_mock_session([low_res, high_res])
 
         with _install_fake_onnxruntime(mock_session):
@@ -137,7 +137,7 @@ class TestRmbgSegmentationProvider:
         provider = self._new_provider(model_path)
 
         # logits 超出 [0,1] → 应套 sigmoid。-10 → ~0，10 → ~1
-        mask = np.full((1, 1, 1024, 1024), -10.0, dtype=np.float16)
+        mask = np.full((1, 1, 1024, 1024), -10.0, dtype=np.float32)
         mask[0, 0, 256:768, 256:768] = 10.0
         mock_session = _build_mock_session([mask])
 
@@ -179,7 +179,7 @@ class TestRmbgSegmentationProvider:
         fake_resp.__enter__ = MagicMock(return_value=fake_resp)
         fake_resp.__exit__ = MagicMock(return_value=False)
 
-        mask = np.full((1, 1, 1024, 1024), 0.5, dtype=np.float16)
+        mask = np.full((1, 1, 1024, 1024), 0.5, dtype=np.float32)
         mock_session = _build_mock_session([mask])
 
         with patch("requests.get", return_value=fake_resp) as mock_get, \

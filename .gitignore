@@ -62,3 +62,6 @@ _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
 .venv
+
+# 本地 ML 模型（RMBG 等）
+/models/
