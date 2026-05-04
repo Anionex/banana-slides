@@ -87,6 +87,7 @@ export interface Project {
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法
   export_allow_partial?: boolean; // 是否允许返回半成品（导出出错时继续而非停止）
+  enable_icon_subject_extraction?: boolean; // 是否对小尺寸图标走百度智能抠图（透明背景）
   image_aspect_ratio?: string; // 画面比例（如 16:9, 4:3）
   status: ProjectStatus;
   pages: Page[];
