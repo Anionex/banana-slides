@@ -47,6 +47,10 @@ Only elements classified as icons qualify (an OpenCV flood-fill heuristic runs o
   Powered by local RMBG-2.0 ONNX inference on CPU. The ~1GB model is downloaded automatically on first use to `~/.cache/banana-slides/models/`; set `RMBG_MODEL_PATH` to point at an existing local copy. If extraction fails for an individual icon, the system silently falls back to the original rectangular crop without affecting export.
 </Note>
 
+<Note>
+  Known limitation: icons rendered with a soft glow or anti-aliased halo against a colored slide background may retain a faint dark fringe or color cast along thin strokes after extraction, because edge pixels are originally a blend of the icon stroke and the slide background. Solid-color icons on plain backgrounds extract cleanly; complex glow effects on gradient backgrounds may need manual touch-up.
+</Note>
+
 ## Page Selection
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.
