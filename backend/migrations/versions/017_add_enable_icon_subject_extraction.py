@@ -19,9 +19,9 @@ def upgrade() -> None:
     """Add enable_icon_subject_extraction column to projects table.
 
     When enabled (default), small icon-like images extracted during editable
-    PPTX export will be passed through Baidu's smart segmentation API to
-    produce transparent-background PNGs. Falls back to the original rectangle
-    crop on failure or when BAIDU_API_KEY is not configured.
+    PPTX export will be passed through the local RMBG-2.0 model to produce
+    transparent-background PNGs. Falls back to the original rectangle crop
+    on failure.
     """
     op.add_column(
         'projects',

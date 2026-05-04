@@ -18,9 +18,7 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 _MODEL_URL = "https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model_fp16.onnx"
-# repo 根目录：rmbg_segmentation_provider.py → backend/services/ai_providers/image/...
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
-_DEFAULT_MODEL_PATH = _PROJECT_ROOT / "models" / "rmbg-2.0" / "model_fp16.onnx"
+_DEFAULT_MODEL_PATH = Path.home() / ".cache" / "banana-slides" / "models" / "rmbg-2.0" / "model_fp16.onnx"
 _INPUT_SIZE = 1024
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -150,7 +148,7 @@ class RmbgSegmentationProvider:
 
             mask = np.clip(mask, 0.0, 1.0)
             mask_uint8 = (mask * 255.0).astype(np.uint8)
-            mask_pil = Image.fromarray(mask_uint8, mode="L").resize(orig_size, Image.LANCZOS)
+            mask_pil = Image.fromarray(mask_uint8, mode="L").resize(orig_size, Image.BILINEAR)
             alpha_full = np.asarray(mask_pil, dtype=np.float32) / 255.0
 
             # 边缘去污染：模型给的软 alpha 边缘 RGB 仍然混着原背景色，
