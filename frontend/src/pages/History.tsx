@@ -385,7 +385,7 @@ export const History: React.FC = () => {
       });
     }
    
-  }, [editingTitle, projects, show]);
+  }, [editingTitle, projects, show, t]);
 
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent, projectId: string) => {
     if (e.key === 'Enter') {
