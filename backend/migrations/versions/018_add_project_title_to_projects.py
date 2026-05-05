@@ -1,7 +1,7 @@
 """add project_title to projects
 
 Revision ID: 018_add_project_title
-Revises: 017_add_elevenlabs_to_settings, 017_icon_subject_ext
+Revises: 017_icon_subject_ext
 Create Date: 2026-05-06
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = '018_add_project_title'
-down_revision = ('017_add_elevenlabs_to_settings', '017_icon_subject_ext')
+down_revision = '017_icon_subject_ext'
 branch_labels = None
 depends_on = None
 
