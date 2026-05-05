@@ -98,6 +98,23 @@ class TestProjectUpdate:
         data = response.get_json()
         assert data['success'] is True
 
+    def test_update_project_title(self, client, sample_project):
+        """测试更新项目标题不影响 idea_prompt"""
+        if not sample_project:
+            pytest.skip("项目创建失败")
+
+        project_id = sample_project['project_id']
+        get_before = client.get(f'/api/projects/{project_id}')
+        before_data = assert_success_response(get_before)
+
+        response = client.put(f'/api/projects/{project_id}', json={
+            'project_title': '新的项目标题'
+        })
+
+        data = assert_success_response(response)
+        assert data['data']['project_title'] == '新的项目标题'
+        assert data['data']['idea_prompt'] == before_data['data']['idea_prompt']
+
 
 class TestProjectDelete:
     """项目删除测试"""
@@ -121,4 +138,3 @@ class TestProjectDelete:
         response = client.delete('/api/projects/non-existent-id')
         
         assert response.status_code == 404
-

@@ -1,7 +1,7 @@
 """add enable_icon_subject_extraction to projects
 
 Revision ID: 017_icon_subject_ext
-Revises: 416cd372ad39
+Revises: 017_add_elevenlabs_to_settings
 Create Date: 2026-05-03 00:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = '017_icon_subject_ext'
-down_revision = '416cd372ad39'
+down_revision = '017_add_elevenlabs_to_settings'
 branch_labels = None
 depends_on = None
 

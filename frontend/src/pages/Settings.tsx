@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
@@ -1633,8 +1633,21 @@ const SCROLL_SHOW_THRESHOLD = 300;
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT(settingsI18n);
   const [showTop, setShowTop] = useState(false);
+  const hasInAppBackHistory = typeof window !== 'undefined' && typeof window.history.state?.idx === 'number'
+    ? window.history.state.idx > 0
+    : false;
+  const canNavigateBack = hasInAppBackHistory || Boolean((location.state as { from?: string } | null)?.from);
+
+  const handleBack = () => {
+    if (canNavigateBack) {
+      navigate(-1);
+      return;
+    }
+    navigate('/');
+  };
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > SCROLL_SHOW_THRESHOLD);
@@ -1653,7 +1666,7 @@ export const SettingsPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   icon={<Home size={18} />}
-                  onClick={() => navigate('/')}
+                  onClick={handleBack}
                   className="mr-4"
                 >
                   {t('nav.backToHome')}
