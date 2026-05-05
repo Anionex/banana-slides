@@ -307,6 +307,10 @@ def update_project(project_id):
             return not_found('Project')
         
         data = request.get_json()
+
+        # Update project_title if provided
+        if 'project_title' in data:
+            project.project_title = data['project_title']
         
         # Update idea_prompt if provided
         if 'idea_prompt' in data:

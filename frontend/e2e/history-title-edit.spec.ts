@@ -7,6 +7,7 @@ test.describe('History title editing', () => {
       {
         id: projectId,
         project_id: projectId,
+        project_title: '显式项目标题',
         idea_prompt: '旧项目标题',
         status: 'DRAFT',
         created_at: '2026-05-05T10:00:00.000Z',
@@ -79,12 +80,29 @@ test.describe('History title editing', () => {
     })
 
     await page.goto('/history')
-    await expect(page.getByRole('heading', { name: 'Slide 01 - 封面', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '显式项目标题', exact: true })).toBeVisible()
 
-    await page.getByRole('heading', { name: 'Slide 01 - 封面', exact: true }).click()
+    await page.getByRole('heading', { name: '显式项目标题', exact: true }).click()
     const input = page.locator('input[type="text"]').first()
     await expect(input).toBeVisible()
     await expect(input).toHaveCSS('background-color', 'rgb(19, 19, 26)')
+
+    await page.route(`**/api/projects/${projectId}`, async (route) => {
+      const body = route.request().postDataJSON() as { project_title: string }
+      projects = projects.map((project) => ({
+        ...project,
+        project_title: body.project_title,
+      }))
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: projects[0],
+        }),
+      })
+    })
 
     await input.fill('新的封面标题')
     await input.press('Enter')

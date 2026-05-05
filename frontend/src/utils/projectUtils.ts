@@ -52,6 +52,10 @@ const t = getT(utilsI18n);
  * 获取项目标题
  */
 export const getProjectTitle = (project: Project): string => {
+  if (project.project_title?.trim()) {
+    return project.project_title.trim();
+  }
+
   // 从第一个页面的大纲标题获取项目名称
   if (project.pages && project.pages.length > 0) {
     const sortedPages = [...project.pages].sort((a, b) =>

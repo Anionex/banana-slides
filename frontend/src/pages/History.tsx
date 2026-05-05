@@ -333,42 +333,15 @@ export const History: React.FC = () => {
     try {
       const targetProject = projects.find((p) => (p.id || p.project_id) === projectId);
       if (!targetProject) return;
-
-      const currentOutlineTitle = targetProject.pages?.[0]?.outline_content?.title?.trim();
-
-      // 历史页显示标题优先取第一页大纲标题，因此这里要同步更新真实展示字段
-      if (currentOutlineTitle) {
-        const firstPageId = targetProject.pages?.[0]?.id || targetProject.pages?.[0]?.page_id;
-        if (firstPageId) {
-          await api.updatePageOutline(projectId, firstPageId, {
-            ...targetProject.pages[0].outline_content,
-            title: nextTitle,
-          });
-        }
-      } else {
-        await api.updateProject(projectId, { idea_prompt: nextTitle });
-      }
+      await api.updateProject(projectId, { project_title: nextTitle });
 
       // 更新本地状态
       setProjects(prev => prev.map(p => {
         const id = p.id || p.project_id;
         if (id === projectId) {
-          const nextPages = p.pages?.map((page, index) => (
-            index === 0 && page.outline_content?.title
-              ? {
-                  ...page,
-                  outline_content: {
-                    ...page.outline_content,
-                    title: nextTitle,
-                  },
-                }
-              : page
-          ));
-
           return {
             ...p,
-            idea_prompt: nextTitle,
-            pages: nextPages,
+            project_title: nextTitle,
           };
         }
         return p;

@@ -118,8 +118,10 @@ test.describe('Settings navigation and preview multi-select', () => {
 
     const thumbScroller = page.locator('aside .overflow-y-auto').first()
     const stickyBar = thumbScroller.locator('button:has-text("多选")').first()
+    const stickyBarRow = stickyBar.locator('..')
     const before = await stickyBar.boundingBox()
     expect(before).not.toBeNull()
+    await expect(stickyBarRow).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 
     await thumbScroller.evaluate((el) => { el.scrollTop = 800 })
     await page.waitForTimeout(150)
@@ -153,8 +155,10 @@ test.describe('Settings navigation and preview multi-select', () => {
 
       const thumbScroller = page.locator('aside .overflow-y-auto').first()
       const multiSelectToggle = thumbScroller.locator('button:has-text("多选")').first()
+      const stickyBarRow = multiSelectToggle.locator('..')
       const before = await multiSelectToggle.boundingBox()
       expect(before).not.toBeNull()
+      await expect(stickyBarRow).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 
       await thumbScroller.evaluate((el) => { el.scrollTop = 900 })
       await page.waitForTimeout(150)
