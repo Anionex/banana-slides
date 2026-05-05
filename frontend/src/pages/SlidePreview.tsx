@@ -1875,7 +1875,7 @@ export const SlidePreview: React.FC = () => {
                         <span>{t('preview.videoElevenLabsNoKey')}</span>
                         <button
                           type="button"
-                          onClick={() => { setShowVideoExportDialog(false); navigate('/settings'); }}
+                          onClick={() => { setShowVideoExportDialog(false); navigate('/settings', { state: { from: location.pathname } }); }}
                           className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300 shrink-0"
                         >
                           {t('preview.videoElevenLabsGoSettings')}
@@ -2009,8 +2009,8 @@ export const SlidePreview: React.FC = () => {
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-w-0 min-h-0">
         {/* 左侧：缩略图列表 */}
-        <aside className="w-full md:w-80 bg-white dark:bg-background-secondary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex flex-col flex-shrink-0">
-          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-border-primary flex-shrink-0 space-y-2 md:space-y-3">
+        <aside className="w-full md:w-80 bg-white dark:bg-background-secondary border-b md:border-b-0 md:border-r border-gray-200 dark:border-border-primary flex flex-col flex-shrink-0 min-h-0">
+          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-border-primary flex-shrink-0 space-y-2 md:space-y-3 md:sticky md:top-0 md:z-10 bg-white dark:bg-background-secondary">
             <Button
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
@@ -2027,12 +2027,12 @@ export const SlidePreview: React.FC = () => {
           {/* 缩略图列表：桌面端垂直，移动端横向滚动 */}
           <div className="flex-1 overflow-y-auto md:overflow-y-auto overflow-x-auto md:overflow-x-visible p-3 md:p-4 min-h-0">
             {/* 多选模式切换 - 紧凑布局 */}
-            <div className="flex items-center gap-2 text-xs mb-3">
+            <div className="flex items-center gap-2 text-xs mb-3 md:sticky md:top-0 md:z-10 md:bg-white md:dark:bg-background-secondary md:pb-3">
               <button
                 onClick={toggleMultiSelectMode}
                 className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
                   isMultiSelectMode 
-                    ? 'bg-banana-100 text-banana-700 hover:bg-banana-200' 
+                    ? 'bg-banana-100 dark:bg-banana-500/20 text-banana-700 dark:text-banana-300 hover:bg-banana-200 dark:hover:bg-banana-500/30' 
                     : 'text-gray-500 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover'
                 }`}
               >
@@ -2043,7 +2043,7 @@ export const SlidePreview: React.FC = () => {
                 <>
                   <button
                     onClick={selectedPageIds.size === pagesWithImages.length ? deselectAllPages : selectAllPages}
-                    className="text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 transition-colors"
+                    className="text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana-300 transition-colors"
                   >
                     {selectedPageIds.size === pagesWithImages.length ? t('common.deselectAll') : t('common.selectAll')}
                   </button>

@@ -101,7 +101,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                 onKeyDown={(e) => onTitleKeyDown(e, projectId)}
                 onBlur={() => onSaveEdit(projectId)}
                 autoFocus
-                className="text-base md:text-lg font-semibold text-gray-900 dark:text-foreground-primary px-2 py-1 border border-banana-500 rounded focus:outline-none focus:ring-2 focus:ring-banana-500 flex-1 min-w-0"
+                className="text-base md:text-lg font-semibold text-gray-900 dark:text-foreground-primary px-2 py-1 border border-banana-500 rounded bg-white dark:bg-background-primary focus:outline-none focus:ring-2 focus:ring-banana-500 flex-1 min-w-0"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
@@ -163,4 +163,3 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     </Card>
   );
 };
-

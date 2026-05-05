@@ -65,6 +65,13 @@ export const getProjectTitle = (project: Project): string => {
     }
   }
 
+  const fallbackText = [project.idea_prompt, project.outline_text, project.description_text]
+    .find((value) => value && value.trim())
+    ?.trim();
+  if (fallbackText) {
+    return fallbackText.replace(/\s+/g, ' ');
+  }
+
   return t('projectUtils.untitled');
 };
 
