@@ -35,6 +35,8 @@
   <a href="https://bananaslides.online/"><b>🚀 在线 Demo</b></a>
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
+  &nbsp;|&nbsp;
+ <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>部署方法</b></a>
 </p>
 <p>
   如果该项目对你有用，欢迎 <b>Star 🌟</b> & <b>Fork 🍴</b>
