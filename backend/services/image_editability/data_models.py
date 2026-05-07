@@ -56,6 +56,15 @@ class BBox:
             y1=self.y1 + offset_y
         )
 
+    def expand(self, px: float, max_w: float, max_h: float) -> 'BBox':
+        """向四周扩张 px 像素，clamp 到 [0, max_w] × [0, max_h]。"""
+        return BBox(
+            x0=max(0.0, self.x0 - px),
+            y0=max(0.0, self.y0 - px),
+            x1=min(float(max_w), self.x1 + px),
+            y1=min(float(max_h), self.y1 + px),
+        )
+
 
 @dataclass
 class EditableElement:
@@ -66,6 +75,10 @@ class EditableElement:
     bbox_global: BBox  # 在根图片（最顶层EditableImage）坐标系中的位置（预计算存储，避免前端/后续使用时重新遍历计算）
     content: Optional[str] = None  # 文字内容、HTML表格等
     image_path: Optional[str] = None  # 图片路径（MinerU提取的）
+
+    # 是否被分类器判定为图标（True=icon / False=photo / None=未判定或非图片元素）
+    # 仅 image 类型元素会跑分类；icon 在版面源头会做轻微 BBox 扩张以避免边缘漏裁
+    is_icon: Optional[bool] = None
     
     # 递归子元素（如果是图片或图表，可能有子元素）
     children: List['EditableElement'] = field(default_factory=list)
@@ -86,6 +99,7 @@ class EditableElement:
             'content': self.content,
             'image_path': self.image_path,
             'inpainted_background_path': self.inpainted_background_path,
+            'is_icon': self.is_icon,
             'metadata': self.metadata,
             'children': [child.to_dict() for child in self.children]
         }

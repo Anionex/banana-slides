@@ -201,7 +201,7 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
       </div>
 
       <div className="flex justify-center pt-2">
-        <Button onClick={() => { onClose(); navigate('/settings'); }} className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg" icon={<Settings size={18} />}>
+        <Button onClick={() => { onClose(); navigate('/settings', { state: { from: window.location.pathname } }); }} className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg" icon={<Settings size={18} />}>
           {t('guide.settingsBtn')}
         </Button>
       </div>

@@ -749,10 +749,20 @@ export const exportVideo = async (
     pageIds?: string[];
     voice?: string;
     rate?: string;
+    speed?: number;
     language?: string;
     generateNarration?: boolean;
     enableKenBurns?: boolean;
     includeNoImagePages?: boolean;
+    presentationTopic?: string;
+    narrationConfig?: {
+      speaker_persona?: string;
+      target_audience?: string;
+      speech_tone?: string;
+      presentation_topic?: string;
+      min_words?: number;
+      max_words?: number;
+    };
   }
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
@@ -762,10 +772,13 @@ export const exportVideo = async (
     page_ids: options?.pageIds,
     voice: options?.voice,
     rate: options?.rate,
+    speed: options?.speed,
     language: options?.language,
     generate_narration: options?.generateNarration ?? true,
     enable_ken_burns: options?.enableKenBurns ?? false,
     include_no_image_pages: options?.includeNoImagePages ?? false,
+    presentation_topic: options?.presentationTopic,
+    narration_config: options?.narrationConfig,
   });
   return response.data;
 };
@@ -1256,14 +1269,20 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
   return response.data;
 };
 
+export const getElevenLabsVoices = async (): Promise<ApiResponse<{ voices: { id: string; name: string; category: string; languages?: string[]; accent?: string | null }[] }>> => {
+  const response = await apiClient.get('/api/settings/elevenlabs-voices');
+  return response.data;
+};
+
 /**
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'elevenlabs_api_key_length' | 'created_at' | 'updated_at'>> & {
     api_key?: string;
     mineru_token?: string;
     baidu_api_key?: string;
+    elevenlabs_api_key?: string;
     text_api_key?: string;
     image_api_key?: string;
     image_caption_api_key?: string;

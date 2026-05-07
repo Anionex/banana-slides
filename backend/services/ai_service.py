@@ -269,10 +269,14 @@ class AIService:
             )
         else:
             raise ValueError("caption_provider 不支持图片输入")
-        
+
         # 清理响应文本：移除markdown代码块标记和多余空白
-        cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        
+        cleaned_text = (response_text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+        if not cleaned_text:
+            logger.warning("视觉模型返回空响应（带图片），将重试")
+            raise ValueError("视觉模型返回空响应")
+
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
@@ -823,37 +827,45 @@ class AIService:
 
             # 构建参考图片列表
             ref_images = []
-            
+            # 只关闭此方法打开的图片，不关闭调用方传入的 PIL Image 对象
+            owned_images = []
+
             # 添加主参考图片（如果提供了路径）
             if ref_image_path:
                 if not os.path.exists(ref_image_path):
                     raise FileNotFoundError(f"Reference image not found: {ref_image_path}")
                 main_ref_image = Image.open(ref_image_path)
                 ref_images.append(main_ref_image)
-            
+                owned_images.append(main_ref_image)
+
             # 添加额外的参考图片
             if additional_ref_images:
                 for ref_img in additional_ref_images:
                     if isinstance(ref_img, Image.Image):
-                        # 已经是 PIL Image 对象
+                        # 已经是 PIL Image 对象，由调用方负责关闭
                         ref_images.append(ref_img)
                     elif isinstance(ref_img, str):
                         # 可能是本地路径或 URL
                         if os.path.exists(ref_img):
                             # 本地路径
-                            ref_images.append(Image.open(ref_img))
+                            opened = Image.open(ref_img)
+                            ref_images.append(opened)
+                            owned_images.append(opened)
                         elif ref_img.startswith('http://') or ref_img.startswith('https://'):
                             # URL，需要下载
                             downloaded_img = self.download_image_from_url(ref_img)
                             if downloaded_img:
                                 ref_images.append(downloaded_img)
+                                owned_images.append(downloaded_img)
                             else:
                                 logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
                         elif ref_img.startswith('/files/mineru/'):
                             # MinerU 本地文件路径，需要转换为文件系统路径（支持前缀匹配）
                             local_path = self._convert_mineru_path_to_local(ref_img)
                             if local_path and os.path.exists(local_path):
-                                ref_images.append(Image.open(local_path))
+                                opened = Image.open(local_path)
+                                ref_images.append(opened)
+                                owned_images.append(opened)
                                 logger.debug(f"Loaded MinerU image from local path: {local_path}")
                             else:
                                 logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
@@ -865,27 +877,36 @@ class AIService:
                             if not local_path.startswith(os.path.abspath(upload_folder)):
                                 logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
                             elif os.path.exists(local_path):
-                                ref_images.append(Image.open(local_path))
+                                opened = Image.open(local_path)
+                                ref_images.append(opened)
+                                owned_images.append(opened)
                                 logger.debug(f"Loaded image from local path: {local_path}")
                             else:
                                 logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
                         else:
                             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
-            
+
             logger.debug(f"Calling image provider for generation with {len(ref_images)} reference images...")
             logger.debug(f"Enable image reasoning/thinking: {self.enable_image_reasoning}, budget: {self._get_image_thinking_budget()}")
-            
-            # 使用 image_provider 生成图片
-            # 根据 enable_image_reasoning 配置控制图像生成的思考模式
-            return self.image_provider.generate_image(
-                prompt=prompt,
-                ref_images=ref_images if ref_images else None,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-                enable_thinking=self.enable_image_reasoning,
-                thinking_budget=self._get_image_thinking_budget()
-            )
-            
+
+            try:
+                # 使用 image_provider 生成图片
+                # 根据 enable_image_reasoning 配置控制图像生成的思考模式
+                return self.image_provider.generate_image(
+                    prompt=prompt,
+                    ref_images=ref_images if ref_images else None,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    enable_thinking=self.enable_image_reasoning,
+                    thinking_budget=self._get_image_thinking_budget()
+                )
+            finally:
+                for img in owned_images:
+                    try:
+                        img.close()
+                    except Exception:
+                        pass
+
         except Exception as e:
             error_detail = f"Error generating image: {type(e).__name__}: {str(e)}"
             logger.error(error_detail, exc_info=True)

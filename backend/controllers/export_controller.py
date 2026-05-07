@@ -17,6 +17,7 @@ from utils import (
 )
 from services import ExportService, FileService
 from services.ai_service_manager import get_ai_service
+from services.prompts import normalize_narration_generation_config
 
 logger = logging.getLogger(__name__)
 
@@ -393,8 +394,16 @@ def export_editable_pptx(project_id):
         # 读取项目的导出设置
         export_extractor_method = project.export_extractor_method or 'hybrid'
         export_inpaint_method = project.export_inpaint_method or 'hybrid'
-        logger.info(f"Export settings: extractor={export_extractor_method}, inpaint={export_inpaint_method}")
-        
+        enable_icon_subject_extraction = (
+            True if project.enable_icon_subject_extraction is None
+            else bool(project.enable_icon_subject_extraction)
+        )
+        logger.info(
+            f"Export settings: extractor={export_extractor_method}, "
+            f"inpaint={export_inpaint_method}, "
+            f"icon_subject_extraction={enable_icon_subject_extraction}"
+        )
+
         # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
         task_manager.submit_task(
             task.id,
@@ -407,6 +416,7 @@ def export_editable_pptx(project_id):
             max_workers=max_workers,
             export_extractor_method=export_extractor_method,
             export_inpaint_method=export_inpaint_method,
+            enable_icon_subject_extraction=enable_icon_subject_extraction,
             app=app
         )
         
@@ -455,6 +465,31 @@ def export_video(project_id):
 
         data = request.get_json() or {}
 
+        # 参数 — 使用 secure_filename 防止路径遍历
+        raw_filename = data.get('filename', f'narration_{project_id}.mp4')
+        filename = secure_filename(raw_filename)
+        if not filename:
+            filename = f'narration_{project_id}.mp4'
+        if not filename.endswith('.mp4'):
+            filename += '.mp4'
+
+        voice = data.get('voice', current_app.config.get('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural'))
+        rate = data.get('rate', current_app.config.get('TTS_DEFAULT_RATE', '+0%'))
+        try:
+            speed = float(data.get('speed', 1.0))
+        except (TypeError, ValueError):
+            speed = 1.0
+        speed = max(0.7, min(speed, 1.2))
+        generate_narration = data.get('generate_narration', True)
+        enable_ken_burns = data.get('enable_ken_burns', False)
+        include_no_image_pages = data.get('include_no_image_pages', False)
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        presentation_topic = data.get('presentation_topic') or project.idea_prompt or ''
+        narration_config = normalize_narration_generation_config(
+            data.get('narration_config'),
+            fallback_topic=presentation_topic,
+        )
+
         # 获取页面
         selected_page_ids = parse_page_ids_from_body(data)
 
@@ -466,21 +501,6 @@ def export_video(project_id):
         has_images = any(page.generated_image_path for page in pages)
         if not has_images and not include_no_image_pages:
             return bad_request("No generated images found for project. Enable 'include pages without images' to export all pages.")
-
-        # 参数 — 使用 secure_filename 防止路径遍历
-        raw_filename = data.get('filename', f'narration_{project_id}.mp4')
-        filename = secure_filename(raw_filename)
-        if not filename:
-            filename = f'narration_{project_id}.mp4'
-        if not filename.endswith('.mp4'):
-            filename += '.mp4'
-
-        voice = data.get('voice', current_app.config.get('TTS_DEFAULT_VOICE_ZH', 'zh-CN-XiaoxiaoNeural'))
-        rate = data.get('rate', current_app.config.get('TTS_DEFAULT_RATE', '+0%'))
-        generate_narration = data.get('generate_narration', True)
-        enable_ken_burns = data.get('enable_ken_burns', False)
-        include_no_image_pages = data.get('include_no_image_pages', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
 
         # 根据语言自动选择默认语音
         if 'voice' not in data:
@@ -513,11 +533,13 @@ def export_video(project_id):
             file_service=file_service,
             voice=voice,
             rate=rate,
+            speed=speed,
             generate_narration=generate_narration,
             enable_ken_burns=enable_ken_burns,
             include_no_image_pages=include_no_image_pages,
             page_ids=selected_page_ids if selected_page_ids else None,
             language=language,
+            narration_config=narration_config,
             app=app,
         )
 
@@ -528,6 +550,7 @@ def export_video(project_id):
                 "generate_narration": generate_narration,
                 "enable_ken_burns": enable_ken_burns,
                 "include_no_image_pages": include_no_image_pages,
+                "narration_config": narration_config,
             },
             message="Video export task created"
         )

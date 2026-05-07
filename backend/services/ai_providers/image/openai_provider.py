@@ -102,14 +102,15 @@ class OpenAIImageProvider(ImageProvider):
     The provider will try multiple parameter formats to maximize compatibility.
     """
     
-    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview"):
+    def __init__(self, api_key: str, api_base: str = None, model: str = "gemini-3-pro-image-preview", image_api_protocol: str = 'auto'):
         """
         Initialize OpenAI image provider
-        
+
         Args:
             api_key: API key
             api_base: API base URL (e.g., https://aihubmix.com/v1)
             model: Model name to use
+            image_api_protocol: 'auto' (detect by model name), 'images' (force images.generate), 'chat' (force chat.completions)
         """
         self.client = OpenAI(
             api_key=api_key,
@@ -119,6 +120,7 @@ class OpenAIImageProvider(ImageProvider):
         )
         self.api_base = api_base or ""
         self.model = model
+        self.image_api_protocol = image_api_protocol or 'auto'
     
     def _encode_image_to_base64(self, image: Image.Image) -> str:
         """
@@ -347,8 +349,12 @@ class OpenAIImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
-            # Route gpt-image-2 / dall-e-* to the native images API
-            if self._is_native_images_api_model():
+            # Route based on image_api_protocol setting
+            use_images_api = (
+                self.image_api_protocol == 'images'
+                or (self.image_api_protocol == 'auto' and self._is_native_images_api_model())
+            )
+            if use_images_api:
                 return self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)
 
             # Build message content

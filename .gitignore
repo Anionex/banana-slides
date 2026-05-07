@@ -73,3 +73,6 @@ _local_backup/
 banana_slides.egg-info/
 dist/
 build/
+
+# 本地 ML 模型（RMBG 等）
+/models/

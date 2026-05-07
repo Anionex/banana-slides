@@ -323,20 +323,26 @@ export const History: React.FC = () => {
   }, []);
 
   const handleSaveEdit = useCallback(async (projectId: string) => {
-    if (!editingTitle.trim()) {
+    const nextTitle = editingTitle.trim();
+
+    if (!nextTitle) {
       show({ message: t('history.titleEmpty'), type: 'error' });
       return;
     }
 
     try {
-      // 调用API更新项目名称
-      await api.updateProject(projectId, { idea_prompt: editingTitle.trim() });
+      const targetProject = projects.find((p) => (p.id || p.project_id) === projectId);
+      if (!targetProject) return;
+      await api.updateProject(projectId, { project_title: nextTitle });
 
       // 更新本地状态
       setProjects(prev => prev.map(p => {
         const id = p.id || p.project_id;
         if (id === projectId) {
-          return { ...p, idea_prompt: editingTitle.trim() };
+          return {
+            ...p,
+            project_title: nextTitle,
+          };
         }
         return p;
       }));
@@ -352,7 +358,7 @@ export const History: React.FC = () => {
       });
     }
    
-  }, [editingTitle, show]);
+  }, [editingTitle, projects, show, t]);
 
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent, projectId: string) => {
     if (e.key === 'Enter') {
@@ -527,4 +533,3 @@ export const History: React.FC = () => {
     </div>
   );
 };
-

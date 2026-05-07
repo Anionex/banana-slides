@@ -10,33 +10,49 @@ Banana Slides uses Markdown files (`.md` / `.txt`) to import and export outlines
 ```markdown
 # Project Title
 
-> 生成时间: 2025/1/1 12:00:00
+> Generated at: 2025/1/1 12:00:00
 
 ---
 
-## 第 1 页: Cover Page
+## Page 1: Cover Page
 
-> 章节: Introduction
+> Chapter: Introduction
 
-**大纲要点：**
-- Company name and logo
-- Presentation date
+This cover introduces the presentation topic, company name, and date.
 
-**页面描述：**
-A clean cover page with the company logo centered, title in bold white text on a dark blue gradient background.
+**Page Description:**
+--- 页面文字 ---
+
+### Annual Business Review
+
+Company Name
+
+April 2026
+
+--- 页面文字结束 ---
+
+Layout: centered title, large typography, subtitle and date below
 
 ---
 
-## 第 2 页: Market Overview
+## Page 2: Market Overview
 
-> 章节: Analysis
+> Chapter: Analysis
 
-**大纲要点：**
-- Industry growth trends
-- Key market segments
+This slide summarizes industry growth, key market segments, and the main opportunity.
 
-**页面描述：**
-A data-driven page showing a bar chart of market growth over the past 5 years, with key statistics highlighted in callout boxes.
+**Page Description:**
+--- 页面文字 ---
+
+### Market Overview
+
+- Industry size continues to grow
+- Enterprise demand is accelerating faster
+- Several subsegments remain underserved
+
+--- 页面文字结束 ---
+
+Visual Elements: growth bar chart, key metric cards, market segmentation diagram
 
 ---
 ```
@@ -45,10 +61,12 @@ A data-driven page showing a bar chart of market growth over the past 5 years, w
 
 | Field | Syntax | Required |
 |-------|--------|----------|
-| Page header | `## 第 N 页: Title` | Yes |
-| Chapter | `> 章节: Name` | No |
-| Key points | `**大纲要点：**` followed by `- point` lines | No |
-| Description | `**页面描述：**` followed by free text | No |
+| Page header | `## 第 N 页: Title` or `## Page N: Title` | Yes |
+| Chapter | `> 章节: Name` or `> Chapter: Name` | No |
+| Outline summary | One plain sentence after the page header | No |
+| Description | `**页面描述：**` or `**Page Description:**`, with the slide body wrapped in `--- 页面文字 ---` / `--- 页面文字结束 ---` | No |
+
+If the description ends with short extra-field lines such as `Visual Focus: ...` or `排版布局：...`, Banana Slides will preserve them on import.
 
 Pages are separated by `---`.
 
@@ -58,14 +76,16 @@ You can export from both the Outline Editor and Detail Editor:
 
 | Source | Content |
 |--------|---------|
-| Outline Editor | Key points only (no descriptions) |
-| Detail Editor | Both key points and descriptions |
+| Outline Editor | Page titles and outline content |
+| Detail Editor | Description-only export, or full outline + descriptions |
 
 ## Import Behavior
 
 - Imported pages are **appended** to the existing project — they do not replace current pages.
-- Both `**大纲要点：**` and `**页面描述：**` markers are optional. If omitted, bullet lines (`- ...`) are treated as key points.
+- The current recommended format is one concise outline sentence after the page title. Older `**Outline Points:**` / `- point` blocks are still accepted.
+- Both Chinese and English markers are supported: `第 N 页` / `Page N`, `章节` / `Chapter`, `大纲要点` / `Outline Points`, `页面描述` / `Page Description`.
 - HTML tags in imported content are automatically stripped.
+- Short trailing field lines in the description section, such as `视觉焦点：...` or `Visual Focus: ...`, are parsed as extra fields and preserved.
 - Accepts `.md` and `.txt` files.
 
 ## Minimal Example
@@ -73,26 +93,78 @@ You can export from both the Outline Editor and Detail Editor:
 A valid import file can be as simple as:
 
 ```markdown
-## 第 1 页: Introduction
-- Welcome and agenda
-- Speaker introduction
+## Page 1: Introduction
 
-## 第 2 页: Summary
-- Key takeaways
+This slide introduces the topic, agenda, and speaker.
+
+## Page 2: Summary
+
+This slide reviews the key conclusions and next steps.
 ```
 
-## Generate with AI
+## Use External AI to Create Import Files
 
-Copy the prompt below into any AI assistant (ChatGPT, Claude, etc.), replace the placeholders, and import the output directly into Banana Slides.
+If you want to organize an outline in an external AI assistant first, or have it produce import-ready Markdown in a fixed structure, you can use the template below.
+
+Copy the prompt into any AI assistant such as ChatGPT or Claude, replace the placeholders, and ask it to output Markdown only. You can then import that result into Banana Slides.
 
 <Tip>
-  For outline-only import, remove the `**页面描述：**` requirement from the prompt.
+  This is only a helper for creating import files with external AI, not the main Banana Slides workflow. In most cases, creating a project directly inside the app and using the built-in AI will be faster.
 </Tip>
+
+<Tip>
+  Here, “page description” is not just a short visual note. In practice it is a combination of the page's actual Markdown content plus optional design fields. A good pattern is:
+  write the slide's display content under `**Page Description:**`, then optionally append short trailing fields such as `Visual Elements: ...`, `Visual Focus: ...`, `Layout: ...`, or `Speaker Notes: ...`.
+</Tip>
+
+<Tip>
+  For outline-only import, remove the `**页面描述：**` requirement from the prompt. If you prefer English markers, you can replace `第 N 页 / 章节 / 大纲要点 / 页面描述` with `Page N / Chapter / Outline Points / Page Description`.
+</Tip>
+
+<Tip>
+  Banana Slides' current built-in prompt is closer to this structure:
+  after the page title, write one concise outline sentence instead of a separate `**Outline Points:**` block; inside `**Page Description:**`, `--- 页面文字 ---` / `--- 页面文字结束 ---` should now be treated as required structure, not optional decoration.
+</Tip>
+
+<Tip>
+  The Markdown importer still supports the older `**Outline Points:**` / `- point` structure. For new content, prefer the concise summary sentence after the page title.
+</Tip>
+
+A slide that mirrors the current built-in prompt more closely should look like this:
+
+```markdown
+## Page 3: Market Opportunity
+
+> Chapter: Industry Analysis
+
+This slide explains market growth, fragmented competition, and why enterprise demand is expanding.
+
+**Page Description:**
+--- 页面文字 ---
+
+### Market Opportunity Is Expanding Fast
+
+- The global market is projected to reach **$3.2B by 2028**
+- Enterprise use cases are growing faster than consumer use cases
+- The competitive landscape remains fragmented
+
+| Dimension | Current State | Opportunity |
+| --- | --- | --- |
+| Market Size | High growth | Attractive |
+| Competition | Moderate | Differentiable |
+| Willingness to Pay | Clear | Fast validation |
+
+--- 页面文字结束 ---
+
+Visual Elements: growth curve, comparison stat cards, subsegment diagram
+Visual Focus: $3.2B by 2028, enterprise growth, fragmented competition
+Layout: title on top, bullets on the left, stat cards on the right, table at the bottom
+```
 
 <Accordion title="AI Prompt Template">
 
 ```text
-Generate a presentation outline in the following Markdown format.
+Generate presentation content in the following Markdown format so it mirrors Banana Slides' current built-in prompt style.
 
 Topic: [YOUR TOPIC]
 Number of pages: [NUMBER, e.g. 8]
@@ -100,13 +172,29 @@ Language: [Chinese / English]
 Style notes: [e.g. "professional and data-driven" or "playful and visual"]
 
 Rules:
-1. Each page starts with "## 第 N 页: Title"
-2. Group pages into chapters using "> 章节: Chapter Name"
-3. Under "**大纲要点：**", list 2-4 key points as "- point"
-4. Under "**页面描述：**", write 1-2 sentences describing the visual layout,
-   colors, charts, or imagery for that slide
-5. Separate pages with "---"
-6. First page should be a cover, last page should be a closing/thank-you page
+1. Each page starts with "## Page N: Title"
+2. Group pages into chapters using "> Chapter: Chapter Name"
+3. After the page title, write one concise sentence explaining what the slide should cover; do not generate a separate `**Outline Points:**` block
+4. Under "**Page Description:**", write the actual Markdown content that should appear on the slide.
+   It may include headings, bullets, short paragraphs, emphasis, or tables when appropriate.
+5. Inside `**Page Description:**`, you must use this structure:
+   --- 页面文字 ---
+   [slide body in Markdown]
+   --- 页面文字结束 ---
+6. If needed, append short one-line fields at the end of the page description, for example:
+   Visual Elements: ...
+   Visual Focus: ...
+   Layout: ...
+   Speaker Notes: ...
+7. Separate pages with "---"
+8. First page should be a cover, last page should be a closing/thank-you page
+9. Do not output explanations, prefaces, conclusions, or code fences
+
+Additional requirements:
+- The main body under "**Page Description:**" should look like real slide content, not just abstract instructions such as "blue tech background, text on the left, image on the right"
+- If a slide is best expressed as a list, comparison, timeline, or table, write it directly in Markdown
+- Keep optional trailing fields short and concrete
+- Omit optional fields when unnecessary
 
 Output ONLY the Markdown, no extra explanation.
 ```

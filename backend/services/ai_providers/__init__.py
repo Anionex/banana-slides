@@ -355,7 +355,8 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
     elif fmt == 'openai':
         logger.info("Image provider: OpenAI, model=%s", model)
         logger.warning("OpenAI format only supports 1K resolution, 4K is not available")
-        return OpenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+        image_api_protocol = _resolve_setting('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
+        return OpenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model, image_api_protocol=image_api_protocol)
     elif fmt == 'vertex':
         logger.info("Image provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
         return GenAIImageProvider(

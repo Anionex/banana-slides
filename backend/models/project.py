@@ -13,6 +13,7 @@ class Project(db.Model):
     __tablename__ = 'projects'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_title = db.Column(db.String(255), nullable=True)
     idea_prompt = db.Column(db.Text, nullable=True)
     outline_text = db.Column(db.Text, nullable=True)  # 用户输入的大纲文本（用于outline类型）
     description_text = db.Column(db.Text, nullable=True)  # 用户输入的描述文本（用于description类型）
@@ -26,6 +27,7 @@ class Project(db.Model):
     export_extractor_method = db.Column(db.String(50), nullable=True, default='hybrid')  # 组件提取方法: mineru, hybrid
     export_inpaint_method = db.Column(db.String(50), nullable=True, default='hybrid')  # 背景图获取方法: generative, baidu, hybrid
     export_allow_partial = db.Column(db.Boolean, nullable=True, default=False)  # 是否允许返回半成品（导出出错时继续而非停止）
+    enable_icon_subject_extraction = db.Column(db.Boolean, nullable=True, default=True)  # 是否对小尺寸图标走百度智能抠图
     image_aspect_ratio = db.Column(db.String(10), nullable=False, server_default='16:9', default='16:9')
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -53,6 +55,7 @@ class Project(db.Model):
         
         data = {
             'project_id': self.id,
+            'project_title': self.project_title,
             'idea_prompt': self.idea_prompt,
             'outline_text': self.outline_text,
             'description_text': self.description_text,
@@ -65,6 +68,7 @@ class Project(db.Model):
             'export_extractor_method': self.export_extractor_method or 'hybrid',
             'export_inpaint_method': self.export_inpaint_method or 'hybrid',
             'export_allow_partial': self.export_allow_partial or False,
+            'enable_icon_subject_extraction': True if self.enable_icon_subject_extraction is None else bool(self.enable_icon_subject_extraction),
             'image_aspect_ratio': self.image_aspect_ratio,
             'status': self.status,
             'created_at': created_at_str,
@@ -79,4 +83,3 @@ class Project(db.Model):
     
     def __repr__(self):
         return f'<Project {self.id}: {self.status}>'
-

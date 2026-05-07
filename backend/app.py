@@ -66,15 +66,16 @@ def create_app():
     
     # Load configuration from Config class
     app.config.from_object(Config)
-    
-    # Override with environment-specific paths (use absolute path)
+
+    # Allow DATABASE_URL env var to override config at runtime (supports test isolation)
+    if os.getenv('DATABASE_URL'):
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+
+    # Ensure instance directory exists for the default SQLite path in Config
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     instance_dir = os.path.join(backend_dir, 'instance')
     os.makedirs(instance_dir, exist_ok=True)
-    
-    db_path = os.path.join(instance_dir, 'database.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    
+
     # Ensure upload folder exists
     project_root = os.path.dirname(backend_dir)
     upload_folder = os.path.join(project_root, 'uploads')

@@ -52,6 +52,10 @@ const t = getT(utilsI18n);
  * 获取项目标题
  */
 export const getProjectTitle = (project: Project): string => {
+  if (project.project_title?.trim()) {
+    return project.project_title.trim();
+  }
+
   // 从第一个页面的大纲标题获取项目名称
   if (project.pages && project.pages.length > 0) {
     const sortedPages = [...project.pages].sort((a, b) =>
@@ -63,6 +67,13 @@ export const getProjectTitle = (project: Project): string => {
     if (title) {
       return title;
     }
+  }
+
+  const fallbackText = [project.idea_prompt, project.outline_text, project.description_text]
+    .find((value) => value && value.trim())
+    ?.trim();
+  if (fallbackText) {
+    return fallbackText.replace(/\s+/g, ' ');
   }
 
   return t('projectUtils.untitled');
@@ -253,6 +264,13 @@ const splitMarkdownPages = (markdown: string): string[] => {
 
 // 额外字段行模式：短名称 + 中/英冒号 + 内容
 const EXTRA_FIELD_RE = /^([^\s：:]{1,20})[：:](.+)/;
+const TRAILING_MARKERS = new Set(['---', '', '*暂无要点*', '*暂无描述*', '*No points yet*', '*No description yet*']);
+const BULLET_RE = /^[-*+]\s+(.+)$/;
+
+const stripBullet = (line: string): string | null => {
+  const match = BULLET_RE.exec(line.trim());
+  return match ? match[1].trim() : null;
+};
 
 const splitDescAndExtraFields = (descLines: string[]): { text: string; extra_fields?: Record<string, string> } => {
   // 从末尾向前扫描连续的额外字段行
@@ -273,6 +291,21 @@ const splitDescAndExtraFields = (descLines: string[]): { text: string; extra_fie
   return Object.keys(fields).length > 0 ? { text, extra_fields: fields } : { text };
 };
 
+const extractOutlineSentences = (lines: string[]): string[] => {
+  const result: string[] = [];
+  const cleaned = [...lines];
+  while (cleaned.length && (cleaned[0].trim() === '' || cleaned[0].startsWith('> '))) cleaned.shift();
+  while (cleaned.length && TRAILING_MARKERS.has(cleaned[cleaned.length - 1].trim())) cleaned.pop();
+
+  for (const line of cleaned) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('> ')) continue;
+    result.push(sanitize(stripBullet(trimmed) || trimmed));
+  }
+  return result;
+};
+
 export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
   return splitMarkdownPages(markdown).map(section => {
     const lines = section.split('\n');
@@ -290,16 +323,15 @@ export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
     let text = '';
     let extra_fields: Record<string, string> | undefined;
 
-    const trailingPatterns = new Set(['---', '', '*暂无要点*', '*暂无描述*', '*No points yet*', '*No description yet*']);
     const stripTrailing = (arr: string[]) => {
-      while (arr.length && trailingPatterns.has(arr[arr.length - 1].trim())) arr.pop();
+      while (arr.length && TRAILING_MARKERS.has(arr[arr.length - 1].trim())) arr.pop();
     };
 
     if (outlineIdx >= 0) {
       const end = descIdx >= 0 ? descIdx : lines.length;
-      points = lines.slice(outlineIdx + 1, end)
-        .filter(l => l.startsWith('- '))
-        .map(l => sanitize(l.slice(2).trim()));
+      points = extractOutlineSentences(lines.slice(outlineIdx + 1, end));
+    } else if (descIdx >= 0) {
+      points = extractOutlineSentences(lines.slice(1, descIdx));
     }
 
     if (descIdx >= 0) {
@@ -315,8 +347,8 @@ export const parseMarkdownPages = (markdown: string): ParsedPage[] => {
       const contentLines = lines.slice(1);
       while (contentLines.length && (contentLines[0].startsWith('> ') || contentLines[0].trim() === '')) contentLines.shift();
       stripTrailing(contentLines);
-      points = contentLines.filter(l => l.startsWith('- ')).map(l => sanitize(l.slice(2).trim()));
-      text = sanitize(contentLines.filter(l => !l.startsWith('- ')).join('\n').trim());
+      points = contentLines.map(stripBullet).filter((point): point is string => Boolean(point)).map(point => sanitize(point));
+      text = sanitize(contentLines.filter(l => !stripBullet(l)).join('\n').trim());
     }
 
     return { title, points, text, part, extra_fields };

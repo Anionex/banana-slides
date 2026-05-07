@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 
 // 组件内翻译
@@ -18,7 +18,8 @@ const settingsI18n = {
         textReasoning: "文本推理模式", imageReasoning: "图像推理模式",
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
         vendorApiKeys: "厂商 API Key 配置",
-        advancedSettings: "高级设置"
+        advancedSettings: "高级设置",
+        elevenlabs: "ElevenLabs 语音合成"
       },
       openaiOAuth: {
         title: "OpenAI 账号连接",
@@ -39,7 +40,7 @@ const settingsI18n = {
         loadingModels: "正在加载可用模型...",
         connectFirst: "请先连接 OpenAI 账号",
         manualCallbackLabel: "登录后连接失败？",
-        manualCallbackHint: "请复制浏览器地址栏中的完整地址，粘贴到下方即可完成连接",
+        manualCallbackHint: "请复制弹窗浏览器地址栏中的完整地址，粘贴到下方即可完成连接",
         manualCallbackPlaceholder: "粘贴回调地址...",
         manualCallbackSubmit: "提交",
         manualCallbackSuccess: "连接成功",
@@ -78,6 +79,10 @@ const settingsI18n = {
         imageThinkingBudget: "图像思考负载", imageThinkingBudgetDesc: "图像推理的思考 token 预算 (1-8192)，数值越大推理越深入",
         baiduOcrApiKey: "百度 API Key", baiduOcrApiKeyPlaceholder: "输入百度 API Key",
         baiduOcrApiKeyDesc: "用于可编辑 PPTX 导出时的文字识别功能，留空则保持当前设置不变",
+        elevenLabsEnabled: "启用 ElevenLabs 语音合成",
+        elevenLabsEnabledDesc: "开启后，视频导出将使用 ElevenLabs 代替 edge-tts 生成旁白音频，音质更自然",
+        elevenLabsApiKey: "ElevenLabs API Key", elevenLabsApiKeyPlaceholder: "输入 ElevenLabs API Key",
+        elevenLabsApiKeyDesc: "留空则保持当前设置不变，API Key 可在 ElevenLabs 控制台获取",
         applyLink: "，请点击此处申请",
         textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
         imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --",
@@ -92,6 +97,11 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "输入 API Key",
         perModelApiKeyDesc: "留空则保持当前设置不变",
         perModelApiKeySet: "已设置（长度: {{length}}）",
+        imageApiProtocol: "图片 API 协议",
+        imageApiProtocolDesc: "选择图片生成使用的 API 路径。自动检测根据模型名判断，也可强制指定",
+        imageApiProtocolAuto: "自动检测",
+        imageApiProtocolImages: "images.generate",
+        imageApiProtocolChat: "chat.completions",
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
@@ -143,7 +153,8 @@ const settingsI18n = {
         textReasoning: "Text Reasoning Mode", imageReasoning: "Image Reasoning Mode",
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
         vendorApiKeys: "Vendor API Key Configuration",
-        advancedSettings: "Advanced Settings"
+        advancedSettings: "Advanced Settings",
+        elevenlabs: "ElevenLabs Text-to-Speech"
       },
       openaiOAuth: {
         title: "OpenAI Account",
@@ -164,7 +175,7 @@ const settingsI18n = {
         loadingModels: "Loading available models...",
         connectFirst: "Please connect your OpenAI account first",
         manualCallbackLabel: "Connection failed after login?",
-        manualCallbackHint: "Copy the full URL from the browser address bar and paste it below to complete the connection",
+        manualCallbackHint: "Copy the full URL from the popup's address bar and paste it below to complete the connection",
         manualCallbackPlaceholder: "Paste callback URL...",
         manualCallbackSubmit: "Submit",
         manualCallbackSuccess: "Connected successfully",
@@ -203,6 +214,10 @@ const settingsI18n = {
         imageThinkingBudget: "Image Thinking Budget", imageThinkingBudgetDesc: "Token budget for image reasoning (1-8192), higher values enable deeper reasoning",
         baiduOcrApiKey: "Baidu API Key", baiduOcrApiKeyPlaceholder: "Enter Baidu API Key",
         baiduOcrApiKeyDesc: "For text recognition in editable PPTX export, leave empty to keep current setting",
+        elevenLabsEnabled: "Enable ElevenLabs Text-to-Speech",
+        elevenLabsEnabledDesc: "When enabled, video export uses ElevenLabs instead of edge-tts for narration audio, providing more natural voice quality",
+        elevenLabsApiKey: "ElevenLabs API Key", elevenLabsApiKeyPlaceholder: "Enter ElevenLabs API Key",
+        elevenLabsApiKeyDesc: "Leave empty to keep current setting. Get your API key from the ElevenLabs dashboard",
         applyLink: ", click here to apply",
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
         imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --",
@@ -217,6 +232,11 @@ const settingsI18n = {
         perModelApiKey: "API Key", perModelApiKeyPlaceholder: "Enter API Key",
         perModelApiKeyDesc: "Leave empty to keep current setting",
         perModelApiKeySet: "Set (length: {{length}})",
+        imageApiProtocol: "Image API Protocol",
+        imageApiProtocolDesc: "Select the API path for image generation. Auto detects by model name, or force a specific path",
+        imageApiProtocolAuto: "Auto detect",
+        imageApiProtocolImages: "images.generate",
+        imageApiProtocolChat: "chat.completions",
       },
       apiKeyHelp: {
         title: "How to get an API key",
@@ -352,6 +372,9 @@ const initialFormData = {
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  openai_image_api_protocol: 'auto',
+  // ElevenLabs TTS
+  elevenlabs_api_key: '',
 };
 
 const isLazyllmVendor = (vendor: string) =>
@@ -424,6 +447,8 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   image_api_base_url: data.image_api_base_url || '',
   image_caption_api_key: '',
   image_caption_api_base_url: data.image_caption_api_base_url || '',
+  openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
+  elevenlabs_api_key: '',
 });
 
 // Settings 组件 - 纯嵌入模式（可复用）
@@ -458,87 +483,26 @@ export const Settings: React.FC = () => {
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
   const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const oauthPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const oauthPollInFlightRef = useRef(false);
-
-  const clearOAuthPolling = () => {
-    if (oauthPollTimerRef.current) {
-      clearInterval(oauthPollTimerRef.current);
-      oauthPollTimerRef.current = null;
-    }
-    oauthPollInFlightRef.current = false;
-  };
-
-  const stopOAuthPolling = () => {
-    clearOAuthPolling();
-    setOauthConnecting(false);
-  };
-
-  const syncOAuthStatus = async () => {
-    const statusResp = await api.getOpenAIOAuthStatus();
-    if (statusResp.success && statusResp.data) {
-      setSettings(prev => prev ? {
-        ...prev,
-        openai_oauth_connected: statusResp.data.connected,
-        openai_oauth_account_id: statusResp.data.account_id || undefined,
-      } : prev);
-      return statusResp.data.connected;
-    }
-    return false;
-  };
-
-  const startDesktopOAuthPolling = () => {
-    clearOAuthPolling();
-    setOauthConnecting(true);
-    const deadline = Date.now() + 3 * 60 * 1000;
-
-    oauthPollTimerRef.current = setInterval(async () => {
-      if (oauthPollInFlightRef.current) return;
-      if (Date.now() >= deadline) {
-        stopOAuthPolling();
-        return;
-      }
-
-      oauthPollInFlightRef.current = true;
-      try {
-        const connected = await syncOAuthStatus();
-        if (connected) {
-          stopOAuthPolling();
-        }
-      } catch {
-        if (Date.now() >= deadline) {
-          stopOAuthPolling();
-        }
-      } finally {
-        oauthPollInFlightRef.current = false;
-      }
-    }, 1500);
-  };
-
-  useEffect(() => {
-    return () => {
-      clearOAuthPolling();
-    };
-  }, []);
 
   const handleOAuthLogin = async () => {
     setOauthConnecting(true);
     try {
       const resp = await api.getOpenAIOAuthUrl();
       if (resp.success && resp.data?.auth_url) {
-        if ((window as any).electronAPI?.openExternal) {
-          await (window as any).electronAPI.openExternal(resp.data.auth_url);
-          startDesktopOAuthPolling();
-          return;
-        }
-
         const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
         const onMessage = async (event: MessageEvent) => {
           if (event.data?.type === 'openai-oauth-callback') {
             window.removeEventListener('message', onMessage);
             setOauthConnecting(false);
             if (event.data.success) {
-              await syncOAuthStatus();
+              const statusResp = await api.getOpenAIOAuthStatus();
+              if (statusResp.success && statusResp.data) {
+                setSettings(prev => prev ? {
+                  ...prev,
+                  openai_oauth_connected: statusResp.data!.connected,
+                  openai_oauth_account_id: statusResp.data!.account_id || undefined,
+                } : prev);
+              }
             } else {
               show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
             }
@@ -552,9 +516,6 @@ export const Settings: React.FC = () => {
             window.removeEventListener('message', onMessage);
           }
         }, 1000);
-      } else {
-        setOauthConnecting(false);
-        show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
       }
     } catch {
       setOauthConnecting(false);
@@ -586,7 +547,14 @@ export const Settings: React.FC = () => {
       if (resp.success) {
         setManualCallbackUrl('');
         setManualCallbackOpen(false);
-        await syncOAuthStatus();
+        const statusResp = await api.getOpenAIOAuthStatus();
+        if (statusResp.success && statusResp.data) {
+          setSettings(prev => prev ? {
+            ...prev,
+            openai_oauth_connected: statusResp.data!.connected,
+            openai_oauth_account_id: statusResp.data!.account_id || undefined,
+          } : prev);
+        }
         show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
       } else {
         show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
@@ -732,6 +700,22 @@ export const Settings: React.FC = () => {
         },
       ],
     },
+    {
+      title: t('settings.sections.elevenlabs'),
+      icon: <Volume2 size={20} />,
+      fields: [
+        {
+          key: 'elevenlabs_api_key',
+          label: t('settings.fields.elevenLabsApiKey'),
+          type: 'password',
+          placeholder: t('settings.fields.elevenLabsApiKeyPlaceholder'),
+          sensitiveField: true,
+          lengthKey: 'elevenlabs_api_key_length',
+          description: t('settings.fields.elevenLabsApiKeyDesc'),
+          link: 'https://elevenlabs.io/app/settings/api-keys',
+        },
+      ],
+    },
   ];
 
   useEffect(() => {
@@ -762,7 +746,7 @@ export const Settings: React.FC = () => {
     setIsSaving(true);
     try {
       const {
-        api_key, mineru_token, baidu_api_key, lazyllm_api_keys,
+        api_key, mineru_token, baidu_api_key, elevenlabs_api_key, lazyllm_api_keys,
         text_api_key, image_api_key, image_caption_api_key,
         ...otherData
       } = formData;
@@ -775,6 +759,7 @@ export const Settings: React.FC = () => {
       if (api_key) payload.api_key = api_key;
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_api_key) payload.baidu_api_key = baidu_api_key;
+      if (elevenlabs_api_key) payload.elevenlabs_api_key = elevenlabs_api_key;
       if (text_api_key) payload.text_api_key = text_api_key;
       if (image_api_key) payload.image_api_key = image_api_key;
       if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
@@ -796,7 +781,7 @@ export const Settings: React.FC = () => {
         // Clear all sensitive fields after save
         setFormData(prev => ({
           ...prev,
-          api_key: '', mineru_token: '', baidu_api_key: '',
+          api_key: '', mineru_token: '', baidu_api_key: '', elevenlabs_api_key: '',
           lazyllm_api_keys: {},
           text_api_key: '', image_api_key: '', image_caption_api_key: '',
         }));
@@ -1199,6 +1184,27 @@ export const Settings: React.FC = () => {
                 {t('settings.fields.perModelApiKeyDesc')}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Image API Protocol: for image model when effective provider is openai */}
+        {item.sourceKey === 'image_model_source' && (sourceValue === 'openai' || (!sourceValue && formData.ai_provider_format === 'openai')) && (
+          <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
+            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+              {t('settings.fields.imageApiProtocol')}
+            </label>
+            <select
+              value={formData.openai_image_api_protocol}
+              onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+              className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+            >
+              <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+              <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+              <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+            </select>
+            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+              {t('settings.fields.imageApiProtocolDesc')}
+            </p>
           </div>
         )}
 
@@ -1627,8 +1633,21 @@ const SCROLL_SHOW_THRESHOLD = 300;
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT(settingsI18n);
   const [showTop, setShowTop] = useState(false);
+  const hasInAppBackHistory = typeof window !== 'undefined' && typeof window.history.state?.idx === 'number'
+    ? window.history.state.idx > 0
+    : false;
+  const canNavigateBack = hasInAppBackHistory || Boolean((location.state as { from?: string } | null)?.from);
+
+  const handleBack = () => {
+    if (canNavigateBack) {
+      navigate(-1);
+      return;
+    }
+    navigate('/');
+  };
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > SCROLL_SHOW_THRESHOLD);
@@ -1647,7 +1666,7 @@ export const SettingsPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   icon={<Home size={18} />}
-                  onClick={() => navigate('/')}
+                  onClick={handleBack}
                   className="mr-4"
                 >
                   {t('nav.backToHome')}
