@@ -12,9 +12,11 @@
     "build:meta": "node scripts/sync-build-meta.js",
     "prebuild:win": "npm run prepare && npm run build:meta",
     "prebuild:mac": "npm run prepare && npm run build:meta",
+    "prebuild:linux": "npm run prepare && npm run build:meta",
     "prebuild:all": "npm run prepare && npm run build:meta",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
     "build:all": "electron-builder --win --mac"
   },
   "dependencies": {

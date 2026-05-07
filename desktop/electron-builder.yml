@@ -1,8 +1,9 @@
 appId: com.banana.slides
 productName: Banana Slides
+electronDist: node_modules/electron/dist
 
 directories:
-  output: C:\tmp\banana-build\desktop\dist
+  output: dist
   buildResources: resources
 
 files:
@@ -32,7 +33,7 @@ extraResources:
     to: "frontend"
     filter:
       - "**/*"
-  - from: "resources/ffmpeg/"
+  - from: "ffmpeg/"
     to: "ffmpeg"
     filter:
       - "**/*"
@@ -51,7 +52,6 @@ mac:
   target:
     - target: dmg
       arch:
-        - x64
         - arm64
   artifactName: "BananaSlides-${version}.${ext}"
 

@@ -4,7 +4,8 @@ import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
-backend_dir = os.path.abspath('.')
+cwd = os.path.abspath('.')
+backend_dir = cwd if os.path.exists(os.path.join(cwd, 'app.py')) else os.path.join(cwd, 'backend')
 project_root = os.path.dirname(backend_dir)
 
 # 手动添加 setuptools/_vendor/jaraco/text/Lorem ipsum.txt
@@ -22,8 +23,8 @@ except Exception:
     pass
 
 datas = [
-    ('fonts', 'fonts'),
-    ('migrations', 'migrations'),
+    (os.path.join(backend_dir, 'fonts'), 'fonts'),
+    (os.path.join(backend_dir, 'migrations'), 'migrations'),
     (os.path.join(project_root, 'assets'), 'assets'),
 ] + _jaraco_datas
 

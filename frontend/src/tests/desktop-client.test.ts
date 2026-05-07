@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 function createMockElectronAPI(overrides = {}) {
   return {
-    getBackendPort: vi.fn().mockResolvedValue(15000),
+    getBackendPort: vi.fn().mockReturnValue(15000),
     getPlatform: vi.fn().mockReturnValue('win32'),
     checkForUpdates: vi.fn().mockResolvedValue(null),
     getAppVersion: vi.fn().mockResolvedValue('0.3.0'),
@@ -43,38 +43,24 @@ describe('API client desktop detection', () => {
     const handlers = interceptors.handlers.filter((h: any) => h !== null);
     const config = { baseURL: undefined, headers: {} } as any;
     const result = await handlers[0].fulfilled(config);
-    expect(result.baseURL).toBe('http://localhost:15000');
+    expect(result.baseURL).toBe('http://127.0.0.1:15000');
   });
 
-  it('waits for the backend port before sending desktop requests', async () => {
-    let resolvePort: (port: number) => void = () => {};
-    const portPromise = new Promise<number>((resolve) => {
-      resolvePort = resolve;
-    });
+  it('uses fallback port when desktop backend port is unavailable', async () => {
     (window as any).electronAPI = createMockElectronAPI({
-      getBackendPort: vi.fn().mockReturnValue(portPromise),
+      getBackendPort: vi.fn().mockReturnValue(undefined),
     });
     const { apiClient } = await import('../api/client');
     const interceptors = apiClient.interceptors.request as any;
     const handlers = interceptors.handlers.filter((h: any) => h !== null);
     const config = { baseURL: undefined, headers: {} } as any;
-    const resultPromise = handlers[0].fulfilled(config);
-    let settled = false;
-    resultPromise.then(() => {
-      settled = true;
-    });
-
-    await Promise.resolve();
-    expect(settled).toBe(false);
-
-    resolvePort(15001);
-    const result = await resultPromise;
-    expect(result.baseURL).toBe('http://localhost:15001');
-    expect((window as any).__BACKEND_PORT__).toBe(15001);
+    const result = await handlers[0].fulfilled(config);
+    expect(result.baseURL).toBe('http://127.0.0.1:5000');
+    expect((window as any).__BACKEND_PORT__).toBe(5000);
   });
 
   it('calls getBackendPort on module load in desktop mode', async () => {
-    const mockGetPort = vi.fn().mockResolvedValue(15000);
+    const mockGetPort = vi.fn().mockReturnValue(15000);
     (window as any).electronAPI = createMockElectronAPI({ getBackendPort: mockGetPort });
     await import('../api/client');
     expect(mockGetPort).toHaveBeenCalled();
@@ -84,6 +70,6 @@ describe('API client desktop detection', () => {
     (window as any).__BACKEND_PORT__ = 15000;
     (window as any).electronAPI = createMockElectronAPI();
     const { getImageUrl } = await import('../api/client');
-    expect(getImageUrl('/uploads/example.png', 123)).toBe('http://localhost:15000/uploads/example.png?v=123');
+    expect(getImageUrl('/uploads/example.png', 123)).toBe('http://127.0.0.1:15000/uploads/example.png?v=123');
   });
 });

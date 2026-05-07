@@ -2,5 +2,6 @@ node_modules/
 dist/
 build/
 frontend/
+ffmpeg/
 *.log
 build-meta.json

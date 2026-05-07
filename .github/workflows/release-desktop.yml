@@ -67,6 +67,14 @@ jobs:
       - name: Install Electron dependencies
         run: cd desktop && npm ci
 
+      - name: Install FFmpeg on macOS
+        if: matrix.os == 'macos-latest'
+        run: brew install ffmpeg
+
+      - name: Install FFmpeg on Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Build desktop app
         run: cd desktop && npm run build:${{ matrix.platform }}
         env:

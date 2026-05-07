@@ -71,3 +71,5 @@ _local_backup/
 !CONTRIBUTING.md
 .venv
 banana_slides.egg-info/
+dist/
+build/
