@@ -11,6 +11,7 @@ Simplified Flask Application Entry Point
 import os
 import hmac
 import logging
+import socket
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import event
@@ -379,6 +380,12 @@ def _compute_worktree_port(base_port: int) -> int:
     return base_port + offset
 
 
+def _reserve_ephemeral_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
 if __name__ == '__main__':
     # Run development server
     if os.getenv("IN_DOCKER", "0") == "1":
@@ -387,6 +394,11 @@ if __name__ == '__main__':
         port = int(os.getenv('BACKEND_PORT'))
     else:
         port = _compute_worktree_port(5000)
+
+    if port == 0:
+        port = _reserve_ephemeral_port()
+        print(f"LISTENING_ON:{port}", flush=True)
+
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
     
     logging.info(
@@ -402,6 +414,6 @@ if __name__ == '__main__':
         f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}\n"
         f"Uploads: {app.config['UPLOAD_FOLDER']}"
     )
-    
+
     # Using absolute paths for database, so WSL path issues should not occur
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

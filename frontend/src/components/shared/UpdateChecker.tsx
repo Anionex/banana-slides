@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { DESKTOP_TITLEBAR_HEIGHT, isDesktop } from '@/utils';
+import { DESKTOP_TITLEBAR_HEIGHT, DESKTOP_UPDATE_BANNER_HEIGHT, isDesktop } from '@/utils';
 
 interface UpdateInfo {
   version: string;
@@ -14,10 +14,15 @@ const updateI18n = {
   en: { newVersion: 'New version', available: 'available', download: 'Download' },
 };
 
-export function UpdateChecker() {
+interface UpdateCheckerProps {
+  onVisibilityChange?: (visible: boolean) => void;
+}
+
+export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const t = useT(updateI18n);
+  const isVisible = isDesktop && !!update && !dismissed;
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -34,7 +39,11 @@ export function UpdateChecker() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!isDesktop || !update || dismissed) return null;
+  useEffect(() => {
+    onVisibilityChange?.(isVisible);
+  }, [isVisible, onVisibilityChange]);
+
+  if (!isVisible || !update || dismissed) return null;
 
   return (
     <div
@@ -43,6 +52,7 @@ export function UpdateChecker() {
         top: DESKTOP_TITLEBAR_HEIGHT,
         background: 'linear-gradient(135deg, #FFF8E1, #FFE082)',
         borderBottom: '1px solid rgba(255, 183, 77, 0.3)',
+        minHeight: DESKTOP_UPDATE_BANNER_HEIGHT,
       }}
     >
       <div className="flex items-center gap-3 text-sm text-amber-900">
@@ -68,4 +78,8 @@ export function UpdateChecker() {
       </div>
     </div>
   );
+}
+
+export function getDesktopTopInset(showingUpdateBanner: boolean): number {
+  return DESKTOP_TITLEBAR_HEIGHT + (showingUpdateBanner ? DESKTOP_UPDATE_BANNER_HEIGHT : 0);
 }

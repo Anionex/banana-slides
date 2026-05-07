@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Landing } from './pages/Landing';
@@ -9,11 +9,13 @@ import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { useProjectStore } from './store/useProjectStore';
 import { useToast, AccessCodeGuard, DesktopTitleBar, UpdateChecker } from './components/shared';
-import { DESKTOP_TITLEBAR_HEIGHT, isDesktop } from '@/utils';
+import { getDesktopTopInset } from './components/shared/UpdateChecker';
+import { isDesktop } from '@/utils';
 
 function App() {
   const { currentProject, syncProject, error, setError } = useProjectStore();
   const { show, ToastContainer } = useToast();
+  const [isUpdateVisible, setIsUpdateVisible] = useState(false);
 
   // 恢复项目状态
   useEffect(() => {
@@ -34,8 +36,8 @@ function App() {
 
   return (
     <>
-      <UpdateChecker />
-      <div style={isDesktop ? { paddingTop: `${DESKTOP_TITLEBAR_HEIGHT}px` } : undefined}>
+      <UpdateChecker onVisibilityChange={setIsUpdateVisible} />
+      <div style={isDesktop ? { paddingTop: `${getDesktopTopInset(isUpdateVisible)}px` } : undefined}>
         <AccessCodeGuard>
           {(() => {
             const Router = isDesktop ? HashRouter : BrowserRouter;

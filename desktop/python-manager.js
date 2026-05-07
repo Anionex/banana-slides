@@ -1,6 +1,5 @@
 const { spawn } = require('child_process');
 const path = require('path');
-const net = require('net');
 const http = require('http');
 const log = require('electron-log');
 
@@ -20,24 +19,6 @@ function getBackendPath() {
   return path.join(resourcesPath, 'backend', exeName);
 }
 
-async function findAvailablePort(startPort) {
-  let port = startPort;
-  while (port <= 65535) {
-    try {
-      return await new Promise((resolve, reject) => {
-        const server = net.createServer();
-        server.listen(port, () => {
-          server.close(() => resolve(port));
-        });
-        server.on('error', reject);
-      });
-    } catch (err) {
-      port++;
-    }
-  }
-  throw new Error('No available port found');
-}
-
 async function startBackend(userDataPath) {
   if (isDev()) {
     backendPort = parseInt(process.env.BACKEND_PORT || '5000', 10);
@@ -46,7 +27,7 @@ async function startBackend(userDataPath) {
   }
 
   const backendPath = getBackendPath();
-  backendPort = await findAvailablePort(15000);
+  backendPort = null;
 
   const dataDir = path.join(userDataPath, 'data');
   const uploadsDir = path.join(userDataPath, 'uploads');
@@ -57,7 +38,7 @@ async function startBackend(userDataPath) {
 
   const env = {
     ...process.env,
-    BACKEND_PORT: String(backendPort),
+    BACKEND_PORT: '0',
     DATABASE_PATH: path.join(dataDir, 'database.db'),
     UPLOAD_FOLDER: uploadsDir,
     EXPORT_FOLDER: exportsDir,
@@ -66,7 +47,7 @@ async function startBackend(userDataPath) {
     FFMPEG_PATH: ffmpegExe,
   };
 
-  log.info(`[python-manager] Starting backend: ${backendPath} on port ${backendPort}`);
+  log.info(`[python-manager] Starting backend: ${backendPath} on an OS-assigned port`);
 
   backendProcess = spawn(backendPath, [], {
     env,
@@ -75,7 +56,22 @@ async function startBackend(userDataPath) {
   });
 
   backendProcess.stdout.on('data', (data) => {
-    log.info(`[backend] ${data.toString().trim()}`);
+    const output = data.toString();
+    for (const line of output.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const match = line.match(/^LISTENING_ON:(\d+)$/);
+      if (match) {
+        backendPort = parseInt(match[1], 10);
+        log.info(`[python-manager] Backend announced port ${backendPort}`);
+        continue;
+      }
+      const werkzeugMatch = line.match(/Running on http:\/\/127\.0\.0\.1:(\d+)/);
+      if (werkzeugMatch) {
+        backendPort = parseInt(werkzeugMatch[1], 10);
+        log.info(`[python-manager] Backend detected on port ${backendPort} from startup logs`);
+      }
+      log.info(`[backend] ${line.trim()}`);
+    }
   });
 
   backendProcess.stderr.on('data', (data) => {
@@ -87,7 +83,34 @@ async function startBackend(userDataPath) {
     backendProcess = null;
   });
 
-  return backendPort;
+  const resolvedPort = await waitForAnnouncedPort();
+  return resolvedPort;
+}
+
+function waitForAnnouncedPort(timeoutMs = 15000) {
+  if (backendPort) {
+    return Promise.resolve(backendPort);
+  }
+
+  const startTime = Date.now();
+  return new Promise((resolve, reject) => {
+    const interval = setInterval(() => {
+      if (backendPort) {
+        clearInterval(interval);
+        resolve(backendPort);
+        return;
+      }
+      if (!backendProcess) {
+        clearInterval(interval);
+        reject(new Error('Backend exited before announcing a port'));
+        return;
+      }
+      if (Date.now() - startTime > timeoutMs) {
+        clearInterval(interval);
+        reject(new Error('Backend did not announce a port in time'));
+      }
+    }, 100);
+  });
 }
 
 function waitForBackend(port, timeoutMs = 30000) {

@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 import sys
+import setuptools
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
@@ -9,9 +10,7 @@ backend_dir = cwd if os.path.exists(os.path.join(cwd, 'app.py')) else os.path.jo
 project_root = os.path.dirname(backend_dir)
 
 # 手动添加 setuptools/_vendor/jaraco/text/Lorem ipsum.txt
-import site
-site_packages = site.getsitepackages()[0]
-jaraco_text_path = os.path.join(site_packages, 'setuptools', '_vendor', 'jaraco', 'text')
+jaraco_text_path = os.path.join(os.path.dirname(setuptools.__file__), '_vendor', 'jaraco', 'text')
 _jaraco_datas = []
 if os.path.exists(jaraco_text_path):
     lorem_file = os.path.join(jaraco_text_path, 'Lorem ipsum.txt')
@@ -19,8 +18,8 @@ if os.path.exists(jaraco_text_path):
         _jaraco_datas.append((lorem_file, 'setuptools/_vendor/jaraco/text'))
 try:
     _jaraco_datas += collect_data_files('setuptools._vendor.jaraco.text', include_py_files=False)
-except Exception:
-    pass
+except Exception as e:
+    print(f"WARNING: Could not collect jaraco.text data files: {e}")
 
 datas = [
     (os.path.join(backend_dir, 'fonts'), 'fonts'),

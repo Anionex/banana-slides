@@ -9,6 +9,11 @@ let splashWindow = null;
 let trayMenuWindow = null;
 let tray = null;
 let isQuitting = false;
+let trayMenuActionHandlerRegistered = false;
+
+function getTrayMenuPreloadPath() {
+  return path.join(__dirname, 'tray-menu-preload.js');
+}
 
 function isDev() {
   return process.env.NODE_ENV === 'development';
@@ -57,8 +62,8 @@ function createMainWindow() {
     icon: getIconPath(),
     ...(isMac
       ? {
-          titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 14, y: 13 },
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 16, y: 16 },
           backgroundColor: '#ffffff',
         }
       : {
@@ -127,7 +132,11 @@ function createTrayMenuWindow() {
     movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    webPreferences: { nodeIntegration: true, contextIsolation: false },
+    webPreferences: {
+      preload: getTrayMenuPreloadPath(),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   });
 
   const itemsHtml = items.map(it => {
@@ -143,9 +152,9 @@ function createTrayMenuWindow() {
   </style></head><body>${itemsHtml}
   <script>
     document.querySelectorAll('.item').forEach(el=>{
-      el.addEventListener('click',()=>require('electron').ipcRenderer.send('tray-menu-action',el.dataset.id));
+      el.addEventListener('click',()=>window.trayMenuAPI.sendAction(el.dataset.id));
     });
-    window.addEventListener('blur',()=>require('electron').ipcRenderer.send('tray-menu-close'));
+    window.addEventListener('blur',()=>window.trayMenuAPI.closeMenu());
   </script></body></html>`));
 
   trayMenuWindow.on('blur', () => trayMenuWindow?.hide());
@@ -171,12 +180,15 @@ function createTray() {
   tray.on('right-click', () => showTrayMenu());
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
 
-  ipcMain.on('tray-menu-action', (_, id) => {
-    trayMenuWindow?.hide();
-    if (id === 'show') { mainWindow?.show(); mainWindow?.focus(); }
-    else if (id === 'quit') { isQuitting = true; app.quit(); }
-  });
-  ipcMain.on('tray-menu-close', () => trayMenuWindow?.hide());
+  if (!trayMenuActionHandlerRegistered) {
+    ipcMain.on('tray-menu-action', (_, id) => {
+      trayMenuWindow?.hide();
+      if (id === 'show') { mainWindow?.show(); mainWindow?.focus(); }
+      else if (id === 'quit') { isQuitting = true; app.quit(); }
+    });
+    ipcMain.on('tray-menu-close', () => trayMenuWindow?.hide());
+    trayMenuActionHandlerRegistered = true;
+  }
 }
 
 function createAppMenu() {

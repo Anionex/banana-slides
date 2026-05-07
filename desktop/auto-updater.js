@@ -78,32 +78,28 @@ function extractReleaseTimestamp(commitData, releaseData) {
   return null;
 }
 
-function checkForUpdates() {
-  return new Promise(async (resolve) => {
-    const release = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
-    if (!release?.tag_name) {
-      resolve(null);
-      return;
-    }
+async function checkForUpdates() {
+  const release = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
+  if (!release?.tag_name) {
+    return null;
+  }
 
-    const currentVersion = app.getVersion();
-    const latestVersion = release.tag_name.replace(/^v/, '');
-    const buildMeta = readBuildMeta();
-    const currentBuildTimestamp = resolveCurrentBuildTimestamp(buildMeta);
-    const releaseCommit = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/commits/${encodeURIComponent(release.tag_name)}`);
-    const latestReleaseTimestamp = extractReleaseTimestamp(releaseCommit, release);
+  const currentVersion = app.getVersion();
+  const latestVersion = release.tag_name.replace(/^v/, '');
+  const buildMeta = readBuildMeta();
+  const currentBuildTimestamp = resolveCurrentBuildTimestamp(buildMeta);
+  const releaseCommit = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/commits/${encodeURIComponent(release.tag_name)}`);
+  const latestReleaseTimestamp = extractReleaseTimestamp(releaseCommit, release);
 
-    if (shouldNotifyUpdate({ currentVersion, latestVersion, currentBuildTimestamp, latestReleaseTimestamp })) {
-      resolve({
-        version: latestVersion,
-        notes: release.body || '',
-        url: release.html_url,
-      });
-      return;
-    }
+  if (shouldNotifyUpdate({ currentVersion, latestVersion, currentBuildTimestamp, latestReleaseTimestamp })) {
+    return {
+      version: latestVersion,
+      notes: release.body || '',
+      url: release.html_url,
+    };
+  }
 
-    resolve(null);
-  });
+  return null;
 }
 
 module.exports = {

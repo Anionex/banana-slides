@@ -10,6 +10,7 @@ files:
   - "main.js"
   - "python-manager.js"
   - "preload.js"
+  - "tray-menu-preload.js"
   - "auto-updater.js"
   - "update-policy.js"
   - "build-meta.json"

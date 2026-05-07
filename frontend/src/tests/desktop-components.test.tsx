@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 const mockElectronAPI = {
   getPlatform: vi.fn().mockReturnValue('win32'),
   checkForUpdates: vi.fn().mockResolvedValue(null),
-  getBackendPort: vi.fn().mockResolvedValue(15000),
+  getBackendPort: vi.fn().mockReturnValue(15000),
   getAppVersion: vi.fn().mockResolvedValue('0.3.0'),
   openExternal: vi.fn().mockResolvedValue(undefined),
   minimizeWindow: vi.fn(),
@@ -82,7 +82,15 @@ describe('DesktopTitleBar', () => {
     const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
     render(<DesktopTitleBar />, { wrapper: Wrapper });
     await act(() => vi.runAllTimers());
-    expect(document.getElementById('desktop-titlebar')).toHaveStyle({ paddingLeft: '82px' });
+    expect(document.getElementById('desktop-titlebar')).toHaveStyle({ paddingLeft: '92px' });
+  });
+
+  it('uses the shared desktop title bar height constant', async () => {
+    mockElectronAPI.getPlatform.mockReturnValue('darwin');
+    const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
+    render(<DesktopTitleBar />, { wrapper: Wrapper });
+    await act(() => vi.runAllTimers());
+    expect(document.getElementById('desktop-titlebar')).toHaveStyle({ height: '50px' });
   });
 
   it('calls getPlatform on mount', async () => {
@@ -131,6 +139,19 @@ describe('UpdateChecker', () => {
     await act(async () => { vi.advanceTimersByTime(6000); });
     expect(screen.getByText(/v1.0.0/)).toBeInTheDocument();
     expect(screen.getByText('Download')).toBeInTheDocument();
+  });
+
+  it('reports its visibility so the app can increase top padding', async () => {
+    const onVisibilityChange = vi.fn();
+    mockElectronAPI.checkForUpdates.mockResolvedValue({
+      version: '1.0.0',
+      notes: 'New features',
+      url: 'https://github.com/Anionex/banana-slides/releases/tag/v1.0.0',
+    });
+    const { UpdateChecker } = await import('../components/shared/UpdateChecker');
+    render(<UpdateChecker onVisibilityChange={onVisibilityChange} />);
+    await act(async () => { vi.advanceTimersByTime(6000); });
+    expect(onVisibilityChange).toHaveBeenCalledWith(true);
   });
 
   it('opens external URL when download button clicked', async () => {
