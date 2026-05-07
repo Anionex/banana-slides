@@ -15,6 +15,7 @@ files:
   - "build-meta.json"
   - "splash.html"
   - "logo.png"
+  - "resources/icon.icns"
   - "resources/icon.ico"
   - "resources/icon.png"
   - "package.json"
@@ -49,6 +50,7 @@ win:
   artifactName: "BananaSlides-${version}-Setup.${ext}"
 
 mac:
+  icon: resources/icon.icns
   target:
     - target: dmg
       arch:

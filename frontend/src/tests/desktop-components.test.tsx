@@ -77,6 +77,14 @@ describe('DesktopTitleBar', () => {
     expect(screen.queryByTitle('关闭')).not.toBeInTheDocument();
   });
 
+  it('reserves leading space for native macOS traffic lights', async () => {
+    mockElectronAPI.getPlatform.mockReturnValue('darwin');
+    const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
+    render(<DesktopTitleBar />, { wrapper: Wrapper });
+    await act(() => vi.runAllTimers());
+    expect(document.getElementById('desktop-titlebar')).toHaveStyle({ paddingLeft: '82px' });
+  });
+
   it('calls getPlatform on mount', async () => {
     const { DesktopTitleBar } = await import('../components/shared/DesktopTitleBar');
     render(<DesktopTitleBar />, { wrapper: Wrapper });

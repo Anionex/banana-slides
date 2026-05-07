@@ -57,6 +57,7 @@ export function DesktopTitleBar() {
   if (!isDesktop) return null;
 
   const isMac = platform === 'darwin';
+  const macLeadingSpace = 82;
 
   const handleMinimize = () => (window as any).electronAPI.minimizeWindow();
   const handleMaximize = () => (window as any).electronAPI.maximizeWindow();
@@ -94,10 +95,9 @@ export function DesktopTitleBar() {
         WebkitAppRegion: 'drag' as any,
         backgroundColor: '#ffffff',
         borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+        paddingLeft: isMac ? macLeadingSpace : 0,
       }}
     >
-      {isMac && <div style={{ width: 78, flexShrink: 0 }} />}
-
       {/* Logo */}
       <div
         style={{
@@ -105,10 +105,12 @@ export function DesktopTitleBar() {
           alignItems: 'center',
           gap: 8,
           flexShrink: 0,
-          paddingLeft: isMac ? 0 : 14,
+          paddingLeft: isMac ? 4 : 14,
+          height: '100%',
+          transform: isMac ? 'translateY(1px)' : undefined,
         }}
       >
-        <img src={logoUrl} alt="" style={{ width: 18, height: 'auto' }} />
+        <img src={logoUrl} alt="" style={{ width: 18, height: 18, display: 'block' }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: '0.2px' }}>
           Banana Slides
         </span>
@@ -237,7 +239,6 @@ export function DesktopTitleBar() {
         </div>
       )}
 
-      {isMac && <div style={{ width: 12, flexShrink: 0 }} />}
     </div>
   );
 }

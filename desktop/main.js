@@ -47,20 +47,33 @@ function createSplashWindow() {
 }
 
 function createMainWindow() {
+  const isMac = process.platform === 'darwin';
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 750,
     minWidth: 680,
     minHeight: 480,
     show: false,
-    frame: false,
     icon: getIconPath(),
+    ...(isMac
+      ? {
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 14, y: 13 },
+          backgroundColor: '#ffffff',
+        }
+      : {
+          frame: false,
+        }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  if (isMac) {
+    app.dock.setIcon(getIconPath());
+  }
 
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
