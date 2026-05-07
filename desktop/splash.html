@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banana Slides</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 480px; height: 360px; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(150deg, #ffffff 0%, #fdfdf8 50%, #fafaf0 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    user-select: none; -webkit-app-region: drag;
+    position: relative;
+  }
+  .logo-area {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 14px;
+  }
+  .logo-img {
+    width: 92px; height: auto;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.08));
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  .app-name {
+    font-size: 24px; font-weight: 700;
+    color: #292524; letter-spacing: 0.4px;
+  }
+  .tagline {
+    font-size: 13px; color: #78716c;
+    font-weight: 500; letter-spacing: 0.2px;
+  }
+  .progress-area {
+    position: absolute; bottom: 44px;
+    width: 160px; text-align: center;
+  }
+  .progress-bar {
+    width: 100%; height: 2px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 1px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 30%;
+    background: linear-gradient(90deg, #e8d88a, #c8b84a);
+    border-radius: 1px;
+    animation: progress 2.4s ease-in-out infinite;
+  }
+  @keyframes progress {
+    0% { width: 8%; margin-left: 0; opacity: 0.4; }
+    50% { width: 35%; margin-left: 32%; opacity: 1; }
+    100% { width: 8%; margin-left: 92%; opacity: 0.4; }
+  }
+  .status-text {
+    margin-top: 10px; font-size: 11px;
+    color: #a8a29e; letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <div class="logo-area">
+    <img class="logo-img" src="logo.png" alt="Banana Slides" onerror="this.outerHTML='<div style=&quot;font-size:52px&quot;>🍌</div>'" />
+    <div class="app-name">Banana Slides</div>
+    <div class="tagline">AI-native presentation studio</div>
+  </div>
+  <div class="progress-area">
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="status-text" id="status">正在启动...</div>
+  </div>
+</body>
+</html>

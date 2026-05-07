@@ -1,0 +1,85 @@
+appId: com.banana.slides
+productName: Banana Slides
+electronDist: node_modules/electron/dist
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - "main.js"
+  - "python-manager.js"
+  - "preload.js"
+  - "tray-menu-preload.js"
+  - "auto-updater.js"
+  - "update-policy.js"
+  - "build-meta.json"
+  - "splash.html"
+  - "logo.png"
+  - "resources/icon.icns"
+  - "resources/icon.ico"
+  - "resources/icon.png"
+  - "package.json"
+  - "node_modules/**/*"
+
+extraResources:
+  - from: "resources/icon.ico"
+    to: "icon.ico"
+  - from: "resources/icon.png"
+    to: "icon.png"
+  - from: "backend/"
+    to: "backend"
+    filter:
+      - "**/*"
+  - from: "frontend/"
+    to: "frontend"
+    filter:
+      - "**/*"
+  - from: "ffmpeg/"
+    to: "ffmpeg"
+    filter:
+      - "**/*"
+
+icon: resources/icon
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "BananaSlides-${version}-Setup.${ext}"
+
+mac:
+  icon: resources/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: "BananaSlides-${version}.${ext}"
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: resources/icon.png
+  category: Office
+  artifactName: "BananaSlides-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Banana Slides"
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerSidebar: resources/installerSidebar.bmp
+  installerHeader: resources/installerHeader.bmp
+
+compression: normal

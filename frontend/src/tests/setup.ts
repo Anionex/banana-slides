@@ -45,6 +45,18 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 // Mock scrollTo
 window.scrollTo = vi.fn()
 
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(() => null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+}
+
+Object.defineProperty(window, 'localStorage', {
+  writable: true,
+  value: localStorageMock,
+})
+
 // Mock fetch (可以在具体测试中覆盖)
 global.fetch = vi.fn()
-

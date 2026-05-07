@@ -33,7 +33,8 @@ def app():
     temp_db = os.path.join(temp_dir, 'test.db')
     
     # 设置测试数据库路径
-    os.environ['DATABASE_URL'] = f'sqlite:///{temp_db}'
+    os.environ['DATABASE_PATH'] = temp_db
+    os.environ.pop('ACCESS_CODE', None)
     
     # 现在导入app
     from app import create_app

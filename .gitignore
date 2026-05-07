@@ -13,6 +13,13 @@
 *.avif
 
 !frontend/public/**/*.png
+!frontend/src/assets/**/*.png
+!desktop/logo.png
+!desktop/resources/icon.png
+!desktop/resources/icon.ico
+!desktop/resources/installer-icon.ico
+!desktop/resources/installerSidebar.bmp
+!desktop/resources/installerHeader.bmp
 !frontend/public/**/*.jpg
 !frontend/public/**/*.jpeg
 !frontend/public/**/*.gif
@@ -40,6 +47,7 @@
 !docs/specs/cli-spec.md
 !docs/superpowers/specs/*.md
 !docs/superpowers/plans/*.md
+!docs/desktop-handover.md
 !.github/**/*.md
 *.pyc
 .env
@@ -62,6 +70,9 @@ _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
 .venv
+banana_slides.egg-info/
+dist/
+build/
 
 # 本地 ML 模型（RMBG 等）
 /models/
