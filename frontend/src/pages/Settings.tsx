@@ -58,6 +58,11 @@ const settingsI18n = {
         textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
         imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --",
         imageCaptionModelSource: "图片识别模型提供商格式", imageCaptionModelSourceDesc: "选择图片识别使用的提供商格式", imageCaptionModelSourcePlaceholder: "-- 请选择 --",
+        imageApiProtocol: "图片 API 协议",
+        imageApiProtocolDesc: "当图片模型走 OpenAI 兼容接口时，选择使用哪条 API 路径。自动检测会按模型名判断，也可手动强制指定",
+        imageApiProtocolAuto: "自动检测",
+        imageApiProtocolImages: "images.generate",
+        imageApiProtocolChat: "chat.completions",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "输入 {{vendor}} API Key",
         vendorApiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
         vendorApiKeySet: "已设置（长度: {{length}}）",
@@ -190,6 +195,11 @@ const settingsI18n = {
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
         imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --",
         imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
+        imageApiProtocol: "Image API Protocol",
+        imageApiProtocolDesc: "When the image model uses an OpenAI-compatible provider, choose which API path to use. Auto detect decides by model name, or you can force one.",
+        imageApiProtocolAuto: "Auto detect",
+        imageApiProtocolImages: "images.generate",
+        imageApiProtocolChat: "chat.completions",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "Enter {{vendor}} API Key",
         vendorApiKeyDesc: "Leave empty to keep current setting, enter new value to update",
         vendorApiKeySet: "Set (length: {{length}})",
@@ -390,6 +400,7 @@ const buildInitialFormData = (mode: 'global' | 'private' = 'global') => ({
   image_api_base_url: '',
   image_caption_api_key: '',
   image_caption_api_base_url: '',
+  openai_image_api_protocol: 'auto',
   jwt_secret_key: '',
   admin_init_phone: '',
   admin_init_username: '',
@@ -494,6 +505,7 @@ const formDataFromSettings = (
   image_api_base_url: data.image_api_base_url || '',
   image_caption_api_key: '',
   image_caption_api_base_url: data.image_caption_api_base_url || '',
+  openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
   jwt_secret_key: '',
   admin_init_phone: data.admin_init_phone || '',
   admin_init_username: data.admin_init_username || '',
@@ -906,6 +918,7 @@ export const Settings: React.FC<SettingsProps> = ({
       if (text_api_key) payload.text_api_key = text_api_key;
       if (image_api_key) payload.image_api_key = image_api_key;
       if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
+      payload.openai_image_api_protocol = formData.openai_image_api_protocol || 'auto';
       if (jwt_secret_key) payload.jwt_secret_key = jwt_secret_key;
       if (admin_init_password) payload.admin_init_password = admin_init_password;
       if (sms_access_key_secret) payload.sms_access_key_secret = sms_access_key_secret;
@@ -1022,6 +1035,7 @@ export const Settings: React.FC<SettingsProps> = ({
       if (formData.image_api_base_url) testSettings.image_api_base_url = formData.image_api_base_url;
       if (formData.image_caption_api_key) testSettings.image_caption_api_key = formData.image_caption_api_key;
       if (formData.image_caption_api_base_url) testSettings.image_caption_api_base_url = formData.image_caption_api_base_url;
+      testSettings.openai_image_api_protocol = formData.openai_image_api_protocol || 'auto';
 
       // 推理模式设置
       if (formData.enable_text_reasoning !== undefined) {
@@ -1269,6 +1283,11 @@ export const Settings: React.FC<SettingsProps> = ({
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
+    const usesOpenAIForImageModel =
+      item.modelKey === 'image_model' && (
+        sourceValue === 'openai'
+        || (!sourceValue && formData.ai_provider_format === 'openai')
+      );
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
 
@@ -1364,6 +1383,26 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
           );
         })()}
+
+        {usesOpenAIForImageModel && (
+          <div className="pl-3 border-l-2 border-sky-300 dark:border-sky-600">
+            <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
+              {t('settings.fields.imageApiProtocol')}
+            </label>
+            <select
+              value={formData.openai_image_api_protocol}
+              onChange={(e) => handleFieldChange('openai_image_api_protocol', e.target.value)}
+              className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
+            >
+              <option value="auto">{t('settings.fields.imageApiProtocolAuto')}</option>
+              <option value="images">{t('settings.fields.imageApiProtocolImages')}</option>
+              <option value="chat">{t('settings.fields.imageApiProtocolChat')}</option>
+            </select>
+            <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
+              {t('settings.fields.imageApiProtocolDesc')}
+            </p>
+          </div>
+        )}
       </div>
     );
   };

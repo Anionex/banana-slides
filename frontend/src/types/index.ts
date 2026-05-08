@@ -166,6 +166,7 @@ export interface Settings {
   image_api_base_url?: string;
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
+  openai_image_api_protocol?: string;
   jwt_secret_key_length: number;
   jwt_secret_key_masked?: string;
   admin_init_phone?: string;

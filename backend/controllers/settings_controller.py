@@ -241,6 +241,10 @@ def temporary_settings_override(settings_override: dict):
             original_values["IMAGE_THINKING_BUDGET"] = current_app.config.get("IMAGE_THINKING_BUDGET")
             current_app.config["IMAGE_THINKING_BUDGET"] = settings_override["image_thinking_budget"]
 
+        if "openai_image_api_protocol" in settings_override:
+            original_values["OPENAI_IMAGE_API_PROTOCOL"] = current_app.config.get("OPENAI_IMAGE_API_PROTOCOL")
+            current_app.config["OPENAI_IMAGE_API_PROTOCOL"] = settings_override["openai_image_api_protocol"]
+
         yield
 
     finally:
@@ -391,6 +395,14 @@ def _apply_settings_updates(settings: Settings, data: dict):
     if "image_model_source" in data:
         settings.image_model_source = (data["image_model_source"] or "").strip() or None
 
+    if "openai_image_api_protocol" in data:
+        protocol = data["openai_image_api_protocol"]
+        if protocol not in ("auto", "images", "chat"):
+            raise SettingsValidationError(
+                "openai_image_api_protocol must be 'auto', 'images', or 'chat'"
+            )
+        settings.openai_image_api_protocol = protocol if protocol != "auto" else None
+
     if "image_caption_model_source" in data:
         settings.image_caption_model_source = (data["image_caption_model_source"] or "").strip() or None
 
@@ -494,6 +506,7 @@ def _reset_settings_values(settings: Settings):
     settings.text_model_source = None
     settings.image_model_source = None
     settings.image_caption_model_source = None
+    settings.openai_image_api_protocol = None
     settings.lazyllm_api_keys = None
     for model_type in ("text", "image", "image_caption"):
         setattr(settings, f"{model_type}_api_key", None)
@@ -565,6 +578,11 @@ def _build_test_settings_payload(base_settings: Settings) -> dict:
     test_settings["text_thinking_budget"] = base_settings.text_thinking_budget
     test_settings["enable_image_reasoning"] = base_settings.enable_image_reasoning
     test_settings["image_thinking_budget"] = base_settings.image_thinking_budget
+    test_settings["openai_image_api_protocol"] = (
+        base_settings.openai_image_api_protocol
+        or current_app.config.get("OPENAI_IMAGE_API_PROTOCOL")
+        or "auto"
+    )
     return test_settings
 
 
@@ -939,6 +957,17 @@ def _sync_settings_to_config(settings: Settings):
                 if config_key in current_app.config:
                     ai_config_changed = True
                 current_app.config.pop(config_key, None)
+
+    protocol_key = "OPENAI_IMAGE_API_PROTOCOL"
+    protocol_value = settings.openai_image_api_protocol
+    if protocol_value:
+        if current_app.config.get(protocol_key) != protocol_value:
+            ai_config_changed = True
+        current_app.config[protocol_key] = protocol_value
+    else:
+        if protocol_key in current_app.config:
+            ai_config_changed = True
+        current_app.config.pop(protocol_key, None)
 
     # Sync LazyLLM vendor API keys to environment variables
     # (lazyllm_env.py reads from os.environ via {SOURCE}_API_KEY)

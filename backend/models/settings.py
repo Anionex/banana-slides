@@ -42,6 +42,7 @@ class Settings(db.Model):
         'image_api_base_url',
         'image_caption_api_key',
         'image_caption_api_base_url',
+        'openai_image_api_protocol',
         'jwt_secret_key',
         'admin_init_phone',
         'admin_init_username',
@@ -116,6 +117,7 @@ class Settings(db.Model):
     image_api_base_url = db.Column(db.String(500), nullable=True)
     image_caption_api_key = db.Column(db.String(500), nullable=True)
     image_caption_api_base_url = db.Column(db.String(500), nullable=True)
+    openai_image_api_protocol = db.Column(db.String(10), nullable=True)
 
     # 用户系统配置
     jwt_secret_key = db.Column(db.String(500), nullable=True)
@@ -288,6 +290,11 @@ class Settings(db.Model):
                 if include_defaults
                 else self.image_caption_api_base_url
             ),
+            'openai_image_api_protocol': (
+                (self._val('openai_image_api_protocol', d) or 'auto')
+                if include_defaults
+                else (self.openai_image_api_protocol or 'auto')
+            ),
             'jwt_secret_key_length': len(jwt_secret_key) if jwt_secret_key else 0,
             'jwt_secret_key_masked': self._mask_secret(jwt_secret_key),
             'admin_init_phone': self._val('admin_init_phone', d) if include_defaults else self.admin_init_phone,
@@ -424,6 +431,7 @@ class Settings(db.Model):
             'IMAGE_API_BASE': self.image_api_base_url,
             'IMAGE_CAPTION_API_KEY': _secret('image_caption_api_key'),
             'IMAGE_CAPTION_API_BASE': self.image_caption_api_base_url,
+            'OPENAI_IMAGE_API_PROTOCOL': _general('openai_image_api_protocol'),
             'LAZYLLM_API_KEYS': lazyllm_keys,
             'LAZYLLM_NAMESPACE': namespace,
         }
@@ -490,6 +498,7 @@ class Settings(db.Model):
             'text_model_source': getattr(Config, 'TEXT_MODEL_SOURCE', None),
             'image_model_source': getattr(Config, 'IMAGE_MODEL_SOURCE', None),
             'image_caption_model_source': getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
+            'openai_image_api_protocol': _env('OPENAI_IMAGE_API_PROTOCOL'),
             'lazyllm_api_keys': collect_env_lazyllm_api_keys(),
             'jwt_secret_key': _env('JWT_SECRET_KEY'),
             'admin_init_phone': _env('ADMIN_INIT_PHONE'),
