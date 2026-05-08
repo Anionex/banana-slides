@@ -255,4 +255,31 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
   return url;
 };
 
+export const getProtectedDownloadUrl = (path?: string): string => {
+  if (!path) return '';
+
+  const accessToken = getPreferredAccessToken(path);
+
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    try {
+      const absoluteUrl = new URL(path);
+      if (absoluteUrl.pathname.startsWith('/files/') && accessToken && !absoluteUrl.searchParams.get('access_token')) {
+        absoluteUrl.searchParams.set('access_token', accessToken);
+      }
+      return absoluteUrl.toString();
+    } catch {
+      return path;
+    }
+  }
+
+  let url = path.startsWith('/') ? path : `/${path}`;
+
+  if (url.startsWith('/files/') && accessToken) {
+    const separator = url.includes('?') ? '&' : '?';
+    url += `${separator}access_token=${encodeURIComponent(accessToken)}`;
+  }
+
+  return url;
+};
+
 export default apiClient;

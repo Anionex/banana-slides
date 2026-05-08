@@ -173,6 +173,7 @@ import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
+import { getProtectedDownloadUrl } from '@/api/client';
 import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
@@ -298,6 +299,7 @@ export const SlidePreview: React.FC = () => {
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const routeProjectMismatch = !!projectId && !!currentProject && currentProject.id !== projectId;
 
   useEffect(() => {
     exportTasks
@@ -345,6 +347,16 @@ export const SlidePreview: React.FC = () => {
     };
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
+
+  useEffect(() => {
+    if (!projectId || routeProjectMismatch) return;
+    if (currentProject === null) {
+      const savedProjectId = localStorage.getItem('currentProjectId');
+      if (!savedProjectId || savedProjectId !== projectId) {
+        navigate('/history', { replace: true });
+      }
+    }
+  }, [currentProject, navigate, projectId, routeProjectMismatch]);
 
   // 监听警告消息
   const lastWarningRef = React.useRef<string | null>(null);
@@ -987,7 +999,11 @@ export const SlidePreview: React.FC = () => {
 
   const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx' | 'images') => {
     setShowExportMenu(false);
-    if (!projectId) return;
+    if (!projectId || !currentProject || currentProject.id !== projectId) {
+      show({ message: t('store.projectNotFound'), type: 'error' });
+      navigate('/history');
+      return;
+    }
 
     const pageIds = getSelectedPageIdsForExport();
     const exportTaskId = `export-${Date.now()}`;
@@ -1008,7 +1024,7 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          window.open(getProtectedDownloadUrl(downloadUrl), '_blank');
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling
@@ -1206,7 +1222,7 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  if (!currentProject) {
+  if (!currentProject || routeProjectMismatch) {
     return <Loading fullscreen message={t('preview.messages.loadingProject')} />;
   }
 

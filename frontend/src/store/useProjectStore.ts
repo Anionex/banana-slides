@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
+import { getProtectedDownloadUrl } from '@/api/client';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
 import { devLog } from '@/utils/logger';
 import { getT } from '@/utils/i18nHelper';
@@ -522,7 +523,7 @@ const debouncedUpdatePage = debounce(
               const downloadUrl = progress?.download_url;
               if (downloadUrl) {
                 devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
-                setTimeout(() => { window.open(downloadUrl, '_blank'); }, 500);
+                setTimeout(() => { window.open(getProtectedDownloadUrl(downloadUrl), '_blank'); }, 500);
               } else {
                 console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
               }
@@ -1225,7 +1226,7 @@ const debouncedUpdatePage = debounce(
       }
 
       // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      window.open(getProtectedDownloadUrl(downloadUrl), '_blank');
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1250,7 +1251,7 @@ const debouncedUpdatePage = debounce(
       }
 
       // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      window.open(downloadUrl, '_blank');
+      window.open(getProtectedDownloadUrl(downloadUrl), '_blank');
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
