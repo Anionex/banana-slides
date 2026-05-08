@@ -300,8 +300,11 @@ export function UserProfile() {
     }
   };
 
-  const createRechargeOrder = async (packageId = selectedPackageId) => {
-    const targetPackageId = packageId || selectedPackageId;
+  const createRechargeOrder = async (packageId?: string) => {
+    const targetPackageId =
+      typeof packageId === 'string' && packageId.trim()
+        ? packageId.trim()
+        : selectedPackageId;
     if (!targetPackageId) return;
     setSelectedPackageId(targetPackageId);
     setRechargeOpen(true);
@@ -780,7 +783,7 @@ export function UserProfile() {
 
                 {!rechargeOrder ? (
                   <button
-                    onClick={createRechargeOrder}
+                    onClick={() => createRechargeOrder()}
                     disabled={!selectedPackage || !wechatConfigured || creatingOrder}
                     className="w-full py-3 rounded-xl text-sm font-medium bg-[var(--banana-yellow)] text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
