@@ -59,6 +59,7 @@ uploads/
 _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
+!CHANGELOG.md
 .venv
 
 # Tencent Cloud deployment config (lives only in deploy/tencent branch)
