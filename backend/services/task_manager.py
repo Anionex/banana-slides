@@ -43,6 +43,11 @@ from services.pdf_service import split_pdf_to_pages
 logger = logging.getLogger(__name__)
 
 
+def _format_task_error(error: Exception) -> str:
+    """Preserve actionable upstream failures instead of replacing them with generic text."""
+    return str(error).strip() or error.__class__.__name__
+
+
 def _looks_like_pdf(path: Path) -> bool:
     """Best-effort PDF signature check for legacy renovation uploads."""
     try:
@@ -502,7 +507,14 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             task = Task.query.get(task_id)
             if task:
                 task.status = 'FAILED'
-                task.error_message = str(e)
+                formatted_error = _format_task_error(e)
+                task.error_message = formatted_error
+                task.set_progress({
+                    "total": 1,
+                    "completed": 0,
+                    "failed": 1,
+                    "error_message": formatted_error,
+                })
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
 
@@ -565,6 +577,7 @@ def generate_images_task(task_id: str, project_id: str, file_service,
             # Generate images in parallel
             completed = 0
             failed = 0
+            first_error = None
             resolution_mismatched = 0  # Count of resolution mismatches
             
             def generate_single_image(page_id, page_data, page_index):
@@ -671,7 +684,7 @@ def generate_images_task(task_id: str, project_id: str, file_service,
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e), None)
+                        return (page_id, None, _format_task_error(e), None)
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
@@ -699,6 +712,8 @@ def generate_images_task(task_id: str, project_id: str, file_service,
                         if error:
                             page.status = 'FAILED'
                             failed += 1
+                            if first_error is None:
+                                first_error = error
                             db.session.commit()
                         else:
                             # 图片已在子线程中保存并创建版本记录，这里只需要更新计数
@@ -712,6 +727,8 @@ def generate_images_task(task_id: str, project_id: str, file_service,
                         progress = task.get_progress()
                         progress['completed'] = completed
                         progress['failed'] = failed
+                        if first_error:
+                            progress['error_message'] = first_error
                         # 第一次检测到不匹配时设置警告
                         if resolution_mismatched > 0 and 'warning_message' not in progress:
                             progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
@@ -722,12 +739,14 @@ def generate_images_task(task_id: str, project_id: str, file_service,
             # Mark task as completed
             task = Task.query.get(task_id)
             if task:
-                task.status = 'COMPLETED'
+                task.status = 'FAILED' if failed > 0 and completed == 0 else 'COMPLETED'
                 task.completed_at = datetime.utcnow()
+                if failed > 0:
+                    task.error_message = first_error or f"{failed} image(s) failed to generate"
                 if resolution_mismatched > 0:
                     logger.warning(f"Task {task_id} has {resolution_mismatched} resolution mismatches")
                 db.session.commit()
-                logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
+                logger.info(f"Task {task_id} {task.status} - {completed} images generated, {failed} failed")
             
             # Update project status
             from models import Project
@@ -742,7 +761,14 @@ def generate_images_task(task_id: str, project_id: str, file_service,
             task = Task.query.get(task_id)
             if task:
                 task.status = 'FAILED'
-                task.error_message = str(e)
+                formatted_error = _format_task_error(e)
+                task.error_message = formatted_error
+                task.set_progress({
+                    "total": 1,
+                    "completed": 0,
+                    "failed": 1,
+                    "error_message": formatted_error,
+                })
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
 
@@ -843,19 +869,22 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             )
             
             # Generate image
-            logger.info(f"🎨 Generating image for page {page_id}...")
+            logger.info(f"[single-image] Task {task_id} calling AI service for page {page_id}")
             image = ai_service.generate_image(
                 prompt, ref_image_path, aspect_ratio, resolution,
                 additional_ref_images=additional_ref_images if additional_ref_images else None
             )
+            logger.info(f"[single-image] Task {task_id} AI service returned for page {page_id}")
             
             if not image:
                 raise ValueError("Failed to generate image")
             
+            logger.info(f"[single-image] Task {task_id} saving image for page {page_id}")
             # 保存图片并创建历史版本记录
             image_path, next_version = save_image_with_version(
                 image, project_id, page_id, file_service, page_obj=page
             )
+            logger.info(f"[single-image] Task {task_id} saved image for page {page_id} as version {next_version}")
             
             # Mark task as completed
             task.status = 'COMPLETED'
@@ -863,8 +892,11 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             task.set_progress({
                 "total": 1,
                 "completed": 1,
-                "failed": 0
+                "failed": 0,
+                "page_id": page_id,
+                "image_path": image_path,
             })
+            logger.info(f"[single-image] Task {task_id} committing COMPLETED state for page {page_id}")
             db.session.commit()
             
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
@@ -877,9 +909,17 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
+                formatted_error = _format_task_error(e)
                 task.status = 'FAILED'
-                task.error_message = str(e)
+                task.error_message = formatted_error
                 task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": 1,
+                    "completed": 0,
+                    "failed": 1,
+                    "page_id": page_id,
+                    "error_message": formatted_error,
+                })
                 db.session.commit()
             
             # Update page status

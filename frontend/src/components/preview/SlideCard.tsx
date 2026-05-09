@@ -1,8 +1,8 @@
 import React from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import { useProtectedImageUrl } from '@/hooks/useProtectedImageUrl';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
-import { getImageUrl } from '@/api/client';
 import type { Page } from '@/types';
 
 // SlideCard 组件自包含翻译
@@ -50,11 +50,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({
 }) => {
   const t = useT(slideCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
-  const imageUrl = page.generated_image_path
-    ? getImageUrl(page.generated_image_path, page.updated_at)
-    : '';
+  const imageUrl = useProtectedImageUrl(page.generated_image_path, page.updated_at);
   
-  const generating = isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
+  const hasImage = !!page.generated_image_path;
+  const generating = !hasImage && (isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING');
 
   return (
     <div
@@ -65,9 +64,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
     >
       {/* 缩略图 */}
       <div className="relative bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden mb-2" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
-        {generating ? (
-          <Skeleton className="w-full h-full" />
-        ) : page.generated_image_path ? (
+        {hasImage ? (
           <>
             <img
               src={imageUrl}
@@ -100,6 +97,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({
               </button>
             </div>
           </>
+        ) : generating ? (
+          <Skeleton className="w-full h-full" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
@@ -141,4 +140,3 @@ export const SlideCard: React.FC<SlideCardProps> = ({
     </div>
   );
 };
-

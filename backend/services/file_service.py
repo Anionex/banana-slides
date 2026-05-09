@@ -3,6 +3,7 @@ File Service - handles all file operations
 """
 import os
 import uuid
+import tempfile
 from pathlib import Path
 from typing import Optional
 from werkzeug.utils import secure_filename
@@ -100,6 +101,34 @@ class FileService:
         materials_dir = self._get_project_dir(project_id) / "materials"
         materials_dir.mkdir(exist_ok=True, parents=True)
         return materials_dir
+
+    def _save_image_atomic(self, image: Image.Image, filepath: Path, *save_args, **save_kwargs) -> None:
+        """
+        Save image atomically to avoid readers seeing partially-written files.
+
+        This matters for concurrently requested thumbnails during project sync/refresh:
+        write to a temp file in the same directory, then replace the target in one step.
+        """
+        filepath.parent.mkdir(exist_ok=True, parents=True)
+        # Preserve the target suffix on the temp file so PIL can infer the format
+        # when callers rely on the filename extension instead of passing format=...
+        temp_suffix = filepath.suffix or ".tmp"
+        fd, temp_path = tempfile.mkstemp(
+            dir=str(filepath.parent),
+            prefix=f".{filepath.name}.",
+            suffix=temp_suffix,
+        )
+        os.close(fd)
+
+        try:
+            image.save(temp_path, *save_args, **save_kwargs)
+            os.replace(temp_path, filepath)
+        except Exception:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            raise
     
     def save_template_image(self, file, project_id: str) -> str:
         """
@@ -159,7 +188,7 @@ class FileService:
 
         # Save image - format is determined by file extension or explicitly specified
         # Some PIL Image objects may not support format parameter, so we use extension
-        image.save(str(filepath))
+        self._save_image_atomic(image, filepath)
 
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
@@ -213,7 +242,13 @@ class FileService:
         image = convert_image_to_rgb(image)
 
         # Save as compressed JPEG
-        image.save(str(filepath), 'JPEG', quality=quality, optimize=True)
+        self._save_image_atomic(
+            image,
+            filepath,
+            'JPEG',
+            quality=quality,
+            optimize=True,
+        )
 
         # Return relative path
         return relative_path
@@ -249,7 +284,7 @@ class FileService:
         filepath = materials_dir / filename
 
         # Save image
-        image.save(str(filepath))
+        self._save_image_atomic(image, filepath)
 
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
@@ -498,7 +533,7 @@ class FileService:
             thumb_filename = "template-thumb.webp"
             thumb_filepath = template_dir / thumb_filename
 
-            image.save(str(thumb_filepath), 'WEBP', quality=quality)
+            self._save_image_atomic(image, thumb_filepath, 'WEBP', quality=quality)
             image.close()
 
             return thumb_filepath.relative_to(self.upload_folder).as_posix()

@@ -11,6 +11,7 @@ uv run --directory backend alembic upgrade head
 exec uv run --directory backend gunicorn \
   --chdir /app/backend \
   --bind 0.0.0.0:5000 \
+  --no-sendfile \
   --workers 2 \
   --worker-class gthread \
   --threads 4 \

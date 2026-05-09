@@ -78,6 +78,43 @@ class Project(db.Model):
             data['pages'] = [page.to_dict() for page in self.pages]
         
         return data
+
+    def to_history_dict(self):
+        """Convert to a lightweight dictionary for history/list endpoints."""
+        created_at_str = None
+        if self.created_at:
+            created_at_str = self.created_at.isoformat() + 'Z' if not self.created_at.tzinfo else self.created_at.isoformat()
+
+        updated_at_str = None
+        if self.updated_at:
+            updated_at_str = self.updated_at.isoformat() + 'Z' if not self.updated_at.tzinfo else self.updated_at.isoformat()
+
+        sorted_pages = sorted(self.pages, key=lambda page: (page.order_index or 0))
+        pages = [
+            page.to_history_dict(include_title=index == 0)
+            for index, page in enumerate(sorted_pages)
+        ]
+
+        return {
+            'project_id': self.id,
+            'idea_prompt': self.idea_prompt,
+            'outline_text': None,
+            'description_text': None,
+            'extra_requirements': None,
+            'outline_requirements': None,
+            'description_requirements': None,
+            'creation_type': self.creation_type,
+            'template_image_url': f'/files/{self.id}/template/{self.template_image_path.split("/")[-1]}' if self.template_image_path else None,
+            'template_style': None,
+            'export_extractor_method': self.export_extractor_method or 'hybrid',
+            'export_inpaint_method': self.export_inpaint_method or 'hybrid',
+            'export_allow_partial': self.export_allow_partial or False,
+            'image_aspect_ratio': self.image_aspect_ratio,
+            'status': self.status,
+            'created_at': created_at_str,
+            'updated_at': updated_at_str,
+            'pages': pages,
+        }
     
     def __repr__(self):
         return f'<Project {self.id}: {self.status}>'

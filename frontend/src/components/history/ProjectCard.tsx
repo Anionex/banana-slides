@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, FileText, ChevronRight, Trash2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import { useProtectedImageUrl } from '@/hooks/useProtectedImageUrl';
 import { Card } from '@/components/shared';
-import { getProjectTitle, getFirstPageImage, formatDate, getStatusText, getStatusColor } from '@/utils/projectUtils';
+import { getProjectTitle, formatDate, getStatusText, getStatusColor } from '@/utils/projectUtils';
 import type { Project } from '@/types';
 
 // ProjectCard 组件自包含翻译
@@ -68,7 +69,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const statusText = getStatusText(project);
   const statusColor = getStatusColor(project);
   
-  const firstPageImage = shouldLoadImage ? getFirstPageImage(project) : null;
+  const firstPageWithImage = project.pages?.find((page) => page.generated_image_url);
+  const firstPageImage = useProtectedImageUrl(
+    shouldLoadImage ? firstPageWithImage?.generated_image_url : undefined,
+    firstPageWithImage?.updated_at
+  );
 
   return (
     <Card
@@ -163,4 +168,3 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     </Card>
   );
 };
-

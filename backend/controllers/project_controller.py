@@ -296,7 +296,7 @@ def list_projects():
             .limit(limit).offset(offset).all()
 
         return success_response({
-            'projects': [project.to_dict(include_pages=True) for project in projects],
+            'projects': [project.to_history_dict() for project in projects],
             'total': total, 'limit': limit, 'offset': offset
         })
     except Exception as e:

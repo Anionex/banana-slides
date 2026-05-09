@@ -119,6 +119,7 @@ interface ProjectState {
   generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
   regenerateRenovationPage: (pageId: string, keepLayout?: boolean) => Promise<void>;
   generateImages: (pageIds?: string[]) => Promise<void>;
+  generateSingleImage: (pageId: string, forceRegenerate?: boolean) => Promise<void>;
   editPageImage: (
     pageId: string,
     editPrompt: string,
@@ -312,12 +313,37 @@ const debouncedUpdatePage = debounce(
       const response = await api.getProject(targetProjectId);
       if (response.data) {
         const project = normalizeProject(response.data);
+        const { pageGeneratingTasks } = get();
+        const reconciledTasks = { ...pageGeneratingTasks };
+        let hasTaskChanges = false;
+
+        project.pages.forEach((page) => {
+          if (!page.id) return;
+          if (!reconciledTasks[page.id]) return;
+
+          // Server state is authoritative here. If a page already has an image
+          // or has left the generating queue, release the stale local lock.
+          if (
+            page.generated_image_path ||
+            page.status === 'COMPLETED' ||
+            page.status === 'FAILED' ||
+            page.status === 'DESCRIPTION_GENERATED' ||
+            page.status === 'DRAFT'
+          ) {
+            delete reconciledTasks[page.id];
+            hasTaskChanges = true;
+          }
+        });
+
         devLog('[syncProject] 同步项目数据:', {
           projectId: project.id,
           pagesCount: project.pages?.length || 0,
           status: project.status
         });
-        set({ currentProject: project });
+        set({
+          currentProject: project,
+          ...(hasTaskChanges ? { pageGeneratingTasks: reconciledTasks } : {}),
+        });
         // 确保 localStorage 中保存了项目ID
         localStorage.setItem('currentProjectId', project.id!);
       }
@@ -973,7 +999,7 @@ const debouncedUpdatePage = debounce(
     if (!currentProject) return;
 
     // 确定要生成的页面ID列表
-    const targetPageIds = pageIds || currentProject.pages.map(p => p.id).filter((id): id is string => !!id);
+    let targetPageIds = pageIds || currentProject.pages.map(p => p.id).filter((id): id is string => !!id);
     
     // 检查是否有页面正在生成
     const alreadyGenerating = targetPageIds.filter(id => pageGeneratingTasks[id]);
@@ -985,13 +1011,14 @@ const debouncedUpdatePage = debounce(
         devLog('[批量生成] 所有页面都在生成中，跳过请求');
         return;
       }
+      targetPageIds = newPageIds;
     }
 
     set({ error: null, warningMessage: null });
     
     try {
       // 调用批量生成 API
-      const response = await api.generateImages(currentProject.id, undefined, pageIds);
+      const response = await api.generateImages(currentProject.id, undefined, targetPageIds);
       const taskId = response.data?.task_id;
       
       if (taskId) {
@@ -1015,6 +1042,42 @@ const debouncedUpdatePage = debounce(
       }
     } catch (error: any) {
       console.error('[批量生成] 启动失败:', error);
+      throw error;
+    }
+  },
+
+  generateSingleImage: async (pageId: string, forceRegenerate: boolean = true) => {
+    const { currentProject, pageGeneratingTasks } = get();
+    if (!currentProject) return;
+    if (pageGeneratingTasks[pageId]) {
+      devLog(`[单页生成] 页面 ${pageId} 已在生成中，跳过重复请求`);
+      return;
+    }
+
+    set({ error: null, warningMessage: null });
+
+    try {
+      const response = await api.generatePageImage(currentProject.id, pageId, forceRegenerate);
+      const taskId = response.data?.task_id;
+
+      if (taskId) {
+        set({
+          pageGeneratingTasks: { ...pageGeneratingTasks, [pageId]: taskId }
+        });
+
+        await get().syncProject();
+        get().pollImageTask(taskId, [pageId]);
+      } else {
+        await get().syncProject();
+      }
+    } catch (error: any) {
+      const { pageGeneratingTasks: latestTasks } = get();
+      const newTasks = { ...latestTasks };
+      delete newTasks[pageId];
+      set({
+        pageGeneratingTasks: newTasks,
+        error: normalizeErrorMessage(error.message || t('store.batchGenerateFailed'))
+      });
       throw error;
     }
   },
@@ -1057,6 +1120,19 @@ const debouncedUpdatePage = debounce(
           
           set({ pageGeneratingTasks: newTasks, warningMessage });
 
+          const failedCount = Number(task.progress?.failed || 0);
+          if (failedCount > 0) {
+            await get().syncProject();
+            set({
+              error: normalizeErrorMessage(
+                task.error_message ||
+                task.progress?.error_message ||
+                `有 ${failedCount} 张图片生成失败`
+              )
+            });
+            return;
+          }
+
           // 刷新项目数据，并验证图片路径已更新
           // 使用重试机制确保数据同步完成
           let retryCount = 0;
@@ -1085,7 +1161,19 @@ const debouncedUpdatePage = debounce(
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 return syncWithRetry();
               } else {
+                const missingPages = pageIds
+                  .map(id => updatedProject.pages.find(p => p.id === id))
+                  .filter((page): page is NonNullable<typeof page> => !!page && !page.generated_image_path);
+                const failedPages = missingPages.filter(page => page.status === 'FAILED');
+                const fallbackError =
+                  task.error_message ||
+                  task.progress?.error_message ||
+                  (failedPages.length > 0 ? `有 ${failedPages.length} 张图片生成失败` : null);
+
                 console.warn(`[批量轮询] 达到最大重试次数，部分图片路径可能未同步`);
+                if (fallbackError) {
+                  set({ error: normalizeErrorMessage(fallbackError) });
+                }
               }
             }
           };

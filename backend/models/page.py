@@ -89,7 +89,42 @@ class Page(db.Model):
             data['image_versions'] = [v.to_dict() for v in self.image_versions.all()]
 
         return data
+
+    def to_history_dict(self, include_title=False):
+        """
+        Convert to a lightweight dictionary for history/list views.
+
+        Keep only fields needed by the frontend history cards and routing logic,
+        so `/api/projects` does not return full page descriptions for every page.
+        """
+        display_image_path = self.cached_image_path or self.generated_image_path
+        display_image_url = None
+        if display_image_path:
+            filename = Path(display_image_path).name
+            display_image_url = f'/files/{self.project_id}/pages/{filename}'
+
+        data = {
+            'page_id': self.id,
+            'order_index': self.order_index,
+            'generated_image_url': display_image_url,
+            'status': self.status,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+        # History cards only need to know whether a page already has description data.
+        if self.status in {'DESCRIPTION_GENERATED', 'QUEUED', 'GENERATING', 'COMPLETED', 'FAILED'}:
+            data['description_content'] = {'text': ''}
+
+        if include_title and self.outline_content:
+            try:
+                outline = self.get_outline_content()
+                title = outline.get('title') if outline else None
+                if title:
+                    data['outline_content'] = {'title': title, 'points': []}
+            except Exception:
+                pass
+
+        return data
     
     def __repr__(self):
         return f'<Page {self.id}: {self.order_index} - {self.status}>'
-

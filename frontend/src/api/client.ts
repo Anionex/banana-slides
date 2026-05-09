@@ -133,6 +133,66 @@ const tryRefreshAccessToken = async (kind: AuthStoreKind): Promise<string | null
 };
 
 // 请求拦截器
+const buildAuthenticatedHeaders = (requestUrl?: string, headers?: HeadersInit): Headers => {
+  const nextHeaders = new Headers(headers);
+  const accessCode = localStorage.getItem('banana-access-code');
+  if (accessCode) {
+    nextHeaders.set('X-Access-Code', accessCode);
+  }
+
+  const token = getPreferredAccessToken(requestUrl);
+  if (token) {
+    nextHeaders.set('Authorization', `Bearer ${token}`);
+  }
+
+  if (!nextHeaders.has('Content-Type')) {
+    nextHeaders.set('Content-Type', 'application/json');
+  }
+
+  return nextHeaders;
+};
+
+export const authenticatedFetch = async (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> => {
+  const requestUrl = typeof input === 'string'
+    ? input
+    : input instanceof URL
+      ? input.toString()
+      : input.url;
+
+  const authStoreKind = getPreferredAuthStoreKind(requestUrl);
+  const response = await fetch(input, {
+    ...init,
+    headers: buildAuthenticatedHeaders(requestUrl, init?.headers),
+  });
+
+  if (response.status !== 401 || !authStoreKind) {
+    return response;
+  }
+
+  const nextAccessToken = await tryRefreshAccessToken(authStoreKind);
+  if (!nextAccessToken) {
+    return response;
+  }
+
+  const retryHeaders = new Headers(init?.headers);
+  const accessCode = localStorage.getItem('banana-access-code');
+  if (accessCode) {
+    retryHeaders.set('X-Access-Code', accessCode);
+  }
+  retryHeaders.set('Authorization', `Bearer ${nextAccessToken}`);
+  if (!retryHeaders.has('Content-Type')) {
+    retryHeaders.set('Content-Type', 'application/json');
+  }
+
+  return fetch(input, {
+    ...init,
+    headers: retryHeaders,
+  });
+};
+
 apiClient.interceptors.request.use(
   (config) => {
     // Attach access code header for backend enforcement
@@ -280,6 +340,10 @@ export const getProtectedDownloadUrl = (path?: string): string => {
   }
 
   return url;
+};
+
+export const getAuthenticatedFileUrl = (path?: string, timestamp?: string | number): string => {
+  return getImageUrl(path, timestamp);
 };
 
 export default apiClient;

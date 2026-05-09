@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useT } from '@/hooks/useT';
+import { useProtectedImageUrl } from '@/hooks/useProtectedImageUrl';
 import { devLog } from '@/utils/logger';
+import { getImageUrl } from '@/api/client';
 
 // 组件内翻译
 const previewI18n = {
@@ -189,6 +191,7 @@ export const SlidePreview: React.FC = () => {
     currentProject,
     syncProject,
     generateImages,
+    generateSingleImage,
     editPageImage,
     deletePageById,
     updatePageLocal,
@@ -571,8 +574,7 @@ export const SlidePreview: React.FC = () => {
     // 先检查分辨率，如果是1K则显示警告
     await checkResolutionAndExecute(async () => {
       try {
-        // 使用统一的 generateImages，传入单个页面 ID
-        await generateImages([page.id!]);
+        await generateSingleImage(page.id!);
         show({ message: t('slidePreview.generationStarted'), type: 'success' });
       } catch (error: any) {
         // 提取后端返回的更具体错误信息
@@ -603,7 +605,7 @@ export const SlidePreview: React.FC = () => {
         });
       }
     });
-  }, [currentProject, selectedIndex, pageGeneratingTasks, generateImages, show, checkResolutionAndExecute]);
+  }, [currentProject, selectedIndex, pageGeneratingTasks, generateSingleImage, show, checkResolutionAndExecute]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -1255,9 +1257,11 @@ export const SlidePreview: React.FC = () => {
   }
 
   const selectedPage = currentProject.pages[selectedIndex];
-  const imageUrl = selectedPage?.generated_image_path
-    ? getImageUrl(selectedPage.generated_image_path, selectedPage.updated_at)
-    : '';
+  const imageUrl = useProtectedImageUrl(selectedPage?.generated_image_path, selectedPage?.updated_at);
+  const templateImageUrl = useProtectedImageUrl(
+    currentProject?.template_image_path,
+    currentProject?.updated_at
+  );
 
   const hasAllImages = currentProject.pages.every(
     (p) => p.generated_image_path
@@ -1630,7 +1634,9 @@ export const SlidePreview: React.FC = () => {
                             className="w-16 h-16 mx-auto mb-4 rounded-xl object-contain shadow-sm"
                           />
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
-                            {selectedPage?.status === 'QUEUED'
+                            {selectedPage?.generated_image_path
+                              ? '图片已生成'
+                              : selectedPage?.status === 'QUEUED'
                               ? t('preview.queued')
                               : (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
                                 selectedPage?.status === 'GENERATING'
@@ -1945,7 +1951,7 @@ export const SlidePreview: React.FC = () => {
                   <span className="text-sm text-gray-700 dark:text-foreground-secondary">{t('preview.useTemplateImage')}</span>
                   {currentProject.template_image_path && (
                     <img
-                      src={getImageUrl(currentProject.template_image_path, currentProject.updated_at)}
+                      src={templateImageUrl}
                       alt="Template"
                       className="w-16 h-10 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />
