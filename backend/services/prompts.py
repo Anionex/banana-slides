@@ -850,9 +850,28 @@ def get_image_edit_prompt(edit_instruction: str, original_description: str = Non
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def get_clean_background_prompt() -> str:
+def get_clean_background_prompt(removal_regions: Optional[List[Dict[str, Any]]] = None) -> str:
     """生成纯背景图的 prompt（去除文字和插画）"""
-    prompt = """\
+    regions_info = ""
+    if removal_regions:
+        regions_json = json.dumps(removal_regions, ensure_ascii=False, indent=2)
+        regions_info = f"""
+以下是当前图片里需要重点移除的前景元素 bbox 列表，坐标都已经按当前图片宽高做了 0-1 归一化：
+
+```json
+{regions_json}
+```
+
+坐标说明：
+- `bbox.x0`, `bbox.y0`：元素左上角坐标，范围 0-1
+- `bbox.x1`, `bbox.y1`：元素右下角坐标，范围 0-1
+- `bbox.width`, `bbox.height`：元素宽高占整张图的比例
+- `element_type`：该区域的大致元素类型，如 `text` / `image` / `chart` / `table` / `figure`
+
+请优先移除这些 bbox 内，以及与这些 bbox 紧贴或轻微重叠的所有前景内容，避免遗漏。
+"""
+
+    prompt = f"""\
 你是一位专业的图片文字&图片擦除专家。你的任务是从原始图片中移除文字和配图，输出一张无任何文字和图表内容、干净纯净的底板图。
 <requirements>
 - 彻底移除页面中的所有文字、插画、图表。必须确保所有文字都被完全去除。
@@ -861,6 +880,8 @@ def get_clean_background_prompt() -> str:
 - 输出图片的尺寸、风格、配色必须和原图完全一致。
 - 请勿新增任何元素。
 </requirements>
+
+{regions_info}
 
 注意，**任意位置的, 所有的**文字和图表都应该被彻底移除，**输出不应该包含任何文字和图表。**
 """
