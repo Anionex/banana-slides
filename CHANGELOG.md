@@ -1,6 +1,16 @@
 # Changelog
 
-## [UNRELEASE] - 2026-xx-xx xx:xx
+## [UNRELEASED] - 2026-xx-xx xx:xx
+
+## v1.0.5 - 2026-05-12 00:00
+- 新增平台全站品牌重塑：名称更新为「护小智PPT智能生成平台」，新增英文副标题。
+- 新增公司主体与版权信息，更新为「广州医始医学技术有限公司」。
+- 新增全站 Logo、Favicon 及 PWA 图标（16×16、32×32、192×192、512×512、apple-touch-icon）。
+- 优化品牌色系全局替换为金橙主色调（#e57d25）。
+- 优化 Landing、Home、OutlineEditor、SlidePreview、DetailEditor、History 等核心页面 UI。
+- 优化管理后台页面（AdminLayout、AdminLogin、AdminUsers）样式。
+- 优化 Footer、HelpModal、SlideCard 等公共组件。
+- 新增内部用户角色数据库迁移脚本。
 
 ## v1.0.4 - 2026-05-09 23:00
 - 修复图片生成任务同步和受保护图片加载问题。
