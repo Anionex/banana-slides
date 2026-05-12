@@ -5,6 +5,9 @@ import os
 import sys
 from datetime import timedelta
 
+# Version
+__version__ = "1.0.0"
+
 # 基础配置 - 使用更可靠的路径计算方式
 # 在模块加载时立即计算并固定路径
 _current_file = os.path.realpath(__file__)  # 使用realpath解析所有符号链接
@@ -162,3 +165,8 @@ def get_config():
     """Get configuration based on environment"""
     env = os.getenv('FLASK_ENV', 'development')
     return config_map.get(env, DevelopmentConfig)
+
+
+def get_version():
+    """Return the backend version."""
+    return __version__
