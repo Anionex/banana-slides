@@ -8,6 +8,7 @@ Create Date: 2026-04-15 10:30:00.000000
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from alembic import op
 import sqlalchemy as sa
@@ -141,7 +142,7 @@ def upgrade():
         ).fetchone()
 
     if global_settings is None:
-        connection.execute(settings.insert().values(owner_user_id=None))
+        connection.execute(settings.insert().values(owner_user_id=None, created_at=datetime.utcnow(), updated_at=datetime.utcnow()))
         global_settings = connection.execute(
             sa.select(settings).where(settings.c.owner_user_id.is_(None)).order_by(settings.c.id.asc())
         ).fetchone()

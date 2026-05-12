@@ -36,9 +36,9 @@ const homeI18n = {
       theme: { label: '主题模式', light: '浅色', dark: '深色', system: '跟随系统' }
     },
     home: {
-      title: '飞叶智能',
-      subtitle: 'AI-Powered Presentation Generator',
-      tagline: '飞叶智能 FEIYE INTELLIGENCE — 原生 AI PPT 生成器',
+      title: '护小智PPT智能生成平台',
+      subtitle: 'Huxiaozhi Intelligent PPT Maker Platform',
+      tagline: '护小智PPT智能生成平台 — AI 原生 PPT 生成器',
       features: {
         oneClick: '一句话生成 PPT',
         naturalEdit: '自然语言修改',
@@ -115,9 +115,9 @@ const homeI18n = {
       theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' }
     },
     home: {
-      title: 'FEIYE INTELLIGENCE',
+      title: 'Huxiaozhi Intelligent PPT Maker Platform',
       subtitle: 'AI-Powered Presentation Generator',
-      tagline: 'AI-native PPT generator by FEIYE INTELLIGENCE',
+      tagline: 'AI-native PPT generator by Huxiaozhi PPT',
       features: {
         oneClick: 'One-click PPT generation',
         naturalEdit: 'Natural language editing',
@@ -801,13 +801,13 @@ export const Home: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="flex items-center">
               <img
-                src="/feiye.jpg"
-                alt="飞叶智能 Logo"
+                src="/logo.png"
+                alt="护小智PPT Logo"
                 className="h-10 md:h-12 w-auto rounded-lg object-contain"
               />
             </div>
             <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-banana-600 via-banana-500 to-banana-400 bg-clip-text text-transparent">
-              飞叶智能
+              护小智PPT
             </span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
@@ -984,7 +984,7 @@ export const Home: React.FC = () => {
               backgroundSize: '200% auto',
               animation: 'gradient 3s ease infinite',
             }}>
-              {i18n.language?.startsWith('zh') ? `${t('home.title')} · FEIYE INTELLIGENCE` : 'FEIYE INTELLIGENCE'}
+              {i18n.language?.startsWith('zh') ? `${t('home.title')}` : 'Huxiaozhi Intelligent PPT Maker Platform'}
             </span>
           </h1>
 

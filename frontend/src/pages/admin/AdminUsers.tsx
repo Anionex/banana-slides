@@ -40,7 +40,7 @@ const ROLE_META: Record<
   admin: {
     label: '管理员',
     badgeClass: 'bg-amber-100 text-amber-700',
-    summary: '可登录飞叶后台，维护平台共享设置与账号管理',
+    summary: '可登录护小智PPT后台，维护平台共享设置与账号管理',
   },
 };
 

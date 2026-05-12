@@ -65,3 +65,12 @@ _local_backup/
 # Tencent Cloud deployment config (lives only in deploy/tencent branch)
 deploy/
 !deploy/
+
+# Claude Code 本地配置
+.claude/
+
+# 重新品牌化前的本地备份
+_backup_before_rebrand/
+
+# Python 包构建产物
+banana_slides.egg-info/

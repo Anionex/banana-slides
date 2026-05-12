@@ -15,7 +15,7 @@ const landingI18n = {
         title_start: "让创意",
         title_highlight: "瞬间落地",
         title_end: "无需繁琐排版",
-        subtitle: "专注于您的内容与想法，剩下的交给飞叶智能。从大纲到精美幻灯片，只需几分钟。",
+        subtitle: "专注于您的内容与想法，剩下的交给护小智PPT。从大纲到精美幻灯片，只需几分钟。",
         cta_primary: "免费开始使用"
       }
     }
@@ -28,7 +28,7 @@ const landingI18n = {
         title_start: "Turn Ideas into",
         title_highlight: "Reality Instantly",
         title_end: "No Formatting Hassle",
-        subtitle: "Focus on your content and ideas, leave the rest to FEIYE INTELLIGENCE. From outline to beautiful slides in seconds.",
+        subtitle: "Focus on your content and ideas, leave the rest to Huxiaozhi PPT. From outline to beautiful slides in seconds.",
         cta_primary: "Get Started for Free"
       }
     }
@@ -65,25 +65,25 @@ export const Landing: React.FC = () => {
       key: 'flexiblePaths',
       icon: <Sparkles size={24} className="feiye-accent-strong" />,
       bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
-      glow: '#456E68',
+      glow: '#8B6914',
     },
     {
       key: 'materialParsing',
       icon: <FileText size={24} className="feiye-accent" />,
       bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
-      glow: '#568781',
+      glow: '#C5960C',
     },
     {
       key: 'vibeEditing',
       icon: <MessageSquare size={24} className="feiye-accent-soft" />,
       bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
-      glow: '#6C9F97',
+      glow: '#DAAF30',
     },
     {
       key: 'easyExport',
       icon: <Download size={24} className="feiye-accent-deep" />,
       bg: "bg-banana-50 dark:bg-banana-900/10 border-banana-100 dark:border-banana-800/30",
-      glow: '#345652',
+      glow: '#6B4F10',
     }
   ];
 
@@ -98,9 +98,9 @@ export const Landing: React.FC = () => {
       {/* 导航栏 */}
       <nav className="relative z-50 w-full px-6 py-6 flex items-center justify-between max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <img src="/feiye.jpg" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-lg shadow-sm" />
+          <img src="/logo.png" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-lg shadow-sm" />
           <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-            {i18n.language?.startsWith('zh') ? '飞叶智能' : 'FEIYE INTELLIGENCE'}
+            {i18n.language?.startsWith('zh') ? '护小智PPT' : 'Huxiaozhi PPT'}
           </span>
         </div>
         <div className="flex items-center gap-4">

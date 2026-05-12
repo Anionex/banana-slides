@@ -46,7 +46,7 @@ export function AdminLayout({ hideBackButton = false }: { hideBackButton?: boole
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--banana-yellow)]">
               <span className="text-xs font-bold text-white">F</span>
             </div>
-            <span className="text-sm font-semibold text-[var(--text-primary)]">飞叶管理后台</span>
+            <span className="text-sm font-semibold text-[var(--text-primary)]">护小智PPT管理后台</span>
           </div>
         </div>
 

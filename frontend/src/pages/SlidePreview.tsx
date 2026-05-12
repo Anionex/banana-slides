@@ -9,7 +9,7 @@ import { getImageUrl } from '@/api/client';
 // 组件内翻译
 const previewI18n = {
   zh: {
-    home: { title: '飞叶' },
+    home: { title: '护小智PPT' },
     nav: { home: '主页', materialGenerate: '素材生成' },
     slidePreview: {
       pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
@@ -77,7 +77,7 @@ const previewI18n = {
     }
   },
   en: {
-    home: { title: 'FEIYE' },
+    home: { title: 'Huxiaozhi' },
     nav: { home: 'Home', materialGenerate: 'Generate Material' },
     slidePreview: {
       pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
@@ -176,7 +176,6 @@ import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getProtectedDownloadUrl } from '@/api/client';
-import { getImageUrl } from '@/api/client';
 import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, getSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
@@ -1299,8 +1298,8 @@ export const SlidePreview: React.FC = () => {
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
               <img
-                src="/feiye.jpg"
-                alt="FEIYE Logo"
+                src="/logo.png"
+                alt="Huxiaozhi Logo"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-contain shadow-sm flex-shrink-0"
               />
               <span className="text-base md:text-xl font-bold truncate">{t('home.title')}</span>
@@ -1629,8 +1628,8 @@ export const SlidePreview: React.FC = () => {
                       <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-background-secondary">
                         <div className="text-center">
                           <img
-                            src="/feiye.jpg"
-                            alt="FEIYE Logo"
+                            src="/logo.png"
+                            alt="Huxiaozhi Logo"
                             className="w-16 h-16 mx-auto mb-4 rounded-xl object-contain shadow-sm"
                           />
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">

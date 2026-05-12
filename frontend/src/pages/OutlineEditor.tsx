@@ -7,7 +7,7 @@ import PresetCapsules from '@/components/shared/PresetCapsules';
 // 组件内翻译
 const outlineI18n = {
   zh: {
-    home: { title: '飞叶' },
+    home: { title: '护小智PPT' },
     outline: {
       title: "编辑大纲", pageCount: "共 {{count}} 页", addPage: "添加页面",
       generateDescriptions: "生成描述", generating: "生成中...", chapter: "章节",
@@ -40,7 +40,7 @@ const outlineI18n = {
     }
   },
   en: {
-    home: { title: 'FEIYE' },
+    home: { title: 'Huxiaozhi' },
     outline: {
       title: "Edit Outline", pageCount: "{{count}} pages", addPage: "Add Page",
       generateDescriptions: "Generate Descriptions", generating: "Generating...", chapter: "Chapter",
@@ -470,8 +470,8 @@ export const OutlineEditor: React.FC = () => {
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
               <img
-                src="/feiye.jpg"
-                alt="FEIYE Logo"
+                src="/logo.png"
+                alt="Huxiaozhi Logo"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-contain shadow-sm"
               />
               <span className="text-base md:text-xl font-bold">{t('home.title')}</span>

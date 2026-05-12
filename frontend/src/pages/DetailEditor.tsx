@@ -18,7 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 // 组件内翻译
 const detailI18n = {
   zh: {
-    home: { title: '飞叶' },
+    home: { title: '护小智PPT' },
     detail: {
       title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
@@ -58,7 +58,7 @@ const detailI18n = {
     }
   },
   en: {
-    home: { title: 'FEIYE' },
+    home: { title: 'Huxiaozhi' },
     detail: {
       title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
@@ -605,8 +605,8 @@ export const DetailEditor: React.FC = () => {
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
               <img
-                src="/feiye.jpg"
-                alt="FEIYE Logo"
+                src="/logo.png"
+                alt="Huxiaozhi Logo"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg object-contain shadow-sm"
               />
               <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
