@@ -3,7 +3,6 @@ import { Image as ImageIcon, RefreshCw, X, FileText } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { listMaterials, deleteMaterial, listProjectReferenceFiles, type Material, type ReferenceFile } from '@/api/endpoints';
 import { getImageUrl } from '@/api/client';
-import { useToast } from './Toast';
 import { ReferenceFileCard } from './ReferenceFileCard';
 
 // ProjectResourcesList 组件自包含翻译
@@ -31,6 +30,7 @@ interface ProjectResourcesListProps {
   showImages?: boolean; // 是否显示图片素材
   onFileClick?: (fileId: string) => void;
   onImageClick?: (material: Material) => void;
+  showToast?: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
 }
 
 /**
@@ -44,9 +44,9 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
   showImages = true,
   onFileClick,
   onImageClick,
+  showToast,
 }) => {
   const t = useT(projectResourcesI18n);
-  const { show } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
@@ -66,7 +66,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
       }
     } catch (error: any) {
       console.error('Load materials failed:', error);
-      show({ message: `${t('material.messages.loadMaterialFailed')}: ${error.message || t('common.unknownError')}`, type: 'error' });
+      showToast?.({ message: `${t('material.messages.loadMaterialFailed')}: ${error.message || t('common.unknownError')}`, type: 'error' });
     } finally {
       setIsLoadingMaterials(false);
     }
@@ -106,10 +106,10 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
     try {
       await deleteMaterial(materialId);
       setMaterials(prev => prev.filter(m => m.id !== materialId));
-      show({ message: t('material.messages.deleteSuccess'), type: 'success' });
+      showToast?.({ message: t('material.messages.deleteSuccess'), type: 'success' });
     } catch (error: any) {
       console.error('Delete material failed:', error);
-      show({
+      showToast?.({
         message: error?.response?.data?.error?.message || error.message || t('material.messages.deleteFailed'),
         type: 'error',
       });
@@ -178,6 +178,7 @@ export const ProjectResourcesList: React.FC<ProjectResourcesListProps> = ({
                 onStatusChange={handleFileStatusChange}
                 deleteMode="remove"
                 onClick={() => onFileClick?.(file.id)}
+                showToast={showToast}
               />
             ))}
           </div>

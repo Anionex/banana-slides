@@ -1,78 +1,280 @@
-name: Build and Push to Docker Hub
+name: Release
 
-# 在测试通过后自动构建并推送镜像到 Docker Hub
-
-# 触发条件：
-# 1. CI workflow (Full Test Suite) 成功完成后（主要触发方式）
-# 2. 手动触发（workflow_dispatch）
+# 手动触发，输入版本号
 on:
-  workflow_run:
-    workflows: ["Full Test Suite"]
-    types:
-      - completed
-    branches:
-      - main
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v0.3.1)'
+        required: true
+        type: string
 
-# Cancel old builds on the same branch
+permissions:
+  contents: write
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  UV_INDEX_URL: https://pypi.org/simple
 
 jobs:
+  validate:
+    name: Validate Version Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must match vX.Y.Z format (got: $VERSION)"
+            exit 1
+          fi
+
+      - name: Check tag does not exist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists. Aborting to prevent duplicate release."
+            exit 1
+          fi
+
+  test:
+    name: Pre-release Tests
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install backend dependencies
+        run: uv sync --extra test
+
+      - name: Backend unit tests
+        run: uv run pytest backend/tests/unit -v
+
+      - name: Backend integration tests
+        run: uv run pytest backend/tests/integration -v -m "not requires_service"
+        env:
+          TESTING: true
+          GOOGLE_API_KEY: mock-api-key-for-testing
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Frontend lint
+        run: cd frontend && npm run lint
+
+      - name: Frontend tests
+        run: cd frontend && npm test -- --run
+
+      - name: Frontend build check
+        run: cd frontend && npm run build
+
+  e2e-test:
+    name: E2E Tests
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          chmod +x scripts/setup-env-from-secrets.sh
+          ./scripts/setup-env-from-secrets.sh
+          sed -i 's/^AI_PROVIDER_FORMAT=.*/AI_PROVIDER_FORMAT=gemini/' .env || echo "AI_PROVIDER_FORMAT=gemini" >> .env
+        env:
+          AI_PROVIDER_FORMAT: gemini
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_TIMEOUT: ${{ secrets.OPENAI_TIMEOUT }}
+          OPENAI_MAX_RETRIES: ${{ secrets.OPENAI_MAX_RETRIES }}
+          TEXT_MODEL: ${{ secrets.TEXT_MODEL }}
+          IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          FLASK_ENV: ${{ secrets.FLASK_ENV }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          MAX_DESCRIPTION_WORKERS: ${{ secrets.MAX_DESCRIPTION_WORKERS }}
+          MAX_IMAGE_WORKERS: ${{ secrets.MAX_IMAGE_WORKERS }}
+          MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
+          MINERU_API_BASE: ${{ secrets.MINERU_API_BASE }}
+          IMAGE_CAPTION_MODEL: ${{ secrets.IMAGE_CAPTION_MODEL }}
+          OUTPUT_LANGUAGE: ${{ secrets.OUTPUT_LANGUAGE }}
+
+      - name: Build and start Docker services
+        run: |
+          docker compose build --no-cache
+          docker compose up -d
+
+      - name: Wait for services
+        run: |
+          chmod +x scripts/wait-for-health.sh
+          ./scripts/wait-for-health.sh http://localhost:5000/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:3000 60 2
+
+      - name: Docker environment tests
+        run: |
+          chmod +x scripts/test_docker_environment.sh
+          AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
+
+      - name: Setup Node.js
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Playwright
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
+        run: cd frontend && npx playwright test ui-full-flow.spec.ts --workers=1
+        env:
+          CI: true
+        timeout-minutes: 25
+
+      - name: Upload E2E reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-e2e-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: View logs on failure
+        if: failure()
+        run: |
+          docker compose logs backend
+          docker compose logs frontend
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+          docker system prune -f
+
+  sync-version:
+    name: Sync Version to Source Files
+    needs: e2e-test
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update version files
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          V="${VERSION#v}"
+          jq --arg v "$V" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+          sed -i "s/^version = .*/version = \"$V\"/" pyproject.toml
+
+      - name: Commit and push
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pyproject.toml
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: bump version to $VERSION"
+          git pull --rebase
+          git push
+
+  create-release:
+    name: Create GitHub Release
+    needs: sync-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Pull latest (includes version bump)
+        run: git pull origin main
+
+      - name: Create tag and release
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --generate-notes
+
   build-and-push:
     name: Build and Push Docker Images
+    needs: create-release
     runs-on: ubuntu-latest
-    # 如果是 workflow_run 触发，只在前一个 workflow 成功时运行
-    # 手动触发时总是运行
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          # 如果是 workflow_run 触发，使用原始 workflow 的 commit SHA
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 0
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          ref: ${{ inputs.version }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Extract metadata for backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=latest
             type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-      
+
       - name: Extract metadata for frontend
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=latest
             type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-      
+
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
@@ -89,7 +291,7 @@ jobs:
             GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io/' }}
             APT_MIRROR=${{ secrets.APT_MIRROR }}
             PYPI_INDEX_URL=${{ secrets.PYPI_INDEX_URL }}
-      
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
@@ -105,10 +307,17 @@ jobs:
             DOCKER_BUILDKIT=1
             DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
             NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
-      
-      - name: Image digest
-        run: |
-          echo "Backend image: ${{ steps.meta-backend.outputs.tags }}"
-          echo "Frontend image: ${{ steps.meta-frontend.outputs.tags }}"
-          echo "✅ Images pushed to Docker Hub successfully!"
 
+  # build-binaries:
+  #   name: Build Binary Artifacts
+  #   needs: create-release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Build
+  #       run: echo "TODO: add build steps"
+  #     - name: Upload to Release
+  #       env:
+  #         VERSION: ${{ inputs.version }}
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: gh release upload "$VERSION" ./dist/*

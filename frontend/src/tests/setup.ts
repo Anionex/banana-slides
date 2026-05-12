@@ -48,3 +48,33 @@ window.scrollTo = vi.fn()
 // Mock fetch (可以在具体测试中覆盖)
 global.fetch = vi.fn()
 
+// Mock localStorage/sessionStorage for utility tests
+const storageMock = () => {
+  const store = new Map<string, string>()
+  return {
+    getItem: vi.fn((key: string) => store.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      store.set(key, String(value))
+    }),
+    removeItem: vi.fn((key: string) => {
+      store.delete(key)
+    }),
+    clear: vi.fn(() => {
+      store.clear()
+    }),
+    key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
+    get length() {
+      return store.size
+    },
+  }
+}
+
+Object.defineProperty(window, 'localStorage', {
+  writable: true,
+  value: storageMock(),
+})
+
+Object.defineProperty(window, 'sessionStorage', {
+  writable: true,
+  value: storageMock(),
+})

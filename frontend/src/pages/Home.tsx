@@ -2,19 +2,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
-import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
+import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, extractStyleFromImage } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
+import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
-import { useImagePaste } from '@/hooks/useImagePaste';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
+import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
-import { PRESET_STYLES } from '@/config/presetStyles';
-import { presetStylesI18n } from '@/config/presetStylesI18n';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
+
+// 支持作为参考文件上传的文档扩展名（与后端 file_parser_service 保持一致）
+const ALLOWED_DOC_EXTENSIONS = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -27,10 +30,9 @@ const homeI18n = {
       language: { label: '界面语言' },
       theme: { label: '主题模式', light: '浅色', dark: '深色', system: '跟随系统' }
     },
-    presetStyles: presetStylesI18n.zh,
     home: {
       title: '蕉幻',
-      subtitle: 'Vibe your PPT like vibing code',
+      subtitle: 'Vibe your slides like vibe coding',
       tagline: '基于 nano banana pro🍌 的原生 AI PPT 生成器',
       features: {
         oneClick: '一句话生成 PPT',
@@ -62,9 +64,6 @@ const homeI18n = {
       template: {
         title: '选择风格模板',
         useTextStyle: '使用文字描述风格',
-        stylePlaceholder: '描述您想要的 PPT 风格，例如：简约商务风格，使用蓝色和白色配色，字体清晰大方...',
-        presetStyles: '快速选择预设风格：',
-        styleTip: '提示：点击预设风格快速填充，或自定义描述风格、配色、布局等要求',
       },
       actions: {
         selectFile: '选择参考文件',
@@ -73,16 +72,10 @@ const homeI18n = {
       },
       renovation: {
         uploadHint: '点击或拖拽上传 PDF / PPTX 文件',
-        formatHint: '支持 .pdf, .pptx, .ppt 格式',
+        formatHint: '支持 .pdf, .pptx, .ppt 格式（推荐上传 PDF）',
         keepLayout: '保留原始排版布局',
         onlyPdfPptx: '仅支持 PDF 和 PPTX 文件',
         uploadFile: '请先上传 PDF 或 PPTX 文件',
-      },
-      style: {
-        extractFromImage: '从图片提取风格',
-        extracting: '提取中...',
-        extractSuccess: '风格提取成功',
-        extractFailed: '风格提取失败',
       },
       messages: {
         enterContent: '请输入内容',
@@ -94,8 +87,9 @@ const homeI18n = {
         fileUploadSuccess: '文件上传成功',
         fileUploadFailed: '文件上传失败',
         fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
+        fileUploadInProgress: '正在上传文件，请等待当前上传完成后再试',
         unsupportedFileType: '不支持的文件类型: {{type}}',
-        pptTip: '提示：建议将PPT转换为PDF格式上传，可获得更好的解析效果',
+        pptTip: '建议先在本地将 PPTX 转为 PDF 后再上传，可获得更好的兼容性和更快的处理速度',
         filesAdded: '已添加 {{count}} 个参考文件',
         imageRemoved: '已移除图片',
         serviceTestTip: '建议先到设置页底部进行服务测试，避免后续功能异常',
@@ -113,10 +107,9 @@ const homeI18n = {
       language: { label: 'Interface Language' },
       theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' }
     },
-    presetStyles: presetStylesI18n.en,
     home: {
       title: 'Banana Slides',
-      subtitle: 'Vibe your PPT like vibing code',
+      subtitle: 'Vibe your slides like vibe coding',
       tagline: 'AI-native PPT generator powered by nano banana pro🍌',
       features: {
         oneClick: 'One-click PPT generation',
@@ -148,9 +141,6 @@ const homeI18n = {
       template: {
         title: 'Select Style Template',
         useTextStyle: 'Use text description for style',
-        stylePlaceholder: 'Describe your desired PPT style, e.g., minimalist business style...',
-        presetStyles: 'Quick select preset styles:',
-        styleTip: 'Tip: Click preset styles to quick fill, or customize',
       },
       actions: {
         selectFile: 'Select reference file',
@@ -159,16 +149,10 @@ const homeI18n = {
       },
       renovation: {
         uploadHint: 'Click or drag to upload PDF / PPTX file',
-        formatHint: 'Supports .pdf, .pptx, .ppt formats',
+        formatHint: 'Supports .pdf, .pptx, .ppt formats (PDF recommended)',
         keepLayout: 'Keep original layout',
         onlyPdfPptx: 'Only PDF and PPTX files are supported',
         uploadFile: 'Please upload a PDF or PPTX file first',
-      },
-      style: {
-        extractFromImage: 'Extract from image',
-        extracting: 'Extracting...',
-        extractSuccess: 'Style extracted successfully',
-        extractFailed: 'Style extraction failed',
       },
       messages: {
         enterContent: 'Please enter content',
@@ -180,8 +164,9 @@ const homeI18n = {
         fileUploadSuccess: 'File uploaded successfully',
         fileUploadFailed: 'Failed to upload file',
         fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
+        fileUploadInProgress: 'A file upload is already in progress — please wait for it to finish',
         unsupportedFileType: 'Unsupported file type: {{type}}',
-        pptTip: 'Tip: Convert PPT to PDF for better parsing results',
+        pptTip: 'We recommend converting your PPTX to PDF locally before uploading for better compatibility and faster processing',
         filesAdded: 'Added {{count}} reference file(s)',
         imageRemoved: 'Image removed',
         serviceTestTip: 'Test services in Settings first to avoid issues',
@@ -218,14 +203,11 @@ export const Home: React.FC = () => {
 
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
-  const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
   const [keepLayout, setKeepLayout] = useState(false);
-  const [isExtractingStyle, setIsExtractingStyle] = useState(false);
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
-  const styleImageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
@@ -279,6 +261,7 @@ export const Home: React.FC = () => {
   };
 
   const textareaRef = useRef<MarkdownTextareaRef>(null);
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
 
   // Callback to insert at cursor position in the textarea
   const insertAtCursor = useCallback((markdown: string) => {
@@ -294,6 +277,11 @@ export const Home: React.FC = () => {
     insertAtCursor,
   });
 
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = buildMaterialsMarkdown(materials, setContent);
+    textareaRef.current?.insertAtCursor(markdown + '\n');
+  }, [setContent]);
+
   // 检测粘贴事件，图片走 hook，文档走独立逻辑
   const handlePaste = async (e: React.ClipboardEvent<HTMLElement>) => {
     const items = e.clipboardData?.items;
@@ -303,8 +291,6 @@ export const Home: React.FC = () => {
     let hasImages = false;
     const docFiles: File[] = [];
     const unsupportedExts: string[] = [];
-
-    const allowedDocExtensions = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -316,7 +302,7 @@ export const Home: React.FC = () => {
         hasImages = true;
       } else {
         const fileExt = file.name.split('.').pop()?.toLowerCase();
-        if (fileExt && allowedDocExtensions.includes(fileExt)) {
+        if (fileExt && ALLOWED_DOC_EXTENSIONS.includes(fileExt)) {
           docFiles.push(file);
         } else {
           unsupportedExts.push(fileExt || file.type);
@@ -345,7 +331,7 @@ export const Home: React.FC = () => {
 
   // 上传文件
   // 在 Home 页面，文件始终上传为全局文件（不关联项目），因为此时还没有项目
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = useCallback(async (file: File) => {
     if (isUploadingFile) return;
 
     // 检查文件大小（前端预检查）
@@ -401,20 +387,54 @@ export const Home: React.FC = () => {
       
       // 特殊处理413错误
       if (error?.response?.status === 413) {
-        show({ 
-          message: `文件过大：${(file.size / 1024 / 1024).toFixed(1)}MB，最大支持 200MB`, 
-          type: 'error' 
+        show({
+          message: t('home.messages.fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
+          type: 'error'
         });
       } else {
-        show({ 
-          message: `文件上传失败: ${error?.response?.data?.error?.message || error.message || '未知错误'}`, 
-          type: 'error' 
+        show({
+          message: `${t('home.messages.fileUploadFailed')}: ${error?.response?.data?.error?.message || error.message || ''}`.replace(/: $/, ''),
+          type: 'error'
         });
       }
     } finally {
       setIsUploadingFile(false);
     }
-  };
+  }, [isUploadingFile, show, t]);
+
+  // 拖拽进来的文档文件：按扩展名过滤后复用 handleFileUpload（逐个上传+自动触发解析）
+  const handleDocumentFiles = useCallback(async (files: File[]) => {
+    // 已有上传在进行时告知用户，避免文件被静默丢弃（handleFileUpload 的 isUploadingFile 守卫）
+    if (isUploadingFile) {
+      show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
+      return;
+    }
+
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext && ALLOWED_DOC_EXTENSIONS.includes(ext)) {
+        accepted.push(file);
+      } else {
+        rejected.push(ext || file.type || file.name);
+      }
+    }
+
+    if (rejected.length > 0) {
+      // 去重扩展名，避免一次拖入多个同类型不支持文件时 toast 重复冗长
+      show({
+        message: t('home.messages.unsupportedFileType', {
+          type: Array.from(new Set(rejected)).join(', '),
+        }),
+        type: 'info',
+      });
+    }
+
+    for (const file of accepted) {
+      await handleFileUpload(file);
+    }
+  }, [isUploadingFile, handleFileUpload, show, t]);
 
   // 从当前项目移除文件引用（不删除文件本身）
   const handleFileRemove = (fileId: string) => {
@@ -614,7 +634,7 @@ export const Home: React.FC = () => {
       if (referenceFiles.length > 0) {
         const unassociatedFiles = referenceFiles.filter(f => f.parse_status !== 'completed');
         if (unassociatedFiles.length > 0) {
-          console.log(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
+          devLog(`Associating ${unassociatedFiles.length} remaining reference files to project ${projectId}:`, unassociatedFiles);
           try {
             await Promise.all(
               unassociatedFiles.map(async file => {
@@ -637,16 +657,16 @@ export const Home: React.FC = () => {
       }
       
       if (materialUrls.length > 0) {
-        console.log(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
+        devLog(`Associating ${materialUrls.length} materials to project ${projectId}:`, materialUrls);
         try {
           const response = await associateMaterialsToProject(projectId, materialUrls);
-          console.log('Materials associated successfully:', response);
+          devLog('Materials associated successfully:', response);
         } catch (error) {
           console.error('Failed to associate materials:', error);
           // 不影响主流程，继续执行
         }
       } else {
-        console.log('No materials to associate');
+        devLog('No materials to associate');
       }
       
       if (activeTab === 'idea' || activeTab === 'outline') {
@@ -1009,6 +1029,8 @@ export const Home: React.FC = () => {
               onChange={setContent}
               onPaste={handlePaste}
               onFiles={handleImageFiles}
+              onDocumentFiles={handleDocumentFiles}
+              onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
               rows={activeTab === 'idea' ? 4 : 8}
               className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
               toolbarLeft={
@@ -1089,6 +1111,7 @@ export const Home: React.FC = () => {
             onFileStatusChange={handleFileStatusChange}
             deleteMode="remove"
             className="mb-4"
+            showToast={show}
           />
 
           {/* 模板选择 */}
@@ -1128,112 +1151,11 @@ export const Home: React.FC = () => {
             
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
-              <div className="space-y-3">
-                <Textarea
-                  placeholder={t('home.template.stylePlaceholder')}
-                  value={templateStyle}
-                  onChange={(e) => setTemplateStyle(e.target.value)}
-                  rows={3}
-                  className="text-sm border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white dark:placeholder-foreground-tertiary focus:border-banana-400 dark:focus:border-banana transition-colors duration-200"
-                />
-
-                {/* 预设风格按钮 */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-600 dark:text-foreground-tertiary">
-                    {t('home.template.presetStyles')}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_STYLES.map((preset) => (
-                      <div key={preset.id} className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setTemplateStyle(t(preset.descriptionKey))}
-                          onMouseEnter={() => setHoveredPresetId(preset.id)}
-                          onMouseLeave={() => setHoveredPresetId(null)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none"
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-black/10"
-                            style={{ backgroundColor: preset.color }}
-                          />
-                          {t(preset.nameKey)}
-                        </button>
-
-                        {/* 悬停时显示预览图片 */}
-                        {hoveredPresetId === preset.id && preset.previewImage && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="bg-white dark:bg-background-secondary rounded-lg shadow-2xl dark:shadow-none border-2 border-banana-400 dark:border-banana p-2.5 w-72">
-                              <img
-                                src={preset.previewImage}
-                                alt={t(preset.nameKey)}
-                                className="w-full h-40 object-cover rounded"
-                                onError={(e) => {
-                                  // 如果图片加载失败，隐藏预览
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                              <p className="text-xs text-gray-600 dark:text-foreground-tertiary mt-2 px-1 line-clamp-3">
-                                {t(preset.descriptionKey)}
-                              </p>
-                            </div>
-                            {/* 小三角形指示器 */}
-                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                              <div className="w-3 h-3 bg-white dark:bg-background-secondary border-r-2 border-b-2 border-banana-400 dark:border-banana transform rotate-45"></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* 从图片提取风格按钮 */}
-                    <button
-                      type="button"
-                      onClick={() => styleImageInputRef.current?.click()}
-                      disabled={isExtractingStyle}
-                      className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
-                    >
-                      {isExtractingStyle ? (
-                        <>
-                          <span className="animate-spin">⏳</span>
-                          {t('home.style.extracting')}
-                        </>
-                      ) : (
-                        <>
-                          <ImagePlus size={12} />
-                          {t('home.style.extractFromImage')}
-                        </>
-                      )}
-                    </button>
-                    <input
-                      ref={styleImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        e.target.value = '';
-                        setIsExtractingStyle(true);
-                        try {
-                          const result = await extractStyleFromImage(file);
-                          if (result.data?.style_description) {
-                            setTemplateStyle(result.data.style_description);
-                            show({ message: t('home.style.extractSuccess'), type: 'success' });
-                          }
-                        } catch (error: any) {
-                          show({ message: `${t('home.style.extractFailed')}: ${error?.message || ''}`, type: 'error' });
-                        } finally {
-                          setIsExtractingStyle(false);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-                
-                <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
-                  💡 {t('home.template.styleTip')}
-                </p>
-              </div>
+              <TextStyleSelector
+                value={templateStyle}
+                onChange={setTemplateStyle}
+                onToast={show}
+              />
             ) : (
               <TemplateSelector
                 onSelect={handleTemplateSelect}
@@ -1258,6 +1180,13 @@ export const Home: React.FC = () => {
       <MaterialCenterModal
         isOpen={isMaterialCenterOpen}
         onClose={() => setIsMaterialCenterOpen(false)}
+      />
+      {/* 从素材库选择插入到文本框 */}
+      <MaterialSelector
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
       />
       {/* 参考文件选择器 */}
       {/* 在 Home 页面，始终查询全局文件，因为此时还没有项目 */}

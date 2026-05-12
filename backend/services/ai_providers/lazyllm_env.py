@@ -1,5 +1,21 @@
 """Utilities for resolving LazyLLM API keys from vendor-prefixed env vars."""
+import json
 import os
+
+ALLOWED_LAZYLLM_VENDORS = frozenset({
+    'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow',
+    'sensenova', 'minimax', 'openai', 'kimi',
+})
+
+
+def collect_env_lazyllm_api_keys() -> str | None:
+    """Scan env vars for {VENDOR}_API_KEY and return JSON string, or None."""
+    keys = {}
+    for vendor in ALLOWED_LAZYLLM_VENDORS:
+        val = os.getenv(f"{vendor.upper()}_API_KEY", "")
+        if val:
+            keys[vendor] = val
+    return json.dumps(keys) if keys else None
 
 
 def get_lazyllm_api_key(source: str, namespace: str = "BANANA") -> str:

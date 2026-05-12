@@ -1,0 +1,65 @@
+name: Bug Report / 问题反馈
+description: Report a bug or issue / 报告错误或问题
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment Method / 部署方式
+      description: Where did you encounter this issue? / 你在哪里遇到了这个问题？
+      options:
+        - Demo Website / 在线 Demo (bananaslides.online)
+        - Docker Compose (docker-compose.yml)
+        - Docker Compose with Pre-built Images (docker-compose.prod.yml)
+        - Local Development / 本地开发 (uv + npm)
+        - Cloud Platform / 云平台部署 (雨云等)
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description / 问题描述
+      description: Describe the issue you encountered / 描述你遇到的问题
+      placeholder: What happened? / 发生了什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce / 复现步骤
+      description: How can we reproduce this issue? / 如何复现这个问题？
+      placeholder: |
+        1. Go to... / 进入...
+        2. Click on... / 点击...
+        3. See error / 看到错误
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior / 期望行为
+      description: What did you expect to happen? / 你期望发生什么？
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / 日志
+      description: If applicable, paste relevant logs (docker logs, browser console, etc.) / 如果适用，粘贴相关日志
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / 版本
+      description: Which version are you using? / 你使用的是哪个版本？
+      placeholder: v0.4.0 or commit hash / v0.4.0 或 commit hash
+    validations:
+      required: false

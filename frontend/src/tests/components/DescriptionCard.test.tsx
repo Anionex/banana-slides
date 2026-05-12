@@ -19,7 +19,7 @@ vi.mock('@/components/shared/MarkdownTextarea', () => {
   const React = require('react')
   return {
     MarkdownTextarea: React.forwardRef(
-      ({ value, onChange, onPaste, placeholder, label }: any, ref: any) => {
+      ({ value, onChange, onPaste, onFocus, placeholder, label }: any, ref: any) => {
         const textareaRef = React.useRef<HTMLTextAreaElement>(null)
         React.useImperativeHandle(ref, () => ({
           insertAtCursor: (text: string) => {
@@ -36,6 +36,7 @@ vi.mock('@/components/shared/MarkdownTextarea', () => {
               value={value}
               onChange={(e: any) => onChange(e.target.value)}
               onPaste={onPaste}
+              onFocus={onFocus}
               placeholder={placeholder}
             />
           </div>
@@ -61,7 +62,8 @@ vi.mock('@/hooks/useT', () => ({
 
 // Mock useGeneratingState hook
 vi.mock('@/hooks/useGeneratingState', () => ({
-  useDescriptionGeneratingState: (isGenerating: boolean) => isGenerating,
+  useDescriptionGeneratingState: (page: any, isAiRefining: boolean) =>
+    page.status === 'GENERATING_DESCRIPTION' || isAiRefining,
 }))
 
 // jsdom doesn't have URL.createObjectURL
@@ -139,8 +141,9 @@ describe('DescriptionCard', () => {
     // Open edit modal
     fireEvent.click(screen.getByText('common.edit'))
 
-    // Get the textarea
+    // Get the textarea and focus it (triggers focusMainDesc to set up paste target)
     const textarea = screen.getByDisplayValue('Test description content')
+    fireEvent.focus(textarea)
 
     // Create a mock paste event with an image file
     const file = new File(['image-data'], 'screenshot.png', { type: 'image/png' })
@@ -152,6 +155,7 @@ describe('DescriptionCard', () => {
           getAsFile: () => file,
         },
       ],
+      getData: () => '',
     }
 
     // Fire paste event
@@ -186,6 +190,7 @@ describe('DescriptionCard', () => {
           getAsFile: () => null,
         },
       ],
+      getData: () => '',
     }
 
     fireEvent.paste(textarea, { clipboardData })
@@ -199,8 +204,9 @@ describe('DescriptionCard', () => {
     expect(screen.getByText('descriptionCard.noDescription')).toBeInTheDocument()
   })
 
-  it('shows generating state when isGenerating is true', () => {
-    render(<DescriptionCard {...defaultProps} isGenerating={true} />)
+  it('shows generating state when page status is GENERATING_DESCRIPTION', () => {
+    const generatingPage = { ...mockPage, status: 'GENERATING_DESCRIPTION' as const }
+    render(<DescriptionCard {...defaultProps} page={generatingPage} />)
     // "common.generating" appears both in skeleton area and regenerate button
     const generatingElements = screen.getAllByText('common.generating')
     expect(generatingElements.length).toBeGreaterThanOrEqual(1)
@@ -225,6 +231,7 @@ describe('DescriptionCard', () => {
           type: 'image/png',
           getAsFile: () => file,
         }],
+        getData: () => '',
       },
     })
 
@@ -252,6 +259,7 @@ describe('DescriptionCard', () => {
           type: 'image/png',
           getAsFile: () => file,
         }],
+        getData: () => '',
       },
     })
 

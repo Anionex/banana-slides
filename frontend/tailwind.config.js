@@ -74,8 +74,13 @@ export default {
         'float-delayed': 'float 7s ease-in-out infinite 1s',
         'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
         'fade-in': 'fadeIn 1s ease-out forwards',
+        'slide-in-up': 'slideInUp 0.35s ease-out both',
       },
       keyframes: {
+        slideInUp: {
+          '0%': { opacity: '0', transform: 'translateY(16px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-20px)' },

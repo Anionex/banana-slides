@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import PresetCapsules from '@/components/shared/PresetCapsules';
 
 // 组件内翻译
 const outlineI18n = {
@@ -16,18 +17,36 @@ const outlineI18n = {
       preview: "预览", clickToPreview: "点击左侧卡片查看详情",
       noPages: "还没有页面", noPagesHint: "点击「添加页面」手动创建，或「自动生成大纲」让 AI 帮你完成",
       parseOutline: "解析大纲", autoGenerate: "自动生成大纲",
-      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲",
+      reParseOutline: "重新解析大纲", reGenerate: "重新生成大纲", export: "导出大纲", import: "导入", importExport: "导入/导出",
       aiPlaceholder: "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：增加/删除页面... · Ctrl+Enter",
       contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
       inputLabel: { idea: "PPT 构想", outline: "原始大纲", description: "页面描述", ppt_renovation: "原始 PPT 内容" },
       inputPlaceholder: { idea: "输入你的 PPT 构想...", outline: "输入大纲内容...", description: "输入页面描述...", ppt_renovation: "已从 PDF 中提取内容" },
+      outlineRequirements: "大纲生成要求",
+      outlineRequirementsPlaceholder: "例如：限制在10页以内、每页要点不超过3条、多使用图表...",
+      importModalTitle: "导入 Markdown",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importPasteLabel: "粘贴内容",
+      importPastePlaceholder: "把大纲或大纲+描述的 Markdown 粘贴到这里...",
+      importUploadLabel: "上传文件",
+      importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
+      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importConfirm: "导入到项目",
+      importCancel: "取消",
       messages: {
         outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
-        confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
-        confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
+        generateIncomplete: "大纲生成可能不完整，请检查后重试",
+        confirmRegenerate: "重新生成将更新所有页面标题。已有的描述和图片会按位置保留，但如果新大纲页数减少，多出的页面及其内容将被删除。确定继续吗？",
+        confirmRegenerateTitle: "确认重新生成",
+        lockPageCount: "锁定页面数量（不允许减少，用空白页填补）",
+        refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
+        importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
+        importContentEmpty: "请先粘贴内容或上传文件",
+        importReadFailed: "读取文件失败，请重试",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
+        saveFailed: "保存失败",
       }
     }
   },
@@ -42,18 +61,36 @@ const outlineI18n = {
       preview: "Preview", clickToPreview: "Click a card on the left to view details",
       noPages: "No pages yet", noPagesHint: "Click \"Add Page\" to create manually, or \"Auto Generate\" to let AI help you",
       parseOutline: "Parse Outline", autoGenerate: "Auto Generate Outline",
-      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline",
+      reParseOutline: "Re-parse Outline", reGenerate: "Regenerate Outline", export: "Export Outline", import: "Import", importExport: "Import/Export",
       aiPlaceholder: "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Add/delete pages... · Ctrl+Enter",
       contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
       inputLabel: { idea: "PPT Idea", outline: "Original Outline", description: "Page Descriptions", ppt_renovation: "Original PPT Content" },
       inputPlaceholder: { idea: "Enter your PPT idea...", outline: "Enter outline content...", description: "Enter page descriptions...", ppt_renovation: "Content extracted from PDF" },
+      outlineRequirements: "Generation Requirements",
+      outlineRequirementsPlaceholder: "e.g., Limit to 10 pages, max 3 points per page, use more charts...",
+      importModalTitle: "Import Markdown",
+      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importPasteLabel: "Paste Content",
+      importPastePlaceholder: "Paste outline or outline+description Markdown here...",
+      importUploadLabel: "Upload File",
+      importUploadHint: "Click to choose a file, or drag a Markdown file here",
+      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importConfirm: "Import into Project",
+      importCancel: "Cancel",
       messages: {
         outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
-        confirmRegenerate: "Existing outline will be overwritten. Continue?",
-        confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
+        generateIncomplete: "Outline generation may be incomplete, please review and retry",
+        confirmRegenerate: "Regenerating will update all page titles. Existing descriptions and images are preserved by position, but if the new outline has fewer pages, extra pages and their content will be removed. Continue?",
+        confirmRegenerateTitle: "Confirm Regenerate",
+        lockPageCount: "Lock page count (prevent reduction, fill with blank pages)",
+        refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
+        importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
+        importContentEmpty: "Paste some content or upload a file first",
+        importReadFailed: "Failed to read file, please try again",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
+        saveFailed: "Save failed",
       }
     }
   }
@@ -75,13 +112,14 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject } from '@/api/endpoints';
-import { useImagePaste } from '@/hooks/useImagePaste';
-import { exportOutlineToMarkdown } from '@/utils/projectUtils';
+import { refineOutline, updateProject, addPage } from '@/api/endpoints';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
+import type { Material } from '@/types';
+import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 import type { Page } from '@/types';
 
 // 可排序的卡片包装器
@@ -127,14 +165,32 @@ export const OutlineEditor: React.FC = () => {
     reorderPages,
     deletePageById,
     addNewPage,
-    generateOutline,
+    generateOutlineStream,
     isGlobalLoading,
+    isOutlineStreaming,
   } = useProjectStore();
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+
+  // Skeleton fade-out: keep it mounted briefly after streaming ends
+  const [skeletonVisible, setSkeletonVisible] = useState(false);
+  const [skeletonFading, setSkeletonFading] = useState(false);
+  useEffect(() => {
+    if (isOutlineStreaming) {
+      setSkeletonVisible(true);
+      setSkeletonFading(false);
+    } else if (skeletonVisible) {
+      setSkeletonFading(true);
+      const timer = setTimeout(() => {
+        setSkeletonVisible(false);
+        setSkeletonFading(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOutlineStreaming]);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
 
@@ -142,6 +198,9 @@ export const OutlineEditor: React.FC = () => {
   // the shared-ref bug where insertAtCursor targets the wrong (hidden) instance.
   const desktopTextareaRef = useRef<MarkdownTextareaRef>(null);
   const mobileTextareaRef = useRef<MarkdownTextareaRef>(null);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
   const getInputText = useCallback((project: typeof currentProject) => {
     if (!project) return '';
     if (project.creation_type === 'outline' || project.creation_type === 'ppt_renovation') return project.outline_text || project.idea_prompt || '';
@@ -151,36 +210,95 @@ export const OutlineEditor: React.FC = () => {
 
   const [inputText, setInputText] = useState('');
   const [isInputDirty, setIsInputDirty] = useState(false);
-  const [isSavingInput, setIsSavingInput] = useState(false);
+  const [outlineRequirements, setOutlineRequirements] = useState('');
+  const [isRequirementsDirty, setIsRequirementsDirty] = useState(false);
+  const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
+  const [activeMaterialTarget, setActiveMaterialTarget] = useState<'input' | 'requirements'>('input');
+
+  const handleInputMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = buildMaterialsMarkdown(materials, setInputText);
+    const targetRef = desktopTextareaRef.current || mobileTextareaRef.current;
+    targetRef?.insertAtCursor(markdown + '\n');
+  }, []);
+
+  const handleReqMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = buildMaterialsMarkdown(materials, setOutlineRequirements);
+    reqTextareaRef.current?.insertAtCursor(markdown + '\n');
+  }, []);
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    if (!fileMenuOpen && !settingsOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setFileMenuOpen(false);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [fileMenuOpen, settingsOpen]);
 
   // 项目切换时：强制加载文本
   useEffect(() => {
     if (currentProject) {
       setInputText(getInputText(currentProject));
       setIsInputDirty(false);
+      setOutlineRequirements(currentProject.outline_requirements || '');
+      setIsRequirementsDirty(false);
     }
   }, [currentProject?.id]);
 
-  const handleSaveInputText = useCallback(async () => {
-    if (!projectId || !currentProject || !isInputDirty) return;
-    setIsSavingInput(true);
+  const saveInputText = useCallback(async (text: string, creationType: string | undefined) => {
+    if (!projectId || !creationType) return;
     try {
-      const field = currentProject.creation_type === 'outline'
+      const field = creationType === 'outline'
         ? 'outline_text'
-        : currentProject.creation_type === 'descriptions'
+        : creationType === 'descriptions'
           ? 'description_text'
           : 'idea_prompt';
-      await updateProject(projectId, { [field]: inputText } as any);
+      await updateProject(projectId, { [field]: text } as any);
       await syncProject(projectId);
       setIsInputDirty(false);
-      show({ message: '已保存', type: 'success' });
     } catch (e) {
       console.error('保存输入文本失败:', e);
-      show({ message: '保存失败', type: 'error' });
-    } finally {
-      setIsSavingInput(false);
+      show({ message: t('outline.messages.saveFailed'), type: 'error' });
     }
-  }, [projectId, currentProject?.creation_type, inputText, isInputDirty, show, syncProject]);
+  }, [projectId, show, syncProject]);
+
+  // Debounced auto-save: save 1s after user stops typing
+  useEffect(() => {
+    if (!isInputDirty) return;
+    const timer = setTimeout(() => {
+      saveInputText(inputText, currentProject?.creation_type);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
+
+  // Debounced auto-save for outline requirements
+  useEffect(() => {
+    if (!isRequirementsDirty || !projectId) return;
+    const timer = setTimeout(async () => {
+      try {
+        await updateProject(projectId, { outline_requirements: outlineRequirements });
+        setIsRequirementsDirty(false);
+      } catch (e) {
+        console.error('保存大纲要求失败:', e);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [outlineRequirements, isRequirementsDirty, projectId]);
+
+  const handleSaveInputText = useCallback(() => {
+    if (!isInputDirty) return;
+    saveInputText(inputText, currentProject?.creation_type);
+  }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
 
   const handleInputChange = useCallback((text: string) => {
     setInputText(text);
@@ -198,6 +316,20 @@ export const OutlineEditor: React.FC = () => {
     setContent: setInputText,
     showToast: show,
     insertAtCursor,
+  });
+
+  const insertAtReqCursor = useCallback((markdown: string) => {
+    reqTextareaRef.current?.insertAtCursor(markdown);
+  }, []);
+
+  const { handlePaste: handleReqImagePaste, handleFiles: handleReqImageFiles } = useImagePaste({
+    projectId: projectId || null,
+    setContent: (updater) => {
+      setOutlineRequirements(updater);
+      setIsRequirementsDirty(true);
+    },
+    showToast: show,
+    insertAtCursor: insertAtReqCursor,
   });
 
   const inputLabel = useMemo(() => {
@@ -242,30 +374,36 @@ export const OutlineEditor: React.FC = () => {
   const handleGenerateOutline = async () => {
     if (!currentProject) return;
 
+    const doGenerate = async (lockPageCount?: boolean) => {
+      try {
+        const result = await generateOutlineStream(lockPageCount);
+        const { currentProject: updatedProject } = useProjectStore.getState();
+        const pageCount = updatedProject?.pages.length ?? 0;
+        if (result && (!result.complete || pageCount === 0)) {
+          show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
+        }
+      } catch (error: any) {
+        console.error('生成大纲失败:', error);
+        const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
+        show({ message, type: 'error' });
+      }
+    };
+
     if (currentProject.pages.length > 0) {
       confirm(
         t('outline.messages.confirmRegenerate'),
-        async () => {
-          try {
-            await generateOutline();
-          } catch (error: any) {
-            console.error('生成大纲失败:', error);
-            const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-            show({ message, type: 'error' });
-          }
-        },
-        { title: t('outline.messages.confirmRegenerateTitle'), variant: 'warning' }
+        doGenerate,
+        {
+          title: t('outline.messages.confirmRegenerateTitle'),
+          variant: 'warning',
+          checkboxLabel: t('outline.messages.lockPageCount'),
+          checkboxDefaultChecked: false
+        }
       );
       return;
     }
 
-    try {
-      await generateOutline();
-    } catch (error: any) {
-      console.error('生成大纲失败:', error);
-      const message = error.friendlyMessage || error.message || t('outline.messages.generateFailed');
-      show({ message, type: 'error' });
-    }
+    await doGenerate();
   };
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
@@ -291,15 +429,45 @@ export const OutlineEditor: React.FC = () => {
   // 导出大纲为 Markdown 文件
   const handleExportOutline = useCallback(() => {
     if (!currentProject) return;
-    exportOutlineToMarkdown(currentProject);
+    exportProjectToMarkdown(currentProject, { outline: true, description: false });
     show({ message: t('outline.messages.exportSuccess'), type: 'success' });
   }, [currentProject, show]);
+
+  // 导入大纲 Markdown（追加新页面）
+  const handleImportOutline = useCallback(async (text: string) => {
+    if (!currentProject || !projectId) return;
+    try {
+      const parsed = parseMarkdownPages(text);
+      if (parsed.length === 0) {
+        show({ message: t('outline.messages.importEmpty'), type: 'error' });
+        throw new Error('empty-import');
+      }
+      const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
+      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
+        addPage(projectId, {
+          outline_content: { title, points },
+          description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
+          part,
+          order_index: startIndex + i,
+        })
+      ));
+      await syncProject(projectId);
+      show({ message: t('outline.messages.importSuccess'), type: 'success' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'empty-import') {
+        throw error;
+      }
+      show({ message: t('outline.messages.importFailed'), type: 'error' });
+      throw error;
+    }
+  }, [currentProject, projectId, syncProject, show, t]);
+
 
   if (!currentProject) {
     return <Loading fullscreen message={t('outline.messages.loadingProject')} />;
   }
 
-  if (isGlobalLoading) {
+  if (isGlobalLoading && !isOutlineStreaming) {
     return <Loading fullscreen message={t('outline.messages.generatingOutline')} />;
   }
 
@@ -398,10 +566,11 @@ export const OutlineEditor: React.FC = () => {
             >
               {t('outline.addPage')}
             </Button>
-            {currentProject.pages.length === 0 ? (
+            {currentProject.pages.length === 0 && !isOutlineStreaming ? (
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
+                disabled={isOutlineStreaming}
                 className="flex-1 sm:flex-initial text-sm md:text-base"
               >
                 {currentProject.creation_type === 'outline' ? t('outline.parseOutline') : t('outline.autoGenerate')}
@@ -410,20 +579,86 @@ export const OutlineEditor: React.FC = () => {
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
+                disabled={isOutlineStreaming}
                 className="flex-1 sm:flex-initial text-sm md:text-base"
               >
-                {currentProject.creation_type === 'outline' ? t('outline.reParseOutline') : t('outline.reGenerate')}
+                {isOutlineStreaming
+                  ? t('outline.generating')
+                  : currentProject.creation_type === 'outline' ? t('outline.reParseOutline') : t('outline.reGenerate')}
               </Button>
             )}
-            <Button
-              variant="secondary"
-              icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={handleExportOutline}
-              disabled={currentProject.pages.length === 0}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
-            >
-              {t('outline.export')}
-            </Button>
+            {/* 设置 popover */}
+            <div className="relative" ref={settingsRef}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                icon={<span className="relative"><Settings2 size={16} className="md:w-[18px] md:h-[18px]" />{outlineRequirements && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-banana-400" />}</span>}
+                title={t('outline.outlineRequirements')}
+              />
+              {settingsOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-80 rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-3">
+                  <label className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-foreground-tertiary">
+                    {t('outline.outlineRequirements')}
+                  </label>
+                  <div data-testid="outline-requirements-textarea">
+                    <MarkdownTextarea
+                      ref={reqTextareaRef}
+                      value={outlineRequirements}
+                      onChange={(val) => { setOutlineRequirements(val); setIsRequirementsDirty(true); }}
+                      onPaste={handleReqImagePaste}
+                      onFiles={handleReqImageFiles}
+                      onSelectFromLibrary={() => { setActiveMaterialTarget('requirements'); setIsMaterialSelectorOpen(true); }}
+                      placeholder={t('outline.outlineRequirementsPlaceholder')}
+                      className="ring-inset"
+                      rows={2}
+                      showImagePreview={false}
+                    />
+                  </div>
+                  <PresetCapsules
+                    type="outline"
+                    onAppend={(text) => {
+                      setOutlineRequirements((prev) => prev ? `${prev}\n${text}` : text);
+                      setIsRequirementsDirty(true);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            {/* 导入导出下拉菜单 */}
+            <div className="relative" ref={fileMenuRef}>
+              <Button
+                variant="secondary"
+                onClick={() => setFileMenuOpen(!fileMenuOpen)}
+                icon={<FileText size={16} className="md:w-[18px] md:h-[18px]" />}
+                className="flex-1 sm:flex-initial text-sm md:text-base"
+              >
+                {t('outline.importExport')}
+                <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${fileMenuOpen ? 'rotate-180' : ''}`} />
+              </Button>
+              {fileMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-full rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { handleExportOutline(); setFileMenuOpen(false); }}
+                    disabled={currentProject.pages.length === 0}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                  >
+                    <Download size={14} />
+                    {t('outline.export')}
+                  </button>
+                  <div className="border-t border-gray-100 dark:border-border-primary" />
+                  <button
+                    type="button"
+                    onClick={() => { setIsImportModalOpen(true); setFileMenuOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-foreground-tertiary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors duration-150"
+                  >
+                    <Upload size={14} />
+                    {t('outline.import')}
+                  </button>
+                </div>
+              )}
+            </div>
             {/* 手机端：保存按钮 */}
             <Button
               variant="secondary"
@@ -464,15 +699,6 @@ export const OutlineEditor: React.FC = () => {
                 <div className="ml-auto flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={handleSaveInputText}
-                    disabled={!isInputDirty || isSavingInput}
-                    className={`p-1 rounded transition-colors ${isInputDirty ? 'text-banana-500 hover:text-banana-600 hover:bg-banana-50 dark:hover:bg-banana-900/30' : 'text-gray-300 dark:text-gray-600 cursor-default'}`}
-                    title={isInputDirty ? '保存' : '无更改'}
-                  >
-                    <Save size={14} />
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setIsPanelOpen(false)}
                     className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-foreground-secondary rounded hover:bg-gray-100 dark:hover:bg-background-hover transition-colors"
                   >
@@ -484,8 +710,10 @@ export const OutlineEditor: React.FC = () => {
                 ref={desktopTextareaRef}
                 value={inputText}
                 onChange={handleInputChange}
+                onBlur={handleSaveInputText}
                 onPaste={handleImagePaste}
                 onFiles={handleImageFiles}
+                onSelectFromLibrary={() => { setActiveMaterialTarget('input'); setIsMaterialSelectorOpen(true); }}
                 placeholder={inputPlaceholder}
                 rows={12}
                 className="border-0 rounded-none shadow-none"
@@ -495,6 +723,7 @@ export const OutlineEditor: React.FC = () => {
               projectId={projectId}
               onFileClick={setPreviewFileId}
               className="mt-3"
+              showToast={show}
             />
           </div>
         </div>
@@ -518,22 +747,15 @@ export const OutlineEditor: React.FC = () => {
                 ? <Sparkle size={14} className="text-banana-500 flex-shrink-0" />
                 : <FileText size={14} className="text-banana-500 flex-shrink-0" />}
               <span className="text-xs font-medium text-gray-500 dark:text-foreground-tertiary">{inputLabel}</span>
-              <button
-                type="button"
-                onClick={handleSaveInputText}
-                disabled={!isInputDirty || isSavingInput}
-                className={`ml-auto p-1 rounded transition-colors ${isInputDirty ? 'text-banana-500 hover:text-banana-600 hover:bg-banana-50 dark:hover:bg-banana-900/30' : 'text-gray-300 dark:text-gray-600 cursor-default'}`}
-                title={isInputDirty ? '保存' : '无更改'}
-              >
-                <Save size={14} />
-              </button>
             </div>
             <MarkdownTextarea
               ref={mobileTextareaRef}
               value={inputText}
               onChange={handleInputChange}
+              onBlur={handleSaveInputText}
               onPaste={handleImagePaste}
               onFiles={handleImageFiles}
+              onSelectFromLibrary={() => { setActiveMaterialTarget('input'); setIsMaterialSelectorOpen(true); }}
               placeholder={inputPlaceholder}
               rows={6}
               className="border-0 rounded-none shadow-none"
@@ -543,12 +765,13 @@ export const OutlineEditor: React.FC = () => {
             projectId={projectId}
             onFileClick={setPreviewFileId}
             className="mt-3"
+            showToast={show}
           />
         </div>
 
         {/* 右侧：大纲列表 */}
         <div className="flex-1 min-w-0">
-          {currentProject.pages.length === 0 ? (
+          {currentProject.pages.length === 0 && !isOutlineStreaming ? (
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4">
                 <FileText size={48} className="text-gray-300" />
@@ -572,19 +795,50 @@ export const OutlineEditor: React.FC = () => {
               >
                 <div className="space-y-3 md:space-y-4">
                   {currentProject.pages.map((page, index) => (
-                    <SortableCard
+                    <div
                       key={page.id || `page-${index}`}
-                      page={page}
-                      index={index}
-                      projectId={projectId}
-                      showToast={show}
-                      onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
-                      onDelete={() => page.id && deletePageById(page.id)}
-                      onClick={() => setSelectedPageId(page.id || null)}
-                      isSelected={selectedPageId === page.id}
-                      isAiRefining={isAiRefining}
-                    />
+                      className={isOutlineStreaming ? 'animate-slide-in-up' : ''}
+                      style={isOutlineStreaming ? { animationDelay: `${index * 60}ms` } : undefined}
+                    >
+                      <SortableCard
+                        page={page}
+                        index={index}
+                        projectId={projectId}
+                        showToast={show}
+                        onUpdate={(data) => page.id && updatePageLocal(page.id, data)}
+                        onDelete={() => page.id && deletePageById(page.id)}
+                        onClick={() => setSelectedPageId(page.id || null)}
+                        isSelected={selectedPageId === page.id}
+                        isAiRefining={isAiRefining}
+                      />
+                    </div>
                   ))}
+                  {skeletonVisible && (
+                    <div
+                      className="transition-opacity duration-1000"
+                      style={{ opacity: skeletonFading ? 0 : 1 }}
+                    >
+                      <div className="animate-pulse">
+                        <div className="bg-white dark:bg-background-secondary rounded-xl shadow-sm border border-gray-100 dark:border-border-primary p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded mt-1" />
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
+                              <div className="h-4 w-16 bg-banana-100 dark:bg-banana-900/30 rounded" />
+                            </div>
+                            <div className="h-5 w-2/3 bg-gray-200 dark:bg-gray-700 rounded" />
+                            <div className="space-y-2">
+                              <div className="h-3.5 w-full bg-gray-100 dark:bg-gray-800 rounded" />
+                              <div className="h-3.5 w-4/5 bg-gray-100 dark:bg-gray-800 rounded" />
+                              <div className="h-3.5 w-3/5 bg-gray-100 dark:bg-gray-800 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </SortableContext>
             </DndContext>
@@ -594,6 +848,29 @@ export const OutlineEditor: React.FC = () => {
       {ConfirmDialog}
       <ToastContainer />
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      <ImportMarkdownModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportOutline}
+        title={t('outline.importModalTitle')}
+        description={t('outline.importModalDesc')}
+        pasteLabel={t('outline.importPasteLabel')}
+        pastePlaceholder={t('outline.importPastePlaceholder')}
+        uploadLabel={t('outline.importUploadLabel')}
+        uploadHint={t('outline.importUploadHint')}
+        uploadFormatsHint={t('outline.importUploadFormatsHint')}
+        importButtonLabel={t('outline.importConfirm')}
+        cancelButtonLabel={t('outline.importCancel')}
+        emptyError={t('outline.messages.importContentEmpty')}
+        readFileError={t('outline.messages.importReadFailed')}
+      />
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={activeMaterialTarget === 'input' ? handleInputMaterialSelect : handleReqMaterialSelect}
+        multiple
+      />
     </div>
   );
 };

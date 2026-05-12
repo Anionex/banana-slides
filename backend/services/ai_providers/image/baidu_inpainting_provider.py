@@ -240,16 +240,16 @@ def create_baidu_inpainting_provider(
         # 优先从 Flask config 读取（数据库设置），然后从 Config，最后从环境变量
         try:
             from flask import current_app
-            api_key = current_app.config.get('BAIDU_OCR_API_KEY')
+            api_key = current_app.config.get('BAIDU_API_KEY')
         except RuntimeError:
             pass  # 不在 Flask 上下文中
         if not api_key:
-            api_key = Config.BAIDU_OCR_API_KEY
+            api_key = Config.BAIDU_API_KEY
         if not api_key:
-            api_key = os.getenv('BAIDU_OCR_API_KEY')
+            api_key = os.getenv('BAIDU_API_KEY')
 
     if not api_key:
-        logger.warning("⚠️ 未配置百度API Key (BAIDU_OCR_API_KEY), 跳过百度图像修复")
+        logger.warning("⚠️ 未配置百度API Key (BAIDU_API_KEY), 跳过百度图像修复")
         return None
 
     return BaiduInpaintingProvider(api_key)

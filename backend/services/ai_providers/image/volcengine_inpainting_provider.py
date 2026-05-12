@@ -164,7 +164,7 @@ class VolcengineInpaintingProvider:
                     try:
                         response_text = error_str[2:-1]  # 去掉 b' 和 '
                         response = json.loads(response_text)
-                    except:
+                    except Exception:
                         logger.error("无法解析错误响应")
                         return None
                 else:

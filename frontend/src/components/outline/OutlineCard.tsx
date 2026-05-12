@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GripVertical, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { useImagePaste } from '@/hooks/useImagePaste';
-import { Card, useConfirm, Markdown, ShimmerOverlay } from '@/components/shared';
+import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
+import { Card, useConfirm, Markdown, ShimmerOverlay, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
-import type { Page } from '@/types';
+import type { Page, Material } from '@/types';
 
 // OutlineCard 组件自包含翻译
 const outlineCardI18n = {
@@ -57,10 +57,12 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
 }) => {
   const t = useT(outlineCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
+  const outline = page.outline_content ?? { title: '', points: [] as string[] };
   const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(page.outline_content.title);
-  const [editPoints, setEditPoints] = useState(page.outline_content.points.join('\n'));
+  const [editTitle, setEditTitle] = useState(outline.title);
+  const [editPoints, setEditPoints] = useState(outline.points.join('\n'));
   const [editPart, setEditPart] = useState(page.part || '');
+  const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const textareaRef = useRef<MarkdownTextareaRef>(null);
 
   // Callback to insert at cursor position in the textarea
@@ -75,14 +77,19 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
     insertAtCursor,
   });
 
+  const handleMaterialSelect = useCallback((materials: Material[]) => {
+    const markdown = buildMaterialsMarkdown(materials, setEditPoints);
+    textareaRef.current?.insertAtCursor(markdown + '\n');
+  }, []);
+
   // 当 page prop 变化时，同步更新本地编辑状态（如果不在编辑模式）
   useEffect(() => {
     if (!isEditing) {
-      setEditTitle(page.outline_content.title);
-      setEditPoints(page.outline_content.points.join('\n'));
+      setEditTitle(outline.title);
+      setEditPoints(outline.points.join('\n'));
       setEditPart(page.part || '');
     }
-  }, [page.outline_content.title, page.outline_content.points, page.part, isEditing]);
+  }, [outline.title, outline.points, page.part, isEditing]);
 
   const handleSave = () => {
     onUpdate({
@@ -96,8 +103,8 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
   };
 
   const handleCancel = () => {
-    setEditTitle(page.outline_content.title);
-    setEditPoints(page.outline_content.points.join('\n'));
+    setEditTitle(outline.title);
+    setEditPoints(outline.points.join('\n'));
     setEditPart(page.part || '');
     setIsEditing(false);
   };
@@ -170,6 +177,7 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                   onChange={setEditPoints}
                   onPaste={handlePaste}
                   onFiles={handleFiles}
+                  onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
                   rows={5}
                   placeholder={t('outlineCard.keyPointsPlaceholder')}
                 />
@@ -196,10 +204,10 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
             /* 查看模式 */
             <div>
               <h4 className="font-semibold text-gray-900 dark:text-foreground-primary mb-2">
-                {page.outline_content.title}
+                {outline.title}
               </h4>
               <div className="text-gray-600 dark:text-foreground-tertiary">
-                <Markdown>{page.outline_content.points.join('\n')}</Markdown>
+                <Markdown>{outline.points.join('\n')}</Markdown>
               </div>
             </div>
           )}
@@ -234,6 +242,13 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
         )}
       </div>
       {ConfirmDialog}
+      <MaterialSelector
+        projectId={projectId}
+        isOpen={isMaterialSelectorOpen}
+        onClose={() => setIsMaterialSelectorOpen(false)}
+        onSelect={handleMaterialSelect}
+        multiple
+      />
     </Card>
   );
 };

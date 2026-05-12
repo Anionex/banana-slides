@@ -1,0 +1,101 @@
+---
+title: "Quick Start"
+description: "Try the demo or deploy Banana Slides locally"
+---
+
+## Online Demo
+
+No installation needed — try it instantly: [bananaslides.online](https://bananaslides.online/)
+
+---
+
+## Self-Hosting
+
+### Step 1: Install Docker
+
+<Tabs>
+  <Tab title="Windows / macOS">
+    Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/). After installation, launch it and confirm the Docker icon appears in the system tray (Windows) or menu bar (macOS).
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    curl -fsSL https://get.docker.com | sh
+    ```
+  </Tab>
+</Tabs>
+
+### Step 2: Download and Start
+
+Create a new directory, enter it, and run the following command to download the config files and start the service:
+
+```bash
+mkdir banana-slides && cd banana-slides && \
+curl -O https://raw.githubusercontent.com/Anionex/banana-slides/main/docker-compose.prod.yml && \
+curl -O https://raw.githubusercontent.com/Anionex/banana-slides/main/.env.example && \
+cp .env.example .env
+```
+
+Edit the `.env` file to fill in your API key (see [Configuration](/configuration)), then start:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+<Tip>
+  [AIHubMix](https://aihubmix.com/?aff=17EC) is recommended for API keys — it supports both Gemini and OpenAI formats and handles high-concurrency image generation reliably.
+</Tip>
+
+### Step 3: Open the App
+
+Visit [http://localhost:3000](http://localhost:3000) in your browser.
+
+<Note>
+  Default ports are 3000 (frontend) and 5000 (backend). To change them, set `FRONTEND_PORT` and `BACKEND_PORT` in `.env`.
+</Note>
+
+---
+
+## Update
+
+```bash
+docker compose -f docker-compose.prod.yml pull && \
+docker compose -f docker-compose.prod.yml up -d
+```
+
+## View Logs
+
+```bash
+docker logs -f --tail 100 banana-slides-backend
+```
+
+---
+
+## Deploy from Source
+
+<Accordion title="Expand for source deployment steps">
+
+### Requirements
+
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) package manager
+- Node.js 16+ and npm
+
+### Backend
+
+```bash
+git clone https://github.com/Anionex/banana-slides
+cd banana-slides
+cp .env.example .env  # Edit .env and add your API key
+cd backend
+uv run alembic upgrade head && uv run python app.py
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+</Accordion>

@@ -1,41 +1,48 @@
 <div align="center">
 
-<img width="256" src="https://github.com/user-attachments/assets/6f9e4cf9-912d-4faa-9d37-54fb676f547e">
-
-*Vibe your PPT like vibing code.*
-
-**中文 | [English](README_EN.md)**
+<p>
+  <img src="https://github.com/user-attachments/assets/81fe6816-44cc-4c61-97c7-f3c099650966" alt="Banana Slides" width="860">
+</p>
+<p>
+  <a href="https://trendshift.io/repositories/22056" target="_blank">
+    <img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58">
+  </a>
+  <a href="https://hellogithub.com/repository/Anionex/banana-slides" target="_blank">
+    <img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme=neutral" alt="Featured｜HelloGitHub" width="265" height="58">
+  </a>
+</p>
+<p>
+  <a href="#-项目缘起"><b>简体中文</b></a>
+  &nbsp;•&nbsp;
+  <a href="README_EN.md"><b>English</b></a>
+</p>
+<p>
+  <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
+  <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
+  <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
+  <a href="https://github.com/Anionex/banana-slides"><img src="https://img.shields.io/badge/version-v0.4.0-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
+  <a href="https://deepwiki.com/Anionex/banana-slides"><img src="./assets/badge-deepwiki-flat.svg" alt="Ask DeepWiki"></a>
+</p>
 
 <p>
-
-[![GitHub Stars](https://img.shields.io/github/stars/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/network)
-[![GitHub Watchers](https://img.shields.io/github/watchers/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/watchers)
-
-[![Version](https://img.shields.io/badge/version-v0.3.0-4CAF50.svg)](https://github.com/Anionex/banana-slides)
-![Docker](https://img.shields.io/badge/Docker-Build-2496ED?logo=docker&logoColor=white)
-[![GitHub issues](https://img.shields.io/github/issues-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/pulls)
-
-
-</p> 
-
-<b>一个基于nano banana pro🍌的原生AI PPT生成应用，支持想法/大纲/页面描述生成完整PPT演示文稿，<br></b>
-<b> 自动提取附件图表、上传任意素材、口头提出修改，迈向真正的"Vibe PPT" </b>
-
-<b>🎯 降低PPT制作门槛，让每个人都能快速创作出美观专业的演示文稿</b>
-
-<br>
-
-*如果该项目对你有用, 欢迎star🌟 &  fork🍴*
-
-<br>
-
+  <b>一个基于 nano banana pro 🍌 的原生 AI PPT 生成应用</b><br>
+  <b>在几分钟内从想法到演示文稿，无需繁琐排版、口头提出修改，迈向真正的 "Vibe PPT"</b>
+</p>
+<p>
+  <a href="https://bananaslides.online/"><b>🚀 在线 Demo</b></a>
+  &nbsp;|&nbsp;
+  <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
+  &nbsp;|&nbsp;
+ <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>部署方法</b></a>
+</p>
+<p>
+  如果该项目对你有用，欢迎 <b>Star 🌟</b> & <b>Fork 🍴</b>
 </p>
 
 </div>
-
-
 
 ## ✨ 项目缘起
 你是否也曾陷入这样的困境：明天就要汇报，但PPT还是一片空白；脑中有无数精彩的想法，却被繁琐的排版和设计消磨掉所有热情？
@@ -54,11 +61,16 @@
 
 ## 👨‍💻 适用场景
 
+
 1. **小白**：零门槛快速生成美观PPT，无需设计经验，减少模板选择烦恼
 2. **PPT专业人士**：参考AI生成的布局和图文元素组合，快速获取设计灵感
 3. **教育工作者**：将教学内容快速转换为配图教案PPT，提升课堂效果
 4. **学生**：快速完成作业Pre，把精力专注于内容而非排版美化
 5. **职场人士**：商业提案、产品介绍快速可视化，多场景快速适配
+
+<p>
+  <b>🎯目标： 降低 PPT 制作门槛，让每个人都能快速创作出美观专业的演示文稿</b>
+</p>
 
 
 ## 🎨 结果案例
@@ -116,15 +128,20 @@
 - 相关更新见 https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 
+### 6. 一键导出讲解视频
+- **一键将幻灯片转换为带 AI 语音旁白和字幕的讲解视频（MP4）**
+- AI 自动根据页面描述和内容生成口语化旁白
+- 支持配置多种表达风格、多语言和多种音色
+
 <br>
 
 **🌟和notebooklm slide deck功能对比**
 | 功能 | notebooklm | 本项目 | 
 | --- | --- | --- |
 | 页数上限 | 15页 | **无限制** | 
-| 二次编辑 | 不支持 | **框选编辑+口头编辑** |
+| 二次编辑 | 提示词修改 | **框选编辑+口头编辑** |
 | 素材添加 | 生成后无法添加 | **生成后自由添加** |
-| 导出格式 | 仅支持导出为 PDF | **导出为PDF、(可编辑)pptx** |
+| 导出格式 | 支持导出为 PDF、（不可编辑图片）pptx | **导出为PDF、(图片or可编辑)pptx、讲解视频** |
 | 水印 | 免费版有水印 | **无水印，自由增删元素** |
 
 > 注：随着新功能添加,对比可能过时
@@ -132,7 +149,13 @@
 
 
 ## 🔥 近期更新
-- 【2-9】：
+- [2026-04-25]： 素材工具箱上线 — 在原有素材生成基础上新增整图编辑、框选编辑（overlay/replace）、智能擦除三种模式，统一入口一站式操作
+- [2026-04-25]：支持通过 OpenAI 官方 OAuth 登录绑定账号，绑定后可直接使用 Codex 作为文本/图片生成 provider，无需手动填写 API Key（基于 OpenAI 官方 OAuth PKCE 授权流程，非逆向）
+- [2026-04-25]：支持保存自定义文字风格描述模板，可命名、标色、持久化复用，无需每次重新输入
+- [2026-04-23]：支持了gpt-image-2模型，同时导出可编辑背景效果也因模型能力升级得到了提升（在 设置-导出选项-背景获取 选择 生成式获取）
+- [2026-04-11]：支持了[cli操作并加入了agent skills](https://docs.bananaslides.online/cli)
+- [2026-03]：加入了若干功能和优化，如额外字段、多比例设定等
+- [2026-02-09]： 新功能和优化
   * 新功能
     * 支持在首页、大纲、描述卡片里面粘贴图片并立即识别，并提供更好的交互体验
     * 大纲章节手动编辑：支持手动调整页面所属章节（part）。
@@ -142,15 +165,13 @@
     * 修复导出相关 500、参考文件关联时序、outline/page 数据错位、任务轮询错误项目、描述生成无限轮询、图片预览内存泄漏、批量删除部分失败处理。
     * 优化格式示例提示、HTTP 错误提示文案、Modal 关闭体验、清理旧项目 localStorage、移除首次创建项目冗余提示。
     * 若干其他优化和修复
-- 【1-4】 : v0.3.0发布：可编辑pptx导出全面升级：
+- [2026-01-04]：v0.4.0发布：可编辑pptx导出全面升级：
   * 支持最大程度还原图片中文字的字号、颜色、加粗等样式；
   * 支持了识别表格中的文字内容；
   * 更精确的文字大小和文字位置还原逻辑
   * 优化导出工作流，大大减少了导出后背景图残留文字的现象；
   * 支持页面多选逻辑，灵活选择需要生成和导出的具体页面。
   * **详细效果和使用方法见 https://github.com/Anionex/banana-slides/issues/121**
-
-- 【12-27】: 加入了对无图片模板模式的支持和较高质量的文字预设，现在可以通过纯文字描述的方式来控制ppt页面风格
 
 
 ## 🗺️ 开发计划
@@ -168,23 +189,35 @@
 | 🔄 进行中 | 支持多层次、精确抠图的可编辑pptx导出 |
 | 🔄 进行中 | 网络搜索 |
 | 🔄 进行中 | Agent 模式 |
+| ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕、Ken Burns 动效） |
 | 🚍 部分 | 优化前端加载速度 |
 | 🧭 规划中 | 在线播放功能 |
 | 🧭 规划中 | 简单的动画和页面切换效果 |
 | 🚍 部分 | 多语种支持 |
-| 🏢商业版功能 | 用户系统 |
 
 ## 📦 使用方法
 
-### 使用 Docker Compose🐳（推荐）
-这是最简单的部署方式，可以一键启动前后端服务。
+### （新）使用应用模板一键部署
+这是最简单的方式，无需安装docker或下载项目，创建后可直接进入应用
+
+
+1. 通过雨云一键部署和启动本应用 (带宽大，适合高清图片生成和下载。新用户有15天免费试用)
+- [图文教程](https://ziy68cvfvu3.feishu.cn/wiki/B5RIwg3OUiCfo9kyadzcR9CInnc?from=from_copylink)
+
+[![通过雨云一键部署](https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg)](https://app.rainyun.com/apps/rca/store/7549/anionex_)
+
+2. 敬请期待
+
+
+### 使用 Docker Compose🐳
+通过docker compose快速启动前后端服务。
 
 <details>
-  <summary>📒Windows用户说明</summary>
+  <summary>📒 Windows/Mac用户说明</summary>
 
-如果你使用 Windows, 请先安装 Windows Docker Desktop，检查系统托盘中的 Docker 图标，确保 Docker 正在运行，然后使用相同的步骤操作。
+如果你使用 **Windows 或 macOS**，请先[安装 **Docker Desktop**](https://docs.docker.com/desktop/setup/install/windows-install/)，并确保 Docker 正在运行（Windows 可检查系统托盘图标；macOS 可检查菜单栏图标），然后按文档中的相同步骤操作。
 
-> **提示**：如果遇到问题，确保在 Docker Desktop 设置中启用了 WSL 2 后端（推荐），并确保端口 3000 和 5000 未被占用。
+> **提示**：如果遇到问题，Windows 用户请在 Docker Desktop 设置中启用 **WSL 2 后端**（推荐）；同时确保端口 **3000** 和 **5000** 未被占用。
 
 </details>
 
@@ -201,8 +234,12 @@ cd banana-slides
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，配置必要的环境变量：
-> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**<br>
+**（可选， 也可以启动后在用户界面配置，[教程可点击此处](https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink )）** 编辑 `.env` 文件，配置必要的环境变量：
+
+<details>
+<summary>点击展开详情</summary>
+  
+> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix(点击此处可直接访问)](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**<br>
 > **友情提示：谷歌nano banana pro模型接口费用较高，请注意调用成本**
 ```env
 # AI Provider格式配置 (gemini / openai / vertex)
@@ -218,8 +255,8 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://aihubmix.com/v1
 
-# Vertex AI 格式配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
-# 需要 GCP 服务账户，可使用 GCP 免费额度
+# Vertex AI 配置（AI_PROVIDER_FORMAT=vertex）
+# 需要 GCP 项目和服务账户密钥
 # VERTEX_PROJECT_ID=your-gcp-project-id
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
@@ -240,43 +277,52 @@ SENSENOVA_API_KEY=your-sensenova-api-key      # 商汤日日新
 MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 ...
 ```
+  
+</details>
 
-**使用新版可编辑导出配置方法，获得更好的可编辑导出效果**: 需在[百度智能云平台](https://console.bce.baidu.com/iam/#/iam/apikey/list)（点击此处进入）中获取API KEY，填写在.env文件中的BAIDU_OCR_API_KEY字段（有充足的免费使用额度）。详见https://github.com/Anionex/banana-slides/issues/121 中的说明
+
+**使用新版可编辑导出配置方法，获得更好的可编辑导出效果**: 需在[百度智能云平台](https://console.bce.baidu.com/iam/#/iam/apikey/list)（点击此处进入）中获取API KEY，填写在.env文件中的BAIDU_API_KEY字段（有充足的免费使用额度）。详见https://github.com/Anionex/banana-slides/issues/121 中的说明
 
 
 <details>
-  <summary>📒 使用 Vertex AI（GCP 免费额度）</summary>
+  <summary>📒 Vertex AI 配置指南（适用于 GCP 用户）</summary>
 
-如果你想使用 Google Cloud Vertex AI（可使用 GCP 新用户赠金），需要额外配置：
+Google Cloud Vertex AI 允许通过 GCP 服务账户调用 Gemini 模型，新用户可使用赠金额度。配置步骤：
 
-1. 在 [GCP Console](https://console.cloud.google.com/) 创建服务账户并下载 JSON 密钥文件
-2. 将密钥文件重命名为 `gcp-service-account.json` 放在项目根目录
-3. 编辑 `.env` 文件：
+1. 前往 [GCP Console](https://console.cloud.google.com/)，创建一个服务账户并下载 JSON 格式的密钥文件
+2. 将密钥文件保存为项目根目录下的 `gcp-service-account.json`
+3. 在 `.env` 中设置：
    ```env
    AI_PROVIDER_FORMAT=vertex
    VERTEX_PROJECT_ID=your-gcp-project-id
    VERTEX_LOCATION=global
    ```
-4. 编辑 `docker-compose.yml`，取消以下注释：
-   ```yaml
-   # environment:
-   #   - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
-   # ...
-   # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
-   ```
+4. 如果使用 Docker 部署，还需要在 `docker-compose.yml` 中取消相关注释，将密钥文件挂载到容器内并设置 `GOOGLE_APPLICATION_CREDENTIALS` 环境变量。
 
-> **注意**：`gemini-3-*` 系列模型需要设置 `VERTEX_LOCATION=global`
+> `gemini-3-*` 系列模型要求 `VERTEX_LOCATION=global`
 
 </details>
 
 2. **启动服务**
 
+**⚡ 使用预构建镜像（推荐）**
+
+项目在 Docker Hub 提供了构建好的前端和后端镜像（同步主分支最新版本），可以跳过本地构建步骤，实现快速部署：
+
+```bash
+# 使用预构建镜像启动（无需从头构建）
+docker compose -f docker-compose.prod.yml up -d
+```
+
+镜像名称：
+- `anoinex/banana-slides-frontend:latest`
+- `anoinex/banana-slides-backend:latest`
+
+**从头构建镜像**
+
 ```bash
 docker compose up -d
 ```
-更新：项目也在dockerhub提供了构建好的前端和后端镜像（同步主分支最新版本），名字分别为：
-1. anoinex/banana-slides-frontend
-2. anoinex/banana-slides-backend
 
 
 > [!TIP]
@@ -299,14 +345,14 @@ docker compose up -d
 4. **查看日志**
 
 ```bash
-# 查看后端日志（实时查看最后50行）
-sudo docker compose logs -f --tail 50 backend
+# 查看后端日志（最后 200 行）
+docker logs --tail 200 banana-slides-backend
 
-# 查看所有服务日志（后200行）
-sudo docker compose logs -f --tail 200
+# 实时查看后端日志（最后 100 行）
+docker logs -f --tail 100 banana-slides-backend
 
-# 查看前端日志
-sudo docker compose logs -f --tail 50 frontend
+# 查看前端日志（最后 100 行）
+docker logs --tail 100 banana-slides-frontend
 ```
 
 5. **停止服务**
@@ -317,10 +363,19 @@ docker compose down
 
 6. **更新项目**
 
-拉取最新代码并重新构建和启动服务：
+**使用预构建镜像（docker-compose.prod.yml）**
 
 ```bash
-git pull
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**使用本地构建（docker-compose.yml）**
+
+注：若手动修改了代码，该方法不适用，需要先将代码还原到拉取时的版本。
+
+```bash
+git pull 
 docker compose down
 docker compose build --no-cache
 docker compose up -d
@@ -334,8 +389,13 @@ docker compose up -d
 - Python 3.10 或更高版本
 - [uv](https://github.com/astral-sh/uv) - Python 包管理器
 - Node.js 16+ 和 npm
+- [FFmpeg](https://ffmpeg.org/) - 讲解视频导出必需，且必须包含 `libass` / `ass` 字幕滤镜支持
 - 有效的 Google Gemini API 密钥
-- （可选）[LibreOffice](https://www.libreoffice.org/) - 使用「PPT 翻新」功能上传 PPTX 文件时需要，用于将 PPTX 转换为 PDF。上传 PDF 文件则不需要
+- （可选）[LibreOffice](https://www.libreoffice.org/) - 使用「PPT 翻新」功能上传 PPTX 文件时需要，用于将 PPTX 转换为 PDF。**推荐先在本地将 PPTX 转为 PDF 后再上传**，原因：LibreOffice 在服务端渲染时可能因缺少字体（如微软雅黑、Calibri 等）导致排版错位，且无法完整还原部分特效。上传 PDF 文件则不需要 LibreOffice。Docker 用户如仍需在容器内支持 PPTX 上传，可执行：
+  ```bash
+  docker exec -it banana-slides-backend bash -c "apt-get update && apt-get install -y libreoffice-impress && rm -rf /var/lib/apt/lists/*"
+  ```
+  > 注意：此方式安装的 LibreOffice 在容器重建后会丢失，需重新安装。
 
 #### 后端安装
 
@@ -354,6 +414,16 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 在项目根目录下运行：
 ```bash
+# macOS（Homebrew）
+brew install ffmpeg-full
+brew unlink ffmpeg 2>/dev/null || true
+brew link --overwrite --force ffmpeg-full
+
+# Ubuntu / Debian
+sudo apt-get update
+sudo apt-get install -y ffmpeg libass9
+
+# 然后安装 Python 依赖
 uv sync
 ```
 
@@ -364,33 +434,7 @@ uv sync
 复制环境变量模板：
 ```bash
 cp .env.example .env
-```
-
-编辑 `.env` 文件，配置你的 API 密钥：
-> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本** 
-```env
-# AI Provider格式配置 (gemini / openai / vertex)
-AI_PROVIDER_FORMAT=gemini
-
-# Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini 时使用）
-GOOGLE_API_KEY=your-api-key-here
-GOOGLE_API_BASE=https://generativelanguage.googleapis.com
-# 代理示例: https://aihubmix.com/gemini
-
-# OpenAI 格式配置（当 AI_PROVIDER_FORMAT=openai 时使用）
-OPENAI_API_KEY=your-api-key-here
-OPENAI_API_BASE=https://api.openai.com/v1
-# 代理示例: https://aihubmix.com/v1
-
-# Vertex AI 格式配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
-# 需要 GCP 服务账户，可使用 GCP 免费额度
-# VERTEX_PROJECT_ID=your-gcp-project-id
-# VERTEX_LOCATION=global
-# GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
-
-# 可修改此变量来控制后端服务端口
-BACKEND_PORT=5000
-...
+# 然后按照前述方法，打开编辑 `.env` 文件，配置你的 API 密钥
 ```
 
 #### 前端安装
@@ -438,147 +482,34 @@ npm run dev
 ## 🛠️ 技术架构
 
 ### 前端技术栈
-- **框架**：React 18 + TypeScript
-- **构建工具**：Vite 5
-- **状态管理**：Zustand
-- **路由**：React Router v6
-- **UI组件**：Tailwind CSS
-- **拖拽功能**：@dnd-kit
-- **图标**：Lucide React
-- **HTTP客户端**：Axios
+React 18 + TypeScript + Vite 5 + Zustand
 
 ### 后端技术栈
-- **语言**：Python 3.10+
-- **框架**：Flask 3.0
-- **包管理**：uv
-- **数据库**：SQLite + Flask-SQLAlchemy
-- **AI能力**：Google Gemini API
-- **PPT处理**：python-pptx
-- **图片处理**：Pillow
-- **并发处理**：ThreadPoolExecutor
-- **跨域支持**：Flask-CORS
-
-## 📁 项目结构
-
-```
-banana-slides/
-├── frontend/                    # React前端应用
-│   ├── src/
-│   │   ├── pages/              # 页面组件
-│   │   │   ├── Home.tsx        # 首页（创建项目）
-│   │   │   ├── OutlineEditor.tsx    # 大纲编辑页
-│   │   │   ├── DetailEditor.tsx     # 详细描述编辑页
-│   │   │   ├── SlidePreview.tsx     # 幻灯片预览页
-│   │   │   └── History.tsx          # 历史版本管理页
-│   │   ├── components/         # UI组件
-│   │   │   ├── outline/        # 大纲相关组件
-│   │   │   │   └── OutlineCard.tsx
-│   │   │   ├── preview/        # 预览相关组件
-│   │   │   │   ├── SlideCard.tsx
-│   │   │   │   └── DescriptionCard.tsx
-│   │   │   ├── shared/         # 共享组件
-│   │   │   │   ├── Button.tsx
-│   │   │   │   ├── Card.tsx
-│   │   │   │   ├── Input.tsx
-│   │   │   │   ├── Textarea.tsx
-│   │   │   │   ├── Modal.tsx
-│   │   │   │   ├── Loading.tsx
-│   │   │   │   ├── Toast.tsx
-│   │   │   │   ├── Markdown.tsx
-│   │   │   │   ├── MaterialSelector.tsx
-│   │   │   │   ├── MaterialGeneratorModal.tsx
-│   │   │   │   ├── TemplateSelector.tsx
-│   │   │   │   ├── ReferenceFileSelector.tsx
-│   │   │   │   └── ...
-│   │   │   ├── layout/         # 布局组件
-│   │   │   └── history/        # 历史版本组件
-│   │   ├── store/              # Zustand状态管理
-│   │   │   └── useProjectStore.ts
-│   │   ├── api/                # API接口
-│   │   │   ├── client.ts       # Axios客户端配置
-│   │   │   └── endpoints.ts    # API端点定义
-│   │   ├── types/              # TypeScript类型定义
-│   │   ├── utils/              # 工具函数
-│   │   ├── constants/          # 常量定义
-│   │   └── styles/             # 样式文件
-│   ├── public/                 # 静态资源
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js      # Tailwind CSS配置
-│   ├── Dockerfile
-│   └── nginx.conf              # Nginx配置
-│
-├── backend/                    # Flask后端应用
-│   ├── app.py                  # Flask应用入口
-│   ├── config.py               # 配置文件
-│   ├── models/                 # 数据库模型
-│   │   ├── project.py          # Project模型
-│   │   ├── page.py             # Page模型（幻灯片页）
-│   │   ├── task.py             # Task模型（异步任务）
-│   │   ├── material.py         # Material模型（参考素材）
-│   │   ├── user_template.py    # UserTemplate模型（用户模板）
-│   │   ├── reference_file.py   # ReferenceFile模型（参考文件）
-│   │   ├── page_image_version.py # PageImageVersion模型（页面版本）
-│   ├── services/               # 服务层
-│   │   ├── ai_service.py       # AI生成服务（Gemini集成）
-│   │   ├── file_service.py     # 文件管理服务
-│   │   ├── file_parser_service.py # 文件解析服务
-│   │   ├── export_service.py   # PPTX/PDF导出服务
-│   │   ├── task_manager.py     # 异步任务管理
-│   │   ├── prompts.py          # AI提示词模板
-│   ├── controllers/            # API控制器
-│   │   ├── project_controller.py      # 项目管理
-│   │   ├── page_controller.py         # 页面管理
-│   │   ├── material_controller.py     # 素材管理
-│   │   ├── template_controller.py     # 模板管理
-│   │   ├── reference_file_controller.py # 参考文件管理
-│   │   ├── export_controller.py       # 导出功能
-│   │   └── file_controller.py         # 文件上传
-│   ├── utils/                  # 工具函数
-│   │   ├── response.py         # 统一响应格式
-│   │   ├── validators.py       # 数据验证
-│   │   └── path_utils.py       # 路径处理
-│   ├── instance/               # SQLite数据库（自动生成）
-│   ├── exports/                # 导出文件目录
-│   ├── Dockerfile
-│   └── README.md
-│
-├── tests/                      # 测试文件目录
-├── v0_demo/                    # 早期演示版本
-├── output/                     # 输出文件目录
-│
-├── pyproject.toml              # Python项目配置（uv管理）
-├── uv.lock                     # uv依赖锁定文件
-├── docker-compose.yml          # Docker Compose配置
-├── .env.example                 # 环境变量示例
-├── LICENSE                     # 许可证
-└── README.md                   # 本文件
-```
+Python 3.10+ + Flask 3.0 + uv + SQLite
 
 ## 交流群
 为了方便大家沟通互助，建此微信交流群.
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
-<img width="301" alt="image" src="https://github.com/user-attachments/assets/c6ab4c96-8e89-4ab3-b347-04d50df4989b" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/f96ec821-20d8-469f-9b40-ddb7d4db8df2" />
+
+
+欢迎关注作者的社交媒体，我会分享有关本项目和有关AI的信息：
+
+<p>
+  <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
+  <a href="https://www.xiaohongshu.com/user/profile/62e8f580000000001902fc9d"><img src="https://img.shields.io/badge/小红书-Anion-FF2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="小红书"></a>
+  <a href="https://space.bilibili.com/477162339"><img src="https://img.shields.io/badge/Bilibili-Anion-00A1D6?style=flat-square&logo=bilibili&logoColor=white" alt="Bilibili"></a>
+</p>
 
 
 
 
 
+## **🔧 常见问题**
+可见[官网文档](https://docs.bananaslides.online/zh/faq)
 
-**常见问题**
-1.  **支持免费层级的 Gemini API Key 吗？**
-    *   免费层级只支持文本生成，不支持图片生成。
-2.  **生成内容时提示 503 错误或 Retry Error**
-    *   可以根据 README 中的命令查看 Docker 内部日志，定位 503 问题的详细报错，一般是模型配置不正确导致。
-3.  **.env 中设置了 API Key 之后，为什么不生效？**
-    1.  运行时编辑.env需要重启 Docker 容器以应用更改。
-    2.  如果曾在网页设置页中设置，会覆盖 `.env` 中参数，可通过“还原默认设置”还原到 `.env`。
-4.  **生成页面文字有乱码**
-    *   可以尝试更高分辨率的输出（openai格式可能不支持调高分辨率）
-    *   确保在页面描述中包含具体要渲染的文字内容
-  
 
 ## 🤝 贡献指南
 
@@ -587,6 +518,14 @@ banana-slides/
 和
 [Pull Request](https://github.com/Anionex/banana-slides/pulls)
 为本项目贡献力量！
+
+> **重要：** 贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📄 许可证
+
+本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
+可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
+
 
 
 <h2>🚀 Sponsor / 赞助 </h2>
@@ -607,18 +546,7 @@ banana-slides/
 </a>
 
 
-<details>
-  <summary>感谢<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0">AI火宝</a>对本项目的赞助</summary>
-  “聚合全球多模型API服务商。更低价格享受安全、稳定且72小时链接全球最新模型的服务。”
-</details>
-
-
-<a href="https://www.rainyun.com/anionex_">
- <img width="150" alt="image" src="https://github.com/user-attachments/assets/9c1ab6d5-2b67-42ad-b4c4-d1c172a0068a" />
-
-</a>
-
-感谢雨云为本项目赞助云服务器，支持项目开发部署~
+感谢<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0">AI火宝</a>对本项目的赞助
  
 </div>
 
@@ -639,8 +567,8 @@ banana-slides/
 <img width="240" alt="image" src="https://github.com/user-attachments/assets/fd7a286d-711b-445e-aecf-43e3fe356473" />
 
 感谢以下朋友对项目的无偿赞助支持：
-> @雅俗共赏、@曹峥、@以年观日、@John、@azazo1、@刘聪NLP、@🍟、@苍何、@biubiu  
-> 如对赞助列表有疑问（如赞赏后没看到您的名字），可<a href="mailto:anionex@qq.com">联系作者</a>
+> @雅俗共赏、@曹峥、@以年观日、@John、@胡yun星Ethan, @azazo1、@刘聪NLP、@🍟、@苍何、@万瑾、@biubiu、@law、@方源、@寒松Falcon
+> 如对赞助列表有疑问，可<a href="mailto:davidyang042@gmail.com">联系作者</a>
  
 ## 📈 项目统计
 

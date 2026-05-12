@@ -35,6 +35,7 @@ interface SlideCardProps {
   onEdit: () => void;
   onDelete: () => void;
   isGenerating?: boolean;
+  aspectRatio?: string;
 }
 
 export const SlideCard: React.FC<SlideCardProps> = ({
@@ -45,6 +46,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
   onEdit,
   onDelete,
   isGenerating = false,
+  aspectRatio = '16:9',
 }) => {
   const t = useT(slideCardI18n);
   const { confirm, ConfirmDialog } = useConfirm();
@@ -52,7 +54,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
     ? getImageUrl(page.generated_image_path, page.updated_at)
     : '';
   
-  const generating = isGenerating || page.status === 'GENERATING';
+  const generating = isGenerating || page.status === 'QUEUED' || page.status === 'GENERATING';
 
   return (
     <div
@@ -62,7 +64,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
       onClick={onClick}
     >
       {/* 缩略图 */}
-      <div className="relative aspect-video bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden mb-2">
+      <div className="relative bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden mb-2" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
         {generating ? (
           <Skeleton className="w-full h-full" />
         ) : page.generated_image_path ? (
@@ -120,7 +122,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
             isSelected ? 'text-banana-600' : 'text-gray-700 dark:text-foreground-secondary'
           }`}
         >
-          {index + 1}. {page.outline_content.title}
+          {index + 1}. {page.outline_content?.title}
         </span>
         {index === 0 && (
           <span

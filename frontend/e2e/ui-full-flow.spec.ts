@@ -28,8 +28,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 test.describe('UI-driven E2E test: From user interface to PPT export', () => {
-  // Increase timeout to 20 minutes
-  test.setTimeout(20 * 60 * 1000)
+  // Increase timeout to 25 minutes (image generation may need retries on API disconnects)
+  test.setTimeout(25 * 60 * 1000)
   
   test('User Full Flow: Create and export PPT in browser', async ({ page }) => {
     console.log('\n========================================')
@@ -40,20 +40,16 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 1: Visit homepage
     // ====================================
     console.log('📱 Step 1: Opening homepage...')
+
+    // Prevent HelpModal from appearing (it opens with a 500ms delay on first visit)
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
     await page.goto('http://localhost:3000')
 
     // Verify page loaded
     await expect(page).toHaveTitle(/蕉幻|Banana/i)
     console.log('✓ Homepage loaded successfully\n')
-
-    // Dismiss HelpModal if it appears (shown on first visit when localStorage is empty)
-    const helpModal = page.locator('.fixed.inset-0.z-50')
-    if (await helpModal.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log('📋 Dismissing HelpModal...')
-      await page.keyboard.press('Escape')
-      await helpModal.waitFor({ state: 'hidden', timeout: 3000 })
-      console.log('✓ HelpModal dismissed\n')
-    }
     
     // ====================================
     // Step 2: Ensure "一句话生成" tab is selected (it's selected by default)
@@ -97,19 +93,22 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     // Step 5: Wait for outline generation to complete (smart wait)
     // ====================================
-    console.log('⏳ Step 5: Waiting for outline generation (may take 1-2 minutes)...')
-    
-    // Smart wait: Use expect().toPass() for retry polling
-    // Look for cards with "第 X 页" text - this is the most reliable indicator
-    await expect(async () => {
-      // Use text pattern matching for "第 X 页" which appears in each outline card
-      const outlineItems = page.locator('text=/第 \\d+ 页/')
-      const count = await outlineItems.count()
-      if (count === 0) {
-        throw new Error('Outline items not yet visible')
-      }
-      expect(count).toBeGreaterThan(0)
-    }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
+    console.log('⏳ Step 5: Waiting for outline generation (may take 3-5 minutes)...')
+
+    // Outline generation uses SSE streaming: the button shows "生成中..." and
+    // pages appear incrementally. Wait for the first card, then for streaming
+    // to finish (button text reverts from "生成中...").
+    const streamingBtn = page.locator('button:has-text("生成中...")')
+    await streamingBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
+      console.log('  Streaming button state not detected, generation may have completed quickly')
+    })
+
+    // Wait for at least one outline card (pages stream in one by one)
+    await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 300000 })
+    console.log('  First outline card appeared')
+
+    // Wait for streaming to finish (button reverts from "生成中...")
+    await expect(streamingBtn).toBeHidden({ timeout: 300000 })
     
     // Verify outline content
     const outlineItems = page.locator('text=/第 \\d+ 页/')
@@ -444,9 +443,9 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // The frontend uses pageGeneratingTasks to track per-page generation status.
       // StatusBadge shows "生成中" (orange badge with animate-pulse) during generation.
       // We wait for export button to be enabled (hasAllImages = all pages have generated_image_path).
-      // Use 7 minutes timeout (420000ms) to cover the full generation time (typically 2-5 minutes).
+      // Use 15 minutes timeout (900000ms) to cover retries on API disconnects.
       const startTime = Date.now()
-      const maxWaitTime = 420000 // 7 minutes total
+      const maxWaitTime = 900000 // 15 minutes total
       
       // Helper: Precise selector for "生成中" StatusBadge (orange background)
       // StatusBadge structure: <span class="bg-orange-100 text-orange-600 animate-pulse ...">生成中</span>
@@ -676,17 +675,12 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
   test('User flow verification: Only verify UI interactions, do not wait for AI generation', async ({ page }) => {
     console.log('\n🏃 Quick E2E test (verify UI flow, do not wait for generation)\n')
     
-    // Visit homepage
+    // Visit homepage (prevent HelpModal from appearing)
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
     await page.goto('http://localhost:3000')
     console.log('✓ Homepage loaded')
-
-    // Dismiss HelpModal if it appears (shown on first visit when localStorage is empty)
-    const helpModal = page.locator('.fixed.inset-0.z-50')
-    if (await helpModal.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log('📋 Dismissing HelpModal...')
-      await page.keyboard.press('Escape')
-      await helpModal.waitFor({ state: 'hidden', timeout: 3000 })
-    }
 
     // Ensure "一句话生成" tab is selected (it's selected by default)
     await page.click('button:has-text("一句话生成")').catch(() => {

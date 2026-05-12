@@ -5,22 +5,22 @@ import type { Page, PageStatus } from '@/types';
 const pageStatusI18n = {
   zh: {
     status: {
-      draft: "草稿", descriptionGenerated: "描述已生成", generating: "生成中",
+      draft: "草稿", generatingDescription: "描述生成中", descriptionGenerated: "描述已生成", queued: "排队中", generating: "生成中",
       completed: "已完成", failed: "失败", unknown: "未知",
       notGeneratedDesc: "未生成描述", noDescription: "还没有生成描述",
       descGenerated: "描述已生成", notGeneratedImage: "未生成图片",
-      waitingForImage: "等待生成图片", generatingImage: "正在生成图片",
+      waitingForImage: "等待生成图片", queuedImage: "排队等待生成", generatingImage: "正在生成图片",
       imageFailed: "图片生成失败", imageCompleted: "图片已生成",
       statusUnknown: "状态未知", draftStage: "草稿阶段", allCompleted: "全部完成"
     }
   },
   en: {
     status: {
-      draft: "Draft", descriptionGenerated: "Description Generated", generating: "Generating",
+      draft: "Draft", generatingDescription: "Generating Description", descriptionGenerated: "Description Generated", queued: "Queued", generating: "Generating",
       completed: "Completed", failed: "Failed", unknown: "Unknown",
       notGeneratedDesc: "No Description", noDescription: "No description generated yet",
       descGenerated: "Description Generated", notGeneratedImage: "No Image",
-      waitingForImage: "Waiting for image generation", generatingImage: "Generating image",
+      waitingForImage: "Waiting for image generation", queuedImage: "Queued for generation", generatingImage: "Generating image",
       imageFailed: "Image generation failed", imageCompleted: "Image generated",
       statusUnknown: "Status unknown", draftStage: "Draft stage", allCompleted: "All completed"
     }
@@ -46,6 +46,13 @@ export const usePageStatus = (
 
   switch (context) {
     case 'description':
+      if (pageStatus === 'GENERATING_DESCRIPTION') {
+        return {
+          status: 'GENERATING_DESCRIPTION',
+          label: t('status.generatingDescription'),
+          description: t('status.generatingDescription')
+        };
+      }
       if (!hasDescription) {
         return {
           status: 'DRAFT',
@@ -65,6 +72,13 @@ export const usePageStatus = (
           status: 'DRAFT',
           label: t('status.notGeneratedDesc'),
           description: t('status.noDescription')
+        };
+      }
+      if (pageStatus === 'QUEUED') {
+        return {
+          status: 'QUEUED',
+          label: t('status.queued'),
+          description: t('status.queuedImage')
         };
       }
       if (!hasImage && pageStatus !== 'GENERATING') {
@@ -114,7 +128,9 @@ export const usePageStatus = (
 function getStatusLabel(status: PageStatus, t: (key: string) => string): string {
   const labels: Record<PageStatus, string> = {
     DRAFT: t('status.draft'),
+    GENERATING_DESCRIPTION: t('status.generatingDescription'),
     DESCRIPTION_GENERATED: t('status.descriptionGenerated'),
+    QUEUED: t('status.queued'),
     GENERATING: t('status.generating'),
     COMPLETED: t('status.completed'),
     FAILED: t('status.failed'),
@@ -124,7 +140,9 @@ function getStatusLabel(status: PageStatus, t: (key: string) => string): string 
 
 function getStatusDescription(status: PageStatus, t: (key: string) => string): string {
   if (status === 'DRAFT') return t('status.draftStage');
+  if (status === 'GENERATING_DESCRIPTION') return t('status.generatingDescription');
   if (status === 'DESCRIPTION_GENERATED') return t('status.descGenerated');
+  if (status === 'QUEUED') return t('status.queuedImage');
   if (status === 'GENERATING') return t('status.generating');
   if (status === 'FAILED') return t('status.failed');
   if (status === 'COMPLETED') return t('status.allCompleted');

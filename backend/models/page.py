@@ -22,6 +22,7 @@ class Page(db.Model):
     description_content = db.Column(db.Text, nullable=True)  # JSON string
     generated_image_path = db.Column(db.String(500), nullable=True)  # Original PNG image path
     cached_image_path = db.Column(db.String(500), nullable=True)  # Compressed JPG thumbnail path
+    narration_text = db.Column(db.Text, nullable=True)  # Plain text narration for TTS video export
     status = db.Column(db.String(50), nullable=False, default='DRAFT')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -64,6 +65,14 @@ class Page(db.Model):
         else:
             self.description_content = None
     
+    def get_narration_text(self):
+        """Get narration text for TTS"""
+        return self.narration_text
+
+    def set_narration_text(self, text):
+        """Set narration text for TTS"""
+        self.narration_text = text if text else None
+
     def to_dict(self, include_versions=False):
         """Convert to dictionary"""
         # Use cached image for frontend display, fallback to original if no cache
@@ -79,6 +88,7 @@ class Page(db.Model):
             'part': self.part,
             'outline_content': self.get_outline_content(),
             'description_content': self.get_description_content(),
+            'narration_text': self.narration_text,
             'generated_image_url': display_image_url,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,

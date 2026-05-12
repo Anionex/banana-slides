@@ -1,0 +1,168 @@
+name: Build SHA Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Git SHA to build (full or short)'
+        required: true
+        type: string
+      image_type:
+        description: 'Which images to build'
+        required: true
+        type: choice
+        options:
+          - allinone
+          - split
+          - both
+        default: allinone
+      tag:
+        description: 'Additional Docker tag (e.g. latest). Leave empty to only tag with SHA.'
+        required: false
+        type: string
+      run_tests:
+        description: 'Run unit tests before building'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-sha-${{ inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    name: Build ${{ inputs.image_type }} image(s) at SHA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout target SHA
+        run: git checkout ${{ inputs.sha }}
+
+      - name: Resolve SHA
+        id: resolve
+        run: |
+          echo "full_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Overlay Dockerfiles from main
+        run: |
+          git fetch origin main
+          if [[ "${{ inputs.image_type }}" != "split" ]]; then
+            git checkout origin/main -- Dockerfile.allinone docker/
+          fi
+          if [[ "${{ inputs.image_type }}" != "allinone" ]]; then
+            git checkout origin/main -- backend/Dockerfile frontend/Dockerfile frontend/nginx.conf
+          fi
+
+      - name: Install uv
+        if: ${{ inputs.run_tests }}
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Run backend unit tests
+        if: ${{ inputs.run_tests }}
+        run: |
+          uv sync --extra test
+          uv run pytest backend/tests/unit -v
+
+      - name: Run frontend lint + tests
+        if: ${{ inputs.run_tests }}
+        run: |
+          cd frontend && npm ci
+          npm run lint
+          npm test -- --run
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        env:
+          USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          SHORT_SHA: ${{ steps.resolve.outputs.short_sha }}
+          CUSTOM_TAG: ${{ inputs.tag }}
+          IMAGE_TYPE: ${{ inputs.image_type }}
+        run: |
+          compute_tags() {
+            local image="$1"
+            local tags="${USERNAME}/${image}:sha-${SHORT_SHA}"
+            if [ -n "$CUSTOM_TAG" ]; then
+              tags="${tags},${USERNAME}/${image}:${CUSTOM_TAG}"
+            fi
+            echo "$tags"
+          }
+          if [[ "$IMAGE_TYPE" != "split" ]]; then
+            ALLINONE_TAGS=$(compute_tags "banana-slides")
+            echo "allinone=$ALLINONE_TAGS" >> $GITHUB_OUTPUT
+            echo "All-in-one tags: $ALLINONE_TAGS"
+          fi
+          if [[ "$IMAGE_TYPE" != "allinone" ]]; then
+            BACKEND_TAGS=$(compute_tags "banana-slides-backend")
+            FRONTEND_TAGS=$(compute_tags "banana-slides-frontend")
+            echo "backend=$BACKEND_TAGS" >> $GITHUB_OUTPUT
+            echo "frontend=$FRONTEND_TAGS" >> $GITHUB_OUTPUT
+            echo "Backend tags: $BACKEND_TAGS"
+            echo "Frontend tags: $FRONTEND_TAGS"
+          fi
+
+      - name: Build and push all-in-one image
+        if: inputs.image_type == 'allinone' || inputs.image_type == 'both'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.allinone
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.tags.outputs.allinone }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides:buildcache,mode=max
+          build-args: |
+            DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
+            GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io/' }}
+            APT_MIRROR=${{ secrets.APT_MIRROR }}
+            PYPI_INDEX_URL=${{ secrets.PYPI_INDEX_URL }}
+            NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
+
+      - name: Build and push backend image
+        if: inputs.image_type == 'split' || inputs.image_type == 'both'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.tags.outputs.backend }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-backend:buildcache,mode=max
+          build-args: |
+            DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
+            GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io/' }}
+            APT_MIRROR=${{ secrets.APT_MIRROR }}
+            PYPI_INDEX_URL=${{ secrets.PYPI_INDEX_URL }}
+
+      - name: Build and push frontend image
+        if: inputs.image_type == 'split' || inputs.image_type == 'both'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.tags.outputs.frontend }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/banana-slides-frontend:buildcache,mode=max
+          build-args: |
+            DOCKER_BUILDKIT=1
+            DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
+            NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}

@@ -8,8 +8,12 @@
 4. 零具体实现依赖 - 完全依赖抽象接口
 """
 import logging
+import math
 import uuid
 from typing import List, Optional, Tuple
+
+import cv2
+import numpy as np
 from PIL import Image
 
 from .data_models import BBox, EditableElement, EditableImage
@@ -17,7 +21,12 @@ from .coordinate_mapper import CoordinateMapper
 from .extractors import ElementExtractor, ExtractionResult
 from .inpaint_providers import InpaintProvider
 from .factories import ServiceConfig
-from .helpers import collect_bboxes_from_elements, should_recurse_into_element, crop_element_from_image
+from .helpers import (
+    collect_bboxes_from_elements,
+    should_recurse_into_element,
+    crop_element_from_image,
+    should_extract_subject,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +68,8 @@ class ImageEditabilityService:
         self._min_image_size = config.min_image_size
         self._min_image_area = config.min_image_area
         self._max_child_coverage_ratio = 0.85
+        self._segmentation_provider = config.segmentation_provider
+        self._enable_icon_subject_extraction = config.enable_icon_subject_extraction
         
         extractors = self._extractor_registry.get_all_extractors()
         inpaint_providers = self._inpaint_registry.get_all_providers()
@@ -138,8 +149,16 @@ class ImageEditabilityService:
             root_image_size=root_image_size,
             source_image_path=image_path  # 传入源图片路径用于裁剪
         )
-        
+
         logger.info(f"{'  ' * depth}提取到 {len(elements)} 个元素")
+
+        # 2.5 对疑似图标的元素调用主体抠图模型，替换为透明背景 PNG
+        if self._enable_icon_subject_extraction and self._segmentation_provider is not None:
+            self._enhance_icon_elements_with_subject_extraction(
+                elements=elements,
+                image_id=image_id,
+                depth=depth,
+            )
         
         # 3. 生成clean background（根据元素类型选择重绘方法）
         clean_background = None
@@ -225,18 +244,23 @@ class ImageEditabilityService:
         这样所有元素（包括文字）都有 image_path，可用于样式提取。
         """
         elements = []
-        
+
         # 准备输出目录
         output_dir = None
         source_img = None
+        source_bgr = None
         if source_image_path:
             output_dir = self._upload_folder / 'editable_images' / image_id / 'elements'
             output_dir.mkdir(parents=True, exist_ok=True)
             try:
                 source_img = Image.open(source_image_path)
+                # 给 should_extract_subject 用的 BGR 视图（同源图片，避免再读盘）
+                source_bgr = cv2.cvtColor(
+                    np.asarray(source_img.convert('RGB')), cv2.COLOR_RGB2BGR
+                )
             except Exception as e:
                 logger.warning(f"无法加载源图片进行裁剪: {e}")
-        
+
         for idx, elem_dict in enumerate(element_dicts):
             bbox_list = elem_dict['bbox']
             local_bbox = BBox(
@@ -245,7 +269,17 @@ class ImageEditabilityService:
                 x1=bbox_list[2],
                 y1=bbox_list[3]
             )
-            
+            elem_type = elem_dict['type']
+
+            # 仅 image/figure 在源头跑 icon 分类。被判定为 icon 的 BBox 轻微外扩，
+            # 让裁图、下游 mask 区域、paste-back 一次同步扩张，避免边缘漏裁/漏擦。
+            is_icon: Optional[bool] = None
+            if source_bgr is not None and elem_type in ('image', 'figure'):
+                is_icon = should_extract_subject(source_bgr, local_bbox)
+                if is_icon is True and source_img is not None:
+                    pad = max(4, math.ceil(0.02 * min(local_bbox.width, local_bbox.height)))
+                    local_bbox = local_bbox.expand(pad, source_img.width, source_img.height)
+
             # 计算全局坐标
             if parent_bbox is None:
                 global_bbox = local_bbox
@@ -272,18 +306,19 @@ class ImageEditabilityService:
                     # 检查裁剪区域有效性
                     if crop_box[2] > crop_box[0] and crop_box[3] > crop_box[1]:
                         cropped = source_img.crop(crop_box)
-                        element_image_path = str(output_dir / f"{idx}_{elem_dict['type']}.png")
+                        element_image_path = str(output_dir / f"{idx}_{elem_type}.png")
                         cropped.save(element_image_path)
                 except Exception as e:
                     logger.warning(f"裁剪元素 {idx} 失败: {e}")
             
             element = EditableElement(
                 element_id=f"{image_id}_{idx}",
-                element_type=elem_dict['type'],
+                element_type=elem_type,
                 bbox=local_bbox,
                 bbox_global=global_bbox,
                 content=elem_dict.get('content'),
                 image_path=element_image_path,  # 使用自己裁剪的图片路径
+                is_icon=is_icon,
                 metadata=elem_dict.get('metadata', {})
             )
             
@@ -295,6 +330,48 @@ class ImageEditabilityService:
         
         return elements
     
+    def _enhance_icon_elements_with_subject_extraction(
+        self,
+        elements: List[EditableElement],
+        image_id: str,
+        depth: int,
+    ) -> None:
+        """
+        对疑似图标的 image/figure 元素调用主体抠图模型，替换 image_path 为透明背景 PNG。
+
+        分类已在 _convert_to_editable_elements 源头完成（elem.is_icon），这里直接复用，
+        失败（含分类不确定、模型返回 None）保留原矩形 crop，不抛异常。
+        """
+        icons = [
+            elem for elem in elements
+            if elem.image_path
+            and elem.element_type in ('image', 'figure')
+            and elem.is_icon is True
+        ]
+        if not icons:
+            return
+
+        output_dir = self._upload_folder / 'editable_images' / image_id / 'icon_cutouts'
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        success = 0
+        for elem in icons:
+            try:
+                with Image.open(elem.image_path) as src:
+                    cutout = self._segmentation_provider.extract_subject(src)
+            except Exception as e:
+                logger.warning(f"{'  ' * depth}  ✗ 图标 {elem.element_id} 主体抠图异常: {e}")
+                continue
+            if cutout is None:
+                continue
+            cutout_path = output_dir / f"{elem.element_id}.png"
+            cutout.save(str(cutout_path))
+            elem.image_path = str(cutout_path)
+            elem.metadata['subject_extracted'] = True
+            success += 1
+
+        logger.info(f"{'  ' * depth}🎨 主体抠图: {success}/{len(icons)} 成功")
+
     def _generate_clean_background(
         self,
         image_path: str,

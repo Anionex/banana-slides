@@ -99,10 +99,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           <Loading message={t('filePreview.loading')} />
         </div>
       ) : content ? (
-        <div className="max-h-[70vh] overflow-y-auto">
-          <div className="prose max-w-none">
-            <Markdown>{content}</Markdown>
-          </div>
+        <div className="prose max-w-none overflow-x-hidden">
+          <Markdown>{content}</Markdown>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500 dark:text-foreground-tertiary">

@@ -35,12 +35,16 @@
 # 忽略临时文档，但保留项目文档
 *.md
 !README.md
+!skills/**/*.md
 # !docs/**/*.md
+!docs/specs/cli-spec.md
+!docs/superpowers/specs/*.md
+!docs/superpowers/plans/*.md
 !.github/**/*.md
 *.pyc
 .env
 
-# GCP 服务账户文件（包含敏感私钥）
+# GCP service-account key (sensitive — never commit)
 gcp-service-account.json
 *.ppt
 *.pptx
@@ -57,3 +61,7 @@ uploads/
 _local_backup/
 !CLA.md 
 !CONTRIBUTING.md
+.venv
+
+# 本地 ML 模型（RMBG 等）
+/models/

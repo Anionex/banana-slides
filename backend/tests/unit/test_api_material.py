@@ -31,7 +31,7 @@ class TestMaterialUpload:
         )
         data = assert_success_response(response, 201)
         assert 'url' in data['data']
-        assert 'caption' not in data['data']
+        assert data['data']['caption'] is None
 
     @patch('controllers.material_controller._generate_image_caption')
     def test_upload_material_with_caption(self, mock_caption, client):
@@ -72,7 +72,7 @@ class TestMaterialUpload:
             content_type='multipart/form-data'
         )
         data = assert_success_response(response, 201)
-        assert 'caption' not in data['data']
+        assert data['data']['caption'] is None
         mock_caption.assert_not_called()
 
     def test_upload_material_invalid_file_type(self, client):

@@ -4,15 +4,44 @@ No need for Celery or Redis, uses in-memory task tracking
 """
 import logging
 import os
+import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
+from math import gcd
+import time
 from sqlalchemy import func
-from PIL import Image
+from sqlalchemy.exc import OperationalError
+from PIL import Image, ImageDraw, ImageFilter
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
+
+
+def _get_image_prompt_field_names() -> set | None:
+    """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
+    try:
+        from models import Settings
+        settings = Settings.get_settings()
+        if settings.image_prompt_extra_fields is None:
+            return None  # 未配置 → 全部允许
+        return set(settings.get_image_prompt_extra_fields())
+    except Exception:
+        return None
+
+
+def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    extra_fields = desc_content.get('extra_fields')
+    if not extra_fields or not isinstance(extra_fields, dict):
+        return desc_text
+    allowed = _get_image_prompt_field_names()
+    parts = [desc_text]
+    for name, value in extra_fields.items():
+        if value and (allowed is None or name in allowed):
+            parts.append(f"\n{name}：{value}")
+    return ''.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
 
@@ -131,24 +160,132 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         page_obj.status = 'COMPLETED'
         page_obj.updated_at = datetime.utcnow()
 
-    # 提交事务
-    db.session.commit()
+    _commit_with_retry()
 
     logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}, cached: {cached_image_path}")
 
     return image_path, next_version
 
 
-def generate_descriptions_task(task_id: str, project_id: str, ai_service, 
-                               project_context, outline: List[Dict], 
+def _commit_with_retry(max_retries=5, base_delay=0.5):
+    for attempt in range(max_retries):
+        try:
+            db.session.commit()
+            return
+        except OperationalError as e:
+            if "database is locked" in str(e) and attempt < max_retries - 1:
+                db.session.rollback()
+                delay = base_delay * (2 ** attempt)
+                logger.warning(f"Database locked, retrying commit in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(delay)
+            else:
+                raise
+
+
+SUPPORTED_IMAGE_ASPECT_RATIOS = (
+    '1:1',
+    '1:4',
+    '1:8',
+    '2:3',
+    '3:2',
+    '3:4',
+    '4:1',
+    '4:3',
+    '4:5',
+    '5:4',
+    '8:1',
+    '9:16',
+    '16:9',
+    '21:9',
+)
+
+
+def _aspect_ratio_from_size(width: int, height: int) -> str:
+    """Map arbitrary pixel dimensions to the nearest provider-supported aspect ratio."""
+    safe_width = max(1, width)
+    safe_height = max(1, height)
+    divisor = gcd(safe_width, safe_height)
+    normalized = f"{safe_width // divisor}:{safe_height // divisor}"
+    if normalized in SUPPORTED_IMAGE_ASPECT_RATIOS:
+        return normalized
+
+    source_ratio = safe_width / safe_height
+    return min(
+        SUPPORTED_IMAGE_ASPECT_RATIOS,
+        key=lambda candidate: abs(source_ratio - (int(candidate.split(':')[0]) / int(candidate.split(':')[1]))),
+    )
+
+
+def _normalize_selection_bbox(selection: dict, image_size: tuple[int, int]) -> tuple[int, int, int, int]:
+    """Clamp a selection rectangle into source image bounds."""
+    width, height = image_size
+    x0 = max(0, min(int(selection['x']), width - 1))
+    y0 = max(0, min(int(selection['y']), height - 1))
+    x1 = max(x0 + 1, min(x0 + int(selection['width']), width))
+    y1 = max(y0 + 1, min(y0 + int(selection['height']), height))
+    return x0, y0, x1, y1
+
+
+def _create_marked_reference_image(source_image: Image.Image, bbox: tuple[int, int, int, int]) -> Image.Image:
+    """Highlight the selected region so edit models can focus on it reliably."""
+    marked = source_image.convert('RGB').copy()
+    draw = ImageDraw.Draw(marked, 'RGBA')
+    outline_width = max(4, min(source_image.size) // 120)
+    draw.rectangle(bbox, fill=(0, 0, 0, 190), outline=(255, 255, 255, 255), width=outline_width)
+    return marked
+
+
+def _blend_region_into_source(
+    source_image: Image.Image,
+    edited_image: Image.Image,
+    bbox: tuple[int, int, int, int],
+    feather_radius: int = 12,
+) -> Image.Image:
+    """Blend only the selected region from the edited result back into the source image."""
+    if edited_image.size != source_image.size:
+        edited_image = edited_image.resize(source_image.size, Image.Resampling.LANCZOS)
+
+    source_rgb = source_image.convert('RGB')
+    edited_rgb = edited_image.convert('RGB')
+    mask = Image.new('L', source_rgb.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle(bbox, fill=255)
+    if feather_radius > 0:
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=feather_radius))
+    return Image.composite(edited_rgb, source_rgb, mask)
+
+
+def _build_region_edit_instruction(prompt: str, operation: str) -> str:
+    """Create a focused prompt for region-based edits using a marked reference image."""
+    cleaned_prompt = (prompt or '').strip()
+    if operation == 'erase_region':
+        user_goal = cleaned_prompt or "移除黑色标记区域中的主体内容，并自然补全背景纹理与光影。"
+        return (
+            "用户会提供两张参考图：一张原图，一张带有黑色实心选区标记的图。\n"
+            "请只处理黑色标记区域，将该区域内容移除，并根据周围视觉自然补全。\n"
+            "黑色区域之外的构图、文字、光影、色调尽量保持不变。\n"
+            f"额外要求：{user_goal}"
+        )
+
+    return (
+        "用户会提供两张参考图：一张原图，一张带有黑色实心选区标记的图。\n"
+        "请重点修改黑色标记区域，严格围绕该区域执行用户指令。\n"
+        "未标记区域尽量保持原样，不要无关改动整体构图。\n"
+        f"用户编辑要求：{cleaned_prompt}"
+    )
+
+
+def generate_descriptions_task(task_id: str, project_id: str, ai_service,
+                               project_context, outline: List[Dict],
                                max_workers: int = 5, app=None,
-                               language: str = None):
+                               language: str = None,
+                               detail_level: str = 'default'):
     """
     Background task for generating page descriptions
     Based on demo.py gen_desc() with parallel processing
-    
+
     Note: app instance MUST be passed from the request context
-    
+
     Args:
         task_id: Task ID
         project_id: Project ID
@@ -158,6 +295,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
         max_workers: Maximum number of parallel workers
         app: Flask app instance
         language: Output language (zh, en, ja, auto)
+        detail_level: Description detail level (concise/default/detailed)
     """
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -184,6 +322,10 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             if len(pages) != len(pages_data):
                 raise ValueError("Page count mismatch")
             
+            # Mark all pages as GENERATING_DESCRIPTION before starting
+            for page in pages:
+                page.status = 'GENERATING_DESCRIPTION'
+
             # Initialize progress
             task.set_progress({
                 "total": len(pages),
@@ -191,7 +333,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 "failed": 0
             })
             db.session.commit()
-            
+
             # Generate descriptions in parallel
             completed = 0
             failed = 0
@@ -208,17 +350,19 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         from services.ai_service_manager import get_ai_service
                         ai_service = get_ai_service()
                         
-                        desc_text = ai_service.generate_page_description(
+                        desc_result = ai_service.generate_page_description(
                             project_context, outline, page_outline, page_index,
-                            language=language
+                            language=language,
+                            detail_level=detail_level
                         )
-                        
-                        # Parse description into structured format
-                        # This is a simplified version - you may want more sophisticated parsing
+
+                        # generate_page_description returns dict with text + optional extra_fields
                         desc_content = {
-                            "text": desc_text,
+                            "text": desc_result['text'],
                             "generated_at": datetime.utcnow().isoformat()
                         }
+                        if desc_result.get('extra_fields'):
+                            desc_content['extra_fields'] = desc_result['extra_fields']
                         
                         return (page_id, desc_content, None)
                     except Exception as e:
@@ -374,7 +518,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 desc_text = '\n'.join(text_content)
                             else:
                                 desc_text = str(text_content)
-                        
+
+                        # 将 extra_fields 拼入描述文本供图片生成使用
+                        desc_text = _append_extra_fields(desc_text, desc_content)
+
                         logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                         
                         # 从当前页面的描述内容中提取图片 URL
@@ -402,7 +549,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             has_material_images=has_material_images,
                             extra_requirements=extra_requirements,
                             language=language,
-                            has_template=use_template
+                            has_template=use_template,
+                            aspect_ratio=aspect_ratio
                         )
                         logger.debug(f"Generated image prompt for page {page_id}")
                         
@@ -556,7 +704,10 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = '\n'.join(text_content)
                 else:
                     desc_text = str(text_content)
-            
+
+            # 将 extra_fields 拼入描述文本供图片生成使用
+            desc_text = _append_extra_fields(desc_text, desc_content)
+
             # 从描述文本中提取图片 URL
             additional_ref_images = []
             has_material_images = False
@@ -585,7 +736,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 has_material_images=has_material_images,
                 extra_requirements=extra_requirements,
                 language=language,
-                has_template=use_template
+                has_template=use_template,
+                aspect_ratio=aspect_ratio
             )
             
             # Generate image
@@ -831,9 +983,166 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 db.session.commit()
         
         finally:
-            # Clean up temp directory
             if temp_dir:
                 import shutil
+                temp_path = Path(temp_dir)
+                if temp_path.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def process_material_image_task(
+    task_id: str,
+    project_id: str,
+    operation: str,
+    prompt: str,
+    ai_service,
+    file_service,
+    source_image_path: str = None,
+    ref_image_path: str = None,
+    additional_ref_images: List[str] = None,
+    aspect_ratio: str = "16:9",
+    resolution: str = "2K",
+    selection: Optional[dict] = None,
+    apply_mode: str = "overlay_selection",
+    temp_dir: str = None,
+    app=None,
+):
+    """Unified material processing task for generate/edit/region-edit workflows."""
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            refs = list(additional_ref_images or [])
+            result_image: Optional[Image.Image] = None
+            source_image = None
+            source_aspect_ratio = aspect_ratio
+
+            if source_image_path:
+                source_image = Image.open(source_image_path).convert('RGB')
+                source_aspect_ratio = _aspect_ratio_from_size(*source_image.size)
+
+            if operation == 'generate':
+                result_image = ai_service.generate_image(
+                    prompt=prompt,
+                    ref_image_path=ref_image_path,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=refs if refs else None,
+                )
+            elif operation == 'edit_full':
+                if not source_image_path:
+                    raise ValueError("source_image_path is required for edit_full")
+
+                if ref_image_path:
+                    refs.insert(0, ref_image_path)
+
+                result_image = ai_service.edit_image(
+                    prompt=prompt,
+                    current_image_path=source_image_path,
+                    aspect_ratio=source_aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=refs if refs else None,
+                )
+            elif operation in {'region_edit', 'erase_region'}:
+                if not source_image or not source_image_path:
+                    raise ValueError("source_image_path is required for region operations")
+                if not selection:
+                    raise ValueError("selection is required for region operations")
+
+                bbox = _normalize_selection_bbox(selection, source_image.size)
+                marked_reference = _create_marked_reference_image(source_image, bbox)
+                if not temp_dir:
+                    raise ValueError("区域操作需要 temp_dir")
+
+                marked_reference_path = str(Path(temp_dir) / f"{task_id}_marked_region.png")
+                marked_reference.save(marked_reference_path)
+                refs.insert(0, marked_reference_path)
+
+                if ref_image_path:
+                    refs.insert(0, ref_image_path)
+
+                instruction = _build_region_edit_instruction(prompt, operation)
+                generated = ai_service.edit_image(
+                    prompt=instruction,
+                    current_image_path=source_image_path,
+                    aspect_ratio=source_aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=refs if refs else None,
+                )
+
+                if generated is None:
+                    raise ValueError("Failed to process region edit")
+
+                if generated.size != source_image.size:
+                    generated = generated.resize(source_image.size, Image.Resampling.LANCZOS)
+
+                if operation == 'erase_region' or apply_mode == 'overlay_selection':
+                    result_image = _blend_region_into_source(source_image, generated, bbox)
+                else:
+                    result_image = generated
+            else:
+                raise ValueError(f"Unsupported material operation: {operation}")
+
+            if result_image is None:
+                raise ValueError("Failed to generate image")
+
+            actual_project_id = None if (project_id == 'global' or project_id is None) else project_id
+            relative_path = file_service.save_material_image(result_image, actual_project_id)
+            relative = Path(relative_path)
+            filename = relative.name
+            image_url = file_service.get_file_url(actual_project_id, 'materials', filename)
+
+            material = Material(
+                project_id=actual_project_id,
+                filename=filename,
+                relative_path=relative_path,
+                url=image_url
+            )
+            db.session.add(material)
+
+            task.status = 'COMPLETED'
+            task.completed_at = datetime.utcnow()
+            task.set_progress({
+                "total": 1,
+                "completed": 1,
+                "failed": 0,
+                "operation": operation,
+                "apply_mode": apply_mode if operation == 'region_edit' else None,
+                "selection": selection if operation in {'region_edit', 'erase_region'} else None,
+                "material_id": material.id,
+                "image_url": image_url
+            })
+            db.session.commit()
+
+            logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} processed via {operation}")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+
+        finally:
+            if source_image is not None:
+                try:
+                    source_image.close()
+                except Exception:
+                    pass
+            if temp_dir:
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -1096,6 +1405,7 @@ def export_editable_pptx_with_recursive_analysis_task(
     max_workers: int = 4,
     export_extractor_method: str = 'hybrid',
     export_inpaint_method: str = 'hybrid',
+    enable_icon_subject_extraction: bool = True,
     app=None
 ):
     """
@@ -1121,7 +1431,7 @@ def export_editable_pptx_with_recursive_analysis_task(
         export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid')
         app: Flask应用实例
     """
-    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method})")
+    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method}, icon_subject_extraction={enable_icon_subject_extraction})")
     
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -1258,6 +1568,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 progress_callback=progress_callback,
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
+                enable_icon_subject_extraction=enable_icon_subject_extraction,
                 fail_fast=fail_fast
             )
             
@@ -1331,7 +1642,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             import traceback
             error_detail = traceback.format_exc()
             logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
-            
+
             # 标记任务失败
             task = Task.query.get(task_id)
             if task:
@@ -1339,3 +1650,348 @@ def export_editable_pptx_with_recursive_analysis_task(
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
                 db.session.commit()
+
+
+def export_video_task(
+    task_id: str,
+    project_id: str,
+    filename: str,
+    file_service,
+    voice: str = 'zh-CN-XiaoxiaoNeural',
+    rate: str = '+0%',
+    speed: float = 1.0,
+    generate_narration: bool = True,
+    enable_ken_burns: bool = False,
+    include_no_image_pages: bool = False,
+    page_ids: list = None,
+    language: str = 'zh',
+    narration_config: dict | None = None,
+    app=None,
+):
+    """
+    后台任务：导出 TTS 播报视频 (MP4)
+
+    流程:
+      0-20%  为缺少旁白的页面生成 narration_text（AI）
+      20-50% 逐页生成 TTS 音频（edge-tts）
+      50-90% 逐页创建 Ken Burns 视频片段（FFmpeg）
+      90-100% 合成最终 MP4
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        import os
+        from models import Project, Settings
+        from services.tts_video_service import (
+            generate_narration_video,
+            check_ffmpeg_available,
+            check_ffmpeg_ass_filter_available,
+            create_placeholder_frame,
+        )
+
+        # 读取 ElevenLabs 配置
+        _settings = Settings.get_settings()
+        elevenlabs_config = None
+        if _settings.elevenlabs_enabled and _settings.elevenlabs_api_key:
+            elevenlabs_config = {
+                'api_key': _settings.elevenlabs_api_key,
+                'voice_id': voice,
+            }
+        logger.info(f"[export_video] voice={voice!r} elevenlabs_enabled={_settings.elevenlabs_enabled} elevenlabs_config={'set' if elevenlabs_config else 'None'}")
+
+        progress_messages = ["🚀 开始导出讲解视频..."]
+        max_messages = 10
+
+        def progress_callback(step: str, message: str, percent: int):
+            """进度回调 — percent 范围对应 generate_narration_video 的内部进度 (20-95%)"""
+            nonlocal progress_messages
+            try:
+                new_message = f"[{step}] {message}"
+                progress_messages.append(new_message)
+                if len(progress_messages) > max_messages:
+                    progress_messages = progress_messages[-max_messages:]
+
+                # 将内部 0-100% 映射到总体 20-95%
+                mapped_pct = int(20 + percent * 0.75)
+                mapped_pct = min(mapped_pct, 95)
+
+                task = Task.query.get(task_id)
+                if task:
+                    task.set_progress({
+                        "total": 100,
+                        "completed": mapped_pct,
+                        "failed": 0,
+                        "current_step": message,
+                        "percent": mapped_pct,
+                        "messages": progress_messages.copy(),
+                    })
+                    db.session.commit()
+            except Exception as e:
+                logger.warning(f"更新进度失败: {e}")
+
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+
+            export_allow_partial = project.export_allow_partial or False
+            fail_fast = not export_allow_partial
+            logger.info(f"视频导出设置: export_allow_partial={export_allow_partial}, fail_fast={fail_fast}")
+
+            task.status = 'PROCESSING'
+            task.set_progress({
+                "total": 100,
+                "completed": 0,
+                "failed": 0,
+                "current_step": "准备中...",
+                "percent": 0,
+                "messages": progress_messages,
+            })
+            db.session.commit()
+
+            # 检查 FFmpeg
+            ffmpeg_path = app.config.get('FFMPEG_PATH', 'ffmpeg')
+            if not check_ffmpeg_available(ffmpeg_path):
+                raise RuntimeError(
+                    "FFmpeg 未安装或不在 PATH 中。请安装 FFmpeg 以使用视频导出功能。"
+                )
+
+            progress_callback("准备", "FFmpeg 可用", 2)
+            if not check_ffmpeg_ass_filter_available(ffmpeg_path):
+                progress_callback("准备", "当前 FFmpeg 缺少 ASS 字幕滤镜，若需字幕请先安装带 libass 的版本", 3)
+
+            # 获取页面
+            pages = get_filtered_pages(project_id, page_ids)
+            if not pages:
+                raise ValueError("没有找到可导出的页面")
+
+            # 构建页面列表：有图片的用实际图片，无图片的根据选项处理
+            valid_pages = []
+            placeholder_dir = None
+
+            if include_no_image_pages:
+                video_width = app.config.get('VIDEO_OUTPUT_WIDTH', 1920)
+                video_height = app.config.get('VIDEO_OUTPUT_HEIGHT', 1080)
+                placeholder_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports', f'_placeholder_{task_id}')
+                os.makedirs(placeholder_dir, exist_ok=True)
+
+            for page in pages:
+                if page.generated_image_path:
+                    img_path = file_service.get_absolute_path(page.generated_image_path)
+                    if os.path.exists(img_path):
+                        valid_pages.append((page, img_path))
+                        continue
+
+                if include_no_image_pages:
+                    # 为无图页面生成占位帧
+                    outline_content = page.get_outline_content() or {}
+                    title = outline_content.get('title', f'Page {page.order_index + 1}')
+                    placeholder_path = os.path.join(placeholder_dir, f'placeholder_{page.order_index:03d}.png')
+                    try:
+                        create_placeholder_frame(
+                            placeholder_path, title=title,
+                            width=video_width, height=video_height,
+                            ffmpeg_path=ffmpeg_path,
+                        )
+                        valid_pages.append((page, placeholder_path))
+                    except Exception as e:
+                        logger.warning(f"生成占位帧失败 (page {page.id}): {e}")
+
+            if not valid_pages:
+                raise ValueError("没有找到可导出的页面（无图片且未启用占位帧）")
+
+            progress_callback("准备", f"找到 {len(valid_pages)} 页幻灯片", 5)
+
+            # ── Step 1: 生成缺失的旁白 ──
+            if generate_narration:
+                from services.prompts import (
+                    get_narration_generation_prompt,
+                    normalize_narration_generation_config,
+                    parse_narration_generation_result,
+                )
+                from services.ai_service_manager import get_ai_service
+
+                ai_service = get_ai_service()
+                narration_generated = 0
+                project_topic = (project.idea_prompt or '').strip() if project else ''
+                normalized_narration_config = normalize_narration_generation_config(
+                    narration_config,
+                    fallback_topic=project_topic,
+                )
+
+                # 收集需要生成旁白的页面
+                pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
+                for i, (page, _) in enumerate(valid_pages):
+                    desc_content = page.get_description_content()
+                    desc_text = ''
+                    if desc_content:
+                        desc_text = desc_content.get('text', '')
+                        if not desc_text and desc_content.get('text_content'):
+                            tc = desc_content.get('text_content', [])
+                            desc_text = '\n'.join(tc) if isinstance(tc, list) else str(tc)
+                        desc_text = _append_extra_fields(desc_text, desc_content)
+
+                    outline_content = page.get_outline_content() or {}
+                    if not desc_text:
+                        title = outline_content.get('title', '')
+                        points = outline_content.get('points', [])
+                        if title or points:
+                            desc_text = f'{title}\n' + '\n'.join(f'- {p}' for p in points)
+
+                    if not desc_text:
+                        if fail_fast:
+                            raise RuntimeError(
+                                f"第 {page.order_index + 1} 页缺少可生成旁白的描述内容，当前项目未开启“允许返回半成品”，无法导出视频。"
+                            )
+                        continue
+
+                    pages_needing_narration.append((page, i + 1, outline_content, desc_text))
+
+                if pages_needing_narration:
+                    progress_callback("旁白", f"正在生成 {len(pages_needing_narration)} 页旁白...", 5)
+                    try:
+                        prompt_pages = [
+                            {
+                                'page_index': seq,
+                                'title': outline.get('title', ''),
+                                'points': outline.get('points', []),
+                                'description_text': desc_text,
+                            }
+                            for _, seq, outline, desc_text in pages_needing_narration
+                        ]
+                        prompt = get_narration_generation_prompt(
+                            prompt_pages,
+                            language=language,
+                            config=normalized_narration_config,
+                        )
+                        result = ai_service.text_provider.generate_text(prompt)
+                        parsed = parse_narration_generation_result(result)
+
+                        for page, seq, _, _ in pages_needing_narration:
+                            narration = parsed.get(seq, '')
+                            if narration:
+                                page.set_narration_text(narration)
+                                narration_generated += 1
+                            elif fail_fast:
+                                raise RuntimeError(
+                                    f"第 {page.order_index + 1} 页旁白生成结果为空，当前项目未开启“允许返回半成品”，已停止导出。"
+                                )
+                        db.session.commit()
+
+                    except RuntimeError:
+                        raise
+                    except Exception as e:
+                        if fail_fast:
+                            raise RuntimeError(f"旁白生成失败，已停止导出: {e}") from e
+                        logger.warning(f"批量生成旁白失败: {e}")
+
+                progress_callback("旁白", f"已生成 {narration_generated} 页旁白", 20)
+
+            progress_callback("旁白", "旁白准备完成", 20)
+
+            # ── Step 2: 构建 pages_data ──
+            pages_data = []
+            missing_narration_pages = []
+            for page, img_path in valid_pages:
+                db.session.refresh(page)
+                narration = page.narration_text
+                if not narration or not narration.strip():
+                    missing_narration_pages.append(page.order_index + 1)
+                logger.info(
+                    f"[视频导出] 页面 {page.order_index + 1}: "
+                    f"title={((page.get_outline_content() or {}).get('title', ''))[:30]}, "
+                    f"narration={narration[:50] if narration else '(无)'}, "
+                    f"image={'有图' if page.generated_image_path else '占位帧'}"
+                )
+                pages_data.append({
+                    'image_path': img_path,
+                    'narration_text': narration,
+                    'page_index': page.order_index,
+                })
+
+            if missing_narration_pages and fail_fast:
+                pages = '、'.join(str(idx) for idx in missing_narration_pages)
+                raise RuntimeError(
+                    f"以下页面缺少旁白文本：第 {pages} 页。当前项目未开启“允许返回半成品”，已停止导出。"
+                )
+
+            # ── Step 3: 生成视频 ──
+            exports_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports')
+            os.makedirs(exports_dir, exist_ok=True)
+
+            if not filename.endswith('.mp4'):
+                filename += '.mp4'
+
+            output_path = os.path.join(exports_dir, filename)
+            if os.path.exists(output_path):
+                base_name = filename.rsplit('.', 1)[0]
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                filename = f"{base_name}_{timestamp}.mp4"
+                output_path = os.path.join(exports_dir, filename)
+
+            video_width = app.config.get('VIDEO_OUTPUT_WIDTH', 1920)
+            video_height = app.config.get('VIDEO_OUTPUT_HEIGHT', 1080)
+            video_fps = app.config.get('VIDEO_FPS', 25)
+            silent_duration = app.config.get('DEFAULT_SILENT_CLIP_DURATION', 3.0)
+
+            generate_narration_video(
+                pages_data=pages_data,
+                output_path=output_path,
+                voice=voice,
+                rate=rate,
+                width=video_width,
+                height=video_height,
+                fps=video_fps,
+                enable_ken_burns=enable_ken_burns,
+                ffmpeg_path=ffmpeg_path,
+                progress_callback=progress_callback,
+                silent_duration=silent_duration,
+                fail_fast=fail_fast,
+                elevenlabs_config=elevenlabs_config,
+                speed=speed,
+            )
+
+            # ── Step 4: 标记完成 ──
+            download_path = f"/files/{project_id}/exports/{filename}"
+            progress_messages.append("✅ 视频导出完成！")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": 100,
+                    "completed": 100,
+                    "failed": 0,
+                    "current_step": "✓ 导出完成",
+                    "percent": 100,
+                    "messages": progress_messages,
+                    "download_url": download_path,
+                    "filename": filename,
+                })
+                db.session.commit()
+                logger.info(f"✅ 任务 {task_id} 完成 - 视频已导出: {output_path}")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"✗ 视频导出任务 {task_id} 失败: {error_detail}")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+
+        finally:
+            # 清理占位帧临时目录
+            if placeholder_dir and os.path.exists(placeholder_dir):
+                import shutil
+                shutil.rmtree(placeholder_dir, ignore_errors=True)

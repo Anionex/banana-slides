@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
@@ -120,6 +120,39 @@ def _reconstruct_outline_from_pages(pages: list) -> list:
     return outline
 
 
+def _smart_merge_pages(project_id, pages_data):
+    """Position-based merge: reuse existing pages by index to preserve descriptions/images.
+
+    For each new page at index i:
+      - If an old page exists at the same position, update its outline (title/points/part)
+        in place, keeping description_content and image fields untouched.
+      - If no old page at that position, create a new page.
+    Old pages beyond the new page count are deleted.
+    """
+    old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+    pages_list = []
+
+    for i, page_data in enumerate(pages_data):
+        if i < len(old_pages):
+            page = old_pages[i]
+        else:
+            page = Page(project_id=project_id, status='DRAFT')
+            db.session.add(page)
+
+        page.order_index = i
+        page.part = page_data.get('part')
+        page.set_outline_content({
+            'title': page_data.get('title'),
+            'points': page_data.get('points', [])
+        })
+        pages_list.append(page)
+
+    for p in old_pages[len(pages_data):]:
+        db.session.delete(p)
+
+    return pages_list
+
+
 @project_bp.route('', methods=['GET'])
 def list_projects():
     """
@@ -133,28 +166,24 @@ def list_projects():
         # Parameter validation
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        
+
         # Enforce limits to prevent performance issues
         limit = min(max(1, limit), 100)  # Between 1-100
         offset = max(0, offset)  # Non-negative
-        
-        # Fetch limit + 1 items to check for more pages efficiently
-        # This avoids a second database query
-        projects_with_extra = Project.query\
+
+        # Get total count for pagination
+        total = Project.query.count()
+
+        projects = Project.query\
             .options(joinedload(Project.pages))\
             .order_by(desc(Project.updated_at))\
-            .limit(limit + 1)\
+            .limit(limit)\
             .offset(offset)\
             .all()
-        
-        # Check if there are more items beyond the current page
-        has_more = len(projects_with_extra) > limit
-        # Return only the requested limit
-        projects = projects_with_extra[:limit]
-        
+
         return success_response({
             'projects': [project.to_dict(include_pages=True) for project in projects],
-            'has_more': has_more,
+            'total': total,
             'limit': limit,
             'offset': offset
         })
@@ -278,6 +307,10 @@ def update_project(project_id):
             return not_found('Project')
         
         data = request.get_json()
+
+        # Update project_title if provided
+        if 'project_title' in data:
+            project.project_title = data['project_title']
         
         # Update idea_prompt if provided
         if 'idea_prompt' in data:
@@ -294,6 +327,12 @@ def update_project(project_id):
         # Update extra_requirements if provided
         if 'extra_requirements' in data:
             project.extra_requirements = data['extra_requirements']
+
+        # Update generation requirements if provided
+        if 'outline_requirements' in data:
+            project.outline_requirements = data['outline_requirements']
+        if 'description_requirements' in data:
+            project.description_requirements = data['description_requirements']
         
         # Update template_style if provided
         if 'template_style' in data:
@@ -311,6 +350,10 @@ def update_project(project_id):
             project.export_extractor_method = data['export_extractor_method']
         if 'export_inpaint_method' in data:
             project.export_inpaint_method = data['export_inpaint_method']
+        if 'export_allow_partial' in data:
+            project.export_allow_partial = data['export_allow_partial']
+        if 'enable_icon_subject_extraction' in data:
+            project.enable_icon_subject_extraction = bool(data['enable_icon_subject_extraction'])
         
         # Update page order if provided
         if 'pages_order' in data:
@@ -434,34 +477,15 @@ def generate_outline(project_id):
             project_context = ProjectContext(project, reference_files_content)
             outline = ai_service.generate_outline(project_context, language=language)
         
-        # Flatten outline to pages
+        # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(outline)
-        
-        # Delete existing pages (using ORM session to trigger cascades)
-        # Note: Cannot use bulk delete as it bypasses ORM cascades for PageImageVersion
-        old_pages = Page.query.filter_by(project_id=project_id).all()
-        for old_page in old_pages:
-            db.session.delete(old_page)
-        
-        # Create pages from outline
-        pages_list = []
-        for i, page_data in enumerate(pages_data):
-            page = Page(
-                project_id=project_id,
-                order_index=i,
-                part=page_data.get('part'),
-                status='DRAFT'
-            )
-            page.set_outline_content({
-                'title': page_data.get('title'),
-                'points': page_data.get('points', [])
-            })
-            
-            db.session.add(page)
-            pages_list.append(page)
-        
-        # Update project status
-        project.status = 'OUTLINE_GENERATED'
+        pages_list = _smart_merge_pages(project_id, pages_data)
+
+        # Update project status (don't downgrade if all pages already have content)
+        if all(p.description_content for p in pages_list) and pages_list:
+            project.status = 'DESCRIPTIONS_GENERATED'
+        else:
+            project.status = 'OUTLINE_GENERATED'
         project.updated_at = datetime.utcnow()
         
         db.session.commit()
@@ -477,6 +501,125 @@ def generate_outline(project_id):
         db.session.rollback()
         logger.error(f"generate_outline failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@project_bp.route('/<project_id>/generate/outline/stream', methods=['POST'])
+def generate_outline_stream(project_id):
+    """
+    POST /api/projects/{project_id}/generate/outline/stream - Stream outline generation via SSE
+
+    Streams pages one-by-one as they are generated. Each page is sent as an SSE event.
+    After all pages are streamed, saves them to the database.
+
+    SSE events:
+      event: page    — a single page object {index, title, points, part?}
+      event: done    — generation complete {total, pages: [...with ids...]}
+      event: error   — error occurred {message}
+    """
+    # Validate project exists before entering the generator
+    project = Project.query.get(project_id)
+    if not project:
+        return not_found('Project')
+
+    data = request.get_json() or {}
+    language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+    # Capture app reference for use inside the generator (which runs outside request context)
+    app = current_app._get_current_object()
+
+    def sse_generate():
+        with app.app_context():
+            try:
+                # Re-fetch project inside app context to attach to this session
+                proj = db.session.get(Project, project_id)
+                ai_service = get_ai_service()
+                reference_files_content = _get_project_reference_files_content(project_id)
+
+                # Validate input based on creation type
+                if proj.creation_type == 'outline' and not proj.outline_text:
+                    yield _sse_event('error', {'message': 'outline_text is required'})
+                    return
+                if proj.creation_type == 'descriptions' and not proj.description_text:
+                    yield _sse_event('error', {'message': 'description_text is required'})
+                    return
+
+                # Update idea_prompt if provided
+                if proj.creation_type not in ('outline', 'descriptions'):
+                    idea_prompt = data.get('idea_prompt') or proj.idea_prompt
+                    if not idea_prompt:
+                        yield _sse_event('error', {'message': 'idea_prompt is required'})
+                        return
+                    proj.idea_prompt = idea_prompt
+
+                project_context = ProjectContext(proj, reference_files_content)
+
+                # Stream pages from AI
+                streamed_pages = []
+                stream_complete = False
+                for page_data in ai_service.generate_outline_stream(project_context, language=language):
+                    # Check for completion sentinel
+                    if '__stream_complete__' in page_data:
+                        stream_complete = page_data['__stream_complete__']
+                        continue
+                    i = len(streamed_pages)
+                    streamed_pages.append(page_data)
+                    yield _sse_event('page', {
+                        'index': i,
+                        'title': page_data.get('title', ''),
+                        'points': page_data.get('points', []),
+                        'part': page_data.get('part'),
+                    })
+
+                # Handle lock_page_count: pad with blank pages if needed
+                lock_page_count = data.get('lock_page_count', False)
+                if lock_page_count:
+                    old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                    old_count = len(old_pages)
+                    new_count = len(streamed_pages)
+                    if new_count < old_count:
+                        for _ in range(old_count - new_count):
+                            streamed_pages.append({'title': '', 'points': []})
+
+                # Save all pages to database
+                pages_list = _smart_merge_pages(project_id, streamed_pages)
+
+                if all(p.description_content for p in pages_list) and pages_list:
+                    proj.status = 'DESCRIPTIONS_GENERATED'
+                else:
+                    proj.status = 'OUTLINE_GENERATED'
+                proj.updated_at = datetime.utcnow()
+                db.session.commit()
+
+                logger.info(f"流式大纲生成完成: 项目 {project_id}, {len(pages_list)} 个页面")
+
+                yield _sse_event('done', {
+                    'total': len(pages_list),
+                    'pages': [p.to_dict() for p in pages_list],
+                    'complete': stream_complete,
+                })
+
+            except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception as rollback_exc:
+                    logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
+                logger.error(f"generate_outline_stream failed: {str(e)}", exc_info=True)
+                yield _sse_event('error', {'message': '生成过程中发生内部错误'})
+
+    return Response(
+        stream_with_context(sse_generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache, no-transform',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
+
+def _sse_event(event: str, data: dict) -> str:
+    """Format a single SSE event."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 @project_bp.route('/<project_id>/generate/from-description', methods=['POST'])
@@ -613,9 +756,9 @@ def generate_descriptions(project_id):
         if not project:
             return not_found('Project')
         
-        if project.status not in ['OUTLINE_GENERATED', 'DRAFT', 'DESCRIPTIONS_GENERATED']:
+        if not project.pages:
             return bad_request("Project must have outline generated first")
-        
+
         # IMPORTANT: Expire cached objects to ensure fresh data
         db.session.expire_all()
         
@@ -632,6 +775,7 @@ def generate_descriptions(project_id):
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
         max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        detail_level = data.get('detail_level', 'default')
         
         # Create task
         task = Task(
@@ -668,7 +812,8 @@ def generate_descriptions(project_id):
             outline,
             max_workers,
             app,
-            language
+            language,
+            detail_level
         )
         
         # Update project status
@@ -687,11 +832,153 @@ def generate_descriptions(project_id):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+@project_bp.route('/<project_id>/generate/descriptions/stream', methods=['POST'])
+def generate_descriptions_stream(project_id):
+    """
+    POST /api/projects/{project_id}/generate/descriptions/stream - Stream description generation via SSE
+
+    Streams page descriptions one-by-one as they are generated by a single AI call.
+
+    SSE events:
+      event: description — {page_index, page_id, text, extra_fields?}
+      event: done        — {total, pages: [...]}
+      event: error       — {message}
+    """
+    project = Project.query.get(project_id)
+    if not project:
+        return not_found('Project')
+
+    if not project.pages:
+        return bad_request("Project must have outline generated first")
+
+    data = request.get_json() or {}
+    language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+    detail_level = data.get('detail_level', 'default')
+
+    app = current_app._get_current_object()
+
+    def sse_generate():
+        with app.app_context():
+            try:
+                proj = db.session.get(Project, project_id)
+                ai_service = get_ai_service()
+                reference_files_content = _get_project_reference_files_content(project_id)
+                project_context = ProjectContext(proj, reference_files_content)
+
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                if not pages:
+                    yield _sse_event('error', {'message': 'No pages found for project'})
+                    return
+
+                outline = _reconstruct_outline_from_pages(pages)
+                flat_pages = ai_service.flatten_outline(outline)
+
+                # Set all pages to GENERATING_DESCRIPTION
+                for page in pages:
+                    page.status = 'GENERATING_DESCRIPTION'
+                proj.status = 'GENERATING_DESCRIPTIONS'
+                db.session.commit()
+
+                # Stream descriptions
+                for result in ai_service.generate_descriptions_stream(
+                    project_context, outline, flat_pages,
+                    language=language, detail_level=detail_level
+                ):
+                    if '__stream_complete__' in result:
+                        continue
+
+                    idx = result.get('page_index', -1)
+                    if idx < 0 or idx >= len(pages):
+                        continue
+
+                    page = pages[idx]
+                    desc_content = {
+                        'text': result.get('description_text', ''),
+                        'generated_at': datetime.utcnow().isoformat(),
+                    }
+                    if result.get('extra_fields'):
+                        desc_content['extra_fields'] = result['extra_fields']
+
+                    page.set_description_content(desc_content)
+                    page.status = 'DESCRIPTION_GENERATED'
+                    page.updated_at = datetime.utcnow()
+                    db.session.commit()
+
+                    yield _sse_event('description', {
+                        'page_index': idx,
+                        'page_id': page.id,
+                        'text': desc_content['text'],
+                        'extra_fields': result.get('extra_fields'),
+                    })
+
+                # 检查是否所有页面都已生成描述
+                missing = [p for p in pages if p.status == 'GENERATING_DESCRIPTION']
+                if missing:
+                    for p in missing:
+                        # 有旧描述的保留，无描述的恢复 DRAFT
+                        p.status = 'DESCRIPTION_GENERATED' if p.description_content else 'DRAFT'
+                        p.updated_at = datetime.utcnow()
+                    logger.warning(f"流式描述生成不完整: {len(missing)}/{len(pages)} 页未生成")
+
+                proj.status = 'DESCRIPTIONS_GENERATED'
+                proj.updated_at = datetime.utcnow()
+                db.session.commit()
+
+                # Re-fetch pages for final response
+                pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                yield _sse_event('done', {
+                    'total': len(pages),
+                    'pages': [p.to_dict() for p in pages],
+                    **(({'warning': f'{len(missing)} 页描述未生成，请重试'}) if missing else {}),
+                })
+
+            except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception as rollback_exc:
+                    logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
+                logger.error(f"generate_descriptions_stream failed: {str(e)}", exc_info=True)
+
+                # 恢复未完成页面的状态：已生成描述的保留，未生成的恢复为 DRAFT
+                try:
+                    pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+                    proj = db.session.get(Project, project_id)
+                    has_any_desc = False
+                    for page in pages:
+                        if page.status == 'GENERATING_DESCRIPTION':
+                            # 如果之前就有描述内容，恢复为 DESCRIPTION_GENERATED
+                            if page.description_content:
+                                page.status = 'DESCRIPTION_GENERATED'
+                                has_any_desc = True
+                            else:
+                                page.status = 'DRAFT'
+                        elif page.status == 'DESCRIPTION_GENERATED':
+                            has_any_desc = True
+                    if proj:
+                        proj.status = 'DESCRIPTIONS_GENERATED' if has_any_desc else 'OUTLINE_GENERATED'
+                        proj.updated_at = datetime.utcnow()
+                    db.session.commit()
+                except Exception as recover_exc:
+                    logger.warning(f"Failed to recover page statuses: {recover_exc}", exc_info=True)
+
+                yield _sse_event('error', {'message': '生成过程中发生内部错误'})
+
+    return Response(
+        stream_with_context(sse_generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache, no-transform',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
+
 @project_bp.route('/<project_id>/generate/images', methods=['POST'])
 def generate_images(project_id):
     """
     POST /api/projects/{project_id}/generate/images - Generate images
-    
+
     Request body:
     {
         "max_workers": 8,
@@ -764,9 +1051,15 @@ def generate_images(project_id):
             style_requirement = f"\n\nppt页面风格描述：\n\n{project.template_style}"
             combined_requirements = combined_requirements + style_requirement
         
+        # Set all target pages to QUEUED before submitting background task
+        # This ensures the status is visible to frontend immediately after API returns
+        for page in pages:
+            page.status = 'QUEUED'
+        db.session.commit()
+
         # Get app instance for background task
         app = current_app._get_current_object()
-        
+
         # Submit background task
         task_manager.submit_task(
             task.id,
@@ -885,73 +1178,16 @@ def refine_outline(project_id):
             language=language
         )
         
-        # Flatten outline to pages
+        # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(refined_outline)
-        
-        # 在删除旧页面之前，先保存已有的页面描述（按标题匹配）
-        old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
-        descriptions_map = {}  # {title: description_content}
-        old_status_map = {}  # {title: status} 用于保留状态
-        
-        for old_page in old_pages:
-            old_outline = old_page.get_outline_content()
-            if old_outline and old_outline.get('title'):
-                title = old_outline.get('title')
-                if old_page.description_content:
-                    descriptions_map[title] = old_page.description_content
-                # 如果旧页面已经有描述，保留状态
-                if old_page.status in ['DESCRIPTION_GENERATED', 'IMAGE_GENERATED']:
-                    old_status_map[title] = old_page.status
-        
-        # Delete existing pages (using ORM session to trigger cascades)
-        for old_page in old_pages:
-            db.session.delete(old_page)
-        
-        # Create pages from refined outline
-        pages_list = []
-        has_descriptions = False
-        preserved_count = 0
-        new_count = 0
-        
-        for i, page_data in enumerate(pages_data):
-            page = Page(
-                project_id=project_id,
-                order_index=i,
-                part=page_data.get('part'),
-                status='DRAFT'
-            )
-            page.set_outline_content({
-                'title': page_data.get('title'),
-                'points': page_data.get('points', [])
-            })
-            
-            # 尝试匹配并恢复已有的描述
-            title = page_data.get('title')
-            if title in descriptions_map:
-                # 恢复描述内容
-                page.description_content = descriptions_map[title]
-                # 恢复状态（如果有）
-                if title in old_status_map:
-                    page.status = old_status_map[title]
-                else:
-                    page.status = 'DESCRIPTION_GENERATED'
-                has_descriptions = True
-                preserved_count += 1
-            else:
-                # 新页面或标题改变的页面，描述为空
-                # 这包括：新增的页面、合并的页面、标题改变的页面
-                page.status = 'DRAFT'
-                new_count += 1
-            
-            db.session.add(page)
-            pages_list.append(page)
-        
+        pages_list = _smart_merge_pages(project_id, pages_data)
+
+        preserved_count = sum(1 for p in pages_list if p.description_content)
+        new_count = len(pages_list) - preserved_count
         logger.info(f"描述匹配完成: 保留了 {preserved_count} 个页面的描述, {new_count} 个页面需要重新生成描述")
-        
+
         # Update project status
-        # 如果所有页面都有描述，保持 DESCRIPTION_GENERATED 状态
-        # 否则降级为 OUTLINE_GENERATED
-        if has_descriptions and all(p.description_content for p in pages_list):
+        if preserved_count and all(p.description_content for p in pages_list):
             project.status = 'DESCRIPTIONS_GENERATED'
         else:
             project.status = 'OUTLINE_GENERATED'
@@ -1130,6 +1366,7 @@ def create_ppt_renovation_project():
 
         keep_layout = request.form.get('keep_layout', 'false').lower() == 'true'
         template_style = request.form.get('template_style', '').strip() or None
+        language = request.form.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
 
         # Create project
         project = Project(
@@ -1148,9 +1385,11 @@ def create_ppt_renovation_project():
         template_dir = project_dir / "template"
         template_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save original file
-        safe_name = secure_filename(file.filename)
-        safe_name = secure_filename(file.filename)
+        # Save original file with a standardized name to avoid encoding issues
+        # (secure_filename strips non-ASCII chars, causing Chinese filenames like
+        # '演示文稿.pdf' to become 'pdf' with no extension, breaking PDF discovery)
+        original_ext = file.filename.rsplit('.', 1)[-1].lower()
+        safe_name = f'original.{original_ext}'
         original_path = template_dir / safe_name
         file.save(str(original_path))
 
@@ -1168,18 +1407,33 @@ def create_ppt_renovation_project():
                     raise ValueError("PDF conversion failed - output file not found")
                 logger.info(f"Converted PPTX to PDF: {pdf_path}")
             except subprocess.TimeoutExpired:
-                raise ValueError("PPTX to PDF conversion timed out")
+                raise ValueError(
+                    "PPTX 转 PDF 超时，请稍后重试或手动转为 PDF 后上传。"
+                    if language == 'zh' else
+                    "PPTX to PDF conversion timed out. Please retry or convert to PDF manually before uploading."
+                )
             except FileNotFoundError:
-                raise ValueError("LibreOffice not found. Please install LibreOffice for PPTX support.")
+                raise ValueError(
+                    "PPTX 转换需要安装 LibreOffice，但当前环境未检测到。请在本地将 PPTX 转为 PDF 后再上传。"
+                    if language == 'zh' else
+                    "PPTX conversion requires LibreOffice, which is not installed. Please convert your PPTX to PDF locally before uploading."
+                )
 
         # Convert PDF to page images using PyMuPDF or pdf2image
         pages_dir = project_dir / "pages"
         pages_dir.mkdir(parents=True, exist_ok=True)
 
         page_image_paths = []
+        pdf_page_width = None
+        pdf_page_height = None
         try:
             import fitz  # PyMuPDF
             doc = fitz.open(pdf_path)
+            # Extract page dimensions from the first page before rendering
+            if len(doc) > 0:
+                rect = doc[0].rect
+                pdf_page_width = rect.width
+                pdf_page_height = rect.height
             for i, fitz_page in enumerate(doc):
                 try:
                     mat = fitz.Matrix(2, 2)
@@ -1198,6 +1452,10 @@ def create_ppt_renovation_project():
                 images = convert_from_path(pdf_path, dpi=200)
                 for i, img in enumerate(images):
                     try:
+                        # Extract page dimensions from the first image
+                        if pdf_page_width is None:
+                            pdf_page_width = img.width
+                            pdf_page_height = img.height
                         img_path = str(pages_dir / f"page_{i + 1}_original.png")
                         img.save(img_path, 'PNG')
                         page_image_paths.append(img_path)
@@ -1213,6 +1471,15 @@ def create_ppt_renovation_project():
             raise ValueError("All pages failed to render from PDF")
 
         logger.info(f"Rendered {len(valid_pages)}/{len(page_image_paths)} page images from PDF")
+
+        # Set project aspect ratio from PDF page dimensions
+        if pdf_page_width and pdf_page_height and pdf_page_width > 0 and pdf_page_height > 0:
+            try:
+                raw_ratio = f"{int(round(pdf_page_width))}:{int(round(pdf_page_height))}"
+                project.image_aspect_ratio = normalize_aspect_ratio(raw_ratio)
+                logger.info(f"Set project aspect ratio from PDF: {pdf_page_width}x{pdf_page_height} -> {project.image_aspect_ratio}")
+            except (ValueError, OverflowError) as e:
+                logger.warning(f"Could not normalize PDF aspect ratio ({pdf_page_width}x{pdf_page_height}): {e}, keeping default 16:9")
 
         # Create Page records with initial images
         from services.task_manager import save_image_with_version
@@ -1277,7 +1544,6 @@ def create_ppt_renovation_project():
             lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
         )
 
-        language = request.form.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         app = current_app._get_current_object()
 
         # Submit async task

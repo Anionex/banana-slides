@@ -1,0 +1,101 @@
+---
+title: "快速开始"
+description: "立即体验或在本地部署 Banana Slides"
+---
+
+## 在线 Demo
+
+无需安装，直接体验：[bananaslides.online](https://bananaslides.online/)
+
+---
+
+## 自托管部署
+
+### 第一步：安装 Docker
+
+<Tabs>
+  <Tab title="Windows / macOS">
+    下载并安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，安装完成后启动它，确保系统托盘（Windows）或菜单栏（macOS）中出现 Docker 图标。
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    curl -fsSL https://get.docker.com | sh
+    ```
+  </Tab>
+</Tabs>
+
+### 第二步：一键下载并启动
+
+新建一个目录，进入后执行以下命令，自动下载配置文件并启动服务：
+
+```bash
+mkdir banana-slides && cd banana-slides && \
+curl -O https://raw.githubusercontent.com/Anionex/banana-slides/main/docker-compose.prod.yml && \
+curl -O https://raw.githubusercontent.com/Anionex/banana-slides/main/.env.example && \
+cp .env.example .env
+```
+
+然后编辑 `.env` 文件，填入你的 API 密钥（详见[配置说明](/zh/configuration)），再启动：
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+<Tip>
+  推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取 API 密钥，同时支持 Gemini 和 OpenAI 格式，且能稳定进行高并发生图。
+</Tip>
+
+### 第三步：访问应用
+
+浏览器打开 [http://localhost:3000](http://localhost:3000)，即可开始使用。
+
+<Note>
+  默认端口为 3000（前端）和 5000（后端）。如需修改，在 `.env` 中设置 `FRONTEND_PORT` 和 `BACKEND_PORT`。
+</Note>
+
+---
+
+## 更新
+
+```bash
+docker compose -f docker-compose.prod.yml pull && \
+docker compose -f docker-compose.prod.yml up -d
+```
+
+## 查看日志
+
+```bash
+docker logs -f --tail 100 banana-slides-backend
+```
+
+---
+
+## 从源码部署
+
+<Accordion title="展开查看源码部署步骤">
+
+### 环境要求
+
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) 包管理器
+- Node.js 16+ 和 npm
+
+### 后端
+
+```bash
+git clone https://github.com/Anionex/banana-slides
+cd banana-slides
+cp .env.example .env  # 编辑 .env 填入 API 密钥
+cd backend
+uv run alembic upgrade head && uv run python app.py
+```
+
+### 前端
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+</Accordion>

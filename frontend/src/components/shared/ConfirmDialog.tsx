@@ -6,12 +6,14 @@ import { Button } from './Button';
 interface ConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (checkboxValue?: boolean) => void;
   title?: string;
   message: string;
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
+  checkboxLabel?: string;
+  checkboxDefaultChecked?: boolean;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -23,9 +25,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmText = '确定',
   cancelText = '取消',
   variant = 'warning',
+  checkboxLabel,
+  checkboxDefaultChecked = false,
 }) => {
+  const [checkboxChecked, setCheckboxChecked] = useState(checkboxDefaultChecked);
+
   const handleConfirm = () => {
-    onConfirm();
+    onConfirm(checkboxLabel ? checkboxChecked : undefined);
     onClose();
   };
 
@@ -45,6 +51,17 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           />
           <p className="text-gray-700 dark:text-foreground-secondary flex-1">{message}</p>
         </div>
+        {checkboxLabel && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={checkboxChecked}
+              onChange={(e) => setCheckboxChecked(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
+            />
+            <span className="text-sm text-gray-700 dark:text-foreground-secondary">{checkboxLabel}</span>
+          </label>
+        )}
         <div className="flex justify-end gap-3 pt-4">
           <Button variant="ghost" onClick={onClose}>
             {cancelText}
@@ -70,18 +87,22 @@ export const useConfirm = () => {
     confirmText?: string;
     cancelText?: string;
     variant?: 'danger' | 'warning' | 'info';
-    onConfirm: () => void;
+    checkboxLabel?: string;
+    checkboxDefaultChecked?: boolean;
+    onConfirm: (checkboxValue?: boolean) => void;
   } | null>(null);
 
   const confirm = useCallback(
     (
       message: string,
-      onConfirm: () => void,
+      onConfirm: (checkboxValue?: boolean) => void,
       options?: {
         title?: string;
         confirmText?: string;
         cancelText?: string;
         variant?: 'danger' | 'warning' | 'info';
+        checkboxLabel?: string;
+        checkboxDefaultChecked?: boolean;
       }
     ) => {
       setConfig({
@@ -91,6 +112,8 @@ export const useConfirm = () => {
         confirmText: options?.confirmText,
         cancelText: options?.cancelText,
         variant: options?.variant || 'warning',
+        checkboxLabel: options?.checkboxLabel,
+        checkboxDefaultChecked: options?.checkboxDefaultChecked,
       });
       setIsOpen(true);
     },
@@ -102,9 +125,9 @@ export const useConfirm = () => {
     setConfig(null);
   }, []);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback((checkboxValue?: boolean) => {
     if (config?.onConfirm) {
-      config.onConfirm();
+      config.onConfirm(checkboxValue);
     }
     close();
   }, [config, close]);
@@ -121,6 +144,8 @@ export const useConfirm = () => {
         confirmText={config.confirmText}
         cancelText={config.cancelText}
         variant={config.variant}
+        checkboxLabel={config.checkboxLabel}
+        checkboxDefaultChecked={config.checkboxDefaultChecked}
       />
     ) : null,
   };

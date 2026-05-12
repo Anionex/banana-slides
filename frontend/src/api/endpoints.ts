@@ -2,6 +2,18 @@ import { apiClient } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
 import type { Settings } from '../types/index';
 
+// ===== 访问口令 API =====
+
+export const checkAccessCode = async (): Promise<ApiResponse<{ enabled: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ enabled: boolean }>>('/api/access-code/check');
+  return response.data;
+};
+
+export const verifyAccessCode = async (code: string): Promise<ApiResponse<{ valid: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ valid: boolean }>>('/api/access-code/verify', { code });
+  return response.data;
+};
+
 // ===== 项目相关 API =====
 
 /**
@@ -115,6 +127,86 @@ export const generateOutline = async (projectId: string, language?: OutputLangua
   return response.data;
 };
 
+/**
+ * 流式生成大纲（SSE）
+ * 返回 ReadableStream，每个 page 事件包含一个页面对象
+ */
+export interface OutlineStreamPage {
+  index: number;
+  title: string;
+  points: string[];
+  part?: string;
+}
+
+export interface OutlineStreamCallbacks {
+  onPage: (page: OutlineStreamPage) => void;
+  onDone: (data: { total: number; pages: Page[] }) => void;
+  onError: (message: string) => void;
+}
+
+export const generateOutlineStream = async (
+  projectId: string,
+  callbacks: OutlineStreamCallbacks,
+  language?: OutputLanguage,
+  lockPageCount?: boolean,
+): Promise<void> => {
+  const lang = language || await getStoredOutputLanguage();
+  const accessCode = localStorage.getItem('banana-access-code');
+
+  const response = await fetch(`/api/projects/${projectId}/generate/outline/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+    },
+    body: JSON.stringify({ language: lang, lock_page_count: lockPageCount }),
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError(`HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    const { value } = readResult;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE events from buffer
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let eventType = '';
+      let eventData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) eventData = line.slice(6);
+      }
+
+      if (!eventType || !eventData) continue;
+
+      try {
+        const parsed = JSON.parse(eventData);
+        if (eventType === 'page') callbacks.onPage(parsed);
+        else if (eventType === 'done') callbacks.onDone(parsed);
+        else if (eventType === 'error') callbacks.onError(parsed.message);
+      } catch {
+        // Skip malformed events
+      }
+    }
+
+    readResult = await reader.read();
+  }
+};
+
 // ===== 描述生成 =====
 
 /**
@@ -136,17 +228,95 @@ export const generateFromDescription = async (projectId: string, descriptionText
 };
 
 /**
- * 批量生成描述
+ * 批量生成描述（并行模式）
  * @param projectId 项目ID
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateDescriptions = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+export const generateDescriptions = async (projectId: string, language?: OutputLanguage, detailLevel?: string): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/descriptions`,
-    { language: lang }
+    { language: lang, detail_level: detailLevel || 'default' }
   );
   return response.data;
+};
+
+/**
+ * 流式生成描述（SSE）
+ */
+export interface DescriptionStreamEvent {
+  page_index: number;
+  page_id: string;
+  text: string;
+  extra_fields?: Record<string, string>;
+}
+
+export interface DescriptionStreamCallbacks {
+  onDescription: (data: DescriptionStreamEvent) => void;
+  onDone: (data: { total: number; pages: Page[] }) => void;
+  onError: (message: string) => void;
+}
+
+export const generateDescriptionsStream = async (
+  projectId: string,
+  callbacks: DescriptionStreamCallbacks,
+  language?: OutputLanguage,
+  detailLevel?: string,
+): Promise<void> => {
+  const lang = language || await getStoredOutputLanguage();
+  const accessCode = localStorage.getItem('banana-access-code');
+
+  const response = await fetch(`/api/projects/${projectId}/generate/descriptions/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+    },
+    body: JSON.stringify({ language: lang, detail_level: detailLevel || 'default' }),
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError(`HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    const { value } = readResult;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let eventType = '';
+      let eventData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) eventData = line.slice(6);
+      }
+
+      if (!eventType || !eventData) continue;
+
+      try {
+        const parsed = JSON.parse(eventData);
+        if (eventType === 'description') callbacks.onDescription(parsed);
+        else if (eventType === 'done') callbacks.onDone(parsed);
+        else if (eventType === 'error') callbacks.onError(parsed.message);
+      } catch {
+        // Skip malformed events
+      }
+    }
+
+    readResult = await reader.read();
+  }
 };
 
 /**
@@ -156,12 +326,13 @@ export const generatePageDescription = async (
   projectId: string,
   pageId: string,
   forceRegenerate: boolean = false,
-  language?: OutputLanguage
+  language?: OutputLanguage,
+  detailLevel?: string
 ): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/description`,
-    { force_regenerate: forceRegenerate , language: lang}
+    { force_regenerate: forceRegenerate, language: lang, detail_level: detailLevel || 'default' }
   );
   return response.data;
 };
@@ -423,6 +594,55 @@ export const getTaskStatus = async (projectId: string, taskId: string): Promise<
   return response.data;
 };
 
+// ===== 旁白 (Narration) =====
+
+/**
+ * 更新页面旁白文本
+ */
+export const updatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  narrationText: string
+): Promise<ApiResponse<Page>> => {
+  const response = await apiClient.put<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/narration`,
+    { narration_text: narrationText }
+  );
+  return response.data;
+};
+
+/**
+ * AI 生成单页旁白
+ */
+export const generatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  language?: OutputLanguage
+): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/generate/narration`,
+    { language: lang }
+  );
+  return response.data;
+};
+
+/**
+ * 批量生成所有页面旁白
+ */
+export const generateAllNarrations = async (
+  projectId: string,
+  language?: OutputLanguage,
+  forceRegenerate?: boolean
+): Promise<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>>(
+    `/api/projects/${projectId}/generate/narrations`,
+    { language: lang, force_regenerate: forceRegenerate || false }
+  );
+  return response.data;
+};
+
 // ===== 导出 =====
 
 /**
@@ -468,6 +688,20 @@ export const exportPDF = async (
 };
 
 /**
+ * 导出为图片（单张直接下载，多张打包ZIP）
+ */
+export const exportImages = async (
+  projectId: string,
+  pageIds?: string[]
+): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const url = `/api/projects/${projectId}/export/images${buildPageIdsQuery(pageIds)}`;
+  const response = await apiClient.get<
+    ApiResponse<{ download_url: string; download_url_absolute?: string }>
+  >(url);
+  return response.data;
+};
+
+/**
  * 导出为可编辑PPTX（异步任务）
  * @param projectId 项目ID
  * @param filename 可选的文件名
@@ -487,6 +721,68 @@ export const exportEditablePPTX = async (
   return response.data;
 };
 
+/**
+ * 列出项目已导出的文件
+ */
+export const listExports = async (
+  projectId: string,
+): Promise<ApiResponse<{ files: Array<{
+  filename: string;
+  type: string;
+  size: number;
+  modified_at: string;
+  download_url: string;
+}> }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+/**
+ * 导出为讲解视频（异步任务）
+ * @param projectId 项目ID
+ * @param options 导出选项
+ */
+export const exportVideo = async (
+  projectId: string,
+  options?: {
+    filename?: string;
+    pageIds?: string[];
+    voice?: string;
+    rate?: string;
+    speed?: number;
+    language?: string;
+    generateNarration?: boolean;
+    enableKenBurns?: boolean;
+    includeNoImagePages?: boolean;
+    presentationTopic?: string;
+    narrationConfig?: {
+      speaker_persona?: string;
+      target_audience?: string;
+      speech_tone?: string;
+      presentation_topic?: string;
+      min_words?: number;
+      max_words?: number;
+    };
+  }
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<
+    ApiResponse<{ task_id: string }>
+  >(`/api/projects/${projectId}/export/video`, {
+    filename: options?.filename,
+    page_ids: options?.pageIds,
+    voice: options?.voice,
+    rate: options?.rate,
+    speed: options?.speed,
+    language: options?.language,
+    generate_narration: options?.generateNarration ?? true,
+    enable_ken_burns: options?.enableKenBurns ?? false,
+    include_no_image_pages: options?.includeNoImagePages ?? false,
+    presentation_topic: options?.presentationTopic,
+    narration_config: options?.narrationConfig,
+  });
+  return response.data;
+};
+
 // ===== 素材生成 =====
 
 /**
@@ -497,10 +793,14 @@ export const generateMaterialImage = async (
   projectId: string,
   prompt: string,
   refImage?: File | null,
-  extraImages?: File[]
+  extraImages?: File[],
+  aspectRatio?: string
 ): Promise<ApiResponse<{ task_id: string; status: string }>> => {
   const formData = new FormData();
   formData.append('prompt', prompt);
+  if (aspectRatio) {
+    formData.append('aspect_ratio', aspectRatio);
+  }
   if (refImage) {
     formData.append('ref_image', refImage);
   }
@@ -513,6 +813,69 @@ export const generateMaterialImage = async (
 
   const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
     `/api/projects/${projectId}/materials/generate`,
+    formData
+  );
+  return response.data;
+};
+
+export type MaterialProcessOperation =
+  | 'generate'
+  | 'edit_full'
+  | 'region_edit'
+  | 'erase_region';
+
+export interface MaterialSelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  image_width: number;
+  image_height: number;
+}
+
+export interface ProcessMaterialOptions {
+  operation: MaterialProcessOperation;
+  prompt?: string;
+  sourceImage?: File | null;
+  refImage?: File | null;
+  extraImages?: File[];
+  aspectRatio?: string;
+  selection?: MaterialSelectionRect | null;
+  applyMode?: 'overlay_selection' | 'replace_full';
+}
+
+export const processMaterialImage = async (
+  projectId: string,
+  options: ProcessMaterialOptions
+): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const formData = new FormData();
+  formData.append('operation', options.operation);
+  if (options.prompt) {
+    formData.append('prompt', options.prompt);
+  }
+  if (options.aspectRatio) {
+    formData.append('aspect_ratio', options.aspectRatio);
+  }
+  if (options.applyMode) {
+    formData.append('apply_mode', options.applyMode);
+  }
+  if (options.selection) {
+    formData.append('selection', JSON.stringify(options.selection));
+  }
+  if (options.sourceImage) {
+    formData.append('source_image', options.sourceImage);
+  }
+  if (options.refImage) {
+    formData.append('ref_image', options.refImage);
+  }
+  if (options.extraImages && options.extraImages.length > 0) {
+    options.extraImages.forEach((file) => {
+      formData.append('extra_images', file);
+    });
+  }
+
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
+    `/api/projects/${projectId}/materials/process`,
     formData
   );
   return response.data;
@@ -604,28 +967,42 @@ export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ 
 };
 
 /**
- * 批量下载素材（打包为zip）
- * @param materialIds 素材ID列表
+ * Generate caption for an existing material
+ */
+export const getMaterialCaption = async (materialId: string): Promise<ApiResponse<{ caption: string }>> => {
+  const response = await apiClient.get<ApiResponse<{ caption: string }>>(`/api/materials/${materialId}/caption`);
+  return response.data;
+};
+
+/**
+ * Get material by URL and ensure it has a caption
+ */
+export const getMaterialByUrl = async (url: string): Promise<ApiResponse<Material>> => {
+  const response = await apiClient.get<ApiResponse<Material>>(`/api/materials/by-url`, { params: { url } });
+  return response.data;
+};
+
+/**
+ * Download selected materials bundled as a zip archive.
  */
 export const downloadMaterialsZip = async (
   materialIds: string[]
 ): Promise<ApiResponse<{ download_url: string }>> => {
-  const response = await apiClient.post<Blob>(
+  const { data: blob } = await apiClient.post<Blob>(
     '/api/materials/download',
     { material_ids: materialIds },
-    { responseType: 'blob' }
+    { responseType: 'blob' },
   );
 
-  // 直接触发下载
-  const blob = response.data;
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'materials.zip';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
+  const href = URL.createObjectURL(blob);
+  const link = Object.assign(document.createElement('a'), {
+    href,
+    download: 'materials.zip',
+  });
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(href);
 
   return { success: true, data: { download_url: '' } };
 };
@@ -692,6 +1069,38 @@ export const listUserTemplates = async (): Promise<ApiResponse<{ templates: User
  */
 export const deleteUserTemplate = async (templateId: string): Promise<ApiResponse> => {
   const response = await apiClient.delete<ApiResponse>(`/api/user-templates/${templateId}`);
+  return response.data;
+};
+
+// ===== 参考文件相关 API =====
+
+export interface UserStyleTemplate {
+  id: string;
+  name: string;
+  description: string;
+  color?: string;
+  created_at?: string;
+}
+
+export const createUserStyleTemplate = async (
+  data: { name: string; description: string; color?: string }
+): Promise<ApiResponse<UserStyleTemplate>> => {
+  const response = await apiClient.post<ApiResponse<UserStyleTemplate>>(
+    '/api/user-style-templates',
+    data
+  );
+  return response.data;
+};
+
+export const listUserStyleTemplates = async (): Promise<ApiResponse<{ templates: UserStyleTemplate[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ templates: UserStyleTemplate[] }>>(
+    '/api/user-style-templates'
+  );
+  return response.data;
+};
+
+export const deleteUserStyleTemplate = async (id: string): Promise<ApiResponse> => {
+  const response = await apiClient.delete<ApiResponse>(`/api/user-style-templates/${id}`);
   return response.data;
 };
 
@@ -860,14 +1269,24 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
   return response.data;
 };
 
+export const getElevenLabsVoices = async (): Promise<ApiResponse<{ voices: { id: string; name: string; category: string; languages?: string[]; accent?: string | null }[] }>> => {
+  const response = await apiClient.get('/api/settings/elevenlabs-voices');
+  return response.data;
+};
+
 /**
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_ocr_api_key_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'elevenlabs_api_key_length' | 'created_at' | 'updated_at'>> & {
     api_key?: string;
     mineru_token?: string;
-    baidu_ocr_api_key?: string;
+    baidu_api_key?: string;
+    elevenlabs_api_key?: string;
+    text_api_key?: string;
+    image_api_key?: string;
+    image_caption_api_key?: string;
+    lazyllm_api_keys?: Record<string, string>;
   }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
@@ -879,6 +1298,46 @@ export const updateSettings = async (
  */
 export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: get authorization URL
+ */
+export const getOpenAIOAuthUrl = async (): Promise<ApiResponse<{ auth_url: string }>> => {
+  const response = await apiClient.get<ApiResponse<{ auth_url: string }>>('/api/settings/openai-oauth/authorize');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: disconnect
+ */
+export const disconnectOpenAIOAuth = async (): Promise<ApiResponse<{ message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ message: string }>>('/api/settings/openai-oauth/disconnect');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: get connection status
+ */
+export const getOpenAIOAuthStatus = async (): Promise<ApiResponse<{ connected: boolean; account_id: string | null }>> => {
+  const response = await apiClient.get<ApiResponse<{ connected: boolean; account_id: string | null }>>('/api/settings/openai-oauth/status');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: list available models
+ */
+export const getOpenAIOAuthModels = async (): Promise<ApiResponse<{ models: string[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ models: string[] }>>('/api/settings/openai-oauth/models');
+  return response.data;
+};
+
+/**
+ * 手动提交 OAuth 回调 URL（端口 1455 不可用时的兜底）
+ */
+export const submitOAuthManualCallback = async (callbackUrl: string): Promise<ApiResponse<{ message: string; account_id: string | null }>> => {
+  const response = await apiClient.post<ApiResponse<{ message: string; account_id: string | null }>>('/api/settings/openai-oauth/manual-callback', { callback_url: callbackUrl });
   return response.data;
 };
 
@@ -902,8 +1361,8 @@ export interface TestSettingsOverride {
   image_caption_model_source?: string;
   mineru_api_base?: string;
   mineru_token?: string;
-  baidu_ocr_api_key?: string;
-  ai_provider_format?: 'openai' | 'gemini' | 'lazyllm';
+  baidu_api_key?: string;
+  ai_provider_format?: string;
   image_resolution?: string;
   enable_text_reasoning?: boolean;
   text_thinking_budget?: number;

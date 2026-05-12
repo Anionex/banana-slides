@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ReferenceFileCard, useToast } from '@/components/shared';
+import { ReferenceFileCard } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { listProjectReferenceFiles, type ReferenceFile } from '@/api/endpoints';
 
@@ -19,6 +19,7 @@ interface ReferenceFileListProps {
   deleteMode?: 'delete' | 'remove';
   title?: string; // 自定义标题
   className?: string; // 自定义样式
+  showToast?: (props: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
 }
 
 export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
@@ -30,11 +31,11 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
   deleteMode = 'remove',
   title,
   className = 'mb-6',
+  showToast,
 }) => {
   const t = useT(referenceFileListI18n);
   const [internalFiles, setInternalFiles] = useState<ReferenceFile[]>([]);
-  const { show } = useToast();
-  const showRef = useRef(show);
+  const showRef = useRef(showToast);
   
   const displayTitle = title ?? t('referenceFile.uploadedFiles');
 
@@ -43,8 +44,8 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
   const files = isExternalMode ? externalFiles : internalFiles;
 
   useEffect(() => {
-    showRef.current = show;
-  }, [show]);
+    showRef.current = showToast;
+  }, [showToast]);
 
   // 只在非外部模式下从 API 加载
   useEffect(() => {
@@ -63,7 +64,7 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
         }
       } catch (error: any) {
         console.error('Load file list failed:', error);
-        showRef.current({
+        showRef.current?.({
           message: error?.response?.data?.error?.message || error.message || t('referenceFile.messages.loadFailed'),
           type: 'error',
         });
@@ -106,6 +107,7 @@ export const ReferenceFileList: React.FC<ReferenceFileListProps> = ({
             onStatusChange={handleFileStatusChange}
             deleteMode={deleteMode}
             onClick={() => onFileClick?.(file.id)}
+            showToast={showToast}
           />
         ))}
       </div>

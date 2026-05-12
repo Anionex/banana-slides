@@ -134,7 +134,7 @@ def upload_reference_file():
                     # Decode if URL encoded
                     try:
                         original_filename = unquote(original_filename)
-                    except:
+                    except Exception:
                         pass
         
         if not original_filename or original_filename == '':

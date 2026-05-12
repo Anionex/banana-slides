@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle } from 'lucide-react';
+import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle } from 'lucide-react';
 import { Button, Textarea } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { Settings } from '@/pages/Settings';
@@ -14,6 +14,8 @@ const projectSettingsI18n = {
       projectConfigTitle: "项目级配置", projectConfigDesc: "这些设置仅应用于当前项目，不影响其他项目",
       globalConfigTitle: "全局设置", globalConfigDesc: "这些设置应用于所有项目",
       aspectRatio: "画面比例", aspectRatioDesc: "设置生成幻灯片图片的画面比例",
+      aspectRatioLocked: "已生成图片的项目无法调整画面比例",
+      aspectRatioHelp: "部分模型仅支持特定的画面比例（如 16:9、4:3、1:1）。如果图片生成报错，可尝试切换画面比例后重试。",
       extraRequirements: "额外要求", extraRequirementsDesc: "在生成每个页面时，AI 会参考这些额外要求",
       extraRequirementsPlaceholder: "例如：使用紧凑的布局，顶部展示一级大纲标题，加入更丰富的PPT插图...",
       saveExtraRequirements: "保存额外要求",
@@ -31,6 +33,9 @@ const projectSettingsI18n = {
       backgroundBaidu: "百度抹除服务获取", backgroundBaiduDesc: "使用百度图像修复API，速度快但画质一般",
       usesAiModel: "使用文生图模型",
       costTip: "标有「使用文生图模型」的选项会调用AI图片生成API（如Gemini），每页会产生额外的API调用费用。如果需要控制成本，可选择「百度修复」方式。",
+      iconSubjectExtraction: "图标透明背景",
+      iconSubjectExtractionDesc: "开启后，导出时对识别为图标的图片调用本地 RMBG-2.0 模型抠图，获取透明背景 PNG 后再贴入 PPT，避免图标自带的原 PPT 背景在新底色上突兀显示。仅对识别为图标的元素生效，照片/插图保持原矩形裁剪。",
+      iconSubjectExtractionTip: "基于 RMBG-2.0 ONNX 模型本地推理，首次使用会自动下载约 512MB 模型；单张图标处理失败时会自动回退到原矩形裁剪，不影响导出。",
       errorHandling: "错误处理策略", errorHandlingDesc: "配置导出过程中遇到错误时的处理方式",
       allowPartialResult: "允许返回半成品", allowPartialResultDesc: "开启后，导出过程中遇到错误（如样式提取失败、文本渲染失败等）时会跳过错误继续导出，最终可能得到不完整的结果。关闭时，任何错误都会立即停止导出并提示具体原因。",
       allowPartialResultWarning: "开启此选项可能导致导出的 PPTX 文件中部分文字样式丢失、元素位置错误或内容缺失。建议仅在需要快速获取结果且可以接受质量损失时开启。",
@@ -45,6 +50,8 @@ const projectSettingsI18n = {
       projectConfigTitle: "Project-level Configuration", projectConfigDesc: "These settings only apply to the current project",
       globalConfigTitle: "Global Settings", globalConfigDesc: "These settings apply to all projects",
       aspectRatio: "Aspect Ratio", aspectRatioDesc: "Set the aspect ratio for generated slide images",
+      aspectRatioLocked: "Cannot change aspect ratio after images have been generated",
+      aspectRatioHelp: "Some models only support specific aspect ratios (e.g. 16:9, 4:3, 1:1). If image generation fails, try switching to a different aspect ratio.",
       extraRequirements: "Extra Requirements", extraRequirementsDesc: "AI will reference these extra requirements when generating each page",
       extraRequirementsPlaceholder: "e.g., Use compact layout, show first-level outline title at top, add richer PPT illustrations...",
       saveExtraRequirements: "Save Extra Requirements",
@@ -62,6 +69,9 @@ const projectSettingsI18n = {
       backgroundBaidu: "Baidu Inpainting", backgroundBaiduDesc: "Use Baidu image repair API, fast but average quality",
       usesAiModel: "Uses AI Image Model",
       costTip: "Options marked \"Uses AI Image Model\" will call AI image generation API (like Gemini), incurring extra API costs per page. To control costs, choose \"Baidu Inpainting\".",
+      iconSubjectExtraction: "Icon Transparent Background",
+      iconSubjectExtractionDesc: "When enabled, images detected as icons during export are processed via the local RMBG-2.0 model to produce transparent-background PNGs before being placed in the PPT, avoiding the icon's original background clashing with the new slide background. Only applies to elements classified as icons; photos and illustrations keep the original rectangular crop.",
+      iconSubjectExtractionTip: "Powered by local RMBG-2.0 ONNX inference. The ~512MB model is downloaded automatically on first use. If extraction fails for an individual icon, it falls back silently to the original rectangular crop without affecting export.",
       errorHandling: "Error Handling Strategy", errorHandlingDesc: "Configure how to handle errors during export",
       allowPartialResult: "Allow Partial Results", allowPartialResultDesc: "When enabled, export will skip errors (like style extraction or text rendering failures) and continue, potentially resulting in incomplete output. When disabled, any error will stop export immediately with a specific reason.",
       allowPartialResultWarning: "Enabling this option may result in PPTX files with missing text styles, mispositioned elements, or missing content. Only enable when you need quick results and can accept quality loss.",
@@ -86,15 +96,18 @@ interface ProjectSettingsModalProps {
   exportExtractorMethod?: ExportExtractorMethod;
   exportInpaintMethod?: ExportInpaintMethod;
   exportAllowPartial?: boolean;
+  enableIconSubjectExtraction?: boolean;
   onExportExtractorMethodChange?: (value: ExportExtractorMethod) => void;
   onExportInpaintMethodChange?: (value: ExportInpaintMethod) => void;
   onExportAllowPartialChange?: (value: boolean) => void;
+  onEnableIconSubjectExtractionChange?: (value: boolean) => void;
   onSaveExportSettings?: () => void;
   isSavingExportSettings?: boolean;
   aspectRatio?: string;
   onAspectRatioChange?: (value: string) => void;
   onSaveAspectRatio?: () => void;
   isSavingAspectRatio?: boolean;
+  hasImages?: boolean;
 }
 
 type SettingsTab = 'project' | 'global' | 'export';
@@ -113,15 +126,18 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   exportExtractorMethod = 'hybrid',
   exportInpaintMethod = 'hybrid',
   exportAllowPartial = false,
+  enableIconSubjectExtraction = true,
   onExportExtractorMethodChange,
   onExportInpaintMethodChange,
   onExportAllowPartialChange,
+  onEnableIconSubjectExtractionChange,
   onSaveExportSettings,
   isSavingExportSettings = false,
   aspectRatio = '16:9',
   onAspectRatioChange,
   onSaveAspectRatio,
   isSavingAspectRatio = false,
+  hasImages = false,
 }) => {
   const t = useT(projectSettingsI18n);
   const [activeTab, setActiveTab] = useState<SettingsTab>('project');
@@ -203,11 +219,21 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 </div>
 
                 {/* 画面比例 */}
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
-                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.aspectRatio')}</h4>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary">{t('projectSettings.aspectRatio')}</h4>
+                      <div className="relative group">
+                        <button type="button" className="p-1 -m-1 rounded-full focus:outline-none focus:ring-2 focus:ring-banana-500">
+                          <HelpCircle size={16} className="text-gray-400 dark:text-foreground-tertiary cursor-help" />
+                        </button>
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-10 pointer-events-none">
+                          {t('projectSettings.aspectRatioHelp')}
+                        </div>
+                      </div>
+                    </div>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
-                      {t('projectSettings.aspectRatioDesc')}
+                      {hasImages ? t('projectSettings.aspectRatioLocked') : t('projectSettings.aspectRatioDesc')}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -215,8 +241,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       <button
                         key={opt.value}
                         type="button"
+                        disabled={hasImages}
                         onClick={() => onAspectRatioChange?.(opt.value)}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-all ${
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                           aspectRatio === opt.value
                             ? 'border-banana-500 bg-banana-50 dark:bg-background-secondary text-banana-700 dark:text-banana'
                             : 'border-gray-200 dark:border-border-primary text-gray-700 dark:text-foreground-secondary hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-background-secondary'
@@ -226,7 +253,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </button>
                     ))}
                   </div>
-                  {onSaveAspectRatio && (
+                  {onSaveAspectRatio && !hasImages && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -239,7 +266,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   )}
                 </div>
 
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extraRequirements')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -264,7 +291,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </Button>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-6 space-y-4">
+                <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.styleDescription')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -289,8 +316,8 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       {isSavingTemplateStyle ? t('shared.saving') : t('projectSettings.saveStyleDescription')}
                     </Button>
                   </div>
-                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-md p-3">
-                    <p className="text-xs text-blue-900 dark:text-blue-300">
+                  <div className="pl-4 border-l-4 border-blue-300 dark:border-blue-600">
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
                     </p>
                   </div>
@@ -305,7 +332,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </p>
                 </div>
 
-                <div className="bg-gray-50 dark:bg-background-primary rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.extractorMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -339,7 +366,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-6 space-y-4">
+                <div className="pb-6 border-b border-gray-200 dark:border-border-primary space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.backgroundMethod')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -379,15 +406,41 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </label>
                     ))}
                   </div>
-                  <div className="bg-amber-100 dark:bg-amber-900/20 rounded-md p-3 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-amber-700 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-900 dark:text-amber-300">
+                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.costTip')}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.iconSubjectExtraction')}</h4>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableIconSubjectExtraction}
+                      onChange={(e) => onEnableIconSubjectExtractionChange?.(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-banana-500 focus:ring-banana-500 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 dark:text-foreground-primary">{t('projectSettings.iconSubjectExtraction')}</div>
+                      <div className="text-sm text-gray-600 dark:text-foreground-tertiary mt-1">
+                        {t('projectSettings.iconSubjectExtractionDesc')}
+                      </div>
+                    </div>
+                  </label>
+                  <div className="pl-4 border-l-4 border-yellow-300 dark:border-yellow-600 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
+                      <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.iconSubjectExtractionTip')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
                   <div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-foreground-primary mb-2">{t('projectSettings.errorHandling')}</h4>
                     <p className="text-sm text-gray-600 dark:text-foreground-tertiary">
@@ -408,9 +461,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                       </div>
                     </div>
                   </label>
-                  <div className="bg-red-100 dark:bg-red-900/20 rounded-md p-3 flex items-start gap-2">
+                  <div className="pl-4 border-l-4 border-red-300 dark:border-red-600 flex items-start gap-2">
                     <AlertTriangle size={16} className="text-red-700 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-900 dark:text-red-300">
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
                       <strong>{t('common.warning')}：</strong>{t('projectSettings.allowPartialResultWarning')}
                     </p>
                   </div>
