@@ -14,7 +14,7 @@ const templateI18n = {
       cannotDeleteInUse: "当前使用中的模板不能删除，请先取消选择或切换",
       stylePromptLabel: "风格描述", stylePromptPlaceholder: "例如：极简商务蓝白配色，顶部标题区，留白充足",
       generateCandidates: "生成5个模板候选", styleCandidates: "模板风格候选", styleCandidatesHint: "候选是幻灯片模板/风格参考图，不是普通插图。选择后会走现有模板上传流程，并作为后续页面复用的模板图；不会保存到模板库。",
-      selectCandidate: "选择此候选", generatingCandidates: "正在生成候选...",
+      selectCandidate: "选择此候选", generatingCandidates: "正在生成候选...", selectingCandidate: "正在应用候选...",
       presets: {
         retroScroll: "复古卷轴", vectorIllustration: "矢量插画", glassEffect: "拟物玻璃",
         techBlue: "科技蓝", simpleBusiness: "简约商务", academicReport: "学术报告"
@@ -35,7 +35,7 @@ const templateI18n = {
       cannotDeleteInUse: "Cannot delete template in use, please deselect or switch first",
       stylePromptLabel: "Style Prompt", stylePromptPlaceholder: "e.g. Minimal business blue/white palette, title block on top, generous whitespace",
       generateCandidates: "Generate 5 template candidates", styleCandidates: "Template Style Candidates", styleCandidatesHint: "Candidates are transient slide template/style references, not generic illustrations. Selecting one feeds the existing template upload flow and becomes the template image reused for later page generation; it is not saved to your library.",
-      selectCandidate: "Use this candidate", generatingCandidates: "Generating candidates...",
+      selectCandidate: "Use this candidate", generatingCandidates: "Generating candidates...", selectingCandidate: "Applying candidate...",
       presets: {
         retroScroll: "Retro Scroll", vectorIllustration: "Vector Illustration", glassEffect: "Glass Effect",
         techBlue: "Tech Blue", simpleBusiness: "Simple Business", academicReport: "Academic Report"
@@ -186,7 +186,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
       // Keep maintainer-required semantics: candidate selection stays a pre-step
       // to the existing template upload flow by converting the preview into a File.
       const file = await dataUrlToFile(candidate.image_url, candidate.candidate_id);
-      onSelect(file);
+      await onSelect(file);
       show({ message: t('template.messages.candidateSelected'), type: 'success' });
     } catch (error: any) {
       console.error('Failed to select template candidate:', error);
@@ -298,8 +298,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
               <textarea
                 value={stylePrompt}
                 onChange={(e) => setStylePrompt(e.target.value)}
+                disabled={isGeneratingCandidates}
                 placeholder={t('template.stylePromptPlaceholder')}
-                className="w-full min-h-[88px] rounded-md border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary px-3 py-2 text-sm text-gray-900 dark:text-foreground-primary focus:outline-none focus:ring-2 focus:ring-banana-400"
+                className="w-full min-h-[88px] rounded-md border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary px-3 py-2 text-sm text-gray-900 dark:text-foreground-primary focus:outline-none focus:ring-2 focus:ring-banana-400 disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
             <Button
@@ -331,7 +332,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                       />
                       <div className="p-3 flex items-center justify-between gap-2">
                         <span className="text-sm text-gray-700 dark:text-foreground-secondary truncate">{candidate.candidate_id}</span>
-                        <span className="text-xs text-banana-600 dark:text-banana-400">{isSelecting ? t('template.generatingCandidates') : t('template.selectCandidate')}</span>
+                        <span className="text-xs text-banana-600 dark:text-banana-400">{isSelecting ? t('template.selectingCandidate') : t('template.selectCandidate')}</span>
                       </div>
                     </button>
                   );
