@@ -127,6 +127,15 @@ export const generateOutline = async (projectId: string, language?: OutputLangua
   return response.data;
 };
 
+export const generateOutlineTask = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
+    `/api/projects/${projectId}/generate/outline/task`,
+    { language: lang }
+  );
+  return response.data;
+};
+
 /**
  * 流式生成大纲（SSE）
  * 返回 ReadableStream，每个 page 事件包含一个页面对象
@@ -222,6 +231,18 @@ export const generateFromDescription = async (projectId: string, descriptionText
     { 
       ...(descriptionText ? { description_text: descriptionText } : {}),
       language: lang 
+    }
+  );
+  return response.data;
+};
+
+export const generateFromDescriptionTask = async (projectId: string, descriptionText?: string, language?: OutputLanguage): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
+    `/api/projects/${projectId}/generate/from-description/task`,
+    {
+      ...(descriptionText ? { description_text: descriptionText } : {}),
+      language: lang,
     }
   );
   return response.data;

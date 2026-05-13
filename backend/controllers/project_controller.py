@@ -21,6 +21,8 @@ from services import ProjectContext, FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import (
     task_manager,
+    generate_outline_task,
+    generate_from_description_task,
     generate_descriptions_task,
     generate_images_task,
     process_ppt_renovation_task
@@ -503,6 +505,60 @@ def generate_outline(project_id):
         return error_response('AI_SERVICE_ERROR', str(e), 503)
 
 
+@project_bp.route('/<project_id>/generate/outline/task', methods=['POST'])
+def generate_outline_async(project_id):
+    """
+    POST /api/projects/{project_id}/generate/outline/task - Start outline generation asynchronously
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json() or {}
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        idea_prompt = data.get('idea_prompt')
+
+        if project.creation_type == 'outline' and not project.outline_text:
+            return bad_request("outline_text is required for outline type project")
+        if project.creation_type == 'descriptions' and not project.description_text:
+            return bad_request("description_text is required for descriptions type project")
+        if project.creation_type not in ('outline', 'descriptions') and not (idea_prompt or project.idea_prompt):
+            return bad_request("idea_prompt is required")
+
+        task = Task(
+            project_id=project_id,
+            task_type='GENERATE_OUTLINE',
+            status='PENDING'
+        )
+        task.set_progress({'total': 1, 'completed': 0, 'failed': 0, 'phase': 'queued'})
+        db.session.add(task)
+
+        project.status = 'GENERATING_OUTLINE'
+        project.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        app = current_app._get_current_object()
+        task_manager.submit_task(
+            task.id,
+            generate_outline_task,
+            project_id,
+            language,
+            idea_prompt,
+            app
+        )
+
+        return success_response({
+            'task_id': task.id,
+            'status': 'GENERATING_OUTLINE',
+        }, status_code=202)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"generate_outline_async failed: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
 @project_bp.route('/<project_id>/generate/outline/stream', methods=['POST'])
 def generate_outline_stream(project_id):
     """
@@ -737,6 +793,61 @@ def generate_from_description(project_id):
         db.session.rollback()
         logger.error(f"generate_from_description failed: {str(e)}", exc_info=True)
         return error_response('AI_SERVICE_ERROR', str(e), 503)
+
+
+@project_bp.route('/<project_id>/generate/from-description/task', methods=['POST'])
+def generate_from_description_async(project_id):
+    """
+    POST /api/projects/{project_id}/generate/from-description/task - Start description parsing asynchronously
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        if project.creation_type != 'descriptions':
+            return bad_request("This endpoint is only for descriptions type projects")
+
+        data = request.get_json() or {}
+        description_text = data.get('description_text') or project.description_text
+        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+
+        if not description_text:
+            return bad_request("description_text is required")
+
+        project.description_text = description_text
+
+        task = Task(
+            project_id=project_id,
+            task_type='GENERATE_FROM_DESCRIPTION',
+            status='PENDING'
+        )
+        task.set_progress({'total': 2, 'completed': 0, 'failed': 0, 'phase': 'queued'})
+        db.session.add(task)
+
+        project.status = 'GENERATING_DESCRIPTIONS'
+        project.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        app = current_app._get_current_object()
+        task_manager.submit_task(
+            task.id,
+            generate_from_description_task,
+            project_id,
+            description_text,
+            language,
+            app
+        )
+
+        return success_response({
+            'task_id': task.id,
+            'status': 'GENERATING_DESCRIPTIONS',
+        }, status_code=202)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"generate_from_description_async failed: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @project_bp.route('/<project_id>/generate/descriptions', methods=['POST'])

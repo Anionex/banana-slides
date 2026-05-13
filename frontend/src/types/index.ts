@@ -2,7 +2,7 @@
 export type PageStatus = 'DRAFT' | 'GENERATING_DESCRIPTION' | 'DESCRIPTION_GENERATED' | 'QUEUED' | 'GENERATING' | 'COMPLETED' | 'FAILED';
 
 // 项目状态
-export type ProjectStatus = 'DRAFT' | 'OUTLINE_GENERATED' | 'DESCRIPTIONS_GENERATED' | 'COMPLETED';
+export type ProjectStatus = 'DRAFT' | 'GENERATING_OUTLINE' | 'OUTLINE_GENERATED' | 'GENERATING_DESCRIPTIONS' | 'DESCRIPTIONS_GENERATED' | 'GENERATING_IMAGES' | 'COMPLETED';
 
 // 大纲内容
 export interface OutlineContent {
@@ -97,7 +97,7 @@ export interface Project {
 }
 
 // 任务状态
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type TaskStatus = 'PENDING' | 'PROCESSING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 // 任务信息
 export interface Task {

@@ -14,7 +14,9 @@ import time
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
-from models import db, Task, Page, Material, PageImageVersion
+from models import db, Task, Page, Project, Material, PageImageVersion, ReferenceFile
+from services import ProjectContext
+from services.ai_service_manager import get_ai_service
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
@@ -46,6 +48,44 @@ from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
+
+
+def _get_project_reference_files_content(project_id: str) -> list:
+    reference_files = ReferenceFile.query.filter_by(
+        project_id=project_id,
+        parse_status='completed'
+    ).all()
+
+    return [
+        {'filename': ref_file.filename, 'content': ref_file.markdown_content}
+        for ref_file in reference_files
+        if ref_file.markdown_content
+    ]
+
+
+def _smart_merge_pages(project_id: str, pages_data: List[Dict]) -> List[Page]:
+    old_pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+    pages_list = []
+
+    for i, page_data in enumerate(pages_data):
+        if i < len(old_pages):
+            page = old_pages[i]
+        else:
+            page = Page(project_id=project_id, status='DRAFT')
+            db.session.add(page)
+
+        page.order_index = i
+        page.part = page_data.get('part')
+        page.set_outline_content({
+            'title': page_data.get('title'),
+            'points': page_data.get('points', [])
+        })
+        pages_list.append(page)
+
+    for page in old_pages[len(pages_data):]:
+        db.session.delete(page)
+
+    return pages_list
 
 
 class TaskManager:
@@ -97,6 +137,167 @@ class TaskManager:
 
 # Global task manager instance
 task_manager = TaskManager(max_workers=4)
+
+
+def generate_outline_task(task_id: str, project_id: str, language: str = None,
+                          idea_prompt: str = None, app=None):
+    """Background task for generating or parsing an outline."""
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = db.session.get(Task, task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            task.set_progress({'total': 1, 'completed': 0, 'failed': 0, 'phase': 'generating_outline'})
+            db.session.commit()
+
+            project = db.session.get(Project, project_id)
+            if not project:
+                raise ValueError("Project not found")
+
+            ai_service = get_ai_service()
+            reference_files_content = _get_project_reference_files_content(project_id)
+
+            if project.creation_type == 'outline':
+                if not project.outline_text:
+                    raise ValueError("outline_text is required for outline type project")
+                project_context = ProjectContext(project, reference_files_content)
+                outline = ai_service.parse_outline_text(project_context, language=language)
+            elif project.creation_type == 'descriptions':
+                if not project.description_text:
+                    raise ValueError("description_text is required for descriptions type project")
+                project_context = ProjectContext(project, reference_files_content)
+                outline = ai_service.parse_description_to_outline(project_context, language=language)
+            else:
+                prompt = idea_prompt or project.idea_prompt
+                if not prompt:
+                    raise ValueError("idea_prompt is required")
+                project.idea_prompt = prompt
+                project_context = ProjectContext(project, reference_files_content)
+                outline = ai_service.generate_outline(project_context, language=language)
+
+            pages_data = ai_service.flatten_outline(outline)
+            pages_list = _smart_merge_pages(project_id, pages_data)
+
+            if all(p.description_content for p in pages_list) and pages_list:
+                project.status = 'DESCRIPTIONS_GENERATED'
+            else:
+                project.status = 'OUTLINE_GENERATED'
+            project.updated_at = datetime.utcnow()
+
+            task.status = 'COMPLETED'
+            task.set_progress({'total': 1, 'completed': 1, 'failed': 0, 'phase': 'completed'})
+            task.completed_at = datetime.utcnow()
+            db.session.commit()
+
+            logger.info(f"Outline task {task_id} completed for project {project_id}: {len(pages_list)} pages")
+        except Exception as e:
+            db.session.rollback()
+            task = db.session.get(Task, task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.set_progress({'total': 1, 'completed': 0, 'failed': 1, 'phase': 'failed'})
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+            logger.error(f"Outline task {task_id} failed: {e}", exc_info=True)
+
+
+def generate_from_description_task(task_id: str, project_id: str,
+                                   description_text: str = None,
+                                   language: str = None, app=None):
+    """Background task for parsing full descriptions into outline + page descriptions."""
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = db.session.get(Task, task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            task.set_progress({'total': 2, 'completed': 0, 'failed': 0, 'phase': 'parsing_outline'})
+            db.session.commit()
+
+            project = db.session.get(Project, project_id)
+            if not project:
+                raise ValueError("Project not found")
+            if project.creation_type != 'descriptions':
+                raise ValueError("This task is only for descriptions type projects")
+
+            text = description_text or project.description_text
+            if not text:
+                raise ValueError("description_text is required")
+            project.description_text = text
+
+            ai_service = get_ai_service()
+            reference_files_content = _get_project_reference_files_content(project_id)
+            project_context = ProjectContext(project, reference_files_content)
+
+            outline = ai_service.parse_description_to_outline(project_context, language=language)
+            task.set_progress({'total': 2, 'completed': 1, 'failed': 0, 'phase': 'splitting_descriptions'})
+            db.session.commit()
+
+            page_descriptions = ai_service.parse_description_to_page_descriptions(project_context, outline, language=language)
+            pages_data = ai_service.flatten_outline(outline)
+
+            if len(pages_data) != len(page_descriptions):
+                logger.warning(
+                    f"Page count mismatch for project {project_id}: outline {len(pages_data)}, descriptions {len(page_descriptions)}"
+                )
+                min_count = min(len(pages_data), len(page_descriptions))
+                pages_data = pages_data[:min_count]
+                page_descriptions = page_descriptions[:min_count]
+
+            old_pages = Page.query.filter_by(project_id=project_id).all()
+            for old_page in old_pages:
+                db.session.delete(old_page)
+
+            pages_list = []
+            for i, (page_data, page_desc) in enumerate(zip(pages_data, page_descriptions)):
+                page = Page(
+                    project_id=project_id,
+                    order_index=i,
+                    part=page_data.get('part'),
+                    status='DESCRIPTION_GENERATED'
+                )
+                page.set_outline_content({
+                    'title': page_data.get('title'),
+                    'points': page_data.get('points', [])
+                })
+                page.set_description_content({
+                    'text': page_desc,
+                    'generated_at': datetime.utcnow().isoformat()
+                })
+                db.session.add(page)
+                pages_list.append(page)
+
+            project.status = 'DESCRIPTIONS_GENERATED'
+            project.updated_at = datetime.utcnow()
+
+            task.status = 'COMPLETED'
+            task.set_progress({'total': 2, 'completed': 2, 'failed': 0, 'phase': 'completed'})
+            task.completed_at = datetime.utcnow()
+            db.session.commit()
+
+            logger.info(f"From-description task {task_id} completed for project {project_id}: {len(pages_list)} pages")
+        except Exception as e:
+            db.session.rollback()
+            task = db.session.get(Task, task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.set_progress({'total': 2, 'completed': 0, 'failed': 1, 'phase': 'failed'})
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+            logger.error(f"From-description task {task_id} failed: {e}", exc_info=True)
 
 
 def save_image_with_version(image, project_id: str, page_id: str, file_service,

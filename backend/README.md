@@ -115,8 +115,10 @@ uv run python app.py
 
 #### 大纲生成
 - `POST /api/projects/{project_id}/generate/outline` - 生成大纲
+- `POST /api/projects/{project_id}/generate/outline/task` - 异步生成大纲（返回 `task_id`，通过任务接口轮询）
 
 #### 描述生成
+- `POST /api/projects/{project_id}/generate/from-description/task` - 异步从页面描述生成大纲和逐页描述（返回 `task_id`）
 - `POST /api/projects/{project_id}/generate/descriptions` - 批量生成描述（异步）
 - `POST /api/projects/{project_id}/pages/{page_id}/generate/description` - 单页生成
 
@@ -304,6 +306,26 @@ curl -X POST http://localhost:5000/api/projects/{project_id}/generate/outline \
   -d '{"idea_prompt":"生成环保主题ppt"}'
 ```
 
+### 异步生成大纲
+
+```bash
+curl -X POST http://localhost:5000/api/projects/{project_id}/generate/outline/task \
+  -H "Content-Type: application/json" \
+  -d '{"idea_prompt":"生成环保主题ppt"}'
+
+curl http://localhost:5000/api/projects/{project_id}/tasks/{task_id}
+```
+
+### 异步从描述生成
+
+```bash
+curl -X POST http://localhost:5000/api/projects/{project_id}/generate/from-description/task \
+  -H "Content-Type: application/json" \
+  -d '{"description_text":"第一页：介绍环保主题的背景和目标"}'
+
+curl http://localhost:5000/api/projects/{project_id}/tasks/{task_id}
+```
+
 ## 常见问题
 
 ### Q: 数据库文件在哪里？
@@ -340,4 +362,3 @@ OFL 许可证允许自由使用、修改和分发该字体。
 ## 联系方式
 
 如有问题或建议，请通过 GitHub Issues 反馈。
-

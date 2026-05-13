@@ -228,6 +228,9 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.createNoId'));
       }
 
+      // Store immediately so async generation can be recovered after timeouts or refreshes.
+      localStorage.setItem('currentProjectId', projectId);
+
       // 2. 关联参考文件到项目（在生成之前，确保 AI 能读取参考文件）
       if (referenceFileIds && referenceFileIds.length > 0) {
         try {
@@ -250,22 +253,26 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 根据类型调用 AI 生成，失败时回滚项目
-      const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
+      // 4. 根据类型启动 AI 生成任务，任务失败时保留项目，方便用户重试或查看状态
+      const generateAndWait = async (fn: () => Promise<any>, label: string) => {
         try {
-          await fn();
+          const generationResponse = await fn();
+          const taskId = generationResponse.data?.task_id;
+          if (taskId) {
+            set({ activeTaskId: taskId });
+            await get().pollTask(taskId);
+          }
           devLog(`[初始化项目] ${label}完成`);
         } catch (error: any) {
           console.error(`[初始化项目] ${label}失败:`, error);
-          try { await api.deleteProject(projectId); } catch (e: any) { console.error(`[初始化项目] 回滚失败，未能删除项目 ${projectId}:`, e); }
           throw error;
         }
       };
 
       if (type === 'outline') {
-        await generateWithRollback(() => api.generateOutline(projectId), '生成大纲');
+        await generateAndWait(() => api.generateOutlineTask(projectId), '生成大纲');
       } else if (type === 'description') {
-        await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
+        await generateAndWait(() => api.generateFromDescriptionTask(projectId, content), '从描述生成大纲和页面描述');
       }
 
       // 5. 获取完整项目信息
@@ -482,11 +489,11 @@ const debouncedUpdatePage = debounce(
   pollTask: async (taskId) => {
     devLog(`[轮询] 开始轮询任务: ${taskId}`);
     const { currentProject } = get();
-    if (!currentProject) {
-      console.warn('[轮询] 没有当前项目，停止轮询');
+    const projectId = currentProject?.id || localStorage.getItem('currentProjectId');
+    if (!projectId) {
+      console.warn('[轮询] 没有当前项目ID，停止轮询');
       return;
     }
-    const projectId = currentProject.id!;
 
     const poll = async () => {
       try {
