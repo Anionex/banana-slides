@@ -13,6 +13,7 @@ from flask import Blueprint, request, jsonify, current_app, Response, stream_wit
 from sqlalchemy import desc
 from utils.validators import normalize_aspect_ratio
 from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.exceptions import BadRequest
 from werkzeug.utils import secure_filename
 
@@ -477,6 +478,14 @@ def generate_outline(project_id):
             project_context = ProjectContext(project, reference_files_content)
             outline = ai_service.generate_outline(project_context, language=language)
         
+        # The AI call can take minutes. The project may have been deleted while
+        # we were waiting, so refresh before writing generated pages.
+        db.session.expire_all()
+        project = db.session.get(Project, project_id)
+        if not project:
+            logger.info("Outline generation finished for deleted project %s; discarding result", project_id)
+            return not_found('Project')
+
         # Flatten outline to pages and smart merge with existing
         pages_data = ai_service.flatten_outline(outline)
         pages_list = _smart_merge_pages(project_id, pages_data)
@@ -497,6 +506,10 @@ def generate_outline(project_id):
             'pages': [page.to_dict() for page in pages_list]
         })
     
+    except StaleDataError as e:
+        db.session.rollback()
+        logger.info("Outline generation finished after project %s changed or was deleted: %s", project_id, e)
+        return not_found('Project')
     except Exception as e:
         db.session.rollback()
         logger.error(f"generate_outline failed: {str(e)}", exc_info=True)
@@ -532,6 +545,9 @@ def generate_outline_stream(project_id):
             try:
                 # Re-fetch project inside app context to attach to this session
                 proj = db.session.get(Project, project_id)
+                if not proj:
+                    yield _sse_event('error', {'message': 'Project not found'})
+                    return
                 ai_service = get_ai_service()
                 reference_files_content = _get_project_reference_files_content(project_id)
 
@@ -580,6 +596,15 @@ def generate_outline_stream(project_id):
                         for _ in range(old_count - new_count):
                             streamed_pages.append({'title': '', 'points': []})
 
+                # The AI stream can outlive the page that started it. Re-check
+                # the project before saving the generated result.
+                db.session.expire_all()
+                proj = db.session.get(Project, project_id)
+                if not proj:
+                    logger.info("Streamed outline finished for deleted project %s; discarding result", project_id)
+                    yield _sse_event('error', {'message': 'Project not found'})
+                    return
+
                 # Save all pages to database
                 pages_list = _smart_merge_pages(project_id, streamed_pages)
 
@@ -598,6 +623,13 @@ def generate_outline_stream(project_id):
                     'complete': stream_complete,
                 })
 
+            except StaleDataError as e:
+                try:
+                    db.session.rollback()
+                except Exception as rollback_exc:
+                    logger.warning(f"Session rollback failed: {rollback_exc}", exc_info=True)
+                logger.info("Streamed outline finished after project %s changed or was deleted: %s", project_id, e)
+                yield _sse_event('error', {'message': 'Project not found'})
             except Exception as e:
                 try:
                     db.session.rollback()

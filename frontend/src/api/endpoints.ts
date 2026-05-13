@@ -122,7 +122,8 @@ export const generateOutline = async (projectId: string, language?: OutputLangua
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/outline`,
-    { language: lang }
+    { language: lang },
+    { timeout: 0 }
   );
   return response.data;
 };
@@ -222,7 +223,8 @@ export const generateFromDescription = async (projectId: string, descriptionText
     { 
       ...(descriptionText ? { description_text: descriptionText } : {}),
       language: lang 
-    }
+    },
+    { timeout: 0 }
   );
   return response.data;
 };
@@ -236,7 +238,8 @@ export const generateDescriptions = async (projectId: string, language?: OutputL
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/descriptions`,
-    { language: lang, detail_level: detailLevel || 'default' }
+    { language: lang, detail_level: detailLevel || 'default' },
+    { timeout: 0 }
   );
   return response.data;
 };

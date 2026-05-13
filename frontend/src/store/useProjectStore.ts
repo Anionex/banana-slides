@@ -228,6 +228,8 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.createNoId'));
       }
 
+      localStorage.setItem('currentProjectId', projectId);
+
       // 2. 关联参考文件到项目（在生成之前，确保 AI 能读取参考文件）
       if (referenceFileIds && referenceFileIds.length > 0) {
         try {
@@ -250,14 +252,13 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 根据类型调用 AI 生成，失败时回滚项目
+      // 4. 根据类型调用 AI 生成；失败时保留项目，方便用户重试
       const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
         try {
           await fn();
           devLog(`[初始化项目] ${label}完成`);
         } catch (error: any) {
           console.error(`[初始化项目] ${label}失败:`, error);
-          try { await api.deleteProject(projectId); } catch (e: any) { console.error(`[初始化项目] 回滚失败，未能删除项目 ${projectId}:`, e); }
           throw error;
         }
       };
