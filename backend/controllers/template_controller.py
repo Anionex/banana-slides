@@ -1,18 +1,100 @@
 """
 Template Controller - handles template-related endpoints
 """
+import base64
+import io
 import logging
+from datetime import datetime
+
 from flask import Blueprint, request, current_app
-from models import db, Project, UserTemplate, UserStyleTemplate
+from PIL import Image, ImageDraw, ImageFont
+
+from models import db, Project, UserTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
-from datetime import datetime
+from services.ai_service_manager import get_ai_service
+from services.template_candidate_semantics import (
+    build_template_candidate_prompt,
+    build_template_candidate_usage_note,
+)
 
 logger = logging.getLogger(__name__)
 
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
-user_style_template_bp = Blueprint('user_style_templates', __name__, url_prefix='/api/user-style-templates')
+template_candidate_bp = Blueprint('template_candidates', __name__, url_prefix='/api')
+
+
+def _normalize_candidate_count(raw_count):
+    try:
+        count = int(raw_count) if raw_count is not None else 5
+    except (TypeError, ValueError):
+        count = 5
+    return max(1, min(count, 8))
+
+
+def _placeholder_palette(index):
+    palettes = [
+        ((37, 99, 235), (224, 231, 255), (15, 23, 42)),
+        ((14, 116, 144), (207, 250, 254), (22, 78, 99)),
+        ((147, 51, 234), (243, 232, 255), (88, 28, 135)),
+        ((234, 88, 12), (255, 237, 213), (124, 45, 18)),
+        ((22, 163, 74), (220, 252, 231), (20, 83, 45)),
+    ]
+    return palettes[index % len(palettes)]
+
+
+def _build_mock_candidate_data_url(style_prompt, index, aspect_ratio=None):
+    width, height = (1600, 900)
+    if aspect_ratio == '4:3':
+        width, height = (1400, 1050)
+    elif aspect_ratio == '9:16':
+        width, height = (900, 1600)
+
+    accent, surface, text = _placeholder_palette(index)
+    image = Image.new('RGB', (width, height), color='white')
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
+
+    draw.rectangle([0, 0, width, height], fill='white')
+    draw.rectangle([0, 0, width, int(height * 0.22)], fill=accent)
+    draw.rounded_rectangle(
+        [int(width * 0.06), int(height * 0.30), int(width * 0.94), int(height * 0.90)],
+        radius=28,
+        fill=surface,
+    )
+    draw.rounded_rectangle(
+        [int(width * 0.09), int(height * 0.38), int(width * 0.42), int(height * 0.82)],
+        radius=20,
+        fill=(255, 255, 255),
+    )
+    draw.rounded_rectangle(
+        [int(width * 0.48), int(height * 0.38), int(width * 0.88), int(height * 0.52)],
+        radius=20,
+        fill=(255, 255, 255),
+    )
+    draw.rounded_rectangle(
+        [int(width * 0.48), int(height * 0.58), int(width * 0.88), int(height * 0.82)],
+        radius=20,
+        fill=(255, 255, 255),
+    )
+
+    prompt_preview = style_prompt.strip().replace('\n', ' ')
+    if len(prompt_preview) > 72:
+        prompt_preview = prompt_preview[:69] + '...'
+
+    draw.text((int(width * 0.08), int(height * 0.08)), f'Template Candidate {index + 1}', fill='white', font=font)
+    draw.text((int(width * 0.08), int(height * 0.16)), 'Slide template / style reference', fill='white', font=font)
+    draw.text((int(width * 0.12), int(height * 0.42)), 'TITLE AREA', fill=text, font=font)
+    draw.text((int(width * 0.12), int(height * 0.49)), 'Content + hierarchy preview', fill=text, font=font)
+    draw.text((int(width * 0.12), int(height * 0.56)), prompt_preview, fill=text, font=font)
+    draw.text((int(width * 0.52), int(height * 0.42)), 'Metric / chart block', fill=text, font=font)
+    draw.text((int(width * 0.52), int(height * 0.62)), 'Visual / summary block', fill=text, font=font)
+
+    buffer = io.BytesIO()
+    image.save(buffer, format='PNG')
+    encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
+    return f'data:image/png;base64,{encoded}'
 
 
 @template_bp.route('/<project_id>/template', methods=['POST'])
@@ -206,68 +288,68 @@ def delete_user_template(template_id):
         # Delete template file
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_user_template(template_id)
-
+        
         # Delete template record
         db.session.delete(template)
         db.session.commit()
-
+        
         return success_response(message="Template deleted successfully")
-
+    
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
 
 
-# ========== User Style Template Endpoints ==========
-
-@user_style_template_bp.route('', methods=['POST'])
-def create_user_style_template():
+@template_candidate_bp.route('/template-candidates', methods=['POST'])
+def create_template_candidates():
+    """POST /api/template-candidates - generate transient slide template candidates."""
     try:
-        data = request.get_json()
-        if not data:
-            return bad_request("Request body is required")
+        payload = request.get_json(silent=True) or {}
+        style_prompt = (payload.get('style_prompt') or '').strip()
+        if not style_prompt:
+            return bad_request('style_prompt is required')
 
-        name = data.get('name', '').strip()
-        description = data.get('description', '').strip()
-        if not name or not description:
-            return bad_request("Name and description are required")
+        count = _normalize_candidate_count(payload.get('count'))
+        aspect_ratio = payload.get('aspect_ratio')
 
-        import uuid
-        template = UserStyleTemplate(
-            id=str(uuid.uuid4()),
-            name=name,
-            description=description,
-            color=data.get('color'),
-        )
-        db.session.add(template)
-        db.session.commit()
-        return success_response(template.to_dict())
-    except Exception as e:
-        db.session.rollback()
-        return error_response('SERVER_ERROR', str(e), 500)
+        prompt = build_template_candidate_prompt(style_prompt, count=count, aspect_ratio=aspect_ratio)
+        usage = build_template_candidate_usage_note()
+        candidates = []
 
+        ai_service = get_ai_service()
+        resolution = current_app.config.get('DEFAULT_RESOLUTION', '2K')
+        for i in range(count):
+            try:
+                image = ai_service.generate_image(
+                    prompt=f"{prompt}\nVariant: {i + 1}",
+                    ref_image_path=None,
+                    aspect_ratio=aspect_ratio or '16:9',
+                    resolution=resolution,
+                )
+                if image is None:
+                    raise RuntimeError('AI image provider returned no image')
+                buffer = io.BytesIO()
+                image.save(buffer, format='PNG')
+                encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
+                data_url = f'data:image/png;base64,{encoded}'
+            except Exception as e:
+                logger.warning('Falling back to mock template candidate #%s due to image generation failure: %s', i + 1, e)
+                data_url = _build_mock_candidate_data_url(style_prompt, i, aspect_ratio=aspect_ratio)
 
-@user_style_template_bp.route('', methods=['GET'])
-def list_user_style_templates():
-    try:
-        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.created_at.desc()).all()
+            candidates.append({
+                'candidate_id': f'candidate-{i+1}',
+                'image_url': data_url,
+                'thumb_url': data_url,
+            })
+
         return success_response({
-            'templates': [t.to_dict() for t in templates]
+            'status': 'COMPLETED',
+            'task_id': None,
+            'prompt': prompt,
+            'usage': usage,
+            'candidates': candidates,
         })
     except Exception as e:
-        return error_response('SERVER_ERROR', str(e), 500)
-
-
-@user_style_template_bp.route('/<template_id>', methods=['DELETE'])
-def delete_user_style_template(template_id):
-    try:
-        template = UserStyleTemplate.query.get(template_id)
-        if not template:
-            return not_found('UserStyleTemplate')
-        db.session.delete(template)
-        db.session.commit()
-        return success_response(message="Style template deleted successfully")
-    except Exception as e:
-        db.session.rollback()
+        logger.error('Failed to create template candidates: %s', e, exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
