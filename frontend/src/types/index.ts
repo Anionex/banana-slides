@@ -45,22 +45,12 @@ export interface Page {
   part?: string; // 章节名
   outline_content: OutlineContent | null;
   description_content?: DescriptionContent;
-  narration_text?: string; // TTS 旁白文本
   generated_image_url?: string; // 后端返回 generated_image_url
   generated_image_path?: string; // 前端使用的别名
   status: PageStatus;
   created_at?: string;
   updated_at?: string;
   image_versions?: ImageVersion[]; // 历史版本列表
-}
-
-export interface NarrationConfig {
-  speaker_persona: string;
-  target_audience: string;
-  speech_tone: string;
-  presentation_topic: string;
-  min_words: number;
-  max_words: number;
 }
 
 // 导出设置 - 组件提取方法
@@ -73,7 +63,6 @@ export type ExportInpaintMethod = 'generative' | 'baidu' | 'hybrid';
 export interface Project {
   project_id: string;  // 后端返回 project_id
   id?: string;         // 前端使用的别名
-  project_title?: string;
   idea_prompt: string;
   outline_text?: string;  // 用户输入的大纲文本（用于outline类型）
   description_text?: string;  // 用户输入的描述文本（用于description类型）
@@ -88,7 +77,6 @@ export interface Project {
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法
   export_allow_partial?: boolean; // 是否允许返回半成品（导出出错时继续而非停止）
-  enable_icon_subject_extraction?: boolean; // 是否对小尺寸图标走百度智能抠图（透明背景）
   image_aspect_ratio?: string; // 画面比例（如 16:9, 4:3）
   status: ProjectStatus;
   pages: Page[];
@@ -126,6 +114,20 @@ export interface CreateProjectRequest {
   template_image?: File;
   template_style?: string;
   image_aspect_ratio?: string;
+}
+
+export interface TemplateCandidate {
+  candidate_id: string;
+  image_url: string;
+  thumb_url?: string;
+}
+
+export interface TemplateCandidatesResponse {
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  task_id: string | null;
+  prompt?: string;
+  usage?: string;
+  candidates: TemplateCandidate[];
 }
 
 // API响应
@@ -176,15 +178,7 @@ export interface Settings {
   image_api_base_url?: string;
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
-  // OpenAI image API protocol
-  openai_image_api_protocol?: string;
-  // OpenAI Codex OAuth
-  openai_oauth_connected: boolean;
-  openai_oauth_account_id?: string;
-  // ElevenLabs TTS
-  elevenlabs_enabled: boolean;
-  elevenlabs_api_key_length: number;
-  elevenlabs_voice_id?: string;
   created_at?: string;
   updated_at?: string;
 }
+
