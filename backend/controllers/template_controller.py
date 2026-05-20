@@ -9,10 +9,9 @@ from datetime import datetime
 from flask import Blueprint, request, current_app
 from PIL import Image, ImageDraw, ImageFont
 
-from models import db, Project, UserTemplate
+from models import db, Project, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
-from services.ai_service_manager import get_ai_service
 from services.template_candidate_semantics import (
     build_template_candidate_prompt,
     build_template_candidate_usage_note,
@@ -300,6 +299,84 @@ def delete_user_template(template_id):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+# ========== User Style Template Endpoints ==========
+
+@user_style_template_bp.route('', methods=['POST'])
+def create_user_style_template():
+    try:
+        data = request.get_json()
+        if not data:
+            return bad_request("Request body is required")
+
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        if not name or not description:
+            return bad_request("Name and description are required")
+
+        import uuid
+        template = UserStyleTemplate(
+            id=str(uuid.uuid4()),
+            name=name,
+            description=description,
+            color=data.get('color'),
+        )
+        db.session.add(template)
+        db.session.commit()
+        return success_response(template.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('', methods=['GET'])
+def list_user_style_templates():
+    try:
+        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.updated_at.desc()).all()
+        return success_response([t.to_dict() for t in templates])
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('/<template_id>', methods=['PUT'])
+def update_user_style_template(template_id):
+    try:
+        template = UserStyleTemplate.query.get(template_id)
+        if not template:
+            return not_found('UserStyleTemplate')
+
+        data = request.get_json() or {}
+        name = data.get('name')
+        description = data.get('description')
+        color = data.get('color')
+
+        if name is not None:
+            template.name = name.strip()
+        if description is not None:
+            template.description = description.strip()
+        if color is not None:
+            template.color = color
+        template.updated_at = datetime.utcnow()
+        db.session.commit()
+        return success_response(template.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('/<template_id>', methods=['DELETE'])
+def delete_user_style_template(template_id):
+    try:
+        template = UserStyleTemplate.query.get(template_id)
+        if not template:
+            return not_found('UserStyleTemplate')
+        db.session.delete(template)
+        db.session.commit()
+        return success_response(message="Style template deleted successfully")
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
 @template_candidate_bp.route('/template-candidates', methods=['POST'])
 def create_template_candidates():
     """POST /api/template-candidates - generate transient slide template candidates."""
@@ -316,30 +393,16 @@ def create_template_candidates():
         usage = build_template_candidate_usage_note()
         candidates = []
 
-        ai_service = get_ai_service()
-        resolution = current_app.config.get('DEFAULT_RESOLUTION', '2K')
         for i in range(count):
-            try:
-                image = ai_service.generate_image(
-                    prompt=f"{prompt}\nVariant: {i + 1}",
-                    ref_image_path=None,
-                    aspect_ratio=aspect_ratio or '16:9',
-                    resolution=resolution,
-                )
-                if image is None:
-                    raise RuntimeError('AI image provider returned no image')
-                buffer = io.BytesIO()
-                image.save(buffer, format='PNG')
-                encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
-                data_url = f'data:image/png;base64,{encoded}'
-            except Exception as e:
-                logger.warning('Falling back to mock template candidate #%s due to image generation failure: %s', i + 1, e)
-                data_url = _build_mock_candidate_data_url(style_prompt, i, aspect_ratio=aspect_ratio)
-
+            data_url = _build_mock_candidate_data_url(style_prompt, i, aspect_ratio=aspect_ratio)
             candidates.append({
                 'candidate_id': f'candidate-{i+1}',
                 'image_url': data_url,
                 'thumb_url': data_url,
+                'style_prompt': style_prompt,
+                'usage_note': usage,
+                'system_prompt': prompt,
+                'transient': True,
             })
 
         return success_response({
