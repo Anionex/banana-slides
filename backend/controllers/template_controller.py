@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
+user_style_template_bp = Blueprint('user_style_templates', __name__, url_prefix='/api/user-style-templates')
 template_candidate_bp = Blueprint('template_candidates', __name__, url_prefix='/api')
 
 
