@@ -83,12 +83,42 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 4: Click batch generate outline button on outline editor page
     // ====================================
     console.log('⏳ Step 4: Waiting for outline editor page to load...')
-    await page.waitForSelector('button:has-text("自动生成大纲"), button:has-text("重新生成大纲")', { timeout: 10000 })
-    
-    console.log('📋 Step 4: Clicking batch generate outline button...')
-    const generateOutlineBtn = page.locator('button:has-text("自动生成大纲"), button:has-text("重新生成大纲")')
-    await generateOutlineBtn.first().click()
-    console.log('✓ Clicked batch generate outline button\n')
+    const outlineItems = page.locator('span').filter({ hasText: /^第 \d+ 页$/ })
+    const generatingOutlineBtn = page.locator('button').filter({ hasText: '生成中...' })
+    const generateOutlineBtn = page.locator('button').filter({ hasText: /^(自动生成大纲|重新生成大纲)$/ })
+    const outlineReadyState = page
+      .locator('button').filter({ hasText: /^(自动生成大纲|重新生成大纲)$/ })
+      .or(generatingOutlineBtn)
+      .or(outlineItems.first())
+    await expect(outlineReadyState.first()).toBeVisible({ timeout: 10000 })
+
+    // Fresh projects auto-start outline generation on mount. Give that effect a
+    // short window so the test does not race it by clicking regenerate.
+    await generatingOutlineBtn
+      .or(outlineItems.first())
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(() => undefined)
+
+    let outlineCount = await outlineItems.count()
+    const isOutlineGenerating = await generatingOutlineBtn.isVisible().catch(() => false)
+
+    if (outlineCount > 0) {
+      console.log(`✓ Outline already available from auto-generation, total ${outlineCount} pages\n`)
+    } else if (isOutlineGenerating) {
+      console.log('✓ Outline auto-generation already in progress\n')
+    } else {
+      console.log('📋 Step 4: Clicking batch generate outline button...')
+      await generateOutlineBtn.first().click()
+
+      const regenerateDialog = page.locator('div[role="dialog"]').filter({ hasText: '确认重新生成' })
+      if (await regenerateDialog.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) {
+        console.log('  Regenerate confirmation appeared, confirming...')
+        await regenerateDialog.locator('button').filter({ hasText: '确定' }).click()
+        await regenerateDialog.waitFor({ state: 'hidden', timeout: 5000 })
+      }
+
+      console.log('✓ Clicked batch generate outline button\n')
+    }
     
     // ====================================
     // Step 5: Wait for outline generation to complete (smart wait)
@@ -111,8 +141,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     await expect(streamingBtn).toBeHidden({ timeout: 300000 })
     
     // Verify outline content
-    const outlineItems = page.locator('text=/第 \\d+ 页/')
-    const outlineCount = await outlineItems.count()
+    outlineCount = await outlineItems.count()
     
     expect(outlineCount).toBeGreaterThan(0)
     console.log(`✓ Outline generated successfully, total ${outlineCount} pages\n`)
@@ -726,4 +755,3 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     console.log('\n✅ UI flow verification passed!\n')
   })
 })
-
