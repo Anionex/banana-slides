@@ -293,7 +293,9 @@ def create_user_style_template():
 def list_user_style_templates():
     try:
         templates = UserStyleTemplate.query.order_by(UserStyleTemplate.updated_at.desc()).all()
-        return success_response([t.to_dict() for t in templates])
+        return success_response({
+            'templates': [t.to_dict() for t in templates]
+        })
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 

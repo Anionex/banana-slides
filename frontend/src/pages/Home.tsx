@@ -213,6 +213,12 @@ export const Home: React.FC = () => {
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const candidatePollActiveRef = useRef(false);
 
+  useEffect(() => {
+    return () => {
+      candidatePollActiveRef.current = false;
+    };
+  }, []);
+
   // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
   useEffect(() => {
     if (content) {
