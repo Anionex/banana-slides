@@ -612,6 +612,7 @@ export const Home: React.FC = () => {
 
       await new Promise<void>((resolve, reject) => {
         let attempts = 0;
+        let consecutiveErrors = 0;
         const poll = async () => {
           if (!candidatePollActiveRef.current) {
             reject(new Error('候选生成已取消'));
@@ -625,6 +626,7 @@ export const Home: React.FC = () => {
               return;
             }
 
+            consecutiveErrors = 0;
             const data = taskResponse.data;
             const progress = data?.progress;
             if (progress) {
@@ -652,7 +654,12 @@ export const Home: React.FC = () => {
 
             window.setTimeout(poll, 2000);
           } catch (error) {
-            reject(error);
+            consecutiveErrors += 1;
+            if (consecutiveErrors > 5) {
+              reject(error);
+            } else {
+              window.setTimeout(poll, 2000);
+            }
           }
         };
 
