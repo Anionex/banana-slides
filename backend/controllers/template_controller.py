@@ -344,7 +344,10 @@ def delete_user_style_template(template_id):
 def create_template_candidates():
     """POST /api/template-candidates - generate transient slide template candidates."""
     try:
-        payload = request.get_json(silent=True) or {}
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return bad_request('Invalid JSON payload')
+
         style_prompt = (payload.get('style_prompt') or '').strip()
         if not style_prompt:
             return bad_request('style_prompt is required')

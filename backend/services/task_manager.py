@@ -1263,6 +1263,7 @@ def generate_template_candidates_task(task_id: str, style_prompt: str, prompt: s
             )
 
         except Exception as e:
+            db.session.rollback()
             logger.error("Task %s FAILED while generating template candidates: %s", task_id, e, exc_info=True)
             task = Task.query.get(task_id)
             if task:

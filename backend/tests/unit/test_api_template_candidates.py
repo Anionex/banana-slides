@@ -61,6 +61,11 @@ class TestTemplateCandidates:
         data = assert_error_response(response, 400)
         assert 'style_prompt is required' in data['error']['message']
 
+    def test_create_template_candidates_rejects_non_object_payload(self, client):
+        response = client.post('/api/template-candidates', json=['not', 'an', 'object'])
+        data = assert_error_response(response, 400)
+        assert 'Invalid JSON payload' in data['error']['message']
+
     def test_template_candidate_task_generates_candidates_concurrently(self, app):
         from PIL import Image
         from models import db, Task
