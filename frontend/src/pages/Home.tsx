@@ -5,7 +5,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, createTemplateCandidates } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, createTemplateCandidates, getTemplateCandidates } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
@@ -201,6 +201,7 @@ export const Home: React.FC = () => {
   const [templateStyle, setTemplateStyle] = useState('');
   const [templateCandidates, setTemplateCandidates] = useState<TemplateCandidate[]>([]);
   const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
+  const [candidateProgress, setCandidateProgress] = useState<{ total: number; completed: number } | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [selectedCandidateFile, setSelectedCandidateFile] = useState<File | null>(null);
   const [aspectRatio, setAspectRatio] = useState('16:9');
@@ -210,6 +211,7 @@ export const Home: React.FC = () => {
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const candidatePollActiveRef = useRef(false);
 
   // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
   useEffect(() => {
@@ -530,17 +532,69 @@ export const Home: React.FC = () => {
     }
 
     setIsGeneratingCandidates(true);
+    candidatePollActiveRef.current = true;
     setTemplateCandidates([]);
     setSelectedCandidateId(null);
     setSelectedCandidateFile(null);
+    setCandidateProgress({ total: 5, completed: 0 });
     try {
       const response = await createTemplateCandidates(trimmedPrompt, 5, aspectRatio);
-      setTemplateCandidates(response.data?.candidates || []);
+      const taskId = response.data?.task_id;
+      if (!taskId) {
+        setTemplateCandidates(response.data?.candidates || []);
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        let attempts = 0;
+        const poll = async () => {
+          if (!candidatePollActiveRef.current) {
+            reject(new Error('候选生成已取消'));
+            return;
+          }
+          attempts += 1;
+          try {
+            const taskResponse = await getTemplateCandidates(taskId);
+            const data = taskResponse.data;
+            const progress = data?.progress;
+            if (progress) {
+              setCandidateProgress({
+                total: progress.total || 5,
+                completed: progress.completed || 0,
+              });
+            }
+
+            if (data?.status === 'COMPLETED') {
+              setTemplateCandidates(data.candidates || progress?.candidates || []);
+              resolve();
+              return;
+            }
+
+            if (data?.status === 'FAILED') {
+              reject(new Error(data.error_message || '模板候选生成失败'));
+              return;
+            }
+
+            if (attempts > 240) {
+              reject(new Error('模板候选生成超时'));
+              return;
+            }
+
+            window.setTimeout(poll, 2000);
+          } catch (error) {
+            reject(error);
+          }
+        };
+
+        window.setTimeout(poll, 1000);
+      });
     } catch (error: any) {
       console.error('生成模板候选失败:', error);
       show({ message: `生成模板候选失败: ${error?.message || '未知错误'}`, type: 'error' });
     } finally {
+      candidatePollActiveRef.current = false;
       setIsGeneratingCandidates(false);
+      setCandidateProgress(null);
     }
   };
 
@@ -1184,7 +1238,9 @@ export const Home: React.FC = () => {
                     disabled={isGeneratingCandidates}
                     icon={isGeneratingCandidates ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   >
-                    {isGeneratingCandidates ? '正在生成候选...' : '生成 5 个模板候选'}
+                    {isGeneratingCandidates
+                      ? `正在生成候选${candidateProgress ? ` ${candidateProgress.completed}/${candidateProgress.total}` : '...'}`
+                      : '生成 5 个模板候选'}
                   </Button>
                 </div>
                 {templateCandidates.length > 0 && (

@@ -1,17 +1,17 @@
 """
 Template Controller - handles template-related endpoints
 """
-import base64
-import io
 import logging
+import os
 from datetime import datetime
 
 from flask import Blueprint, request, current_app
-from PIL import Image, ImageDraw, ImageFont
 
-from models import db, Project, UserTemplate, UserStyleTemplate
+from models import db, Project, Task, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
+from services.ai_service_manager import get_ai_service
+from services.task_manager import task_manager, generate_template_candidates_task
 from services.template_candidate_semantics import (
     build_template_candidate_prompt,
     build_template_candidate_usage_note,
@@ -33,68 +33,22 @@ def _normalize_candidate_count(raw_count):
     return max(1, min(count, 8))
 
 
-def _placeholder_palette(index):
-    palettes = [
-        ((37, 99, 235), (224, 231, 255), (15, 23, 42)),
-        ((14, 116, 144), (207, 250, 254), (22, 78, 99)),
-        ((147, 51, 234), (243, 232, 255), (88, 28, 135)),
-        ((234, 88, 12), (255, 237, 213), (124, 45, 18)),
-        ((22, 163, 74), (220, 252, 231), (20, 83, 45)),
-    ]
-    return palettes[index % len(palettes)]
+ALLOWED_TEMPLATE_CANDIDATE_ASPECT_RATIOS = frozenset({
+    '16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'
+})
 
 
-def _build_mock_candidate_data_url(style_prompt, index, aspect_ratio=None):
-    width, height = (1600, 900)
-    if aspect_ratio == '4:3':
-        width, height = (1400, 1050)
-    elif aspect_ratio == '9:16':
-        width, height = (900, 1600)
-
-    accent, surface, text = _placeholder_palette(index)
-    image = Image.new('RGB', (width, height), color='white')
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.load_default()
-
-    draw.rectangle([0, 0, width, height], fill='white')
-    draw.rectangle([0, 0, width, int(height * 0.22)], fill=accent)
-    draw.rounded_rectangle(
-        [int(width * 0.06), int(height * 0.30), int(width * 0.94), int(height * 0.90)],
-        radius=28,
-        fill=surface,
-    )
-    draw.rounded_rectangle(
-        [int(width * 0.09), int(height * 0.38), int(width * 0.42), int(height * 0.82)],
-        radius=20,
-        fill=(255, 255, 255),
-    )
-    draw.rounded_rectangle(
-        [int(width * 0.48), int(height * 0.38), int(width * 0.88), int(height * 0.52)],
-        radius=20,
-        fill=(255, 255, 255),
-    )
-    draw.rounded_rectangle(
-        [int(width * 0.48), int(height * 0.58), int(width * 0.88), int(height * 0.82)],
-        radius=20,
-        fill=(255, 255, 255),
-    )
-
-    prompt_preview = style_prompt.strip().replace('\n', ' ')
-    if len(prompt_preview) > 72:
-        prompt_preview = prompt_preview[:69] + '...'
-
-    draw.text((int(width * 0.08), int(height * 0.08)), f'Template Candidate {index + 1}', fill='white', font=font)
-    draw.text((int(width * 0.08), int(height * 0.16)), 'Slide template / style reference', fill='white', font=font)
-    draw.text((int(width * 0.12), int(height * 0.42)), 'TITLE AREA', fill=text, font=font)
-    draw.text((int(width * 0.12), int(height * 0.49)), 'Content + hierarchy preview', fill=text, font=font)
-    draw.text((int(width * 0.12), int(height * 0.56)), prompt_preview, fill=text, font=font)
-    draw.text((int(width * 0.52), int(height * 0.42)), 'Metric / chart block', fill=text, font=font)
-    draw.text((int(width * 0.52), int(height * 0.62)), 'Visual / summary block', fill=text, font=font)
-
-    buffer = io.BytesIO()
-    image.save(buffer, format='PNG')
-    encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
-    return f'data:image/png;base64,{encoded}'
+def _template_candidates_response(task: Task) -> dict:
+    progress = task.get_progress()
+    return {
+        'status': task.status,
+        'task_id': task.id,
+        'prompt': progress.get('prompt'),
+        'usage': progress.get('usage'),
+        'progress': progress,
+        'candidates': progress.get('candidates', []),
+        'error_message': task.error_message,
+    }
 
 
 @template_bp.route('/<project_id>/template', methods=['POST'])
@@ -394,31 +348,71 @@ def create_template_candidates():
             return bad_request('style_prompt is required')
 
         count = _normalize_candidate_count(payload.get('count'))
-        aspect_ratio = payload.get('aspect_ratio')
+        aspect_ratio = (payload.get('aspect_ratio') or '').strip() or current_app.config.get('DEFAULT_ASPECT_RATIO', '16:9')
+        if aspect_ratio not in ALLOWED_TEMPLATE_CANDIDATE_ASPECT_RATIOS:
+            return bad_request(f"Invalid aspect ratio. Allowed values: {', '.join(sorted(ALLOWED_TEMPLATE_CANDIDATE_ASPECT_RATIOS))}")
 
         prompt = build_template_candidate_prompt(style_prompt, count=count, aspect_ratio=aspect_ratio)
         usage = build_template_candidate_usage_note()
-        candidates = []
+        ai_service = get_ai_service()
+        resolution = current_app.config.get('DEFAULT_RESOLUTION', '2K')
+        use_mock = os.getenv('USE_MOCK_AI', '').lower() == 'true'
 
-        for i in range(count):
-            data_url = _build_mock_candidate_data_url(style_prompt, i, aspect_ratio=aspect_ratio)
-            candidates.append({
-                'candidate_id': f'candidate-{i+1}',
-                'image_url': data_url,
-                'thumb_url': data_url,
-                'style_prompt': style_prompt,
-                'usage_note': usage,
-                'system_prompt': prompt,
-                'transient': True,
-            })
-
-        return success_response({
-            'status': 'COMPLETED',
-            'task_id': None,
+        task = Task(
+            project_id=None,
+            task_type='GENERATE_TEMPLATE_CANDIDATES',
+            status='PENDING',
+        )
+        task.set_progress({
+            'total': count,
+            'completed': 0,
+            'failed': 0,
             'prompt': prompt,
             'usage': usage,
-            'candidates': candidates,
+            'candidates': [],
         })
+        db.session.add(task)
+        db.session.commit()
+
+        app = current_app._get_current_object()
+        task_manager.submit_task(
+            task.id,
+            generate_template_candidates_task,
+            style_prompt,
+            prompt,
+            usage,
+            count,
+            aspect_ratio,
+            resolution,
+            ai_service,
+            current_app.config['UPLOAD_FOLDER'],
+            app,
+            use_mock,
+        )
+
+        return success_response({
+            'status': task.status,
+            'task_id': task.id,
+            'prompt': prompt,
+            'usage': usage,
+            'progress': task.get_progress(),
+            'candidates': [],
+        }, status_code=202)
     except Exception as e:
+        db.session.rollback()
         logger.error('Failed to create template candidates: %s', e, exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@template_candidate_bp.route('/template-candidates/<task_id>', methods=['GET'])
+def get_template_candidates(task_id):
+    """GET /api/template-candidates/{task_id} - poll transient template candidate generation."""
+    try:
+        task = Task.query.get(task_id)
+        if not task or task.task_type != 'GENERATE_TEMPLATE_CANDIDATES':
+            return not_found('Task')
+
+        return success_response(_template_candidates_response(task))
+    except Exception as e:
+        logger.error('Failed to get template candidate task: %s', e, exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)

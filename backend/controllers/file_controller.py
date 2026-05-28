@@ -113,6 +113,36 @@ def serve_global_material(filename):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+@file_bp.route('/template-candidates/<task_id>/<filename>', methods=['GET'])
+def serve_template_candidate(task_id, filename):
+    """
+    GET /files/template-candidates/{task_id}/{filename} - Serve transient generated template candidates.
+    """
+    try:
+        safe_task_id = secure_filename(task_id)
+        if safe_task_id != task_id:
+            return not_found('File')
+
+        safe_filename = secure_filename(filename)
+        file_dir = os.path.join(
+            current_app.config['UPLOAD_FOLDER'],
+            'template-candidates',
+            safe_task_id
+        )
+
+        if not os.path.exists(file_dir):
+            return not_found('File')
+
+        file_path = os.path.join(file_dir, safe_filename)
+        if not os.path.exists(file_path):
+            return not_found('File')
+
+        return send_from_directory(file_dir, safe_filename)
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
 @file_bp.route('/mineru/<extract_id>/<path:filepath>', methods=['GET'])
 def serve_mineru_file(extract_id, filepath):
     """
@@ -159,4 +189,3 @@ def serve_mineru_file(extract_id, filepath):
         return not_found('File')
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
-
