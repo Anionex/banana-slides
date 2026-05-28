@@ -75,6 +75,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD ["sh", "-c", "curl -f http://localhost:5000/health || exit 1"]
 
-# 启动应用
-CMD ["sh", "-c", "uv run --directory backend alembic upgrade head && uv run --directory backend python app.py"]
-
+# 启动应用。直接使用构建阶段同步好的虚拟环境，避免预构建镜像启动时再次联网解析依赖。
+CMD ["sh", "-c", "cd /app/backend && /app/.venv/bin/alembic upgrade head && exec /app/.venv/bin/python app.py"]
