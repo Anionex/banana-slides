@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 from werkzeug.utils import secure_filename
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from models import Project
 from models import db
 
@@ -114,7 +114,7 @@ class FileService:
             with Image.open(str(tmp_path)) as image:
                 image.verify()
             os.replace(tmp_path, destination)
-        except (UnidentifiedImageError, OSError, ValueError) as exc:
+        except Exception as exc:
             try:
                 tmp_path.unlink(missing_ok=True)
             except Exception:
