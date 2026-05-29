@@ -89,6 +89,7 @@ const homeI18n = {
         fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
         fileUploadInProgress: '正在上传文件，请等待当前上传完成后再试',
         unsupportedFileType: '不支持的文件类型: {{type}}',
+        loadTemplateFailed: '加载模板失败，请重新选择或上传模板',
         pptTip: '建议先在本地将 PPTX 转为 PDF 后再上传，可获得更好的兼容性和更快的处理速度',
         filesAdded: '已添加 {{count}} 个参考文件',
         imageRemoved: '已移除图片',
@@ -166,6 +167,7 @@ const homeI18n = {
         fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
         fileUploadInProgress: 'A file upload is already in progress — please wait for it to finish',
         unsupportedFileType: 'Unsupported file type: {{type}}',
+        loadTemplateFailed: 'Failed to load the template. Please select or upload it again',
         pptTip: 'We recommend converting your PPTX to PDF locally before uploading for better compatibility and faster processing',
         filesAdded: 'Added {{count}} reference file(s)',
         imageRemoved: 'Image removed',
@@ -610,6 +612,10 @@ export const Home: React.FC = () => {
         const templateId = selectedTemplateId || selectedPresetTemplateId;
         if (templateId) {
           templateFile = await getTemplateFile(templateId, userTemplates);
+          if (!templateFile) {
+            show({ message: t('home.messages.loadTemplateFailed'), type: 'error' });
+            return;
+          }
         }
       }
       
