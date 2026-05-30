@@ -594,7 +594,7 @@ export const Home: React.FC = () => {
   const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
     const response = await apiClient.get<Blob>(dataUrl, { responseType: 'blob' });
     const blob = response.data;
-    if (!blob.type.startsWith('image/')) {
+    if (!blob?.type?.startsWith('image/')) {
       throw new Error(t('home.template.invalidCandidateImage'));
     }
     const extension = blob.type === 'image/webp' ? 'webp' : 'png';
