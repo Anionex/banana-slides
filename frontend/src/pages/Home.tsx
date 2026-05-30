@@ -16,6 +16,7 @@ import { useT } from '@/hooks/useT';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
+const TEMPLATE_CANDIDATE_CANCELLED = 'TEMPLATE_CANDIDATE_CANCELLED';
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -62,6 +63,16 @@ const homeI18n = {
       template: {
         title: '选择风格模板',
         useTextStyle: '使用文字描述风格',
+        enterStylePrompt: '请先输入风格描述',
+        generationFailed: '生成模板候选失败: {{error}}',
+        selectionSuccess: '已选择模板候选，创建项目后会走现有模板上传流程',
+        selectionFailed: '应用模板候选失败: {{error}}',
+        generationTimeout: '模板候选生成超时',
+        generationFailedFallback: '模板候选生成失败',
+        generateCandidates: '生成 5 个模板候选',
+        generatingCandidates: '正在生成候选...',
+        generatingCandidatesWithProgress: '正在生成候选 {{completed}}/{{total}}',
+        candidateUsageNote: '选择后会继续走现有模板上传流程',
       },
       actions: {
         selectFile: '选择参考文件',
@@ -94,6 +105,7 @@ const homeI18n = {
         serviceTestTip: '建议先到设置页底部进行服务测试，避免后续功能异常',
         verifying: '正在验证 API 配置...',
         verifyFailed: '请在设置页配置正确的 API Key，并在页面底部点击「服务测试」验证',
+        unknownError: '未知错误',
       },
     },
   },
@@ -140,6 +152,16 @@ const homeI18n = {
       template: {
         title: 'Select Style Template',
         useTextStyle: 'Use text description for style',
+        enterStylePrompt: 'Please enter a style description first',
+        generationFailed: 'Failed to generate template candidates: {{error}}',
+        selectionSuccess: 'Template candidate selected. Project creation will use the existing template upload flow.',
+        selectionFailed: 'Failed to apply template candidate: {{error}}',
+        generationTimeout: 'Template candidate generation timed out',
+        generationFailedFallback: 'Template candidate generation failed',
+        generateCandidates: 'Generate 5 template candidates',
+        generatingCandidates: 'Generating candidates...',
+        generatingCandidatesWithProgress: 'Generating candidates {{completed}}/{{total}}',
+        candidateUsageNote: 'Selection continues through the existing template upload flow',
       },
       actions: {
         selectFile: 'Select reference file',
@@ -172,6 +194,7 @@ const homeI18n = {
         serviceTestTip: 'Test services in Settings first to avoid issues',
         verifying: 'Verifying API configuration...',
         verifyFailed: 'Please configure a valid API Key in Settings and click "Service Test" at the bottom to verify',
+        unknownError: 'Unknown error',
       },
     },
   },
@@ -581,7 +604,7 @@ export const Home: React.FC = () => {
   const handleGenerateTemplateCandidates = async () => {
     const trimmedPrompt = templateStyle.trim();
     if (!trimmedPrompt) {
-      show({ message: '请先输入风格描述', type: 'info' });
+      show({ message: t('home.template.enterStylePrompt'), type: 'info' });
       return;
     }
 
@@ -608,14 +631,14 @@ export const Home: React.FC = () => {
         let consecutiveErrors = 0;
         const poll = async () => {
           if (!candidatePollActiveRef.current) {
-            reject(new Error('候选生成已取消'));
+            reject(new Error(TEMPLATE_CANDIDATE_CANCELLED));
             return;
           }
           attempts += 1;
           try {
             const taskResponse = await getTemplateCandidates(taskId);
             if (!candidatePollActiveRef.current) {
-              reject(new Error('候选生成已取消'));
+              reject(new Error(TEMPLATE_CANDIDATE_CANCELLED));
               return;
             }
 
@@ -636,12 +659,12 @@ export const Home: React.FC = () => {
             }
 
             if (data?.status === 'FAILED') {
-              reject(new Error(data.error_message || '模板候选生成失败'));
+              reject(new Error(data.error_message || t('home.template.generationFailedFallback')));
               return;
             }
 
             if (attempts > 240) {
-              reject(new Error('模板候选生成超时'));
+              reject(new Error(t('home.template.generationTimeout')));
               return;
             }
 
@@ -659,9 +682,12 @@ export const Home: React.FC = () => {
         window.setTimeout(poll, 1000);
       });
     } catch (error: any) {
-      if (error?.message !== '候选生成已取消') {
+      if (error?.message !== TEMPLATE_CANDIDATE_CANCELLED) {
         console.error('生成模板候选失败:', error);
-        show({ message: `生成模板候选失败: ${error?.message || '未知错误'}`, type: 'error' });
+        show({
+          message: t('home.template.generationFailed', { error: error?.message || t('home.messages.unknownError') }),
+          type: 'error',
+        });
       }
     } finally {
       if (candidatePollActiveRef.current) {
@@ -684,14 +710,17 @@ export const Home: React.FC = () => {
         setSelectedTemplate(file);
         setSelectedTemplateId(null);
         setSelectedPresetTemplateId(null);
-        show({ message: '已选择模板候选，创建项目后会走现有模板上传流程', type: 'success' });
+        show({ message: t('home.template.selectionSuccess'), type: 'success' });
       }
     } catch (error: any) {
       console.error('应用模板候选失败:', error);
       if (loadingCandidateIdRef.current === candidate.candidate_id) {
         setSelectedCandidateFile(null);
         setSelectedCandidateId(null);
-        show({ message: `应用模板候选失败: ${error?.message || '未知错误'}`, type: 'error' });
+        show({
+          message: t('home.template.selectionFailed', { error: error?.message || t('home.messages.unknownError') }),
+          type: 'error',
+        });
       }
     } finally {
       if (loadingCandidateIdRef.current === candidate.candidate_id) {
@@ -1326,8 +1355,13 @@ export const Home: React.FC = () => {
                     icon={isGeneratingCandidates ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   >
                     {isGeneratingCandidates
-                      ? `正在生成候选${candidateProgress ? ` ${candidateProgress.completed}/${candidateProgress.total}` : '...'}`
-                      : '生成 5 个模板候选'}
+                      ? candidateProgress
+                        ? t('home.template.generatingCandidatesWithProgress', {
+                            completed: candidateProgress.completed,
+                            total: candidateProgress.total,
+                          })
+                        : t('home.template.generatingCandidates')
+                      : t('home.template.generateCandidates')}
                   </Button>
                 </div>
                 {templateCandidates.length > 0 && (
@@ -1344,7 +1378,7 @@ export const Home: React.FC = () => {
                           <img src={candidate.thumb_url || candidate.image_url} alt={candidate.candidate_id} className="w-full aspect-[16/9] object-cover" />
                           <div className="p-3">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">{candidate.candidate_id}</div>
-                            <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">选择后会继续走现有模板上传流程</div>
+                            <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('home.template.candidateUsageNote')}</div>
                           </div>
                         </button>
                       );

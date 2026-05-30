@@ -1136,6 +1136,9 @@ def generate_template_candidates_task(task_id: str, style_prompt: str, prompt: s
             if not task:
                 return
 
+            if not use_mock and ai_service is None:
+                raise ValueError("AI service is not configured for template candidate generation.")
+
             candidates_dir = Path(upload_folder) / 'template-candidates' / task_id
             candidates_dir.mkdir(parents=True, exist_ok=True)
 
