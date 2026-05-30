@@ -541,20 +541,11 @@ export const Home: React.FC = () => {
   };
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
-    // 总是设置文件（如果提供）
-    if (templateFile) {
-      loadingCandidateIdRef.current = null;
-      setIsFetchingCandidate(false);
-      setSelectedTemplate(templateFile);
-      setSelectedCandidateFile(null);
-      setSelectedCandidateId(null);
-    } else if (templateId) {
-      loadingCandidateIdRef.current = null;
-      setIsFetchingCandidate(false);
-      setSelectedTemplate(null);
-      setSelectedCandidateFile(null);
-      setSelectedCandidateId(null);
-    }
+    loadingCandidateIdRef.current = null;
+    setIsFetchingCandidate(false);
+    setSelectedTemplate(templateFile);
+    setSelectedCandidateFile(null);
+    setSelectedCandidateId(null);
 
     // 处理模板 ID
     if (templateId) {
