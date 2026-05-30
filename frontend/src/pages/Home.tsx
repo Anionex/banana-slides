@@ -367,33 +367,18 @@ export const Home: React.FC = () => {
     }
   };
 
-  const handleDrop = async (e: React.DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const files = e.dataTransfer?.files;
-    if (!files || files.length === 0) return;
-
-    const imageFiles: File[] = [];
+  const handleDocumentFiles = async (files: File[]) => {
     const docFiles: File[] = [];
     const unsupportedExts: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (file.type.startsWith('image/')) {
-        imageFiles.push(file);
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (fileExt && allowedDocExtensions.includes(fileExt)) {
+        docFiles.push(file);
       } else {
-        const fileExt = file.name.split('.').pop()?.toLowerCase();
-        if (fileExt && allowedDocExtensions.includes(fileExt)) {
-          docFiles.push(file);
-        } else {
-          unsupportedExts.push(fileExt || file.type);
-        }
+        unsupportedExts.push(fileExt || file.type);
       }
-    }
-
-    if (imageFiles.length > 0) {
-      await handleImageFiles(imageFiles);
     }
 
     for (const file of docFiles) {
@@ -401,7 +386,12 @@ export const Home: React.FC = () => {
     }
 
     if (unsupportedExts.length > 0) {
-      show({ message: t('home.messages.unsupportedFileType', { type: unsupportedExts.join(', ') }), type: 'info' });
+      show({
+        message: t('home.messages.unsupportedFileType', {
+          type: Array.from(new Set(unsupportedExts)).join(', '),
+        }),
+        type: 'info',
+      });
     }
   };
 
@@ -1213,7 +1203,7 @@ export const Home: React.FC = () => {
                 onChange={setContent}
                 onPaste={handlePaste}
                 onFiles={handleImageFiles}
-                onDrop={handleDrop}
+                onDocumentFiles={handleDocumentFiles}
                 onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
                 rows={activeTab === 'idea' ? 4 : 8}
                 className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
