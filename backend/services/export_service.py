@@ -6,6 +6,7 @@ import math
 import os
 import json
 import logging
+import random
 import tempfile
 import base64
 import hashlib
@@ -16,6 +17,8 @@ from textwrap import dedent
 from dataclasses import dataclass, field
 from pptx import Presentation
 from pptx.util import Inches
+from pptx.oxml.xmlchemy import OxmlElement
+from pptx.oxml.ns import qn
 from PIL import Image
 import io
 import tempfile
@@ -191,6 +194,71 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
 class ExportService:
     """Service for exporting presentations"""
 
+    PPTX_TRANSITION_EFFECTS = {
+        'fade',
+        'page_turn',
+        'push',
+        'wipe',
+        'split',
+        'blinds',
+        'checker',
+        'wheel',
+    }
+
+    @staticmethod
+    def _apply_slide_transition(slide, effect: str) -> None:
+        """Add a PowerPoint slide transition node to a slide XML element."""
+        transition = OxmlElement('p:transition')
+        transition.set('spd', 'med')
+
+        if effect == 'fade':
+            transition.append(OxmlElement('p:fade'))
+        elif effect == 'page_turn':
+            cover = OxmlElement('p:cover')
+            cover.set('dir', 'l')
+            transition.append(cover)
+        elif effect == 'push':
+            push = OxmlElement('p:push')
+            push.set('dir', 'l')
+            transition.append(push)
+        elif effect == 'wipe':
+            wipe = OxmlElement('p:wipe')
+            wipe.set('dir', 'l')
+            transition.append(wipe)
+        elif effect == 'split':
+            split = OxmlElement('p:split')
+            split.set('orient', 'horz')
+            split.set('dir', 'out')
+            transition.append(split)
+        elif effect == 'blinds':
+            blinds = OxmlElement('p:blinds')
+            blinds.set('dir', 'vert')
+            transition.append(blinds)
+        elif effect == 'checker':
+            checker = OxmlElement('p:checker')
+            checker.set('dir', 'horz')
+            transition.append(checker)
+        elif effect == 'wheel':
+            wheel = OxmlElement('p:wheel')
+            wheel.set('spokes', '1')
+            transition.append(wheel)
+        else:
+            return
+
+        slide_element = slide._element
+        existing = slide_element.find(qn('p:transition'))
+        if existing is not None:
+            slide_element.remove(existing)
+
+        clr_map_ovr = slide_element.find(qn('p:clrMapOvr'))
+        if clr_map_ovr is not None:
+            insert_at = slide_element.index(clr_map_ovr) + 1
+        else:
+            c_sld = slide_element.find(qn('p:cSld'))
+            insert_at = slide_element.index(c_sld) + 1 if c_sld is not None else 0
+
+        slide_element.insert(insert_at, transition)
+
     # NOTE: clean background生成功能已迁移到解耦的InpaintProvider实现
     # - DefaultInpaintProvider: 基于mask的精确区域重绘（Volcengine）
     # - GenerativeEditInpaintProvider: 基于生成式大模型的整图编辑重绘（Gemini等）
@@ -245,7 +313,12 @@ class ExportService:
         )
     
     @staticmethod
-    def create_pptx_from_images(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> bytes:
+    def create_pptx_from_images(
+        image_paths: List[str],
+        output_file: str = None,
+        aspect_ratio: str = '16:9',
+        transition_effects: Optional[List[str]] = None,
+    ) -> bytes:
         """
         Create PPTX file from image paths
         Based on demo.py create_pptx_from_images()
@@ -277,6 +350,12 @@ class ExportService:
         prs.slide_width = Inches(page_w)
         prs.slide_height = Inches(page_h)
         
+        valid_transition_effects = [
+            effect for effect in (transition_effects or [])
+            if effect in ExportService.PPTX_TRANSITION_EFFECTS
+        ]
+        transition_effect_queue: List[str] = []
+
         # Add each image as a slide
         for image_path in image_paths:
             if not os.path.exists(image_path):
@@ -295,6 +374,15 @@ class ExportService:
                 width=prs.slide_width,
                 height=prs.slide_height
             )
+
+            if valid_transition_effects:
+                if not transition_effect_queue:
+                    transition_effect_queue = valid_transition_effects[:]
+                    random.shuffle(transition_effect_queue)
+                ExportService._apply_slide_transition(
+                    slide,
+                    transition_effect_queue.pop(),
+                )
         
         # Save or return bytes
         if output_file:

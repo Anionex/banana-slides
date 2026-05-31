@@ -17,6 +17,10 @@ description: "导出为 PPTX、PDF 或图片"
   Docker 部署已在镜像内安装好视频导出所需的 FFmpeg 依赖。源码部署请先安装带 `libass` / `ass` 字幕滤镜的 FFmpeg，例如 macOS 运行 `brew install ffmpeg-full && brew unlink ffmpeg 2>/dev/null || true && brew link --overwrite --force ffmpeg-full`，Ubuntu / Debian 运行 `sudo apt-get update && sudo apt-get install -y ffmpeg libass9`。
 </Note>
 
+## PPTX 导出面板
+
+普通 PPTX 导出会先弹出设置面板，再开始生成文件。可开启「页面切换动画」，并选择淡入淡出、翻页、平移切换、擦除、分割、百叶窗、棋盘、时钟等经典效果；如果同时选择多个效果，导出时会为每页随机使用其中一种。
+
 ## 讲解视频旁白策略
 
 讲解视频导出会在最后一步弹出单独的配置面板，可在真正开始导出前调整旁白生成策略，而不影响页面内容本身。

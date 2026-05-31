@@ -137,6 +137,7 @@ No longer limited by complex menu buttons, issue editing commands directly throu
 ### 4. Out-of-the-Box Format Export
 
 - **Multi-format Support**: One-click export to standard **PPTX** or **PDF** files.
+- **Playback Settings**: Before exporting PPTX, enable classic slide transitions such as Fade, Page Turn, Push, Wipe, Split, Blinds, Checkerboard, and Clock, including random per-slide effects when multiple options are selected.
 - **Perfect Fit**: Default 16:9 aspect ratio, layout requires no further adjustments, ready for immediate presentation.
 
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />

@@ -24,6 +24,22 @@ logger = logging.getLogger(__name__)
 export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
 
 
+def _parse_pptx_transition_effects():
+    enabled = request.args.get('transition_enabled', '').lower() in {'1', 'true', 'yes', 'on'}
+    if not enabled:
+        return [], None
+
+    effects = list(dict.fromkeys(
+        effect.strip()
+        for effect in request.args.get('transition_effects', '').split(',')
+        if effect.strip()
+    ))
+    valid_effects = [effect for effect in effects if effect in ExportService.PPTX_TRANSITION_EFFECTS]
+    if not valid_effects:
+        return [], "At least one valid transition effect is required"
+    return valid_effects, None
+
+
 @export_bp.route('/<project_id>/exports', methods=['GET'])
 def list_exports(project_id):
     """
@@ -132,8 +148,17 @@ def export_pptx(project_id):
 
         output_path = os.path.join(exports_dir, filename)
 
+        transition_effects, transition_error = _parse_pptx_transition_effects()
+        if transition_error:
+            return bad_request(transition_error)
+
         # Generate PPTX file on disk
-        ExportService.create_pptx_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
+        ExportService.create_pptx_from_images(
+            image_paths,
+            output_file=output_path,
+            aspect_ratio=project.image_aspect_ratio,
+            transition_effects=transition_effects,
+        )
 
         # Build download URLs
         download_path = f"/files/{project_id}/exports/{filename}"

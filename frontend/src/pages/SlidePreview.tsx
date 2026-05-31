@@ -28,6 +28,21 @@ const previewI18n = {
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportVideo: "导出为讲解视频",
+      pptxExportTitle: "PPTX 导出设置",
+      pptxExportSubtitle: "在导出前确认本次 PPTX 的播放设置。",
+      pptxTransitionToggle: "启用页面切换动画",
+      pptxTransitionDesc: "导出的 PPTX 会为每页设置切换效果；多选效果时，每页会随机使用其中一种。",
+      pptxTransitionFade: "淡入淡出",
+      pptxTransitionPageTurn: "翻页",
+      pptxTransitionPush: "平移切换",
+      pptxTransitionWipe: "擦除",
+      pptxTransitionSplit: "分割",
+      pptxTransitionBlinds: "百叶窗",
+      pptxTransitionChecker: "棋盘",
+      pptxTransitionWheel: "时钟",
+      pptxTransitionRequired: "至少选择一种切换动画",
+      pptxStartExport: "开始导出",
+      pptxCancel: "取消",
       videoExportTitle: "讲解视频导出设置",
       videoExportSubtitle: "在最后一步统一配置旁白风格，适配路演、总结、发布会或学术报告等不同场景。",
       videoVoiceLabel: "语音音色",
@@ -134,6 +149,21 @@ const previewI18n = {
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportVideo: "Export as Narration Video",
+      pptxExportTitle: "PPTX Export Settings",
+      pptxExportSubtitle: "Confirm playback settings before exporting this PPTX.",
+      pptxTransitionToggle: "Enable slide transitions",
+      pptxTransitionDesc: "The exported PPTX will add a transition to each slide. If multiple effects are selected, each slide uses one at random.",
+      pptxTransitionFade: "Fade",
+      pptxTransitionPageTurn: "Page turn",
+      pptxTransitionPush: "Push",
+      pptxTransitionWipe: "Wipe",
+      pptxTransitionSplit: "Split",
+      pptxTransitionBlinds: "Blinds",
+      pptxTransitionChecker: "Checkerboard",
+      pptxTransitionWheel: "Clock",
+      pptxTransitionRequired: "Select at least one transition effect",
+      pptxStartExport: "Start Export",
+      pptxCancel: "Cancel",
       videoExportTitle: "Narration Video Export Settings",
       videoExportSubtitle: "Tune the narration strategy in the final export step for demos, annual recaps, launches, or academic talks.",
       videoVoiceLabel: "Voice",
@@ -305,6 +335,27 @@ const DEFAULT_VIDEO_NARRATION_CONFIG: NarrationConfig = {
   max_words: 200,
 };
 
+type PptxTransitionEffect =
+  | 'fade'
+  | 'page_turn'
+  | 'push'
+  | 'wipe'
+  | 'split'
+  | 'blinds'
+  | 'checker'
+  | 'wheel';
+
+const PPTX_TRANSITION_OPTIONS: { value: PptxTransitionEffect; labelKey: string }[] = [
+  { value: 'fade', labelKey: 'pptxTransitionFade' },
+  { value: 'page_turn', labelKey: 'pptxTransitionPageTurn' },
+  { value: 'push', labelKey: 'pptxTransitionPush' },
+  { value: 'wipe', labelKey: 'pptxTransitionWipe' },
+  { value: 'split', labelKey: 'pptxTransitionSplit' },
+  { value: 'blinds', labelKey: 'pptxTransitionBlinds' },
+  { value: 'checker', labelKey: 'pptxTransitionChecker' },
+  { value: 'wheel', labelKey: 'pptxTransitionWheel' },
+];
+
 export const SlidePreview: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -345,9 +396,12 @@ export const SlidePreview: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
+  const [showPptxExportDialog, setShowPptxExportDialog] = useState(false);
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
   const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
   const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
+  const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
+  const [pptxTransitionEffects, setPptxTransitionEffects] = useState<PptxTransitionEffect[]>(['fade']);
   const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
   const [videoIncludeNoImage, setVideoIncludeNoImage] = useState(false);
   const [videoVoice, setVideoVoice] = useState('zh-CN-XiaoxiaoNeural');
@@ -1134,7 +1188,13 @@ export const SlidePreview: React.FC = () => {
     return Array.from(selectedPageIds);
   };
 
-  const handleExport = async (type: 'pptx' | 'pdf' | 'editable-pptx' | 'images' | 'video') => {
+  const handleExport = async (
+    type: 'pptx' | 'pdf' | 'editable-pptx' | 'images' | 'video',
+    options?: {
+      pptxTransitionEnabled?: boolean;
+      pptxTransitionEffects?: PptxTransitionEffect[];
+    },
+  ) => {
     setShowExportMenu(false);
     if (!projectId) return;
 
@@ -1144,8 +1204,14 @@ export const SlidePreview: React.FC = () => {
     try {
       if (type === 'pptx' || type === 'pdf' || type === 'images') {
         // Synchronous export - direct download, create completed task directly
-        const exportApi = { pptx: apiExportPPTX, pdf: apiExportPDF, images: apiExportImages };
-        const response = await exportApi[type](projectId, pageIds);
+        const response = type === 'pptx'
+          ? await apiExportPPTX(projectId, pageIds, {
+              transitionEnabled: options?.pptxTransitionEnabled,
+              transitionEffects: options?.pptxTransitionEffects,
+            })
+          : type === 'pdf'
+            ? await apiExportPDF(projectId, pageIds)
+            : await apiExportImages(projectId, pageIds);
         const downloadUrl = response.data?.download_url || response.data?.download_url_absolute;
         if (downloadUrl) {
           addTask({
@@ -1621,7 +1687,10 @@ export const SlidePreview: React.FC = () => {
                   </div>
                 )}
                 <button
-                  onClick={() => handleExport('pptx')}
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    setShowPptxExportDialog(true);
+                  }}
                   disabled={!hasAllImages}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -1686,6 +1755,92 @@ export const SlidePreview: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* PPTX 导出设置弹窗 */}
+      {showPptxExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPptxExportDialog(false)}>
+          <div className="bg-white dark:bg-background-secondary rounded-2xl shadow-xl p-6 w-full max-w-xl mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">{t('preview.pptxExportTitle')}</h3>
+            <p className="text-sm text-gray-500 dark:text-foreground-tertiary mt-1 mb-5">{t('preview.pptxExportSubtitle')}</p>
+
+            <div className="space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover">
+                <input
+                  type="checkbox"
+                  checked={pptxTransitionsEnabled}
+                  onChange={e => setPptxTransitionsEnabled(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{t('preview.pptxTransitionToggle')}</div>
+                  <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.pptxTransitionDesc')}</div>
+                </div>
+              </label>
+
+              {pptxTransitionsEnabled && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PPTX_TRANSITION_OPTIONS.map(option => {
+                    const checked = pptxTransitionEffects.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                          checked
+                            ? 'border-banana-400 bg-banana-50 text-banana-700 dark:border-banana-500 dark:bg-banana-500/10 dark:text-banana-300'
+                            : 'border-gray-200 dark:border-border-primary hover:bg-gray-50 dark:hover:bg-background-hover'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => {
+                            setPptxTransitionEffects(prev => {
+                              if (e.target.checked) {
+                                return prev.includes(option.value) ? prev : [...prev, option.value];
+                              }
+                              return prev.filter(effect => effect !== option.value);
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+                        />
+                        <span>{t(`preview.${option.labelKey}`)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {pptxTransitionsEnabled && pptxTransitionEffects.length === 0 && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 px-1">
+                  {t('preview.pptxTransitionRequired')}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowPptxExportDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-foreground-tertiary hover:bg-gray-100 dark:hover:bg-background-hover rounded-lg transition-colors"
+              >
+                {t('preview.pptxCancel')}
+              </button>
+              <button
+                onClick={() => {
+                  setShowPptxExportDialog(false);
+                  handleExport('pptx', {
+                    pptxTransitionEnabled: pptxTransitionsEnabled,
+                    pptxTransitionEffects,
+                  });
+                }}
+                disabled={pptxTransitionsEnabled && pptxTransitionEffects.length === 0}
+                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {t('preview.pptxStartExport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 视频导出设置弹窗 */}
       {showVideoExportDialog && (
