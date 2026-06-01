@@ -19,6 +19,7 @@ from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_a
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.ai_providers import LAZYLLM_VENDORS
 from services.task_manager import task_manager
+from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
 ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm", "codex"} | LAZYLLM_VENDORS
@@ -165,6 +166,22 @@ def get_settings():
             "GET_SETTINGS_ERROR",
             f"Failed to get settings: {str(e)}",
             500,
+        )
+
+
+@settings_bp.route("/check-update", methods=["GET"], strict_slashes=False)
+def check_update():
+    """
+    GET /api/settings/check-update - Check Docker Hub for a newer image.
+    """
+    try:
+        return success_response(check_for_update())
+    except Exception as e:
+        logger.error(f"Error checking for updates: {str(e)}")
+        return error_response(
+            "CHECK_UPDATE_ERROR",
+            f"Failed to check updates: {str(e)}",
+            502,
         )
 
 

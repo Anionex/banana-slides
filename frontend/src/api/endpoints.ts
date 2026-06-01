@@ -1469,6 +1469,30 @@ export const getTestStatus = async (taskId: string): Promise<ApiResponse<{
   return response.data;
 };
 
+export interface UpdateCheckInfo {
+  status: 'up_to_date' | 'update_available' | 'unknown';
+  update_available: boolean;
+  message: string;
+  repository: string;
+  current: {
+    tag?: string;
+    commit_sha?: string;
+    short_sha?: string;
+    is_docker: boolean;
+  };
+  latest: null | {
+    tag: string;
+    sha?: string;
+    last_updated: string;
+    image: string;
+  };
+}
+
+export const checkForUpdates = async (): Promise<ApiResponse<UpdateCheckInfo>> => {
+  const response = await apiClient.get<ApiResponse<UpdateCheckInfo>>('/api/settings/check-update');
+  return response.data;
+};
+
 
 // ===== PPT 翻新相关 API =====
 

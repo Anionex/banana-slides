@@ -332,6 +332,8 @@ Image names:
 - `anoinex/banana-slides-frontend:latest`
 - `anoinex/banana-slides-backend:latest`
 
+After startup, open **Settings → About → Check for Updates** in the app. The app compares the current version SHA with the latest available version; local source-code runs are checked with the current Git SHA as well.
+
 **Build images from scratch**
 
 ```bash
@@ -385,6 +387,8 @@ docker compose down
 6. **Update Project**
 
 **Using Pre-built Images (docker-compose.prod.yml)**
+
+You can also open **Settings → About → Check for Updates** first to see whether a newer version is available.
 
 ```bash
 docker compose -f docker-compose.prod.yml pull

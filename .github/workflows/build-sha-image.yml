@@ -47,6 +47,7 @@ jobs:
         run: |
           echo "full_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Overlay Dockerfiles from main
         run: |
@@ -133,6 +134,10 @@ jobs:
             APT_MIRROR=${{ secrets.APT_MIRROR }}
             PYPI_INDEX_URL=${{ secrets.PYPI_INDEX_URL }}
             NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
+            APP_COMMIT_SHA=${{ steps.resolve.outputs.full_sha }}
+            APP_COMMIT_SHORT_SHA=${{ steps.resolve.outputs.short_sha }}
+            APP_VERSION_TAG=${{ inputs.tag }}
+            APP_BUILD_DATE=${{ steps.resolve.outputs.build_date }}
 
       - name: Build and push backend image
         if: inputs.image_type == 'split' || inputs.image_type == 'both'
@@ -150,6 +155,10 @@ jobs:
             GHCR_REGISTRY=${{ secrets.GHCR_REGISTRY || 'ghcr.io/' }}
             APT_MIRROR=${{ secrets.APT_MIRROR }}
             PYPI_INDEX_URL=${{ secrets.PYPI_INDEX_URL }}
+            APP_COMMIT_SHA=${{ steps.resolve.outputs.full_sha }}
+            APP_COMMIT_SHORT_SHA=${{ steps.resolve.outputs.short_sha }}
+            APP_VERSION_TAG=${{ inputs.tag }}
+            APP_BUILD_DATE=${{ steps.resolve.outputs.build_date }}
 
       - name: Build and push frontend image
         if: inputs.image_type == 'split' || inputs.image_type == 'both'
@@ -166,3 +175,6 @@ jobs:
             DOCKER_BUILDKIT=1
             DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}
             NPM_REGISTRY=${{ secrets.NPM_REGISTRY }}
+            APP_COMMIT_SHA=${{ steps.resolve.outputs.full_sha }}
+            APP_COMMIT_SHORT_SHA=${{ steps.resolve.outputs.short_sha }}
+            APP_VERSION_TAG=${{ inputs.tag }}

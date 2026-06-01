@@ -316,6 +316,8 @@ docker compose -f docker-compose.prod.yml up -d
 - `anoinex/banana-slides-frontend:latest`
 - `anoinex/banana-slides-backend:latest`
 
+启动后可在应用内进入 **设置 → 关于 → 检查更新**，应用会根据当前版本 SHA 判断是否已有可用更新；源码运行时也会用当前 Git SHA 参与判断。
+
 **从头构建镜像**
 
 ```bash
@@ -362,6 +364,8 @@ docker compose down
 6. **更新项目**
 
 **使用预构建镜像（docker-compose.prod.yml）**
+
+也可以先在应用内进入 **设置 → 关于 → 检查更新** 查看是否已有新版本。
 
 ```bash
 docker compose -f docker-compose.prod.yml pull

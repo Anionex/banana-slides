@@ -44,8 +44,9 @@ export default defineConfig(({ mode }) => {
   const backendPort = env.BACKEND_PORT || String(computeWorktreePort(5000))
   const frontendPort = Number(env.FRONTEND_PORT) || computeWorktreePort(3000)
   const backendUrl = `http://localhost:${backendPort}`
-  const gitTag = gitValue('git describe --tags --exact-match HEAD')
-  const gitSha = gitValue('git rev-parse HEAD')
+  const gitTag = env.VITE_APP_VERSION_TAG || gitValue('git describe --tags --exact-match HEAD')
+  const gitSha = env.VITE_APP_COMMIT_SHA || gitValue('git rev-parse HEAD')
+  const gitShortSha = env.VITE_APP_COMMIT_SHORT_SHA || gitSha.slice(0, 7)
   
   return {
     envDir,
@@ -53,7 +54,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_APP_VERSION_TAG': JSON.stringify(gitTag),
       'import.meta.env.VITE_APP_COMMIT_SHA': JSON.stringify(gitSha),
-      'import.meta.env.VITE_APP_COMMIT_SHORT_SHA': JSON.stringify(gitSha.slice(0, 7)),
+      'import.meta.env.VITE_APP_COMMIT_SHORT_SHA': JSON.stringify(gitShortSha),
     },
     resolve: {
       alias: {
