@@ -661,8 +661,12 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     })
     
     // Save file
-    const downloadPath = path.join('test-results', 'e2e-test-output.pptx')
+    let downloadPath = path.join('test-results', 'e2e-test-output.pptx')
     if (downloadResult.kind === 'download') {
+      const suggestedFilename = downloadResult.payload.suggestedFilename?.()
+      if (suggestedFilename) {
+        downloadPath = path.join('test-results', path.basename(suggestedFilename))
+      }
       await downloadResult.payload.saveAs(downloadPath)
     } else {
       const requestResponse = await page.request.get(downloadResult.payload.url)
@@ -670,17 +674,16 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         throw new Error(`Fallback export response request failed: HTTP ${requestResponse.status()}`)
       }
       const body = Buffer.from(await requestResponse.body())
-      await fs.promises.writeFile(downloadPath, body)
       const contentDisposition = downloadResult.payload.headers['content-disposition'] || requestResponse.headers()['content-disposition'] || ''
       const filenameMatch = /filename\*?=['"]?(?:UTF-8''([^;"']+)|([^;"']+))/i.exec(contentDisposition)
       const encodedFilename = filenameMatch?.[1] || filenameMatch?.[2]
       if (encodedFilename) {
         const decoded = decodeURIComponent(encodedFilename.replace(/"/g, '').replace(/^UTF-8''/i, ''))
         if (decoded.trim().toLowerCase().endsWith('.pptx')) {
-          const decodedPath = path.join('test-results', decoded)
-          await fs.promises.rename(downloadPath, decodedPath).catch(() => undefined)
+          downloadPath = path.join('test-results', path.basename(decoded))
         }
       }
+      await fs.promises.writeFile(downloadPath, body)
     }
     
     // Verify file exists and is not empty
