@@ -628,17 +628,6 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       page.context().on('response', onResponse)
     })
     
-    // Setup download handler (prefer direct download event, fallback to export response)
-    const downloadResult = await Promise.any([
-      page.context().waitForEvent('download', { timeout: 60000 }).then((download) => ({
-        kind: 'download' as const,
-        payload: download
-      })),
-      responsePromise
-    ]).catch((error) => {
-      throw new Error(`Timeout waiting for PPT export: ${error instanceof Error ? error.message : 'unknown error'}`)
-    })
-    
     // Step 1: Wait for export button to be enabled (it's disabled until all images are generated)
     const exportBtn = page.locator('button:has-text("导出")')
     await exportBtn.waitFor({ state: 'visible', timeout: 10000 })
@@ -658,7 +647,15 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     
     // Wait for download to complete (prefer download event, fallback to direct response body)
     console.log('⏳ Waiting for PPT file download...')
-    const downloadResult = await Promise.race([downloadPromise, responsePromise])
+    const downloadResult = await Promise.any([
+      page.context().waitForEvent('download', { timeout: 60000 }).then((download) => ({
+        kind: 'download' as const,
+        payload: download
+      })),
+      responsePromise
+    ]).catch((error) => {
+      throw new Error(`Timeout waiting for PPT export: ${error instanceof Error ? error.message : 'unknown error'}`)
+    })
     
     // Save file
     const downloadPath = path.join('test-results', 'e2e-test-output.pptx')
