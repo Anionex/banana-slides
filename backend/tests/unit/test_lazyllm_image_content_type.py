@@ -202,3 +202,34 @@ class TestIsSafeFallbackUrl:
     ])
     def test_attack_payloads_rejected(self, url):
         assert self._helper()(url) is False
+
+
+class TestLazyLLMReferenceImageConstraints:
+    """Reference images should be adjusted before being sent to strict vendors."""
+
+    def setup_method(self):
+        _inject_lazyllm_mock()
+        for key in ('services.ai_providers.image.lazyllm_provider',
+                    'backend.services.ai_providers.image.lazyllm_provider'):
+            sys.modules.pop(key, None)
+
+    def test_qwen_reference_image_is_upscaled_to_min_dimensions(self):
+        from services.ai_providers.image.lazyllm_provider import _prepare_reference_image_for_vendor
+
+        small = Image.new('RGB', (120, 80), color=(0, 128, 255))
+
+        prepared = _prepare_reference_image_for_vendor(small, 'qwen')
+
+        assert prepared.size[0] >= 512
+        assert prepared.size[1] >= 512
+        assert prepared.size == (768, 512)
+
+    def test_vendor_without_min_dimensions_keeps_original_reference(self):
+        from services.ai_providers.image.lazyllm_provider import _prepare_reference_image_for_vendor
+
+        original = Image.new('RGB', (120, 80), color=(0, 128, 255))
+
+        prepared = _prepare_reference_image_for_vendor(original, 'doubao')
+
+        assert prepared is original
+        assert prepared.size == (120, 80)

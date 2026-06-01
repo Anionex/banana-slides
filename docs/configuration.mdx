@@ -70,6 +70,10 @@ SENSENOVA_API_KEY=your-key    # SenseNova
 MINIMAX_API_KEY=your-key      # MiniMax
 ```
 
+Banana Slides explicitly packages the LazyLLM online provider SDKs for domestic vendors:
+`volcengine-python-sdk[ark]` for Doubao/Volcengine, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
+LazyLLM source provides `lazyllm install online-advanced`, but the current PyPI wheel may not publish that group as a standard extra; Docker and prebuilt images therefore rely on these explicit dependencies.
+
 ## AIHubMix (Recommended Proxy)
 
 [AIHubMix](https://aihubmix.com/?aff=17EC) is a recommended API proxy that supports both Gemini and OpenAI API formats, with stable high-concurrency performance for text-to-image generation. [Apply for an AIHubMix API key here](https://aihubmix.com/token?aff=17EC).
