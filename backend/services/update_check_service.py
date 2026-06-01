@@ -117,14 +117,17 @@ def fetch_docker_hub_tags(namespace: str = DOCKER_NAMESPACE, repository: str = D
     response = requests.get(
         DOCKER_HUB_TAGS_URL.format(namespace=namespace, repository=repository),
         params={"page_size": 25},
+        headers={"User-Agent": "banana-slides-updater"},
         timeout=8,
     )
     response.raise_for_status()
     payload = response.json()
     results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, list):
+        results = []
     return [
         parsed
-        for raw in (results or [])
+        for raw in results
         if (parsed := _parse_tag(raw)) is not None
     ]
 

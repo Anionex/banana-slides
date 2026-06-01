@@ -315,6 +315,18 @@ def test_check_for_update_treats_null_results_as_empty(monkeypatch):
     assert result["latest"] is None
 
 
+def test_check_for_update_treats_non_list_results_as_empty(monkeypatch):
+    monkeypatch.setenv("IN_DOCKER", "1")
+    response = _mock_response([])
+    response.json.return_value = {"results": 1}
+
+    with patch("services.update_check_service.requests.get", return_value=response):
+        result = check_for_update()
+
+    assert result["status"] == "unknown"
+    assert result["latest"] is None
+
+
 def test_check_for_update_treats_non_dict_response_payload_as_empty(monkeypatch):
     monkeypatch.setenv("IN_DOCKER", "1")
     response = _mock_response([])
