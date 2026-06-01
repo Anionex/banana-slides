@@ -37,6 +37,24 @@ def test_check_for_update_reports_up_to_date_for_matching_docker_sha(monkeypatch
     assert result["latest"]["sha"] == "abcdef1"
 
 
+def test_check_for_update_accepts_sha256_length_version_tags(monkeypatch):
+    full_sha = "a" * 64
+    monkeypatch.setenv("IN_DOCKER", "1")
+    monkeypatch.setenv("APP_COMMIT_SHA", full_sha)
+    monkeypatch.setenv("APP_COMMIT_SHORT_SHA", full_sha[:7])
+
+    tags = [
+        _tag("latest", "sha256:latest"),
+        _tag(f"sha-{full_sha}", "sha256:latest"),
+    ]
+
+    with patch("services.update_check_service.requests.get", return_value=_mock_response(tags)):
+        result = check_for_update()
+
+    assert result["status"] == "up_to_date"
+    assert result["latest"]["sha"] == full_sha
+
+
 def test_check_for_update_reports_newer_docker_image(monkeypatch):
     monkeypatch.setenv("IN_DOCKER", "1")
     monkeypatch.setenv("APP_COMMIT_SHA", "1111111222222222")

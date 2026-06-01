@@ -81,7 +81,7 @@ def _parse_datetime(value: str) -> datetime:
 
 
 def _sha_from_tag(name: str) -> str:
-    match = re.fullmatch(r"sha-([0-9a-fA-F]{7,40})", name)
+    match = re.fullmatch(r"sha-([0-9a-fA-F]{7,64})", name)
     return match.group(1) if match else ""
 
 
