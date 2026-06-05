@@ -18,6 +18,10 @@ test('drawer visual smoke (default + resized)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/project/${seeded.projectId}/preview`);
 
+  // Capture the closed state first so we can see the edge tab shape
+  await page.waitForSelector('button[aria-label*="打开页面精调"], button[aria-label*="Open fine-tune panel"]');
+  await page.screenshot({ path: 'test-results/drawer-closed.png', fullPage: false });
+
   // Open drawer
   await page.getByRole('button', { name: /打开页面精调|Open fine-tune panel/i }).click();
 
@@ -34,14 +38,21 @@ test('drawer visual smoke (default + resized)', async ({ page }) => {
   await page.locator('img[alt="slide_1"]').first().click();
   await page.waitForTimeout(300);
 
-  // Add an extra field so the screenshot includes that section with content
+  // Add an extra field so the screenshot includes that section with content.
+  // Field name is still a native <input>, but field value now uses
+  // MarkdownTextarea (contenteditable div) — so we type into it via keyboard.
   const drawerForFields = page.locator('aside').filter({ hasText: /页面精调|Page Fine-tune/ });
   await drawerForFields.getByRole('button', { name: /添加字段|Add Field/ }).click();
-  const fieldNameInput = drawerForFields.locator('input[placeholder*="字段名"], input[placeholder*="Field name"]').last();
+  const fieldNameInput = drawerForFields
+    .locator('input[placeholder*="字段名"], input[placeholder*="Field name"]')
+    .last();
   await fieldNameInput.fill('排版建议');
-  const fieldValueTextarea = drawerForFields.locator('textarea[placeholder*="字段值"], textarea[placeholder*="Field value"]').last();
-  await fieldValueTextarea.fill('标题居中，正文左对齐');
-  await fieldValueTextarea.blur();
+  const fieldValueEditor = drawerForFields
+    .locator('section[data-section="extra-fields"] [contenteditable="true"]')
+    .last();
+  await fieldValueEditor.click();
+  await page.keyboard.type('标题居中，正文左对齐');
+  await page.locator('body').click({ position: { x: 10, y: 10 } });
   await page.waitForTimeout(200);
 
   // Measure default drawer width and preview width

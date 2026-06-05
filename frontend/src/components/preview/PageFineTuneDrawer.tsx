@@ -24,7 +24,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
-import { Textarea } from '@/components/shared';
+import { MarkdownTextarea } from '@/components/shared/MarkdownTextarea';
 import type { Page, DescriptionContent, TemplateAsset } from '@/types';
 
 // ---------- i18n ----------
@@ -502,21 +502,16 @@ export const PageFineTuneDrawer: React.FC<PageFineTuneDrawerProps> = ({
   return (
     <>
       {/* Edge tab — shown when closed. Absolute-positioned relative to the
-          parent flex row (NOT the viewport), so it stays below the header. */}
+          parent flex row (NOT the viewport), so it stays below the header.
+          A tall thin pill with only the icon, no label text. */}
       {!isOpen && (
         <button
           onClick={onOpen}
-          className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 items-center gap-1.5 bg-white dark:bg-background-secondary border border-r-0 border-gray-200 dark:border-border-primary rounded-l-lg shadow-lg px-2 py-4 hover:bg-banana-50 dark:hover:bg-background-hover hover:pr-3 transition-all group"
+          className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 items-center justify-center bg-white dark:bg-background-secondary border border-r-0 border-gray-200 dark:border-border-primary rounded-l-lg shadow-lg px-1.5 py-8 hover:bg-banana-50 dark:hover:bg-background-hover hover:px-2 transition-all"
           aria-label={t('drawer.ariaOpen')}
           title={t('drawer.title')}
         >
-          <Sliders size={14} className="text-banana-600 dark:text-banana-400" />
-          <span
-            className="text-xs font-medium text-gray-700 dark:text-foreground-secondary"
-            style={{ writingMode: 'vertical-rl' }}
-          >
-            {t('drawer.title')}
-          </span>
+          <Sliders size={16} className="text-banana-600 dark:text-banana-400" />
         </button>
       )}
 
@@ -586,7 +581,7 @@ export const PageFineTuneDrawer: React.FC<PageFineTuneDrawerProps> = ({
             <div className="divide-y divide-gray-100 dark:divide-border-primary">
               {/* ---------------- Template ---------------- */}
               {isMulti && (
-                <section className="p-4">
+                <section data-section="template" className="p-4">
                   <SectionHeader
                     icon={<ImageIcon size={14} />}
                     title={t('drawer.sections.template')}
@@ -642,40 +637,42 @@ export const PageFineTuneDrawer: React.FC<PageFineTuneDrawerProps> = ({
                     <label className="block text-xs font-medium text-gray-600 dark:text-foreground-tertiary mb-1.5">
                       {t('drawer.template.textStyleLabel')}
                     </label>
-                    <Textarea
+                    <MarkdownTextarea
                       value={styleDraft}
-                      onChange={(e) => setStyleDraft(e.target.value)}
+                      onChange={setStyleDraft}
                       onBlur={() =>
                         commitAssignment(currentAssetId ?? null, styleDraft.trim() ? styleDraft : null)
                       }
                       placeholder={t('drawer.template.textStylePlaceholder')}
                       rows={2}
-                      className="text-sm min-h-[56px] px-3 py-2"
+                      showUploadButton={false}
+                      showImagePreview={false}
                     />
                   </div>
                 </section>
               )}
 
               {/* ---------------- Description ---------------- */}
-              <section className="p-4">
+              <section data-section="description" className="p-4">
                 <SectionHeader
                   icon={<FileText size={14} />}
                   title={t('drawer.sections.description')}
                 />
                 <div className="mt-3">
-                  <Textarea
+                  <MarkdownTextarea
                     value={descDraft}
-                    onChange={(e) => setDescDraft(e.target.value)}
+                    onChange={setDescDraft}
                     onBlur={commitDescription}
                     placeholder={t('drawer.description.placeholder')}
                     rows={6}
-                    className="text-sm min-h-[140px] px-3 py-2"
+                    showUploadButton={false}
+                    showImagePreview={false}
                   />
                 </div>
               </section>
 
               {/* ---------------- Extra Fields ---------------- */}
-              <section className="p-4">
+              <section data-section="extra-fields" className="p-4">
                 <SectionHeader
                   icon={<Tag size={14} />}
                   title={t('drawer.sections.extraFields')}
@@ -709,13 +706,14 @@ export const PageFineTuneDrawer: React.FC<PageFineTuneDrawerProps> = ({
                             <X size={12} />
                           </button>
                         </div>
-                        <Textarea
+                        <MarkdownTextarea
                           value={field.value}
-                          onChange={(e) => updateExtraField(field.id, { value: e.target.value })}
+                          onChange={(v) => updateExtraField(field.id, { value: v })}
                           onBlur={commitDescription}
                           placeholder={t('drawer.extraFields.valuePlaceholder')}
                           rows={2}
-                          className="text-xs min-h-[48px] px-2 py-1.5"
+                          showUploadButton={false}
+                          showImagePreview={false}
                         />
                       </div>
                     ))
@@ -732,7 +730,7 @@ export const PageFineTuneDrawer: React.FC<PageFineTuneDrawerProps> = ({
 
               {/* ---------------- Template Library (multi only) ---------------- */}
               {isMulti && (
-                <section className="p-4">
+                <section data-section="template-library" className="p-4">
                   <button
                     onClick={() => setIsLibraryOpen((v) => !v)}
                     className="w-full flex items-center justify-between group"

@@ -88,15 +88,22 @@ test.describe('PageFineTuneDrawer', () => {
     await page.goto(`/project/${projectId}/preview`);
     await page.getByRole('button', { name: /打开页面精调|Open fine-tune panel/i }).click();
 
-    // Find the description textarea (second textarea in drawer: template style, then description)
-    // Scope to drawer area to avoid collisions with main preview textareas
+    // The description is now rendered by MarkdownTextarea (contenteditable div),
+    // not a native textarea — locate it via the section data attribute and type
+    // via keyboard rather than .fill().
     const drawerRegion = page.locator('aside').filter({ hasText: /页面精调|Page Fine-tune/ });
-    const descTextarea = drawerRegion.getByPlaceholder(/编辑当前页的描述文字|Edit this page.s description/);
-    await expect(descTextarea).toBeVisible();
+    const descEditor = drawerRegion
+      .locator('section[data-section="description"] [contenteditable="true"]')
+      .first();
+    await expect(descEditor).toBeVisible();
 
     const unique = `drawer-edit-${Date.now()}`;
-    await descTextarea.fill(unique);
-    await descTextarea.blur();
+    await descEditor.click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Delete');
+    await page.keyboard.type(unique);
+    // Blur by clicking outside the editor so onBlur → commit → debounced API call fires
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
 
     // Wait ~1.5s for debounced API call
     await page.waitForTimeout(1800);
@@ -104,8 +111,10 @@ test.describe('PageFineTuneDrawer', () => {
     // Reload and verify the description survived
     await page.reload();
     await page.getByRole('button', { name: /打开页面精调|Open fine-tune panel/i }).click();
-    const descAfter = drawerRegion.getByPlaceholder(/编辑当前页的描述文字|Edit this page.s description/);
-    await expect(descAfter).toHaveValue(new RegExp(unique));
+    const descAfter = drawerRegion
+      .locator('section[data-section="description"] [contenteditable="true"]')
+      .first();
+    await expect(descAfter).toContainText(unique);
   });
 
   test('single-mode project hides template sections', async ({ page }) => {

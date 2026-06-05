@@ -1606,185 +1606,45 @@ export const SlidePreview: React.FC = () => {
               </div>
             </div>
           ) : (
-            <>
-              {/* 预览区 */}
-              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
-                <div className="max-w-5xl w-full">
-                  <div className="relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation" style={{ aspectRatio: aspectRatioStyle }}>
-                    {selectedPage?.generated_image_path ? (
-                      <img
-                        src={imageUrl}
-                        alt={`Slide ${selectedIndex + 1}`}
-                        className="w-full h-full object-cover select-none"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-background-secondary">
-                        <div className="text-center">
-                          <div className="text-6xl mb-4">🍌</div>
-                          <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
-                            {selectedPage?.status === 'QUEUED'
-                              ? t('preview.queued')
-                              : (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
-                                selectedPage?.status === 'GENERATING'
-                              ? t('preview.generating')
-                              : t('preview.notGenerated')}
-                          </p>
-                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
-                           selectedPage?.status !== 'QUEUED' &&
-                           selectedPage?.status !== 'GENERATING' && (
-                            <Button
-                              variant="primary"
-                              onClick={handleRegeneratePage}
-                            >
-                              {t('preview.generateThisPage')}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 控制栏 */}
-              <div className="bg-white dark:bg-background-secondary border-t border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-5xl mx-auto">
-                  {/* 导航 */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<ChevronLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-                      onClick={() => setSelectedIndex(Math.max(0, selectedIndex - 1))}
-                      disabled={selectedIndex === 0}
-                      className="text-xs md:text-sm"
-                    >
-                      <span className="hidden sm:inline">{t('preview.prevPage')}</span>
-                      <span className="sm:hidden">{t('preview.prevPage')}</span>
-                    </Button>
-                    <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap">
-                      {selectedIndex + 1} / {currentProject.pages.length}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<ChevronRight size={16} className="md:w-[18px] md:h-[18px]" />}
-                      onClick={() =>
-                        setSelectedIndex(
-                          Math.min(currentProject.pages.length - 1, selectedIndex + 1)
-                        )
-                      }
-                      disabled={selectedIndex === currentProject.pages.length - 1}
-                      className="text-xs md:text-sm"
-                    >
-                      <span className="hidden sm:inline">{t('preview.nextPage')}</span>
-                      <span className="sm:hidden">{t('preview.nextPage')}</span>
-                    </Button>
-                  </div>
-
-                  {/* 操作 */}
-                  <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
-                    {/* 手机端：模板更换按钮 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<Upload size={16} />}
-                      onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
-                      className="lg:hidden text-xs"
-                      title={t('preview.changeTemplate')}
+            /* 预览区 */
+            <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
+              <div className="max-w-5xl w-full">
+                <div className="relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation" style={{ aspectRatio: aspectRatioStyle }}>
+                  {selectedPage?.generated_image_path ? (
+                    <img
+                      src={imageUrl}
+                      alt={`Slide ${selectedIndex + 1}`}
+                      className="w-full h-full object-cover select-none"
+                      draggable={false}
                     />
-                    {/* 手机端：素材生成按钮 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<ImagePlus size={16} />}
-                      onClick={() => setIsMaterialModalOpen(true)}
-                      className="lg:hidden text-xs"
-                      title={t('nav.materialGenerate')}
-                    />
-                    {/* 手机端：刷新按钮 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />}
-                      onClick={handleRefresh}
-                      disabled={isRefreshing}
-                      className="md:hidden text-xs"
-                      title={t('preview.refresh')}
-                    />
-                    {imageVersions.length > 1 && (
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowVersionMenu(!showVersionMenu)}
-                          className="text-xs md:text-sm"
-                        >
-                          <span className="hidden md:inline">{t('preview.historyVersions')} ({imageVersions.length})</span>
-                          <span className="md:hidden">{t('preview.versions')}</span>
-                        </Button>
-                        {showVersionMenu && (
-                          <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto">
-                            {imageVersions.map((version) => (
-                              <button
-                                key={version.version_id}
-                                onClick={() => handleSwitchVersion(version.version_id)}
-                                className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors flex items-center justify-between text-xs md:text-sm ${
-                                  version.is_current ? 'bg-banana-50 dark:bg-background-secondary' : ''
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span>
-                                    {t('preview.version')} {version.version_number}
-                                  </span>
-                                  {version.is_current && (
-                                    <span className="text-xs text-banana-600 font-medium">
-                                      ({t('preview.current')})
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-xs text-gray-400 hidden md:inline">
-                                  {version.created_at
-                                    ? new Date(version.created_at).toLocaleString('zh-CN', {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })
-                                    : ''}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-background-secondary">
+                      <div className="text-center">
+                        <div className="text-6xl mb-4">🍌</div>
+                        <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
+                          {selectedPage?.status === 'QUEUED'
+                            ? t('preview.queued')
+                            : (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
+                              selectedPage?.status === 'GENERATING'
+                            ? t('preview.generating')
+                            : t('preview.notGenerated')}
+                        </p>
+                        {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
+                         selectedPage?.status !== 'QUEUED' &&
+                         selectedPage?.status !== 'GENERATING' && (
+                          <Button
+                            variant="primary"
+                            onClick={handleRegeneratePage}
+                          >
+                            {t('preview.generateThisPage')}
+                          </Button>
                         )}
                       </div>
-                    )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleEditPage}
-                      disabled={!selectedPage?.generated_image_path}
-                      title={!selectedPage?.generated_image_path ? t('preview.disabledEditTip') : undefined}
-                      className="text-xs md:text-sm flex-1 sm:flex-initial"
-                    >
-                      {t('common.edit')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleRegeneratePage}
-                      disabled={selectedPage?.id && pageGeneratingTasks[selectedPage.id] ? true : false}
-                      className="text-xs md:text-sm flex-1 sm:flex-initial"
-                    >
-                      {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                        ? t('preview.regenerating')
-                        : t('preview.regenerate')}
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </>
+            </div>
           )}
         </main>
 
@@ -1801,6 +1661,146 @@ export const SlidePreview: React.FC = () => {
           showToast={(msg, type) => show({ message: msg, type: type || 'info' })}
         />
       </div>
+
+      {/* 底部控制栏：跨越整个宽度（侧栏 + 预览 + 精调抽屉），不随抽屉缩放 */}
+      {currentProject.pages.length > 0 && (
+        <div className="bg-white dark:bg-background-secondary border-t border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-5xl mx-auto">
+            {/* 导航 */}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<ChevronLeft size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={() => setSelectedIndex(Math.max(0, selectedIndex - 1))}
+                disabled={selectedIndex === 0}
+                className="text-xs md:text-sm"
+              >
+                <span className="hidden sm:inline">{t('preview.prevPage')}</span>
+                <span className="sm:hidden">{t('preview.prevPage')}</span>
+              </Button>
+              <span className="px-2 md:px-4 text-xs md:text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap">
+                {selectedIndex + 1} / {currentProject.pages.length}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<ChevronRight size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={() =>
+                  setSelectedIndex(
+                    Math.min(currentProject.pages.length - 1, selectedIndex + 1)
+                  )
+                }
+                disabled={selectedIndex === currentProject.pages.length - 1}
+                className="text-xs md:text-sm"
+              >
+                <span className="hidden sm:inline">{t('preview.nextPage')}</span>
+                <span className="sm:hidden">{t('preview.nextPage')}</span>
+              </Button>
+            </div>
+
+            {/* 操作 */}
+            <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
+              {/* 手机端：模板更换按钮 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Upload size={16} />}
+                onClick={() => { setDraftTemplateStyle(templateStyle); setIsTemplateModalOpen(true); }}
+                className="lg:hidden text-xs"
+                title={t('preview.changeTemplate')}
+              />
+              {/* 手机端：素材生成按钮 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<ImagePlus size={16} />}
+                onClick={() => setIsMaterialModalOpen(true)}
+                className="lg:hidden text-xs"
+                title={t('nav.materialGenerate')}
+              />
+              {/* 手机端：刷新按钮 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="md:hidden text-xs"
+                title={t('preview.refresh')}
+              />
+              {imageVersions.length > 1 && (
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowVersionMenu(!showVersionMenu)}
+                    className="text-xs md:text-sm"
+                  >
+                    <span className="hidden md:inline">{t('preview.historyVersions')} ({imageVersions.length})</span>
+                    <span className="md:hidden">{t('preview.versions')}</span>
+                  </Button>
+                  {showVersionMenu && (
+                    <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto">
+                      {imageVersions.map((version) => (
+                        <button
+                          key={version.version_id}
+                          onClick={() => handleSwitchVersion(version.version_id)}
+                          className={`w-full px-3 md:px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors flex items-center justify-between text-xs md:text-sm ${
+                            version.is_current ? 'bg-banana-50 dark:bg-background-secondary' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {t('preview.version')} {version.version_number}
+                            </span>
+                            {version.is_current && (
+                              <span className="text-xs text-banana-600 font-medium">
+                                ({t('preview.current')})
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 hidden md:inline">
+                            {version.created_at
+                              ? new Date(version.created_at).toLocaleString('zh-CN', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : ''}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleEditPage}
+                disabled={!selectedPage?.generated_image_path}
+                title={!selectedPage?.generated_image_path ? t('preview.disabledEditTip') : undefined}
+                className="text-xs md:text-sm flex-1 sm:flex-initial"
+              >
+                {t('common.edit')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRegeneratePage}
+                disabled={selectedPage?.id && pageGeneratingTasks[selectedPage.id] ? true : false}
+                className="text-xs md:text-sm flex-1 sm:flex-initial"
+              >
+                {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
+                  ? t('preview.regenerating')
+                  : t('preview.regenerate')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 编辑对话框 */}
       <Modal
