@@ -93,7 +93,19 @@ def create_app():
     logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('werkzeug').setLevel(logging.INFO)  # Flask开发服务器日志保持INFO
+    werkzeug_log_level = app.config.get('WERKZEUG_LOG_LEVEL', 'INFO')
+    if isinstance(werkzeug_log_level, str):
+        werkzeug_log_level = werkzeug_log_level.strip()
+        werkzeug_log_level = (
+            int(werkzeug_log_level)
+            if werkzeug_log_level.isdigit()
+            else werkzeug_log_level.upper()
+        )
+    werkzeug_logger = logging.getLogger('werkzeug')
+    try:
+        werkzeug_logger.setLevel(werkzeug_log_level)
+    except (ValueError, TypeError):
+        werkzeug_logger.setLevel(logging.INFO)
     logging.getLogger('volcenginesdkarkruntime').setLevel(logging.WARNING)
 
     # Initialize extensions
