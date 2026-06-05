@@ -1,4 +1,4 @@
-"""Docker Hub based application update checks."""
+"""Application update checks for source and Docker deployments."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ import requests
 DOCKER_NAMESPACE = os.getenv("DOCKERHUB_NAMESPACE") or "anoinex"
 DOCKER_REPOSITORY = os.getenv("DOCKERHUB_REPOSITORY") or "banana-slides"
 DOCKER_HUB_TAGS_URL = "https://hub.docker.com/v2/repositories/{namespace}/{repository}/tags"
+SOURCE_REMOTE = os.getenv("APP_SOURCE_REMOTE") or "origin"
+SOURCE_BRANCH = os.getenv("APP_SOURCE_BRANCH") or "main"
 
 
 @dataclass
@@ -23,12 +25,52 @@ class TagInfo:
     digests: set[str]
 
 
+def _project_root() -> str:
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
 def _git_value(command: list[str]) -> str:
     try:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        return subprocess.check_output(command, cwd=project_root, stderr=subprocess.DEVNULL, text=True, timeout=5).strip()
+        return subprocess.check_output(command, cwd=_project_root(), stderr=subprocess.DEVNULL, text=True, timeout=5).strip()
     except Exception:
         return ""
+
+
+def _git_remote_branch_sha(remote: str = SOURCE_REMOTE, branch: str = SOURCE_BRANCH) -> str:
+    try:
+        output = subprocess.check_output(
+            ["git", "ls-remote", "--heads", remote, f"refs/heads/{branch}"],
+            cwd=_project_root(),
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=8,
+        ).strip()
+        if output:
+            return output.split()[0].strip()
+    except Exception:
+        pass
+    return _git_value(["git", "rev-parse", f"{remote}/{branch}"])
+
+
+def _git_ancestor_status(ancestor_sha: str, descendant_sha: str) -> bool | None:
+    if not ancestor_sha or not descendant_sha:
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
+            cwd=_project_root(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+    except Exception:
+        return None
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    return None
 
 
 def get_current_version_metadata() -> dict[str, Any]:
@@ -132,8 +174,51 @@ def fetch_docker_hub_tags(namespace: str = DOCKER_NAMESPACE, repository: str = D
     ]
 
 
+def check_source_update(current: dict[str, Any]) -> dict[str, Any]:
+    current_sha = str(current.get("commit_sha") or current.get("short_sha") or "")
+    latest_sha = _git_remote_branch_sha()
+    latest = {
+        "tag": SOURCE_BRANCH,
+        "sha": latest_sha,
+        "source": f"{SOURCE_REMOTE}/{SOURCE_BRANCH}",
+    } if latest_sha else None
+
+    if not current_sha:
+        status = "unknown"
+        update_available = False
+        message = "无法确定当前源码版本。"
+    elif not latest_sha:
+        status = "unknown"
+        update_available = False
+        message = "无法获取最新源码版本。"
+    elif _shas_match(current_sha, latest_sha):
+        status = "up_to_date"
+        update_available = False
+        message = "当前源码版本已是最新。"
+    elif _git_ancestor_status(latest_sha, current_sha) is True:
+        status = "up_to_date"
+        update_available = False
+        message = f"当前源码版本已包含最新 {SOURCE_BRANCH} 分支版本。"
+    else:
+        status = "update_available"
+        update_available = True
+        message = f"{SOURCE_BRANCH} 分支有新版本可用。"
+
+    return {
+        "status": status,
+        "update_available": update_available,
+        "message": message,
+        "current": current,
+        "latest": latest,
+        "repository": f"{SOURCE_REMOTE}/{SOURCE_BRANCH}",
+    }
+
+
 def check_for_update() -> dict[str, Any]:
     current = get_current_version_metadata()
+    if not current["is_docker"]:
+        return check_source_update(current)
+
     tags = fetch_docker_hub_tags()
     latest_tag, latest_sha = _pick_latest(tags)
 
@@ -171,10 +256,6 @@ def check_for_update() -> dict[str, Any]:
         status = "update_available"
         update_available = True
         message = "A newer version is available."
-    elif not current["is_docker"]:
-        status = "unknown"
-        update_available = False
-        message = "Unable to compare current source version with the latest version."
     elif current_build_date > min_date and latest_updated > min_date and (latest_updated - current_build_date).total_seconds() > 300:
         status = "update_available"
         update_available = True

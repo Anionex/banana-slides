@@ -92,22 +92,23 @@ def test_check_for_update_does_not_report_update_for_newer_local_build(monkeypat
     assert result["update_available"] is False
 
 
-def test_check_for_update_compares_local_source_sha(monkeypatch):
+def test_check_for_update_reports_newer_main_for_local_source(monkeypatch):
     monkeypatch.setenv("IN_DOCKER", "0")
     monkeypatch.setenv("APP_COMMIT_SHA", "3333333444444444")
     monkeypatch.setenv("APP_COMMIT_SHORT_SHA", "3333333")
 
-    tags = [
-        _tag("latest", "sha256:latest"),
-        _tag("sha-2222222", "sha256:latest"),
-    ]
-
-    with patch("services.update_check_service.requests.get", return_value=_mock_response(tags)):
+    with (
+        patch("services.update_check_service._git_remote_branch_sha", return_value="2222222444444444"),
+        patch("services.update_check_service._git_ancestor_status", return_value=False),
+        patch("services.update_check_service.requests.get") as docker_request,
+    ):
         result = check_for_update()
 
     assert result["status"] == "update_available"
     assert result["update_available"] is True
-    assert result["latest"]["sha"] == "2222222"
+    assert result["latest"]["sha"] == "2222222444444444"
+    assert result["repository"] == "origin/main"
+    docker_request.assert_not_called()
 
 
 def test_check_for_update_reports_local_source_up_to_date(monkeypatch):
@@ -115,35 +116,79 @@ def test_check_for_update_reports_local_source_up_to_date(monkeypatch):
     monkeypatch.setenv("APP_COMMIT_SHA", "2222222444444444")
     monkeypatch.setenv("APP_COMMIT_SHORT_SHA", "2222222")
 
-    tags = [
-        _tag("latest", "sha256:latest"),
-        _tag("sha-2222222", "sha256:latest"),
-    ]
-
-    with patch("services.update_check_service.requests.get", return_value=_mock_response(tags)):
+    with (
+        patch("services.update_check_service._git_remote_branch_sha", return_value="2222222444444444"),
+        patch("services.update_check_service.requests.get") as docker_request,
+    ):
         result = check_for_update()
 
     assert result["status"] == "up_to_date"
     assert result["update_available"] is False
-    assert result["latest"]["sha"] == "2222222"
+    assert result["latest"]["sha"] == "2222222444444444"
+    docker_request.assert_not_called()
 
 
-def test_check_for_update_matches_short_sha_against_full_sha_tag(monkeypatch):
+def test_check_for_update_reports_local_source_up_to_date_when_latest_is_ancestor(monkeypatch):
+    monkeypatch.setenv("IN_DOCKER", "0")
+    monkeypatch.setenv("APP_COMMIT_SHA", "3333333444444444")
+    monkeypatch.setenv("APP_COMMIT_SHORT_SHA", "3333333")
+
+    with (
+        patch("services.update_check_service._git_remote_branch_sha", return_value="2222222444444444"),
+        patch("services.update_check_service._git_ancestor_status", return_value=True),
+        patch("services.update_check_service.requests.get") as docker_request,
+    ):
+        result = check_for_update()
+
+    assert result["status"] == "up_to_date"
+    assert result["update_available"] is False
+    docker_request.assert_not_called()
+
+
+def test_check_for_update_matches_short_sha_against_full_source_sha(monkeypatch):
     monkeypatch.setenv("IN_DOCKER", "0")
     monkeypatch.setenv("APP_COMMIT_SHA", "abcdef1234567890abcdef1234567890abcdef12")
     monkeypatch.setenv("APP_COMMIT_SHORT_SHA", "abcdef1")
 
-    tags = [
-        _tag("latest", "sha256:latest"),
-        _tag("sha-abcdef1234567890abcdef1234567890abcdef12", "sha256:latest"),
-    ]
-
-    with patch("services.update_check_service.requests.get", return_value=_mock_response(tags)):
+    with patch("services.update_check_service._git_remote_branch_sha", return_value="abcdef1234567890abcdef1234567890abcdef12"):
         result = check_for_update()
 
     assert result["status"] == "up_to_date"
     assert result["update_available"] is False
     assert result["latest"]["sha"] == "abcdef1234567890abcdef1234567890abcdef12"
+
+
+def test_check_for_update_reports_unknown_when_source_latest_is_missing(monkeypatch):
+    monkeypatch.setenv("IN_DOCKER", "0")
+    monkeypatch.setenv("APP_COMMIT_SHA", "abcdef1234567890")
+    monkeypatch.setenv("APP_COMMIT_SHORT_SHA", "abcdef1")
+
+    with (
+        patch("services.update_check_service._git_remote_branch_sha", return_value=""),
+        patch("services.update_check_service.requests.get") as docker_request,
+    ):
+        result = check_for_update()
+
+    assert result["status"] == "unknown"
+    assert result["latest"] is None
+    docker_request.assert_not_called()
+
+
+def test_check_for_update_reports_unknown_when_source_current_is_missing(monkeypatch):
+    monkeypatch.setenv("IN_DOCKER", "0")
+    monkeypatch.setenv("APP_COMMIT_SHA", "")
+    monkeypatch.setenv("APP_COMMIT_SHORT_SHA", "")
+
+    with (
+        patch("services.update_check_service._git_value", return_value=""),
+        patch("services.update_check_service._git_remote_branch_sha", return_value="abcdef1234567890"),
+        patch("services.update_check_service.requests.get") as docker_request,
+    ):
+        result = check_for_update()
+
+    assert result["status"] == "unknown"
+    assert result["update_available"] is False
+    docker_request.assert_not_called()
 
 
 def test_check_for_update_uses_latest_timestamp_when_sha_tag_is_missing(monkeypatch):
