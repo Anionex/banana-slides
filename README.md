@@ -491,11 +491,11 @@ React 18 + TypeScript + Vite 5 + Zustand
 Python 3.10+ + Flask 3.0 + uv + SQLite
 
 ## 交流群
-为了方便大家沟通互助，建此微信交流群.
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/0c94e62f-dc68-4b81-9ee8-f53f9ac656ee" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/9406c7b2-c7c3-4836-abe2-af9ac1691e3f" />
+
 
 
 
