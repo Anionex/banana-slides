@@ -186,8 +186,17 @@ class Settings(db.Model):
             if self.openai_oauth_expires_at < now:
                 if self.openai_oauth_refresh_token:
                     return self._refresh_openai_oauth()
+                self.clear_openai_oauth()
+                db.session.commit()
                 return None
         return self.openai_oauth_access_token
+
+    def clear_openai_oauth(self):
+        """Clear stored OpenAI OAuth credentials."""
+        self.openai_oauth_access_token = None
+        self.openai_oauth_refresh_token = None
+        self.openai_oauth_expires_at = None
+        self.openai_oauth_account_id = None
 
     def _refresh_openai_oauth(self):
         """Refresh the OpenAI OAuth token using the refresh token."""
@@ -213,6 +222,12 @@ class Settings(db.Model):
             self.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
             db.session.commit()
             return self.openai_oauth_access_token
+        except requests.exceptions.HTTPError as exc:
+            status_code = getattr(getattr(exc, 'response', None), 'status_code', None)
+            if status_code in (400, 401):
+                self.clear_openai_oauth()
+                db.session.commit()
+            return None
         except Exception:
             return None
 

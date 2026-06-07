@@ -140,6 +140,50 @@ test.describe('OpenAI OAuth Settings Section', () => {
 
       await expect(page.locator('button', { hasText: 'Login with OpenAI' })).toBeVisible();
     });
+
+    test('should mark OAuth disconnected after Codex settings test returns unauthorized', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: true, openai_oauth_account_id: 'user@example.com' } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/tests/text-model', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { task_id: 'codex-expired-task', status: 'PENDING' } },
+        });
+      });
+
+      await page.route('**/api/settings/tests/codex-expired-task/status', async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: {
+              status: 'FAILED',
+              error: 'Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。',
+              openai_oauth_disconnected: true,
+            },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await expect(page.locator('text=user@example.com')).toBeVisible();
+
+      const textModelTestBtn = page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1);
+      await textModelTestBtn.click();
+
+      await expect(page.locator('button', { hasText: 'Login with OpenAI' })).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=user@example.com')).not.toBeVisible();
+      await expect(page.getByText('Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。', { exact: true })).toBeVisible();
+    });
   });
 
   test.describe('Integration tests — real backend', () => {

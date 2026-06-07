@@ -1040,6 +1040,36 @@ TEST_FUNCTIONS = {
 }
 
 
+def _is_codex_oauth_unauthorized(error: Exception, test_settings: dict) -> bool:
+    """Return True when a settings test failed because the Codex OAuth token is invalid."""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    error_text = str(error).lower()
+    unauthorized = (
+        status_code == 401
+        or "401" in error_text
+        or "unauthorized" in error_text
+    )
+    if not unauthorized:
+        return False
+
+    configured_sources = [
+        test_settings.get("ai_provider_format"),
+        test_settings.get("text_model_source"),
+        test_settings.get("image_model_source"),
+        test_settings.get("image_caption_model_source"),
+    ]
+    is_codex_configured = any(str(source).lower() == "codex" for source in configured_sources if source)
+    is_codex_endpoint = "chatgpt.com/backend-api/codex" in error_text or "/codex/responses" in error_text
+    return is_codex_configured or is_codex_endpoint
+
+
+def _disconnect_expired_openai_oauth() -> None:
+    settings = Settings.get_settings()
+    settings.clear_openai_oauth()
+    db.session.flush()
+
+
 def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
     """
     在后台异步执行测试任务
@@ -1087,8 +1117,19 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
             logger.error(f"Test task {task_id} failed: {error_msg}", exc_info=True)
             task = Task.query.get(task_id)
             if task:
+                progress = {}
+                if _is_codex_oauth_unauthorized(e, test_settings):
+                    _disconnect_expired_openai_oauth()
+                    error_msg = "Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。"
+                    progress = {
+                        "openai_oauth_disconnected": True,
+                        "message": error_msg,
+                    }
+                    logger.info("OpenAI OAuth disconnected after Codex settings test returned 401")
+
                 task.status = 'FAILED'
                 task.error_message = error_msg
+                task.set_progress(progress)
                 task.completed_at = datetime.now(timezone.utc)
                 db.session.commit()
 
@@ -1237,6 +1278,9 @@ def get_test_status(task_id: str):
         # 如果任务失败，包含错误信息
         elif task.status == 'FAILED':
             response_data['error'] = task.error_message
+            progress = task.get_progress()
+            if progress:
+                response_data.update(progress)
 
         return success_response(response_data)
 

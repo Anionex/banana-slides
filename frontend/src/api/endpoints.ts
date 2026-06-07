@@ -1464,6 +1464,7 @@ export const getTestStatus = async (taskId: string): Promise<ApiResponse<{
   result?: any;
   error?: string;
   message?: string;
+  openai_oauth_disconnected?: boolean;
 }>> => {
   const response = await apiClient.get<ApiResponse<any>>(`/api/settings/tests/${taskId}/status`);
   return response.data;

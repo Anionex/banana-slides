@@ -5,8 +5,10 @@ Settings controller tests for provider format handling.
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import requests
 from flask import Flask
 
+from controllers import settings_controller
 from controllers.settings_controller import update_settings, verify_api_key
 
 
@@ -69,3 +71,55 @@ def test_verify_uses_configured_text_model():
     assert data['data']['available'] is True
     mock_get_provider.assert_called_once_with(model='deepseek-chat')
     mock_provider.generate_text.assert_called_once()
+
+
+def test_codex_401_settings_test_disconnects_oauth_and_reports_state(client, app):
+    """A Codex 401 during settings tests should clear stale OAuth state."""
+    with app.app_context():
+        from models import Settings, Task, db
+
+        settings = Settings.get_settings()
+        settings.openai_oauth_access_token = 'expired-access-token'
+        settings.openai_oauth_refresh_token = 'expired-refresh-token'
+        settings.openai_oauth_account_id = 'user@example.com'
+        task = Task(
+            project_id='settings-test',
+            task_type='TEST_TEXT_MODEL',
+            status='PENDING',
+        )
+        db.session.add(task)
+        db.session.commit()
+        task_id = task.id
+
+        response = requests.Response()
+        response.status_code = 401
+        response.url = 'https://chatgpt.com/backend-api/codex/responses'
+        error = requests.exceptions.HTTPError(
+            '401 Client Error: Unauthorized for url: https://chatgpt.com/backend-api/codex/responses',
+            response=response,
+        )
+
+        def fail_with_codex_401():
+            raise error
+
+        with patch.dict(settings_controller.TEST_FUNCTIONS, {'text-model': fail_with_codex_401}):
+            settings_controller._run_test_async(
+                task_id,
+                'text-model',
+                {'text_model_source': 'codex'},
+                app,
+            )
+
+        db.session.expire_all()
+        settings = Settings.get_settings()
+        assert settings.openai_oauth_access_token is None
+        assert settings.openai_oauth_refresh_token is None
+        assert settings.openai_oauth_account_id is None
+
+    status_response = client.get(f'/api/settings/tests/{task_id}/status')
+    assert status_response.status_code == 200
+    data = status_response.get_json()
+    assert data['success'] is True
+    assert data['data']['status'] == 'FAILED'
+    assert data['data']['openai_oauth_disconnected'] is True
+    assert '重新登录 OpenAI' in data['data']['error']

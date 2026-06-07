@@ -898,6 +898,19 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const markOpenAIOAuthDisconnected = () => {
+    setSettings(prev => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        openai_oauth_connected: false,
+        openai_oauth_account_id: undefined,
+      };
+      sessionStorage.setItem('banana-settings', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -1063,14 +1076,21 @@ export const Settings: React.FC = () => {
       pollInterval = setInterval(async () => {
         try {
           const statusResponse = await api.getTestStatus(taskId);
-          const taskStatus = statusResponse.data.status;
+          const statusData = statusResponse.data;
+          if (!statusData) {
+            throw new Error(t('settings.serviceTest.testFailed'));
+          }
+          const taskStatus = statusData.status;
 
           if (taskStatus === 'COMPLETED') {
-            const detail = formatDetail(statusResponse.data.result || {});
-            const message = statusResponse.data.message || t('settings.messages.testSuccess');
+            const detail = formatDetail(statusData.result || {});
+            const message = statusData.message || t('settings.messages.testSuccess');
             finish({ status: 'success', message, detail }, message, 'success');
           } else if (taskStatus === 'FAILED') {
-            const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
+            const errorMessage = statusData.error || t('settings.serviceTest.testFailed');
+            if (statusData.openai_oauth_disconnected) {
+              markOpenAIOAuthDisconnected();
+            }
             finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
