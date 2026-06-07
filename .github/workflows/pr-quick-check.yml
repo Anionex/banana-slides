@@ -109,7 +109,7 @@ jobs:
           # Poll until backend is ready (up to 30s)
           echo "Waiting for backend to start..."
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:5000/health; then
+            if curl -sf http://localhost:5100/health; then
               echo ""
               echo "Backend smoke test passed (ready after ${i}s)"
               kill $SERVER_PID
@@ -130,4 +130,3 @@ jobs:
         env:
           GOOGLE_API_KEY: mock-key-for-testing
           TESTING: true
-
