@@ -8,7 +8,7 @@
 
 import { test, expect } from '@playwright/test'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3100'
 
 test.describe('Settings env fallback - Mock tests', () => {
   test('saving settings without touching API key should succeed', async ({ page }) => {

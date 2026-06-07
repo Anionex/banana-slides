@@ -4,7 +4,7 @@
 
 set -e
 
-URL="${1:-http://localhost:5000/health}"
+URL="${1:-http://localhost:5100/health}"
 TIMEOUT="${2:-60}"
 INTERVAL="${3:-2}"
 
@@ -34,4 +34,3 @@ echo ""
 echo -e "${RED}✗ Timeout: Service did not become healthy within ${TIMEOUT}s${NC}"
 echo -e "${RED}  URL: ${URL}${NC}"
 exit 1
-

@@ -10,7 +10,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
-const BASE = process.env.BASE_URL || 'http://localhost:3000'
+const BASE = process.env.BASE_URL || 'http://localhost:3100'
 // Derive backend URL from frontend URL (frontend 3xxx → backend 5xxx, same offset)
 const API = `http://localhost:${Number(new URL(BASE).port) + 2000}`
 

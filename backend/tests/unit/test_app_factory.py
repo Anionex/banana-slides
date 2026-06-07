@@ -1,5 +1,6 @@
 import importlib
 import logging
+import hashlib
 
 
 def _reload_app_module():
@@ -122,3 +123,33 @@ def test_create_app_falls_back_for_invalid_werkzeug_log_level_config(monkeypatch
     app_module.create_app()
 
     assert logging.getLogger('werkzeug').level == logging.INFO
+
+
+def test_default_ports_move_away_from_common_conflicts(monkeypatch, tmp_path):
+    _set_test_env(monkeypatch, tmp_path)
+
+    app_module = _reload_app_module()
+
+    assert app_module.DEFAULT_FRONTEND_PORT == 3100
+    assert app_module.DEFAULT_BACKEND_PORT == 5100
+
+
+def test_compute_worktree_backend_port_uses_new_default_base(monkeypatch, tmp_path):
+    _set_test_env(monkeypatch, tmp_path)
+
+    app_module = _reload_app_module()
+    offset = int(
+        hashlib.md5(app_module._project_root.name.encode()).hexdigest()[:8],
+        16,
+    ) % 500
+
+    assert app_module._compute_worktree_port(app_module.DEFAULT_BACKEND_PORT) == 5100 + offset
+
+
+def test_config_default_cors_matches_new_frontend_port(monkeypatch):
+    monkeypatch.delenv('CORS_ORIGINS', raising=False)
+
+    config_module = importlib.import_module('config')
+    config_module = importlib.reload(config_module)
+
+    assert config_module.Config.CORS_ORIGINS == ['http://localhost:3100']

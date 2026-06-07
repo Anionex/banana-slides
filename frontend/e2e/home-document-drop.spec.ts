@@ -7,7 +7,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3000' })
+test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3100' })
 
 const FILE_ID = 'mock-dropped-pdf-001'
 

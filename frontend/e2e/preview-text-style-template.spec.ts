@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test'
 import { seedProjectWithImages } from './helpers/seed-project'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3100'
 const BACKEND_URL = BASE_URL.replace(/:\d+$/, (m) => `:${parseInt(m.slice(1)) + 2000}`)
 
 /** Set up all mocks needed for SlidePreview to render */

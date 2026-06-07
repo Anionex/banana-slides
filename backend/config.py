@@ -10,6 +10,8 @@ from datetime import timedelta
 _current_file = os.path.realpath(__file__)  # 使用realpath解析所有符号链接
 BASE_DIR = os.path.dirname(_current_file)
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
+DEFAULT_FRONTEND_PORT = 3100
+DEFAULT_BACKEND_PORT = 5100
 
 # Flask配置
 class Config:
@@ -110,7 +112,7 @@ class Config:
     WERKZEUG_LOG_LEVEL = (os.getenv('WERKZEUG_LOG_LEVEL') or 'INFO').strip().upper()
     
     # CORS配置
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    CORS_ORIGINS = os.getenv('CORS_ORIGINS', f'http://localhost:{DEFAULT_FRONTEND_PORT}').split(',')
     
     # 输出语言配置
     # 可选值: 'zh' (中文), 'ja' (日本語), 'en' (English), 'auto' (自动)

@@ -15,8 +15,8 @@ const __dirname = path.dirname(__filename)
 
 const backendPort = (() => {
   const m = (process.env.BASE_URL ?? '').match(/:(\d+)$/)
-  // backend base=5000, frontend base=3000, same offset → backend = frontend + 2000
-  return m ? Number(m[1]) + 2000 : 5000
+  // backend base=5100, frontend base=3100, same offset → backend = frontend + 2000
+  return m ? Number(m[1]) + 2000 : 5100
 })()
 const BACKEND_URL = `http://localhost:${backendPort}`
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..')

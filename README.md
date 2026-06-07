@@ -213,7 +213,7 @@
 
 如果你使用 **Windows 或 macOS**，请先[安装 **Docker Desktop**](https://docs.docker.com/desktop/setup/install/windows-install/)，并确保 Docker 正在运行（Windows 可检查系统托盘图标；macOS 可检查菜单栏图标），然后按文档中的相同步骤操作。
 
-> **提示**：如果遇到问题，Windows 用户请在 Docker Desktop 设置中启用 **WSL 2 后端**（推荐）；同时确保端口 **3000** 和 **5000** 未被占用。
+> **提示**：如果遇到问题，Windows 用户请在 Docker Desktop 设置中启用 **WSL 2 后端**（推荐）；同时确保端口 **3100** 和 **5100** 未被占用。
 
 </details>
 
@@ -341,8 +341,8 @@ docker compose up -d
 
 3. **访问应用**
 
-- 前端：http://localhost:3000
-- 后端 API：http://localhost:5000
+- 前端：http://localhost:3100
+- 后端 API：http://localhost:5100
 
 4. **查看日志**
 
@@ -455,7 +455,7 @@ npm install
 
 3. **配置API地址**
 
-前端会自动连接到 `http://localhost:5000` 的后端服务。如需修改，请编辑 `src/api/client.ts`。
+前端会通过 Vite proxy 自动连接到 `BACKEND_PORT` 指定的后端服务（默认 `http://localhost:5100`）。如需修改，请在项目根目录的 `.env` 中设置 `BACKEND_PORT`。
 
 
 #### 启动后端服务
@@ -468,9 +468,9 @@ cd backend
 uv run alembic upgrade head && uv run python app.py
 ```
 
-后端服务将在 `http://localhost:5000` 启动。
+后端服务将在 `http://localhost:5100` 启动。
 
-访问 `http://localhost:5000/health` 验证服务是否正常运行。
+访问 `http://localhost:5100/health` 验证服务是否正常运行。
 
 #### 启动前端开发服务器
 
@@ -479,7 +479,7 @@ cd frontend
 npm run dev
 ```
 
-前端开发服务器将在 `http://localhost:3000` 启动。
+前端开发服务器将在 `http://localhost:3100` 启动。
 
 打开浏览器访问即可使用应用。
 
