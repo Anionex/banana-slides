@@ -24,6 +24,7 @@ import io
 import tempfile
 import img2pdf
 import fitz  # PyMuPDF
+from utils.pptx_math import latex_to_display_text
 logger = logging.getLogger(__name__)
 
 
@@ -1532,7 +1533,44 @@ class ExportService:
             logger.info(f"{'  ' * depth}  添加元素: type={elem_type}, bbox={bbox_list}, content={elem.content[:30] if elem.content else None}, image_path={elem.image_path}, 使用{'全局' if depth > 0 else '局部'}坐标")
             
             # 根据类型添加元素（参考原实现的_add_mineru_text_to_slide和_add_mineru_image_to_slide）
-            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption']:
+            if elem_type in ['equation', 'interline_equation', 'inline_equation']:
+                if elem.content:
+                    latex = elem.content.strip()
+                    if latex:
+                        try:
+                            text_style = text_styles_cache.get(elem.element_id)
+                            if not builder.add_math_element(
+                                slide=slide,
+                                latex=latex,
+                                bbox=bbox_list,
+                                text_style=text_style
+                            ):
+                                fallback_text = latex_to_display_text(latex)
+                                builder.add_text_element(
+                                    slide=slide,
+                                    text=fallback_text,
+                                    bbox=bbox_list,
+                                    text_level='default',
+                                    text_style=text_style,
+                                    allow_math_conversion=False
+                                )
+                                if warnings:
+                                    warnings.add_text_render_failed(
+                                        latex,
+                                        '公式暂不支持原生转换，已使用可读文本回退'
+                                    )
+                        except Exception as e:
+                            logger.warning(f"添加公式元素失败: {e}")
+                            if fail_fast:
+                                raise ExportError(
+                                    message=f"添加公式元素失败: {str(e)}",
+                                    error_type='text_render',
+                                    details={'text': latex[:50], 'bbox': bbox_list}
+                                )
+                            if warnings:
+                                warnings.add_text_render_failed(latex, str(e))
+
+            elif elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption']:
                 # 添加文本（参考_add_mineru_text_to_slide）
                 if elem.content:
                     text = elem.content.strip()
