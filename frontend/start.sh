@@ -21,11 +21,10 @@ echo ""
 echo "[2/3] 检查环境变量..."
 echo ""
 echo "[3/3] 启动开发服务器..."
-echo "前端将运行在 http://localhost:3000"
-echo "请确保后端服务已启动在 http://localhost:5000"
+echo "前端将运行在 http://localhost:3100"
+echo "请确保后端服务已启动在 http://localhost:5100"
 echo ""
 echo "按 Ctrl+C 可以停止服务器"
 echo ""
 
 npm run dev
-

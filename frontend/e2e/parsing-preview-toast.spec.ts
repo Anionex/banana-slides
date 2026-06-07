@@ -3,7 +3,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3000' })
+test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3100' })
 
 const PROJECT_ID = 'mock-proj-parse'
 const FILE_PARSING = 'file-parsing-001'

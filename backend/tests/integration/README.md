@@ -26,7 +26,7 @@ uv run pytest tests/integration/test_full_workflow.py -v
 
 **特点**：
 - ⏱️ 较慢（需要真实 HTTP 请求）
-- 🔧 需要服务运行在 `http://localhost:5000`
+- 🔧 需要服务运行在 `http://localhost:5100`
 - 🏗️ 在 CI 的 `docker-test` 阶段运行（服务已启动）
 - 🔑 完整流程测试需要真实 AI API key
 
@@ -137,7 +137,7 @@ uv run pytest tests/integration/test_api_full_flow.py::TestAPIFullFlow::test_api
 
 ### 问题：`ConnectionRefusedError: [Errno 111] Connection refused`
 
-**原因**: 测试尝试连接 `localhost:5000`，但服务未运行。
+**原因**: 测试尝试连接 `localhost:5100`，但服务未运行。
 
 **解决方案**:
 1. 启动服务：`docker compose up -d`
@@ -163,7 +163,7 @@ pytest tests/integration -v -m "not requires_service"
    @pytest.mark.integration
    @pytest.mark.requires_service
    def test_real_api_call(self):
-       response = requests.post('http://localhost:5000/api/projects', ...)
+       response = requests.post('http://localhost:5100/api/projects', ...)
    ```
 
 3. **环境检查**:
@@ -174,4 +174,3 @@ pytest tests/integration -v -m "not requires_service"
 
 **更新日期**: 2025-12-22  
 **维护者**: Banana Slides Team
-

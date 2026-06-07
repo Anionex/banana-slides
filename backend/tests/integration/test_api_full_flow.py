@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:5100"
 API_TIMEOUT = 180  # 3 minutes timeout for AI operations
 
 
@@ -385,4 +385,3 @@ class TestAPIFullFlow:
         response = requests.delete(f"{BASE_URL}/api/projects/{pid}", timeout=10)
         assert response.status_code == 200
         print('✓ Project deleted successfully\n')
-

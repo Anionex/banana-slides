@@ -3,7 +3,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3000' })
+test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3100' })
 
 const FILE_FAILED = 'file-failed-001'
 const FILE_COMPLETED = 'file-completed-002'

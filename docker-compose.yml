@@ -12,7 +12,7 @@ services:
     ports:
       # 宿主机端口:容器内部端口
       # 宿主机端口由 BACKEND_PORT 控制，容器内部固定 5000
-      - "${BACKEND_PORT:-5000}:5000"
+      - "${BACKEND_PORT:-5100}:5000"
       # OpenAI OAuth callback server
       - "1455:1455"
     # 从 .env 文件自动加载所有环境变量
@@ -50,7 +50,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: banana-slides-frontend
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-3100}:80"
     depends_on:
       - backend
     restart: unless-stopped
@@ -64,4 +64,3 @@ networks:
 volumes:
   backend-data:
   uploads-data:
-

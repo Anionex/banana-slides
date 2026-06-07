@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test'
 
-test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3000' })
+test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3100' })
 
 const LONG_MARKDOWN = '# Test Document\n\n' + 'Lorem ipsum dolor sit amet. '.repeat(200) +
   '\n\n```\n' + 'const x = 1; // a very long code line '.repeat(5) + '\n```\n'

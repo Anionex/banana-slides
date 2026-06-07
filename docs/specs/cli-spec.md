@@ -95,7 +95,7 @@ banana-cli [GLOBAL_OPTIONS] <domain> <action> [OPTIONS]
 
 全局参数：
 
-1. `--base-url <url>`：默认 `http://localhost:5000`。
+1. `--base-url <url>`：默认 `http://localhost:5100`。
 2. `--access-code <code>`：传入后自动注入 `X-Access-Code` 请求头。
 3. `--poll-interval <sec>`：默认 `3`。
 4. `--request-timeout <sec>`：默认 `60`。
@@ -255,7 +255,7 @@ job_id,job_type,creation_type,idea_prompt,outline_text,description_text,project_
 TOML 字段：
 
 ```toml
-base_url = "http://localhost:5000"
+base_url = "http://localhost:5100"
 access_code = ""
 poll_interval = 3
 request_timeout = 60
@@ -463,7 +463,7 @@ cli/banana_cli/
   "run_id": "37f00fd8-3c3f-4b3f-9dfa-d4f6f3344c19",
   "started_at": "2026-02-28T10:00:00Z",
   "finished_at": "2026-02-28T10:18:24Z",
-  "base_url": "http://localhost:5000",
+  "base_url": "http://localhost:5100",
   "totals": {
     "total": 2,
     "success": 1,
@@ -480,9 +480,9 @@ cli/banana_cli/
         {"task_id": "8de44d14-e42a-4fd4-b1a7-9c0bf4f18adc", "type": "EXPORT_EDITABLE_PPTX", "status": "COMPLETED"}
       ],
       "artifacts": [
-        {"format": "pptx", "download_url": "http://localhost:5000/files/9f2e8d1d-becf-4a58-8fc7-3c3f0b2f3e4b/exports/ai-agent-practice.pptx"},
-        {"format": "pdf", "download_url": "http://localhost:5000/files/9f2e8d1d-becf-4a58-8fc7-3c3f0b2f3e4b/exports/ai-agent-practice.pdf"},
-        {"format": "editable_pptx", "download_url": "http://localhost:5000/files/9f2e8d1d-becf-4a58-8fc7-3c3f0b2f3e4b/exports/ai-agent-practice_editable.pptx"}
+        {"format": "pptx", "download_url": "http://localhost:5100/files/9f2e8d1d-becf-4a58-8fc7-3c3f0b2f3e4b/exports/ai-agent-practice.pptx"},
+        {"format": "pdf", "download_url": "http://localhost:5100/files/9f2e8d1d-becf-4a58-8fc7-3c3f0b2f3e4b/exports/ai-agent-practice.pdf"},
+        {"format": "editable_pptx", "download_url": "http://localhost:5100/files/9f2e8d1d-becf-4a58-8fc7-3c3f0b2f3e4b/exports/ai-agent-practice_editable.pptx"}
       ],
       "error": {"code": null, "message": null},
       "duration_sec": 684

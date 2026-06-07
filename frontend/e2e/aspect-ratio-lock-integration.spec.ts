@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test'
 import { seedProjectWithImages } from './helpers/seed-project'
 
-const BASE = process.env.BASE_URL || 'http://localhost:3000'
+const BASE = process.env.BASE_URL || 'http://localhost:3100'
 const API = `http://localhost:${Number(new URL(BASE).port) + 2000}`
 
 test.describe('Aspect ratio lock (integration)', () => {
