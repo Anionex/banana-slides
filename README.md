@@ -183,11 +183,12 @@
 | 🔄 进行中 | 支持多层次、精确抠图的可编辑pptx导出 |
 | 🔄 进行中 | 网络搜索 |
 | 🔄 进行中 | Agent 模式 |
-| ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕、Ken Burns 动效） |
+| ✅ 已完成 | TTS 讲解视频导出（中/英/日多音色、字幕） |
 | 🚍 部分 | 优化前端加载速度 |
 | 🧭 规划中 | 在线播放功能 |
 | 🧭 规划中 | 简单的动画和页面切换效果 |
 | 🚍 部分 | 多语种支持 |
+| |
 
 ## 📦 使用方法
 
@@ -195,7 +196,7 @@
 这是最简单的方式，无需安装docker或下载项目，创建后可直接进入应用
 
 
-1. 通过雨云一键部署和启动本应用 (带宽大，适合高清图片生成和下载。新用户有15天免费试用)
+1. 通过雨云一键部署和启动本应用 (带宽大，适合高清图片生成和下载。新用户有免费试用)
 - [图文教程](https://ziy68cvfvu3.feishu.cn/wiki/B5RIwg3OUiCfo9kyadzcR9CInnc?from=from_copylink)
 
 [![通过雨云一键部署](https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg)](https://app.rainyun.com/apps/rca/store/7549/anionex_)
@@ -530,6 +531,8 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 本项目采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 开源，
 可自由用于个人学习、研究、试验、教育或非营利科研活动等非商业用途；
+
+如有疑问或合作意向，可联系: davidyang042@gmail.com
 
 
 
