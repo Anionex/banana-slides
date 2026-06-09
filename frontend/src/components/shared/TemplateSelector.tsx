@@ -12,11 +12,17 @@ const templateI18n = {
       saveToLibraryOnUpload: "上传模板时同时保存到我的模板库",
       selectFromMaterials: "从素材库选择", selectAsTemplate: "从素材库选择作为模板",
       cannotDeleteInUse: "当前使用中的模板不能删除，请先取消选择或切换",
+      stylePromptLabel: "风格描述", stylePromptPlaceholder: "例如：极简商务蓝白配色，顶部标题区，留白充足",
+      generateCandidates: "生成5个模板候选", styleCandidates: "模板风格候选", styleCandidatesHint: "候选是幻灯片模板/风格参考图，不是普通插图。选择后会走现有模板上传流程，并作为后续页面复用的模板图；不会保存到模板库。",
+      selectCandidate: "选择此候选", generatingCandidates: "正在生成候选...", selectingCandidate: "正在应用候选...",
       presets: {
         retroScroll: "复古卷轴", vectorIllustration: "矢量插画", glassEffect: "拟物玻璃",
         techBlue: "科技蓝", simpleBusiness: "简约商务", academicReport: "学术报告"
       },
-      messages: { uploadSuccess: "模板上传成功", uploadFailed: "模板上传失败", deleteSuccess: "模板已删除", deleteFailed: "删除模板失败" }
+      messages: {
+        uploadSuccess: "模板上传成功", uploadFailed: "模板上传失败", deleteSuccess: "模板已删除", deleteFailed: "删除模板失败",
+        candidateGenerateFailed: "生成候选失败", candidateSelected: "已选择候选模板", stylePromptRequired: "请先输入风格描述"
+      }
     },
     material: { messages: { savedToLibrary: "素材已保存到模板库", selectedAsTemplate: "已从素材库选择作为模板", loadMaterialFailed: "加载素材失败" } }
   },
@@ -27,19 +33,25 @@ const templateI18n = {
       saveToLibraryOnUpload: "Save to my template library when uploading",
       selectFromMaterials: "Select from Materials", selectAsTemplate: "Select from materials as template",
       cannotDeleteInUse: "Cannot delete template in use, please deselect or switch first",
+      stylePromptLabel: "Style Prompt", stylePromptPlaceholder: "e.g. Minimal business blue/white palette, title block on top, generous whitespace",
+      generateCandidates: "Generate 5 template candidates", styleCandidates: "Template Style Candidates", styleCandidatesHint: "Candidates are transient slide template/style references, not generic illustrations. Selecting one feeds the existing template upload flow and becomes the template image reused for later page generation; it is not saved to your library.",
+      selectCandidate: "Use this candidate", generatingCandidates: "Generating candidates...", selectingCandidate: "Applying candidate...",
       presets: {
         retroScroll: "Retro Scroll", vectorIllustration: "Vector Illustration", glassEffect: "Glass Effect",
         techBlue: "Tech Blue", simpleBusiness: "Simple Business", academicReport: "Academic Report"
       },
-      messages: { uploadSuccess: "Template uploaded successfully", uploadFailed: "Failed to upload template", deleteSuccess: "Template deleted", deleteFailed: "Failed to delete template" }
+      messages: {
+        uploadSuccess: "Template uploaded successfully", uploadFailed: "Failed to upload template", deleteSuccess: "Template deleted", deleteFailed: "Failed to delete template",
+        candidateGenerateFailed: "Failed to generate candidates", candidateSelected: "Candidate template selected", stylePromptRequired: "Please enter a style prompt first"
+      }
     },
     material: { messages: { savedToLibrary: "Material saved to template library", selectedAsTemplate: "Selected from library as template", loadMaterialFailed: "Failed to load materials" } }
   }
 };
-import { listUserTemplates, uploadUserTemplate, deleteUserTemplate, type UserTemplate } from '@/api/endpoints';
+import { listUserTemplates, uploadUserTemplate, deleteUserTemplate, createTemplateCandidates, type Material, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
-import type { Material } from '@/api/endpoints';
-import { ImagePlus, X } from 'lucide-react';
+import type { TemplateCandidate } from '@/types';
+import { ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 
 interface TemplateSelectorProps {
   onSelect: (templateFile: File | null, templateId?: string) => void;
@@ -62,6 +74,10 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [saveToLibrary, setSaveToLibrary] = useState(true);
+  const [stylePrompt, setStylePrompt] = useState('');
+  const [templateCandidates, setTemplateCandidates] = useState<TemplateCandidate[]>([]);
+  const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const { show, ToastContainer } = useToast();
 
   const presetTemplates = [
@@ -128,6 +144,56 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const handleSelectPresetTemplate = (templateId: string, preview: string) => {
     if (!preview) return;
     onSelect(null, templateId);
+  };
+
+  const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const fileExtension = blob.type === 'image/webp' ? 'webp' : 'png';
+    const normalizedFilename = filename.replace(/\.[^.]+$/, '') || 'template-candidate';
+    return new File([blob], `${normalizedFilename}.${fileExtension}`, { type: blob.type || 'image/png' });
+  };
+
+  const handleGenerateCandidates = async () => {
+    if (!projectId || isGeneratingCandidates) return;
+
+    const trimmedPrompt = stylePrompt.trim();
+    if (!trimmedPrompt) {
+      show({ message: t('template.messages.stylePromptRequired'), type: 'info' });
+      return;
+    }
+
+    setTemplateCandidates([]);
+    setIsGeneratingCandidates(true);
+    setSelectedCandidateId(null);
+    try {
+      const response = await createTemplateCandidates(projectId, trimmedPrompt);
+      setTemplateCandidates(response.data?.candidates || []);
+    } catch (error: any) {
+      setTemplateCandidates([]);
+      console.error('Failed to generate template candidates:', error);
+      show({ message: t('template.messages.candidateGenerateFailed') + ': ' + (error.message || t('common.unknownError')), type: 'error' });
+    } finally {
+      setIsGeneratingCandidates(false);
+    }
+  };
+
+  const handleSelectTemplateCandidate = async (candidate: TemplateCandidate) => {
+    if (selectedCandidateId) return;
+
+    setSelectedCandidateId(candidate.candidate_id);
+    try {
+      // Keep maintainer-required semantics: candidate selection stays a pre-step
+      // to the existing template upload flow by converting the preview into a File.
+      const file = await dataUrlToFile(candidate.image_url, candidate.candidate_id);
+      await onSelect(file);
+      show({ message: t('template.messages.candidateSelected'), type: 'success' });
+    } catch (error: any) {
+      console.error('Failed to select template candidate:', error);
+      show({ message: t('template.messages.uploadFailed') + ': ' + (error.message || t('common.unknownError')), type: 'error' });
+    } finally {
+      setSelectedCandidateId(null);
+    }
   };
 
   const handleSelectMaterials = async (materials: Material[], saveAsTemplate?: boolean) => {
@@ -216,6 +282,63 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {projectId && (
+          <div className="rounded-lg border border-gray-200 dark:border-border-primary p-4 space-y-3">
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">{t('template.styleCandidates')}</h4>
+              <p className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('template.styleCandidatesHint')}</p>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm text-gray-700 dark:text-foreground-secondary">
+                {t('template.stylePromptLabel')}
+              </label>
+              <textarea
+                value={stylePrompt}
+                onChange={(e) => setStylePrompt(e.target.value)}
+                disabled={isGeneratingCandidates}
+                placeholder={t('template.stylePromptPlaceholder')}
+                className="w-full min-h-[88px] rounded-md border border-gray-300 dark:border-border-primary bg-white dark:bg-background-secondary px-3 py-2 text-sm text-gray-900 dark:text-foreground-primary focus:outline-none focus:ring-2 focus:ring-banana-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={isGeneratingCandidates ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              onClick={handleGenerateCandidates}
+              disabled={!projectId || isGeneratingCandidates}
+              className="w-full"
+            >
+              {isGeneratingCandidates ? t('template.generatingCandidates') : t('template.generateCandidates')}
+            </Button>
+            {templateCandidates.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {templateCandidates.map((candidate) => {
+                  const isSelecting = selectedCandidateId === candidate.candidate_id;
+                  return (
+                    <button
+                      key={candidate.candidate_id}
+                      type="button"
+                      onClick={() => handleSelectTemplateCandidate(candidate)}
+                      disabled={!!selectedCandidateId}
+                      className="group text-left rounded-lg border border-gray-200 dark:border-border-primary hover:border-banana-400 transition-all overflow-hidden bg-white dark:bg-background-secondary disabled:opacity-70"
+                    >
+                      <img
+                        src={candidate.image_url}
+                        alt={candidate.candidate_id}
+                        className="w-full aspect-[4/3] object-cover"
+                      />
+                      <div className="p-3 flex items-center justify-between gap-2">
+                        <span className="text-sm text-gray-700 dark:text-foreground-secondary truncate">{candidate.candidate_id}</span>
+                        <span className="text-xs text-banana-600 dark:text-banana-400">{isSelecting ? t('template.selectingCandidate') : t('template.selectCandidate')}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

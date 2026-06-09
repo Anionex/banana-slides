@@ -1442,6 +1442,8 @@ export const SlidePreview: React.FC = () => {
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
     if (!projectId) return;
     
+    // Candidate selection should keep reusing the existing template upload flow,
+    // so this handler only ever uploads a File as the project's template image.
     // 如果有templateId，按需加载File
     let file = templateFile;
     if (templateId && !file) {

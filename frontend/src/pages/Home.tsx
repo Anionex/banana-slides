@@ -521,6 +521,8 @@ export const Home: React.FC = () => {
   };
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
+    // Candidate selection also lands here as a File so project creation keeps
+    // using the existing template-image path instead of introducing a new one.
     // 总是设置文件（如果提供）
     if (templateFile) {
       setSelectedTemplate(templateFile);

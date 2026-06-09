@@ -1,11 +1,18 @@
 """
 Template Controller - handles template-related endpoints
 """
+import base64
 import logging
+import struct
+import zlib
 from flask import Blueprint, request, current_app
 from models import db, Project, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
+from services.template_candidate_semantics import (
+    build_template_candidate_prompt,
+    build_template_candidate_usage_note,
+)
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -13,6 +20,122 @@ logger = logging.getLogger(__name__)
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
 user_style_template_bp = Blueprint('user_style_templates', __name__, url_prefix='/api/user-style-templates')
+
+
+def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    chunk = chunk_type + data
+    return struct.pack('!I', len(data)) + chunk + struct.pack('!I', zlib.crc32(chunk) & 0xFFFFFFFF)
+
+
+
+def _build_mock_candidate_data_url(style_prompt: str, aspect_ratio: str | None, index: int) -> str:
+    palettes = [
+        ((255, 247, 237), (251, 146, 60), (124, 45, 18)),
+        ((239, 246, 255), (96, 165, 250), (30, 58, 138)),
+        ((245, 243, 255), (167, 139, 250), (76, 29, 149)),
+        ((236, 253, 245), (52, 211, 153), (6, 95, 70)),
+        ((254, 242, 242), (248, 113, 113), (153, 27, 27)),
+    ]
+    width = 96
+    height = 72
+    background, accent, text_color = palettes[index % len(palettes)]
+    prompt_bytes = style_prompt.strip().encode('utf-8')
+    prompt_seed = sum(prompt_bytes) % height if prompt_bytes else 0
+    ratio_seed = sum((aspect_ratio or '').encode('utf-8')) % width if aspect_ratio else 0
+
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)
+        for x in range(width):
+            pixel = background
+
+            if 6 <= x < width - 6 and 6 <= y < height - 6:
+                pixel = (255, 255, 255)
+            if 6 <= x < width - 6 and 6 <= y < 18:
+                pixel = tuple(min(255, int(channel * 0.82 + 255 * 0.18)) for channel in accent)
+            if width - 22 <= x < width - 8 and 10 <= y < 24:
+                pixel = tuple(min(255, int(channel * 0.70 + background[i] * 0.30)) for i, channel in enumerate(accent))
+            if 10 <= x < 28 and 10 <= y < 12:
+                pixel = accent
+            if 10 <= x < 38 and 15 <= y < 18:
+                pixel = text_color
+            if 10 <= x < 45 and 22 <= y < 24:
+                pixel = tuple(min(255, text_color[i] + 20) for i in range(3))
+            if 10 <= x < 42 and 28 + (prompt_seed % 3) <= y < 31 + (prompt_seed % 3):
+                pixel = text_color
+            if 10 <= x < 36 and 34 + (ratio_seed % 4) <= y < 36 + (ratio_seed % 4):
+                pixel = tuple(min(255, text_color[i] + 35) for i in range(3))
+            if 10 <= x < 44 and 55 <= y < 63:
+                pixel = tuple(min(255, int(channel * 0.35 + 255 * 0.65)) for channel in accent)
+            if 45 <= x < 85 and 26 <= y < 34:
+                pixel = tuple(min(255, int(channel * 0.45 + 255 * 0.55)) for channel in accent)
+            if 45 <= x < 62 and 38 <= y < 62:
+                pixel = tuple(min(255, int(channel * 0.28 + 255 * 0.72)) for channel in accent)
+            if 66 <= x < 85 and 38 <= y < 49:
+                pixel = tuple(min(255, int(channel * 0.18 + 255 * 0.82)) for channel in accent)
+            if 66 <= x < 85 and 52 <= y < 63:
+                pixel = tuple(min(255, int(channel * 0.52 + 255 * 0.48)) for channel in accent)
+
+            rows.extend(pixel)
+
+    png_data = b''.join([
+        b'\x89PNG\r\n\x1a\n',
+        _png_chunk(b'IHDR', struct.pack('!IIBBBBB', width, height, 8, 2, 0, 0, 0)),
+        _png_chunk(b'IDAT', zlib.compress(bytes(rows), level=9)),
+        _png_chunk(b'IEND', b''),
+    ])
+
+    encoded_png = base64.b64encode(png_data).decode('ascii')
+    return f'data:image/png;base64,{encoded_png}'
+
+
+@template_bp.route('/<project_id>/template-candidates', methods=['POST'])
+def create_template_candidates(project_id):
+    """
+    POST /api/projects/{project_id}/template-candidates - Generate transient slide template/style candidates.
+
+    MVP behavior:
+    - validates project existence and style_prompt
+    - builds the future model prompt/usage semantics explicitly in code
+    - returns 5 in-memory mock candidates that represent reusable slide templates
+    - response shape is async-friendly for future slow path
+
+    Important semantic contract for issue #406:
+    - candidates are template/style references, not generic illustrations
+    - selecting one must still go through the existing project template upload flow
+    - downstream generation should consume the selected result as project.template_image_path
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json(silent=True) or {}
+        style_prompt = (data.get('style_prompt') or '').strip()
+        if not style_prompt:
+            return bad_request('style_prompt is required')
+
+        aspect_ratio = data.get('aspect_ratio')
+        semantic_prompt = build_template_candidate_prompt(style_prompt, aspect_ratio)
+        usage_note = build_template_candidate_usage_note()
+        candidates = [
+            {
+                'candidate_id': f'{project_id}-candidate-{index + 1}',
+                'image_url': _build_mock_candidate_data_url(style_prompt, aspect_ratio, index),
+            }
+            for index in range(5)
+        ]
+
+        return success_response({
+            'status': 'COMPLETED',
+            'task_id': None,
+            'prompt': semantic_prompt,
+            'usage': usage_note,
+            'candidates': candidates,
+        })
+    except Exception as e:
+        logger.error(f'Failed to create template candidates: {str(e)}', exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
 
 
 @template_bp.route('/<project_id>/template', methods=['POST'])

@@ -128,6 +128,19 @@ export interface CreateProjectRequest {
   image_aspect_ratio?: string;
 }
 
+export interface TemplateCandidate {
+  candidate_id: string;
+  image_url: string;
+}
+
+export interface TemplateCandidatesResponse {
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  task_id: string | null;
+  prompt?: string;
+  usage?: string;
+  candidates: TemplateCandidate[];
+}
+
 // API响应
 export interface ApiResponse<T = any> {
   success?: boolean;

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
+import type { Project, Task, ApiResponse, CreateProjectRequest, Page, TemplateCandidatesResponse } from '@/types';
 import type { Settings } from '../types/index';
 
 // ===== 访问口令 API =====
@@ -52,6 +52,23 @@ export const uploadTemplate = async (
   const response = await apiClient.post<ApiResponse<{ template_image_url: string }>>(
     `/api/projects/${projectId}/template`,
     formData
+  );
+  return response.data;
+};
+
+export const createTemplateCandidates = async (
+  projectId: string,
+  stylePrompt: string,
+  aspectRatio?: string
+): Promise<ApiResponse<TemplateCandidatesResponse>> => {
+  // This endpoint returns slide template/style candidates only.
+  // A chosen candidate must still be converted to File and uploaded via uploadTemplate().
+  const response = await apiClient.post<ApiResponse<TemplateCandidatesResponse>>(
+    `/api/projects/${projectId}/template-candidates`,
+    {
+      style_prompt: stylePrompt,
+      ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+    }
   );
   return response.data;
 };
