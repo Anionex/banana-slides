@@ -14,7 +14,7 @@ class Task(db.Model):
     __tablename__ = 'tasks'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id = db.Column(db.String(36), db.ForeignKey('projects.id'), nullable=False)
+    project_id = db.Column(db.String(36), db.ForeignKey('projects.id'), nullable=True)
     task_type = db.Column(db.String(50), nullable=False)  # GENERATE_DESCRIPTIONS|GENERATE_IMAGES
     status = db.Column(db.String(50), nullable=False, default='PENDING')
     progress = db.Column(db.Text, nullable=True)  # JSON string: {"total": 10, "completed": 5, "failed": 0}
@@ -64,4 +64,3 @@ class Task(db.Model):
     
     def __repr__(self):
         return f'<Task {self.id}: {self.task_type} - {self.status}>'
-

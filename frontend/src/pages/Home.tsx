@@ -5,19 +5,18 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, createTemplateCandidates, getTemplateCandidates } from '@/api/endpoints';
+import { apiClient } from '@/api/client';
 import { useProjectStore } from '@/store/useProjectStore';
 import { devLog } from '@/utils/logger';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
-import type { Material } from '@/types';
+import type { Material, TemplateCandidate } from '@/types';
 import { useT } from '@/hooks/useT';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
-
-// 支持作为参考文件上传的文档扩展名（与后端 file_parser_service 保持一致）
-const ALLOWED_DOC_EXTENSIONS = ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'];
+const TEMPLATE_CANDIDATE_CANCELLED = 'TEMPLATE_CANDIDATE_CANCELLED';
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -64,6 +63,17 @@ const homeI18n = {
       template: {
         title: '选择风格模板',
         useTextStyle: '使用文字描述风格',
+        enterStylePrompt: '请先输入风格描述',
+        generationFailed: '生成模板候选失败: {{error}}',
+        selectionSuccess: '已选择模板候选，创建项目后会走现有模板上传流程',
+        selectionFailed: '应用模板候选失败: {{error}}',
+        invalidCandidateImage: '模板候选图片响应无效',
+        generationTimeout: '模板候选生成超时',
+        generationFailedFallback: '模板候选生成失败',
+        generateCandidates: '生成 5 个模板候选',
+        generatingCandidates: '正在生成候选...',
+        generatingCandidatesWithProgress: '正在生成候选 {{completed}}/{{total}}',
+        candidateUsageNote: '选择后会继续走现有模板上传流程',
       },
       actions: {
         selectFile: '选择参考文件',
@@ -86,8 +96,8 @@ const homeI18n = {
         imageUploadFailed: '图片上传失败',
         fileUploadSuccess: '文件上传成功',
         fileUploadFailed: '文件上传失败',
+        fileUploadInProgress: '已有文件正在上传，请稍后再试',
         fileTooLarge: '文件过大：{{size}}MB，最大支持 200MB',
-        fileUploadInProgress: '正在上传文件，请等待当前上传完成后再试',
         unsupportedFileType: '不支持的文件类型: {{type}}',
         loadTemplateFailed: '加载模板失败，请重新选择或上传模板',
         pptTip: '建议先在本地将 PPTX 转为 PDF 后再上传，可获得更好的兼容性和更快的处理速度',
@@ -96,6 +106,7 @@ const homeI18n = {
         serviceTestTip: '建议先到设置页底部进行服务测试，避免后续功能异常',
         verifying: '正在验证 API 配置...',
         verifyFailed: '请在设置页配置正确的 API Key，并在页面底部点击「服务测试」验证',
+        unknownError: '未知错误',
       },
     },
   },
@@ -142,6 +153,17 @@ const homeI18n = {
       template: {
         title: 'Select Style Template',
         useTextStyle: 'Use text description for style',
+        enterStylePrompt: 'Please enter a style description first',
+        generationFailed: 'Failed to generate template candidates: {{error}}',
+        selectionSuccess: 'Template candidate selected. Project creation will use the existing template upload flow.',
+        selectionFailed: 'Failed to apply template candidate: {{error}}',
+        invalidCandidateImage: 'Template candidate image response is invalid',
+        generationTimeout: 'Template candidate generation timed out',
+        generationFailedFallback: 'Template candidate generation failed',
+        generateCandidates: 'Generate 5 template candidates',
+        generatingCandidates: 'Generating candidates...',
+        generatingCandidatesWithProgress: 'Generating candidates {{completed}}/{{total}}',
+        candidateUsageNote: 'Selection continues through the existing template upload flow',
       },
       actions: {
         selectFile: 'Select reference file',
@@ -164,8 +186,8 @@ const homeI18n = {
         imageUploadFailed: 'Failed to upload image',
         fileUploadSuccess: 'File uploaded successfully',
         fileUploadFailed: 'Failed to upload file',
+        fileUploadInProgress: 'A file is already uploading. Please try again later.',
         fileTooLarge: 'File too large: {{size}}MB, maximum 200MB',
-        fileUploadInProgress: 'A file upload is already in progress — please wait for it to finish',
         unsupportedFileType: 'Unsupported file type: {{type}}',
         loadTemplateFailed: 'Failed to load the template. Please select or upload it again',
         pptTip: 'We recommend converting your PPTX to PDF locally before uploading for better compatibility and faster processing',
@@ -174,6 +196,7 @@ const homeI18n = {
         serviceTestTip: 'Test services in Settings first to avoid issues',
         verifying: 'Verifying API configuration...',
         verifyFailed: 'Please configure a valid API Key in Settings and click "Service Test" at the bottom to verify',
+        unknownError: 'Unknown error',
       },
     },
   },
@@ -186,6 +209,10 @@ export const Home: React.FC = () => {
   const { theme, isDark, setTheme } = useTheme();
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
+  const allowedDocExtensions = useMemo(
+    () => ['pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'],
+    []
+  );
   
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
   const [content, setContent] = useState('');
@@ -196,7 +223,6 @@ export const Home: React.FC = () => {
   const [isMaterialCenterOpen, setIsMaterialCenterOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([]);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
@@ -205,6 +231,12 @@ export const Home: React.FC = () => {
 
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
+  const [templateCandidates, setTemplateCandidates] = useState<TemplateCandidate[]>([]);
+  const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
+  const [candidateProgress, setCandidateProgress] = useState<{ total: number; completed: number } | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [selectedCandidateFile, setSelectedCandidateFile] = useState<File | null>(null);
+  const [isFetchingCandidate, setIsFetchingCandidate] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [isAspectRatioOpen, setIsAspectRatioOpen] = useState(false);
   const [renovationFile, setRenovationFile] = useState<File | null>(null);
@@ -212,6 +244,15 @@ export const Home: React.FC = () => {
   const renovationFileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const candidatePollActiveRef = useRef(false);
+  const loadingCandidateIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      candidatePollActiveRef.current = false;
+      loadingCandidateIdRef.current = null;
+    };
+  }, []);
 
   // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
   useEffect(() => {
@@ -227,9 +268,6 @@ export const Home: React.FC = () => {
 
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
-    const projectId = localStorage.getItem('currentProjectId');
-    setCurrentProjectId(projectId);
-
     // 加载用户模板列表（用于按需获取File）
     const loadTemplates = async () => {
       try {
@@ -304,7 +342,7 @@ export const Home: React.FC = () => {
         hasImages = true;
       } else {
         const fileExt = file.name.split('.').pop()?.toLowerCase();
-        if (fileExt && ALLOWED_DOC_EXTENSIONS.includes(fileExt)) {
+        if (fileExt && allowedDocExtensions.includes(fileExt)) {
           docFiles.push(file);
         } else {
           unsupportedExts.push(fileExt || file.type);
@@ -331,10 +369,46 @@ export const Home: React.FC = () => {
     }
   };
 
+  const handleDocumentFiles = async (files: File[]) => {
+    if (isUploadingFile) {
+      show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
+      return;
+    }
+
+    const docFiles: File[] = [];
+    const unsupportedExts: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (fileExt && allowedDocExtensions.includes(fileExt)) {
+        docFiles.push(file);
+      } else {
+        unsupportedExts.push(fileExt || file.type);
+      }
+    }
+
+    for (const file of docFiles) {
+      await handleFileUpload(file);
+    }
+
+    if (unsupportedExts.length > 0) {
+      show({
+        message: t('home.messages.unsupportedFileType', {
+          type: Array.from(new Set(unsupportedExts)).join(', '),
+        }),
+        type: 'info',
+      });
+    }
+  };
+
   // 上传文件
   // 在 Home 页面，文件始终上传为全局文件（不关联项目），因为此时还没有项目
-  const handleFileUpload = useCallback(async (file: File) => {
-    if (isUploadingFile) return;
+  const handleFileUpload = async (file: File) => {
+    if (isUploadingFile) {
+      show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
+      return;
+    }
 
     // 检查文件大小（前端预检查）
     const maxSize = 200 * 1024 * 1024; // 200MB
@@ -402,41 +476,7 @@ export const Home: React.FC = () => {
     } finally {
       setIsUploadingFile(false);
     }
-  }, [isUploadingFile, show, t]);
-
-  // 拖拽进来的文档文件：按扩展名过滤后复用 handleFileUpload（逐个上传+自动触发解析）
-  const handleDocumentFiles = useCallback(async (files: File[]) => {
-    // 已有上传在进行时告知用户，避免文件被静默丢弃（handleFileUpload 的 isUploadingFile 守卫）
-    if (isUploadingFile) {
-      show({ message: t('home.messages.fileUploadInProgress'), type: 'info' });
-      return;
-    }
-
-    const accepted: File[] = [];
-    const rejected: string[] = [];
-    for (const file of files) {
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      if (ext && ALLOWED_DOC_EXTENSIONS.includes(ext)) {
-        accepted.push(file);
-      } else {
-        rejected.push(ext || file.type || file.name);
-      }
-    }
-
-    if (rejected.length > 0) {
-      // 去重扩展名，避免一次拖入多个同类型不支持文件时 toast 重复冗长
-      show({
-        message: t('home.messages.unsupportedFileType', {
-          type: Array.from(new Set(rejected)).join(', '),
-        }),
-        type: 'info',
-      });
-    }
-
-    for (const file of accepted) {
-      await handleFileUpload(file);
-    }
-  }, [isUploadingFile, handleFileUpload, show, t]);
+  };
 
   // 从当前项目移除文件引用（不删除文件本身）
   const handleFileRemove = (fileId: string) => {
@@ -521,11 +561,12 @@ export const Home: React.FC = () => {
   };
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
-    // 总是设置文件（如果提供）
-    if (templateFile) {
-      setSelectedTemplate(templateFile);
-    }
-    
+    loadingCandidateIdRef.current = null;
+    setIsFetchingCandidate(false);
+    setSelectedTemplate(templateFile);
+    setSelectedCandidateFile(null);
+    setSelectedCandidateId(null);
+
     // 处理模板 ID
     if (templateId) {
       // 判断是用户模板还是预设模板
@@ -549,6 +590,144 @@ export const Home: React.FC = () => {
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
+    const response = await apiClient.get<Blob>(dataUrl, { responseType: 'blob' });
+    const blob = response.data;
+    if (!blob?.type?.startsWith('image/')) {
+      throw new Error(t('home.template.invalidCandidateImage'));
+    }
+    const extension = blob.type === 'image/webp' ? 'webp' : 'png';
+    return new File([blob], `${filename}.${extension}`, { type: blob.type || 'image/png' });
+  };
+
+  const handleGenerateTemplateCandidates = async () => {
+    const trimmedPrompt = templateStyle.trim();
+    if (!trimmedPrompt) {
+      show({ message: t('home.template.enterStylePrompt'), type: 'info' });
+      return;
+    }
+
+    setIsGeneratingCandidates(true);
+    candidatePollActiveRef.current = true;
+    setTemplateCandidates([]);
+    setSelectedCandidateId(null);
+    setSelectedCandidateFile(null);
+    loadingCandidateIdRef.current = null;
+    setIsFetchingCandidate(false);
+    setCandidateProgress({ total: 5, completed: 0 });
+    try {
+      const response = await createTemplateCandidates(trimmedPrompt, 5, aspectRatio);
+      if (!candidatePollActiveRef.current) return;
+
+      const taskId = response.data?.task_id;
+      if (!taskId) {
+        setTemplateCandidates(response.data?.candidates || []);
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        let attempts = 0;
+        let consecutiveErrors = 0;
+        const poll = async () => {
+          if (!candidatePollActiveRef.current) {
+            reject(new Error(TEMPLATE_CANDIDATE_CANCELLED));
+            return;
+          }
+          attempts += 1;
+          try {
+            const taskResponse = await getTemplateCandidates(taskId);
+            if (!candidatePollActiveRef.current) {
+              reject(new Error(TEMPLATE_CANDIDATE_CANCELLED));
+              return;
+            }
+
+            consecutiveErrors = 0;
+            const data = taskResponse.data;
+            const progress = data?.progress;
+            if (progress) {
+              setCandidateProgress({
+                total: progress.total || 5,
+                completed: progress.completed || 0,
+              });
+            }
+
+            if (data?.status === 'COMPLETED') {
+              setTemplateCandidates(data.candidates || progress?.candidates || []);
+              resolve();
+              return;
+            }
+
+            if (data?.status === 'FAILED') {
+              reject(new Error(data.error_message || t('home.template.generationFailedFallback')));
+              return;
+            }
+
+            if (attempts > 240) {
+              reject(new Error(t('home.template.generationTimeout')));
+              return;
+            }
+
+            window.setTimeout(poll, 2000);
+          } catch (error) {
+            consecutiveErrors += 1;
+            if (consecutiveErrors > 5) {
+              reject(error);
+            } else {
+              window.setTimeout(poll, 2000);
+            }
+          }
+        };
+
+        window.setTimeout(poll, 1000);
+      });
+    } catch (error: any) {
+      if (error?.message !== TEMPLATE_CANDIDATE_CANCELLED) {
+        console.error('生成模板候选失败:', error);
+        show({
+          message: t('home.template.generationFailed', { error: error?.message || t('home.messages.unknownError') }),
+          type: 'error',
+        });
+      }
+    } finally {
+      if (candidatePollActiveRef.current) {
+        setIsGeneratingCandidates(false);
+        setCandidateProgress(null);
+      }
+      candidatePollActiveRef.current = false;
+    }
+  };
+
+  const handleSelectTemplateCandidate = async (candidate: TemplateCandidate) => {
+    try {
+      setSelectedCandidateId(candidate.candidate_id);
+      loadingCandidateIdRef.current = candidate.candidate_id;
+      setIsFetchingCandidate(true);
+      const file = await dataUrlToFile(candidate.image_url, candidate.candidate_id);
+
+      if (loadingCandidateIdRef.current === candidate.candidate_id) {
+        setSelectedCandidateFile(file);
+        setSelectedTemplate(file);
+        setSelectedTemplateId(null);
+        setSelectedPresetTemplateId(null);
+        show({ message: t('home.template.selectionSuccess'), type: 'success' });
+      }
+    } catch (error: any) {
+      console.error('应用模板候选失败:', error);
+      if (loadingCandidateIdRef.current === candidate.candidate_id) {
+        setSelectedCandidateFile(null);
+        setSelectedCandidateId(null);
+        show({
+          message: t('home.template.selectionFailed', { error: error?.message || t('home.messages.unknownError') }),
+          type: 'error',
+        });
+      }
+    } finally {
+      if (loadingCandidateIdRef.current === candidate.candidate_id) {
+        setIsFetchingCandidate(false);
+      }
+    }
+  };
 
   const handleSubmit = async () => {
     // For ppt_renovation, validate file instead of content
@@ -607,7 +786,7 @@ export const Home: React.FC = () => {
       }
 
       // 如果有模板ID但没有File，按需加载
-      let templateFile = selectedTemplate;
+      let templateFile = selectedTemplate || selectedCandidateFile;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
         const templateId = selectedTemplateId || selectedPresetTemplateId;
         if (templateId) {
@@ -618,7 +797,6 @@ export const Home: React.FC = () => {
           }
         }
       }
-      
       // 传递风格描述（只要有内容就传递，不管开关状态）
       const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
 
@@ -675,7 +853,12 @@ export const Home: React.FC = () => {
         devLog('No materials to associate');
       }
       
-      navigate(`/project/${projectId}/outline`);
+      if (activeTab === 'idea' || activeTab === 'outline') {
+        navigate(`/project/${projectId}/outline`);
+      } else if (activeTab === 'description') {
+        // 从描述生成：直接跳到描述生成页（因为已经自动生成了大纲和描述）
+        navigate(`/project/${projectId}/detail`);
+      }
     } catch (error: any) {
       console.error('创建项目失败:', error);
       const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
@@ -1023,75 +1206,76 @@ export const Home: React.FC = () => {
                 </div>
               </div>
             ) : (
-            <MarkdownTextarea
-              ref={textareaRef}
-              placeholder={tabConfig[activeTab].placeholder}
-              value={content}
-              onChange={setContent}
-              onPaste={handlePaste}
-              onFiles={handleImageFiles}
-              onDocumentFiles={handleDocumentFiles}
-              onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
-              rows={activeTab === 'idea' ? 4 : 8}
-              className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
-              toolbarLeft={
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={handlePaperclipClick}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors active:scale-95 touch-manipulation"
-                    title={t('home.actions.selectFile')}
-                  >
-                    <Paperclip size={18} />
-                  </button>
-                  {/* 画面比例选择 */}
-                  <div className="relative">
+              <MarkdownTextarea
+                ref={textareaRef}
+                placeholder={tabConfig[activeTab].placeholder}
+                value={content}
+                onChange={setContent}
+                onPaste={handlePaste}
+                onFiles={handleImageFiles}
+                onDocumentFiles={handleDocumentFiles}
+                onSelectFromLibrary={() => setIsMaterialSelectorOpen(true)}
+                rows={activeTab === 'idea' ? 4 : 8}
+                className="text-sm md:text-base border-2 border-gray-200 dark:border-border-primary dark:bg-background-tertiary dark:text-white focus-within:border-banana-400 dark:focus-within:border-banana transition-colors duration-200"
+                toolbarLeft={
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => setIsAspectRatioOpen(!isAspectRatioOpen)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors"
-                      title={i18n.language?.startsWith('zh') ? '画面比例' : 'Aspect Ratio'}
+                      onClick={handlePaperclipClick}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors active:scale-95 touch-manipulation"
+                      title={t('home.actions.selectFile')}
                     >
-                      <span>{aspectRatio}</span>
-                      <ChevronDown size={12} className={`transition-transform ${isAspectRatioOpen ? 'rotate-180' : ''}`} />
+                      <Paperclip size={18} />
                     </button>
-                    {isAspectRatioOpen && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsAspectRatioOpen(false)} />
-                        <div className="absolute left-0 bottom-full mb-1 z-50 bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary rounded-lg shadow-lg dark:shadow-none py-1 min-w-[80px]">
-                          {ASPECT_RATIO_OPTIONS.map((opt) => (
-                            <button
-                              key={opt.value}
-                              onClick={() => { setAspectRatio(opt.value); setIsAspectRatioOpen(false); }}
-                              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${aspectRatio === opt.value ? 'text-banana font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
+                    {/* 画面比例选择 */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsAspectRatioOpen(!isAspectRatioOpen)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:text-foreground-secondary dark:hover:bg-background-hover rounded transition-colors"
+                        title={i18n.language?.startsWith('zh') ? '画面比例' : 'Aspect Ratio'}
+                      >
+                        <span>{aspectRatio}</span>
+                        <ChevronDown size={12} className={`transition-transform ${isAspectRatioOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isAspectRatioOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setIsAspectRatioOpen(false)} />
+                          <div className="absolute left-0 bottom-full mb-1 z-50 bg-white dark:bg-background-elevated border border-gray-200 dark:border-border-primary rounded-lg shadow-lg dark:shadow-none py-1 min-w-[80px]">
+                            {ASPECT_RATIO_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                onClick={() => { setAspectRatio(opt.value); setIsAspectRatioOpen(false); }}
+                                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-background-hover transition-colors ${aspectRatio === opt.value ? 'text-banana font-semibold' : 'text-gray-700 dark:text-foreground-secondary'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              }
-              toolbarRight={
-                <Button
-                  size="sm"
-                  onClick={handleSubmit}
-                  loading={isSubmitting || isGlobalLoading}
-                  disabled={
-                    !content.trim() ||
-                    isUploadingImage ||
-                    referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                  }
-                  className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
-                >
-                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
-                    ? t('home.actions.parsing')
-                    : t('common.next')}
-                </Button>
-              }
-            />
+                }
+                toolbarRight={
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    loading={isSubmitting || isGlobalLoading}
+                    disabled={
+                      !content.trim() ||
+                      isUploadingImage ||
+                      isFetchingCandidate ||
+                      referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                    }
+                    className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
+                  >
+                    {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                      ? t('home.actions.parsing')
+                      : t('common.next')}
+                  </Button>
+                }
+              />
             )}
           </div>
 
@@ -1140,6 +1324,11 @@ export const Home: React.FC = () => {
                         setSelectedTemplate(null);
                         setSelectedTemplateId(null);
                         setSelectedPresetTemplateId(null);
+                      } else {
+                        setSelectedTemplate(null);
+                        setTemplateCandidates([]);
+                        setSelectedCandidateId(null);
+                        setSelectedCandidateFile(null);
                       }
                       // 不再清空风格描述，允许用户保留已输入的内容
                     }}
@@ -1152,18 +1341,57 @@ export const Home: React.FC = () => {
             
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
-              <TextStyleSelector
-                value={templateStyle}
-                onChange={setTemplateStyle}
-                onToast={show}
-              />
+              <div className="space-y-4">
+                <TextStyleSelector
+                  value={templateStyle}
+                  onChange={setTemplateStyle}
+                  onToast={show}
+                />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="secondary"
+                    onClick={handleGenerateTemplateCandidates}
+                    disabled={isGeneratingCandidates}
+                    icon={isGeneratingCandidates ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                  >
+                    {isGeneratingCandidates
+                      ? candidateProgress
+                        ? t('home.template.generatingCandidatesWithProgress', {
+                            completed: candidateProgress.completed,
+                            total: candidateProgress.total,
+                          })
+                        : t('home.template.generatingCandidates')
+                      : t('home.template.generateCandidates')}
+                  </Button>
+                </div>
+                {templateCandidates.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {templateCandidates.map((candidate) => {
+                      const selected = selectedCandidateId === candidate.candidate_id;
+                      return (
+                        <button
+                          key={candidate.candidate_id}
+                          type="button"
+                          onClick={() => handleSelectTemplateCandidate(candidate)}
+                          className={`rounded-lg border-2 overflow-hidden text-left transition-all ${selected ? 'border-banana-500 ring-2 ring-banana-200' : 'border-gray-200 dark:border-border-primary hover:border-banana-300'}`}
+                        >
+                          <img src={candidate.thumb_url || candidate.image_url} alt={candidate.candidate_id} className="w-full aspect-[16/9] object-cover" />
+                          <div className="p-3">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{candidate.candidate_id}</div>
+                            <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('home.template.candidateUsageNote')}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : (
               <TemplateSelector
                 onSelect={handleTemplateSelect}
                 selectedTemplateId={selectedTemplateId}
                 selectedPresetTemplateId={selectedPresetTemplateId}
                 showUpload={true} // 在主页上传的模板保存到用户模板库
-                projectId={currentProjectId}
               />
             )}
           </div>

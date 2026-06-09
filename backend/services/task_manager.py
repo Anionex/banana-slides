@@ -174,6 +174,27 @@ image_resource_limiter = ResourceLimiter("image", int(os.getenv('MAX_IMAGE_WORKE
 text_resource_limiter = ResourceLimiter("text", int(os.getenv('MAX_DESCRIPTION_WORKERS', '20')))
 
 
+def cleanup_template_candidate_dirs(upload_folder: str, retention_hours: int = 24):
+    """Delete transient template candidate image directories older than the retention window."""
+    root = Path(upload_folder) / 'template-candidates'
+    if not root.exists():
+        return
+
+    cutoff = time.time() - (retention_hours * 60 * 60)
+    try:
+        candidate_dirs = list(root.iterdir())
+    except OSError as cleanup_error:
+        logger.warning("Failed to list template candidate directories under %s: %s", root, cleanup_error)
+        return
+
+    for candidate_dir in candidate_dirs:
+        try:
+            if candidate_dir.is_dir() and candidate_dir.stat().st_mtime < cutoff:
+                shutil.rmtree(candidate_dir, ignore_errors=True)
+        except OSError as cleanup_error:
+            logger.warning("Failed to clean template candidate directory %s: %s", candidate_dir, cleanup_error)
+
+
 def sync_resource_limits(description_workers: int, image_workers: int):
     """Apply the latest runtime settings to shared concurrency controls."""
     task_manager.update_max_workers(
@@ -1113,6 +1134,171 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                 temp_path = Path(temp_dir)
                 if temp_path.exists():
                     shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def generate_template_candidates_task(task_id: str, style_prompt: str, prompt: str,
+                                      usage: str, count: int, aspect_ratio: str,
+                                      resolution: str, ai_service,
+                                      upload_folder: str, app=None,
+                                      use_mock: bool = False):
+    """
+    Background task for transient template/style candidate generation.
+
+    Candidates are generated concurrently, saved under uploads/template-candidates,
+    and exposed through task progress. They do not create a template library entry
+    or a separate long-term persistence model.
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                return
+
+            if not use_mock and ai_service is None:
+                raise ValueError("AI service is not configured for template candidate generation.")
+
+            cleanup_template_candidate_dirs(upload_folder)
+            candidates_dir = Path(upload_folder) / 'template-candidates' / task_id
+            candidates_dir.mkdir(parents=True, exist_ok=True)
+
+            def build_candidate_prompt(index: int) -> str:
+                return (
+                    f"{prompt}\n"
+                    f"Generate candidate {index + 1} of {count}. Make it visually distinct from the other candidates while "
+                    "staying within the requested style. Render a complete presentation slide template preview with "
+                    "layout blocks, typography hierarchy, color palette, spacing, and reusable slide structure. "
+                    "Avoid small placeholder labels such as candidate names; make it look like a polished slide template."
+                )
+
+            def generate_candidate(index: int):
+                with app.app_context():
+                    candidate_prompt = build_candidate_prompt(index)
+                    candidate_id = f'candidate-{index + 1}'
+
+                    if use_mock:
+                        image = Image.new('RGB', (1600, 900), color=(245, 247, 250))
+                        draw = ImageDraw.Draw(image)
+                        accent = [
+                            (37, 99, 235),
+                            (14, 116, 144),
+                            (147, 51, 234),
+                            (234, 88, 12),
+                            (22, 163, 74),
+                        ][index % 5]
+                        draw.rectangle([0, 0, 1600, 230], fill=accent)
+                        draw.rounded_rectangle([120, 330, 1480, 790], radius=36, fill=(255, 255, 255))
+                        draw.text((160, 95), f"Mock Template Candidate {index + 1}", fill=(255, 255, 255))
+                        return index, candidate_id, image
+
+                    logger.info("🎨 Generating template candidate %s/%s for task %s", index + 1, count, task_id)
+                    with image_resource_limiter.slot(f"template-candidate task={task_id} index={index + 1}"):
+                        image = ai_service.generate_image(
+                            prompt=candidate_prompt,
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                        )
+
+                    if not image:
+                        raise ValueError(
+                            f"Image provider returned no image for candidate {index + 1}"
+                        )
+
+                    return index, candidate_id, image
+
+            task.status = 'PROCESSING'
+            task.set_progress({
+                'total': count,
+                'completed': 0,
+                'failed': 0,
+                'prompt': prompt,
+                'usage': usage,
+                'candidates': [],
+            })
+            _commit_with_retry()
+
+            completed = 0
+            failed = 0
+            results_by_index = {}
+
+            with ThreadPoolExecutor(max_workers=max(1, min(count, 5))) as pool:
+                futures = {pool.submit(generate_candidate, index): index for index in range(count)}
+
+                for future in as_completed(futures):
+                    index = futures[future]
+                    try:
+                        _, candidate_id, image = future.result()
+                        filename = f'{candidate_id}.png'
+                        image_path = candidates_dir / filename
+                        image.save(str(image_path))
+                        image_url = f'/files/template-candidates/{task_id}/{filename}'
+                        results_by_index[index] = {
+                            'candidate_id': candidate_id,
+                            'image_url': image_url,
+                            'thumb_url': image_url,
+                            'style_prompt': style_prompt,
+                            'usage_note': usage,
+                            'system_prompt': prompt,
+                            'transient': True,
+                        }
+                        completed += 1
+                    except Exception as candidate_error:
+                        failed += 1
+                        logger.error(
+                            "Template candidate %s/%s failed for task %s: %s",
+                            index + 1,
+                            count,
+                            task_id,
+                            candidate_error,
+                            exc_info=True,
+                        )
+
+                    task = Task.query.get(task_id)
+                    if task:
+                        ordered_candidates = [results_by_index[i] for i in sorted(results_by_index)]
+                        is_done = (completed + failed) == count
+                        if is_done:
+                            if completed > 0:
+                                task.status = 'COMPLETED'
+                                task.error_message = None
+                            else:
+                                task.status = 'FAILED'
+                                task.error_message = 'All template candidates failed to generate.'
+                            task.completed_at = datetime.utcnow()
+                        else:
+                            task.status = 'PROCESSING'
+                        task.set_progress({
+                            'total': count,
+                            'completed': completed,
+                            'failed': failed,
+                            'prompt': prompt,
+                            'usage': usage,
+                            'candidates': ordered_candidates,
+                        })
+                        _commit_with_retry()
+
+            logger.info(
+                "✅ Task %s finished template candidate generation (completed: %s, failed: %s, total: %s)",
+                task_id,
+                completed,
+                failed,
+                count,
+            )
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error("Task %s FAILED while generating template candidates: %s", task_id, e, exc_info=True)
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                progress = task.get_progress()
+                progress['failed'] = max(1, progress.get('failed', 0))
+                task.set_progress(progress)
+                _commit_with_retry()
 
 
 def process_material_image_task(

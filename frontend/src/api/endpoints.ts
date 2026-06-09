@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
+import type { Project, Task, ApiResponse, CreateProjectRequest, Page, TemplateCandidatesResponse } from '@/types';
 import type { Settings } from '../types/index';
 
 // ===== 访问口令 API =====
@@ -52,6 +52,37 @@ export const uploadTemplate = async (
   const response = await apiClient.post<ApiResponse<{ template_image_url: string }>>(
     `/api/projects/${projectId}/template`,
     formData
+  );
+  return response.data;
+};
+
+/**
+ * 生成模板风格候选（不依赖现有项目）
+ */
+export const createTemplateCandidates = async (
+  stylePrompt: string,
+  count = 5,
+  aspectRatio?: string
+): Promise<ApiResponse<TemplateCandidatesResponse>> => {
+  const response = await apiClient.post<ApiResponse<TemplateCandidatesResponse>>(
+    '/api/template-candidates',
+    {
+      style_prompt: stylePrompt,
+      count,
+      aspect_ratio: aspectRatio,
+    }
+  );
+  return response.data;
+};
+
+/**
+ * 查询模板风格候选生成任务
+ */
+export const getTemplateCandidates = async (
+  taskId: string
+): Promise<ApiResponse<TemplateCandidatesResponse>> => {
+  const response = await apiClient.get<ApiResponse<TemplateCandidatesResponse>>(
+    `/api/template-candidates/${taskId}`
   );
   return response.data;
 };

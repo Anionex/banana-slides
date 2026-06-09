@@ -123,6 +123,7 @@ Supports three starting modes: **Idea**, **Outline**, and **Page Description**, 
 - **Multi-format Support**: Upload PDF, Docx, MD, Txt, and other files; the backend automatically parses the content.
 - **Intelligent Extraction**: Automatically identify key points, image links, and chart information within the text to provide rich materials for generation.
 - **Style Reference**: Support for uploading reference images or templates to customize PPT styles.
+- **Template Candidates**: If you do not have a reference image, asynchronously generate 5 temporary template candidates from a text style description and select one as the style reference.
 
 <img width="1920" height="1080" alt="文件解析与素材处理" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
 

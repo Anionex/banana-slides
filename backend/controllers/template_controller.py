@@ -2,17 +2,53 @@
 Template Controller - handles template-related endpoints
 """
 import logging
+import os
+from datetime import datetime
+
 from flask import Blueprint, request, current_app
-from models import db, Project, UserTemplate, UserStyleTemplate
+
+from models import db, Project, Task, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
-from datetime import datetime
+from services.ai_service_manager import get_ai_service
+from services.task_manager import task_manager, generate_template_candidates_task
+from services.template_candidate_semantics import (
+    build_template_candidate_prompt,
+    build_template_candidate_usage_note,
+)
 
 logger = logging.getLogger(__name__)
 
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
 user_style_template_bp = Blueprint('user_style_templates', __name__, url_prefix='/api/user-style-templates')
+template_candidate_bp = Blueprint('template_candidates', __name__, url_prefix='/api')
+
+
+def _normalize_candidate_count(raw_count):
+    try:
+        count = int(raw_count) if raw_count is not None else 5
+    except (TypeError, ValueError):
+        count = 5
+    return max(1, min(count, 8))
+
+
+ALLOWED_TEMPLATE_CANDIDATE_ASPECT_RATIOS = frozenset({
+    '16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'
+})
+
+
+def _template_candidates_response(task: Task) -> dict:
+    progress = task.get_progress()
+    return {
+        'status': task.status,
+        'task_id': task.id,
+        'prompt': progress.get('prompt'),
+        'usage': progress.get('usage'),
+        'progress': progress,
+        'candidates': progress.get('candidates', []),
+        'error_message': task.error_message,
+    }
 
 
 @template_bp.route('/<project_id>/template', methods=['POST'])
@@ -212,13 +248,13 @@ def delete_user_template(template_id):
         # Delete template file
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_user_template(template_id)
-
+        
         # Delete template record
         db.session.delete(template)
         db.session.commit()
-
+        
         return success_response(message="Template deleted successfully")
-
+    
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
@@ -256,11 +292,37 @@ def create_user_style_template():
 @user_style_template_bp.route('', methods=['GET'])
 def list_user_style_templates():
     try:
-        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.created_at.desc()).all()
+        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.updated_at.desc()).all()
         return success_response({
             'templates': [t.to_dict() for t in templates]
         })
     except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('/<template_id>', methods=['PUT'])
+def update_user_style_template(template_id):
+    try:
+        template = UserStyleTemplate.query.get(template_id)
+        if not template:
+            return not_found('UserStyleTemplate')
+
+        data = request.get_json() or {}
+        name = data.get('name')
+        description = data.get('description')
+        color = data.get('color')
+
+        if name is not None:
+            template.name = name.strip()
+        if description is not None:
+            template.description = description.strip()
+        if color is not None:
+            template.color = color
+        template.updated_at = datetime.utcnow()
+        db.session.commit()
+        return success_response(template.to_dict())
+    except Exception as e:
+        db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -275,4 +337,93 @@ def delete_user_style_template(template_id):
         return success_response(message="Style template deleted successfully")
     except Exception as e:
         db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@template_candidate_bp.route('/template-candidates', methods=['POST'])
+def create_template_candidates():
+    """POST /api/template-candidates - generate transient slide template candidates."""
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return bad_request('Invalid JSON payload')
+
+        style_prompt = str(payload.get('style_prompt') or '').strip()
+        if not style_prompt:
+            return bad_request('style_prompt is required')
+
+        count = _normalize_candidate_count(payload.get('count'))
+        aspect_ratio = str(payload.get('aspect_ratio') or '').strip() or current_app.config.get('DEFAULT_ASPECT_RATIO', '16:9')
+        if aspect_ratio not in ALLOWED_TEMPLATE_CANDIDATE_ASPECT_RATIOS:
+            return bad_request(f"Invalid aspect ratio. Allowed values: {', '.join(sorted(ALLOWED_TEMPLATE_CANDIDATE_ASPECT_RATIOS))}")
+
+        prompt = build_template_candidate_prompt(style_prompt, count=count, aspect_ratio=aspect_ratio)
+        usage = build_template_candidate_usage_note()
+        ai_service = get_ai_service()
+        resolution = current_app.config.get('DEFAULT_RESOLUTION', '2K')
+        use_mock = os.getenv('USE_MOCK_AI', '').lower() == 'true'
+        if not use_mock and ai_service is None:
+            return error_response(
+                'AI_SERVICE_UNAVAILABLE',
+                'AI service is not configured for template candidate generation.',
+                503,
+            )
+
+        task = Task(
+            project_id=None,
+            task_type='GENERATE_TEMPLATE_CANDIDATES',
+            status='PENDING',
+        )
+        task.set_progress({
+            'total': count,
+            'completed': 0,
+            'failed': 0,
+            'prompt': prompt,
+            'usage': usage,
+            'candidates': [],
+        })
+        db.session.add(task)
+        db.session.commit()
+
+        app = current_app._get_current_object()
+        task_manager.submit_task(
+            task.id,
+            generate_template_candidates_task,
+            style_prompt,
+            prompt,
+            usage,
+            count,
+            aspect_ratio,
+            resolution,
+            ai_service,
+            current_app.config['UPLOAD_FOLDER'],
+            app,
+            use_mock,
+        )
+
+        return success_response({
+            'status': task.status,
+            'task_id': task.id,
+            'prompt': prompt,
+            'usage': usage,
+            'progress': task.get_progress(),
+            'candidates': [],
+        }, status_code=202)
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Failed to create template candidates: %s', e, exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@template_candidate_bp.route('/template-candidates/<task_id>', methods=['GET'])
+def get_template_candidates(task_id):
+    """GET /api/template-candidates/{task_id} - poll transient template candidate generation."""
+    try:
+        task = Task.query.get(task_id)
+        if not task or task.task_type != 'GENERATE_TEMPLATE_CANDIDATES':
+            return not_found('Task')
+
+        return success_response(_template_candidates_response(task))
+    except Exception as e:
+        logger.error('Failed to get template candidate task: %s', e, exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
