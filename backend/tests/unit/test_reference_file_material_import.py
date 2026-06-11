@@ -86,6 +86,28 @@ def test_import_reference_markdown_images_handles_mineru_prefix_paths(client, ap
     assert len(data["data"]["materials"]) == 1
 
 
+def test_import_reference_markdown_images_deduplicates_repeated_urls(client, app):
+    project_id = _create_project(client)
+
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+    source_image = upload_folder / "mineru_files" / "extract789" / "images" / "chart.png"
+    _write_test_image(source_image)
+
+    imported_count = import_reference_markdown_images_to_materials(
+        project_id=project_id,
+        markdown_content="\n".join([
+            "![图表](/files/mineru/extract789/images/chart.png)",
+            "![图表](/files/mineru/extract789/images/chart.png)",
+        ]),
+        upload_folder=app.config["UPLOAD_FOLDER"],
+    )
+    db.session.commit()
+
+    assert imported_count == 1
+    data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
+    assert len(data["data"]["materials"]) == 1
+
+
 def test_resolve_local_mineru_image_rejects_traversal(app):
     upload_folder = Path(app.config["UPLOAD_FOLDER"])
 

@@ -33,6 +33,10 @@ def import_reference_markdown_images_to_materials(
 
     file_service = FileService(upload_folder)
     imported_count = 0
+    existing_filenames = {
+        material.filename
+        for material in Material.query.filter_by(project_id=project_id).all()
+    }
 
     for alt_text, image_url in _iter_markdown_images(markdown_content):
         source_path = _resolve_local_mineru_image(image_url, file_service.upload_folder)
@@ -49,15 +53,11 @@ def import_reference_markdown_images_to_materials(
             continue
 
         deterministic_name = _material_filename_for_source(project_id, image_url, file_ext)
-        existing = Material.query.filter_by(
-            project_id=project_id,
-            filename=deterministic_name,
-        ).first()
-        if existing:
+        if deterministic_name in existing_filenames:
             continue
 
         try:
-            target_dir = file_service.upload_folder / file_service._get_materials_dir(project_id)
+            target_dir = file_service._get_materials_dir(project_id)
             target_dir.mkdir(parents=True, exist_ok=True)
             target_path = target_dir / deterministic_name
             shutil.copy2(source_path, target_path)
@@ -72,6 +72,7 @@ def import_reference_markdown_images_to_materials(
                 original_filename=source_path.name,
             )
             db.session.add(material)
+            existing_filenames.add(deterministic_name)
             imported_count += 1
         except Exception as exc:
             logger.error("导入解析后的图片失败 %s: %s", source_path, exc, exc_info=True)
