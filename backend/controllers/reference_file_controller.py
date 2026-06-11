@@ -88,19 +88,23 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
                 db.session.refresh(reference_file)
 
                 if reference_file.project_id:
-                    imported_count = import_reference_markdown_images_to_materials(
-                        project_id=reference_file.project_id,
-                        markdown_content=markdown_content,
-                        upload_folder=current_app.config['UPLOAD_FOLDER'],
-                    )
-                    if imported_count:
-                        logger.info(
-                            "Imported %s parsed image(s) from reference file %s to project %s materials",
-                            imported_count,
-                            reference_file.id,
-                            reference_file.project_id,
+                    try:
+                        imported_count = import_reference_markdown_images_to_materials(
+                            project_id=reference_file.project_id,
+                            markdown_content=markdown_content,
+                            upload_folder=current_app.config['UPLOAD_FOLDER'],
                         )
-                        db.session.commit()
+                        if imported_count:
+                            logger.info(
+                                "Imported %s parsed image(s) from reference file %s to project %s materials",
+                                imported_count,
+                                reference_file.id,
+                                reference_file.project_id,
+                            )
+                            db.session.commit()
+                    except Exception as img_err:
+                        logger.error("Failed to import images to materials: %s", img_err, exc_info=True)
+                        db.session.rollback()
                 if failed_image_count > 0:
                     logger.warning(f"File parsing completed: {filename}, but {failed_image_count} images failed to generate captions")
                 else:
@@ -420,19 +424,23 @@ def associate_file_to_project(file_id):
         db.session.refresh(reference_file)
 
         if reference_file.parse_status == 'completed' and reference_file.markdown_content:
-            imported_count = import_reference_markdown_images_to_materials(
-                project_id=project_id,
-                markdown_content=reference_file.markdown_content,
-                upload_folder=current_app.config['UPLOAD_FOLDER'],
-            )
-            if imported_count:
-                logger.info(
-                    "Imported %s parsed image(s) while associating reference file %s to project %s",
-                    imported_count,
-                    reference_file.id,
-                    project_id,
+            try:
+                imported_count = import_reference_markdown_images_to_materials(
+                    project_id=project_id,
+                    markdown_content=reference_file.markdown_content,
+                    upload_folder=current_app.config['UPLOAD_FOLDER'],
                 )
-            db.session.commit()
+                if imported_count:
+                    logger.info(
+                        "Imported %s parsed image(s) while associating reference file %s to project %s",
+                        imported_count,
+                        reference_file.id,
+                        project_id,
+                    )
+                    db.session.commit()
+            except Exception as img_err:
+                logger.error("Failed to import images to materials during association: %s", img_err, exc_info=True)
+                db.session.rollback()
         
         logger.info(f"Associated reference file {file_id} to project {project_id}")
         

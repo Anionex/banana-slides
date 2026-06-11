@@ -108,6 +108,38 @@ def test_associate_imports_if_parsing_completes_during_refresh(client, app, monk
     assert materials[0]["caption"] == "刷新后完成"
 
 
+def test_associate_succeeds_if_material_import_fails(client, app, monkeypatch):
+    project_id = _create_project(client)
+
+    with app.app_context():
+        reference_file = ReferenceFile(
+            filename="report.pdf",
+            file_path="reference_files/report.pdf",
+            file_size=123,
+            file_type="pdf",
+            parse_status="completed",
+            markdown_content="![图](/files/mineru/extract/images/missing.png)",
+        )
+        db.session.add(reference_file)
+        db.session.commit()
+        file_id = reference_file.id
+
+    def fail_import(*args, **kwargs):
+        raise RuntimeError("import failed")
+
+    monkeypatch.setattr(
+        "controllers.reference_file_controller.import_reference_markdown_images_to_materials",
+        fail_import,
+    )
+
+    response = client.post(f"/api/reference-files/{file_id}/associate", json={"project_id": project_id})
+    assert_success_response(response)
+
+    with app.app_context():
+        reference_file = ReferenceFile.query.get(file_id)
+        assert reference_file.project_id == project_id
+
+
 def test_import_reference_markdown_images_handles_mineru_prefix_paths(client, app):
     project_id = _create_project(client)
 
