@@ -41,25 +41,25 @@ def import_reference_markdown_images_to_materials(
     }
 
     for alt_text, raw_image_url in _iter_markdown_images(markdown_content):
-        image_url = unquote(raw_image_url)
-        source_path = _resolve_local_mineru_image(image_url, upload_root)
-        if source_path is None:
-            continue
-
-        file_ext = source_path.suffix.lower()
-        if file_ext not in SUPPORTED_IMAGE_EXTENSIONS:
-            logger.debug("Skipping unsupported parsed image type: %s", source_path)
-            continue
-
-        if not _is_valid_image_file(source_path):
-            logger.warning("Skipping invalid parsed image: %s", source_path)
-            continue
-
-        deterministic_name = _material_filename_for_source(project_id, image_url, file_ext)
-        if deterministic_name in existing_filenames:
-            continue
-
         try:
+            image_url = unquote(raw_image_url)
+            source_path = _resolve_local_mineru_image(image_url, upload_root)
+            if source_path is None:
+                continue
+
+            file_ext = source_path.suffix.lower()
+            if file_ext not in SUPPORTED_IMAGE_EXTENSIONS:
+                logger.debug("Skipping unsupported parsed image type: %s", source_path)
+                continue
+
+            if not _is_valid_image_file(source_path):
+                logger.warning("Skipping invalid parsed image: %s", source_path)
+                continue
+
+            deterministic_name = _material_filename_for_source(project_id, image_url, file_ext)
+            if deterministic_name in existing_filenames:
+                continue
+
             target_dir = file_service._get_materials_dir(project_id)
             target_dir.mkdir(parents=True, exist_ok=True)
             target_path = target_dir / deterministic_name
@@ -78,7 +78,7 @@ def import_reference_markdown_images_to_materials(
             existing_filenames.add(deterministic_name)
             imported_count += 1
         except Exception as exc:
-            logger.error("导入解析后的图片失败 %s: %s", source_path, exc, exc_info=True)
+            logger.error("导入解析后的图片失败: %s", exc, exc_info=True)
             continue
 
     return imported_count
@@ -90,6 +90,7 @@ def _iter_markdown_images(markdown_content: str):
 
 
 def _resolve_local_mineru_image(image_url: str, upload_folder: Path) -> Optional[Path]:
+    image_url = image_url.split("?", 1)[0].split("#", 1)[0]
     if not image_url.startswith("/files/mineru/"):
         return None
 
