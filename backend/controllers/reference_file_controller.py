@@ -16,6 +16,7 @@ import threading
 from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
+from services.material_import_service import import_reference_markdown_images_to_materials
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,19 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             else:
                 reference_file.parse_status = 'completed'
                 reference_file.markdown_content = markdown_content
+                if reference_file.project_id:
+                    imported_count = import_reference_markdown_images_to_materials(
+                        project_id=reference_file.project_id,
+                        markdown_content=markdown_content,
+                        upload_folder=current_app.config['UPLOAD_FOLDER'],
+                    )
+                    if imported_count:
+                        logger.info(
+                            "Imported %s parsed image(s) from reference file %s to project %s materials",
+                            imported_count,
+                            reference_file.id,
+                            reference_file.project_id,
+                        )
                 if failed_image_count > 0:
                     logger.warning(f"File parsing completed: {filename}, but {failed_image_count} images failed to generate captions")
                 else:
@@ -394,6 +408,19 @@ def associate_file_to_project(file_id):
         # Update file's project_id
         reference_file.project_id = project_id
         reference_file.updated_at = datetime.utcnow()
+        if reference_file.parse_status == 'completed' and reference_file.markdown_content:
+            imported_count = import_reference_markdown_images_to_materials(
+                project_id=project_id,
+                markdown_content=reference_file.markdown_content,
+                upload_folder=current_app.config['UPLOAD_FOLDER'],
+            )
+            if imported_count:
+                logger.info(
+                    "Imported %s parsed image(s) while associating reference file %s to project %s",
+                    imported_count,
+                    reference_file.id,
+                    project_id,
+                )
         db.session.commit()
         
         logger.info(f"Associated reference file {file_id} to project {project_id}")
@@ -433,4 +460,3 @@ def dissociate_file_from_project(file_id):
     except Exception as e:
         logger.error(f"Error dissociating reference file: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
-
