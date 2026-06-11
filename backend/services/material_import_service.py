@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 from posixpath import normpath
 from typing import Optional
+from urllib.parse import unquote
 
 from PIL import Image
 
@@ -38,7 +39,8 @@ def import_reference_markdown_images_to_materials(
         for material in Material.query.filter_by(project_id=project_id).all()
     }
 
-    for alt_text, image_url in _iter_markdown_images(markdown_content):
+    for alt_text, raw_image_url in _iter_markdown_images(markdown_content):
+        image_url = unquote(raw_image_url)
         source_path = _resolve_local_mineru_image(image_url, file_service.upload_folder)
         if source_path is None:
             continue
@@ -68,7 +70,7 @@ def import_reference_markdown_images_to_materials(
                 filename=deterministic_name,
                 relative_path=relative_path,
                 url=file_service.get_file_url(project_id, "materials", deterministic_name),
-                caption=alt_text.strip() or None,
+                caption=alt_text.strip()[:500] or None,
                 original_filename=source_path.name,
             )
             db.session.add(material)

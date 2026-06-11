@@ -2,6 +2,7 @@
 Tests for importing parsed reference-file images into project materials.
 """
 from pathlib import Path
+from urllib.parse import quote
 
 from PIL import Image
 
@@ -108,11 +109,46 @@ def test_import_reference_markdown_images_deduplicates_repeated_urls(client, app
     assert len(data["data"]["materials"]) == 1
 
 
+def test_import_reference_markdown_images_decodes_urls_and_truncates_caption(client, app):
+    project_id = _create_project(client)
+
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+    source_image = upload_folder / "mineru_files" / "extract_cn" / "images" / "图 表.png"
+    _write_test_image(source_image)
+
+    encoded_url = quote("/files/mineru/extract_cn/images/图 表.png", safe="/")
+    long_caption = "图" * 600
+    imported_count = import_reference_markdown_images_to_materials(
+        project_id=project_id,
+        markdown_content=f"![{long_caption}]({encoded_url})",
+        upload_folder=app.config["UPLOAD_FOLDER"],
+    )
+    db.session.commit()
+
+    assert imported_count == 1
+    data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
+    material = data["data"]["materials"][0]
+    assert material["original_filename"] == "图 表.png"
+    assert material["caption"] == "图" * 500
+
+
 def test_resolve_local_mineru_image_rejects_traversal(app):
     upload_folder = Path(app.config["UPLOAD_FOLDER"])
 
     assert _resolve_local_mineru_image("/files/mineru/../secret.png", upload_folder) is None
     assert _resolve_local_mineru_image("/files/mineru/extract/../../secret.png", upload_folder) is None
+
+
+def test_import_reference_markdown_images_rejects_encoded_traversal(client, app):
+    project_id = _create_project(client)
+
+    imported_count = import_reference_markdown_images_to_materials(
+        project_id=project_id,
+        markdown_content="![bad](/files/mineru/%2e%2e/secret.png)",
+        upload_folder=app.config["UPLOAD_FOLDER"],
+    )
+
+    assert imported_count == 0
 
 
 def test_resolve_local_mineru_image_returns_none_when_parent_missing(app):
