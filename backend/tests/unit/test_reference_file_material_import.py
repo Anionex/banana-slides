@@ -7,7 +7,10 @@ from PIL import Image
 
 from conftest import assert_success_response
 from models import ReferenceFile, db
-from services.material_import_service import import_reference_markdown_images_to_materials
+from services.material_import_service import (
+    _resolve_local_mineru_image,
+    import_reference_markdown_images_to_materials,
+)
 
 
 def _write_test_image(path: Path) -> None:
@@ -81,3 +84,16 @@ def test_import_reference_markdown_images_handles_mineru_prefix_paths(client, ap
     assert imported_count == 1
     data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
     assert len(data["data"]["materials"]) == 1
+
+
+def test_resolve_local_mineru_image_rejects_traversal(app):
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+
+    assert _resolve_local_mineru_image("/files/mineru/../secret.png", upload_folder) is None
+    assert _resolve_local_mineru_image("/files/mineru/extract/../../secret.png", upload_folder) is None
+
+
+def test_resolve_local_mineru_image_returns_none_when_parent_missing(app):
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+
+    assert _resolve_local_mineru_image("/files/mineru/missing/images/chart.png", upload_folder) is None

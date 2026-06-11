@@ -3,13 +3,13 @@ Helpers for importing parsed reference-file images into the material library.
 """
 import hashlib
 import logging
-import os
 import re
 import shutil
 from pathlib import Path
+from posixpath import normpath
 from typing import Optional
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from models import Material, db
 from services import FileService
@@ -56,22 +56,26 @@ def import_reference_markdown_images_to_materials(
         if existing:
             continue
 
-        target_dir = file_service.upload_folder / file_service._get_materials_dir(project_id)
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target_path = target_dir / deterministic_name
-        shutil.copy2(source_path, target_path)
+        try:
+            target_dir = file_service.upload_folder / file_service._get_materials_dir(project_id)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / deterministic_name
+            shutil.copy2(source_path, target_path)
 
-        relative_path = target_path.relative_to(file_service.upload_folder).as_posix()
-        material = Material(
-            project_id=project_id,
-            filename=deterministic_name,
-            relative_path=relative_path,
-            url=file_service.get_file_url(project_id, "materials", deterministic_name),
-            caption=alt_text.strip() or None,
-            original_filename=source_path.name,
-        )
-        db.session.add(material)
-        imported_count += 1
+            relative_path = target_path.relative_to(file_service.upload_folder).as_posix()
+            material = Material(
+                project_id=project_id,
+                filename=deterministic_name,
+                relative_path=relative_path,
+                url=file_service.get_file_url(project_id, "materials", deterministic_name),
+                caption=alt_text.strip() or None,
+                original_filename=source_path.name,
+            )
+            db.session.add(material)
+            imported_count += 1
+        except Exception as exc:
+            logger.error("导入解析后的图片失败 %s: %s", source_path, exc, exc_info=True)
+            continue
 
     return imported_count
 
@@ -86,18 +90,28 @@ def _resolve_local_mineru_image(image_url: str, upload_folder: Path) -> Optional
         return None
 
     rel_path = image_url[len("/files/mineru/"):].lstrip("/\\")
+    if not rel_path:
+        return None
+
+    normalized_rel_path = normpath(rel_path.replace("\\", "/"))
+    if normalized_rel_path == "." or normalized_rel_path.startswith("../") or "/../" in normalized_rel_path:
+        logger.warning("Path traversal attempt blocked for parsed image: %s", image_url)
+        return None
+
     mineru_root = (upload_folder / "mineru_files").resolve()
-    candidate = (mineru_root / rel_path).resolve()
+    candidate = (mineru_root / normalized_rel_path).resolve()
 
     try:
-        if os.path.commonpath([str(candidate), str(mineru_root)]) != str(mineru_root):
-            logger.warning("Path traversal attempt blocked for parsed image: %s", image_url)
-            return None
+        candidate.relative_to(mineru_root)
     except ValueError:
+        logger.warning("Path traversal attempt blocked for parsed image: %s", image_url)
         return None
 
     if candidate.exists() and candidate.is_file():
         return candidate
+
+    if not candidate.parent.exists() or not candidate.parent.is_dir():
+        return None
 
     matched = find_file_with_prefix(candidate)
     if not matched:
@@ -105,9 +119,9 @@ def _resolve_local_mineru_image(image_url: str, upload_folder: Path) -> Optional
 
     matched = matched.resolve()
     try:
-        if os.path.commonpath([str(matched), str(mineru_root)]) != str(mineru_root):
-            return None
+        matched.relative_to(mineru_root)
     except ValueError:
+        logger.warning("Path traversal attempt blocked for parsed image: %s", image_url)
         return None
     return matched
 
@@ -122,5 +136,5 @@ def _is_valid_image_file(path: Path) -> bool:
         with Image.open(path) as image:
             image.verify()
         return True
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+    except Exception:
         return False
