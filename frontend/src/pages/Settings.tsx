@@ -58,6 +58,7 @@ const settingsI18n = {
         manualCallbackPlaceholder: "粘贴回调地址...",
         manualCallbackSubmit: "提交",
         manualCallbackSuccess: "连接成功",
+        callbackPortBusy: "检测到本机 1455 端口被占用，请登录后复制弹窗地址栏中的完整地址并粘贴到下方。",
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
       language: { label: "界面语言", zh: "中文", en: "English" },
@@ -206,6 +207,7 @@ const settingsI18n = {
         manualCallbackPlaceholder: "Paste callback URL...",
         manualCallbackSubmit: "Submit",
         manualCallbackSuccess: "Connected successfully",
+        callbackPortBusy: "Port 1455 is already in use. After logging in, copy the full popup address-bar URL and paste it below.",
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
       language: { label: "Interface Language", zh: "中文", en: "English" },
@@ -645,6 +647,10 @@ export const Settings: React.FC = () => {
     try {
       const resp = await api.getOpenAIOAuthUrl();
       if (resp.success && resp.data?.auth_url) {
+        if (resp.data.callback_server_available === false) {
+          setManualCallbackOpen(true);
+          show({ message: t('settings.openaiOAuth.callbackPortBusy'), type: 'warning' });
+        }
         const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
         const onMessage = async (event: MessageEvent) => {
           if (event.data?.type === 'openai-oauth-callback') {

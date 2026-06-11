@@ -1328,8 +1328,8 @@ export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
 /**
  * OpenAI OAuth: get authorization URL
  */
-export const getOpenAIOAuthUrl = async (): Promise<ApiResponse<{ auth_url: string }>> => {
-  const response = await apiClient.get<ApiResponse<{ auth_url: string }>>('/api/settings/openai-oauth/authorize');
+export const getOpenAIOAuthUrl = async (): Promise<ApiResponse<{ auth_url: string; callback_server_available?: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ auth_url: string; callback_server_available?: boolean }>>('/api/settings/openai-oauth/authorize');
   return response.data;
 };
 
