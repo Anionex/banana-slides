@@ -107,10 +107,10 @@ export interface Material {
   relative_path: string;
   created_at: string;
   prompt?: string;
-  original_filename?: string;
+  original_filename?: string | null;
   source_filename?: string;
   name?: string;
-  caption?: string;
+  caption?: string | null;
 }
 
 // 任务状态
