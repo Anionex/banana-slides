@@ -33,6 +33,7 @@ def import_reference_markdown_images_to_materials(
         return 0
 
     file_service = FileService(upload_folder)
+    upload_root = Path(file_service.upload_folder)
     imported_count = 0
     existing_filenames = {
         material.filename
@@ -41,7 +42,7 @@ def import_reference_markdown_images_to_materials(
 
     for alt_text, raw_image_url in _iter_markdown_images(markdown_content):
         image_url = unquote(raw_image_url)
-        source_path = _resolve_local_mineru_image(image_url, file_service.upload_folder)
+        source_path = _resolve_local_mineru_image(image_url, upload_root)
         if source_path is None:
             continue
 
@@ -64,7 +65,7 @@ def import_reference_markdown_images_to_materials(
             target_path = target_dir / deterministic_name
             shutil.copy2(source_path, target_path)
 
-            relative_path = target_path.relative_to(file_service.upload_folder).as_posix()
+            relative_path = target_path.relative_to(upload_root).as_posix()
             material = Material(
                 project_id=project_id,
                 filename=deterministic_name,
