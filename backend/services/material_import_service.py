@@ -60,7 +60,7 @@ def import_reference_markdown_images_to_materials(
             if deterministic_name in existing_filenames:
                 continue
 
-            target_dir = file_service._get_materials_dir(project_id)
+            target_dir = file_service.get_materials_dir(project_id)
             target_dir.mkdir(parents=True, exist_ok=True)
             target_path = target_dir / deterministic_name
             shutil.copy2(source_path, target_path)
