@@ -106,6 +106,7 @@ export interface Material {
   url: string;
   relative_path: string;
   created_at: string;
+  updated_at?: string | null;
   prompt?: string;
   original_filename?: string | null;
   source_filename?: string;
