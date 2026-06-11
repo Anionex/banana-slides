@@ -96,6 +96,23 @@ export interface Project {
   updated_at: string;
 }
 
+/**
+ * 素材信息
+ */
+export interface Material {
+  id: string;
+  project_id?: string | null;
+  filename: string;
+  url: string;
+  relative_path: string;
+  created_at: string;
+  prompt?: string;
+  original_filename?: string;
+  source_filename?: string;
+  name?: string;
+  caption?: string;
+}
+
 // 任务状态
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 

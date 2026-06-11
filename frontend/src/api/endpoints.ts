@@ -1,6 +1,8 @@
 import { apiClient } from './client';
-import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
+import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material } from '@/types';
 import type { Settings } from '../types/index';
+
+export type { Material } from '@/types';
 
 // ===== 访问口令 API =====
 
@@ -904,23 +906,6 @@ export const processMaterialImage = async (
   );
   return response.data;
 };
-
-/**
- * 素材信息接口
- */
-export interface Material {
-  id: string;
-  project_id?: string | null;
-  filename: string;
-  url: string;
-  relative_path: string;
-  created_at: string;
-  // 可选的附加信息：用于展示友好名称
-  prompt?: string;
-  original_filename?: string;
-  source_filename?: string;
-  name?: string;
-}
 
 /**
  * 获取素材列表
