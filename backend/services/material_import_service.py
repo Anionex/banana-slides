@@ -2,7 +2,6 @@
 Helpers for importing parsed reference-file images into the material library.
 """
 import hashlib
-import html
 import logging
 import re
 import shutil
@@ -67,7 +66,8 @@ def import_reference_markdown_images_to_materials(
             shutil.copy2(source_path, target_path)
 
             relative_path = target_path.relative_to(upload_root).as_posix()
-            clean_caption = html.escape(alt_text.strip())[:500] or None
+            clean_alt = re.sub(r"<[^>]*>", "", alt_text.strip())
+            clean_caption = clean_alt[:500] or None
             material = Material(
                 project_id=project_id,
                 filename=deterministic_name,
@@ -101,7 +101,7 @@ def _resolve_local_mineru_image(image_url: str, upload_folder: Path) -> Optional
         return None
 
     normalized_rel_path = normpath(rel_path.replace("\\", "/"))
-    if normalized_rel_path == "." or normalized_rel_path.startswith("../") or "/../" in normalized_rel_path:
+    if normalized_rel_path == "." or ".." in normalized_rel_path.split("/"):
         logger.warning("Path traversal attempt blocked for parsed image: %s", image_url)
         return None
 

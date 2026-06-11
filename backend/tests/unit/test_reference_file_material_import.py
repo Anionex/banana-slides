@@ -201,7 +201,7 @@ def test_import_reference_markdown_images_handles_parentheses_in_urls(client, ap
     assert material["original_filename"] == "chart (1).png"
 
 
-def test_import_reference_markdown_images_escapes_caption_html(client, app):
+def test_import_reference_markdown_images_strips_caption_html(client, app):
     project_id = _create_project(client)
 
     upload_folder = Path(app.config["UPLOAD_FOLDER"])
@@ -210,7 +210,7 @@ def test_import_reference_markdown_images_escapes_caption_html(client, app):
 
     imported_count = import_reference_markdown_images_to_materials(
         project_id=project_id,
-        markdown_content="![<img src=x onerror=alert(1)>](/files/mineru/extract_html/images/chart.png)",
+        markdown_content="![Chart <img src=x onerror=alert(1)>](/files/mineru/extract_html/images/chart.png)",
         upload_folder=app.config["UPLOAD_FOLDER"],
     )
     db.session.commit()
@@ -218,7 +218,7 @@ def test_import_reference_markdown_images_escapes_caption_html(client, app):
     assert imported_count == 1
     data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
     material = data["data"]["materials"][0]
-    assert material["caption"] == "&lt;img src=x onerror=alert(1)&gt;"
+    assert material["caption"] == "Chart "
 
 
 def test_import_reference_markdown_images_decodes_urls_and_truncates_caption(client, app):
