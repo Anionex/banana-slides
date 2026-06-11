@@ -112,6 +112,7 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             
         except Exception as e:
             logger.error(f"Error in async file parsing: {str(e)}", exc_info=True)
+            db.session.rollback()
             try:
                 reference_file = ReferenceFile.query.get(file_id)
                 if reference_file:
