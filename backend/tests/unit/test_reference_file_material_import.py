@@ -180,6 +180,42 @@ def test_import_reference_markdown_images_deduplicates_repeated_urls(client, app
     assert len(data["data"]["materials"]) == 1
 
 
+def test_import_reference_markdown_images_deduplicates_per_project(client, app):
+    first_project_id = _create_project(client)
+    second_project_id = _create_project(client)
+
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+    source_image = upload_folder / "mineru_files" / "extract_shared" / "images" / "chart.png"
+    _write_test_image(source_image)
+    markdown = "![共享图](/files/mineru/extract_shared/images/chart.png)"
+
+    first_count = import_reference_markdown_images_to_materials(
+        project_id=first_project_id,
+        markdown_content=markdown,
+        upload_folder=app.config["UPLOAD_FOLDER"],
+    )
+    second_count = import_reference_markdown_images_to_materials(
+        project_id=second_project_id,
+        markdown_content=markdown,
+        upload_folder=app.config["UPLOAD_FOLDER"],
+    )
+    db.session.commit()
+
+    assert first_count == 1
+    assert second_count == 1
+
+    first_data = assert_success_response(client.get(f"/api/projects/{first_project_id}/materials"))
+    second_data = assert_success_response(client.get(f"/api/projects/{second_project_id}/materials"))
+    first_material = first_data["data"]["materials"][0]
+    second_material = second_data["data"]["materials"][0]
+
+    assert len(first_data["data"]["materials"]) == 1
+    assert len(second_data["data"]["materials"]) == 1
+    assert first_material["filename"] != second_material["filename"]
+    assert first_material["relative_path"].startswith(f"{first_project_id}/materials/")
+    assert second_material["relative_path"].startswith(f"{second_project_id}/materials/")
+
+
 def test_import_reference_markdown_images_handles_parentheses_in_urls(client, app):
     project_id = _create_project(client)
 
