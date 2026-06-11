@@ -2,7 +2,7 @@ import { apiClient } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material } from '@/types';
 import type { Settings } from '../types/index';
 
-export type { Material } from '@/types';
+export type { Material };
 
 // ===== 访问口令 API =====
 
