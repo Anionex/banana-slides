@@ -2,6 +2,7 @@
 Helpers for importing parsed reference-file images into the material library.
 """
 import hashlib
+import html
 import logging
 import re
 import shutil
@@ -66,12 +67,13 @@ def import_reference_markdown_images_to_materials(
             shutil.copy2(source_path, target_path)
 
             relative_path = target_path.relative_to(upload_root).as_posix()
+            clean_caption = html.escape(alt_text.strip())[:500] or None
             material = Material(
                 project_id=project_id,
                 filename=deterministic_name,
                 relative_path=relative_path,
                 url=file_service.get_file_url(project_id, "materials", deterministic_name),
-                caption=alt_text.strip()[:500] or None,
+                caption=clean_caption,
                 original_filename=source_path.name,
             )
             db.session.add(material)
