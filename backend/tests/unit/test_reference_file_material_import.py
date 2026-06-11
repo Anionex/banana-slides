@@ -68,6 +68,46 @@ def test_associate_completed_reference_file_imports_mineru_images_to_project_mat
     assert len(data["data"]["materials"]) == 1
 
 
+def test_associate_imports_if_parsing_completes_during_refresh(client, app, monkeypatch):
+    project_id = _create_project(client)
+
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+    source_image = upload_folder / "mineru_files" / "race123" / "images" / "chart.png"
+    _write_test_image(source_image)
+
+    markdown = "正文\n![刷新后完成](/files/mineru/race123/images/chart.png)\n"
+    with app.app_context():
+        reference_file = ReferenceFile(
+            filename="race.pdf",
+            file_path="reference_files/race.pdf",
+            file_size=456,
+            file_type="pdf",
+            parse_status="parsing",
+            markdown_content=None,
+        )
+        db.session.add(reference_file)
+        db.session.commit()
+        file_id = reference_file.id
+
+    original_refresh = db.session.refresh
+
+    def refresh_with_completed_parse(instance, *args, **kwargs):
+        original_refresh(instance, *args, **kwargs)
+        if isinstance(instance, ReferenceFile) and instance.id == file_id:
+            instance.parse_status = "completed"
+            instance.markdown_content = markdown
+
+    monkeypatch.setattr(db.session, "refresh", refresh_with_completed_parse)
+
+    response = client.post(f"/api/reference-files/{file_id}/associate", json={"project_id": project_id})
+    assert_success_response(response)
+
+    data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
+    materials = data["data"]["materials"]
+    assert len(materials) == 1
+    assert materials[0]["caption"] == "刷新后完成"
+
+
 def test_import_reference_markdown_images_handles_mineru_prefix_paths(client, app):
     project_id = _create_project(client)
 

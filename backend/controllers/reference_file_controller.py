@@ -74,6 +74,9 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             logger.info(f"Starting to parse file: {filename}")
             batch_id, markdown_content, extract_id, error_message, failed_image_count = parser.parse_file(file_path, filename)
             
+            # Refresh in case the file was associated with a project while parsing.
+            db.session.refresh(reference_file)
+
             # Update database
             reference_file.mineru_batch_id = batch_id
             if error_message:
@@ -405,9 +408,13 @@ def associate_file_to_project(file_id):
         if not project:
             return not_found('Project')
         
-        # Update file's project_id
+        # Persist the association first, then refresh parsing state to close the
+        # race with the background parser finishing at the same time.
         reference_file.project_id = project_id
         reference_file.updated_at = datetime.utcnow()
+        db.session.commit()
+        db.session.refresh(reference_file)
+
         if reference_file.parse_status == 'completed' and reference_file.markdown_content:
             imported_count = import_reference_markdown_images_to_materials(
                 project_id=project_id,
@@ -421,7 +428,7 @@ def associate_file_to_project(file_id):
                     reference_file.id,
                     project_id,
                 )
-        db.session.commit()
+            db.session.commit()
         
         logger.info(f"Associated reference file {file_id} to project {project_id}")
         
