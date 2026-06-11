@@ -36,8 +36,8 @@ def import_reference_markdown_images_to_materials(
     upload_root = Path(file_service.upload_folder)
     imported_count = 0
     existing_filenames = {
-        material.filename
-        for material in Material.query.filter_by(project_id=project_id).all()
+        filename
+        for (filename,) in db.session.query(Material.filename).filter_by(project_id=project_id).all()
     }
 
     for alt_text, raw_image_url in _iter_markdown_images(markdown_content):
