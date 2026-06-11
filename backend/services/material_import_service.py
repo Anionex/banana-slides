@@ -42,7 +42,7 @@ def import_reference_markdown_images_to_materials(
 
     for alt_text, raw_image_url in _iter_markdown_images(markdown_content):
         try:
-            image_url = unquote(raw_image_url)
+            image_url = unquote(raw_image_url).split("?", 1)[0].split("#", 1)[0]
             source_path = _resolve_local_mineru_image(image_url, upload_root)
             if source_path is None:
                 continue

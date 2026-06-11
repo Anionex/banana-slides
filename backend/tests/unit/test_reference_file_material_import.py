@@ -126,7 +126,6 @@ def test_import_reference_markdown_images_handles_mineru_prefix_paths(client, ap
     data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
     assert len(data["data"]["materials"]) == 1
 
-
 def test_import_reference_markdown_images_deduplicates_repeated_urls(client, app):
     project_id = _create_project(client)
 
@@ -187,6 +186,20 @@ def test_import_reference_markdown_images_strips_query_and_fragment(client, app)
     db.session.commit()
 
     assert imported_count == 1
+    data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
+    assert len(data["data"]["materials"]) == 1
+
+    duplicate_count = import_reference_markdown_images_to_materials(
+        project_id=project_id,
+        markdown_content="\n".join([
+            "![图表](/files/mineru/extract_query/images/chart.png?v=2)",
+            "![图表](/files/mineru/extract_query/images/chart.png#another-page)",
+        ]),
+        upload_folder=app.config["UPLOAD_FOLDER"],
+    )
+    db.session.commit()
+
+    assert duplicate_count == 0
     data = assert_success_response(client.get(f"/api/projects/{project_id}/materials"))
     assert len(data["data"]["materials"]) == 1
 
