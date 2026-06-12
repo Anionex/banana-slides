@@ -148,6 +148,7 @@ def test_latex_math_detection_uses_content_not_metadata():
     assert looks_like_latex_math(r"\begin{matrix}a & b\end{matrix}")
     assert looks_like_latex_math(r"$x^2 + y^2 = z^2$")
     assert looks_like_latex_math(r"E = mc^2")
+    assert looks_like_latex_math("∀ i, Uᵢ(s^*) ge Uᵢ(sᵢ, s₋ᵢ^*)")
     assert not looks_like_latex_math("Area = x^2")
     assert not looks_like_latex_math("Revenue formula")
     assert not looks_like_latex_math("https://example.com/math/x^2")
@@ -182,6 +183,31 @@ def test_mixed_latex_segments_use_display_text_for_plain_text_rendering(tmp_path
     assert "Area = " in slide_xml
     assert "x²" in slide_xml
     assert "x^2" not in slide_xml
+
+
+def test_math_element_adds_visible_non_tex_preview(tmp_path):
+    builder = PPTXBuilder()
+    builder.create_presentation()
+    slide = builder.add_blank_slide()
+    style = TextStyleResult(font_color_rgb=(210, 250, 100))
+
+    assert builder.add_math_element(
+        slide=slide,
+        latex=r"\forall i, U_i(s^*) ge U_i(s_i, s_{-i}^*)",
+        bbox=[10, 10, 280, 60],
+        text_style=style,
+    )
+
+    output = tmp_path / "equation-preview.pptx"
+    builder.save(str(output))
+    slide_xml = _slide_xml(output)
+
+    assert "<a14:m" in slide_xml
+    assert "<a:t>∀ i, Uᵢ(s^*) ≥ Uᵢ(sᵢ, s₋ᵢ^*)</a:t>" in slide_xml
+    assert " ge " not in slide_xml
+    assert r"\forall" not in slide_xml
+    assert r"\ge" not in slide_xml
+    assert '<a:srgbClr val="D2FA64"/>' in slide_xml
 
 
 def test_text_fallback_can_disable_redundant_math_conversion(tmp_path, monkeypatch):
@@ -303,6 +329,37 @@ def test_editable_export_renders_latex_text_content_as_native_omml(tmp_path):
     assert "<m:oMathPara" in slide_xml
     assert "<m:f>" in slide_xml
     assert r"\frac" not in slide_xml
+
+
+def test_editable_export_prefers_latex_text_segments_for_formula_source(tmp_path):
+    output = tmp_path / "editable-styled-formula-source.pptx"
+    builder = PPTXBuilder()
+    builder.create_presentation()
+    slide = builder.add_blank_slide()
+    element = _EditableElement("text", "Vi,Ui(s*) ge Ui(si,s*i)")
+    style = TextStyleResult(
+        font_color_rgb=(210, 250, 100),
+        colored_segments=[
+            ColoredSegment(text=r"\forall i, U_i(s^*) \geq U_i(s_i, s_{-i}^*)")
+        ],
+    )
+
+    ExportService._add_editable_elements_to_slide(
+        builder=builder,
+        slide=slide,
+        elements=[element],
+        text_styles_cache={element.element_id: style},
+        fail_fast=True,
+    )
+    builder.save(str(output))
+
+    slide_xml = _slide_xml(output)
+    assert "<a14:m" in slide_xml
+    assert "<a:t>∀ i, Uᵢ(s^*) ≥ Uᵢ(sᵢ, s₋ᵢ^*)</a:t>" in slide_xml
+    assert "Vi,Ui" not in slide_xml
+    assert " ge " not in slide_xml
+    assert r"\forall" not in slide_xml
+    assert r"\geq" not in slide_xml
 
 
 def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):

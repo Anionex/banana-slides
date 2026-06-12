@@ -7,6 +7,7 @@ import os
 import json
 import logging
 import random
+import re
 import tempfile
 import base64
 import hashlib
@@ -1511,21 +1512,46 @@ class ExportService:
         if text_styles_cache is None:
             text_styles_cache = {}
 
+        def choose_formula_text(text: str, text_style: Any = None) -> Optional[str]:
+            candidates = [text]
+            if text_style and getattr(text_style, 'colored_segments', None):
+                styled_text = ''.join(seg.text for seg in text_style.colored_segments).strip()
+                if styled_text and styled_text not in candidates:
+                    candidates.append(styled_text)
+
+            def score(candidate: str) -> int:
+                if not looks_like_latex_math(candidate):
+                    return -1
+                return (
+                    len(re.findall(r"\\[A-Za-z]+", candidate)) * 10
+                    + candidate.count("\\") * 4
+                    + len(re.findall(r"[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9+\-=()*])", candidate)) * 3
+                    + len(re.findall(r"[∀∃∈∉≤≥≠≈∑∏∫∞∂∇πΠΣ√]", candidate)) * 2
+                    - len(re.findall(r"\b[A-Za-z]{5,}\b", candidate)) * 2
+                )
+
+            scored = [(score(candidate), candidate) for candidate in candidates if candidate]
+            scored = [item for item in scored if item[0] >= 0]
+            if not scored:
+                return None
+            return max(scored, key=lambda item: item[0])[1]
+
         def add_text_or_formula(elem, text, bbox_list, text_level='default', align='left'):
             text_style = text_styles_cache.get(elem.element_id)
             if text_style:
                 logger.debug(f"{'  ' * depth}  使用缓存的文字样式: color={text_style.font_color_rgb}, bold={text_style.is_bold}")
 
-            if looks_like_latex_math(text):
+            formula_text = choose_formula_text(text, text_style)
+            if formula_text:
                 if builder.add_math_element(
                     slide=slide,
-                    latex=text,
+                    latex=formula_text,
                     bbox=bbox_list,
                     text_style=text_style
                 ):
                     return
 
-                fallback_text = latex_to_display_text(text)
+                fallback_text = latex_to_display_text(formula_text)
                 builder.add_text_element(
                     slide=slide,
                     text=fallback_text,
@@ -1537,7 +1563,7 @@ class ExportService:
                 )
                 if warnings:
                     warnings.add_text_render_failed(
-                        text,
+                        formula_text,
                         '公式暂不支持原生转换，已使用可读文本回退'
                     )
                 return

@@ -44,7 +44,8 @@ LATEX_SYMBOLS = {
     # 数学运算符
     r'\times': '×', r'\div': '÷', r'\pm': '±', r'\mp': '∓',
     r'\cdot': '·', r'\ast': '∗', r'\star': '☆',
-    r'\leq': '≤', r'\geq': '≥', r'\neq': '≠', r'\approx': '≈',
+    r'\leq': '≤', r'\le': '≤', r'\geq': '≥', r'\ge': '≥',
+    r'\neq': '≠', r'\approx': '≈',
     r'\equiv': '≡', r'\sim': '∼', r'\propto': '∝',
     r'\infty': '∞', r'\partial': '∂', r'\nabla': '∇',
     r'\sum': '∑', r'\prod': '∏', r'\int': '∫',

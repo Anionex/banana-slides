@@ -31,6 +31,9 @@ _PATH_OR_URL_PATTERN = re.compile(
 _WINDOWS_RELATIVE_PATH_PATTERN = re.compile(
     r"^[^\\/:*?\"<>|\s{}^+=]+(?:\\[^\\/:*?\"<>|\s{}^+=]+)+$"
 )
+_UNICODE_MATH_PATTERN = re.compile(r"[∀∃∈∉≤≥≠≈∑∏∫∞∂∇πΠΣ√]")
+_UNICODE_SCRIPT_PATTERN = re.compile(r"[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓᵢⱼₙₘ]")
+_OCR_OPERATOR_WORD_PATTERN = re.compile(r"\b(?:geq?|leq?|neq|forall|exists)\b", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1)
@@ -54,9 +57,33 @@ def normalize_latex_math(source: str) -> str:
     return text
 
 
+def normalize_ocr_math_tokens(source: str) -> str:
+    """Restore common LaTeX operators whose backslash was dropped by OCR."""
+    text = source or ""
+    replacements = (
+        (r"(?<!\\)\bgeq\b", r"\\geq"),
+        (r"(?<!\\)\bge\b", r"\\geq"),
+        (r"(?<!\\)\bleq\b", r"\\leq"),
+        (r"(?<!\\)\ble\b", r"\\leq"),
+        (r"(?<!\\)\bneq\b", r"\\neq"),
+        (r"(?<!\\)\bforall\b", r"\\forall"),
+        (r"(?<!\\)\bexists\b", r"\\exists"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
+
 def latex_to_display_text(source: str) -> str:
     """Return a non-TeX fallback for unsupported equation rendering."""
-    text = latex_to_text(normalize_latex_math(source))
+    text = normalize_ocr_math_tokens(normalize_latex_math(source))
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}", r"(\1)/(\2)", text)
+    text = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"√(\1)", text)
+    text = re.sub(r"\\arg\s*\\max", r"arg max", text)
+    text = latex_to_text(text)
     text = re.sub(r"\\(?:left|right)\s*\.?", "", text)
     text = re.sub(r"\\([A-Za-z]+)", r"\1", text)
     text = text.replace("\\", "").replace("{", "").replace("}", "")
@@ -91,6 +118,20 @@ def looks_like_latex_math(source: str) -> bool:
             )
         )
 
+    if _UNICODE_MATH_PATTERN.search(text) and (
+        re.search(r"[A-Za-z0-9]\s*[(=,+\-*/]", text)
+        or _UNICODE_SCRIPT_PATTERN.search(text)
+        or re.search(r"[_^]", text)
+    ):
+        return True
+
+    if (
+        _OCR_OPERATOR_WORD_PATTERN.search(text)
+        and re.search(r"[_^=()+\-*/(),]", text)
+        and not re.search(r"\b[A-Za-z]{4,}\b", text)
+    ):
+        return True
+
     if not re.search(r"[_^=+\-*/]", text):
         return False
 
@@ -115,7 +156,7 @@ def latex_to_omml(source: str):
     and common large operators with limits. Unsupported commands return None so
     callers can use a readable fallback instead of exposing raw TeX.
     """
-    parser = _LatexOmmlParser(normalize_latex_math(source))
+    parser = _LatexOmmlParser(normalize_ocr_math_tokens(normalize_latex_math(source)))
     try:
         nodes = parser.parse()
     except _UnsupportedLatex as exc:

@@ -591,6 +591,17 @@ class PPTXBuilder:
         end_props = paragraph._p.get_or_add_endParaRPr()
         end_props.set("sz", str(int(font_size * 100)))
 
+        self._add_math_preview_textbox(
+            slide=slide,
+            text=latex_to_display_text(latex),
+            left=left,
+            top=top,
+            width=width,
+            height=height,
+            font_size=font_size,
+            text_style=text_style,
+        )
+
         logger.debug("Added native PPTX equation at bbox %s: %s", bbox, latex)
         return True
 
@@ -602,6 +613,46 @@ class PPTXBuilder:
         math_para.append(math_element)
         container.append(math_para)
         return container
+
+    @staticmethod
+    def _add_math_preview_textbox(
+        slide,
+        text: str,
+        left,
+        top,
+        width,
+        height,
+        font_size: float,
+        text_style: Any = None,
+    ) -> None:
+        """Add a visible non-TeX preview over the native equation object."""
+        if not text:
+            return
+
+        textbox = slide.shapes.add_textbox(left, top, width, height)
+        text_frame = textbox.text_frame
+        text_frame.word_wrap = False
+        text_frame.margin_left = Inches(0)
+        text_frame.margin_right = Inches(0)
+        text_frame.margin_top = Inches(0)
+        text_frame.margin_bottom = Inches(0)
+
+        paragraph = text_frame.paragraphs[0]
+        paragraph.clear()
+        run = paragraph.add_run()
+        run.text = text
+        run.font.size = Pt(font_size)
+        run.font.italic = True
+
+        color_rgb = None
+        if text_style and getattr(text_style, 'font_color_rgb', None):
+            color_rgb = text_style.font_color_rgb
+        if not color_rgb and text_style and getattr(text_style, 'colored_segments', None):
+            first_segment = text_style.colored_segments[0]
+            color_rgb = getattr(first_segment, 'color_rgb', None)
+        if color_rgb:
+            r, g, b = color_rgb
+            run.font.color.rgb = RGBColor(r, g, b)
 
     @staticmethod
     def _apply_math_run_style(math_element, font_size: float, text_style: Any = None) -> None:
