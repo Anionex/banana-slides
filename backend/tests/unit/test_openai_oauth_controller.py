@@ -133,8 +133,8 @@ def test_failed_auto_callback_keeps_state_for_manual_retry(client, app):
             from models import Settings
 
             settings = Settings.get_settings()
-            assert settings.openai_oauth_access_token == "access-token"
-            assert settings.openai_oauth_refresh_token == "refresh-token"
+            assert settings.get_openai_oauth_token() == "access-token"
+            assert settings.get_secret_field("openai_oauth_refresh_token") == "refresh-token"
     finally:
         openai_oauth_controller._pending_flows.clear()
 

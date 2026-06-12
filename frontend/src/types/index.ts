@@ -115,7 +115,7 @@ export interface Material {
 }
 
 // 任务状态
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type TaskStatus = 'PENDING' | 'PROCESSING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 // 任务信息
 export interface Task {
@@ -192,13 +192,24 @@ export interface Settings {
   text_api_base_url?: string;
   image_api_key_length: number;
   image_api_base_url?: string;
+  image_provider_runtime?: {
+    source?: string;
+    label?: string;
+    endpoint?: string;
+    model?: string;
+    response_model?: string;
+    protocol?: string;
+    fallback_available?: boolean;
+    fallback_endpoint?: string;
+    error?: string;
+  };
   image_caption_api_key_length: number;
   image_caption_api_base_url?: string;
   // OpenAI image API protocol
   openai_image_api_protocol?: string;
   // OpenAI Codex OAuth
   openai_oauth_connected: boolean;
-  openai_oauth_account_id?: string;
+  openai_oauth_account_id?: string | null;
   // ElevenLabs TTS
   elevenlabs_enabled: boolean;
   elevenlabs_api_key_length: number;

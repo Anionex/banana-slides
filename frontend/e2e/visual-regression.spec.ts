@@ -52,7 +52,7 @@ test.describe('Visual Regression Tests', () => {
           maxDiffPixels: 200,
         })
       }
-    } catch (error) {
+    } catch {
       // If preview page doesn't exist, skip this test
       test.skip()
     }
@@ -69,7 +69,7 @@ test.describe('Visual Regression Tests', () => {
         fullPage: true,
         maxDiffPixels: 200,
       })
-    } catch (error) {
+    } catch {
       test.skip()
     }
   })
@@ -85,7 +85,7 @@ test.describe('Visual Regression Tests', () => {
         fullPage: true,
         maxDiffPixels: 200,
       })
-    } catch (error) {
+    } catch {
       test.skip()
     }
   })

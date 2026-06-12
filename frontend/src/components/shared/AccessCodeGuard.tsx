@@ -4,7 +4,7 @@ import { useT } from '@/hooks/useT';
 import { Button } from './Button';
 import { Input } from './Input';
 
-const STORAGE_KEY = 'banana-access-code';
+const STORAGE_KEY = 'banana-access-authenticated';
 
 const translations = {
   zh: {
@@ -38,18 +38,21 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
 
   const checkAccess = async () => {
     setStatus('loading');
+    localStorage.removeItem('banana-access-code');
     try {
       const res = await checkAccessCode();
-      if (!res.data.enabled) { setStatus('pass'); return; }
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const v = await verifyAccessCode(saved);
-        if (v.data.valid) { setStatus('pass'); return; }
-        localStorage.removeItem(STORAGE_KEY);
+      const data = res.data;
+      if (!data) throw new Error('Missing access-code status');
+      if (!data.enabled) { setStatus('pass'); return; }
+      if (data.authenticated) {
+        sessionStorage.setItem(STORAGE_KEY, 'true');
+        setStatus('pass');
+        return;
       }
+      sessionStorage.removeItem(STORAGE_KEY);
       setStatus('prompt');
     } catch {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
       setStatus('connectError');
     }
   };
@@ -62,8 +65,8 @@ export function AccessCodeGuard({ children }: { children: ReactNode }) {
     setError('');
     try {
       const res = await verifyAccessCode(code.trim());
-      if (res.data.valid) {
-        localStorage.setItem(STORAGE_KEY, code.trim());
+      if (res.data?.valid) {
+        sessionStorage.setItem(STORAGE_KEY, 'true');
         setStatus('pass');
       } else {
         setError(t('error'));

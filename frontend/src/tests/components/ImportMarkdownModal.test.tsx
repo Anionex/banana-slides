@@ -13,6 +13,7 @@ describe('ImportMarkdownModal', () => {
     pastePlaceholder: 'Paste here...',
     uploadLabel: 'Upload File',
     uploadHint: 'Choose or drop a file',
+    uploadFormatsHint: 'Markdown files only',
     importButtonLabel: 'Import',
     cancelButtonLabel: 'Cancel',
     emptyError: 'Need content',

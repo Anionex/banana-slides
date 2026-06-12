@@ -8,7 +8,7 @@ handle non-standard responses from proxies like newapi/one-api.
 import base64
 from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
@@ -29,14 +29,10 @@ def _make_b64_png() -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def _mock_requests_get(png_bytes):
-    """Create a mock for requests.get that works as a context manager."""
-    mock_resp = MagicMock()
-    mock_resp.content = png_bytes
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    return patch('services.ai_providers.image.openai_provider.requests.get', return_value=mock_resp)
+def _mock_download_remote_image(png_bytes):
+    """Create a mock for the shared safe remote image downloader."""
+    image = Image.open(BytesIO(png_bytes)).copy()
+    return patch('services.ai_providers.image.openai_provider.download_remote_image', return_value=image)
 
 
 class TestDecodeImageResponse:
@@ -53,7 +49,7 @@ class TestDecodeImageResponse:
         b64 = _make_b64_png()
         png_bytes = base64.b64decode(b64)
         item = SimpleNamespace(b64_json=None, url='http://example.com/img.png')
-        with _mock_requests_get(png_bytes):
+        with _mock_download_remote_image(png_bytes):
             result = provider._decode_image_response(item)
         assert isinstance(result, Image.Image)
 
@@ -68,7 +64,7 @@ class TestDecodeImageResponse:
         b64 = _make_b64_png()
         png_bytes = base64.b64decode(b64)
         item = {'b64_json': None, 'url': 'http://example.com/img.png'}
-        with _mock_requests_get(png_bytes):
+        with _mock_download_remote_image(png_bytes):
             result = provider._decode_image_response(item)
         assert isinstance(result, Image.Image)
 
@@ -103,7 +99,7 @@ class TestExtractFromImagesResult:
         provider = _make_provider()
         b64 = _make_b64_png()
         png_bytes = base64.b64decode(b64)
-        with _mock_requests_get(png_bytes):
+        with _mock_download_remote_image(png_bytes):
             img = provider._extract_from_images_result('http://example.com/img.png')
         assert isinstance(img, Image.Image)
 
@@ -124,7 +120,7 @@ class TestExtractFromImagesResult:
         b64 = _make_b64_png()
         png_bytes = base64.b64decode(b64)
         result_dict = {'url': 'http://example.com/img.png'}
-        with _mock_requests_get(png_bytes):
+        with _mock_download_remote_image(png_bytes):
             img = provider._extract_from_images_result(result_dict)
         assert isinstance(img, Image.Image)
 

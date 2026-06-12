@@ -353,6 +353,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "anthropic" },
+    { name = "cryptography" },
     { name = "dashscope" },
     { name = "edge-tts" },
     { name = "elevenlabs" },
@@ -406,6 +407,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "anthropic", specifier = ">=0.30.0" },
     { name = "black", marker = "extra == 'test'", specifier = ">=23.0.0" },
+    { name = "cryptography", specifier = ">=46.0.3" },
     { name = "dashscope", specifier = ">=1.25.0" },
     { name = "edge-tts", specifier = ">=6.1.0" },
     { name = "elevenlabs", specifier = ">=2.45.0" },

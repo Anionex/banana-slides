@@ -8,12 +8,12 @@ image generation (e.g., third-party proxy services).
 import logging
 import base64
 import re
-import requests
 from io import BytesIO
-from typing import Optional, List
+from typing import Callable, Optional, List
 from PIL import Image
 from .base import ImageProvider
 from config import get_config
+from utils.http_images import download_remote_image
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,8 @@ class AnthropicImageProvider(ImageProvider):
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = False,
-        thinking_budget: int = 0
+        thinking_budget: int = 0,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> Optional[Image.Image]:
         """
         Generate image using Anthropic-compatible API
@@ -84,6 +85,8 @@ class AnthropicImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled before Anthropic-compatible request")
             logger.warning(
                 "AnthropicImageProvider: Official Anthropic API doesn't support image generation. "
                 "This provider is intended for use with third-party compatible endpoints only."
@@ -114,9 +117,12 @@ class AnthropicImageProvider(ImageProvider):
             # First try: Use requests to call a compatible endpoint that supports image generation
             # This is a fallback approach for endpoints that use OpenAI-like format
             try:
-                return self._try_openai_compatible_format(
+                result = self._try_openai_compatible_format(
                     content, prompt, aspect_ratio, resolution, ref_images
                 )
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Image generation cancelled after Anthropic-compatible request")
+                return result
             except Exception as e:
                 logger.debug(f"OpenAI-compatible format failed: {e}, trying direct approach")
 
@@ -219,8 +225,6 @@ class AnthropicImageProvider(ImageProvider):
                 url_pattern = r'(https?://[^\s\)\]]+\.(?:png|jpg|jpeg|gif|webp|bmp)(?:\?[^\s\)\]]*)?)'
                 url_matches = re.findall(url_pattern, content_str, re.IGNORECASE)
                 if url_matches:
-                    resp = requests.get(url_matches[0], timeout=30, stream=True)
-                    resp.raise_for_status()
-                    return Image.open(BytesIO(resp.content))
+                    return download_remote_image(url_matches[0])
 
         raise ValueError("No image found in response")

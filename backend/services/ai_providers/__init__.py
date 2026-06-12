@@ -29,6 +29,7 @@ __all__ = [
     'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'AnthropicTextProvider', 'LazyLLMTextProvider', 'CodexTextProvider',
     'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'AnthropicImageProvider', 'LazyLLMImageProvider', 'CodexImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format',
+    'get_openai_image_fallback_provider', 'get_image_provider_runtime_info',
     'get_caption_provider', 'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
 ]
 
@@ -369,9 +370,120 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         return LazyLLMImageProvider(source=source, model=model)
     elif fmt == 'codex':
         resolution = _resolve_setting('DEFAULT_RESOLUTION', '2K') or '2K'
-        logger.info("Image provider: Codex (OAuth), model=%s, resolution=%s", model, resolution)
-        return CodexImageProvider(api_key=config['api_key'], model=model, resolution=resolution)
+        response_model = _resolve_setting('CODEX_IMAGE_RESPONSE_MODEL', 'gpt-5.4') or 'gpt-5.4'
+        logger.info(
+            "Image provider: Codex (OAuth), response_model=%s, image_model=%s, resolution=%s",
+            response_model,
+            model,
+            resolution,
+        )
+        return CodexImageProvider(
+            api_key=config['api_key'],
+            model=model,
+            resolution=resolution,
+            response_model=response_model,
+        )
     else:
         # gemini (default)
         logger.info("Image provider: Gemini, model=%s", model)
         return GenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+
+
+def get_openai_image_fallback_provider(model: str = "gpt-image-2") -> Optional[ImageProvider]:
+    """Return an OpenAI-compatible image provider when fallback credentials exist.
+
+    This is intentionally separate from the normal provider selection. It lets
+    Codex OAuth remain the primary image path while using the API-key compatible
+    path only after transient Codex stream failures.
+    """
+    api_key = (
+        _resolve_setting('IMAGE_API_KEY')
+        or _resolve_setting('OPENAI_API_KEY')
+    )
+    if not api_key:
+        return None
+
+    api_base = (
+        _resolve_setting('IMAGE_API_BASE')
+        or _resolve_setting('OPENAI_API_BASE', 'https://api.openai.com/v1')
+    )
+    image_api_protocol = _resolve_setting('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
+    logger.info(
+        "Image fallback provider: OpenAI-compatible, model=%s, api_base=%s, protocol=%s",
+        model,
+        api_base,
+        image_api_protocol,
+    )
+    return OpenAIImageProvider(
+        api_key=api_key,
+        api_base=api_base,
+        model=model,
+        image_api_protocol=image_api_protocol,
+    )
+
+
+def get_image_provider_runtime_info(model: str = "gemini-3-pro-image-preview") -> Dict[str, Any]:
+    """Return non-secret runtime routing details for settings/debug UI."""
+    try:
+        config = _get_model_type_provider_config('image')
+        fmt = config.get('format')
+    except Exception as exc:
+        return {
+            'source': 'error',
+            'label': 'Unavailable',
+            'endpoint': '',
+            'model': model,
+            'fallback_available': bool(_resolve_setting('IMAGE_API_KEY') or _resolve_setting('OPENAI_API_KEY')),
+            'error': str(exc),
+        }
+
+    fallback_available = bool(_resolve_setting('IMAGE_API_KEY') or _resolve_setting('OPENAI_API_KEY'))
+    protocol = _resolve_setting('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
+
+    if fmt == 'codex':
+        return {
+            'source': 'codex',
+            'label': 'Codex OAuth',
+            'endpoint': 'https://chatgpt.com/backend-api/codex/responses',
+            'model': model,
+            'response_model': _resolve_setting('CODEX_IMAGE_RESPONSE_MODEL', 'gpt-5.4') or 'gpt-5.4',
+            'fallback_available': fallback_available,
+            'fallback_endpoint': (
+                (_resolve_setting('IMAGE_API_BASE') or _resolve_setting('OPENAI_API_BASE', 'https://api.openai.com/v1'))
+                if fallback_available else ''
+            ),
+        }
+    if fmt == 'openai':
+        api_base = config.get('api_base') or ''
+        path = '/images/generations' if protocol in ('auto', 'images') else '/chat/completions'
+        return {
+            'source': 'openai',
+            'label': 'OpenAI-compatible',
+            'endpoint': f"{api_base.rstrip('/')}{path}" if api_base else path,
+            'model': model,
+            'protocol': protocol,
+            'fallback_available': False,
+        }
+    if fmt == 'gemini':
+        return {
+            'source': 'gemini',
+            'label': 'Gemini',
+            'endpoint': config.get('api_base') or 'Google GenAI SDK',
+            'model': model,
+            'fallback_available': False,
+        }
+    if fmt == 'lazyllm':
+        return {
+            'source': 'lazyllm',
+            'label': f"LazyLLM/{config.get('source') or config.get('image_source', '')}",
+            'endpoint': 'LazyLLM',
+            'model': model,
+            'fallback_available': False,
+        }
+    return {
+        'source': fmt,
+        'label': str(fmt or 'unknown'),
+        'endpoint': config.get('api_base') or '',
+        'model': model,
+        'fallback_available': False,
+    }

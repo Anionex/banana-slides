@@ -19,7 +19,6 @@ import * as path from 'path'
 const FRONTEND_DIR = process.cwd().endsWith('frontend')
   ? process.cwd()
   : path.join(process.cwd(), 'frontend')
-const PROJECT_ROOT = path.resolve(FRONTEND_DIR, '..')
 const FIXTURES = path.join(FRONTEND_DIR, 'e2e', 'fixtures')
 const BACKEND_LOG = '/tmp/fix-upload-backend.log'
 

@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 from markitdown import MarkItDown
 from services.ai_providers.text import strip_think_tags
+from utils.http_images import download_remote_image
 
 logger = logging.getLogger(__name__)
 
@@ -660,9 +661,7 @@ class FileParserService:
             # Load image based on URL type
             if image_url.startswith('http://') or image_url.startswith('https://'):
                 # Download from HTTP(S) URL
-                response = requests.get(image_url, timeout=30)
-                response.raise_for_status()
-                image = Image.open(io.BytesIO(response.content))
+                image = download_remote_image(image_url)
             elif image_url.startswith('/files/mineru/'):
                 # Local MinerU extracted file with prefix matching support
                 from utils.path_utils import find_mineru_file_with_prefix

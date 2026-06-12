@@ -144,7 +144,6 @@ test.describe.serial('Export aspect ratio', () => {
     )
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
-    const downloadUrl = body.data.download_url_absolute
 
     // Extract slide dimensions from PPTX (ZIP containing XML)
     // The download_url is like /files/{id}/exports/file.pptx

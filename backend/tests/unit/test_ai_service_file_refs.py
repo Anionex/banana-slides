@@ -1,5 +1,6 @@
 import os
 
+import pytest
 from PIL import Image
 
 from config import get_config
@@ -13,6 +14,23 @@ class FakeImageProvider:
     def generate_image(self, **kwargs):
         self.ref_images = kwargs.get("ref_images")
         return Image.new("RGB", (4, 4), color="blue")
+
+
+class CodexImageProvider:
+    def __init__(self, exc):
+        self.exc = exc
+
+    def generate_image(self, **kwargs):
+        raise self.exc
+
+
+class FakeFallbackImageProvider:
+    def __init__(self):
+        self.kwargs = None
+
+    def generate_image(self, **kwargs):
+        self.kwargs = kwargs
+        return Image.new("RGB", (4, 4), color="green")
 
 
 def _save_image(path):
@@ -125,3 +143,46 @@ def test_files_reference_skips_directories(monkeypatch, tmp_path, caplog):
     assert result is not None
     assert image_provider.ref_images is None
     assert "Local file not found or not a file:" in caplog.text
+
+
+def test_codex_image_failure_uses_openai_fallback(monkeypatch):
+    fallback_provider = FakeFallbackImageProvider()
+    monkeypatch.setattr(
+        "services.ai_service.get_openai_image_fallback_provider",
+        lambda model: fallback_provider,
+    )
+    service = AIService(
+        text_provider=object(),
+        image_provider=CodexImageProvider(
+            ValueError("Codex non-image stream event exceeded maximum allowed size")
+        ),
+        caption_provider=object(),
+    )
+
+    result = service.generate_image("prompt")
+
+    assert result is not None
+    assert fallback_provider.kwargs is not None
+    assert fallback_provider.kwargs["enable_thinking"] is False
+    assert fallback_provider.kwargs["thinking_budget"] == 0
+
+
+def test_codex_cancelled_image_does_not_use_fallback(monkeypatch):
+    called = False
+
+    def fake_fallback(_model):
+        nonlocal called
+        called = True
+        return FakeFallbackImageProvider()
+
+    monkeypatch.setattr("services.ai_service.get_openai_image_fallback_provider", fake_fallback)
+    service = AIService(
+        text_provider=object(),
+        image_provider=CodexImageProvider(RuntimeError("Image generation cancelled")),
+        caption_provider=object(),
+    )
+
+    with pytest.raises(Exception, match="cancelled"):
+        service.generate_image("prompt")
+
+    assert called is False

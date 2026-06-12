@@ -14,7 +14,20 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 # Flask配置
 class Config:
     """Base configuration"""
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+    _SECRET_KEY_VALUE = os.getenv('SECRET_KEY')
+    _SECRET_KEY_IS_PLACEHOLDER = (
+        not _SECRET_KEY_VALUE
+        or _SECRET_KEY_VALUE.startswith('your-secret-key')
+        or _SECRET_KEY_VALUE == 'dev-secret-key-change-this'
+    )
+    if (
+        os.getenv('FLASK_ENV') == 'production'
+        and _SECRET_KEY_IS_PLACEHOLDER
+    ):
+        raise RuntimeError('SECRET_KEY must be set to a strong value in production')
+    SECRET_KEY = _SECRET_KEY_VALUE or 'dev-secret-key-change-this'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     
     # 数据库配置
     # Use absolute path to avoid WSL path issues
@@ -38,6 +51,9 @@ class Config:
     # 文件存储配置
     UPLOAD_FOLDER = os.path.join(PROJECT_ROOT, 'uploads')
     MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200MB max file size
+    MAX_FORM_MEMORY_SIZE = int(os.getenv('MAX_FORM_MEMORY_SIZE', str(10 * 1024 * 1024)))
+    MAX_FORM_PARTS = int(os.getenv('MAX_FORM_PARTS', '100'))
+    MAX_CONTEXT_IMAGE_UPLOADS = int(os.getenv('MAX_CONTEXT_IMAGE_UPLOADS', '8'))
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     ALLOWED_REFERENCE_FILE_EXTENSIONS = {'pdf', 'docx', 'pptx', 'doc', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'md'}
     
@@ -59,8 +75,9 @@ class Config:
     # OpenAI 格式专用配置（当 AI_PROVIDER_FORMAT=openai 时使用）
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')  # 当 AI_PROVIDER_FORMAT=openai 时必须设置
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
-    OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '480.0'))  # 8 分钟：留出 gpt-image-2 生图(~225s)+传输的余量
+    OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '600.0'))  # 10 minutes for slow image generation and transfer
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
+    CODEX_IMAGE_RESPONSE_MODEL = os.getenv('CODEX_IMAGE_RESPONSE_MODEL', 'gpt-5.4')
 
     # Anthropic 格式专用配置（当 AI_PROVIDER_FORMAT=anthropic 时使用）
     # 支持 ANTHROPIC_AUTH_TOKEN 作为 ANTHROPIC_API_KEY 的别名

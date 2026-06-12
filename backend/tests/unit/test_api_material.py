@@ -115,8 +115,8 @@ class TestMaterialUpload:
         assert material['original_filename'] == 'not-really-a-bmp.bmp'
         assert material['filename'].endswith('.png')
 
-    def test_upload_material_svg_detection_does_not_parse_entities(self, client):
-        """SVG detection should not expand or parse XML entities."""
+    def test_upload_material_svg_is_rejected(self, client):
+        """SVG uploads are rejected instead of parsed or sanitized."""
         svg_bytes = io.BytesIO(b'''<?xml version="1.0"?>
 <!DOCTYPE svg [
   <!ENTITY a "entity expansion should not be parsed">
@@ -130,10 +130,7 @@ class TestMaterialUpload:
             content_type='multipart/form-data'
         )
 
-        data = assert_success_response(response, 201)
-        material = data['data']
-        assert material['original_filename'] == '图标.svg'
-        assert material['filename'].endswith('.svg')
+        assert response.status_code == 400
 
     def test_upload_material_text_mentioning_svg_is_rejected(self, client):
         """Arbitrary text containing '<svg' should not be treated as SVG."""

@@ -163,8 +163,8 @@ def test_unrelated_401_settings_test_does_not_disconnect_codex_oauth(client, app
 
         db.session.expire_all()
         settings = Settings.get_settings()
-        assert settings.openai_oauth_access_token == 'still-valid-access-token'
-        assert settings.openai_oauth_refresh_token == 'still-valid-refresh-token'
+        assert settings.get_openai_oauth_token() == 'still-valid-access-token'
+        assert settings.get_secret_field('openai_oauth_refresh_token') == 'still-valid-refresh-token'
         assert settings.openai_oauth_account_id == 'user@example.com'
 
     status_response = client.get(f'/api/settings/tests/{task_id}/status')
@@ -206,8 +206,8 @@ def test_codex_test_error_text_with_4010_does_not_disconnect_oauth(client, app):
 
         db.session.expire_all()
         settings = Settings.get_settings()
-        assert settings.openai_oauth_access_token == 'still-valid-access-token'
-        assert settings.openai_oauth_refresh_token == 'still-valid-refresh-token'
+        assert settings.get_openai_oauth_token() == 'still-valid-access-token'
+        assert settings.get_secret_field('openai_oauth_refresh_token') == 'still-valid-refresh-token'
         assert settings.openai_oauth_account_id == 'user@example.com'
 
     status_response = client.get(f'/api/settings/tests/{task_id}/status')

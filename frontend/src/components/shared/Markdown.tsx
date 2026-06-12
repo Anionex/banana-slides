@@ -3,7 +3,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
-import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import 'katex/dist/katex.min.css';
@@ -35,7 +34,7 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
     ...defaultSchema,
     attributes: {
       ...defaultSchema.attributes,
-      span: [...(defaultSchema.attributes?.span || []), 'className', 'style'],
+      span: [...(defaultSchema.attributes?.span || []), 'className'],
       div: [...(defaultSchema.attributes?.div || []), 'className'],
     },
     tagNames: [...(defaultSchema.tagNames || []), 'math', 'semantics', 'mrow', 'msup', 'mi', 'mn', 'mo'],
@@ -45,7 +44,7 @@ export const Markdown: React.FC<MarkdownProps> = ({ children, className = '' }) 
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
-        rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+        rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
         components={{
         // 自定义渲染规则
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,

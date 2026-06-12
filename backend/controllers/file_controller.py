@@ -11,6 +11,15 @@ from werkzeug.utils import secure_filename
 file_bp = Blueprint('files', __name__, url_prefix='/files')
 
 
+def _serve_static_file(file_dir: str, filename: str, *, as_attachment: bool = False):
+    force_attachment = as_attachment or filename.lower().endswith('.svg')
+    response = send_from_directory(file_dir, filename, as_attachment=force_attachment)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    if filename.lower().endswith('.svg'):
+        response.headers['Content-Security-Policy'] = "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
+    return response
+
+
 @file_bp.route('/<project_id>/<file_type>/<filename>', methods=['GET'])
 def serve_file(project_id, file_type, filename):
     """
@@ -44,7 +53,7 @@ def serve_file(project_id, file_type, filename):
         # Exports should be downloaded rather than opened in browser for better UX and
         # to keep E2E download assertions stable.
         as_attachment = file_type == 'exports'
-        return send_from_directory(file_dir, filename, as_attachment=as_attachment)
+        return _serve_static_file(file_dir, filename, as_attachment=as_attachment)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -77,7 +86,7 @@ def serve_user_template(template_id, filename):
             return not_found('File')
         
         # Serve file
-        return send_from_directory(file_dir, filename)
+        return _serve_static_file(file_dir, filename)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -109,7 +118,7 @@ def serve_global_material(filename):
             return not_found('File')
         
         # Serve file
-        return send_from_directory(file_dir, safe_filename)
+        return _serve_static_file(file_dir, safe_filename)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -156,7 +165,7 @@ def serve_mineru_file(extract_id, filepath):
             except Exception:
                 return error_response('INVALID_PATH', 'Invalid file path', 403)
             
-            return send_from_directory(str(matched_path.parent), matched_path.name)
+            return _serve_static_file(str(matched_path.parent), matched_path.name)
 
         return not_found('File')
     except Exception as e:

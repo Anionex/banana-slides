@@ -4,6 +4,7 @@ Data validation utilities
 import re
 from math import gcd
 from typing import Set
+from urllib.parse import urlparse
 
 # --- Aspect ratio validation ---
 
@@ -52,6 +53,43 @@ def normalize_aspect_ratio(raw_value) -> str:
         raise ValueError("Image aspect ratio is too long")
 
     return normalized
+
+
+def parse_worker_count(raw_value, *, default: int, maximum: int, name: str = "max_workers") -> int:
+    """Parse and clamp a worker count from API/config input."""
+    value = default if raw_value is None else raw_value
+    try:
+        workers = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be an integer")
+
+    if workers < 1 or workers > maximum:
+        raise ValueError(f"{name} must be between 1 and {maximum}")
+
+    return workers
+
+
+def validate_api_base_url(raw_value) -> str | None:
+    """Validate API base URL settings and normalize empty strings to None."""
+    if raw_value is None:
+        return None
+
+    value = str(raw_value).strip().rstrip("/")
+    if value == "":
+        return None
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+        raise ValueError("API base URL must be a valid http(s) URL")
+
+    hostname = (parsed.hostname or "").lower()
+    if parsed.scheme == "http" and hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise ValueError("API base URL must use https unless it points to localhost")
+
+    if parsed.username or parsed.password:
+        raise ValueError("API base URL must not include credentials")
+
+    return value
 
 # Project status states
 PROJECT_STATUSES = {

@@ -2,7 +2,7 @@
 Abstract base class for image generation providers
 """
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Callable, Optional, List
 from PIL import Image
 
 
@@ -17,7 +17,8 @@ class ImageProvider(ABC):
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = False,
-        thinking_budget: int = 0
+        thinking_budget: int = 0,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> Optional[Image.Image]:
         """
         Generate image from prompt

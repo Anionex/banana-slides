@@ -226,7 +226,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         await page.waitForTimeout(300)
         
         console.log('  Confirmed regeneration and dialog closed')
-      } catch (e) {
+      } catch {
         // Dialog didn't appear or already closed, continue
         console.log('  No confirmation dialog, continuing...')
       }
@@ -315,7 +315,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       await generateImagesNavBtn.click({ timeout: 2000 })
       console.log('  Button clicked successfully (normal click)')
       clickSucceeded = true
-    } catch (e) {
+    } catch {
       console.log('  Normal click blocked by overlay')
     }
     
@@ -375,7 +375,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         await firstTemplateCard.click()
         templateSelected = true
         console.log('✓ Selected first preset template by clicking first card')
-      } catch (e) {
+      } catch {
         console.log('  Warning: Could not select template by card, trying alternative...')
       }
     }
@@ -428,7 +428,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     try {
       await page.waitForSelector('text="模板更换成功"', { timeout: 3000 })
       console.log('✓ Success toast appeared')
-    } catch (e) {
+    } catch {
       // Toast might have disappeared quickly, that's okay
     }
     
@@ -458,7 +458,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         if (match) {
           pageCount = parseInt(match[1], 10)
         }
-      } catch (e) {
+      } catch {
         // Fallback: try to count page thumbnails or cards
         const thumbnails = page.locator('[data-page-index], .page-thumbnail, .slide-thumbnail')
         const thumbnailCount = await thumbnails.count()

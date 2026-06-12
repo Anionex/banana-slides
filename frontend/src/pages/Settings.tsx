@@ -85,8 +85,8 @@ const settingsI18n = {
         imageResolutionDesc: "更高的清晰度会生成更详细的图像，但需要更长时间",
         descriptionGenerationMode: "描述生成模式", descriptionGenerationModeDesc: "流式模式通过一次 AI 调用逐页生成，体验更流畅；并行模式为每页独立调用 AI，速度更快",
         descriptionGenerationModeStreaming: "流式", descriptionGenerationModeParallel: "并行",
-        maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "并行模式下同时生成描述的最大工作线程数 (1-20)，越大速度越快",
-        maxImageWorkers: "图像生成最大并发数", maxImageWorkersDesc: "同时生成图像的最大工作线程数 (1-20)，越大速度越快",
+        maxDescriptionWorkers: "描述生成最大并发数", maxDescriptionWorkersDesc: "并行模式下同时生成描述的最大工作线程数 (1-20)，越大通常更快，但也更容易触发限流",
+        maxImageWorkers: "图像生成最大并发数", maxImageWorkersDesc: "同时生成图像的最大工作线程数 (1-20)，越大通常更快，但会增加代理断连、上游限流或连接失败概率",
         defaultOutputLanguage: "默认输出语言", defaultOutputLanguageDesc: "AI 生成内容时使用的默认语言",
         enableTextReasoning: "启用文本推理", enableTextReasoningDesc: "开启后，文本生成（大纲、描述等）会使用 extended thinking 进行深度推理",
         textThinkingBudget: "文本思考负载", textThinkingBudgetDesc: "文本推理的思考 token 预算 (1-8192)，数值越大推理越深入",
@@ -117,6 +117,9 @@ const settingsI18n = {
         imageApiProtocolAuto: "自动检测",
         imageApiProtocolImages: "images.generate",
         imageApiProtocolChat: "chat.completions",
+        actualImageRoute: "当前实际生图通道",
+        fallbackAvailable: "Codex 失败时会自动尝试 OpenAI-compatible 备用通道",
+        fallbackUnavailable: "未配置 OpenAI-compatible 备用通道",
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
@@ -234,8 +237,8 @@ const settingsI18n = {
         imageResolutionDesc: "Higher resolution generates more detailed images but takes longer",
         descriptionGenerationMode: "Description Generation Mode", descriptionGenerationModeDesc: "Streaming mode generates all pages in a single AI call for a smoother experience; Parallel mode calls AI independently per page for faster speed",
         descriptionGenerationModeStreaming: "Streaming", descriptionGenerationModeParallel: "Parallel",
-        maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation in parallel mode (1-20), higher is faster",
-        maxImageWorkers: "Max Image Workers", maxImageWorkersDesc: "Maximum concurrent workers for image generation (1-20), higher is faster",
+        maxDescriptionWorkers: "Max Description Workers", maxDescriptionWorkersDesc: "Maximum concurrent workers for description generation in parallel mode (1-20). Higher is usually faster, but may increase rate-limit risk",
+        maxImageWorkers: "Max Image Workers", maxImageWorkersDesc: "Maximum concurrent workers for image generation (1-20). Higher is usually faster, but may increase proxy disconnects, upstream rate limits, or connection failures",
         defaultOutputLanguage: "Default Output Language", defaultOutputLanguageDesc: "Default language for AI-generated content",
         enableTextReasoning: "Enable Text Reasoning", enableTextReasoningDesc: "When enabled, text generation uses extended thinking for deeper reasoning",
         textThinkingBudget: "Text Thinking Budget", textThinkingBudgetDesc: "Token budget for text reasoning (1-8192), higher values enable deeper reasoning",
@@ -266,6 +269,9 @@ const settingsI18n = {
         imageApiProtocolAuto: "Auto detect",
         imageApiProtocolImages: "images.generate",
         imageApiProtocolChat: "chat.completions",
+        actualImageRoute: "Actual image route",
+        fallbackAvailable: "OpenAI-compatible fallback will be tried after Codex failures",
+        fallbackUnavailable: "OpenAI-compatible fallback is not configured",
       },
       apiKeyHelp: {
         title: "How to get an API key",
@@ -1106,7 +1112,7 @@ export const Settings: React.FC = () => {
         }
       }, 2000); // 每2秒轮询一次
 
-      // 设置最大轮询时间（2分钟）
+      // 设置最大轮询时间（10分钟）
       setTimeout(() => {
         finish({ status: 'error', message: t('settings.serviceTest.testTimeout') }, t('settings.serviceTest.testTimeout'), 'error');
       }, 600000); // 10 分钟，覆盖 gpt-image-2 等慢模型的生成时间
@@ -1338,6 +1344,26 @@ export const Settings: React.FC = () => {
           <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.fields.modelProviderDesc')}
           </p>
+          {item.sourceKey === 'image_model_source' && settings?.image_provider_runtime && (
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+              <div className="flex items-center gap-2 font-medium">
+                <Info className="h-4 w-4 shrink-0" />
+                <span>{t('settings.fields.actualImageRoute')}: {settings.image_provider_runtime.label || settings.image_provider_runtime.source || '-'}</span>
+              </div>
+              {settings.image_provider_runtime.endpoint && (
+                <div className="mt-1 break-all text-xs opacity-90">
+                  {settings.image_provider_runtime.endpoint}
+                </div>
+              )}
+              {settings.image_provider_runtime.source === 'codex' && (
+                <div className="mt-1 text-xs opacity-90">
+                  {settings.image_provider_runtime.fallback_available
+                    ? t('settings.fields.fallbackAvailable')
+                    : t('settings.fields.fallbackUnavailable')}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Gemini/OpenAI 提供商：显示 API Base URL + API Key */}

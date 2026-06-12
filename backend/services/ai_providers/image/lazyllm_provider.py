@@ -18,7 +18,7 @@ import os
 import logging
 import requests
 from io import BytesIO
-from typing import Optional, List, Tuple
+from typing import Callable, Optional, List, Tuple
 from urllib.parse import urlparse
 from PIL import Image
 from .base import ImageProvider
@@ -254,7 +254,8 @@ class LazyLLMImageProvider(ImageProvider):
                        aspect_ratio = "16:9",
                        resolution = "1920*1080",
                        enable_thinking: bool = False,
-                       thinking_budget: int = 0
+                       thinking_budget: int = 0,
+                       cancel_check: Optional[Callable[[], bool]] = None,
                        ) -> Optional[Image.Image]:
         # Calculate vendor-specific image dimensions
         w, h, size_str = _calculate_image_dimensions(resolution, aspect_ratio, self._source)
@@ -264,6 +265,8 @@ class LazyLLMImageProvider(ImageProvider):
         temp_paths = []
         decode_query_with_filepaths = None
         try:
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled before LazyLLM request")
             from lazyllm.components.formatter import decode_query_with_filepaths as _decoder
             decode_query_with_filepaths = _decoder
         except ModuleNotFoundError as exc:
@@ -283,6 +286,8 @@ class LazyLLMImageProvider(ImageProvider):
         try:
             try:
                 response_path = self.client(prompt, lazyllm_files=file_paths, size=size_str)
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Image generation cancelled after LazyLLM request")
             except Exception as client_err:
                 # LazyLLM may fail internally when the image URL returns application/octet-stream
                 # instead of image/*. In that case, extract the URL and download manually.
@@ -305,6 +310,8 @@ class LazyLLMImageProvider(ImageProvider):
                         resp.raise_for_status()
                         content = b""
                         for chunk in resp.iter_content(chunk_size=8192):
+                            if cancel_check and cancel_check():
+                                raise RuntimeError("Image generation cancelled while downloading LazyLLM result")
                             content += chunk
                             if len(content) > max_size:
                                 raise ValueError(f"Image too large (>{max_size // 1024 // 1024}MB)")

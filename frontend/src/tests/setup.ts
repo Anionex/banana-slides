@@ -43,7 +43,7 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 }))
 
 // Mock scrollTo
-window.scrollTo = vi.fn()
+window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
 
 // Mock fetch (可以在具体测试中覆盖)
 global.fetch = vi.fn()

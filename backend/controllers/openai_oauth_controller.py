@@ -12,6 +12,7 @@ import os
 import secrets
 import base64
 import threading
+import time
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -35,6 +36,7 @@ _OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token"
 _SCOPES = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 _CALLBACK_PORT = 1455
 _MAX_EXPIRES_IN_SECONDS = 30 * 24 * 60 * 60
+_PENDING_FLOW_TTL_SECONDS = 5 * 60
 
 # In-memory store for pending OAuth flows (state -> {code_verifier, app_context})
 _pending_flows: dict[str, dict] = {}
@@ -84,9 +86,22 @@ def _parse_expires_in(value) -> int:
     return min(expires_in, _MAX_EXPIRES_IN_SECONDS)
 
 
+def _prune_expired_pending_flows() -> None:
+    now = time.monotonic()
+    expired_states = [
+        state
+        for state, flow in _pending_flows.items()
+        if now - float(flow.get("created_at", now)) > _PENDING_FLOW_TTL_SECONDS
+    ]
+    for state in expired_states:
+        _pending_flows.pop(state, None)
+
+
 @openai_oauth_bp.route("/authorize", methods=["GET"])
 def authorize():
     """Generate PKCE params, start callback server, return authorization URL."""
+    _prune_expired_pending_flows()
+
     code_verifier = secrets.token_urlsafe(64)
     digest = hashlib.sha256(code_verifier.encode()).digest()
     code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
@@ -95,6 +110,7 @@ def authorize():
     _pending_flows[state] = {
         "code_verifier": code_verifier,
         "app": current_app._get_current_object(),
+        "created_at": time.monotonic(),
     }
 
     callback_server_available = _ensure_callback_server()
@@ -235,6 +251,7 @@ def _exchange_and_store(
     missing_message: str = "Unknown state — please retry",
 ) -> dict:
     """Exchange an OAuth code and persist tokens without consuming state on failure."""
+    _prune_expired_pending_flows()
     flow = _pending_flows.get(state)
     if not flow:
         return {
@@ -303,8 +320,8 @@ def _exchange_and_store(
     with app.app_context() if app else nullcontext():
         try:
             settings = Settings.get_settings()
-            settings.openai_oauth_access_token = access_token
-            settings.openai_oauth_refresh_token = refresh_token
+            settings.set_secret_field('openai_oauth_access_token', access_token)
+            settings.set_secret_field('openai_oauth_refresh_token', refresh_token)
             settings.openai_oauth_expires_at = _utcnow() + timedelta(seconds=expires_in)
             settings.openai_oauth_account_id = account_id
             db.session.commit()
@@ -369,7 +386,7 @@ def _ensure_callback_server():
         if _callback_server is not None:
             return True
         try:
-            server = HTTPServer(("0.0.0.0", _CALLBACK_PORT), _OAuthCallbackHandler)
+            server = HTTPServer(("127.0.0.1", _CALLBACK_PORT), _OAuthCallbackHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             _callback_server = server
