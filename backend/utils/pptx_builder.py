@@ -11,13 +11,15 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
-from pptx.oxml.ns import qn
+from pptx.oxml.ns import qn, _nsmap
 from pptx.oxml.xmlchemy import OxmlElement
 from PIL import Image, ImageFont, ImageDraw
 from html.parser import HTMLParser
 from utils.pptx_math import latex_to_display_text, latex_to_omml
 
 logger = logging.getLogger(__name__)
+
+_nsmap.setdefault('a14', 'http://schemas.microsoft.com/office/drawing/2010/main')
 
 
 class HTMLTableParser(HTMLParser):
@@ -575,7 +577,7 @@ class PPTXBuilder:
         existing_end_props = paragraph._p.find(qn('a:endParaRPr'))
         if existing_end_props is not None:
             paragraph._p.remove(existing_end_props)
-        math = omml
+        math = self._wrap_powerpoint_math(omml)
 
         font_size = self.calculate_font_size(
             bbox,
@@ -593,6 +595,15 @@ class PPTXBuilder:
         return True
 
     @staticmethod
+    def _wrap_powerpoint_math(math_element):
+        """Wrap OMML in the DrawingML math container PowerPoint renders."""
+        container = OxmlElement('a14:m')
+        math_para = OxmlElement('m:oMathPara')
+        math_para.append(math_element)
+        container.append(math_para)
+        return container
+
+    @staticmethod
     def _apply_math_run_style(math_element, font_size: float, text_style: Any = None) -> None:
         """Apply DrawingML run properties to every OMML text run."""
         color_rgb = None
@@ -600,16 +611,12 @@ class PPTXBuilder:
             color_rgb = text_style.font_color_rgb
 
         for math_run in math_element.iter(qn('m:r')):
-            run_props = math_run.find(qn('m:rPr'))
-            if run_props is None:
-                run_props = OxmlElement('m:rPr')
-                math_run.insert(0, run_props)
-
-            drawing_props = run_props.find(qn('a:rPr'))
+            drawing_props = math_run.find(qn('a:rPr'))
             if drawing_props is None:
                 drawing_props = OxmlElement('a:rPr')
-                run_props.append(drawing_props)
+                math_run.insert(0, drawing_props)
             drawing_props.set('sz', str(int(font_size * 100)))
+            drawing_props.set('kumimoji', '0')
 
             if color_rgb:
                 solid_fill = drawing_props.find(qn('a:solidFill'))

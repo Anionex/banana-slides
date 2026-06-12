@@ -29,11 +29,13 @@ def test_builder_writes_native_omml_equation_instead_of_raw_tex(tmp_path):
     builder.save(str(output))
     slide_xml = _slide_xml(output)
 
+    assert "<a14:m" in slide_xml
     assert "<m:oMath" in slide_xml
-    assert "<m:oMathPara" not in slide_xml
+    assert "<m:oMathPara" in slide_xml
     assert "<m:f>" in slide_xml
     assert "<m:sSup>" in slide_xml
     assert "<m:sSub>" in slide_xml
+    assert slide_xml.index("<a14:m") < slide_xml.index("<m:oMathPara")
     assert slide_xml.index("<m:oMath") < slide_xml.index("<a:endParaRPr")
     assert r"\frac" not in slide_xml
 
@@ -55,7 +57,8 @@ def test_builder_applies_math_color_to_omml_runs(tmp_path):
     builder.save(str(output))
     slide_xml = _slide_xml(output)
 
-    assert "<m:rPr><a:rPr" in slide_xml
+    assert "<m:r><a:rPr" in slide_xml
+    assert "<m:rPr><a:rPr" not in slide_xml
     assert '<a:srgbClr val="FF0000"/>' in slide_xml
 
 
@@ -120,7 +123,9 @@ def test_game_theory_latex_lines_are_native_omml_not_raw_tex(tmp_path):
     builder.save(str(output))
     slide_xml = _slide_xml(output)
 
-    assert slide_xml.count("<m:oMath") == len(formulas)
+    assert slide_xml.count("<a14:m") == len(formulas)
+    assert slide_xml.count("<m:oMathPara") == len(formulas)
+    assert slide_xml.count("<m:oMath>") == len(formulas)
     for raw_tex in (r"\pi", r"\dots", r"\arg", r"\max", r"\forall", r"\geq"):
         assert raw_tex not in slide_xml
     assert "π" in slide_xml
@@ -293,8 +298,9 @@ def test_editable_export_renders_latex_text_content_as_native_omml(tmp_path):
 
     slide_xml = _slide_xml(output)
     assert not warnings.text_render_failed
+    assert "<a14:m" in slide_xml
     assert "<m:oMath" in slide_xml
-    assert "<m:oMathPara" not in slide_xml
+    assert "<m:oMathPara" in slide_xml
     assert "<m:f>" in slide_xml
     assert r"\frac" not in slide_xml
 
