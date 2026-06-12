@@ -7,6 +7,7 @@ Office Math (OMML) XML PowerPoint stores for native equations.
 """
 import logging
 import re
+from functools import lru_cache
 from typing import Iterable, List, Optional, Set
 
 from pptx.oxml.xmlchemy import OxmlElement
@@ -27,6 +28,20 @@ _WRAPPER_PATTERNS = (
 _PATH_OR_URL_PATTERN = re.compile(
     r"^(?:[A-Za-z][A-Za-z0-9+.-]*://|[A-Za-z]:[\\/]|/|~[\\/]|\.{1,2}[\\/]|\\\\)"
 )
+_WINDOWS_RELATIVE_PATH_PATTERN = re.compile(
+    r"^[^\\/:*?\"<>|\s{}^+=]+(?:\\[^\\/:*?\"<>|\s{}^+=]+)+$"
+)
+
+
+@lru_cache(maxsize=1)
+def _supported_latex_commands():
+    return frozenset(
+        set(LATEX_SYMBOLS)
+        | {r"\frac", r"\sqrt", r"\left", r"\right"}
+        | set(_LatexOmmlParser._LIMIT_COMMANDS)
+        | set(_LatexOmmlParser._FUNCTION_COMMANDS)
+        | _LatexOmmlParser._TEXT_COMMANDS
+    )
 
 
 def normalize_latex_math(source: str) -> str:
@@ -53,7 +68,7 @@ def looks_like_latex_math(source: str) -> bool:
     raw_text = (source or "").strip()
     if not raw_text:
         return False
-    if _PATH_OR_URL_PATTERN.match(raw_text):
+    if _PATH_OR_URL_PATTERN.match(raw_text) or _WINDOWS_RELATIVE_PATH_PATTERN.match(raw_text):
         return False
 
     for pattern, _ in _WRAPPER_PATTERNS:
@@ -64,14 +79,7 @@ def looks_like_latex_math(source: str) -> bool:
     if not text:
         return False
 
-    supported_commands = (
-        set(LATEX_SYMBOLS)
-        | {r"\frac", r"\sqrt", r"\left", r"\right"}
-        | set(_LatexOmmlParser._LIMIT_COMMANDS)
-        | set(_LatexOmmlParser._FUNCTION_COMMANDS)
-        | _LatexOmmlParser._TEXT_COMMANDS
-    )
-    if any(command in text for command in supported_commands):
+    if any(command in text for command in _supported_latex_commands()):
         return True
 
     if "\\" in text:
