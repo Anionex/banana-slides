@@ -7,7 +7,6 @@ import os
 import json
 import re
 import logging
-import requests
 from typing import Callable, List, Dict, Optional, Union
 from textwrap import dedent
 from PIL import Image
@@ -39,6 +38,7 @@ from .ai_providers import (
     ImageProvider,
 )
 from config import get_config
+from utils.http_images import download_remote_image
 
 logger = logging.getLogger(__name__)
 
@@ -395,13 +395,7 @@ class AIService:
         """
         try:
             logger.debug(f"Downloading image from URL: {url}")
-            response = requests.get(url, timeout=30, stream=True)
-            response.raise_for_status()
-            
-            # 从响应内容创建 PIL Image
-            image = Image.open(response.raw)
-            # 确保图片被加载
-            image.load()
+            image = download_remote_image(url)
             logger.debug(f"Successfully downloaded image: {image.size}, {image.mode}")
             return image
         except Exception as e:

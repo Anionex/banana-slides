@@ -58,7 +58,7 @@ test.describe('Image generation error handling (mock)', () => {
         .isVisible({ timeout: 10000 })
         .catch(() => false)
       // Either error shown or page still functional (no crash)
-      expect(page.url()).toContain('/detail/')
+      expect(errorVisible || page.url().includes('/detail/')).toBeTruthy()
     }
   })
 })

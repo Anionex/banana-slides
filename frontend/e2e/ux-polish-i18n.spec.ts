@@ -1,5 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
-import { seedProjectWithImages } from './helpers/seed-project';
+import { test, expect } from '@playwright/test';
 
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 

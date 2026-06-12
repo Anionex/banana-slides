@@ -69,7 +69,7 @@ export const buildMaterialsMarkdown = (
         setContent(prev => {
           let content = prev;
           for (const [oldMd, newMd] of replacements.entries()) {
-            content = content.replaceAll(oldMd, newMd);
+            content = content.split(oldMd).join(newMd);
           }
           return content;
         });
@@ -310,7 +310,7 @@ export const useImagePaste = ({
               setContentRef.current(prev => {
                 let content = prev;
                 for (const [oldMd, newMd] of replacements.entries()) {
-                  content = content.replaceAll(oldMd, newMd);
+                  content = content.split(oldMd).join(newMd);
                 }
                 return content;
               });

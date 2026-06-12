@@ -2,10 +2,25 @@
 import json
 from datetime import datetime, timezone
 from . import db
+from utils.secret_store import decrypt_secret, encrypt_secret, is_encrypted_secret
 
 
 def _utcnow_naive():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+SECRET_FIELDS = frozenset({
+    'api_key',
+    'mineru_token',
+    'baidu_api_key',
+    'elevenlabs_api_key',
+    'text_api_key',
+    'image_api_key',
+    'image_caption_api_key',
+    'lazyllm_api_keys',
+    'openai_oauth_access_token',
+    'openai_oauth_refresh_token',
+})
 
 
 class Settings(db.Model):
@@ -83,6 +98,32 @@ class Settings(db.Model):
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
 
+    def set_secret_field(self, attr: str, value):
+        """Store a sensitive settings field encrypted when a value is present."""
+        if attr not in SECRET_FIELDS:
+            raise ValueError(f"{attr} is not a registered secret field")
+        setattr(self, attr, encrypt_secret(value) if value else None)
+
+    def get_secret_field(self, attr: str, defaults=None):
+        """Read a sensitive settings field, with plaintext legacy compatibility."""
+        if attr not in SECRET_FIELDS:
+            raise ValueError(f"{attr} is not a registered secret field")
+        if defaults is None:
+            raw = getattr(self, attr)
+        else:
+            raw = self._val(attr, defaults)
+        return decrypt_secret(raw)
+
+    def encrypt_legacy_plaintext_secrets(self) -> bool:
+        """Encrypt existing plaintext secrets in-place; returns True if changed."""
+        changed = False
+        for attr in SECRET_FIELDS:
+            raw = getattr(self, attr)
+            if raw and not is_encrypted_secret(raw):
+                setattr(self, attr, encrypt_secret(raw))
+                changed = True
+        return changed
+
     DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
     DEFAULT_IMAGE_PROMPT_FIELDS = ['视觉元素', '视觉焦点', '排版布局']  # 演讲者备注默认不传入图片生成
 
@@ -111,13 +152,13 @@ class Settings(db.Model):
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
         d = Settings._get_config_defaults()
-        api_key = self._val('api_key', d)
-        mineru_token = self._val('mineru_token', d)
-        baidu_api_key = self._val('baidu_api_key', d)
-        elevenlabs_api_key = self._val('elevenlabs_api_key', d)
-        text_api_key = self._val('text_api_key', d)
-        image_api_key = self._val('image_api_key', d)
-        image_caption_api_key = self._val('image_caption_api_key', d)
+        api_key = self.get_secret_field('api_key', d)
+        mineru_token = self.get_secret_field('mineru_token', d)
+        baidu_api_key = self.get_secret_field('baidu_api_key', d)
+        elevenlabs_api_key = self.get_secret_field('elevenlabs_api_key', d)
+        text_api_key = self.get_secret_field('text_api_key', d)
+        image_api_key = self.get_secret_field('image_api_key', d)
+        image_caption_api_key = self.get_secret_field('image_caption_api_key', d)
         return {
             'id': self.id,
             'ai_provider_format': self._val('ai_provider_format', d),
@@ -144,7 +185,7 @@ class Settings(db.Model):
             'text_model_source': self._val('text_model_source', d),
             'image_model_source': self._val('image_model_source', d),
             'image_caption_model_source': self._val('image_caption_model_source', d),
-            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(self._val('lazyllm_api_keys', d)),
+            'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(self.get_secret_field('lazyllm_api_keys', d)),
             'text_api_key_length': len(text_api_key) if text_api_key else 0,
             'text_api_base_url': self._val('text_api_base_url', d),
             'image_api_key_length': len(image_api_key) if image_api_key else 0,
@@ -174,32 +215,35 @@ class Settings(db.Model):
 
     def get_lazyllm_api_keys_dict(self):
         """Parse lazyllm_api_keys JSON into a dict."""
-        if not self.lazyllm_api_keys:
+        raw_keys = self.get_secret_field('lazyllm_api_keys')
+        if not raw_keys:
             return {}
         try:
-            return json.loads(self.lazyllm_api_keys)
+            keys = json.loads(raw_keys)
+            return keys if isinstance(keys, dict) else {}
         except (json.JSONDecodeError, TypeError):
             return {}
 
     def get_openai_oauth_token(self):
         """Return a valid OAuth access token, or None if not connected / expired without refresh."""
-        if not self.openai_oauth_access_token:
+        access_token = self.get_secret_field('openai_oauth_access_token')
+        if not access_token:
             return None
         if self.openai_oauth_expires_at:
             now = _utcnow_naive()
             if self.openai_oauth_expires_at < now:
-                if self.openai_oauth_refresh_token:
+                if self.get_secret_field('openai_oauth_refresh_token'):
                     return self._refresh_openai_oauth()
                 return None
-        return self.openai_oauth_access_token
+        return access_token
 
     def is_openai_oauth_connected(self):
         """Return whether stored OpenAI OAuth credentials can still be presented as connected."""
-        if not self.openai_oauth_access_token:
+        if not self.get_secret_field('openai_oauth_access_token'):
             return False
         if self.openai_oauth_expires_at:
             now = _utcnow_naive()
-            if self.openai_oauth_expires_at < now and not self.openai_oauth_refresh_token:
+            if self.openai_oauth_expires_at < now and not self.get_secret_field('openai_oauth_refresh_token'):
                 return False
         return True
 
@@ -218,7 +262,7 @@ class Settings(db.Model):
             resp = requests.post('https://auth.openai.com/oauth/token',
                 data=urlencode({
                     'grant_type': 'refresh_token',
-                    'refresh_token': self.openai_oauth_refresh_token,
+                    'refresh_token': self.get_secret_field('openai_oauth_refresh_token'),
                     'client_id': 'app_EMoamEEZ73f0CkXaXp7hrann',
                 }),
                 headers={'Content-Type': 'application/x-www-form-urlencoded'},
@@ -226,14 +270,14 @@ class Settings(db.Model):
             )
             resp.raise_for_status()
             data = resp.json()
-            self.openai_oauth_access_token = data['access_token']
+            self.set_secret_field('openai_oauth_access_token', data['access_token'])
             if 'refresh_token' in data:
-                self.openai_oauth_refresh_token = data['refresh_token']
+                self.set_secret_field('openai_oauth_refresh_token', data['refresh_token'])
             expires_in = data.get('expires_in', 3600)
             from datetime import timedelta
             self.openai_oauth_expires_at = _utcnow_naive() + timedelta(seconds=expires_in)
             db.session.commit()
-            return self.openai_oauth_access_token
+            return self.get_secret_field('openai_oauth_access_token')
         except requests.exceptions.HTTPError as exc:
             status_code = getattr(getattr(exc, 'response', None), 'status_code', None)
             if status_code in (400, 401):
@@ -298,6 +342,8 @@ class Settings(db.Model):
         if settings is None:
             settings = Settings(id=1)
             db.session.add(settings)
+            db.session.commit()
+        elif settings.encrypt_legacy_plaintext_secrets():
             db.session.commit()
 
         return settings

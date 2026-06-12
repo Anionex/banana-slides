@@ -86,6 +86,7 @@ interface State {
   sortBy: 'newest' | 'oldest' | 'name-asc' | 'name-desc';
   projects: Project[];
   projectsReady: boolean;
+  showAllProjects: boolean;
   preview: { url: string; label: string } | null;
 }
 
@@ -117,6 +118,7 @@ const initial: State = {
   sortBy: 'newest',
   projects: [],
   projectsReady: false,
+  showAllProjects: false,
   preview: null,
 };
 
@@ -126,7 +128,11 @@ function reducer(s: State, a: Action): State {
       return { ...s, items: a.items, loading: false };
     case 'TOGGLE_SELECT': {
       const next = new Set(s.selected);
-      next.has(a.key) ? next.delete(a.key) : next.add(a.key);
+      if (next.has(a.key)) {
+        next.delete(a.key);
+      } else {
+        next.add(a.key);
+      }
       return { ...s, selected: next };
     }
     case 'SELECT_ALL':
@@ -181,7 +187,7 @@ const displayName = (m: Material) =>
   m.filename ||
   m.url;
 
-const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp'];
 
 const projectLabel = (p: Project) => {
   const raw = p.idea_prompt || p.outline_text || `Project ${p.project_id.slice(0, 8)}`;

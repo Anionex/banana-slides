@@ -17,6 +17,7 @@ dependencies = [
     "anthropic>=0.30.0",
     "httpx>=0.25.0",
     "requests>=2.31.0",
+    "cryptography>=46.0.3",
     "typer>=0.9.0",
     "rich>=13.0.0",
     "pydantic>=2.9.0",

@@ -12,13 +12,13 @@ Resolution validation is handled at the task_manager level for all providers.
 import logging
 import base64
 import re
-import requests
 from io import BytesIO
 from typing import Callable, Optional, List
 from openai import OpenAI
 from PIL import Image
 from .base import ImageProvider
 from config import get_config
+from utils.http_images import download_remote_image
 
 logger = logging.getLogger(__name__)
 
@@ -214,16 +214,12 @@ class OpenAIImageProvider(ImageProvider):
             return Image.open(BytesIO(base64.b64decode(b64)))
         url = getattr(item, 'url', None)
         if url:
-            with requests.get(url, timeout=60, stream=True) as resp:
-                resp.raise_for_status()
-                return Image.open(BytesIO(resp.content))
+            return download_remote_image(url, timeout=(5, 60))
         if isinstance(item, dict):
             if item.get('b64_json'):
                 return Image.open(BytesIO(base64.b64decode(item['b64_json'])))
             if item.get('url'):
-                with requests.get(item['url'], timeout=60, stream=True) as resp:
-                    resp.raise_for_status()
-                    return Image.open(BytesIO(resp.content))
+                return download_remote_image(item['url'], timeout=(5, 60))
         raise ValueError("images API returned neither b64_json nor url")
 
     def _decode_raw_string(self, raw: str) -> Image.Image:
@@ -235,9 +231,7 @@ class OpenAIImageProvider(ImageProvider):
             return Image.open(BytesIO(base64.b64decode(b64)))
         # plain HTTP(S) URL
         if raw.startswith(('http://', 'https://')):
-            with requests.get(raw, timeout=60, stream=True) as resp:
-                resp.raise_for_status()
-                return Image.open(BytesIO(resp.content))
+            return download_remote_image(raw, timeout=(5, 60))
         # assume raw base64
         try:
             return Image.open(BytesIO(base64.b64decode(raw)))
@@ -485,10 +479,7 @@ class OpenAIImageProvider(ImageProvider):
                         image_url = markdown_matches[0]  # Use the first image URL found
                         logger.debug(f"Found Markdown image URL: {image_url}")
                         try:
-                            response = requests.get(image_url, timeout=30, stream=True)
-                            response.raise_for_status()
-                            image = Image.open(BytesIO(response.content))
-                            image.load()  # Ensure image is fully loaded
+                            image = download_remote_image(image_url)
                             logger.debug(f"Successfully downloaded image from Markdown URL: {image.size}, {image.mode}")
                             return image
                         except Exception as download_error:
@@ -501,10 +492,7 @@ class OpenAIImageProvider(ImageProvider):
                         image_url = url_matches[0]
                         logger.debug(f"Found plain image URL: {image_url}")
                         try:
-                            response = requests.get(image_url, timeout=30, stream=True)
-                            response.raise_for_status()
-                            image = Image.open(BytesIO(response.content))
-                            image.load()
+                            image = download_remote_image(image_url)
                             logger.debug(f"Successfully downloaded image from plain URL: {image.size}, {image.mode}")
                             return image
                         except Exception as download_error:

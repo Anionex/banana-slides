@@ -228,9 +228,6 @@ test.describe('Image API Protocol Setting', () => {
       await page.waitForLoadState('networkidle');
 
       // First, set image model source to openai to make the dropdown visible
-      // Find the image model source dropdown
-      const imageModelSection = page.locator('text=图像生成模型,Image Generation Model').first().locator('..').locator('..');
-
       // Use API to set image_model_source to openai first
       const apiBase = BASE_URL.replace(/:\d+$/, ':' + (parseInt(BASE_URL.split(':').pop()!) + 2000));
       await page.request.put(`${apiBase}/api/settings`, {

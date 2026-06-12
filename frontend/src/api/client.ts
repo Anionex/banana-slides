@@ -84,7 +84,7 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
     }
   }
   // 使用相对路径（确保以 / 开头）
-  let url = path.startsWith('/') ? path : '/' + path;
+  const url = path.startsWith('/') ? path : '/' + path;
   
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   return appendTimestamp(url);

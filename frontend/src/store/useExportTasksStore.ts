@@ -28,6 +28,7 @@ export interface ExportTask {
     percent?: number;
     current_step?: string;
     messages?: string[];
+    help_text?: string;
     warnings?: string[];  // 导出警告信息
     warning_details?: {   // 警告详细信息
       style_extraction_failed?: Array<{ element_id: string; reason: string }>;
@@ -156,7 +157,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
               get().updateTask(id, updates);
             } else if (task.status === 'FAILED') {
               const taskErrorMessage = task.error_message
-                || (typeof task.error === 'string' ? task.error : task.error?.message)
+                || (typeof task.error === 'string' ? task.error : undefined)
                 || t('exportStore.exportFailed');
               updates.errorMessage = normalizeErrorMessage(taskErrorMessage);
               updates.completedAt = new Date().toISOString();

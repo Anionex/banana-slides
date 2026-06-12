@@ -35,9 +35,6 @@ const landingI18n = {
   }
 };
 
-// Feature keys consistent with HelpModal
-const _featureKeys = ['flexiblePaths', 'materialParsing', 'vibeEditing', 'easyExport'] as const;
-
 // Showcase data consistent with HelpModal
 const showcaseKeys = [
   { image: 'https://github.com/user-attachments/assets/d58ce3f7-bcec-451d-a3b9-ca3c16223644', titleKey: 'softwareDev' },
@@ -51,6 +48,11 @@ export const Landing: React.FC = () => {
   const { i18n } = useTranslation();
   const t = useT(landingI18n);
   const [currentShowcase, setCurrentShowcase] = useState(0);
+
+  const getFeatureDetails = (key: string): string[] => {
+    const details = i18n.t(`help.features.${key}.details`, { returnObjects: true });
+    return Array.isArray(details) ? details.map(String) : [];
+  };
 
   // Auto-rotate showcase
   useEffect(() => {
@@ -250,7 +252,7 @@ export const Landing: React.FC = () => {
                   
                   {/* 详情列表 */}
                   <ul className="space-y-4 pt-4">
-                    {(t(`help.features.${feature.key}.details`, { returnObjects: true }) as string[])?.map((detail: string, i: number) => (
+                    {getFeatureDetails(feature.key).map((detail: string, i: number) => (
                       <li key={i} className="flex items-start gap-3">
                         <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-banana-500 shrink-0" />
                         <span className="text-gray-600 dark:text-gray-400 font-medium">{detail}</span>
@@ -267,7 +269,7 @@ export const Landing: React.FC = () => {
                     
                     {/* 中心图标/内容 */}
                     <div className="relative z-10 transform transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3">
-                      {React.cloneElement(feature.icon as React.ReactElement, { size: 120, strokeWidth: 1.5 })}
+                      {React.cloneElement(feature.icon as React.ReactElement<any>, { size: 120, strokeWidth: 1.5 })}
                     </div>
 
                     {/* 装饰元素 */}

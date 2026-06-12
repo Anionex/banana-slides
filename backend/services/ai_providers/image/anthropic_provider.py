@@ -8,12 +8,12 @@ image generation (e.g., third-party proxy services).
 import logging
 import base64
 import re
-import requests
 from io import BytesIO
 from typing import Callable, Optional, List
 from PIL import Image
 from .base import ImageProvider
 from config import get_config
+from utils.http_images import download_remote_image
 
 logger = logging.getLogger(__name__)
 
@@ -225,8 +225,6 @@ class AnthropicImageProvider(ImageProvider):
                 url_pattern = r'(https?://[^\s\)\]]+\.(?:png|jpg|jpeg|gif|webp|bmp)(?:\?[^\s\)\]]*)?)'
                 url_matches = re.findall(url_pattern, content_str, re.IGNORECASE)
                 if url_matches:
-                    resp = requests.get(url_matches[0], timeout=30, stream=True)
-                    resp.raise_for_status()
-                    return Image.open(BytesIO(resp.content))
+                    return download_remote_image(url_matches[0])
 
         raise ValueError("No image found in response")

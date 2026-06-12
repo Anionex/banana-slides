@@ -287,10 +287,11 @@ def _load_settings_to_config(app):
                 logging.info("API_BASE is empty in settings, using env var or default")
 
         if settings.api_key is not None:
+            api_key = settings.get_secret_field('api_key')
             # 同步到两个提供商的 key，数据库优先于环境变量
-            app.config['GOOGLE_API_KEY'] = settings.api_key
-            app.config['OPENAI_API_KEY'] = settings.api_key
-            if settings.api_key:
+            app.config['GOOGLE_API_KEY'] = api_key or ''
+            app.config['OPENAI_API_KEY'] = api_key or ''
+            if api_key:
                 logging.info("Loaded API key from settings")
             else:
                 logging.info("API key is empty in settings, using env var or default")
@@ -325,8 +326,9 @@ def _load_settings_to_config(app):
             app.config['MINERU_API_BASE'] = settings.mineru_api_base
             logging.info(f"Loaded MINERU_API_BASE from settings: {settings.mineru_api_base}")
         
-        if settings.mineru_token:
-            app.config['MINERU_TOKEN'] = settings.mineru_token
+        mineru_token = settings.get_secret_field('mineru_token')
+        if mineru_token:
+            app.config['MINERU_TOKEN'] = mineru_token
             logging.info("Loaded MINERU_TOKEN from settings")
         
         # Load image caption model
@@ -347,8 +349,9 @@ def _load_settings_to_config(app):
         logging.info(f"Loaded reasoning config: text={settings.enable_text_reasoning}(budget={settings.text_thinking_budget}), image={settings.enable_image_reasoning}(budget={settings.image_thinking_budget})")
         
         # Load Baidu API settings
-        if settings.baidu_api_key:
-            app.config['BAIDU_API_KEY'] = settings.baidu_api_key
+        baidu_api_key = settings.get_secret_field('baidu_api_key')
+        if baidu_api_key:
+            app.config['BAIDU_API_KEY'] = baidu_api_key
             logging.info("Loaded BAIDU_API_KEY from settings")
 
         # Load LazyLLM source settings
@@ -367,7 +370,12 @@ def _load_settings_to_config(app):
             prefix = model_type.upper()
             for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
                 config_key = f'{prefix}{suffix}'
-                val = getattr(settings, f'{model_type}{setting_suffix}', None)
+                setting_attr = f'{model_type}{setting_suffix}'
+                val = (
+                    settings.get_secret_field(setting_attr)
+                    if suffix == '_API_KEY'
+                    else getattr(settings, setting_attr, None)
+                )
                 if val:
                     app.config[config_key] = val
                     if suffix == '_API_BASE':
@@ -378,10 +386,11 @@ def _load_settings_to_config(app):
         # Sync LazyLLM vendor API keys to environment variables
         # Only allow known vendor names to prevent environment variable injection
         from services.ai_providers.lazyllm_env import ALLOWED_LAZYLLM_VENDORS
-        if settings.lazyllm_api_keys:
+        lazyllm_api_keys = settings.get_lazyllm_api_keys_dict()
+        if lazyllm_api_keys:
             import json
             try:
-                keys = json.loads(settings.lazyllm_api_keys)
+                keys = lazyllm_api_keys
                 for vendor, key in keys.items():
                     if key and vendor.lower() in ALLOWED_LAZYLLM_VENDORS:
                         os.environ[f"{vendor.upper()}_API_KEY"] = key

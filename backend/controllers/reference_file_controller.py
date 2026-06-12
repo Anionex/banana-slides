@@ -17,6 +17,7 @@ from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
 from services.material_import_service import import_reference_markdown_images_to_materials
+from services.task_manager import task_manager
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,27 @@ def _get_file_type(filename: str) -> str:
     if '.' in filename:
         return filename.rsplit('.', 1)[1].lower()
     return 'unknown'
+
+
+def _validate_reference_file_content(file, file_type: str):
+    """Reject obvious extension/content mismatches before storing uploads."""
+    stream = file.stream
+    original_position = stream.tell()
+    head = stream.read(8)
+    stream.seek(original_position)
+
+    if file_type == 'pdf' and not head.startswith(b'%PDF-'):
+        raise ValueError("Uploaded file content does not match .pdf extension")
+
+    if file_type in {'docx', 'pptx', 'xlsx'} and not head.startswith(b'PK\x03\x04'):
+        raise ValueError(f"Uploaded file content does not match .{file_type} extension")
+
+    if file_type in {'doc', 'ppt', 'xls'} and not head.startswith(b'\xd0\xcf\x11\xe0'):
+        raise ValueError(f"Uploaded file content does not match .{file_type} extension")
+
+
+def _parse_file_task(_task_id: str, file_id: str, file_path: str, filename: str, app):
+    _parse_file_async(file_id, file_path, filename, app)
 
 
 def _parse_file_async(file_id: str, file_path: str, filename: str, app):
@@ -207,6 +229,10 @@ def upload_reference_file():
         # Generate unique filename to avoid conflicts
         unique_id = str(uuid.uuid4())[:8]
         file_type = _get_file_type(original_filename)  # Use original filename for type detection
+        try:
+            _validate_reference_file_content(file, file_type)
+        except ValueError as exc:
+            return bad_request(str(exc))
         unique_filename = f"{unique_id}_{filename}"
         file_path = reference_files_dir / unique_filename
         
@@ -370,13 +396,15 @@ def trigger_file_parse(file_id):
         if not file_path.exists():
             return error_response('FILE_NOT_FOUND', f'File not found: {file_path}', 404)
         
-        # 启动异步解析
-        thread = threading.Thread(
-            target=_parse_file_async,
-            args=(reference_file.id, str(file_path), reference_file.filename, current_app._get_current_object())
+        # 启动受控后台解析任务
+        task_manager.submit_task(
+            f"parse_reference_file:{reference_file.id}",
+            _parse_file_task,
+            reference_file.id,
+            str(file_path),
+            reference_file.filename,
+            current_app._get_current_object(),
         )
-        thread.daemon = True
-        thread.start()
         
         logger.info(f"Triggered parsing for file: {reference_file.filename} (ID: {file_id})")
         

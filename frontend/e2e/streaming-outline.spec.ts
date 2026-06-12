@@ -24,7 +24,7 @@ async function createProjectAndNavigate(page: import('@playwright/test').Page, i
 
 test.describe('Streaming Outline - Mock Tests', () => {
   test('should render cards incrementally as SSE pages arrive', async ({ page }) => {
-    const projectId = await createProjectAndNavigate(page, 'Test streaming outline');
+    await createProjectAndNavigate(page, 'Test streaming outline');
 
     // Mock the SSE streaming endpoint
     let requestReceived = false;
@@ -75,15 +75,13 @@ test.describe('Streaming Outline - Mock Tests', () => {
     // Verify the SSE endpoint was called
     expect(requestReceived).toBe(true);
 
-    // Verify all 3 cards are rendered
-    const cards = page.locator('[class*="animate-slide-in-up"], [data-testid="outline-card"]');
     // At minimum, check that the page titles are visible
     await expect(page.getByText('Topic A')).toBeVisible();
     await expect(page.getByText('Summary')).toBeVisible();
   });
 
   test('should show error message on SSE error event', async ({ page }) => {
-    const projectId = await createProjectAndNavigate(page, 'Test error handling');
+    await createProjectAndNavigate(page, 'Test error handling');
 
     await page.route(`**/api/projects/*/generate/outline/stream`, async (route) => {
       const sseBody = `event: error\ndata: ${JSON.stringify({ message: 'AI service unavailable' })}\n\n`;
@@ -107,7 +105,7 @@ test.describe('Streaming Outline - Mock Tests', () => {
   });
 
   test('should disable generate button during streaming and re-enable on completion', async ({ page }) => {
-    const projectId = await createProjectAndNavigate(page, 'Test button state');
+    await createProjectAndNavigate(page, 'Test button state');
 
     await page.route(`**/api/projects/*/generate/outline/stream`, async (route) => {
       const pageEvent = `event: page\ndata: ${JSON.stringify({ index: 0, title: 'Page 1', points: ['Point'] })}\n\n`;
@@ -141,7 +139,7 @@ test.describe('Streaming Outline - Integration Tests', () => {
 
   test('should stream outline from real backend and persist pages', async ({ page }) => {
     // Create project
-    const projectId = await createProjectAndNavigate(page, 'A 3-page presentation about cats');
+    await createProjectAndNavigate(page, 'A 3-page presentation about cats');
 
     // Click generate
     const generateBtn = page.getByRole('button', { name: /自动生成|Auto Generate/i });

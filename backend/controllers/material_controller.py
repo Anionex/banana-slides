@@ -18,7 +18,6 @@ import zipfile
 import io
 import base64
 import logging
-import re
 import struct
 import uuid
 from PIL import Image, UnidentifiedImageError
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 material_bp = Blueprint('materials', __name__, url_prefix='/api/projects')
 material_global_bp = Blueprint('materials_global', __name__, url_prefix='/api/materials')
 
-ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+ALLOWED_MATERIAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
 ALLOWED_ASPECT_RATIOS = frozenset({'16:9', '21:9', '4:3', '3:2', '5:4', '1:1', '4:5', '2:3', '3:4', '9:16'})
 ALLOWED_MATERIAL_OPERATIONS = frozenset({'generate', 'edit_full', 'region_edit', 'erase_region'})
 ALLOWED_REGION_APPLY_MODES = frozenset({'overlay_selection', 'replace_full'})
@@ -48,7 +47,8 @@ def _generate_image_caption(filepath: str) -> str:
     try:
         from PIL import Image
 
-        image = Image.open(filepath)
+        with Image.open(filepath) as opened_image:
+            image = opened_image.copy()
         image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
 
         output_lang = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
@@ -274,7 +274,7 @@ def _save_material_file(file, target_project_id: Optional[str]):
     filepath = materials_dir / unique_filename
     file.save(str(filepath))
 
-    relative_path = str(filepath.relative_to(file_service.upload_folder))
+    relative_path = filepath.relative_to(file_service.upload_folder).as_posix()
     if target_project_id:
         image_url = file_service.get_file_url(target_project_id, 'materials', unique_filename)
     else:
@@ -309,34 +309,9 @@ def _detect_material_file_extension(file) -> str:
             image.verify()
             return file_ext
     except (UnidentifiedImageError, OSError, SyntaxError, ValueError, IndexError, struct.error):
-        stream.seek(original_position)
-        if _is_svg_upload(stream) and '.svg' in ALLOWED_MATERIAL_EXTENSIONS:
-            return '.svg'
         raise ValueError("unsupported image content")
     finally:
         stream.seek(original_position)
-
-
-def _is_svg_upload(stream) -> bool:
-    """Return True when the upload content is an SVG document."""
-    head = stream.read(4096)
-    if isinstance(head, str):
-        head = head.encode('utf-8')
-
-    if head.startswith(b'\xef\xbb\xbf'):
-        head = head[3:]
-
-    clean_head = re.sub(b'<!--.*?-->', b'', head, flags=re.DOTALL)
-    clean_head = re.sub(b'<\\?xml.*?\\?>', b'', clean_head, flags=re.DOTALL)
-    clean_head = re.sub(b'<!DOCTYPE.*?\\]>\\s*', b'', clean_head, count=1, flags=re.DOTALL | re.IGNORECASE)
-    clean_head = re.sub(b'<!DOCTYPE.*?>', b'', clean_head, flags=re.DOTALL | re.IGNORECASE)
-
-    match = re.match(b'\\s*<\\s*([^\\s>/]+)', clean_head)
-    if not match:
-        return False
-
-    tag = match.group(1).decode('utf-8', errors='ignore')
-    return tag.split(':')[-1].lower() == 'svg'
 
 
 def _parse_selection(raw_selection):

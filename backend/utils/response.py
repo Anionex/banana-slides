@@ -9,6 +9,10 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+PUBLIC_SERVER_ERROR_CODES = {
+    "OPENAI_OAUTH_TOKEN_EXCHANGE_FAILED",
+}
+
 
 def success_response(data: Any = None, message: str = "Success", status_code: int = 200):
     """
@@ -50,7 +54,8 @@ def error_response(error_code: str, message: str, status_code: int = 400):
         "message": message
     }
 
-    if status_code >= 500 and os.getenv('EXPOSE_INTERNAL_ERRORS', '').lower() not in ('1', 'true', 'yes'):
+    expose_internal = os.getenv('EXPOSE_INTERNAL_ERRORS', '').lower() in ('1', 'true', 'yes')
+    if status_code >= 500 and not expose_internal and error_code not in PUBLIC_SERVER_ERROR_CODES:
         error_id = uuid.uuid4().hex[:12]
         logger.error("Internal error response hidden from client: id=%s code=%s message=%s", error_id, error_code, message)
         error_payload = {

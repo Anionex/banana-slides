@@ -11,7 +11,7 @@ from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from sqlalchemy import desc
-from utils.validators import normalize_aspect_ratio
+from utils.validators import normalize_aspect_ratio, parse_worker_count
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
 from werkzeug.utils import secure_filename
@@ -33,6 +33,14 @@ from utils import (
 logger = logging.getLogger(__name__)
 
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
+
+
+def _configured_worker_limit(config_key: str, fallback: int) -> int:
+    try:
+        configured = int(current_app.config.get(config_key, fallback))
+    except (TypeError, ValueError):
+        configured = fallback
+    return max(1, min(20, configured))
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -787,7 +795,16 @@ def generate_descriptions(project_id):
         
         data = request.get_json() or {}
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
+        worker_limit = _configured_worker_limit('MAX_DESCRIPTION_WORKERS', 5)
+        try:
+            max_workers = parse_worker_count(
+                data.get('max_workers'),
+                default=worker_limit,
+                maximum=worker_limit,
+                name='max_workers',
+            )
+        except ValueError as exc:
+            return bad_request(str(exc))
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         detail_level = data.get('detail_level', 'default')
         
@@ -1037,7 +1054,16 @@ def generate_images(project_id):
         outline = _reconstruct_outline_from_pages(pages)
         
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
+        worker_limit = _configured_worker_limit('MAX_IMAGE_WORKERS', 8)
+        try:
+            max_workers = parse_worker_count(
+                data.get('max_workers'),
+                default=worker_limit,
+                maximum=worker_limit,
+                name='max_workers',
+            )
+        except ValueError as exc:
+            return bad_request(str(exc))
         use_template = data.get('use_template', True)
         language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         

@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: frontendPort,
-      host: true, // 监听所有地址
+      host: env.FRONTEND_HOST || '127.0.0.1',
       watch: {
         usePolling: true, // WSL 环境下需要启用轮询
       },

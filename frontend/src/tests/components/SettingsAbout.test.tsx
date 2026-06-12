@@ -30,10 +30,11 @@ const labels: Record<string, string> = {
   'settings.about.close': '关闭',
 };
 
-const t = (key: string, vars?: Record<string, string>) => {
-  let value = labels[key] || key;
+const t = (key: string, defaultOrParams?: string | Record<string, string | number>) => {
+  const vars = typeof defaultOrParams === 'object' ? defaultOrParams : undefined;
+  let value = labels[key] || (typeof defaultOrParams === 'string' ? defaultOrParams : key);
   Object.entries(vars || {}).forEach(([varKey, varValue]) => {
-    value = value.replace(`{{${varKey}}}`, varValue);
+    value = value.replace(`{{${varKey}}}`, String(varValue));
   });
   return value;
 };

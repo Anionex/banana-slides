@@ -19,8 +19,10 @@ from services.file_parser_service import FileParserService
 from services.ai_providers.ocr.baidu_accurate_ocr_provider import create_baidu_accurate_ocr_provider
 from services.ai_providers.image.baidu_inpainting_provider import create_baidu_inpainting_provider
 from services.ai_providers import LAZYLLM_VENDORS
+from services.ai_providers.lazyllm_env import ALLOWED_LAZYLLM_VENDORS
 from services.task_manager import task_manager
 from services.update_check_service import check_for_update
+from utils.validators import normalize_aspect_ratio, parse_worker_count, validate_api_base_url
 
 logger = logging.getLogger(__name__)
 ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm", "codex"} | LAZYLLM_VENDORS
@@ -28,6 +30,13 @@ ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm", "codex"} | LAZYLLM_VE
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
+
+
+def _settings_secret(settings, attr: str):
+    getter = getattr(settings, "get_secret_field", None)
+    if callable(getter):
+        return getter(attr)
+    return getattr(settings, attr, None)
 
 
 @contextmanager
@@ -232,16 +241,13 @@ def update_settings():
 
         # Update API configuration
         if "api_base_url" in data:
-            raw_base_url = data["api_base_url"]
-            # Empty string from frontend means "clear override, fall back to env/default"
-            if raw_base_url is None:
-                settings.api_base_url = None
-            else:
-                value = str(raw_base_url).strip()
-                settings.api_base_url = value if value != "" else None
+            try:
+                settings.api_base_url = validate_api_base_url(data["api_base_url"])
+            except ValueError as exc:
+                return bad_request(str(exc))
 
         if "api_key" in data:
-            settings.api_key = data["api_key"]
+            settings.set_secret_field("api_key", data["api_key"])
 
         # Update image generation configuration
         if "image_resolution" in data:
@@ -251,25 +257,33 @@ def update_settings():
             settings.image_resolution = resolution
 
         if "image_aspect_ratio" in data:
-            aspect_ratio = data["image_aspect_ratio"]
-            settings.image_aspect_ratio = aspect_ratio
+            try:
+                settings.image_aspect_ratio = normalize_aspect_ratio(data["image_aspect_ratio"])
+            except ValueError as exc:
+                return bad_request(str(exc))
 
         # Update worker configuration
         if "max_description_workers" in data:
-            workers = int(data["max_description_workers"])
-            if workers < 1 or workers > 20:
-                return bad_request(
-                    "Max description workers must be between 1 and 20"
+            try:
+                settings.max_description_workers = parse_worker_count(
+                    data["max_description_workers"],
+                    default=Config.MAX_DESCRIPTION_WORKERS,
+                    maximum=20,
+                    name="max_description_workers",
                 )
-            settings.max_description_workers = workers
+            except ValueError as exc:
+                return bad_request(str(exc))
 
         if "max_image_workers" in data:
-            workers = int(data["max_image_workers"])
-            if workers < 1 or workers > 20:
-                return bad_request(
-                    "Max image workers must be between 1 and 20"
+            try:
+                settings.max_image_workers = parse_worker_count(
+                    data["max_image_workers"],
+                    default=Config.MAX_IMAGE_WORKERS,
+                    maximum=20,
+                    name="max_image_workers",
                 )
-            settings.max_image_workers = workers
+            except ValueError as exc:
+                return bad_request(str(exc))
 
         # Update model & MinerU configuration (optional, empty values fall back to Config)
         if "text_model" in data:
@@ -279,10 +293,13 @@ def update_settings():
             settings.image_model = (data["image_model"] or "").strip() or None
 
         if "mineru_api_base" in data:
-            settings.mineru_api_base = (data["mineru_api_base"] or "").strip() or None
+            try:
+                settings.mineru_api_base = validate_api_base_url(data["mineru_api_base"])
+            except ValueError as exc:
+                return bad_request(str(exc))
 
         if "mineru_token" in data:
-            settings.mineru_token = data["mineru_token"]
+            settings.set_secret_field("mineru_token", data["mineru_token"])
 
         if "image_caption_model" in data:
             settings.image_caption_model = (data["image_caption_model"] or "").strip() or None
@@ -340,22 +357,28 @@ def update_settings():
 
         # Update Baidu OCR configuration
         if "baidu_api_key" in data:
-            settings.baidu_api_key = data["baidu_api_key"] or None
+            settings.set_secret_field("baidu_api_key", data["baidu_api_key"])
 
         # Update ElevenLabs TTS configuration
         if "elevenlabs_enabled" in data:
             settings.elevenlabs_enabled = bool(data["elevenlabs_enabled"])
         if "elevenlabs_api_key" in data:
-            settings.elevenlabs_api_key = data["elevenlabs_api_key"] or None
+            settings.set_secret_field("elevenlabs_api_key", data["elevenlabs_api_key"])
         if "elevenlabs_voice_id" in data:
             settings.elevenlabs_voice_id = (data["elevenlabs_voice_id"] or "").strip() or None
 
         # Update per-model provider source configuration
         if "text_model_source" in data:
-            settings.text_model_source = (data["text_model_source"] or "").strip() or None
+            source = (data["text_model_source"] or "").strip().lower()
+            if source and source not in ALLOWED_PROVIDER_FORMATS:
+                return bad_request("text_model_source is not supported")
+            settings.text_model_source = source or None
 
         if "image_model_source" in data:
-            settings.image_model_source = (data["image_model_source"] or "").strip() or None
+            source = (data["image_model_source"] or "").strip().lower()
+            if source and source not in ALLOWED_PROVIDER_FORMATS:
+                return bad_request("image_model_source is not supported")
+            settings.image_model_source = source or None
 
         if "openai_image_api_protocol" in data:
             protocol = data["openai_image_api_protocol"]
@@ -364,7 +387,10 @@ def update_settings():
             settings.openai_image_api_protocol = protocol if protocol != "auto" else None
 
         if "image_caption_model_source" in data:
-            settings.image_caption_model_source = (data["image_caption_model_source"] or "").strip() or None
+            source = (data["image_caption_model_source"] or "").strip().lower()
+            if source and source not in ALLOWED_PROVIDER_FORMATS:
+                return bad_request("image_caption_model_source is not supported")
+            settings.image_caption_model_source = source or None
 
         # Update per-model API credentials (for gemini/openai per-model overrides)
         for model_type in ('text', 'image', 'image_caption'):
@@ -372,10 +398,13 @@ def update_settings():
             base_field = f'{model_type}_api_base_url'
 
             if key_field in data:
-                setattr(settings, key_field, data[key_field] or None)
+                settings.set_secret_field(key_field, data[key_field])
 
             if base_field in data:
-                setattr(settings, base_field, (data[base_field] or "").strip() or None)
+                try:
+                    setattr(settings, base_field, validate_api_base_url(data[base_field]))
+                except ValueError as exc:
+                    return bad_request(str(exc))
 
         if "lazyllm_api_keys" in data:
             keys_data = data["lazyllm_api_keys"]
@@ -383,9 +412,12 @@ def update_settings():
                 # Merge with existing keys (only update non-empty values)
                 existing = settings.get_lazyllm_api_keys_dict()
                 for vendor, key in keys_data.items():
+                    vendor_norm = str(vendor).strip().lower()
+                    if vendor_norm not in ALLOWED_LAZYLLM_VENDORS:
+                        return bad_request(f"Unsupported LazyLLM vendor: {vendor_norm}")
                     if key:  # Only update if a new value is provided
-                        existing[vendor] = key
-                settings.lazyllm_api_keys = json.dumps(existing) if existing else None
+                        existing[vendor_norm] = key
+                settings.set_secret_field("lazyllm_api_keys", json.dumps(existing) if existing else None)
             elif keys_data is None:
                 settings.lazyllm_api_keys = None
 
@@ -479,7 +511,7 @@ def get_elevenlabs_voices():
     from models import Settings
     db.session.expire_all()
     settings = Settings.get_settings()
-    api_key = settings.elevenlabs_api_key
+    api_key = _settings_secret(settings, "elevenlabs_api_key")
     if not api_key:
         return error_response("ELEVENLABS_KEY_MISSING", "ElevenLabs API Key 未配置", 400)
     try:
@@ -578,8 +610,9 @@ def verify_api_key():
 
         # 准备设置覆盖字典
         settings_override = {}
-        if settings.api_key:
-            settings_override["api_key"] = settings.api_key
+        api_key = _settings_secret(settings, "api_key")
+        if api_key:
+            settings_override["api_key"] = api_key
         if settings.api_base_url:
             settings_override["api_base_url"] = settings.api_base_url
         if settings.ai_provider_format:
@@ -686,14 +719,15 @@ def _sync_settings_to_config(settings: Settings):
         current_app.config["GOOGLE_API_BASE"] = env_base_google
         current_app.config["OPENAI_API_BASE"] = env_base_openai
 
+    api_key = _settings_secret(settings, "api_key")
     if settings.api_key is not None:
         old_key = current_app.config.get("GOOGLE_API_KEY")
         # Compare actual values to detect any change (but don't log the keys for security)
-        if old_key != settings.api_key:
+        if old_key != api_key:
             ai_config_changed = True
             logger.info("API key updated")
-        current_app.config["GOOGLE_API_KEY"] = settings.api_key
-        current_app.config["OPENAI_API_KEY"] = settings.api_key
+        current_app.config["GOOGLE_API_KEY"] = api_key or ""
+        current_app.config["OPENAI_API_KEY"] = api_key or ""
     else:
         # Restore .env defaults (pop would permanently lose .env values)
         env_key_google = Config.GOOGLE_API_KEY
@@ -735,7 +769,11 @@ def _sync_settings_to_config(settings: Settings):
 
     # Sync MinerU settings (fall back to Config defaults when NULL)
     current_app.config["MINERU_API_BASE"] = settings.mineru_api_base or Config.MINERU_API_BASE
-    current_app.config["MINERU_TOKEN"] = settings.mineru_token if settings.mineru_token is not None else Config.MINERU_TOKEN
+    current_app.config["MINERU_TOKEN"] = (
+        _settings_secret(settings, "mineru_token")
+        if settings.mineru_token is not None
+        else Config.MINERU_TOKEN
+    )
     current_app.config["IMAGE_CAPTION_MODEL"] = settings.image_caption_model or Config.IMAGE_CAPTION_MODEL
     current_app.config["OUTPUT_LANGUAGE"] = settings.output_language or Config.OUTPUT_LANGUAGE
     
@@ -759,7 +797,7 @@ def _sync_settings_to_config(settings: Settings):
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
     
     # Sync Baidu OCR settings (fall back to Config default when NULL)
-    current_app.config["BAIDU_API_KEY"] = settings.baidu_api_key or Config.BAIDU_API_KEY
+    current_app.config["BAIDU_API_KEY"] = _settings_secret(settings, "baidu_api_key") or Config.BAIDU_API_KEY
 
     # Sync per-model provider source settings
     for model_type, source_attr in [('TEXT', 'text_model_source'), ('IMAGE', 'image_model_source'), ('IMAGE_CAPTION', 'image_caption_model_source')]:
@@ -780,7 +818,12 @@ def _sync_settings_to_config(settings: Settings):
         prefix = model_type.upper()
         for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
             config_key = f'{prefix}{suffix}'
-            val = getattr(settings, f'{model_type}{setting_suffix}', None)
+            setting_attr = f'{model_type}{setting_suffix}'
+            val = (
+                    _settings_secret(settings, setting_attr)
+                if suffix == '_API_KEY'
+                else getattr(settings, setting_attr, None)
+            )
             if val:
                 if current_app.config.get(config_key) != val:
                     ai_config_changed = True
@@ -804,12 +847,16 @@ def _sync_settings_to_config(settings: Settings):
 
     # Sync LazyLLM vendor API keys to environment variables
     # (lazyllm_env.py reads from os.environ via {SOURCE}_API_KEY)
-    if settings.lazyllm_api_keys:
+    lazyllm_api_keys = settings.get_lazyllm_api_keys_dict()
+    if lazyllm_api_keys:
         try:
-            keys = json.loads(settings.lazyllm_api_keys)
-            for vendor, key in keys.items():
+            for vendor, key in lazyllm_api_keys.items():
+                vendor_norm = str(vendor).lower()
+                if vendor_norm not in ALLOWED_LAZYLLM_VENDORS:
+                    logger.warning("Ignoring unknown LazyLLM vendor in settings: %s", vendor)
+                    continue
                 if key:
-                    env_key = f"{vendor.upper()}_API_KEY"
+                    env_key = f"{vendor_norm.upper()}_API_KEY"
                     if os.environ.get(env_key) != key:
                         ai_config_changed = True
                     os.environ[env_key] = key
@@ -1193,8 +1240,9 @@ def run_settings_test(test_name: str):
 
         # 构建基础测试设置（使用数据库中已保存的值）
         test_settings = {}
-        if global_settings.api_key:
-            test_settings["api_key"] = global_settings.api_key
+        api_key = _settings_secret(global_settings, "api_key")
+        if api_key:
+            test_settings["api_key"] = api_key
         if global_settings.api_base_url:
             test_settings["api_base_url"] = global_settings.api_base_url
         if global_settings.ai_provider_format:
@@ -1211,15 +1259,21 @@ def run_settings_test(test_name: str):
         for model_type in ('text', 'image', 'image_caption'):
             for suffix in ('model_source', 'api_key', 'api_base_url'):
                 attr = f'{model_type}_{suffix}'
-                val = getattr(global_settings, attr, None)
+                val = (
+                    _settings_secret(global_settings, attr)
+                    if suffix == 'api_key'
+                    else getattr(global_settings, attr, None)
+                )
                 if val:
                     test_settings[attr] = val
         if global_settings.mineru_api_base:
             test_settings["mineru_api_base"] = global_settings.mineru_api_base
-        if global_settings.mineru_token:
-            test_settings["mineru_token"] = global_settings.mineru_token
-        if global_settings.baidu_api_key:
-            test_settings["baidu_api_key"] = global_settings.baidu_api_key
+        mineru_token = _settings_secret(global_settings, "mineru_token")
+        if mineru_token:
+            test_settings["mineru_token"] = mineru_token
+        baidu_api_key = _settings_secret(global_settings, "baidu_api_key")
+        if baidu_api_key:
+            test_settings["baidu_api_key"] = baidu_api_key
         if global_settings.image_resolution:
             test_settings["image_resolution"] = global_settings.image_resolution
         # 推理模式设置

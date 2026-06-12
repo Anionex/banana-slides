@@ -1,4 +1,4 @@
-import { test, expect, Page, Route } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 import { seedProjectWithImages } from './helpers/seed-project'
 
 const PROJECT_ID = 'badge-race-mock'
