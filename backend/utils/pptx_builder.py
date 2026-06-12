@@ -387,7 +387,12 @@ class PPTXBuilder:
         # Determine the actual text to use
         # If we have colored_segments, use the text from segments (model's recognized text)
         if has_colored_segments:
-            actual_text = ''.join(seg.text for seg in text_style.colored_segments)
+            segment_text = ''.join(seg.text for seg in text_style.colored_segments)
+            if not allow_math_conversion and text and text != segment_text:
+                has_colored_segments = False
+                actual_text = text
+            else:
+                actual_text = segment_text
         else:
             actual_text = text
 

@@ -146,6 +146,7 @@ class _LatexOmmlParser:
 
     _TEXT_COMMANDS = {r"\text", r"\mathrm", r"\mathbf", r"\mathit", r"\mathbb", r"\mathcal"}
     _FUNCTION_COMMANDS = {
+        r"\arg": "arg",
         r"\sin": "sin",
         r"\cos": "cos",
         r"\tan": "tan",

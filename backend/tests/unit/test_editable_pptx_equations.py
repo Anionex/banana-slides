@@ -99,6 +99,37 @@ def test_grouped_base_can_have_script(tmp_path):
     assert "<m:sup><m:r>" in slide_xml
 
 
+def test_game_theory_latex_lines_are_native_omml_not_raw_tex(tmp_path):
+    builder = PPTXBuilder()
+    builder.create_presentation()
+    slide = builder.add_blank_slide()
+    formulas = [
+        r"U_i(s)=\pi_i(S_1,\dots,S_n)",
+        r"s_i^* = \arg\max_{s_j} U_i(s_i, s_{-i})",
+        r"\forall i, U_i(s^*) \geq U_i(s_i, s_{-i}^*)",
+    ]
+
+    for idx, formula in enumerate(formulas):
+        assert builder.add_math_element(
+            slide=slide,
+            latex=formula,
+            bbox=[10, 10 + idx * 35, 280, 40 + idx * 35],
+        )
+
+    output = tmp_path / "game-theory-equations.pptx"
+    builder.save(str(output))
+    slide_xml = _slide_xml(output)
+
+    assert slide_xml.count("<m:oMath") == len(formulas)
+    for raw_tex in (r"\pi", r"\dots", r"\arg", r"\max", r"\forall", r"\geq"):
+        assert raw_tex not in slide_xml
+    assert "π" in slide_xml
+    assert "…" in slide_xml
+    assert "arg" in slide_xml
+    assert "∀" in slide_xml
+    assert "≥" in slide_xml
+
+
 def test_latex_display_fallback_does_not_expose_raw_tex_commands():
     fallback = latex_to_display_text(r"\begin{matrix}a & b\end{matrix}")
 
@@ -177,6 +208,32 @@ def test_text_fallback_can_disable_redundant_math_conversion(tmp_path, monkeypat
     assert calls == []
     assert "unsupportedx" in slide_xml
     assert r"\unsupported" not in slide_xml
+
+
+def test_formula_fallback_uses_sanitized_text_not_raw_style_segments(tmp_path):
+    builder = PPTXBuilder()
+    builder.create_presentation()
+    slide = builder.add_blank_slide()
+    raw_formula = r"\unsupported{x}"
+    fallback = latex_to_display_text(raw_formula)
+    style = TextStyleResult(
+        colored_segments=[ColoredSegment(text=raw_formula, color_rgb=(120, 200, 40))]
+    )
+
+    builder.add_text_element(
+        slide=slide,
+        text=fallback,
+        bbox=[10, 10, 180, 60],
+        text_style=style,
+        allow_math_conversion=False,
+    )
+
+    output = tmp_path / "sanitized-fallback.pptx"
+    builder.save(str(output))
+    slide_xml = _slide_xml(output)
+
+    assert fallback in slide_xml
+    assert raw_formula not in slide_xml
 
 
 class _BBox:
