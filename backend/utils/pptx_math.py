@@ -178,7 +178,14 @@ class _LatexOmmlParser:
                 continue
             if char == "{":
                 flush_text()
-                nodes.extend(self._parse_group())
+                group_nodes = self._parse_group()
+                lookahead = self.pos
+                while lookahead < len(self.source) and self.source[lookahead].isspace():
+                    lookahead += 1
+                if lookahead < len(self.source) and self.source[lookahead] in "_^":
+                    nodes.append(self._parse_scripts(_wrap_as_group(group_nodes)))
+                else:
+                    nodes.extend(group_nodes)
                 continue
             if char in "}&":
                 break

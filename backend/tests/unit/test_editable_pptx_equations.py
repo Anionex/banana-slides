@@ -79,6 +79,26 @@ def test_single_character_script_argument_does_not_consume_next_script(tmp_path)
     assert "<m:sub><m:r>" in slide_xml
 
 
+def test_grouped_base_can_have_script(tmp_path):
+    builder = PPTXBuilder()
+    builder.create_presentation()
+    slide = builder.add_blank_slide()
+
+    assert builder.add_math_element(
+        slide=slide,
+        latex=r"{x}^2",
+        bbox=[10, 10, 180, 60],
+    )
+
+    output = tmp_path / "grouped-script-equation.pptx"
+    builder.save(str(output))
+    slide_xml = _slide_xml(output)
+
+    assert "<m:sSup>" in slide_xml
+    assert "<m:e><m:r>" in slide_xml
+    assert "<m:sup><m:r>" in slide_xml
+
+
 def test_latex_display_fallback_does_not_expose_raw_tex_commands():
     fallback = latex_to_display_text(r"\begin{matrix}a & b\end{matrix}")
 
