@@ -24,6 +24,10 @@ _WRAPPER_PATTERNS = (
     (re.compile(r"^\s*\\\((.*)\\\)\s*$", re.DOTALL), 1),
 )
 
+_PATH_OR_URL_PATTERN = re.compile(
+    r"^(?:[A-Za-z][A-Za-z0-9+.-]*://|[A-Za-z]:[\\/]|/|~[\\/]|\.{1,2}[\\/]|\\\\)"
+)
+
 
 def normalize_latex_math(source: str) -> str:
     """Remove common math delimiters from a LaTeX source string."""
@@ -48,6 +52,8 @@ def looks_like_latex_math(source: str) -> bool:
     """Return True when the text content itself looks like a LaTeX formula."""
     raw_text = (source or "").strip()
     if not raw_text:
+        return False
+    if _PATH_OR_URL_PATTERN.match(raw_text):
         return False
 
     for pattern, _ in _WRAPPER_PATTERNS:

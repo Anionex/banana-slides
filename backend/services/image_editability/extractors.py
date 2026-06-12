@@ -18,6 +18,8 @@ from typing import Dict, Any, List, Optional, Tuple, Type
 from pathlib import Path
 from PIL import Image
 
+from utils.latex_utils import latex_to_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -357,7 +359,6 @@ class MinerUElementExtractor(ElementExtractor):
                                 if preserve_equations:
                                     span_texts.append(span_content)
                                 else:
-                                    from utils.latex_utils import latex_to_text
                                     converted = latex_to_text(span_content)
                                     span_texts.append(converted)
                         

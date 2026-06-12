@@ -409,14 +409,14 @@ class PPTXBuilder:
         ):
             converted = self.add_math_element(
                 slide=slide,
-                latex=' '.join(seg.text for seg in latex_segments),
+                latex=''.join(seg.text for seg in latex_segments),
                 bbox=bbox,
                 dpi=dpi,
                 text_style=text_style,
             )
             if converted:
                 return
-            actual_text = ' '.join(latex_to_display_text(seg.text) for seg in latex_segments)
+            actual_text = ''.join(latex_to_display_text(seg.text) for seg in latex_segments)
         
         # Expand bbox slightly to prevent text overflow
         # MinerU bbox is tight, but font rendering may need extra space

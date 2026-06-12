@@ -94,6 +94,9 @@ def test_latex_math_detection_uses_content_not_metadata():
     assert looks_like_latex_math(r"E = mc^2")
     assert not looks_like_latex_math("Area = x^2")
     assert not looks_like_latex_math("Revenue formula")
+    assert not looks_like_latex_math("https://example.com/math/x^2")
+    assert not looks_like_latex_math(r"C:\Users\me\x_1")
+    assert not looks_like_latex_math("/tmp/export/x_1")
 
 
 def test_mixed_latex_segments_use_display_text_for_plain_text_rendering(tmp_path):
