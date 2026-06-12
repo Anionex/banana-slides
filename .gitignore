@@ -42,6 +42,8 @@
 !docs/superpowers/plans/*.md
 !.github/**/*.md
 *.pyc
+*.log
+*.egg-info/
 .env
 
 # GCP service-account key (sensitive — never commit)

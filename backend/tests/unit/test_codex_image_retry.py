@@ -46,6 +46,8 @@ _codex_img = _load_module(
 )
 
 CodexImageProvider = _codex_img.CodexImageProvider
+CodexImageNoResultError = _codex_img.CodexImageNoResultError
+CodexImageRetryableError = _codex_img.CodexImageRetryableError
 _is_retryable_http_error = _codex_img._is_retryable_http_error
 
 
@@ -84,11 +86,133 @@ def _make_ok_sse_response():
     return resp
 
 
+def _make_large_image_event_sse_response():
+    """Simulate a Codex image event whose JSON payload is larger than 1MB."""
+    import base64
+    import json
+    from io import BytesIO
+    from PIL import Image
+
+    img = Image.new("RGB", (16, 16), "green")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+
+    event = {
+        "type": "response.output_item.done",
+        "item": {
+            "type": "image_generation_call",
+            "result": b64,
+        },
+        "padding": "x" * (_codex_img._MAX_NON_IMAGE_EVENT_BYTES + 1024),
+    }
+
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = [
+        f"data: {json.dumps(event)}".encode(),
+        b"data: [DONE]",
+    ]
+    return resp
+
+
+def _make_large_partial_image_event_sse_response():
+    """Simulate a large Responses API partial-image event."""
+    import base64
+    import json
+    from io import BytesIO
+    from PIL import Image
+
+    img = Image.new("RGB", (16, 16), "purple")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+
+    event = {
+        "type": "response.image_generation_call.partial_image",
+        "partial_image_b64": b64,
+        "partial_image_index": 0,
+        "padding": "x" * (_codex_img._MAX_NON_IMAGE_EVENT_BYTES + 1024),
+    }
+
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = [
+        f"data: {json.dumps(event)}".encode(),
+        b"data: [DONE]",
+    ]
+    return resp
+
+
+def _make_large_non_image_then_image_event_sse_response():
+    """Simulate an oversized non-image event followed by a valid image."""
+    import base64
+    import json
+    from io import BytesIO
+    from PIL import Image
+
+    img = Image.new("RGB", (16, 16), "orange")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+
+    non_image_event = {
+        "type": "response.output_text.delta",
+        "delta": "x" * (_codex_img._MAX_NON_IMAGE_EVENT_BYTES + 1024),
+    }
+    image_event = {
+        "type": "response.output_item.done",
+        "item": {
+            "type": "image_generation_call",
+            "result": b64,
+        },
+    }
+
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = [
+        f"data: {json.dumps(non_image_event)}".encode(),
+        f"data: {json.dumps(image_event)}".encode(),
+        b"data: [DONE]",
+    ]
+    return resp
+
+
 def _make_error_response(status):
     resp = MagicMock(spec=requests.Response)
     resp.status_code = status
     http_err = requests.exceptions.HTTPError(response=resp)
     resp.raise_for_status = MagicMock(side_effect=http_err)
+    return resp
+
+
+def _make_empty_sse_response():
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = [b"data: [DONE]"]
+    return resp
+
+
+def _make_failed_sse_response(message="image generation refused"):
+    import json
+    event = {
+        "type": "response.failed",
+        "response": {
+            "status": "failed",
+            "error": {"message": message},
+        },
+    }
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = [
+        f"data: {json.dumps(event)}".encode(),
+        b"data: [DONE]",
+    ]
     return resp
 
 
@@ -121,6 +245,8 @@ class TestImageRetryableErrors:
         requests.exceptions.ConnectionError("connection reset"),
         requests.exceptions.Timeout("timed out"),
         ChunkedEncodingError("chunk broken"),
+        CodexImageNoResultError("empty stream"),
+        CodexImageRetryableError("rate limit"),
     ])
     def test_retryable_network_errors(self, exc):
         assert _is_retryable_http_error(exc) is True
@@ -172,3 +298,56 @@ class TestGenerateImageRetry:
             result = _provider().generate_image("a blue square")
             assert result is not None
             assert mock_post.call_count == 2
+
+    def test_retries_on_empty_stream_then_succeeds(self):
+        empty = _make_empty_sse_response()
+        ok = _make_ok_sse_response()
+        with patch.object(_codex_img.http_requests, "post", side_effect=[empty, ok]) as mock_post:
+            result = _provider().generate_image("a blue square")
+            assert result is not None
+            assert mock_post.call_count == 2
+
+    def test_raises_failure_event_without_retry(self):
+        failed = _make_failed_sse_response("blocked by policy")
+        with patch.object(_codex_img.http_requests, "post", return_value=failed) as mock_post:
+            with pytest.raises(ValueError, match="blocked by policy"):
+                _provider().generate_image("a blue square")
+            assert mock_post.call_count == 1
+
+    def test_retries_on_rate_limit_failure_event(self):
+        failed = _make_failed_sse_response("Rate limit reached. Please try again in 15ms.")
+        ok = _make_ok_sse_response()
+        with patch.object(_codex_img.http_requests, "post", side_effect=[failed, ok]) as mock_post:
+            result = _provider().generate_image("a blue square")
+            assert result is not None
+            assert mock_post.call_count == 2
+
+    def test_retries_on_codex_processing_failure_event(self):
+        failed = _make_failed_sse_response(
+            "An error occurred while processing your request. You can retry your request."
+        )
+        ok = _make_ok_sse_response()
+        with patch.object(_codex_img.http_requests, "post", side_effect=[failed, ok]) as mock_post:
+            result = _provider().generate_image("a blue square")
+            assert result is not None
+            assert mock_post.call_count == 2
+
+    def test_accepts_large_image_result_event(self):
+        large_image = _make_large_image_event_sse_response()
+        with patch.object(_codex_img.http_requests, "post", return_value=large_image) as mock_post:
+            result = _provider().generate_image("a green square")
+            assert result is not None
+            assert mock_post.call_count == 1
+
+    def test_accepts_large_partial_image_event(self):
+        large_partial = _make_large_partial_image_event_sse_response()
+        with patch.object(_codex_img.http_requests, "post", return_value=large_partial) as mock_post:
+            result = _provider().generate_image("a purple square")
+            assert result is not None
+            assert mock_post.call_count == 1
+
+    def test_skips_large_non_image_event_and_keeps_reading(self):
+        large_text = _make_large_non_image_then_image_event_sse_response()
+        with patch.object(_codex_img.http_requests, "post", return_value=large_text):
+            result = _provider().generate_image("a green square")
+            assert result is not None

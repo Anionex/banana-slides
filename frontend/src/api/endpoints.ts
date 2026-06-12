@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, LONG_REQUEST_TIMEOUT_MS } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material } from '@/types';
 import type { Settings } from '../types/index';
 
@@ -6,8 +6,8 @@ export type { Material };
 
 // ===== 访问口令 API =====
 
-export const checkAccessCode = async (): Promise<ApiResponse<{ enabled: boolean }>> => {
-  const response = await apiClient.get<ApiResponse<{ enabled: boolean }>>('/api/access-code/check');
+export const checkAccessCode = async (): Promise<ApiResponse<{ enabled: boolean; authenticated?: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ enabled: boolean; authenticated?: boolean }>>('/api/access-code/check');
   return response.data;
 };
 
@@ -155,13 +155,13 @@ export const generateOutlineStream = async (
   lockPageCount?: boolean,
 ): Promise<void> => {
   const lang = language || await getStoredOutputLanguage();
-  const accessCode = localStorage.getItem('banana-access-code');
 
   const response = await fetch(`/api/projects/${projectId}/generate/outline/stream`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+      'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify({ language: lang, lock_page_count: lockPageCount }),
   });
@@ -268,13 +268,13 @@ export const generateDescriptionsStream = async (
   detailLevel?: string,
 ): Promise<void> => {
   const lang = language || await getStoredOutputLanguage();
-  const accessCode = localStorage.getItem('banana-access-code');
 
   const response = await fetch(`/api/projects/${projectId}/generate/descriptions/stream`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+      'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify({ language: lang, detail_level: detailLevel || 'default' }),
   });
@@ -588,6 +588,24 @@ export const addPage = async (projectId: string, data: Partial<Page>): Promise<A
   return response.data;
 };
 
+/**
+ * 批量添加页面
+ */
+export const addPages = async (
+  projectId: string,
+  pages: Partial<Page>[],
+  startIndex?: number
+): Promise<ApiResponse<{ pages: Page[] }>> => {
+  const response = await apiClient.post<ApiResponse<{ pages: Page[] }>>(
+    `/api/projects/${projectId}/pages/batch`,
+    {
+      pages,
+      ...(startIndex !== undefined ? { start_index: startIndex } : {}),
+    }
+  );
+  return response.data;
+};
+
 // ===== 任务查询 =====
 
 /**
@@ -603,6 +621,28 @@ export const getTaskStatus = async (projectId: string, taskId: string): Promise<
 /**
  * 更新页面旁白文本
  */
+export const cancelTask = async (
+  projectId: string,
+  taskId: string,
+  pageIds?: string[]
+): Promise<ApiResponse<{ task_id: string; status: 'CANCELLED'; restored_pages: number; cancel_requested?: boolean; task_active?: boolean; cancelled_before_start?: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: 'CANCELLED'; restored_pages: number; cancel_requested?: boolean; task_active?: boolean; cancelled_before_start?: boolean }>>(
+    `/api/projects/${projectId}/tasks/${taskId}/cancel`,
+    { page_ids: pageIds || [] }
+  );
+  return response.data;
+};
+
+export const cancelPageImageGeneration = async (
+  projectId: string,
+  pageId: string
+): Promise<ApiResponse<{ task_id: string | null; status: 'CANCELLED'; restored_pages: number; cancel_requested?: boolean; task_active?: boolean; cancelled_before_start?: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string | null; status: 'CANCELLED'; restored_pages: number; cancel_requested?: boolean; task_active?: boolean; cancelled_before_start?: boolean }>>(
+    `/api/projects/${projectId}/pages/${pageId}/generation/cancel`
+  );
+  return response.data;
+};
+
 export const updatePageNarration = async (
   projectId: string,
   pageId: string,
@@ -693,7 +733,7 @@ export const exportPPTX = async (
   })}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(url);
+  >(url, { timeout: LONG_REQUEST_TIMEOUT_MS });
   return response.data;
 };
 
@@ -709,7 +749,7 @@ export const exportPDF = async (
   const url = `/api/projects/${projectId}/export/pdf${buildPageIdsQuery(pageIds)}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(url);
+  >(url, { timeout: LONG_REQUEST_TIMEOUT_MS });
   return response.data;
 };
 
@@ -723,7 +763,7 @@ export const exportImages = async (
   const url = `/api/projects/${projectId}/export/images${buildPageIdsQuery(pageIds)}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(url);
+  >(url, { timeout: LONG_REQUEST_TIMEOUT_MS });
   return response.data;
 };
 

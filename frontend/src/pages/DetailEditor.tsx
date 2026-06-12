@@ -55,6 +55,7 @@ const detailI18n = {
       importConfirm: "导入到项目",
       importCancel: "取消",
       messages: {
+        generateSuccess: "生成成功", generateFailed: "生成失败",
         confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成",
         confirmRegeneratePage: "该页面已有描述，重新生成将覆盖现有内容，确定继续吗？",
@@ -124,7 +125,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
@@ -478,10 +479,8 @@ export const DetailEditor: React.FC = () => {
         }
         show({ message: t('detail.messages.generateSuccess'), type: 'success' });
       } catch (error: any) {
-        show({
-          message: `${t('detail.messages.generateFailed')}: ${error.message || t('common.unknownError')}`,
-          type: 'error'
-        });
+        // Store actions already set a normalized global error; avoid duplicate toasts.
+        console.error('[DetailEditor] regenerate page failed:', error);
       }
     };
 
@@ -554,14 +553,16 @@ export const DetailEditor: React.FC = () => {
         throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
-        addPage(projectId, {
+      await addPages(
+        projectId,
+        parsed.map(({ title, points, text: desc, part, extra_fields }, i) => ({
           outline_content: { title, points },
           description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
-        })
-      ));
+        })),
+        startIndex
+      );
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
     } catch (error) {

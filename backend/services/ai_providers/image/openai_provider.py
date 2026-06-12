@@ -14,7 +14,7 @@ import base64
 import re
 import requests
 from io import BytesIO
-from typing import Optional, List
+from typing import Callable, Optional, List
 from openai import OpenAI
 from PIL import Image
 from .base import ImageProvider
@@ -324,7 +324,8 @@ class OpenAIImageProvider(ImageProvider):
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = False,
-        thinking_budget: int = 0
+        thinking_budget: int = 0,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> Optional[Image.Image]:
         """
         Generate image using OpenAI SDK
@@ -349,13 +350,19 @@ class OpenAIImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled before OpenAI request")
+
             # Route based on image_api_protocol setting
             use_images_api = (
                 self.image_api_protocol == 'images'
                 or (self.image_api_protocol == 'auto' and self._is_native_images_api_model())
             )
             if use_images_api:
-                return self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)
+                result = self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Image generation cancelled after OpenAI request")
+                return result
 
             # Build message content
             content = []
@@ -392,6 +399,8 @@ class OpenAIImageProvider(ImageProvider):
                 modalities=["text", "image"],
                 extra_body=extra_body
             )
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled after OpenAI request")
             
             logger.debug("OpenAI API call completed")
             

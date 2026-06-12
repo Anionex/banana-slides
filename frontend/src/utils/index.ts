@@ -142,7 +142,15 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   );
 
   // Handle specific error messages
-  if (message.includes('no template image found')) {
+  if (
+    message.includes('mineru_auth_error')
+    || message.includes('mineru token')
+    || (message.includes('mineru') && (message.includes('401') || message.includes('unauthorized')))
+  ) {
+    return isZh
+      ? 'MinerU Token 无效或已过期，请到设置中更新 MinerU Token 后重试。'
+      : 'MinerU token is invalid or expired. Update it in Settings and try again.';
+  } else if (message.includes('no template image found')) {
     return isZh
       ? '当前项目还没有模板，请先点击页面工具栏的"更换模板"按钮，选择或上传一张模板图片后再生成。'
       : 'No template found. Please select or upload a template image first.';
@@ -154,6 +162,15 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh
       ? '该页面已经有图片，如需重新生成，请在生成时选择"重新生成"或稍后重试。'
       : 'Image already exists. Choose "Regenerate" to create a new one.';
+  } else if (
+    message.includes('apiconnectionerror')
+    || message.includes('connection error')
+    || message.includes('connection aborted')
+    || message.includes('remote protocol error')
+  ) {
+    return isZh
+      ? 'AI 生图服务连接失败。请检查代理或网络状态，稍后重试；如果连续失败，建议先降低生图并发。'
+      : 'The AI image service connection failed. Check your proxy or network and try again; reduce image concurrency if it keeps failing.';
   }
 
   // Handle HTTP error codes

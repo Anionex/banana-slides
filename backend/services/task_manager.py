@@ -6,7 +6,7 @@ import logging
 import os
 import shutil
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
@@ -48,6 +48,149 @@ from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
 
+IMAGE_OPERATION_TIMEOUT_SECONDS = int(os.getenv('IMAGE_OPERATION_TIMEOUT_SECONDS', '0'))
+
+
+class ImageTaskCancelledError(Exception):
+    """Raised when a user cancels an image generation task."""
+
+
+def _is_task_cancelled(task_id: str) -> bool:
+    if task_manager.is_cancel_requested(task_id):
+        return True
+
+    task = Task.query.get(task_id)
+    return bool(task and task.status == 'CANCELLED')
+
+
+def _is_image_work_cancelled(task_id: str, page_id: Optional[str] = None) -> bool:
+    if _is_task_cancelled(task_id):
+        return True
+    return bool(page_id and task_manager.is_page_cancel_requested(task_id, page_id))
+
+
+def _raise_if_task_cancelled(task_id: str):
+    if _is_task_cancelled(task_id):
+        raise ImageTaskCancelledError(f"Image task {task_id} was cancelled")
+
+
+def _raise_if_image_work_cancelled(task_id: str, page_id: Optional[str] = None):
+    if _is_image_work_cancelled(task_id, page_id):
+        raise ImageTaskCancelledError(f"Image work was cancelled: task={task_id} page={page_id}")
+
+
+def _reset_page_generation_status(page: Page):
+    if page.generated_image_path:
+        page.status = 'COMPLETED'
+    elif page.description_content:
+        page.status = 'DESCRIPTION_GENERATED'
+    else:
+        page.status = 'DRAFT'
+
+
+def _mark_task_cancelled(task_id: str):
+    task = Task.query.get(task_id)
+    if not task:
+        return
+
+    progress = task.get_progress()
+    progress['cancelled'] = True
+    task.status = 'CANCELLED'
+    task.error_message = task.error_message or 'Generation stopped by user'
+    task.completed_at = task.completed_at or datetime.utcnow()
+    task.set_progress(progress)
+    db.session.commit()
+
+
+def _run_image_operation_with_timeout(
+    label: str,
+    operation: Callable[[], Image.Image],
+    timeout_seconds: int = IMAGE_OPERATION_TIMEOUT_SECONDS,
+    app=None,
+    is_cancelled: Optional[Callable[[], bool]] = None,
+) -> Image.Image:
+    """Run one image operation, optionally guarded by a wall-clock timeout.
+
+    By default there is no task-level total timeout. Provider-level socket/read
+    timeouts still stop dead connections while allowing slow image jobs to run.
+    This helper deliberately does not offload to a nested worker thread: Python
+    cannot kill an in-flight HTTP call safely, and releasing the limiter slot
+    before the provider request actually ends lets real outbound concurrency
+    exceed the configured image worker count.
+    """
+    timeout_seconds = int(timeout_seconds or 0)
+    if timeout_seconds > 0:
+        logger.debug(
+            "Image operation timeout setting for %s is handled by provider request timeouts",
+            label,
+        )
+
+    if is_cancelled and is_cancelled():
+        raise ImageTaskCancelledError(f"Image operation cancelled before start: {label}")
+
+    started_at = time.monotonic()
+    if app is not None:
+        with app.app_context():
+            result = operation()
+    else:
+        result = operation()
+
+    if is_cancelled and is_cancelled():
+        raise ImageTaskCancelledError(f"Image operation cancelled after provider returned: {label}")
+
+    elapsed = time.monotonic() - started_at
+    if timeout_seconds > 0 and elapsed > timeout_seconds:
+        logger.warning(
+            "Image operation exceeded configured timeout after provider returned: %s took %.1fs (limit=%ss)",
+            label,
+            elapsed,
+            timeout_seconds,
+        )
+    return result
+
+
+def mark_interrupted_image_tasks_on_startup():
+    """Mark image tasks left running before a backend restart as interrupted."""
+    image_task_types = (
+        'GENERATE_IMAGES',
+        'GENERATE_PAGE_IMAGE',
+        'EDIT_PAGE_IMAGE',
+        'GENERATE_MATERIAL',
+        'PROCESS_MATERIAL',
+    )
+    try:
+        interrupted_tasks = Task.query.filter(
+            Task.status.in_(('PENDING', 'PROCESSING')),
+            Task.task_type.in_(image_task_types),
+        ).all()
+        stuck_pages = Page.query.filter(Page.status.in_(('GENERATING', 'QUEUED'))).all()
+    except OperationalError as exc:
+        db.session.rollback()
+        logger.info("Skipping interrupted image task cleanup because database tables are not ready: %s", exc)
+        return {'tasks': 0, 'pages': 0}
+
+    for task in interrupted_tasks:
+        progress = task.get_progress()
+        progress['interrupted'] = True
+        task.status = 'FAILED'
+        task.error_message = (
+            task.error_message
+            or 'Generation was interrupted by a backend restart. Please retry this image.'
+        )
+        task.completed_at = task.completed_at or datetime.utcnow()
+        task.set_progress(progress)
+
+    for page in stuck_pages:
+        _reset_page_generation_status(page)
+
+    if interrupted_tasks or stuck_pages:
+        db.session.commit()
+        logger.warning(
+            "Marked interrupted image work on startup: tasks=%d, pages=%d",
+            len(interrupted_tasks), len(stuck_pages),
+        )
+    return {'tasks': len(interrupted_tasks), 'pages': len(stuck_pages)}
+
 
 class ResourceLimiter:
     """Thread-safe concurrency limiter for a shared external resource."""
@@ -68,10 +211,17 @@ class ResourceLimiter:
             self._condition.notify_all()
 
     @contextmanager
-    def slot(self, label: str, on_acquire: Optional[Callable[[], None]] = None):
+    def slot(
+        self,
+        label: str,
+        on_acquire: Optional[Callable[[], None]] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
+    ):
         waited = False
         with self._condition:
             while self._in_use >= self.capacity:
+                if cancel_check and cancel_check():
+                    raise ImageTaskCancelledError(f"{self.name} slot wait cancelled: {label}")
                 if not waited:
                     waited = True
                     logger.info(
@@ -79,6 +229,8 @@ class ResourceLimiter:
                         f"waiting: {label}"
                     )
                 self._condition.wait(timeout=0.5)
+            if cancel_check and cancel_check():
+                raise ImageTaskCancelledError(f"{self.name} slot wait cancelled: {label}")
 
             self._in_use += 1
 
@@ -102,6 +254,8 @@ class TaskManager:
         """Initialize task manager"""
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.active_tasks = {}  # task_id -> Future
+        self.cancel_requested = set()
+        self.page_cancel_requested = {}
         self.lock = threading.Lock()
         self.max_workers = max_workers
     
@@ -109,6 +263,8 @@ class TaskManager:
         """Submit a background task"""
         with self.lock:
             executor = self.executor
+            self.cancel_requested.discard(task_id)
+            self.page_cancel_requested.pop(task_id, None)
 
         future = executor.submit(func, task_id, *args, **kwargs)
         
@@ -121,10 +277,15 @@ class TaskManager:
     def _task_done_callback(self, task_id: str, future):
         """Handle task completion and log any exceptions"""
         try:
+            if future.cancelled():
+                logger.info(f"Task {task_id} was cancelled before it started")
+                return
             # Check if task raised an exception
             exception = future.exception()
             if exception:
                 logger.error(f"Task {task_id} failed with exception: {exception}", exc_info=exception)
+        except CancelledError:
+            logger.info(f"Task {task_id} was cancelled")
         except Exception as e:
             logger.error(f"Error in task callback for {task_id}: {e}", exc_info=True)
         finally:
@@ -135,11 +296,54 @@ class TaskManager:
         with self.lock:
             if task_id in self.active_tasks:
                 del self.active_tasks[task_id]
+            self.cancel_requested.discard(task_id)
+            self.page_cancel_requested.pop(task_id, None)
     
     def is_task_active(self, task_id: str) -> bool:
         """Check if task is still running"""
         with self.lock:
             return task_id in self.active_tasks
+
+    def request_cancel(self, task_id: str) -> Dict[str, bool]:
+        """Request cooperative cancellation for a background task."""
+        with self.lock:
+            self.cancel_requested.add(task_id)
+            future = self.active_tasks.get(task_id)
+
+        if future is None:
+            return {
+                "requested": True,
+                "active": False,
+                "cancelled_before_start": False,
+            }
+
+        return {
+            "requested": True,
+            "active": True,
+            "cancelled_before_start": future.cancel(),
+        }
+
+    def request_page_cancel(self, task_id: str, page_id: str) -> Dict[str, bool]:
+        """Request cooperative cancellation for one page inside an image task."""
+        with self.lock:
+            self.page_cancel_requested.setdefault(task_id, set()).add(page_id)
+            future = self.active_tasks.get(task_id)
+
+        return {
+            "requested": True,
+            "active": future is not None,
+            "cancelled_before_start": False,
+        }
+
+    def is_cancel_requested(self, task_id: str) -> bool:
+        """Check whether cooperative cancellation was requested."""
+        with self.lock:
+            return task_id in self.cancel_requested
+
+    def is_page_cancel_requested(self, task_id: str, page_id: str) -> bool:
+        """Check whether one page inside a task was cooperatively cancelled."""
+        with self.lock:
+            return page_id in self.page_cancel_requested.get(task_id, set())
     
     def shutdown(self):
         """Shutdown the executor"""
@@ -172,6 +376,32 @@ def _compute_background_worker_target(description_workers: int, image_workers: i
 task_manager = TaskManager(max_workers=max(8, int(os.getenv('MAX_BACKGROUND_TASK_WORKERS', '16'))))
 image_resource_limiter = ResourceLimiter("image", int(os.getenv('MAX_IMAGE_WORKERS', '20')))
 text_resource_limiter = ResourceLimiter("text", int(os.getenv('MAX_DESCRIPTION_WORKERS', '20')))
+
+
+def _effective_image_generation_workers(requested_workers: int, ai_service) -> int:
+    """Cap Codex image concurrency; its long SSE streams are less stable in batches."""
+    try:
+        requested = max(1, int(requested_workers))
+    except (TypeError, ValueError):
+        requested = 1
+
+    provider_name = getattr(getattr(ai_service, "image_provider", None), "__class__", type(None)).__name__
+    if provider_name != "CodexImageProvider":
+        return requested
+
+    try:
+        codex_cap = max(1, int(os.getenv("CODEX_IMAGE_MAX_PARALLEL_WORKERS", "3")))
+    except ValueError:
+        codex_cap = 3
+
+    effective = min(requested, codex_cap)
+    if effective < requested:
+        logger.info(
+            "Capping Codex image generation workers: requested=%s effective=%s",
+            requested,
+            effective,
+        )
+    return effective
 
 
 def sync_resource_limits(description_workers: int, image_workers: int):
@@ -414,7 +644,7 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
             task.set_progress({
                 "total": len(pages),
                 "completed": 0,
-                "failed": 0
+                "failed": 0,
             })
             db.session.commit()
 
@@ -515,6 +745,11 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                 task.status = 'FAILED'
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
+                progress = task.get_progress()
+                progress['total'] = progress.get('total') or 1
+                progress['completed'] = progress.get('completed') or 0
+                progress['failed'] = max(int(progress.get('failed') or 0), 1)
+                task.set_progress(progress)
                 db.session.commit()
 
 
@@ -544,6 +779,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             task = Task.query.get(task_id)
             if not task:
                 return
+            _raise_if_task_cancelled(task_id)
             
             task.status = 'PROCESSING'
             db.session.commit()
@@ -563,7 +799,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             task.set_progress({
                 "total": len(pages),
                 "completed": 0,
-                "failed": 0
+                "failed": 0,
+                "page_ids": [page.id for page in pages],
             })
             db.session.commit()
             
@@ -571,6 +808,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             completed = 0
             failed = 0
             resolution_mismatched = 0  # Count of resolution mismatches
+            cancelled = False
             
             def generate_single_image(page_id, page_data, page_index):
                 """
@@ -580,6 +818,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 # 关键修复：在子线程中也需要应用上下文
                 with app.app_context():
                     try:
+                        _raise_if_image_work_cancelled(task_id, page_id)
                         logger.debug(f"Starting image generation for page {page_id}, index {page_index}")
                         # Get page from database in this thread
                         page_obj = Page.query.get(page_id)
@@ -587,6 +826,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             raise ValueError(f"Page {page_id} not found")
                         
                         def mark_generating():
+                            _raise_if_image_work_cancelled(task_id, page_id)
                             page_for_update = Page.query.get(page_id)
                             if page_for_update:
                                 page_for_update.status = 'GENERATING'
@@ -596,7 +836,9 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         with image_resource_limiter.slot(
                             f"project={project_id} page={page_id}",
                             on_acquire=mark_generating,
+                            cancel_check=lambda: _is_image_work_cancelled(task_id, page_id),
                         ):
+                            _raise_if_image_work_cancelled(task_id, page_id)
                             # Get description content
                             desc_content = page_obj.get_description_content()
                             if not desc_content:
@@ -649,12 +891,20 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             
                             # Generate image
                             logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
-                            image = ai_service.generate_image(
-                                prompt, page_ref_image_path, aspect_ratio, resolution,
-                                additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
+                            image = _run_image_operation_with_timeout(
+                                f"batch page {page_index}/{len(pages)} ({page_id})",
+                                lambda: ai_service.generate_image(
+                                    prompt, page_ref_image_path, aspect_ratio, resolution,
+                                    additional_ref_images=page_additional_ref_images if page_additional_ref_images else None,
+                                    cancel_check=lambda: _is_image_work_cancelled(task_id, page_id),
+                                ),
+                                app=app,
+                                is_cancelled=lambda: _is_image_work_cancelled(task_id, page_id),
                             )
                         logger.info(f"✅ Image generated successfully for page {page_index}")
                         
+                        _raise_if_image_work_cancelled(task_id, page_id)
+
                         if not image:
                             raise ValueError("Failed to generate image")
                         
@@ -670,8 +920,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         )
                         
                         return (page_id, image_path, None, not is_match)
-                        
+                    except ImageTaskCancelledError:
+                        logger.info(f"Image generation cancelled for page {page_id}")
+                        return (page_id, None, 'CANCELLED', None)
                     except Exception as e:
+                        if _is_image_work_cancelled(task_id, page_id):
+                            logger.info(f"Image generation cancelled for page {page_id}")
+                            return (page_id, None, 'CANCELLED', None)
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
@@ -679,7 +934,10 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            effective_workers = _effective_image_generation_workers(max_workers, ai_service)
+            executor = ThreadPoolExecutor(max_workers=effective_workers)
+            futures = []
+            try:
                 futures = [
                     executor.submit(
                         generate_single_image, page.id,
@@ -690,7 +948,29 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 
                 # Process results as they complete
                 for future in as_completed(futures):
+                    if _is_task_cancelled(task_id):
+                        cancelled = True
+                        break
+
                     page_id, image_path, error, is_mismatched = future.result()
+                    if error == 'CANCELLED':
+                        if _is_task_cancelled(task_id):
+                            cancelled = True
+                            break
+                        page = Page.query.get(page_id)
+                        if page:
+                            _reset_page_generation_status(page)
+                            db.session.commit()
+                        task = Task.query.get(task_id)
+                        if task:
+                            progress = task.get_progress()
+                            cancelled_pages = progress.get('cancelled_pages') or []
+                            if page_id not in cancelled_pages:
+                                cancelled_pages.append(page_id)
+                            progress['cancelled_pages'] = cancelled_pages
+                            task.set_progress(progress)
+                            db.session.commit()
+                        continue
                     
                     if is_mismatched:
                         resolution_mismatched += 1
@@ -722,16 +1002,32 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         task.set_progress(progress)
                         db.session.commit()
                         logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
+            finally:
+                if cancelled or _is_task_cancelled(task_id):
+                    cancelled = True
+                    for future in futures:
+                        future.cancel()
+                    executor.shutdown(wait=False, cancel_futures=True)
+                else:
+                    executor.shutdown(wait=True)
+
+            if cancelled:
+                _mark_task_cancelled(task_id)
+                logger.info(f"Task {task_id} CANCELLED - {completed} images generated before stop")
+                return
             
-            # Mark task as completed
+            # Mark task as completed or failed. A batch with failed pages must not look
+            # successful to the UI; successful pages are still preserved on sync.
             task = Task.query.get(task_id)
             if task:
-                task.status = 'COMPLETED'
+                task.status = 'FAILED' if failed > 0 else 'COMPLETED'
+                if failed > 0:
+                    task.error_message = f"Image generation failed for {failed} of {len(pages)} page(s)."
                 task.completed_at = datetime.utcnow()
                 if resolution_mismatched > 0:
                     logger.warning(f"Task {task_id} has {resolution_mismatched} resolution mismatches")
                 db.session.commit()
-                logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
+                logger.info(f"Task {task_id} {task.status} - {completed} images generated, {failed} failed")
             
             # Update project status
             from models import Project
@@ -741,13 +1037,25 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 db.session.commit()
                 logger.info(f"Project {project_id} status updated to COMPLETED")
         
+        except ImageTaskCancelledError:
+            _mark_task_cancelled(task_id)
         except Exception as e:
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
+                if _is_task_cancelled(task_id):
+                    _mark_task_cancelled(task_id)
+                    return
                 task.status = 'FAILED'
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
+                progress = task.get_progress()
+                progress['total'] = progress.get('total') or 1
+                progress['completed'] = progress.get('completed') or 0
+                progress['failed'] = max(int(progress.get('failed') or 0), 1)
+                if 'page_ids' not in progress and page_ids:
+                    progress['page_ids'] = page_ids
+                task.set_progress(progress)
                 db.session.commit()
 
 
@@ -771,6 +1079,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             task = Task.query.get(task_id)
             if not task:
                 return
+            _raise_if_task_cancelled(task_id)
             
             task.status = 'PENDING'
             db.session.commit()
@@ -835,6 +1144,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             )
 
             def mark_generating():
+                _raise_if_image_work_cancelled(task_id, page_id)
                 task_obj = Task.query.get(task_id)
                 if task_obj:
                     task_obj.status = 'PROCESSING'
@@ -847,13 +1157,22 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             with image_resource_limiter.slot(
                 f"project={project_id} page={page_id}",
                 on_acquire=mark_generating,
+                cancel_check=lambda: _is_image_work_cancelled(task_id, page_id),
             ):
+                _raise_if_image_work_cancelled(task_id, page_id)
                 # Generate image
                 logger.info(f"🎨 Generating image for page {page_id}...")
-                image = ai_service.generate_image(
-                    prompt, ref_image_path, aspect_ratio, resolution,
-                    additional_ref_images=additional_ref_images if additional_ref_images else None
+                image = _run_image_operation_with_timeout(
+                    f"page {page_id}",
+                    lambda: ai_service.generate_image(
+                        prompt, ref_image_path, aspect_ratio, resolution,
+                        additional_ref_images=additional_ref_images if additional_ref_images else None,
+                        cancel_check=lambda: _is_image_work_cancelled(task_id, page_id),
+                    ),
+                    app=app,
+                    is_cancelled=lambda: _is_image_work_cancelled(task_id, page_id),
                 )
+            _raise_if_image_work_cancelled(task_id, page_id)
             
             if not image:
                 raise ValueError("Failed to generate image")
@@ -875,6 +1194,13 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image generated")
         
+        except ImageTaskCancelledError:
+            logger.info(f"Task {task_id} CANCELLED - Page {page_id} image generation stopped")
+            _mark_task_cancelled(task_id)
+            page = Page.query.get(page_id)
+            if page:
+                _reset_page_generation_status(page)
+                db.session.commit()
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
@@ -883,9 +1209,18 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
+                if _is_image_work_cancelled(task_id, page_id):
+                    _mark_task_cancelled(task_id)
+                    return
                 task.status = 'FAILED'
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
+                progress = task.get_progress()
+                progress['total'] = progress.get('total') or 1
+                progress['completed'] = progress.get('completed') or 0
+                progress['failed'] = max(int(progress.get('failed') or 0), 1)
+                progress.setdefault('page_ids', [page_id])
+                task.set_progress(progress)
                 db.session.commit()
             
             # Update page status
@@ -928,6 +1263,7 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             current_image_path = file_service.get_absolute_path(page.generated_image_path)
             
             def mark_generating():
+                _raise_if_image_work_cancelled(task_id, page_id)
                 task_obj = Task.query.get(task_id)
                 if task_obj:
                     task_obj.status = 'PROCESSING'
@@ -943,14 +1279,22 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
                 with image_resource_limiter.slot(
                     f"edit project={project_id} page={page_id}",
                     on_acquire=mark_generating,
+                    cancel_check=lambda: _is_image_work_cancelled(task_id, page_id),
                 ):
-                    image = ai_service.edit_image(
-                        edit_instruction,
-                        current_image_path,
-                        aspect_ratio,
-                        resolution,
-                        original_description=original_description,
-                        additional_ref_images=additional_ref_images if additional_ref_images else None
+                    _raise_if_image_work_cancelled(task_id, page_id)
+                    image = _run_image_operation_with_timeout(
+                        f"edit page {page_id}",
+                        lambda: ai_service.edit_image(
+                            edit_instruction,
+                            current_image_path,
+                            aspect_ratio,
+                            resolution,
+                            original_description=original_description,
+                            additional_ref_images=additional_ref_images if additional_ref_images else None,
+                            cancel_check=lambda: _is_image_work_cancelled(task_id, page_id),
+                        ),
+                        app=app,
+                        is_cancelled=lambda: _is_image_work_cancelled(task_id, page_id),
                     )
             finally:
                 # Clean up temp directory if created
@@ -960,7 +1304,8 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
                     temp_path = Path(temp_dir)
                     if temp_path.exists():
                         shutil.rmtree(temp_dir)
-            
+            _raise_if_image_work_cancelled(task_id, page_id)
+
             if not image:
                 raise ValueError("Failed to edit image")
             
@@ -981,6 +1326,20 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             
             logger.info(f"✅ Task {task_id} COMPLETED - Page {page_id} image edited")
         
+        except ImageTaskCancelledError:
+            logger.info(f"Task {task_id} CANCELLED - Page {page_id} image edit stopped")
+            if temp_dir:
+                import shutil
+                from pathlib import Path
+                temp_path = Path(temp_dir)
+                if temp_path.exists():
+                    shutil.rmtree(temp_dir)
+
+            _mark_task_cancelled(task_id)
+            page = Page.query.get(page_id)
+            if page:
+                _reset_page_generation_status(page)
+                db.session.commit()
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
@@ -997,6 +1356,9 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             # Mark task as failed
             task = Task.query.get(task_id)
             if task:
+                if _is_task_cancelled(task_id):
+                    _mark_task_cancelled(task_id)
+                    return
                 task.status = 'FAILED'
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
@@ -1048,13 +1410,20 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
             with image_resource_limiter.slot(
                 f"material-generate project={project_id} task={task_id}",
                 on_acquire=mark_processing,
+                cancel_check=lambda: _is_task_cancelled(task_id),
             ):
-                image = ai_service.generate_image(
-                    prompt=prompt,
-                    ref_image_path=ref_image_path,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    additional_ref_images=additional_ref_images or None,
+                image = _run_image_operation_with_timeout(
+                    f"material generate task {task_id}",
+                    lambda: ai_service.generate_image(
+                        prompt=prompt,
+                        ref_image_path=ref_image_path,
+                        aspect_ratio=aspect_ratio,
+                        resolution=resolution,
+                        additional_ref_images=additional_ref_images or None,
+                        cancel_check=lambda: _is_task_cancelled(task_id),
+                    ),
+                    app=app,
+                    is_cancelled=lambda: _is_task_cancelled(task_id),
                 )
             
             if not image:
@@ -1094,6 +1463,9 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
             
             logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} generated")
         
+        except ImageTaskCancelledError:
+            logger.info(f"Task {task_id} CANCELLED - material generation stopped")
+            _mark_task_cancelled(task_id)
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
@@ -1163,14 +1535,21 @@ def process_material_image_task(
             with image_resource_limiter.slot(
                 f"material-process operation={operation} project={project_id} task={task_id}",
                 on_acquire=mark_processing,
+                cancel_check=lambda: _is_task_cancelled(task_id),
             ):
                 if operation == 'generate':
-                    result_image = ai_service.generate_image(
-                        prompt=prompt,
-                        ref_image_path=ref_image_path,
-                        aspect_ratio=aspect_ratio,
-                        resolution=resolution,
-                        additional_ref_images=refs if refs else None,
+                    result_image = _run_image_operation_with_timeout(
+                        f"material process generate task {task_id}",
+                        lambda: ai_service.generate_image(
+                            prompt=prompt,
+                            ref_image_path=ref_image_path,
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                            additional_ref_images=refs if refs else None,
+                            cancel_check=lambda: _is_task_cancelled(task_id),
+                        ),
+                        app=app,
+                        is_cancelled=lambda: _is_task_cancelled(task_id),
                     )
                 elif operation == 'edit_full':
                     if not source_image_path:
@@ -1179,12 +1558,18 @@ def process_material_image_task(
                     if ref_image_path:
                         refs.insert(0, ref_image_path)
 
-                    result_image = ai_service.edit_image(
-                        prompt=prompt,
-                        current_image_path=source_image_path,
-                        aspect_ratio=source_aspect_ratio,
-                        resolution=resolution,
-                        additional_ref_images=refs if refs else None,
+                    result_image = _run_image_operation_with_timeout(
+                        f"material process edit task {task_id}",
+                        lambda: ai_service.edit_image(
+                            prompt=prompt,
+                            current_image_path=source_image_path,
+                            aspect_ratio=source_aspect_ratio,
+                            resolution=resolution,
+                            additional_ref_images=refs if refs else None,
+                            cancel_check=lambda: _is_task_cancelled(task_id),
+                        ),
+                        app=app,
+                        is_cancelled=lambda: _is_task_cancelled(task_id),
                     )
                 elif operation in {'region_edit', 'erase_region'}:
                     if not source_image or not source_image_path:
@@ -1205,12 +1590,18 @@ def process_material_image_task(
                         refs.insert(0, ref_image_path)
 
                     instruction = _build_region_edit_instruction(prompt, operation)
-                    generated = ai_service.edit_image(
-                        prompt=instruction,
-                        current_image_path=source_image_path,
-                        aspect_ratio=source_aspect_ratio,
-                        resolution=resolution,
-                        additional_ref_images=refs if refs else None,
+                    generated = _run_image_operation_with_timeout(
+                        f"material region {operation} task {task_id}",
+                        lambda: ai_service.edit_image(
+                            prompt=instruction,
+                            current_image_path=source_image_path,
+                            aspect_ratio=source_aspect_ratio,
+                            resolution=resolution,
+                            additional_ref_images=refs if refs else None,
+                            cancel_check=lambda: _is_task_cancelled(task_id),
+                        ),
+                        app=app,
+                        is_cancelled=lambda: _is_task_cancelled(task_id),
                     )
 
                     if generated is None:
@@ -1259,6 +1650,9 @@ def process_material_image_task(
 
             logger.info(f"✅ Task {task_id} COMPLETED - Material {material.id} processed via {operation}")
 
+        except ImageTaskCancelledError:
+            logger.info(f"Task {task_id} CANCELLED - material processing stopped")
+            _mark_task_cancelled(task_id)
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()

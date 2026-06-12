@@ -124,6 +124,7 @@ interface ProjectState {
   regenerateRenovationPage: (pageId: string, keepLayout?: boolean) => Promise<void>;
   generatePageImage: (pageId: string, forceRegenerate?: boolean) => Promise<void>;
   generateImages: (pageIds?: string[]) => Promise<void>;
+  cancelImageGeneration: (pageId: string) => Promise<void>;
   editPageImage: (
     pageId: string,
     editPrompt: string,
@@ -531,6 +532,13 @@ const debouncedUpdatePage = debounce(
             taskProgress: null,
             isGlobalLoading: false
           });
+        } else if (task.status === 'CANCELLED') {
+          set({
+            activeTaskId: null,
+            taskProgress: null,
+            isGlobalLoading: false,
+          });
+          await get().syncProject();
         } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
           // 继续轮询（PENDING 或 PROCESSING）
           devLog(`[轮询] Task ${taskId} 处理中，2秒后继续轮询...`);
@@ -963,8 +971,15 @@ const debouncedUpdatePage = debounce(
       }
     } catch (error: any) {
       await get().syncProject();
-      set({ error: normalizeErrorMessage(error.message || t('store.regenerateFailed')) });
-      throw error;
+      const message =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        t('store.regenerateFailed');
+      const normalizedMessage = normalizeErrorMessage(message);
+      set({ error: normalizedMessage });
+      throw new Error(normalizedMessage);
     }
   },
 
@@ -1058,6 +1073,44 @@ const debouncedUpdatePage = debounce(
   },
 
   // 轮询图片生成任务（非阻塞，支持单页和批量）
+  cancelImageGeneration: async (pageId: string) => {
+    const { currentProject } = get();
+    if (!currentProject) return;
+
+    set((state) => {
+      const newTasks = { ...state.pageGeneratingTasks };
+      delete newTasks[pageId];
+
+      const project = state.currentProject;
+      const pages = project?.pages.map((page) => {
+        const id = page.id || page.page_id;
+        if (!id || id !== pageId) return page;
+
+        const nextStatus = page.generated_image_path || page.generated_image_url
+          ? 'COMPLETED'
+          : page.description_content
+            ? 'DESCRIPTION_GENERATED'
+            : 'DRAFT';
+
+        return { ...page, status: nextStatus as typeof page.status };
+      });
+
+      return {
+        pageGeneratingTasks: newTasks,
+        currentProject: project && pages ? { ...project, pages } : project,
+      };
+    });
+
+    try {
+      await api.cancelPageImageGeneration(currentProject.id!, pageId);
+      await get().syncProject();
+    } catch (error: any) {
+      await get().syncProject();
+      set({ error: normalizeErrorMessage(error.message || t('store.requestFailed')) });
+      throw error;
+    }
+  },
+
   pollImageTask: async (taskId: string, pageIds: string[]) => {
     const { currentProject } = get();
     if (!currentProject) {
@@ -1107,7 +1160,9 @@ const debouncedUpdatePage = debounce(
             // 验证所有页面的图片路径是否已更新
             const { currentProject: updatedProject } = get();
             if (updatedProject) {
-              const allImagesReady = pageIds.every(pageId => {
+              const cancelledPages = new Set<string>(task.progress?.cancelled_pages || []);
+              const activePageIds = pageIds.filter(pageId => !cancelledPages.has(pageId));
+              const allImagesReady = activePageIds.every(pageId => {
                 const page = updatedProject.pages.find(p => p.id === pageId);
                 return page?.generated_image_path;
               });
@@ -1144,6 +1199,16 @@ const debouncedUpdatePage = debounce(
             error: normalizeErrorMessage(task.error_message || task.error || t('store.batchGenerateFailed'))
           });
           // 刷新项目数据以更新页面状态
+          await get().syncProject();
+        } else if (task.status === 'CANCELLED') {
+          const { pageGeneratingTasks } = get();
+          const newTasks = { ...pageGeneratingTasks };
+          pageIds.forEach(id => {
+            if (newTasks[id] === taskId) {
+              delete newTasks[id];
+            }
+          });
+          set({ pageGeneratingTasks: newTasks });
           await get().syncProject();
         } else if (task.status === 'PENDING' || task.status === 'PROCESSING') {
           // 检查警告消息

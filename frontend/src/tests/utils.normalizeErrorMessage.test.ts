@@ -24,6 +24,11 @@ describe('normalizeErrorMessage', () => {
     expect(message).toContain('OpenAI');
   });
 
+  test('maps mineru auth failures to token guidance', () => {
+    const message = normalizeErrorMessage('MINERU_AUTH_ERROR: 401 Unauthorized for MinerU token');
+    expect(message).toContain('MinerU Token');
+  });
+
   test('maps codex ssl eof failures to retry guidance', () => {
     const message = normalizeErrorMessage("HTTPSConnectionPool(host='chatgpt.com', port=443): Max retries exceeded with url: /backend-api/codex/responses (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1017)')))");
     expect(message).toContain('Codex');

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Square, Trash2 } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
 import { getImageUrl } from '@/api/client';
@@ -13,7 +13,8 @@ const slideCardI18n = {
       confirmDeletePage: "确定要删除这一页吗？",
       confirmDeleteTitle: "确认删除",
       coverPage: "封面",
-      coverPageTooltip: "第一页为封面页，通常包含标题和副标题"
+      coverPageTooltip: "第一页为封面页，通常包含标题和副标题",
+      stopGeneration: "停止"
     }
   },
   en: {
@@ -22,7 +23,8 @@ const slideCardI18n = {
       confirmDeletePage: "Are you sure you want to delete this page?",
       confirmDeleteTitle: "Confirm Delete",
       coverPage: "Cover",
-      coverPageTooltip: "This is the cover page, usually containing the title and subtitle"
+      coverPageTooltip: "This is the cover page, usually containing the title and subtitle",
+      stopGeneration: "Stop"
     }
   }
 };
@@ -34,6 +36,7 @@ interface SlideCardProps {
   onClick: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onCancelGeneration?: () => void;
   isGenerating?: boolean;
   aspectRatio?: string;
 }
@@ -45,6 +48,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
   onClick,
   onEdit,
   onDelete,
+  onCancelGeneration,
   isGenerating = false,
   aspectRatio = '16:9',
 }) => {
@@ -66,7 +70,23 @@ export const SlideCard: React.FC<SlideCardProps> = ({
       {/* 缩略图 */}
       <div className="relative bg-gray-100 dark:bg-background-secondary rounded-lg overflow-hidden mb-2" style={{ aspectRatio: aspectRatio.replace(':', '/') }}>
         {generating ? (
-          <Skeleton className="w-full h-full" />
+          <>
+            <Skeleton className="w-full h-full" />
+            {onCancelGeneration && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCancelGeneration();
+                }}
+                className="absolute inset-x-2 bottom-2 z-10 h-8 rounded-md bg-white/95 dark:bg-background-secondary/95 text-red-600 shadow-sm border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold"
+                title={t('slideCard.stopGeneration')}
+              >
+                <Square size={12} fill="currentColor" />
+                <span>{t('slideCard.stopGeneration')}</span>
+              </button>
+            )}
+          </>
         ) : page.generated_image_path ? (
           <>
             <img
@@ -110,7 +130,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
         )}
         
         {/* 状态标签 */}
-        <div className="absolute bottom-2 right-2">
+        <div className={`absolute right-2 ${generating ? 'top-2' : 'bottom-2'}`}>
           <StatusBadge status={page.status} />
         </div>
       </div>

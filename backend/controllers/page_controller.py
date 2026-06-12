@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 import shutil
 import tempfile
 import json
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,94 @@ def create_page(project_id):
     
     except Exception as e:
         db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@page_bp.route('/<project_id>/pages/batch', methods=['POST'])
+def create_pages_batch(project_id):
+    """
+    POST /api/projects/{project_id}/pages/batch - Add multiple pages in one transaction
+
+    Request body:
+    {
+        "start_index": 2,  # optional, defaults to append after the current max order_index
+        "pages": [
+            {
+                "part": "optional",
+                "outline_content": {"title": "...", "points": [...]},
+                "description_content": {"text": "..."}
+            }
+        ]
+    }
+    """
+    try:
+        project = Project.query.get(project_id)
+
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json() or {}
+        pages_data = data.get('pages')
+
+        if not isinstance(pages_data, list) or len(pages_data) == 0:
+            return bad_request("pages must be a non-empty array")
+
+        if not all(isinstance(page_data, dict) for page_data in pages_data):
+            return bad_request("each page must be an object")
+
+        max_page = Page.query.filter_by(project_id=project_id).order_by(Page.order_index.desc()).first()
+        default_start_index = (max_page.order_index + 1) if max_page else 0
+
+        raw_start_index = data.get('start_index', default_start_index)
+        try:
+            start_index = int(raw_start_index)
+        except (TypeError, ValueError):
+            return bad_request("start_index must be an integer")
+
+        if start_index < 0:
+            return bad_request("start_index must be non-negative")
+
+        # Shift existing pages once, then insert the imported block contiguously.
+        # This avoids the race caused by many concurrent single-page insert requests.
+        existing_pages = Page.query.filter(
+            Page.project_id == project_id,
+            Page.order_index >= start_index
+        ).all()
+
+        insert_count = len(pages_data)
+        for existing_page in existing_pages:
+            existing_page.order_index += insert_count
+
+        created_pages = []
+        for offset, page_data in enumerate(pages_data):
+            page = Page(
+                project_id=project_id,
+                order_index=start_index + offset,
+                part=page_data.get('part'),
+                status='DRAFT'
+            )
+
+            if 'outline_content' in page_data:
+                page.set_outline_content(page_data['outline_content'])
+
+            description_content = page_data.get('description_content')
+            if description_content:
+                page.set_description_content(description_content)
+                page.status = 'DESCRIPTION_GENERATED'
+
+            db.session.add(page)
+            created_pages.append(page)
+
+        project.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return success_response({
+            'pages': [page.to_dict() for page in created_pages]
+        }, status_code=201)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"create_pages_batch failed: {e}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 
@@ -461,7 +550,8 @@ def generate_page_image(project_id, page_id):
         task.set_progress({
             'total': 1,
             'completed': 0,
-            'failed': 0
+            'failed': 0,
+            'page_ids': [page_id],
         })
         db.session.add(task)
         db.session.commit()
@@ -607,17 +697,28 @@ def edit_page_image(project_id, page_id):
         # 3. Save and add uploaded files to a persistent location
         temp_dir = None
         if uploaded_files:
+            max_context_images = int(current_app.config.get('MAX_CONTEXT_IMAGE_UPLOADS', 8))
+            if len(uploaded_files) > max_context_images:
+                return bad_request(f"Too many context images. Maximum allowed: {max_context_images}")
+            allowed = current_app.config.get('ALLOWED_EXTENSIONS', {'png', 'jpg', 'jpeg', 'gif', 'webp'})
+            for uploaded_file in uploaded_files:
+                if not uploaded_file.filename:
+                    continue
+                filename = secure_filename(uploaded_file.filename)
+                if not filename:
+                    return bad_request("Invalid context image filename")
+                ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+                if ext not in allowed:
+                    return bad_request(f"Context image type not allowed: {ext or 'unknown'}")
+
             # Create a temporary directory in the project's upload folder
-            import tempfile
-            import shutil
-            from werkzeug.utils import secure_filename
             temp_dir = Path(tempfile.mkdtemp(dir=current_app.config['UPLOAD_FOLDER']))
             try:
                 for uploaded_file in uploaded_files:
                     if uploaded_file.filename:
-                        # Save to temp directory
-                        temp_path = temp_dir / secure_filename(uploaded_file.filename)
-                        uploaded_file.save(str(temp_path))
+                        filename = secure_filename(uploaded_file.filename)
+                        temp_path = temp_dir / f"{uuid.uuid4().hex}_{filename}"
+                        file_service._save_validated_image_upload(uploaded_file, temp_path)
                         additional_ref_images.append(str(temp_path))
             except Exception as e:
                 # Clean up temp directory on error
@@ -634,7 +735,8 @@ def edit_page_image(project_id, page_id):
         task.set_progress({
             'total': 1,
             'completed': 0,
-            'failed': 0
+            'failed': 0,
+            'page_ids': [page_id],
         })
         db.session.add(task)
         db.session.commit()
@@ -779,12 +881,11 @@ def regenerate_renovation_page(project_id, page_id):
             mineru_api_base=current_app.config.get('MINERU_API_BASE', ''),
             mineru_token=current_app.config.get('MINERU_TOKEN', ''),
             google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-            ai_provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+            provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
             openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
             openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
             image_caption_model=current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview'),
-            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', ''),
-            upload_folder=current_app.config.get('UPLOAD_FOLDER', 'uploads')
+            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', '')
         )
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
@@ -807,6 +908,23 @@ def regenerate_renovation_page(project_id, page_id):
                 md_text = hf_text + '\n\n' + md_text
 
         if not md_text.strip():
+            if error_msg:
+                normalized_error = error_msg.lower()
+                if (
+                    '401' in normalized_error
+                    or 'unauthorized' in normalized_error
+                    or 'invalid token' in normalized_error
+                ):
+                    return error_response(
+                        'MINERU_AUTH_ERROR',
+                        'MinerU Token 无效或已过期，请到设置中更新 MinerU Token 后重试。',
+                        400
+                    )
+                return error_response(
+                    'PARSE_ERROR',
+                    f"Failed to extract content from page {page.order_index + 1}: {error_msg}",
+                    400
+                )
             return error_response('PARSE_ERROR', f"Failed to extract content from page {page.order_index + 1}", 400)
 
         # Step 2: AI extract structured content

@@ -74,10 +74,6 @@ export interface MarkdownTextareaRef {
   focus: () => void;
 }
 
-function escapeHtml(text: string) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 type Segment =
   | { type: 'text'; content: string }
   | { type: 'image'; alt: string; url: string; raw: string };
@@ -132,8 +128,44 @@ function getDisplayName(alt: string, url: string): string {
   }
 }
 
-const IMAGE_ICON = '<svg class="flex-shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
-const SPINNER_ICON = '<span class="inline-block w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin flex-shrink-0 dark:border-gray-300 dark:border-t-transparent"></span>';
+function createImageIcon(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'flex-shrink-0');
+  svg.setAttribute('width', '12');
+  svg.setAttribute('height', '12');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+
+  const rect = document.createElementNS(ns, 'rect');
+  rect.setAttribute('x', '3');
+  rect.setAttribute('y', '3');
+  rect.setAttribute('width', '18');
+  rect.setAttribute('height', '18');
+  rect.setAttribute('rx', '2');
+  svg.appendChild(rect);
+
+  const circle = document.createElementNS(ns, 'circle');
+  circle.setAttribute('cx', '8.5');
+  circle.setAttribute('cy', '8.5');
+  circle.setAttribute('r', '1.5');
+  svg.appendChild(circle);
+
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', 'm21 15-5-5L5 21');
+  svg.appendChild(path);
+  return svg;
+}
+
+function createSpinnerIcon(): HTMLSpanElement {
+  const spinner = document.createElement('span');
+  spinner.className = 'inline-block w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin flex-shrink-0 dark:border-gray-300 dark:border-t-transparent';
+  return spinner;
+}
 
 function applyChipContent(chip: HTMLElement, seg: { alt: string; url: string; raw: string }, tooltips?: { edit: string; uploading: string }) {
   const uploading = isUploadingUrl(seg.url);
@@ -152,11 +184,15 @@ function applyChipContent(chip: HTMLElement, seg: { alt: string; url: string; ra
       : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600',
   ].join(' ');
   const displayName = getDisplayName(seg.alt, seg.url);
-  chip.innerHTML = `${uploading ? SPINNER_ICON : IMAGE_ICON}<span style="max-width:150px" class="truncate">${escapeHtml(displayName)}</span>`;
+  const label = document.createElement('span');
+  label.className = 'truncate';
+  label.style.maxWidth = '150px';
+  label.textContent = displayName;
+  chip.replaceChildren(uploading ? createSpinnerIcon() : createImageIcon(), label);
 }
 
 function buildDOM(container: HTMLElement, segments: Segment[], tooltips?: { edit: string; uploading: string }) {
-  container.innerHTML = '';
+  container.replaceChildren();
   for (const segment of segments) {
     if (segment.type === 'text') {
       const lines = segment.content.split('\n');

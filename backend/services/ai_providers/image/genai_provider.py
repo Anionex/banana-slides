@@ -6,7 +6,7 @@ Operates in two authentication modes selected at construction time:
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
-from typing import Optional, List
+from typing import Callable, Optional, List
 from google import genai
 from google.genai import types
 from PIL import Image
@@ -52,7 +52,8 @@ class GenAIImageProvider(ImageProvider):
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = True,
-        thinking_budget: int = 1024
+        thinking_budget: int = 1024,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> Optional[Image.Image]:
         """
         Generate image using Google GenAI SDK
@@ -69,6 +70,9 @@ class GenAIImageProvider(ImageProvider):
             Generated PIL Image object, or None if failed
         """
         try:
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled before GenAI request")
+
             # Build contents list with prompt and reference images
             contents = []
             
@@ -105,6 +109,8 @@ class GenAIImageProvider(ImageProvider):
                 contents=contents,
                 config=types.GenerateContentConfig(**config_params)
             )
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled after GenAI request")
             
             logger.debug("GenAI API call completed")
             

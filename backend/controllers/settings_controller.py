@@ -160,7 +160,23 @@ def get_settings():
     """
     try:
         settings = Settings.get_settings()
-        return success_response(settings.to_dict())
+        data = settings.to_dict()
+        try:
+            from services.ai_providers import get_image_provider_runtime_info
+            data["image_provider_runtime"] = get_image_provider_runtime_info(
+                model=data.get("image_model") or Config.IMAGE_MODEL
+            )
+        except Exception as runtime_error:
+            logger.warning("Failed to resolve image provider runtime info: %s", runtime_error)
+            data["image_provider_runtime"] = {
+                "source": "error",
+                "label": "Unavailable",
+                "endpoint": "",
+                "model": data.get("image_model") or Config.IMAGE_MODEL,
+                "fallback_available": False,
+                "error": str(runtime_error),
+            }
+        return success_response(data)
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
         return error_response(
@@ -521,10 +537,17 @@ def get_active_config():
     GET /api/settings/active-config - Return current app.config values for AI settings.
     Useful for verifying that _sync_settings_to_config correctly restored .env defaults.
     """
+    image_model = current_app.config.get("IMAGE_MODEL")
+    try:
+        from services.ai_providers import get_image_provider_runtime_info
+        image_provider_runtime = get_image_provider_runtime_info(model=image_model)
+    except Exception as runtime_error:
+        image_provider_runtime = {"source": "error", "error": str(runtime_error)}
     return success_response({
         "ai_provider_format": current_app.config.get("AI_PROVIDER_FORMAT"),
         "text_model": current_app.config.get("TEXT_MODEL"),
-        "image_model": current_app.config.get("IMAGE_MODEL"),
+        "image_model": image_model,
+        "image_provider_runtime": image_provider_runtime,
         "output_language": current_app.config.get("OUTPUT_LANGUAGE"),
         "image_caption_model": current_app.config.get("IMAGE_CAPTION_MODEL"),
     })

@@ -12,6 +12,8 @@ const previewI18n = {
     nav: { home: '主页', materialGenerate: '素材生成' },
     slidePreview: {
       pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
+      generationStopped: "已停止生成",
+      generationStopFailed: "停止生成失败：{{error}}",
       versionSwitched: "已切换到该版本", outlineSaved: "大纲和描述已保存",
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
@@ -88,7 +90,7 @@ const previewI18n = {
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
-      generating: "正在生成中...", queued: "排队等待生成...", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
+      generating: "正在生成中...", queued: "排队等待生成...", stopGeneration: "停止生成", notGenerated: "尚未生成图片", generateThisPage: "生成此页",
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
@@ -133,6 +135,8 @@ const previewI18n = {
     nav: { home: 'Home', materialGenerate: 'Generate Material' },
     slidePreview: {
       pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
+      generationStopped: "Generation stopped",
+      generationStopFailed: "Failed to stop generation: {{error}}",
       versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
@@ -209,7 +213,7 @@ const previewI18n = {
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
-      generating: "Generating...", queued: "Queued for generation...", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
+      generating: "Generating...", queued: "Queued for generation...", stopGeneration: "Stop Generation", notGenerated: "Image not generated yet", generateThisPage: "Generate This Page",
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
@@ -368,6 +372,7 @@ export const SlidePreview: React.FC = () => {
     syncProject,
     generatePageImage,
     generateImages,
+    cancelImageGeneration,
     editPageImage,
     deletePageById,
     updatePageLocal,
@@ -795,6 +800,22 @@ export const SlidePreview: React.FC = () => {
       }
     });
   }, [currentProject, selectedIndex, pageGeneratingTasks, generatePageImage, show, checkResolutionAndExecute]);
+
+  const handleCancelPageGeneration = useCallback(async (pageId?: string) => {
+    if (!pageId) return;
+
+    try {
+      await cancelImageGeneration(pageId);
+      show({ message: t('slidePreview.generationStopped'), type: 'success' });
+    } catch (error: any) {
+      show({
+        message: t('slidePreview.generationStopFailed', {
+          error: normalizeErrorMessage(error.message || t('slidePreview.unknownError')),
+        }),
+        type: 'error',
+      });
+    }
+  }, [cancelImageGeneration, show, t]);
 
   const handleSwitchVersion = async (versionId: string) => {
     if (!currentProject || !selectedPage?.id || !projectId) return;
@@ -1518,6 +1539,11 @@ export const SlidePreview: React.FC = () => {
   }
 
   const selectedPage = currentProject.pages[selectedIndex];
+  const selectedPageIsGenerating = !!(
+    (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
+    selectedPage?.status === 'QUEUED' ||
+    selectedPage?.status === 'GENERATING'
+  );
   const imageUrl = selectedPage?.generated_image_path
     ? getImageUrl(selectedPage.generated_image_path, selectedPage.updated_at)
     : '';
@@ -2261,6 +2287,23 @@ export const SlidePreview: React.FC = () => {
                         </div>
                       )}
                     </button>
+                    {page.id && (
+                      pageGeneratingTasks[page.id] ||
+                      page.status === 'QUEUED' ||
+                      page.status === 'GENERATING'
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCancelPageGeneration(page.id);
+                        }}
+                        className="absolute inset-x-1 bottom-1 h-6 rounded bg-white/95 text-red-600 shadow-sm border border-red-200 flex items-center justify-center"
+                        title={t('preview.stopGeneration')}
+                      >
+                        <Square size={10} fill="currentColor" />
+                      </button>
+                    )}
                     {/* 多选复选框（移动端） */}
                     {isMultiSelectMode && page.id && page.generated_image_path && (
                       <button
@@ -2312,6 +2355,7 @@ export const SlidePreview: React.FC = () => {
                         handleEditPage();
                       }}
                       onDelete={() => page.id && deletePageById(page.id)}
+                      onCancelGeneration={() => handleCancelPageGeneration(page.id)}
                       isGenerating={page.id ? !!pageGeneratingTasks[page.id] : false}
                       aspectRatio={aspectRatio}
                     />
@@ -2363,14 +2407,20 @@ export const SlidePreview: React.FC = () => {
                           <p className="text-gray-500 dark:text-foreground-tertiary mb-4">
                             {selectedPage?.status === 'QUEUED'
                               ? t('preview.queued')
-                              : (selectedPage?.id && pageGeneratingTasks[selectedPage.id]) ||
-                                selectedPage?.status === 'GENERATING'
+                              : selectedPageIsGenerating
                               ? t('preview.generating')
                               : t('preview.notGenerated')}
                           </p>
-                          {(!selectedPage?.id || !pageGeneratingTasks[selectedPage.id]) &&
-                           selectedPage?.status !== 'QUEUED' &&
-                           selectedPage?.status !== 'GENERATING' && (
+                          {selectedPageIsGenerating && selectedPage?.id ? (
+                            <Button
+                              variant="secondary"
+                              icon={<Square size={14} fill="currentColor" />}
+                              onClick={() => handleCancelPageGeneration(selectedPage.id)}
+                              className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            >
+                              {t('preview.stopGeneration')}
+                            </Button>
+                          ) : (
                             <Button
                               variant="primary"
                               onClick={handleRegeneratePage}
@@ -2510,12 +2560,21 @@ export const SlidePreview: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleRegeneratePage}
-                      disabled={selectedPage?.id && pageGeneratingTasks[selectedPage.id] ? true : false}
-                      className="text-xs md:text-sm flex-1 sm:flex-initial"
+                      icon={selectedPageIsGenerating ? <Square size={14} fill="currentColor" /> : undefined}
+                      onClick={() => {
+                        if (selectedPageIsGenerating) {
+                          handleCancelPageGeneration(selectedPage?.id);
+                        } else {
+                          handleRegeneratePage();
+                        }
+                      }}
+                      disabled={!selectedPage}
+                      className={`text-xs md:text-sm flex-1 sm:flex-initial ${
+                        selectedPageIsGenerating ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30' : ''
+                      }`}
                     >
-                      {selectedPage?.id && pageGeneratingTasks[selectedPage.id]
-                        ? t('preview.regenerating')
+                      {selectedPageIsGenerating
+                        ? t('preview.stopGeneration')
                         : t('preview.regenerate')}
                     </Button>
                   </div>

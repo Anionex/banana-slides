@@ -72,20 +72,11 @@ test.describe('Access Code Guard (mocked)', () => {
     await expect(page.getByText('无法连接到后端服务')).not.toBeVisible({ timeout: 10000 });
   });
 
-  test('auto-verifies saved code from localStorage', async ({ page }) => {
-    let verified = false;
+  test('passes when backend reports authenticated cookie', async ({ page }) => {
     await page.route('**/api/access-code/check', route =>
-      route.fulfill({ json: { data: { enabled: true } } })
+      route.fulfill({ json: { data: { enabled: true, authenticated: true } } })
     );
-    await page.route('**/api/access-code/verify', route => {
-      verified = true;
-      return route.fulfill({ json: { data: { valid: true } } });
-    });
-    // Set localStorage before navigating
     await page.goto('/');
-    await page.evaluate(() => localStorage.setItem('banana-access-code', 'saved-code'));
-    await page.reload();
     await expect(page.getByText('请输入访问口令')).not.toBeVisible({ timeout: 10000 });
-    expect(verified).toBe(true);
   });
 });

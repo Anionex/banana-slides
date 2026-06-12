@@ -84,6 +84,64 @@ class TestProjectGet:
         assert response.status_code in [400, 404]
 
 
+class TestPageBatchCreate:
+    def test_batch_create_pages_preserves_payload_order(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': 'test'
+        })
+        project_id = assert_success_response(response, 201)['data']['project_id']
+
+        response = client.post(f'/api/projects/{project_id}/pages/batch', json={
+            'pages': [
+                {'outline_content': {'title': 'A', 'points': ['a']}},
+                {'outline_content': {'title': 'B', 'points': ['b']}},
+                {'outline_content': {'title': 'C', 'points': ['c']}},
+            ]
+        })
+        data = assert_success_response(response, 201)
+
+        created_pages = data['data']['pages']
+        assert [p['order_index'] for p in created_pages] == [0, 1, 2]
+        assert [p['outline_content']['title'] for p in created_pages] == ['A', 'B', 'C']
+
+        response = client.get(f'/api/projects/{project_id}')
+        project = assert_success_response(response)['data']
+        assert [p['order_index'] for p in project['pages']] == [0, 1, 2]
+        assert [p['outline_content']['title'] for p in project['pages']] == ['A', 'B', 'C']
+
+    def test_batch_create_shifts_existing_pages_once(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': 'test'
+        })
+        project_id = assert_success_response(response, 201)['data']['project_id']
+
+        response = client.post(f'/api/projects/{project_id}/pages', json={
+            'order_index': 0,
+            'outline_content': {'title': 'Existing', 'points': []}
+        })
+        assert_success_response(response, 201)
+
+        response = client.post(f'/api/projects/{project_id}/pages/batch', json={
+            'start_index': 0,
+            'pages': [
+                {'outline_content': {'title': 'Imported 1', 'points': []}},
+                {'outline_content': {'title': 'Imported 2', 'points': []}},
+            ]
+        })
+        assert_success_response(response, 201)
+
+        response = client.get(f'/api/projects/{project_id}')
+        project = assert_success_response(response)['data']
+        assert [p['order_index'] for p in project['pages']] == [0, 1, 2]
+        assert [p['outline_content']['title'] for p in project['pages']] == [
+            'Imported 1',
+            'Imported 2',
+            'Existing',
+        ]
+
+
 class TestResourceConcurrency:
     def test_image_limiter_allows_more_than_global_four_workers(self, app):
         """图片资源并发应由 image limiter 控制，而不是被旧的全局 4 worker 提前卡住。"""

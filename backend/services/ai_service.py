@@ -8,7 +8,7 @@ import json
 import re
 import logging
 import requests
-from typing import List, Dict, Optional, Union
+from typing import Callable, List, Dict, Optional, Union
 from textwrap import dedent
 from PIL import Image
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
@@ -30,7 +30,14 @@ from .prompts import (
     get_outline_parsing_prompt_markdown,
     get_description_to_outline_prompt_markdown,
 )
-from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
+from .ai_providers import (
+    get_text_provider,
+    get_image_provider,
+    get_caption_provider,
+    get_openai_image_fallback_provider,
+    TextProvider,
+    ImageProvider,
+)
 from config import get_config
 
 logger = logging.getLogger(__name__)
@@ -142,7 +149,83 @@ class AIService:
             如果启用图像推理则返回配置的 budget，否则返回 0
         """
         return self.image_thinking_budget if self.enable_image_reasoning else 0
-    
+
+    def _should_try_image_fallback(self, exc: BaseException) -> bool:
+        """Return True when a Codex image failure is worth retrying via API key."""
+        if self.image_provider.__class__.__name__ != "CodexImageProvider":
+            return False
+
+        message = str(exc).lower()
+        if "cancelled" in message or "canceled" in message:
+            return False
+
+        fallback_markers = (
+            "codex",
+            "no image found",
+            "exceeded maximum allowed size",
+            "stream",
+            "retry your request",
+            "processing your request",
+            "temporarily",
+            "timeout",
+            "overloaded",
+            "unavailable",
+        )
+        return any(marker in message for marker in fallback_markers)
+
+    def _generate_image_with_fallback(
+        self,
+        *,
+        prompt: str,
+        ref_images: Optional[List[Image.Image]],
+        aspect_ratio: str,
+        resolution: str,
+        cancel_check: Optional[Callable[[], bool]],
+    ) -> Optional[Image.Image]:
+        """Generate with the configured provider, falling back after Codex flakiness."""
+        kwargs = {
+            "prompt": prompt,
+            "ref_images": ref_images if ref_images else None,
+            "aspect_ratio": aspect_ratio,
+            "resolution": resolution,
+            "enable_thinking": self.enable_image_reasoning,
+            "thinking_budget": self._get_image_thinking_budget(),
+            "cancel_check": cancel_check,
+        }
+
+        try:
+            return self.image_provider.generate_image(**kwargs)
+        except Exception as primary_error:
+            if not self._should_try_image_fallback(primary_error):
+                raise
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled before fallback request") from primary_error
+
+            fallback_provider = get_openai_image_fallback_provider(model=self.image_model)
+            if not fallback_provider:
+                logger.warning(
+                    "Codex image generation failed and no OpenAI-compatible fallback is configured: %s",
+                    primary_error,
+                )
+                raise
+
+            logger.warning(
+                "Codex image generation failed; trying OpenAI-compatible fallback. Primary error: %s",
+                primary_error,
+            )
+            fallback_kwargs = dict(kwargs)
+            fallback_kwargs["enable_thinking"] = False
+            fallback_kwargs["thinking_budget"] = 0
+            try:
+                return fallback_provider.generate_image(**fallback_kwargs)
+            except Exception as fallback_error:
+                raise Exception(
+                    "Primary Codex image generation failed: "
+                    f"{type(primary_error).__name__}: {primary_error}; "
+                    "OpenAI-compatible fallback also failed: "
+                    f"{type(fallback_error).__name__}: {fallback_error}"
+                ) from fallback_error
+
     @staticmethod
     def extract_image_urls_from_markdown(text: str) -> List[str]:
         """
@@ -876,7 +959,8 @@ class AIService:
     
     def generate_image(self, prompt: str, ref_image_path: Optional[str] = None, 
                       aspect_ratio: str = "16:9", resolution: str = "2K",
-                      additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
+                      additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                      cancel_check: Optional[Callable[[], bool]] = None) -> Optional[Image.Image]:
         """
         Generate image using configured image provider
         Based on gemini_genai.py gen_image()
@@ -895,6 +979,8 @@ class AIService:
             Exception with detailed error message if generation fails
         """
         try:
+            if cancel_check and cancel_check():
+                raise RuntimeError("Image generation cancelled before loading references")
             logger.debug(f"Reference image: {ref_image_path}")
             if additional_ref_images:
                 logger.debug(f"Additional reference images: {len(additional_ref_images)}")
@@ -928,6 +1014,8 @@ class AIService:
                             owned_images.append(opened)
                         elif ref_img.startswith('http://') or ref_img.startswith('https://'):
                             # URL，需要下载
+                            if cancel_check and cancel_check():
+                                raise RuntimeError("Image generation cancelled before downloading reference image")
                             downloaded_img = self.download_image_from_url(ref_img)
                             if downloaded_img:
                                 ref_images.append(downloaded_img)
@@ -972,16 +1060,18 @@ class AIService:
             logger.debug(f"Enable image reasoning/thinking: {self.enable_image_reasoning}, budget: {self._get_image_thinking_budget()}")
 
             try:
-                # 使用 image_provider 生成图片
-                # 根据 enable_image_reasoning 配置控制图像生成的思考模式
-                return self.image_provider.generate_image(
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Image generation cancelled before provider request")
+                image = self._generate_image_with_fallback(
                     prompt=prompt,
-                    ref_images=ref_images if ref_images else None,
+                    ref_images=ref_images,
                     aspect_ratio=aspect_ratio,
                     resolution=resolution,
-                    enable_thinking=self.enable_image_reasoning,
-                    thinking_budget=self._get_image_thinking_budget()
+                    cancel_check=cancel_check,
                 )
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Image generation cancelled after provider request")
+                return image
             finally:
                 for img in owned_images:
                     try:
@@ -997,7 +1087,8 @@ class AIService:
     def edit_image(self, prompt: str, current_image_path: str,
                   aspect_ratio: str = "16:9", resolution: str = "2K",
                   original_description: str = None,
-                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
+                  additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
+                  cancel_check: Optional[Callable[[], bool]] = None) -> Optional[Image.Image]:
         """
         Edit existing image with natural language instruction
         Uses current image as reference
@@ -1018,7 +1109,14 @@ class AIService:
             edit_instruction=prompt,
             original_description=original_description
         )
-        return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution, additional_ref_images)
+        return self.generate_image(
+            edit_instruction,
+            current_image_path,
+            aspect_ratio,
+            resolution,
+            additional_ref_images,
+            cancel_check=cancel_check,
+        )
     
     def parse_description_to_outline(self, project_context: ProjectContext, language='zh') -> List[Dict]:
         """

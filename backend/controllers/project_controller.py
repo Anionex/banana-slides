@@ -1050,7 +1050,8 @@ def generate_images(project_id):
         task.set_progress({
             'total': len(pages),
             'completed': 0,
-            'failed': 0
+            'failed': 0,
+            'page_ids': [page.id for page in pages],
         })
         
         db.session.add(task)
@@ -1123,6 +1124,190 @@ def get_task_status(project_id, task_id):
     
     except Exception as e:
         logger.error(f"get_task_status failed: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+def _restore_page_after_generation_cancel(page: Page):
+    if page.generated_image_path:
+        page.status = 'COMPLETED'
+    elif page.description_content:
+        page.status = 'DESCRIPTION_GENERATED'
+    else:
+        page.status = 'DRAFT'
+
+
+def _restore_cancelled_generation_pages(project_id: str, page_ids=None) -> int:
+    query = Page.query.filter(
+        Page.project_id == project_id,
+        Page.status.in_(['QUEUED', 'GENERATING'])
+    )
+    if page_ids:
+        query = query.filter(Page.id.in_(page_ids))
+
+    pages = query.all()
+    for page in pages:
+        _restore_page_after_generation_cancel(page)
+    return len(pages)
+
+
+def _get_task_page_ids(task: Task) -> list[str]:
+    page_ids = task.get_progress().get('page_ids') or []
+    return [page_id for page_id in page_ids if isinstance(page_id, str)]
+
+
+def _validate_requested_task_page_ids(task: Task, requested_page_ids: list[str]) -> list[str]:
+    task_page_ids = set(_get_task_page_ids(task))
+    requested = [page_id for page_id in requested_page_ids if isinstance(page_id, str)]
+    invalid = [page_id for page_id in requested if page_id not in task_page_ids]
+    if invalid:
+        raise ValueError(f"page_ids contain pages outside this task: {', '.join(invalid[:5])}")
+    return requested
+
+
+def _cancel_task_and_restore_pages(task: Task, project_id: str):
+    cancel_result = task_manager.request_cancel(task.id)
+    progress = task.get_progress()
+    progress['cancelled'] = True
+
+    task.status = 'CANCELLED'
+    task.error_message = 'Generation stopped by user'
+    task.completed_at = datetime.utcnow()
+    task.set_progress(progress)
+
+    restored_pages = _restore_cancelled_generation_pages(project_id, _get_task_page_ids(task))
+
+    return {
+        'task_id': task.id,
+        'status': 'CANCELLED',
+        'cancel_requested': cancel_result['requested'],
+        'task_active': cancel_result['active'],
+        'cancelled_before_start': cancel_result['cancelled_before_start'],
+        'restored_pages': restored_pages,
+    }
+
+
+def _cancel_task_page_and_restore(task: Task, project_id: str, page_id: str):
+    task_page_ids = _get_task_page_ids(task)
+    if task_page_ids and page_id not in task_page_ids:
+        raise ValueError("Page is not part of the active image task")
+
+    cancel_result = task_manager.request_page_cancel(task.id, page_id)
+    progress = task.get_progress()
+    cancelled_pages = progress.get('cancelled_pages') or []
+    if page_id not in cancelled_pages:
+        cancelled_pages.append(page_id)
+    progress['cancelled_pages'] = cancelled_pages
+
+    if len(task_page_ids) <= 1:
+        task_manager.request_cancel(task.id)
+        progress['cancelled'] = True
+        task.status = 'CANCELLED'
+        task.error_message = 'Generation stopped by user'
+        task.completed_at = datetime.utcnow()
+
+    task.set_progress(progress)
+    restored_pages = _restore_cancelled_generation_pages(project_id, [page_id])
+
+    return {
+        'task_id': task.id,
+        'status': 'CANCELLED',
+        'cancel_requested': cancel_result['requested'],
+        'task_active': cancel_result['active'],
+        'cancelled_before_start': cancel_result['cancelled_before_start'],
+        'restored_pages': restored_pages,
+    }
+
+
+def _task_includes_page(task: Task, page_id: str) -> bool:
+    page_ids = task.get_progress().get('page_ids') or []
+    return page_id in page_ids
+
+
+def _find_active_image_task_for_page(project_id: str, page_id: str):
+    tasks = Task.query.filter(
+        Task.project_id == project_id,
+        Task.task_type.in_(['GENERATE_IMAGES', 'GENERATE_PAGE_IMAGE', 'EDIT_PAGE_IMAGE']),
+        Task.status.in_(['PENDING', 'PROCESSING', 'RUNNING'])
+    ).order_by(desc(Task.created_at)).all()
+
+    for task in tasks:
+        if _task_includes_page(task, page_id):
+            return task
+
+    return None
+
+
+@project_bp.route('/<project_id>/tasks/<task_id>/cancel', methods=['POST'])
+def cancel_task(project_id, task_id):
+    """
+    POST /api/projects/{project_id}/tasks/{task_id}/cancel - Cancel a queued or running task
+
+    Request body:
+    {
+        "page_ids": ["id1", "id2"]  # optional pages whose generation state should be restored
+    }
+    """
+    try:
+        task = Task.query.get(task_id)
+
+        if not task or task.project_id != project_id:
+            return not_found('Task')
+
+        data = request.get_json(silent=True) or {}
+        page_ids = data.get('page_ids') or []
+        if page_ids and not isinstance(page_ids, list):
+            return bad_request("page_ids must be a list")
+        if page_ids:
+            try:
+                _validate_requested_task_page_ids(task, page_ids)
+            except ValueError as exc:
+                return bad_request(str(exc))
+
+        if task.status not in ['PENDING', 'PROCESSING', 'RUNNING', 'CANCELLED']:
+            return bad_request(f"Task is already {task.status}")
+
+        result = _cancel_task_and_restore_pages(task, project_id)
+        db.session.commit()
+
+        return success_response(result)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"cancel_task failed: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@project_bp.route('/<project_id>/pages/<page_id>/generation/cancel', methods=['POST'])
+def cancel_page_generation(project_id, page_id):
+    """
+    POST /api/projects/{project_id}/pages/{page_id}/generation/cancel - Cancel generation by page id
+    """
+    try:
+        page = Page.query.get(page_id)
+        if not page or page.project_id != project_id:
+            return not_found('Page')
+
+        task = _find_active_image_task_for_page(project_id, page_id)
+        if not task:
+            restored_pages = _restore_cancelled_generation_pages(project_id, [page_id])
+            db.session.commit()
+            return success_response({
+                'task_id': None,
+                'status': 'CANCELLED',
+                'cancelled_before_start': False,
+                'restored_pages': restored_pages,
+            })
+
+        try:
+            result = _cancel_task_page_and_restore(task, project_id, page_id)
+        except ValueError as exc:
+            return bad_request(str(exc))
+        db.session.commit()
+        return success_response(result)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"cancel_page_generation failed: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
 
 

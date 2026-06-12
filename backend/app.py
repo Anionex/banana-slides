@@ -29,6 +29,18 @@ from controllers.openai_oauth_controller import openai_oauth_bp
 from controllers import project_bp, page_bp, template_bp, user_template_bp, user_style_template_bp, export_bp, file_bp, style_bp
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _is_public_bind_host(host: str) -> bool:
+    normalized = (host or '').strip().lower()
+    return normalized in {'0.0.0.0', '::', '[::]'}
+
+
 # Enable SQLite WAL mode for all connections
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_conn, connection_record):
@@ -75,10 +87,20 @@ def create_app():
     # CORS configuration (parse from environment)
     raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
     if raw_cors.strip() == '*':
+        if os.getenv('FLASK_ENV') == 'production' and not _env_flag('ALLOW_WILDCARD_CORS'):
+            raise RuntimeError('CORS_ORIGINS=* is not allowed in production')
         cors_origins = '*'
     else:
         cors_origins = [o.strip() for o in raw_cors.split(',') if o.strip()]
     app.config['CORS_ORIGINS'] = cors_origins
+    app.config['BACKEND_HOST'] = os.getenv('BACKEND_HOST', '127.0.0.1')
+
+    if (
+        _is_public_bind_host(app.config['BACKEND_HOST'])
+        and not os.getenv('ACCESS_CODE', '').strip()
+        and not _env_flag('ALLOW_PUBLIC_WITHOUT_ACCESS_CODE')
+    ):
+        raise RuntimeError('ACCESS_CODE must be set when BACKEND_HOST binds to a public interface')
     
     # Initialize logging (log to stdout so Docker can capture it)
     log_level = getattr(logging, app.config['LOG_LEVEL'], logging.INFO)
@@ -110,7 +132,11 @@ def create_app():
 
     # Initialize extensions
     db.init_app(app)
-    CORS(app, origins=cors_origins)
+    CORS(
+        app,
+        origins=cors_origins,
+        supports_credentials=cors_origins != '*',
+    )
     # Database migrations (Alembic via Flask-Migrate)
     Migrate(app, db)
     
@@ -132,6 +158,8 @@ def create_app():
     with app.app_context():
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
+        from services.task_manager import mark_interrupted_image_tasks_on_startup
+        mark_interrupted_image_tasks_on_startup()
 
     # Access code enforcement on all /api/ routes
     @app.before_request
@@ -144,7 +172,16 @@ def create_app():
             return  # non-API routes (health, static, etc.)
         if request.path.startswith('/api/access-code/'):
             return  # allow check/verify endpoints
-        code = request.headers.get('X-Access-Code', '')
+        header_code = request.headers.get('X-Access-Code', '')
+        cookie_code = request.cookies.get('banana_access_code', '')
+        if (
+            cookie_code
+            and not header_code
+            and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}
+            and request.headers.get('X-Requested-With') != 'XMLHttpRequest'
+        ):
+            return jsonify({'error': 'CSRF protection required'}), 403
+        code = header_code or cookie_code
         if hmac.compare_digest(code, expected):
             return
         return jsonify({'error': 'Access code required'}), 403
@@ -158,8 +195,12 @@ def create_app():
     @app.route('/api/access-code/check', methods=['GET'])
     def check_access_code():
         """Check if access code protection is enabled"""
+        from flask import request
         enabled = bool(os.getenv('ACCESS_CODE', '').strip())
-        return {'data': {'enabled': enabled}}
+        expected = os.getenv('ACCESS_CODE', '').strip()
+        cookie_code = request.cookies.get('banana_access_code', '')
+        authenticated = bool(expected and hmac.compare_digest(cookie_code, expected))
+        return {'data': {'enabled': enabled, 'authenticated': authenticated}}
 
     @app.route('/api/access-code/verify', methods=['POST'])
     def verify_access_code():
@@ -170,8 +211,25 @@ def create_app():
             return {'data': {'valid': True}}
         code = (request.json or {}).get('code', '')
         if hmac.compare_digest(code, expected):
-            return {'data': {'valid': True}}
+            response = jsonify({'data': {'valid': True}})
+            response.set_cookie(
+                'banana_access_code',
+                code,
+                httponly=True,
+                secure=_env_flag('SESSION_COOKIE_SECURE'),
+                samesite='Lax',
+                path='/api',
+            )
+            return response
         return jsonify({'error': 'Invalid access code'}), 403
+
+    @app.after_request
+    def _security_headers(response):
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        response.headers.setdefault('Referrer-Policy', 'same-origin')
+        response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+        return response
     
     # Output language endpoint
     @app.route('/api/output-language', methods=['GET'])
@@ -358,27 +416,36 @@ def _compute_worktree_port(base_port: int) -> int:
 
 if __name__ == '__main__':
     # Run development server
+    host = os.getenv('BACKEND_HOST', '127.0.0.1')
     if os.getenv("IN_DOCKER", "0") == "1":
+        host = os.getenv('BACKEND_HOST', '0.0.0.0')
         port = 5000  # Docker 容器内部固定使用 5000 端口
     elif os.getenv('BACKEND_PORT'):
         port = int(os.getenv('BACKEND_PORT'))
     else:
         port = _compute_worktree_port(5000)
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
+
+    if (
+        _is_public_bind_host(host)
+        and not os.getenv('ACCESS_CODE', '').strip()
+        and not _env_flag('ALLOW_PUBLIC_WITHOUT_ACCESS_CODE')
+    ):
+        raise RuntimeError('ACCESS_CODE must be set when BACKEND_HOST binds to a public interface')
     
     logging.info(
         "\n"
-        "╔══════════════════════════════════════╗\n"
-        "║   🍌 Banana Slides API Server 🍌   ║\n"
-        "╚══════════════════════════════════════╝\n"
-        f"Server starting on: http://localhost:{port}\n"
+        "========================================\n"
+        "   Banana Slides API Server\n"
+        "========================================\n"
+        f"Server starting on: http://{host}:{port}\n"
         f"Output Language: {Config.OUTPUT_LANGUAGE}\n"
         f"Environment: {os.getenv('FLASK_ENV', 'development')}\n"
         f"Debug mode: {debug}\n"
-        f"API Base URL: http://localhost:{port}/api\n"
+        f"API Base URL: http://{host}:{port}/api\n"
         f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}\n"
         f"Uploads: {app.config['UPLOAD_FOLDER']}"
     )
     
     # Using absolute paths for database, so WSL path issues should not occur
-    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)
+    app.run(host=host, port=port, debug=debug, use_reloader=debug)

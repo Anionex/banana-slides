@@ -171,15 +171,9 @@ def upload_user_template():
         db.session.rollback()
         return bad_request(str(e))
     except Exception as e:
-        import traceback
         db.session.rollback()
-        error_msg = str(e)
-        logger.error(f"Error uploading user template: {error_msg}", exc_info=True)
-        # 在开发环境中返回详细错误，生产环境返回通用错误
-        if current_app.config.get('DEBUG', False):
-            return error_response('SERVER_ERROR', f"{error_msg}\n{traceback.format_exc()}", 500)
-        else:
-            return error_response('SERVER_ERROR', error_msg, 500)
+        logger.error(f"Error uploading user template: {str(e)}", exc_info=True)
+        return error_response('SERVER_ERROR', 'Failed to upload template. Please try again.', 500)
 
 
 @user_template_bp.route('', methods=['GET'])
