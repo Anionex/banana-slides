@@ -3,9 +3,10 @@ from zipfile import ZipFile
 from PIL import Image
 
 from services.export_service import ExportService
+from services.image_editability.extractors import MinerUElementExtractor
 from services.image_editability.text_attribute_extractors import ColoredSegment, TextStyleResult
 from utils.pptx_builder import PPTXBuilder
-from utils.pptx_math import latex_to_display_text
+from utils.pptx_math import latex_to_display_text, looks_like_latex_math
 
 
 def _slide_xml(pptx_path):
@@ -86,6 +87,15 @@ def test_latex_display_fallback_does_not_expose_raw_tex_commands():
     assert "}" not in fallback
 
 
+def test_latex_math_detection_uses_content_not_metadata():
+    assert looks_like_latex_math(r"\frac{x^2}{y_1}")
+    assert looks_like_latex_math(r"\begin{matrix}a & b\end{matrix}")
+    assert looks_like_latex_math(r"$x^2 + y^2 = z^2$")
+    assert looks_like_latex_math(r"E = mc^2")
+    assert not looks_like_latex_math("Area = x^2")
+    assert not looks_like_latex_math("Revenue formula")
+
+
 def test_mixed_latex_segments_use_display_text_for_plain_text_rendering(tmp_path):
     builder = PPTXBuilder()
     builder.create_presentation()
@@ -156,15 +166,17 @@ class _BBox:
         return (self.x1 - self.x0) * (self.y1 - self.y0)
 
 
-class _EquationElement:
-    element_id = "eq_0"
-    element_type = "equation"
-    content = r"\frac{E}{mc^2}"
+class _EditableElement:
+    element_id = "elem_0"
+    element_type = "text"
+    content = ""
     image_path = None
     children = []
     inpainted_background_path = None
 
-    def __init__(self):
+    def __init__(self, element_type, content):
+        self.element_type = element_type
+        self.content = content
         self.bbox = _BBox(40, 30, 260, 90)
         self.bbox_global = self.bbox
 
@@ -174,18 +186,23 @@ class _EditableImage:
     height = 120
     clean_background = None
 
-    def __init__(self, image_path):
+    def __init__(self, image_path, elements):
         self.image_path = image_path
-        self.elements = [_EquationElement()]
+        self.elements = elements
 
 
-def test_editable_export_renders_equation_element_as_native_omml(tmp_path):
+def test_editable_export_renders_latex_text_content_as_native_omml(tmp_path):
     background = tmp_path / "slide.png"
     Image.new("RGB", (300, 120), "white").save(background)
-    output = tmp_path / "editable-equation.pptx"
+    output = tmp_path / "editable-text-formula.pptx"
 
     _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(
-        editable_images=[_EditableImage(str(background))],
+        editable_images=[
+            _EditableImage(
+                str(background),
+                [_EditableElement("text", r"\frac{E}{mc^2}")]
+            )
+        ],
         output_file=str(output),
         slide_width_pixels=300,
         slide_height_pixels=120,
@@ -198,3 +215,64 @@ def test_editable_export_renders_equation_element_as_native_omml(tmp_path):
     assert "<m:oMathPara" not in slide_xml
     assert "<m:f>" in slide_xml
     assert r"\frac" not in slide_xml
+
+
+def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):
+    background = tmp_path / "slide.png"
+    Image.new("RGB", (300, 120), "white").save(background)
+    output = tmp_path / "metadata-only-equation.pptx"
+
+    ExportService.create_editable_pptx_with_recursive_analysis(
+        editable_images=[
+            _EditableImage(
+                str(background),
+                [_EditableElement("equation", "Revenue formula")]
+            )
+        ],
+        output_file=str(output),
+        slide_width_pixels=300,
+        slide_height_pixels=120,
+        fail_fast=True,
+    )
+
+    slide_xml = _slide_xml(output)
+    assert "<m:oMath" not in slide_xml
+    assert "Revenue formula" in slide_xml
+
+
+def test_mineru_equation_block_is_exported_as_text_with_raw_content(tmp_path):
+    mineru_dir = tmp_path / "mineru"
+    mineru_dir.mkdir()
+    (mineru_dir / "sample_content_list.json").write_text("[]", encoding="utf-8")
+    (mineru_dir / "layout.json").write_text(
+        """
+        {
+          "pdf_info": [
+            {
+              "page_size": [300, 120],
+              "para_blocks": [
+                {
+                  "type": "interline_equation",
+                  "bbox": [40, 30, 260, 90],
+                  "lines": [
+                    {
+                      "spans": [
+                        {"type": "interline_equation", "content": "\\\\frac{E}{mc^2}"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    extractor = MinerUElementExtractor(parser_service=None, upload_folder=tmp_path)
+    elements = extractor._extract_from_result(str(mineru_dir), (300, 120), 0)
+
+    assert elements[0]["type"] == "text"
+    assert elements[0]["content"] == r"\frac{E}{mc^2}"
+    assert elements[0]["metadata"]["original_type"] == "interline_equation"

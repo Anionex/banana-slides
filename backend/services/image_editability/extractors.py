@@ -283,6 +283,7 @@ class MinerUElementExtractor(ElementExtractor):
                 bbox = block.get('bbox')
                 block_type = block.get('type', 'text')
                 equation_types = {'equation', 'interline_equation', 'inline_equation'}
+                is_equation_source_block = block_type in equation_types
                 
                 if not bbox or len(bbox) != 4:
                     return None
@@ -310,9 +311,7 @@ class MinerUElementExtractor(ElementExtractor):
                 ]
                 
                 # 对于 header/footer，需要根据实际内容判断类型
-                actual_content_type = block_type
-                if block_type in equation_types:
-                    actual_content_type = 'equation'
+                actual_content_type = 'text' if is_equation_source_block else block_type
                 if block_type in ['header', 'footer']:
                     # 检查是否包含图片
                     has_image = False
@@ -371,13 +370,10 @@ class MinerUElementExtractor(ElementExtractor):
                 content = None
                 if actual_content_type in ['text', 'title', 'table_caption', 'image_caption']:
                     if block.get('lines'):
-                        line_texts = extract_text_from_lines(block['lines'])
-                        if line_texts:
-                            content = '\n'.join(line_texts).strip()
-                
-                elif actual_content_type == 'equation':
-                    if block.get('lines'):
-                        line_texts = extract_text_from_lines(block['lines'], preserve_equations=True)
+                        line_texts = extract_text_from_lines(
+                            block['lines'],
+                            preserve_equations=is_equation_source_block
+                        )
                         if line_texts:
                             content = '\n'.join(line_texts).strip()
 

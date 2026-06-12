@@ -45,14 +45,50 @@ def latex_to_display_text(source: str) -> str:
 
 
 def looks_like_latex_math(source: str) -> bool:
-    """Heuristic used only for already math-marked regions."""
-    text = normalize_latex_math(source)
+    """Return True when the text content itself looks like a LaTeX formula."""
+    raw_text = (source or "").strip()
+    if not raw_text:
+        return False
+
+    for pattern, _ in _WRAPPER_PATTERNS:
+        if pattern.match(raw_text):
+            return True
+
+    text = normalize_latex_math(raw_text)
     if not text:
         return False
+
+    supported_commands = (
+        set(LATEX_SYMBOLS)
+        | {r"\frac", r"\sqrt", r"\left", r"\right"}
+        | set(_LatexOmmlParser._LIMIT_COMMANDS)
+        | set(_LatexOmmlParser._FUNCTION_COMMANDS)
+        | _LatexOmmlParser._TEXT_COMMANDS
+    )
+    if any(command in text for command in supported_commands):
+        return True
+
+    if "\\" in text:
+        return bool(
+            re.search(r"\\[A-Za-z]+", text)
+            and (
+                text.startswith("\\")
+                or any(token in text for token in ("{", "}", "_", "^", "&", "=", "+", "-", "*", "/"))
+            )
+        )
+
+    if not re.search(r"[_^=+\-*/]", text):
+        return False
+
+    if re.search(r"\b[A-Za-z]{3,}\b", text):
+        return False
+
     return bool(
-        "\\" in text
-        or re.search(r"[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9+\-=()])", text)
-        or re.search(r"\d+\s*[+\-*/=]\s*\d+", text)
+        re.fullmatch(r"[A-Za-z0-9\s+\-*/=().,{}_^]+", text)
+        and (
+            re.search(r"[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9+\-=()])", text)
+            or re.search(r"[A-Za-z0-9)]\s*[+\-*/=]\s*[A-Za-z0-9(]", text)
+        )
     )
 
 
