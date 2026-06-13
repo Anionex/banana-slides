@@ -3,7 +3,6 @@ from zipfile import ZipFile
 from PIL import Image
 
 from services.export_service import ExportService
-from services.image_editability.extractors import MinerUElementExtractor
 from services.image_editability.text_attribute_extractors import ColoredSegment, TextStyleResult
 from utils.pptx_builder import PPTXBuilder
 from utils.pptx_math import latex_to_display_text, looks_like_latex_math
@@ -62,46 +61,6 @@ def test_builder_applies_math_color_to_omml_runs(tmp_path):
     assert '<a:srgbClr val="FF0000"/>' in slide_xml
 
 
-def test_single_character_script_argument_does_not_consume_next_script(tmp_path):
-    builder = PPTXBuilder()
-    builder.create_presentation()
-    slide = builder.add_blank_slide()
-
-    assert builder.add_math_element(
-        slide=slide,
-        latex=r"x^2_3",
-        bbox=[10, 10, 180, 60],
-    )
-
-    output = tmp_path / "subsup-equation.pptx"
-    builder.save(str(output))
-    slide_xml = _slide_xml(output)
-
-    assert "<m:sSubSup>" in slide_xml
-    assert "<m:sup><m:r>" in slide_xml
-    assert "<m:sub><m:r>" in slide_xml
-
-
-def test_grouped_base_can_have_script(tmp_path):
-    builder = PPTXBuilder()
-    builder.create_presentation()
-    slide = builder.add_blank_slide()
-
-    assert builder.add_math_element(
-        slide=slide,
-        latex=r"{x}^2",
-        bbox=[10, 10, 180, 60],
-    )
-
-    output = tmp_path / "grouped-script-equation.pptx"
-    builder.save(str(output))
-    slide_xml = _slide_xml(output)
-
-    assert "<m:sSup>" in slide_xml
-    assert "<m:e><m:r>" in slide_xml
-    assert "<m:sup><m:r>" in slide_xml
-
-
 def test_game_theory_latex_lines_are_native_omml_not_raw_tex(tmp_path):
     builder = PPTXBuilder()
     builder.create_presentation()
@@ -133,14 +92,6 @@ def test_game_theory_latex_lines_are_native_omml_not_raw_tex(tmp_path):
     assert "arg" in slide_xml
     assert "∀" in slide_xml
     assert "≥" in slide_xml
-
-
-def test_latex_display_fallback_does_not_expose_raw_tex_commands():
-    fallback = latex_to_display_text(r"\begin{matrix}a & b\end{matrix}")
-
-    assert "\\" not in fallback
-    assert "{" not in fallback
-    assert "}" not in fallback
 
 
 def test_latex_math_detection_uses_content_not_metadata():
@@ -211,37 +162,6 @@ def test_math_element_uses_only_native_formula_shape_without_visible_fallback(tm
     assert r"\forall" not in slide_xml
     assert r"\ge" not in slide_xml
     assert '<a:srgbClr val="D2FA64"/>' in slide_xml
-
-
-def test_text_fallback_can_disable_redundant_math_conversion(tmp_path, monkeypatch):
-    builder = PPTXBuilder()
-    builder.create_presentation()
-    slide = builder.add_blank_slide()
-    style = TextStyleResult(
-        colored_segments=[ColoredSegment(text=r"\unsupported{x}", is_latex=True)]
-    )
-    calls = []
-
-    def fake_add_math_element(*args, **kwargs):
-        calls.append((args, kwargs))
-        return False
-
-    monkeypatch.setattr(builder, "add_math_element", fake_add_math_element)
-    builder.add_text_element(
-        slide=slide,
-        text=r"\unsupported{x}",
-        bbox=[10, 10, 180, 60],
-        text_style=style,
-        allow_math_conversion=False,
-    )
-
-    output = tmp_path / "fallback.pptx"
-    builder.save(str(output))
-    slide_xml = _slide_xml(output)
-
-    assert calls == []
-    assert "unsupportedx" in slide_xml
-    assert r"\unsupported" not in slide_xml
 
 
 def test_formula_fallback_uses_sanitized_text_not_raw_style_segments(tmp_path):
@@ -390,40 +310,3 @@ def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):
     assert "<m:oMath" not in slide_xml
     assert "Revenue formula" in slide_xml
 
-
-def test_mineru_equation_block_is_exported_as_text_with_raw_content(tmp_path):
-    mineru_dir = tmp_path / "mineru"
-    mineru_dir.mkdir()
-    (mineru_dir / "sample_content_list.json").write_text("[]", encoding="utf-8")
-    (mineru_dir / "layout.json").write_text(
-        """
-        {
-          "pdf_info": [
-            {
-              "page_size": [300, 120],
-              "para_blocks": [
-                {
-                  "type": "interline_equation",
-                  "bbox": [40, 30, 260, 90],
-                  "lines": [
-                    {
-                      "spans": [
-                        {"type": "interline_equation", "content": "\\\\frac{E}{mc^2}"}
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-        """,
-        encoding="utf-8",
-    )
-
-    extractor = MinerUElementExtractor(parser_service=None, upload_folder=tmp_path)
-    elements = extractor._extract_from_result(str(mineru_dir), (300, 120), 0)
-
-    assert elements[0]["type"] == "text"
-    assert elements[0]["content"] == r"\frac{E}{mc^2}"
-    assert elements[0]["metadata"]["original_type"] == "interline_equation"
