@@ -44,6 +44,7 @@ def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
             parts.append(f"\n{name}：{value}")
     return ''.join(parts)
 from pathlib import Path
+from services.file_parser_service import is_mineru_auth_error_message
 from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
@@ -1383,6 +1384,8 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                         _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
                         if error_msg:
                             logger.warning(f"Page {idx} parse warning: {error_msg}")
+                            if is_mineru_auth_error_message(error_msg):
+                                raise ValueError(error_msg)
                         md_text = md_text or ''
 
                         # Supplement with header/footer from layout.json
