@@ -1,28 +1,17 @@
-from io import BytesIO
 from zipfile import ZipFile
 
-from PIL import Image, ImageFont
+from PIL import Image
 
 from services.export_service import ExportService
 from services.image_editability.extractors import MinerUElementExtractor
 from services.image_editability.text_attribute_extractors import ColoredSegment, TextStyleResult
-from utils import pptx_math_image
 from utils.pptx_builder import PPTXBuilder
-from utils.pptx_math import latex_to_display_text, latex_to_omml, looks_like_latex_math
+from utils.pptx_math import latex_to_display_text, looks_like_latex_math
 
 
 def _slide_xml(pptx_path):
     with ZipFile(pptx_path) as archive:
         return archive.read("ppt/slides/slide1.xml").decode("utf-8")
-
-
-def _media_blobs(pptx_path):
-    with ZipFile(pptx_path) as archive:
-        return [
-            archive.read(name)
-            for name in archive.namelist()
-            if name.startswith("ppt/media/")
-        ]
 
 
 def test_builder_writes_native_omml_equation_instead_of_raw_tex(tmp_path):
@@ -196,7 +185,7 @@ def test_mixed_latex_segments_use_display_text_for_plain_text_rendering(tmp_path
     assert "x^2" not in slide_xml
 
 
-def test_math_element_uses_native_formula_choice_with_image_fallback(tmp_path):
+def test_math_element_uses_only_native_formula_shape_without_visible_fallback(tmp_path):
     builder = PPTXBuilder()
     builder.create_presentation()
     slide = builder.add_blank_slide()
@@ -213,81 +202,15 @@ def test_math_element_uses_native_formula_choice_with_image_fallback(tmp_path):
     builder.save(str(output))
     slide_xml = _slide_xml(output)
 
-    assert "<mc:AlternateContent" in slide_xml
-    assert "<mc:Choice" in slide_xml
-    assert 'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"' in slide_xml
-    assert 'xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main"' in slide_xml
-    assert 'mc:Ignorable="a14"' in slide_xml
-    assert 'Requires="a14"' in slide_xml
-    assert "<mc:Fallback>" in slide_xml
     assert "<a14:m" in slide_xml
-    assert "<p:pic>" in slide_xml
+    assert "<mc:AlternateContent" not in slide_xml
+    assert "<mc:Fallback>" not in slide_xml
+    assert "<p:pic>" not in slide_xml
     assert "<a:t>" not in slide_xml
     assert " ge " not in slide_xml
     assert r"\forall" not in slide_xml
     assert r"\ge" not in slide_xml
     assert '<a:srgbClr val="D2FA64"/>' in slide_xml
-    fallback_images = _media_blobs(output)
-    assert fallback_images
-    fallback = Image.open(BytesIO(fallback_images[-1])).convert("RGBA")
-    assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
-
-
-def test_math_fallback_renderer_handles_bitmap_font(monkeypatch):
-    monkeypatch.setattr(
-        pptx_math_image,
-        "_load_font",
-        lambda *_: ImageFont.load_default_imagefont(),
-    )
-
-    stream = pptx_math_image.render_omml_fallback_png(
-        math_element=latex_to_omml(r"x_i^2"),
-        width_px=220,
-        height_px=80,
-        font_size_pt=24,
-        color_rgb=(20, 30, 40),
-    )
-
-    assert stream is not None
-    fallback = Image.open(stream).convert("RGBA")
-    assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
-
-
-def test_math_fallback_renderer_handles_small_font_size():
-    stream = pptx_math_image.render_omml_fallback_png(
-        math_element=latex_to_omml("x"),
-        width_px=40,
-        height_px=20,
-        font_size_pt=1,
-        color_rgb=(20, 30, 40),
-    )
-
-    assert stream is not None
-    fallback = Image.open(stream).convert("RGBA")
-    assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
-
-
-def test_math_fallback_renderer_prefers_explicit_font_path(monkeypatch):
-    calls = []
-    bitmap_font = ImageFont.load_default_imagefont()
-
-    def fake_truetype(path, size):
-        calls.append(path)
-        if path == "/tmp/custom-font.ttf":
-            return bitmap_font
-        raise AssertionError("explicit font_path should be tried first")
-
-    pptx_math_image._load_font.cache_clear()
-    monkeypatch.setattr(pptx_math_image.os.path, "exists", lambda path: True)
-    monkeypatch.setattr(pptx_math_image.ImageFont, "truetype", fake_truetype)
-
-    try:
-        font = pptx_math_image._load_font(12, "/tmp/custom-font.ttf")
-    finally:
-        pptx_math_image._load_font.cache_clear()
-
-    assert font is bitmap_font
-    assert calls == ["/tmp/custom-font.ttf"]
 
 
 def test_text_fallback_can_disable_redundant_math_conversion(tmp_path, monkeypatch):
@@ -435,9 +358,8 @@ def test_editable_export_prefers_latex_text_segments_for_formula_source(tmp_path
 
     slide_xml = _slide_xml(output)
     assert "<a14:m" in slide_xml
-    assert "<mc:AlternateContent" in slide_xml
-    assert "<mc:Fallback>" in slide_xml
-    assert 'mc:Ignorable="a14"' in slide_xml
+    assert "<mc:AlternateContent" not in slide_xml
+    assert "<mc:Fallback>" not in slide_xml
     assert "<m:t>∀i,</m:t>" in slide_xml
     assert "<a:t>" not in slide_xml
     assert "Vi,Ui" not in slide_xml

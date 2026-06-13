@@ -4,22 +4,17 @@ Based on OpenDCAI/DataFlow-Agent's implementation
 """
 import os
 import logging
-import re
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from zipfile import ZipFile, ZIP_DEFLATED
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
-from pptx.oxml import parse_xml
 from pptx.oxml.ns import qn, _nsmap
 from pptx.oxml.xmlchemy import OxmlElement
 from PIL import Image, ImageFont, ImageDraw
 from html.parser import HTMLParser
-from utils.pptx_math_image import render_omml_fallback_png
 from utils.pptx_math import latex_to_display_text, latex_to_omml
 
 logger = logging.getLogger(__name__)
@@ -597,20 +592,6 @@ class PPTXBuilder:
         end_props = paragraph._p.get_or_add_endParaRPr()
         end_props.set("sz", str(int(font_size * 100)))
 
-        fallback_shape = self._add_math_fallback_picture(
-            slide=slide,
-            omml=omml,
-            left=left,
-            top=top,
-            width=width,
-            height=height,
-            bbox=bbox,
-            font_size=font_size,
-            text_style=text_style,
-        )
-        if fallback_shape is not None:
-            self._wrap_shape_with_math_alternate_content(textbox, fallback_shape)
-
         logger.debug("Added native PPTX equation at bbox %s: %s", bbox, latex)
         return True
 
@@ -622,68 +603,6 @@ class PPTXBuilder:
         math_para.append(math_element)
         container.append(math_para)
         return container
-
-    @staticmethod
-    def _wrap_shape_with_math_alternate_content(math_shape, fallback_shape) -> None:
-        """Wrap a native equation shape with its standards-compatible fallback."""
-        math_element = math_shape._element
-        fallback_element = fallback_shape._element
-        shape_tree = math_element.getparent()
-        if shape_tree is None:
-            return
-
-        insert_at = shape_tree.index(math_element)
-        shape_tree.remove(math_element)
-
-        fallback_parent = fallback_element.getparent()
-        if fallback_parent is not None:
-            fallback_parent.remove(fallback_element)
-
-        alternate = OxmlElement('mc:AlternateContent')
-        choice = parse_xml(
-            '<mc:Choice '
-            'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" '
-            'xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" '
-            'Requires="a14"/>'
-        )
-        choice.append(math_element)
-        fallback = OxmlElement('mc:Fallback')
-        fallback.append(fallback_element)
-        alternate.append(choice)
-        alternate.append(fallback)
-        shape_tree.insert(insert_at, alternate)
-
-    def _add_math_fallback_picture(
-        self,
-        slide,
-        omml,
-        left,
-        top,
-        width,
-        height,
-        bbox: List[int],
-        font_size: float,
-        text_style: Any = None,
-    ):
-        """Add an image fallback used only by clients without a14 math support."""
-        color_rgb = None
-        if text_style and getattr(text_style, 'font_color_rgb', None):
-            color_rgb = text_style.font_color_rgb
-        if not color_rgb and text_style and getattr(text_style, 'colored_segments', None):
-            first_segment = text_style.colored_segments[0]
-            color_rgb = getattr(first_segment, 'color_rgb', None)
-        color_rgb = color_rgb or (0, 0, 0)
-        fallback_stream = render_omml_fallback_png(
-            math_element=omml,
-            width_px=max(1, bbox[2] - bbox[0]),
-            height_px=max(1, bbox[3] - bbox[1]),
-            font_size_pt=font_size,
-            color_rgb=color_rgb,
-            font_path=self.FONT_PATH,
-        )
-        if fallback_stream is not None:
-            return slide.shapes.add_picture(fallback_stream, left, top, width, height)
-        return None
 
     @staticmethod
     def _apply_math_run_style(math_element, font_size: float, text_style: Any = None) -> None:
@@ -877,75 +796,7 @@ class PPTXBuilder:
             output_dir.mkdir(parents=True, exist_ok=True)
         
         self.prs.save(output_path)
-        self._ensure_math_markup_compatibility(output_path_obj)
         logger.info(f"Saved presentation to: {output_path}")
-
-    @staticmethod
-    def _ensure_math_markup_compatibility(output_path: Path) -> None:
-        """Declare MC/a14 namespaces on slides that contain native equation fallbacks."""
-        with ZipFile(output_path, 'r') as source_zip:
-            slide_names = [
-                name for name in source_zip.namelist()
-                if name.startswith('ppt/slides/slide') and name.endswith('.xml')
-            ]
-            rewritten_slides = {}
-            for name in slide_names:
-                xml = source_zip.read(name).decode('utf-8')
-                if '<mc:AlternateContent' not in xml and '<a14:m' not in xml:
-                    continue
-                updated = PPTXBuilder._declare_math_compatibility(xml)
-                if updated != xml:
-                    rewritten_slides[name] = updated.encode('utf-8')
-
-            if not rewritten_slides:
-                return
-
-            with NamedTemporaryFile(suffix='.pptx', delete=False) as tmp:
-                tmp_path = Path(tmp.name)
-
-            try:
-                with ZipFile(tmp_path, 'w', ZIP_DEFLATED) as target_zip:
-                    for item in source_zip.infolist():
-                        data = rewritten_slides.get(item.filename)
-                        if data is None:
-                            data = source_zip.read(item.filename)
-                        target_zip.writestr(item, data)
-                tmp_path.replace(output_path)
-            finally:
-                if tmp_path.exists():
-                    tmp_path.unlink()
-
-    @staticmethod
-    def _declare_math_compatibility(xml: str) -> str:
-        start_tag_match = re.search(r'<p:sld\b[^>]*>', xml)
-        if not start_tag_match:
-            return xml
-
-        start_tag = start_tag_match.group(0)
-        updated_tag = start_tag
-        if 'xmlns:mc=' not in updated_tag:
-            updated_tag = updated_tag[:-1] + (
-                ' xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">'
-            )
-        if 'xmlns:a14=' not in updated_tag:
-            updated_tag = updated_tag[:-1] + (
-                ' xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main">'
-            )
-
-        ignorable_match = re.search(r'\bmc:Ignorable="([^"]*)"', updated_tag)
-        if ignorable_match:
-            prefixes = ignorable_match.group(1).split()
-            if 'a14' not in prefixes:
-                prefixes.append('a14')
-                updated_tag = (
-                    updated_tag[:ignorable_match.start(1)]
-                    + ' '.join(prefixes)
-                    + updated_tag[ignorable_match.end(1):]
-                )
-        else:
-            updated_tag = updated_tag[:-1] + ' mc:Ignorable="a14">'
-
-        return xml[:start_tag_match.start()] + updated_tag + xml[start_tag_match.end():]
     
     def get_presentation(self) -> Presentation:
         """Get the current presentation object"""
