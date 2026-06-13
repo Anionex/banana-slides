@@ -251,6 +251,43 @@ def test_math_fallback_renderer_handles_bitmap_font(monkeypatch):
     assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
 
 
+def test_math_fallback_renderer_handles_small_font_size():
+    stream = pptx_math_image.render_omml_fallback_png(
+        math_element=latex_to_omml("x"),
+        width_px=40,
+        height_px=20,
+        font_size_pt=1,
+        color_rgb=(20, 30, 40),
+    )
+
+    assert stream is not None
+    fallback = Image.open(stream).convert("RGBA")
+    assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
+
+
+def test_math_fallback_renderer_prefers_explicit_font_path(monkeypatch):
+    calls = []
+    bitmap_font = ImageFont.load_default_imagefont()
+
+    def fake_truetype(path, size):
+        calls.append(path)
+        if path == "/tmp/custom-font.ttf":
+            return bitmap_font
+        raise AssertionError("explicit font_path should be tried first")
+
+    pptx_math_image._load_font.cache_clear()
+    monkeypatch.setattr(pptx_math_image.os.path, "exists", lambda path: True)
+    monkeypatch.setattr(pptx_math_image.ImageFont, "truetype", fake_truetype)
+
+    try:
+        font = pptx_math_image._load_font(12, "/tmp/custom-font.ttf")
+    finally:
+        pptx_math_image._load_font.cache_clear()
+
+    assert font is bitmap_font
+    assert calls == ["/tmp/custom-font.ttf"]
+
+
 def test_text_fallback_can_disable_redundant_math_conversion(tmp_path, monkeypatch):
     builder = PPTXBuilder()
     builder.create_presentation()

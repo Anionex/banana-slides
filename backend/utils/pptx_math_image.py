@@ -40,7 +40,7 @@ def render_omml_fallback_png(
     height = max(1, int(height_px * scale))
     color = (*color_rgb, 255)
     font_size_px = max(8, int(font_size_pt * 96 / 72 * scale))
-    min_font_size_px = max(8, int(6 * 96 / 72 * scale))
+    min_font_size_px = min(font_size_px, max(8, int(6 * 96 / 72 * scale)))
 
     box = None
     while font_size_px >= min_font_size_px:
@@ -245,14 +245,15 @@ def _is_property_tag(tag: str) -> bool:
 
 @lru_cache(maxsize=128)
 def _load_font(font_size_px: int, font_path: Optional[str]) -> ImageFont.FreeTypeFont:
-    candidates = [
+    candidates = []
+    if font_path:
+        candidates.append(font_path)
+    candidates.extend([
         "/System/Library/Fonts/Supplemental/STIXTwoMath.otf",
         "/System/Library/Fonts/Supplemental/STIXGeneral.otf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    if font_path:
-        candidates.append(font_path)
+    ])
 
     for path in candidates:
         if not path or not os.path.exists(path):
