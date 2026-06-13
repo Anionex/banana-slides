@@ -107,6 +107,18 @@ def _text_box(text: str, font_size_px: int, font_path: Optional[str]) -> _Box:
     font = _load_font(font_size_px, font_path)
     probe = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
     draw = ImageDraw.Draw(probe)
+    if not isinstance(font, ImageFont.FreeTypeFont):
+        left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+        width = max(1, right - left)
+        height = max(1, bottom - top)
+        ascent = max(1, int(height * 0.8))
+        descent = max(1, height - ascent)
+
+        def draw_box(target: ImageDraw.ImageDraw, x: int, baseline: int, color: Color) -> None:
+            target.text((x - left, baseline - ascent), text, font=font, fill=color)
+
+        return _Box(width, ascent, descent, draw_box)
+
     left, top, right, bottom = draw.textbbox((0, 0), text, font=font, anchor="ls")
     width = max(1, right - left)
     ascent = max(1, -top)

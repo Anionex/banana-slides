@@ -1,13 +1,14 @@
 from io import BytesIO
 from zipfile import ZipFile
 
-from PIL import Image
+from PIL import Image, ImageFont
 
 from services.export_service import ExportService
 from services.image_editability.extractors import MinerUElementExtractor
 from services.image_editability.text_attribute_extractors import ColoredSegment, TextStyleResult
+from utils import pptx_math_image
 from utils.pptx_builder import PPTXBuilder
-from utils.pptx_math import latex_to_display_text, looks_like_latex_math
+from utils.pptx_math import latex_to_display_text, latex_to_omml, looks_like_latex_math
 
 
 def _slide_xml(pptx_path):
@@ -227,6 +228,26 @@ def test_math_element_uses_native_formula_choice_with_image_fallback(tmp_path):
     fallback_images = _media_blobs(output)
     assert fallback_images
     fallback = Image.open(BytesIO(fallback_images[-1])).convert("RGBA")
+    assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
+
+
+def test_math_fallback_renderer_handles_bitmap_font(monkeypatch):
+    monkeypatch.setattr(
+        pptx_math_image,
+        "_load_font",
+        lambda *_: ImageFont.load_default_imagefont(),
+    )
+
+    stream = pptx_math_image.render_omml_fallback_png(
+        math_element=latex_to_omml(r"x_i^2"),
+        width_px=220,
+        height_px=80,
+        font_size_pt=24,
+        color_rgb=(20, 30, 40),
+    )
+
+    assert stream is not None
+    fallback = Image.open(stream).convert("RGBA")
     assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
 
 
