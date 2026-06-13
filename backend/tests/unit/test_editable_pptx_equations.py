@@ -215,8 +215,10 @@ def test_math_element_uses_native_formula_choice_with_image_fallback(tmp_path):
 
     assert "<mc:AlternateContent" in slide_xml
     assert "<mc:Choice" in slide_xml
-    assert 'Requires="a14"' in slide_xml
+    assert 'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"' in slide_xml
     assert 'xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main"' in slide_xml
+    assert 'mc:Ignorable="a14"' in slide_xml
+    assert 'Requires="a14"' in slide_xml
     assert "<mc:Fallback>" in slide_xml
     assert "<a14:m" in slide_xml
     assert "<p:pic>" in slide_xml
@@ -435,6 +437,7 @@ def test_editable_export_prefers_latex_text_segments_for_formula_source(tmp_path
     assert "<a14:m" in slide_xml
     assert "<mc:AlternateContent" in slide_xml
     assert "<mc:Fallback>" in slide_xml
+    assert 'mc:Ignorable="a14"' in slide_xml
     assert "<m:t>∀i,</m:t>" in slide_xml
     assert "<a:t>" not in slide_xml
     assert "Vi,Ui" not in slide_xml
