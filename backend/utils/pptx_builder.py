@@ -11,15 +11,18 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
+from pptx.oxml import parse_xml
 from pptx.oxml.ns import qn, _nsmap
 from pptx.oxml.xmlchemy import OxmlElement
 from PIL import Image, ImageFont, ImageDraw
 from html.parser import HTMLParser
+from utils.pptx_math_image import render_omml_fallback_png
 from utils.pptx_math import latex_to_display_text, latex_to_omml
 
 logger = logging.getLogger(__name__)
 
 _nsmap.setdefault('a14', 'http://schemas.microsoft.com/office/drawing/2010/main')
+_nsmap.setdefault('mc', 'http://schemas.openxmlformats.org/markup-compatibility/2006')
 
 
 class HTMLTableParser(HTMLParser):
@@ -591,16 +594,19 @@ class PPTXBuilder:
         end_props = paragraph._p.get_or_add_endParaRPr()
         end_props.set("sz", str(int(font_size * 100)))
 
-        self._add_math_preview_textbox(
+        fallback_shape = self._add_math_fallback_picture(
             slide=slide,
-            text=latex_to_display_text(latex),
+            omml=omml,
             left=left,
             top=top,
             width=width,
             height=height,
+            bbox=bbox,
             font_size=font_size,
             text_style=text_style,
         )
+        if fallback_shape is not None:
+            self._wrap_shape_with_math_alternate_content(textbox, fallback_shape)
 
         logger.debug("Added native PPTX equation at bbox %s: %s", bbox, latex)
         return True
@@ -615,44 +621,66 @@ class PPTXBuilder:
         return container
 
     @staticmethod
-    def _add_math_preview_textbox(
+    def _wrap_shape_with_math_alternate_content(math_shape, fallback_shape) -> None:
+        """Wrap a native equation shape with its standards-compatible fallback."""
+        math_element = math_shape._element
+        fallback_element = fallback_shape._element
+        shape_tree = math_element.getparent()
+        if shape_tree is None:
+            return
+
+        insert_at = shape_tree.index(math_element)
+        shape_tree.remove(math_element)
+
+        fallback_parent = fallback_element.getparent()
+        if fallback_parent is not None:
+            fallback_parent.remove(fallback_element)
+
+        alternate = OxmlElement('mc:AlternateContent')
+        choice = parse_xml(
+            '<mc:Choice '
+            'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" '
+            'xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" '
+            'Requires="a14"/>'
+        )
+        choice.append(math_element)
+        fallback = OxmlElement('mc:Fallback')
+        fallback.append(fallback_element)
+        alternate.append(choice)
+        alternate.append(fallback)
+        shape_tree.insert(insert_at, alternate)
+
+    def _add_math_fallback_picture(
+        self,
         slide,
-        text: str,
+        omml,
         left,
         top,
         width,
         height,
+        bbox: List[int],
         font_size: float,
         text_style: Any = None,
-    ) -> None:
-        """Add a visible non-TeX preview over the native equation object."""
-        if not text:
-            return
-
-        textbox = slide.shapes.add_textbox(left, top, width, height)
-        text_frame = textbox.text_frame
-        text_frame.word_wrap = False
-        text_frame.margin_left = Inches(0)
-        text_frame.margin_right = Inches(0)
-        text_frame.margin_top = Inches(0)
-        text_frame.margin_bottom = Inches(0)
-
-        paragraph = text_frame.paragraphs[0]
-        paragraph.clear()
-        run = paragraph.add_run()
-        run.text = text
-        run.font.size = Pt(font_size)
-        run.font.italic = True
-
+    ):
+        """Add an image fallback used only by clients without a14 math support."""
         color_rgb = None
         if text_style and getattr(text_style, 'font_color_rgb', None):
             color_rgb = text_style.font_color_rgb
         if not color_rgb and text_style and getattr(text_style, 'colored_segments', None):
             first_segment = text_style.colored_segments[0]
             color_rgb = getattr(first_segment, 'color_rgb', None)
-        if color_rgb:
-            r, g, b = color_rgb
-            run.font.color.rgb = RGBColor(r, g, b)
+        color_rgb = color_rgb or (0, 0, 0)
+        fallback_stream = render_omml_fallback_png(
+            math_element=omml,
+            width_px=max(1, bbox[2] - bbox[0]),
+            height_px=max(1, bbox[3] - bbox[1]),
+            font_size_pt=font_size,
+            color_rgb=color_rgb,
+            font_path=self.FONT_PATH,
+        )
+        if fallback_stream is not None:
+            return slide.shapes.add_picture(fallback_stream, left, top, width, height)
+        return None
 
     @staticmethod
     def _apply_math_run_style(math_element, font_size: float, text_style: Any = None) -> None:

@@ -1,3 +1,4 @@
+from io import BytesIO
 from zipfile import ZipFile
 
 from PIL import Image
@@ -12,6 +13,15 @@ from utils.pptx_math import latex_to_display_text, looks_like_latex_math
 def _slide_xml(pptx_path):
     with ZipFile(pptx_path) as archive:
         return archive.read("ppt/slides/slide1.xml").decode("utf-8")
+
+
+def _media_blobs(pptx_path):
+    with ZipFile(pptx_path) as archive:
+        return [
+            archive.read(name)
+            for name in archive.namelist()
+            if name.startswith("ppt/media/")
+        ]
 
 
 def test_builder_writes_native_omml_equation_instead_of_raw_tex(tmp_path):
@@ -185,7 +195,7 @@ def test_mixed_latex_segments_use_display_text_for_plain_text_rendering(tmp_path
     assert "x^2" not in slide_xml
 
 
-def test_math_element_adds_visible_non_tex_preview(tmp_path):
+def test_math_element_uses_native_formula_choice_with_image_fallback(tmp_path):
     builder = PPTXBuilder()
     builder.create_presentation()
     slide = builder.add_blank_slide()
@@ -202,12 +212,22 @@ def test_math_element_adds_visible_non_tex_preview(tmp_path):
     builder.save(str(output))
     slide_xml = _slide_xml(output)
 
+    assert "<mc:AlternateContent" in slide_xml
+    assert "<mc:Choice" in slide_xml
+    assert 'Requires="a14"' in slide_xml
+    assert 'xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main"' in slide_xml
+    assert "<mc:Fallback>" in slide_xml
     assert "<a14:m" in slide_xml
-    assert "<a:t>∀ i, Uᵢ(s^*) ≥ Uᵢ(sᵢ, s₋ᵢ^*)</a:t>" in slide_xml
+    assert "<p:pic>" in slide_xml
+    assert "<a:t>" not in slide_xml
     assert " ge " not in slide_xml
     assert r"\forall" not in slide_xml
     assert r"\ge" not in slide_xml
     assert '<a:srgbClr val="D2FA64"/>' in slide_xml
+    fallback_images = _media_blobs(output)
+    assert fallback_images
+    fallback = Image.open(BytesIO(fallback_images[-1])).convert("RGBA")
+    assert sum(1 for pixel in fallback.getdata() if pixel[3] > 0) > 0
 
 
 def test_text_fallback_can_disable_redundant_math_conversion(tmp_path, monkeypatch):
@@ -355,7 +375,10 @@ def test_editable_export_prefers_latex_text_segments_for_formula_source(tmp_path
 
     slide_xml = _slide_xml(output)
     assert "<a14:m" in slide_xml
-    assert "<a:t>∀ i, Uᵢ(s^*) ≥ Uᵢ(sᵢ, s₋ᵢ^*)</a:t>" in slide_xml
+    assert "<mc:AlternateContent" in slide_xml
+    assert "<mc:Fallback>" in slide_xml
+    assert "<m:t>∀i,</m:t>" in slide_xml
+    assert "<a:t>" not in slide_xml
     assert "Vi,Ui" not in slide_xml
     assert " ge " not in slide_xml
     assert r"\forall" not in slide_xml
