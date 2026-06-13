@@ -217,6 +217,95 @@ class TestResourceConcurrency:
 class TestProjectOutlineStream:
     """流式大纲生成测试"""
 
+    def test_flatten_outline_preserves_falsy_parent_part_values(self):
+        """父级 part 即使是空字符串或 None，也应像旧逻辑一样覆盖子页 part"""
+        from services.ai_service import AIService
+
+        service = AIService.__new__(AIService)
+
+        pages = service.flatten_outline([
+            {'part': '', 'pages': [{'title': '空分组', 'points': []}]},
+            {'part': None, 'pages': [{'title': '无分组', 'points': [], 'part': '子页分组'}]},
+        ])
+
+        assert pages[0]['part'] == ''
+        assert pages[1]['part'] is None
+
+    def test_flatten_outline_strips_title_and_part_whitespace(self):
+        """归一化时应清理标题和分组名首尾空白"""
+        from services.ai_service import AIService
+
+        service = AIService.__new__(AIService)
+
+        pages = service.flatten_outline([
+            {'title': '  直接页面  ', 'points': [], 'part': '  子页分组  '},
+            {'part': '  父级分组  ', 'pages': [{'title': '  分组页面  ', 'points': []}]},
+        ])
+
+        assert pages[0]['title'] == '直接页面'
+        assert pages[0]['part'] == '子页分组'
+        assert pages[1]['title'] == '分组页面'
+        assert pages[1]['part'] == '父级分组'
+
+    def test_flatten_outline_drops_blank_points_from_ai_output(self):
+        """AI 返回的空白/None 要点不应落成空 bullet 或字符串 None"""
+        from services.ai_service import AIService
+
+        service = AIService.__new__(AIService)
+
+        pages = service.flatten_outline([
+            {'title': '清理要点', 'points': ['  有效要点  ', None, '', '   ']},
+            {'title': '字符串要点', 'points': '  单个要点  '},
+            {'title': '空字符串要点', 'points': '   '},
+        ])
+
+        assert pages[0]['points'] == ['有效要点']
+        assert pages[1]['points'] == ['单个要点']
+        assert pages[2]['points'] == []
+
+    def test_from_description_normalizes_string_outline_pages_after_count_mismatch(self, client, app, monkeypatch):
+        """从描述生成应兼容 AI 返回字符串页，并在页数不匹配时不因 page_data.get 崩溃"""
+        response = client.post('/api/projects', json={
+            'creation_type': 'descriptions',
+            'description_text': '第一页：封面。第二页：总结。'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        class FakeAIService:
+            def parse_description_to_outline(self, project_context, language=None):
+                return ['封面页', '总结页']
+
+            def parse_description_to_page_descriptions(self, project_context, outline, language=None):
+                return [f'页面描述 {index}' for index in range(16)]
+
+            def flatten_outline(self, outline):
+                from services.ai_service import AIService
+                service = AIService.__new__(AIService)
+                return AIService.flatten_outline(service, outline)
+
+        monkeypatch.setattr('controllers.project_controller.get_ai_service', lambda: FakeAIService())
+
+        generate_response = client.post(
+            f'/api/projects/{project_id}/generate/from-description',
+            json={'language': 'zh'},
+        )
+
+        data = assert_success_response(generate_response)
+        assert len(data['data']['pages']) == 2
+        assert data['data']['pages'][0]['outline_content'] == {'title': '封面页', 'points': []}
+        assert data['data']['pages'][0]['description_content']['text'] == '页面描述 0'
+
+        with app.app_context():
+            from models import Page, Project
+            project = Project.query.get(project_id)
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+            assert project.status == 'DESCRIPTIONS_GENERATED'
+            assert len(pages) == 2
+            assert pages[1].get_outline_content() == {'title': '总结页', 'points': []}
+            assert pages[1].get_description_content()['text'] == '页面描述 1'
+
     def test_description_stream_prompt_uses_latest_description_format(self):
         """从描述生成的 SSE prompt 应对齐最新页面描述格式，而不是旧版页面标题/页面文字格式"""
         from services.ai_service import ProjectContext

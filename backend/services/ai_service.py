@@ -8,7 +8,7 @@ import json
 import re
 import logging
 import requests
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 from textwrap import dedent
 from PIL import Image
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
@@ -567,22 +567,94 @@ class AIService:
         outline = self.generate_json(parse_prompt, thinking_budget=1000)
         return outline
     
-    def flatten_outline(self, outline: List[Dict]) -> List[Dict]:
+    @staticmethod
+    def _normalize_outline_page(
+        page: Any,
+        page_index: str,
+        part: Optional[str] = None,
+        has_part: bool = False,
+    ) -> Dict:
+        if isinstance(page, str):
+            title = page.strip()
+            if not title:
+                raise ValueError(f"Outline page {page_index} is an empty string")
+            logger.warning("Normalizing string outline page at %s", page_index)
+            normalized = {"title": title, "points": []}
+        elif isinstance(page, dict):
+            normalized = page.copy()
+            title = normalized.get("title")
+            if title is None:
+                normalized["title"] = ""
+            elif not isinstance(title, str):
+                normalized["title"] = str(title).strip()
+            else:
+                normalized["title"] = title.strip()
+
+            points = normalized.get("points", [])
+            if points is None:
+                normalized["points"] = []
+            elif isinstance(points, list):
+                normalized["points"] = [
+                    str(point).strip()
+                    for point in points
+                    if point is not None and str(point).strip()
+                ]
+            elif isinstance(points, str):
+                stripped_point = points.strip()
+                if stripped_point:
+                    logger.warning("Normalizing string outline points at %s", page_index)
+                    normalized["points"] = [stripped_point]
+                else:
+                    normalized["points"] = []
+            else:
+                raise ValueError(
+                    f"Outline page {page_index} points must be a list or string, got {type(points).__name__}"
+                )
+        else:
+            raise ValueError(
+                f"Outline page {page_index} must be an object or string, got {type(page).__name__}"
+            )
+
+        if has_part:
+            normalized["part"] = str(part).strip() if part is not None else None
+        elif normalized.get("part") is not None:
+            normalized["part"] = str(normalized["part"]).strip()
+
+        return normalized
+
+    def flatten_outline(self, outline: List[Union[Dict[str, Any], str]]) -> List[Dict[str, Any]]:
         """
         Flatten outline structure to page list
         Based on demo.py flatten_outline()
         """
+        if not isinstance(outline, list):
+            raise ValueError(f"Outline must be a list, got {type(outline).__name__}")
+
         pages = []
-        for item in outline:
-            if "part" in item and "pages" in item:
+        for item_index, item in enumerate(outline):
+            if not isinstance(item, (dict, str)):
+                raise ValueError(
+                    f"Outline item {item_index} must be an object or string, got {type(item).__name__}"
+                )
+
+            if isinstance(item, dict) and "part" in item and "pages" in item:
                 # This is a part, expand its pages
-                for page in item["pages"]:
-                    page_with_part = page.copy()
-                    page_with_part["part"] = item["part"]
-                    pages.append(page_with_part)
+                if not isinstance(item["pages"], list):
+                    raise ValueError(
+                        f"Outline part {item_index} pages must be a list, got {type(item['pages']).__name__}"
+                    )
+                for page_index, page in enumerate(item["pages"]):
+                    pages.append(
+                        self._normalize_outline_page(
+                            page,
+                            f"{item_index}.pages[{page_index}]",
+                            part=item["part"],
+                            has_part=True,
+                        )
+                    )
             else:
                 # This is a direct page
-                pages.append(item)
+                pages.append(self._normalize_outline_page(item, str(item_index)))
         return pages
     
     @staticmethod
