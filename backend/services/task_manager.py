@@ -29,12 +29,12 @@ def _get_image_prompt_field_names() -> set:
         return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
-def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+def _append_extra_fields(desc_text: str, desc_content: dict, allowed_fields: Optional[set] = None) -> str:
     """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
         return desc_text
-    allowed = _get_image_prompt_field_names()
+    allowed = allowed_fields if allowed_fields is not None else _get_image_prompt_field_names()
     parts = [desc_text]
     for name, value in extra_fields.items():
         if value and name in allowed:
@@ -548,6 +548,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             all_pages_data = ai_service.flatten_outline(outline)
+            image_prompt_field_names = _get_image_prompt_field_names()
 
             # Build mapping from order_index to page_data so filtered pages
             # get matched to the correct outline entry (not just first N)
@@ -610,7 +611,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                     desc_text = str(text_content)
 
                             # 将 extra_fields 拼入描述文本供图片生成使用
-                            desc_text = _append_extra_fields(desc_text, desc_content)
+                            desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
                             logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                             
@@ -786,6 +787,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             desc_content = page.get_description_content()
             if not desc_content:
                 raise ValueError("No description content for page")
+            image_prompt_field_names = _get_image_prompt_field_names()
             
             # 获取描述文本（可能是 text 字段或 text_content 数组）
             desc_text = desc_content.get('text', '')
@@ -797,7 +799,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = str(text_content)
 
             # 将 extra_fields 拼入描述文本供图片生成使用
-            desc_text = _append_extra_fields(desc_text, desc_content)
+            desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
             # 从描述文本中提取图片 URL
             additional_ref_images = []

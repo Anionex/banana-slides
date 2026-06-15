@@ -63,3 +63,24 @@ def test_append_extra_fields_respects_empty_allowlist(client):
         }
         result = _append_extra_fields('页面正文', desc_content)
         assert result == '页面正文'
+
+
+def test_append_extra_fields_uses_prefetched_allowlist(monkeypatch):
+    def fail_if_fetching_settings():
+        raise AssertionError('settings should be pre-fetched by the task')
+
+    monkeypatch.setattr(
+        'services.task_manager._get_image_prompt_field_names',
+        fail_if_fetching_settings,
+    )
+
+    desc_content = {
+        'extra_fields': {
+            '视觉元素': '蓝色配色',
+            '演讲者备注': '不要进入图片提示词',
+        }
+    }
+
+    result = _append_extra_fields('页面正文', desc_content, {'视觉元素'})
+    assert '视觉元素：蓝色配色' in result
+    assert '演讲者备注' not in result
