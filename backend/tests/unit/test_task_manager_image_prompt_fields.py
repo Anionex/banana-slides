@@ -2,8 +2,22 @@
 
 import json
 
+import pytest
+
 from models import Settings, db
 from services.task_manager import _append_extra_fields, _get_image_prompt_field_names
+
+
+@pytest.fixture(autouse=True)
+def restore_image_prompt_fields(client):
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        original_value = settings.image_prompt_extra_fields
+    yield
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = original_value
+        db.session.commit()
 
 
 def _set_image_prompt_fields(client, value):
@@ -35,3 +49,17 @@ def test_append_extra_fields_filters_by_allowlist(client):
         result = _append_extra_fields('页面正文', desc_content)
         assert '视觉元素：蓝色配色' in result
         assert '演讲者备注' not in result
+
+
+def test_append_extra_fields_respects_empty_allowlist(client):
+    _set_image_prompt_fields(client, json.dumps([]))
+
+    with client.application.app_context():
+        desc_content = {
+            'extra_fields': {
+                '视觉元素': '蓝色配色',
+                '视觉焦点': '中心人物',
+            }
+        }
+        result = _append_extra_fields('页面正文', desc_content)
+        assert result == '页面正文'

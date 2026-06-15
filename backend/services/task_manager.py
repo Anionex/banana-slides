@@ -15,18 +15,15 @@ import time
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
-from models import db, Task, Page, Material, PageImageVersion
+from models import db, Task, Page, Material, PageImageVersion, Settings
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
 
-def _get_image_prompt_field_names() -> set | None:
+def _get_image_prompt_field_names() -> set:
     """读取设置中允许进入文生图 prompt 的额外字段名。"""
     try:
-        from models import Settings
         settings = Settings.get_settings()
-        if settings.image_prompt_extra_fields is None:
-            return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
         return set(settings.get_image_prompt_extra_fields())
     except Exception:
         return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
@@ -40,7 +37,7 @@ def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
     allowed = _get_image_prompt_field_names()
     parts = [desc_text]
     for name, value in extra_fields.items():
-        if value and (allowed is None or name in allowed):
+        if value and name in allowed:
             parts.append(f"\n{name}：{value}")
     return ''.join(parts)
 from pathlib import Path
