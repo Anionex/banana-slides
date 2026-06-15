@@ -214,7 +214,7 @@ Quickly start frontend and backend services via Docker Compose.
 
 If you are using **Windows or macOS**, please [install **Docker Desktop**](https://docs.docker.com/desktop/setup/install/windows-install/) first, and ensure Docker is running (check the system tray icon on Windows; check the menu bar icon on macOS), then follow the same steps in the documentation.
 
-> **Tip**: If you encounter issues, Windows users should enable the **WSL 2 backend** in Docker Desktop settings (recommended); also ensure that ports **3000** and **5000** are not occupied.
+> **Tip**: If you encounter issues, Windows users should enable the **WSL 2 backend** in Docker Desktop settings (recommended); also ensure that ports **3011** and **5011** are not occupied.
 
 </details>
 
@@ -356,8 +356,8 @@ docker compose up -d
 
 3. **Accessing the Application**
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
+- Frontend: http://localhost:3011
+- Backend API: http://localhost:5011
 
 4. **Viewing Logs**
 
@@ -487,7 +487,7 @@ npm install
 
 3. **Configure API address**
 
-The frontend will automatically connect to the backend service at `http://localhost:5000`. To modify this, please edit `src/api/client.ts`.
+The frontend connects to the backend through the Vite proxy using `BACKEND_PORT` (default `http://localhost:5011`). To change it, set `BACKEND_PORT` in the project root `.env`.
 
 #### Start Backend Service
 
@@ -500,9 +500,9 @@ cd backend
 uv run alembic upgrade head && uv run python app.py
 ```
 
-The backend service will start at `http://localhost:5000`.
+The backend service will start at `http://localhost:5011`.
 
-Visit `http://localhost:5000/health` to verify if the service is running correctly.
+Visit `http://localhost:5011/health` to verify that the service is running correctly.
 
 #### Start Frontend Development Server
 
@@ -511,7 +511,7 @@ cd frontend
 npm run dev
 ```
 
-The frontend development server will start at `http://localhost:3000`.
+The frontend development server will start at `http://localhost:3011`.
 
 Open your browser and visit the address to use the application.
 

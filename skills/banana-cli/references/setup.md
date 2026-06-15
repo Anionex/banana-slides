@@ -15,7 +15,7 @@ uv run alembic upgrade head
 uv run python app.py
 ```
 
-Backend starts on http://localhost:5000.
+Backend starts on http://localhost:5011.
 
 ## Required Configuration
 
@@ -37,7 +37,7 @@ Supported providers: `gemini`, `openai`, `vertex`, `lazyllm`, `anthropic`.
 ## Verify
 
 ```bash
-curl -sf http://localhost:5000/health
+curl -sf http://localhost:5011/health
 ```
 
 ## Install banana-cli
