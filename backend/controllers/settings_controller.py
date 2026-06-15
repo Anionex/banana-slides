@@ -1041,19 +1041,7 @@ TEST_FUNCTIONS = {
 }
 
 
-def _is_codex_oauth_unauthorized(error: Exception, test_name: str, test_settings: dict) -> bool:
-    """Return True when a settings test failed because the Codex OAuth token is invalid."""
-    response = getattr(error, "response", None)
-    status_code = getattr(response, "status_code", None)
-    error_text = str(error).lower()
-    unauthorized = (
-        status_code == 401
-        or bool(re.search(r"\b401\b", error_text))
-        or "unauthorized" in error_text
-    )
-    if not unauthorized:
-        return False
-
+def _is_codex_settings_test(test_name: str, test_settings: dict, error_text: str) -> bool:
     test_source_keys = {
         "text-model": "text_model_source",
         "image-model": "image_model_source",
@@ -1069,6 +1057,26 @@ def _is_codex_oauth_unauthorized(error: Exception, test_name: str, test_settings
         is_codex_test = False
     is_codex_endpoint = "chatgpt.com/backend-api/codex" in error_text or "/codex/responses" in error_text
     return is_codex_test or is_codex_endpoint
+
+
+def _is_codex_oauth_unauthorized(error: Exception, test_name: str, test_settings: dict) -> bool:
+    """Return True when a settings test failed because the Codex OAuth token is invalid."""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    error_text = str(error).lower()
+    if not _is_codex_settings_test(test_name, test_settings, error_text):
+        return False
+
+    unauthorized = (
+        status_code == 401
+        or bool(re.search(r"\b401\b", error_text))
+        or "unauthorized" in error_text
+    )
+    oauth_not_connected = (
+        "openai oauth is not connected" in error_text
+        or "please log in with your openai account" in error_text
+    )
+    return unauthorized or oauth_not_connected
 
 
 def _disconnect_expired_openai_oauth() -> None:
@@ -1132,7 +1140,7 @@ def _run_test_async(task_id: str, test_name: str, test_settings: dict, app):
                         "openai_oauth_disconnected": True,
                         "message": error_msg,
                     }
-                    logger.info("OpenAI OAuth disconnected after Codex settings test returned 401")
+                    logger.info("OpenAI OAuth disconnected after Codex settings test reported invalid credentials")
 
                 task.status = 'FAILED'
                 task.error_message = error_msg
