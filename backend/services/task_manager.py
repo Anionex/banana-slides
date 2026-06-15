@@ -22,7 +22,7 @@ from utils.image_utils import check_image_resolution
 logger = logging.getLogger(__name__)
 
 
-def _get_image_prompt_field_names() -> set:
+def get_image_prompt_field_names() -> set:
     """读取设置中允许进入文生图 prompt 的额外字段名。"""
     try:
         settings = Settings.get_settings()
@@ -38,7 +38,7 @@ def _append_extra_fields(desc_text: Optional[str], desc_content: dict, allowed_f
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
         return safe_desc
-    allowed = allowed_fields if allowed_fields is not None else _get_image_prompt_field_names()
+    allowed = allowed_fields if allowed_fields is not None else get_image_prompt_field_names()
     parts = []
     if safe_desc:
         parts.append(safe_desc)
@@ -556,7 +556,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             image_prompt_field_names = (
                 image_prompt_field_names
                 if image_prompt_field_names is not None
-                else _get_image_prompt_field_names()
+                else get_image_prompt_field_names()
             )
 
             # Build mapping from order_index to page_data so filtered pages
@@ -800,7 +800,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             image_prompt_field_names = (
                 image_prompt_field_names
                 if image_prompt_field_names is not None
-                else _get_image_prompt_field_names()
+                else get_image_prompt_field_names()
             )
             
             # 获取描述文本（可能是 text 字段或 text_content 数组）

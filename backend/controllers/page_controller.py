@@ -11,7 +11,7 @@ from services.task_manager import (
     task_manager,
     generate_single_page_image_task,
     edit_page_image_task,
-    _get_image_prompt_field_names,
+    get_image_prompt_field_names,
 )
 from datetime import datetime
 from pathlib import Path
@@ -473,7 +473,7 @@ def generate_page_image(project_id, page_id):
         
         # Get app instance for background task
         app = current_app._get_current_object()
-        image_prompt_field_names = _get_image_prompt_field_names()
+        image_prompt_field_names = get_image_prompt_field_names()
         
         # Submit background task
         task_manager.submit_task(

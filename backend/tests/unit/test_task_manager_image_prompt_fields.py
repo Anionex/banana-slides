@@ -5,7 +5,7 @@ import json
 import pytest
 
 from models import Settings, db
-from services.task_manager import _append_extra_fields, _get_image_prompt_field_names
+from services.task_manager import _append_extra_fields, get_image_prompt_field_names
 
 
 @pytest.fixture(autouse=True)
@@ -31,7 +31,7 @@ def test_image_prompt_field_names_fallback_to_default_when_not_set(client):
     _set_image_prompt_fields(client, None)
 
     with client.application.app_context():
-        fields = _get_image_prompt_field_names()
+        fields = get_image_prompt_field_names()
         assert fields == set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
         assert '演讲者备注' not in fields
 
@@ -70,7 +70,7 @@ def test_append_extra_fields_uses_prefetched_allowlist(monkeypatch):
         raise AssertionError('settings should be pre-fetched by the task')
 
     monkeypatch.setattr(
-        'services.task_manager._get_image_prompt_field_names',
+        'services.task_manager.get_image_prompt_field_names',
         fail_if_fetching_settings,
     )
 
