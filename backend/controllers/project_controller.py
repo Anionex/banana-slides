@@ -23,7 +23,8 @@ from services.task_manager import (
     task_manager,
     generate_descriptions_task,
     generate_images_task,
-    process_ppt_renovation_task
+    process_ppt_renovation_task,
+    get_image_prompt_field_names,
 )
 from utils import (
     success_response, error_response, not_found, bad_request,
@@ -1073,6 +1074,7 @@ def generate_images(project_id):
 
         # Get app instance for background task
         app = current_app._get_current_object()
+        image_prompt_field_names = get_image_prompt_field_names()
 
         # Submit background task
         task_manager.submit_task(
@@ -1089,7 +1091,8 @@ def generate_images(project_id):
             app,
             combined_requirements if combined_requirements.strip() else None,
             language,
-            selected_page_ids if selected_page_ids else None
+            selected_page_ids if selected_page_ids else None,
+            image_prompt_field_names
         )
         
         # Update project status

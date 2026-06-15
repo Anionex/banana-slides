@@ -15,38 +15,41 @@ import time
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
-from models import db, Task, Page, Material, PageImageVersion
+from models import db, Task, Page, Material, PageImageVersion, Settings
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
+logger = logging.getLogger(__name__)
 
-def _get_image_prompt_field_names() -> set | None:
-    """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
+
+def get_image_prompt_field_names() -> set:
+    """读取设置中允许进入文生图 prompt 的额外字段名。"""
     try:
-        from models import Settings
         settings = Settings.get_settings()
-        if settings.image_prompt_extra_fields is None:
-            return None  # 未配置 → 全部允许
         return set(settings.get_image_prompt_extra_fields())
-    except Exception:
-        return None
+    except Exception as e:
+        logger.warning("Failed to retrieve image prompt extra fields; using defaults: %s", e)
+        return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
-def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+def _append_extra_fields(desc_text: Optional[str], desc_content: Optional[dict], allowed_fields: Optional[set] = None) -> str:
     """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    safe_desc = (desc_text or "").strip()
+    if not desc_content or not isinstance(desc_content, dict):
+        return safe_desc
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
-        return desc_text
-    allowed = _get_image_prompt_field_names()
-    parts = [desc_text]
+        return safe_desc
+    allowed = allowed_fields if allowed_fields is not None else get_image_prompt_field_names()
+    parts = []
+    if safe_desc:
+        parts.append(safe_desc)
     for name, value in extra_fields.items():
-        if value and (allowed is None or name in allowed):
-            parts.append(f"\n{name}：{value}")
-    return ''.join(parts)
+        if value and name in allowed:
+            parts.append(f"{name}：{value}")
+    return '\n'.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
-
-logger = logging.getLogger(__name__)
 
 
 class ResourceLimiter:
@@ -524,7 +527,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
                         language: str = None,
-                        page_ids: list = None):
+                        page_ids: list = None,
+                        image_prompt_field_names: Optional[set] = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
@@ -551,6 +555,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             all_pages_data = ai_service.flatten_outline(outline)
+            image_prompt_field_names = (
+                image_prompt_field_names
+                if image_prompt_field_names is not None
+                else get_image_prompt_field_names()
+            )
 
             # Build mapping from order_index to page_data so filtered pages
             # get matched to the correct outline entry (not just first N)
@@ -613,7 +622,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                     desc_text = str(text_content)
 
                             # 将 extra_fields 拼入描述文本供图片生成使用
-                            desc_text = _append_extra_fields(desc_text, desc_content)
+                            desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
                             logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
                             
@@ -756,7 +765,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
                                     extra_requirements: str = None,
-                                    language: str = None):
+                                    language: str = None,
+                                    image_prompt_field_names: Optional[set] = None):
     """
     Background task for generating a single page image
     
@@ -789,6 +799,11 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             desc_content = page.get_description_content()
             if not desc_content:
                 raise ValueError("No description content for page")
+            image_prompt_field_names = (
+                image_prompt_field_names
+                if image_prompt_field_names is not None
+                else get_image_prompt_field_names()
+            )
             
             # 获取描述文本（可能是 text 字段或 text_content 数组）
             desc_text = desc_content.get('text', '')
@@ -800,7 +815,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = str(text_content)
 
             # 将 extra_fields 拼入描述文本供图片生成使用
-            desc_text = _append_extra_fields(desc_text, desc_content)
+            desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
             # 从描述文本中提取图片 URL
             additional_ref_images = []
@@ -1965,6 +1980,7 @@ def export_video_task(
                     narration_config,
                     fallback_topic=project_topic,
                 )
+                image_prompt_field_names = get_image_prompt_field_names()
 
                 # 收集需要生成旁白的页面
                 pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
@@ -1976,7 +1992,7 @@ def export_video_task(
                         if not desc_text and desc_content.get('text_content'):
                             tc = desc_content.get('text_content', [])
                             desc_text = '\n'.join(tc) if isinstance(tc, list) else str(tc)
-                        desc_text = _append_extra_fields(desc_text, desc_content)
+                        desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
                     outline_content = page.get_outline_content() or {}
                     if not desc_text:
