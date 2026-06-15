@@ -1980,6 +1980,7 @@ def export_video_task(
                     narration_config,
                     fallback_topic=project_topic,
                 )
+                image_prompt_field_names = get_image_prompt_field_names()
 
                 # 收集需要生成旁白的页面
                 pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
@@ -1991,7 +1992,7 @@ def export_video_task(
                         if not desc_text and desc_content.get('text_content'):
                             tc = desc_content.get('text_content', [])
                             desc_text = '\n'.join(tc) if isinstance(tc, list) else str(tc)
-                        desc_text = _append_extra_fields(desc_text, desc_content)
+                        desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
                     outline_content = page.get_outline_content() or {}
                     if not desc_text:
