@@ -21,7 +21,7 @@ load_dotenv(dotenv_path=_env_file, override=True)
 from flask import Flask
 from flask_cors import CORS
 from models import db
-from config import Config, DEFAULT_BACKEND_PORT, DEFAULT_FRONTEND_PORT
+from config import Config
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
@@ -73,7 +73,7 @@ def create_app():
     app.config['UPLOAD_FOLDER'] = upload_folder
     
     # CORS configuration (parse from environment)
-    raw_cors = os.getenv('CORS_ORIGINS', f'http://localhost:{DEFAULT_FRONTEND_PORT}')
+    raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3011')
     if raw_cors.strip() == '*':
         cors_origins = '*'
     else:
@@ -348,7 +348,7 @@ def _compute_worktree_port(base_port: int) -> int:
     """Compute a deterministic port from the worktree directory name.
 
     Uses MD5 of the project root basename so each worktree gets a unique,
-    stable port pair (backend 51xx, frontend 31xx) without manual config.
+    stable port pair (backend 5xxx, frontend 3xxx) without manual config.
     """
     import hashlib
     basename = _project_root.name
@@ -363,7 +363,7 @@ if __name__ == '__main__':
     elif os.getenv('BACKEND_PORT'):
         port = int(os.getenv('BACKEND_PORT'))
     else:
-        port = _compute_worktree_port(DEFAULT_BACKEND_PORT)
+        port = _compute_worktree_port(5011)
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
     
     logging.info(

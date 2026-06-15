@@ -11,7 +11,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-}
     container_name: banana-slides
     ports:
-      - "${PORT:-3100}:80"
+      - "${PORT:-3011}:80"
     env_file:
       - .env
     volumes:

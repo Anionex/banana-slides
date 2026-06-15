@@ -30,8 +30,12 @@ pytestmark = pytest.mark.skipif(
     reason="Skipping tests that require running backend service"
 )
 
-
-BASE_URL = "http://localhost:5100"
+_front_port = os.getenv('FRONTEND_PORT', '3011')
+try:
+    BACKEND_PORT = os.getenv('BACKEND_PORT') or str(int(_front_port) + 2000)
+except (TypeError, ValueError):
+    BACKEND_PORT = os.getenv('BACKEND_PORT', '5011')
+BASE_URL = f"http://localhost:{BACKEND_PORT}"
 API_TIMEOUT = 180  # 3 minutes timeout for AI operations
 
 

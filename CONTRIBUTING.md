@@ -87,12 +87,12 @@ npm install
 # 启动后端（在项目根目录）
 cd backend
 uv run alembic upgrade head && uv run python app.py
-# 后端运行在 http://localhost:5100
+# 后端运行在 http://localhost:5011
 
 # 启动前端（新开一个终端）
 cd frontend
 npm run dev
-# 前端运行在 http://localhost:3100
+# 前端运行在 http://localhost:3011
 ```
 
 ## Code Style

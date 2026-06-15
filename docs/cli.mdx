@@ -44,7 +44,7 @@ banana-cli [global-options] <command-group> <subcommand> [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--base-url` | Backend address | `http://localhost:5100` |
+| `--base-url` | Backend address | `http://localhost:5011` |
 | `--access-code` | Access code (injected as `X-Access-Code` header) | None |
 | `--poll-interval` | Task polling interval (seconds) | `3` |
 | `--request-timeout` | Request timeout (seconds) | `60` |
@@ -59,7 +59,7 @@ CLI args > Environment variables (`BANANA_CLI_*`) > TOML config file > Defaults
 Environment variable mapping:
 
 ```bash
-BANANA_CLI_BASE_URL=http://localhost:5100
+BANANA_CLI_BASE_URL=http://localhost:5011
 BANANA_CLI_ACCESS_CODE=your-code
 BANANA_CLI_POLL_INTERVAL=3
 BANANA_CLI_REQUEST_TIMEOUT=60

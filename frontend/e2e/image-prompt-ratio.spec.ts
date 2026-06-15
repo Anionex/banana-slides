@@ -6,7 +6,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-const BASE = process.env.BASE_URL || 'http://localhost:3100'
+const BASE = process.env.BASE_URL || 'http://localhost:3011'
 const API = `http://localhost:${Number(new URL(BASE).port) + 2000}`
 
 test.describe('Image prompt aspect ratio', () => {

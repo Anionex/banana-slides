@@ -89,12 +89,12 @@ frontend_ready=false
 
 while [ $waited -lt $max_wait ]; do
     # 检查后端
-    if curl -s http://localhost:5100/health >/dev/null 2>&1; then
+    if curl -s http://localhost:5011/health >/dev/null 2>&1; then
         backend_ready=true
     fi
     
     # 检查前端
-    if curl -s http://localhost:3100 >/dev/null 2>&1; then
+    if curl -s http://localhost:3011 >/dev/null 2>&1; then
         frontend_ready=true
     fi
     
@@ -135,7 +135,7 @@ log_success "容器状态正常"
 
 # 6. 后端健康检查
 log_info "步骤6/10: 后端健康检查..."
-backend_health=$(curl -s http://localhost:5100/health)
+backend_health=$(curl -s http://localhost:5011/health)
 if echo "$backend_health" | grep -q '"status":"ok"'; then
     log_success "后端健康检查通过"
     echo "    响应: $backend_health"
@@ -147,7 +147,7 @@ fi
 
 # 7. 前端访问测试
 log_info "步骤7/10: 前端访问测试..."
-frontend_status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100)
+frontend_status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3011)
 if [ "$frontend_status_code" = "200" ]; then
     log_success "前端访问正常 (HTTP $frontend_status_code)"
 else
@@ -160,7 +160,7 @@ log_info "步骤8/10: API功能测试..."
 
 # 8.1 创建项目
 log_info "  8.1 创建项目..."
-create_response=$(curl -s -X POST http://localhost:5100/api/projects \
+create_response=$(curl -s -X POST http://localhost:5011/api/projects \
     -H "Content-Type: application/json" \
     -d '{"creation_type":"idea","idea_prompt":"Docker测试项目"}')
 
@@ -175,7 +175,7 @@ fi
 
 # 8.2 获取项目
 log_info "  8.2 获取项目详情..."
-get_response=$(curl -s http://localhost:5100/api/projects/$project_id)
+get_response=$(curl -s http://localhost:5011/api/projects/$project_id)
 if echo "$get_response" | grep -q '"success":true'; then
     log_success "  项目获取成功"
 else
@@ -186,7 +186,7 @@ fi
 # 8.3 上传模板（如果存在）
 if [ -f "template_g.png" ]; then
     log_info "  8.3 上传模板文件..."
-    upload_response=$(curl -s -X POST http://localhost:5100/api/projects/$project_id/template \
+    upload_response=$(curl -s -X POST http://localhost:5011/api/projects/$project_id/template \
         -F "template_image=@template_g.png")
     
     if echo "$upload_response" | grep -q '"success":true'; then
@@ -200,7 +200,7 @@ fi
 
 # 8.4 删除项目（清理）
 log_info "  8.4 删除测试项目..."
-delete_response=$(curl -s -X DELETE http://localhost:5100/api/projects/$project_id)
+delete_response=$(curl -s -X DELETE http://localhost:5011/api/projects/$project_id)
 if echo "$delete_response" | grep -q '"success":true'; then
     log_success "  项目删除成功"
 else
@@ -213,7 +213,7 @@ log_success "API功能测试通过"
 log_info "步骤9/10: 数据持久化测试..."
 
 # 创建一个项目
-create_response=$(curl -s -X POST http://localhost:5100/api/projects \
+create_response=$(curl -s -X POST http://localhost:5011/api/projects \
     -H "Content-Type: application/json" \
     -d '{"creation_type":"idea","idea_prompt":"持久化测试"}')
 persist_project_id=$(echo "$create_response" | grep -o '"project_id":"[^"]*"' | cut -d'"' -f4)
@@ -225,14 +225,14 @@ sleep 5
 
 # 等待后端恢复
 for i in {1..30}; do
-    if curl -s http://localhost:5100/health >/dev/null 2>&1; then
+    if curl -s http://localhost:5011/health >/dev/null 2>&1; then
         break
     fi
     sleep 1
 done
 
 # 检查项目是否还存在
-persist_check=$(curl -s http://localhost:5100/api/projects/$persist_project_id)
+persist_check=$(curl -s http://localhost:5011/api/projects/$persist_project_id)
 if echo "$persist_check" | grep -q '"success":true'; then
     log_success "数据持久化测试通过"
 else
@@ -241,7 +241,7 @@ else
 fi
 
 # 清理测试数据
-curl -s -X DELETE http://localhost:5100/api/projects/$persist_project_id >/dev/null
+curl -s -X DELETE http://localhost:5011/api/projects/$persist_project_id >/dev/null
 
 # 10. 日志检查
 log_info "步骤10/10: 检查容器日志是否有错误..."
@@ -295,4 +295,3 @@ if [ "${AUTO_CLEANUP}" != "false" ]; then
 fi
 
 exit 0
-

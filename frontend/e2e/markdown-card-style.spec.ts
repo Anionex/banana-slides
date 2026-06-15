@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = process.env.BASE_URL || 'http://localhost:3100';
+const BASE = process.env.BASE_URL || 'http://localhost:3011';
 const PROJECT_ID = 'mock-style-test';
 
 // 1x1 transparent PNG as data URL (always loads successfully)

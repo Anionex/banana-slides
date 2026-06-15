@@ -45,7 +45,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenHelpModal', 'true')
     })
-    await page.goto('http://localhost:3100')
+    await page.goto('http://localhost:3011')
 
     // Verify page loaded
     await expect(page).toHaveTitle(/蕉幻|Banana/i)
@@ -329,7 +329,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       const match = urlBeforeClick.match(/\/project\/([^/]+)\//)
       if (match) {
         const projectId = match[1]
-        const targetUrl = `http://localhost:3100/project/${projectId}/preview`
+        const targetUrl = `http://localhost:3011/project/${projectId}/preview`
         console.log(`  Navigating to: ${targetUrl}`)
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
       } else {
@@ -775,7 +775,7 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     await page.addInitScript(() => {
       localStorage.setItem('hasSeenHelpModal', 'true')
     })
-    await page.goto('http://localhost:3100')
+    await page.goto('http://localhost:3011')
     console.log('✓ Homepage loaded')
 
     // Ensure "一句话生成" tab is selected (it's selected by default)

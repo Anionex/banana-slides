@@ -76,17 +76,17 @@ if (process.argv[1]?.includes('seed-project')) {
   const { createHash } = await import('crypto')
   const pageCount = parseInt(process.argv[2] || '3', 10)
 
-  // Auto-detect backend port (same precedence as app.py)
+  // Auto-detect backend port (same MD5 logic as app.py)
   const envFile = path.join(PROJECT_ROOT, '.env')
-  let port: string | null = null
+  let port = '5011'
   if (fs.existsSync(envFile)) {
     const m = fs.readFileSync(envFile, 'utf8').match(/^BACKEND_PORT=(\d+)/m)
     if (m) port = m[1]
   }
-  if (!port) {
+  if (port === '5011') {
     const basename = path.basename(PROJECT_ROOT)
     const offset = parseInt(createHash('md5').update(basename).digest('hex').slice(0, 8), 16) % 500
-    port = String(5100 + offset)
+    port = String(5011 + offset)
   }
 
   const baseUrl = `http://localhost:${port}`

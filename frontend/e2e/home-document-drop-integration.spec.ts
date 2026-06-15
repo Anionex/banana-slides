@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3100' })
+test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3011' })
 
 test.describe('Home document drop (real backend)', () => {
   test.setTimeout(60_000)
