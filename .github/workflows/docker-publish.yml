@@ -136,8 +136,8 @@ jobs:
       - name: Wait for services
         run: |
           chmod +x scripts/wait-for-health.sh
-          ./scripts/wait-for-health.sh http://localhost:5100/health 60 2
-          ./scripts/wait-for-health.sh http://localhost:3100 60 2
+          ./scripts/wait-for-health.sh http://localhost:5011/health 60 2
+          ./scripts/wait-for-health.sh http://localhost:3011 60 2
 
       - name: Docker environment tests
         run: |

@@ -133,8 +133,8 @@ test.describe('Settings navigation and preview multi-select', () => {
   })
 
   test('integration: settings back returns to preview and multi-select stays visible while scrolling', async ({ page }) => {
-    const frontendUrl = process.env.BASE_URL || 'http://localhost:3100'
-    const frontendPort = parseInt(new URL(frontendUrl).port || '3100', 10)
+    const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
+    const frontendPort = parseInt(new URL(frontendUrl).port || '3011', 10)
     const backendUrl = `http://localhost:${frontendPort + 2000}`
 
     const { projectId } = await seedProjectWithImages(backendUrl, 14)

@@ -86,7 +86,7 @@ if (process.argv[1]?.includes('seed-project')) {
   if (!port) {
     const basename = path.basename(PROJECT_ROOT)
     const offset = parseInt(createHash('md5').update(basename).digest('hex').slice(0, 8), 16) % 500
-    port = String(5100 + offset)
+    port = String(5011 + offset)
   }
 
   const baseUrl = `http://localhost:${port}`

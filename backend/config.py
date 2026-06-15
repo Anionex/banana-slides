@@ -10,8 +10,8 @@ from datetime import timedelta
 _current_file = os.path.realpath(__file__)  # 使用realpath解析所有符号链接
 BASE_DIR = os.path.dirname(_current_file)
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
-DEFAULT_FRONTEND_PORT = 3100
-DEFAULT_BACKEND_PORT = 5100
+DEFAULT_FRONTEND_PORT = 3011
+DEFAULT_BACKEND_PORT = 5011
 
 # Flask配置
 class Config:

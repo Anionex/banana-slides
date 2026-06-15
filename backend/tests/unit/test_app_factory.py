@@ -130,8 +130,8 @@ def test_default_ports_move_away_from_common_conflicts(monkeypatch, tmp_path):
 
     app_module = _reload_app_module()
 
-    assert app_module.DEFAULT_FRONTEND_PORT == 3100
-    assert app_module.DEFAULT_BACKEND_PORT == 5100
+    assert app_module.DEFAULT_FRONTEND_PORT == 3011
+    assert app_module.DEFAULT_BACKEND_PORT == 5011
 
 
 def test_compute_worktree_backend_port_uses_new_default_base(monkeypatch, tmp_path):
@@ -143,7 +143,7 @@ def test_compute_worktree_backend_port_uses_new_default_base(monkeypatch, tmp_pa
         16,
     ) % 500
 
-    assert app_module._compute_worktree_port(app_module.DEFAULT_BACKEND_PORT) == 5100 + offset
+    assert app_module._compute_worktree_port(app_module.DEFAULT_BACKEND_PORT) == 5011 + offset
 
 
 def test_config_default_cors_matches_new_frontend_port(monkeypatch):
@@ -152,4 +152,4 @@ def test_config_default_cors_matches_new_frontend_port(monkeypatch):
     config_module = importlib.import_module('config')
     config_module = importlib.reload(config_module)
 
-    assert config_module.Config.CORS_ORIGINS == ['http://localhost:3100']
+    assert config_module.Config.CORS_ORIGINS == ['http://localhost:3011']

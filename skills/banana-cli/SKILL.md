@@ -17,7 +17,7 @@ CLI for creating, managing, and exporting AI-generated presentations.
 Before running any command, verify the backend is reachable:
 
 ```bash
-curl -sf http://localhost:5100/health
+curl -sf http://localhost:5011/health
 ```
 
 If this fails, the backend is not running. Read [references/setup.md](references/setup.md) and follow the steps to clone the repo, configure `.env`, and start the backend. Do not proceed until the health check passes.

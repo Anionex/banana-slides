@@ -12,7 +12,7 @@ from .errors import ConfigError
 
 @dataclass
 class CLIConfig:
-    base_url: str = "http://localhost:5100"
+    base_url: str = "http://localhost:5011"
     access_code: str = ""
     poll_interval: int = 3
     request_timeout: int = 60

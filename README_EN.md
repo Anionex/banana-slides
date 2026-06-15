@@ -356,8 +356,8 @@ docker compose up -d
 
 3. **Accessing the Application**
 
-- Frontend: http://localhost:3100
-- Backend API: http://localhost:5100
+- Frontend: http://localhost:3011
+- Backend API: http://localhost:5011
 
 4. **Viewing Logs**
 
@@ -487,11 +487,7 @@ npm install
 
 3. **Configure API address**
 
-<<<<<<< HEAD
-The frontend will automatically connect to the backend service at `http://localhost:5000`. To modify this, please edit `src/api/client.ts`.
-=======
-The frontend connects to the backend through the Vite proxy using `BACKEND_PORT` (default `http://localhost:5100`). To change it, set `BACKEND_PORT` in the project root `.env`.
->>>>>>> 3f9eb70 (fix: move default dev ports off 3000 and 5000)
+The frontend connects to the backend through the Vite proxy using `BACKEND_PORT` (default `http://localhost:5011`). To change it, set `BACKEND_PORT` in the project root `.env`.
 
 #### Start Backend Service
 
@@ -504,13 +500,9 @@ cd backend
 uv run alembic upgrade head && uv run python app.py
 ```
 
-The backend service will start at `http://localhost:5100`.
+The backend service will start at `http://localhost:5011`.
 
-<<<<<<< HEAD
-Visit `http://localhost:5000/health` to verify if the service is running correctly.
-=======
-Visit `http://localhost:5100/health` to verify that the service is running correctly.
->>>>>>> 3f9eb70 (fix: move default dev ports off 3000 and 5000)
+Visit `http://localhost:5011/health` to verify that the service is running correctly.
 
 #### Start Frontend Development Server
 
@@ -519,7 +511,7 @@ cd frontend
 npm run dev
 ```
 
-The frontend development server will start at `http://localhost:3100`.
+The frontend development server will start at `http://localhost:3011`.
 
 Open your browser and visit the address to use the application.
 

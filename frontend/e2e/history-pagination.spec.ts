@@ -192,8 +192,8 @@ test.describe('History pagination — mock', () => {
 // ───────────────── Integration test ─────────────────
 
 test.describe('History pagination — integration', () => {
-  const frontendUrl = process.env.BASE_URL || 'http://localhost:3100'
-  const frontendPort = parseInt(new URL(frontendUrl).port || '3100')
+  const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
+  const frontendPort = parseInt(new URL(frontendUrl).port || '3011')
   const BACKEND_URL = `http://localhost:${frontendPort + 2000}`
 
   async function createSimpleProject(index: number): Promise<string> {

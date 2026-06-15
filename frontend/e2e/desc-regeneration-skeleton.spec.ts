@@ -119,7 +119,7 @@ test.describe('Skeleton during description re-generation', () => {
     })
 
     // Navigate to detail editor
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3100'
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3011'
     await page.goto(`${baseUrl}/project/${PROJECT_ID}/detail`)
 
     // Verify old descriptions are visible before re-generation
