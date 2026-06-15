@@ -19,13 +19,16 @@ from models import db, Task, Page, Material, PageImageVersion, Settings
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
+logger = logging.getLogger(__name__)
+
 
 def _get_image_prompt_field_names() -> set:
     """读取设置中允许进入文生图 prompt 的额外字段名。"""
     try:
         settings = Settings.get_settings()
         return set(settings.get_image_prompt_extra_fields())
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to retrieve image prompt extra fields; using defaults: %s", e)
         return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
@@ -45,8 +48,6 @@ def _append_extra_fields(desc_text: Optional[str], desc_content: dict, allowed_f
     return '\n'.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
-
-logger = logging.getLogger(__name__)
 
 
 class ResourceLimiter:
