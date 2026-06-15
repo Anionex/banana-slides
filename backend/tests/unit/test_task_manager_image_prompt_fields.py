@@ -1,0 +1,37 @@
+"""Task manager image prompt field filtering regression tests."""
+
+import json
+
+from models import Settings, db
+from services.task_manager import _append_extra_fields, _get_image_prompt_field_names
+
+
+def _set_image_prompt_fields(client, value):
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = value
+        db.session.commit()
+
+
+def test_image_prompt_field_names_fallback_to_default_when_not_set(client):
+    _set_image_prompt_fields(client, None)
+
+    with client.application.app_context():
+        fields = _get_image_prompt_field_names()
+        assert fields == set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
+        assert '演讲者备注' not in fields
+
+
+def test_append_extra_fields_filters_by_allowlist(client):
+    _set_image_prompt_fields(client, json.dumps(['视觉元素', '视觉焦点']))
+
+    with client.application.app_context():
+        desc_content = {
+            'extra_fields': {
+                '视觉元素': '蓝色配色',
+                '演讲者备注': '右下角证明内容',
+            }
+        }
+        result = _append_extra_fields('页面正文', desc_content)
+        assert '视觉元素：蓝色配色' in result
+        assert '演讲者备注' not in result

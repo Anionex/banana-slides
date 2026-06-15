@@ -21,15 +21,15 @@ from utils.image_utils import check_image_resolution
 
 
 def _get_image_prompt_field_names() -> set | None:
-    """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
+    """读取设置中允许进入文生图 prompt 的额外字段名。"""
     try:
         from models import Settings
         settings = Settings.get_settings()
         if settings.image_prompt_extra_fields is None:
-            return None  # 未配置 → 全部允许
+            return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
         return set(settings.get_image_prompt_extra_fields())
     except Exception:
-        return None
+        return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
 def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
