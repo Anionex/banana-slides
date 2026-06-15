@@ -15,6 +15,7 @@ def restore_image_prompt_fields(client):
         original_value = settings.image_prompt_extra_fields
     yield
     with client.application.app_context():
+        db.session.rollback()
         settings = Settings.get_settings()
         settings.image_prompt_extra_fields = original_value
         db.session.commit()
@@ -90,3 +91,9 @@ def test_append_extra_fields_handles_missing_description_text():
     result = _append_extra_fields(None, {'extra_fields': {'视觉元素': '蓝色配色'}}, {'视觉元素'})
 
     assert result == '视觉元素：蓝色配色'
+
+
+def test_append_extra_fields_handles_missing_description_content():
+    result = _append_extra_fields('页面正文', None, {'视觉元素'})
+
+    assert result == '页面正文'
