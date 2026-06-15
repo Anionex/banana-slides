@@ -84,3 +84,9 @@ def test_append_extra_fields_uses_prefetched_allowlist(monkeypatch):
     result = _append_extra_fields('页面正文', desc_content, {'视觉元素'})
     assert '视觉元素：蓝色配色' in result
     assert '演讲者备注' not in result
+
+
+def test_append_extra_fields_handles_missing_description_text():
+    result = _append_extra_fields(None, {'extra_fields': {'视觉元素': '蓝色配色'}}, {'视觉元素'})
+
+    assert result == '\n视觉元素：蓝色配色'

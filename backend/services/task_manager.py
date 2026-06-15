@@ -29,13 +29,14 @@ def _get_image_prompt_field_names() -> set:
         return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
-def _append_extra_fields(desc_text: str, desc_content: dict, allowed_fields: Optional[set] = None) -> str:
+def _append_extra_fields(desc_text: Optional[str], desc_content: dict, allowed_fields: Optional[set] = None) -> str:
     """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    safe_desc = desc_text or ""
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
-        return desc_text
+        return safe_desc
     allowed = allowed_fields if allowed_fields is not None else _get_image_prompt_field_names()
-    parts = [desc_text]
+    parts = [safe_desc]
     for name, value in extra_fields.items():
         if value and name in allowed:
             parts.append(f"\n{name}：{value}")
