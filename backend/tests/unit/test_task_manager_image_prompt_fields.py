@@ -89,4 +89,4 @@ def test_append_extra_fields_uses_prefetched_allowlist(monkeypatch):
 def test_append_extra_fields_handles_missing_description_text():
     result = _append_extra_fields(None, {'extra_fields': {'视觉元素': '蓝色配色'}}, {'视觉元素'})
 
-    assert result == '\n视觉元素：蓝色配色'
+    assert result == '视觉元素：蓝色配色'

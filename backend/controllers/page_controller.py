@@ -7,7 +7,12 @@ from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
-from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
+from services.task_manager import (
+    task_manager,
+    generate_single_page_image_task,
+    edit_page_image_task,
+    _get_image_prompt_field_names,
+)
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -468,6 +473,7 @@ def generate_page_image(project_id, page_id):
         
         # Get app instance for background task
         app = current_app._get_current_object()
+        image_prompt_field_names = _get_image_prompt_field_names()
         
         # Submit background task
         task_manager.submit_task(
@@ -483,7 +489,8 @@ def generate_page_image(project_id, page_id):
             current_app.config['DEFAULT_RESOLUTION'],
             app,
             combined_requirements if combined_requirements.strip() else None,
-            language
+            language,
+            image_prompt_field_names
         )
         
         # Return task_id immediately
