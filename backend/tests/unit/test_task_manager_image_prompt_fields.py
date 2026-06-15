@@ -97,3 +97,15 @@ def test_append_extra_fields_handles_missing_description_content():
     result = _append_extra_fields('页面正文', None, {'视觉元素'})
 
     assert result == '页面正文'
+
+
+def test_append_extra_fields_keeps_zero_values():
+    result = _append_extra_fields(
+        '页面正文',
+        {'extra_fields': {'数量': 0, '空白': '   ', '缺失': None}},
+        {'数量', '空白', '缺失'},
+    )
+
+    assert '数量：0' in result
+    assert '空白' not in result
+    assert '缺失' not in result

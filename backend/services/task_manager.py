@@ -45,7 +45,7 @@ def _append_extra_fields(desc_text: Optional[str], desc_content: Optional[dict],
     if safe_desc:
         parts.append(safe_desc)
     for name, value in extra_fields.items():
-        if value and name in allowed:
+        if value is not None and str(value).strip() != "" and name in allowed:
             parts.append(f"{name}：{value}")
     return '\n'.join(parts)
 from pathlib import Path
