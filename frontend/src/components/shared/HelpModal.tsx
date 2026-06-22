@@ -33,6 +33,12 @@ const i18nDict = {
       s4d: '若使用过程中遇到问题，可在github issue提出',
       issueLink: '前往Github issue',
       settingsBtn: '前往设置页面',
+      featuresOverview: '功能总览',
+      featuresOverviewDesc: '了解 Banana Slides 的完整工作流程、创作路径、素材支持和导出能力。',
+      feishuTutorial: '设置页图文教程',
+      feishuTutorialDesc: '按步骤完成设置页面配置。',
+      faq: '常见问题',
+      faqDesc: '查看 API 配置、导出和使用过程中的常见问题。',
       hint: '提示',
       hintBody: '如果您还没有 API Key，可以前往对应服务商官网注册获取。配置完成后，建议先进行服务测试，避免后续使用出现问题。',
       prev: '上一页',
@@ -70,6 +76,12 @@ const i18nDict = {
       s4d: 'If you encounter issues while using, please raise them on GitHub issues',
       issueLink: 'Go to GitHub Issues',
       settingsBtn: 'Go to Settings',
+      featuresOverview: 'Features Overview',
+      featuresOverviewDesc: 'Learn the full workflow, creation paths, material support, and export options in Banana Slides.',
+      feishuTutorial: 'Settings Guide',
+      feishuTutorialDesc: 'Follow the step-by-step guide to configure Settings.',
+      faq: 'FAQ',
+      faqDesc: 'Review common questions about API setup, export, and everyday use.',
       hint: 'Tip',
       hintBody: "If you don't have an API Key yet, you can register on the corresponding service provider's website. After configuration, it's recommended to test services first to avoid issues later.",
       prev: 'Previous',
@@ -102,6 +114,27 @@ const FEATURES: { key: string; icon: React.ReactNode }[] = [
   { key: 'vibe', icon: <MessageSquare className="text-green-500" size={24} /> },
   { key: 'export', icon: <Download className="text-purple-500" size={24} /> },
   { key: 'video', icon: <Video className="text-red-500" size={24} /> },
+];
+
+const CONFIG_LINKS = [
+  {
+    key: 'featuresOverview',
+    descKey: 'featuresOverviewDesc',
+    href: { zh: 'https://docs.bananaslides.online/zh/features/overview', en: 'https://docs.bananaslides.online/features/overview' },
+  },
+  {
+    key: 'feishuTutorial',
+    descKey: 'feishuTutorialDesc',
+    href: {
+      zh: 'https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink',
+      en: 'https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink',
+    },
+  },
+  {
+    key: 'faq',
+    descKey: 'faqDesc',
+    href: { zh: 'https://docs.bananaslides.online/zh/faq', en: 'https://docs.bananaslides.online/faq' },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -199,16 +232,36 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
         </a>
       </div>
 
-      <div className="flex justify-center pt-2">
-        <Button onClick={() => { onClose(); navigate('/settings', { state: { from: window.location.pathname } }); }} className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg" icon={<Settings size={18} />}>
-          {t('guide.settingsBtn')}
-        </Button>
+      <div className="grid gap-3 md:grid-cols-3">
+        {CONFIG_LINKS.map((link) => (
+          <a
+            key={link.key}
+            href={link.href[lang]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group rounded-xl border border-gray-200 bg-white p-3 transition hover:border-banana-300 hover:bg-banana-50/60 dark:border-border-primary dark:bg-background-secondary dark:hover:border-banana-400 dark:hover:bg-background-hover"
+          >
+            <span className="flex items-center justify-between gap-2 text-sm font-semibold text-gray-800 dark:text-foreground-primary">
+              {t(`guide.${link.key}`)}
+              <ExternalLink size={14} className="flex-shrink-0 text-gray-400 transition group-hover:text-banana-600 dark:group-hover:text-banana-300" />
+            </span>
+            <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-foreground-tertiary">
+              {t(`guide.${link.descKey}`)}
+            </span>
+          </a>
+        ))}
       </div>
 
       <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
         <p className="text-xs text-blue-800">
           💡 <strong>{t('guide.hint')}</strong>：{t('guide.hintBody')}
         </p>
+      </div>
+
+      <div className="flex justify-center pt-2">
+        <Button onClick={() => { onClose(); navigate('/settings', { state: { from: window.location.pathname } }); }} className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg" icon={<Settings size={18} />}>
+          {t('guide.settingsBtn')}
+        </Button>
       </div>
     </div>
   );
