@@ -291,9 +291,6 @@ def delete_template_asset(project_id: str, asset_id: str):
 
     referenced_page_ids = [p.id for p in asset.pages_referenced]
 
-    file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-    file_service.delete_template_asset(project_id, asset_id)
-
     # Clear selection_source on pages that pointed at this asset.
     # The DB FK ON DELETE SET NULL will null out template_asset_id once the row
     # is gone; we additionally null selection_source to put those pages back
@@ -303,8 +300,15 @@ def delete_template_asset(project_id: str, asset_id: str):
             {Page.template_selection_source: None}, synchronize_session=False
         )
 
+    # Commit the DB delete before touching the filesystem: if the commit fails
+    # we keep both row and files, rather than orphaning a row whose images are
+    # already gone.
     db.session.delete(asset)
     db.session.commit()
+
+    FileService(current_app.config['UPLOAD_FOLDER']).delete_template_asset(
+        project_id, asset_id
+    )
 
     return success_response({
         'deleted': True,

@@ -2390,6 +2390,9 @@ def analyze_template_task(task_id: str, project_id: str, asset_id: str,
                 if not asset:
                     raise ValueError(f'Asset {asset_id} no longer exists')
 
+                asset.analysis_status = 'processing'
+                _commit_with_retry()
+
                 image_abs_path = file_service.get_absolute_path(asset.image_path)
                 language = (app.config.get('OUTPUT_LANGUAGE') or 'zh').lower()
 
@@ -2486,9 +2489,12 @@ def auto_match_templates_task(task_id: str, project_id: str,
 
                 matched = 0
                 undecided = 0
+                # Only completed templates were offered to the model, so only
+                # they are valid auto-match targets.
                 valid_template_ids = {t.id for t in
                                        ProjectTemplateAsset.query.filter_by(
-                                           project_id=project_id).all()}
+                                           project_id=project_id,
+                                           analysis_status='completed').all()}
 
                 for row in results:
                     if not isinstance(row, dict):
