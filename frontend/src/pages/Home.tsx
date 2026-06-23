@@ -64,6 +64,8 @@ const homeI18n = {
       template: {
         title: '选择风格模板',
         useTextStyle: '使用文字描述风格',
+        multiMode: '多模板模式',
+        multiModeHint: '每页可使用不同模板，创建后在模板配置页逐页指定',
       },
       actions: {
         selectFile: '选择参考文件',
@@ -81,6 +83,7 @@ const homeI18n = {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
         projectCreateFailed: '项目创建失败',
+        multiModeSwitchFailed: '切换到多模板模式失败，请在项目内重试',
         uploadingImage: '正在上传图片并识别内容...',
         imageUploadSuccess: '图片上传成功！已插入到光标位置',
         imageUploadFailed: '图片上传失败',
@@ -142,6 +145,8 @@ const homeI18n = {
       template: {
         title: 'Select Style Template',
         useTextStyle: 'Use text description for style',
+        multiMode: 'Multi-template mode',
+        multiModeHint: 'Each page can use a different template; assign them per page on the setup page after creation',
       },
       actions: {
         selectFile: 'Select reference file',
@@ -159,6 +164,7 @@ const homeI18n = {
         enterContent: 'Please enter content',
         filesParsing: '{{count}} reference file(s) are still parsing, please wait',
         projectCreateFailed: 'Failed to create project',
+        multiModeSwitchFailed: 'Failed to switch to multi-template mode; please retry inside the project',
         uploadingImage: 'Uploading and recognizing image...',
         imageUploadSuccess: 'Image uploaded! Inserted at cursor position',
         imageUploadFailed: 'Failed to upload image',
@@ -184,10 +190,11 @@ export const Home: React.FC = () => {
   const { i18n } = useTranslation();
   const t = useT(homeI18n); // 组件内翻译 + 自动 fallback 到全局
   const { theme, isDark, setTheme } = useTheme();
-  const { initializeProject, isGlobalLoading } = useProjectStore();
+  const { initializeProject, isGlobalLoading, switchTemplateMode } = useProjectStore();
   const { show, ToastContainer } = useToast();
-  
+
   const [activeTab, setActiveTab] = useState<CreationType>('idea');
+  const [multiTemplateMode, setMultiTemplateMode] = useState(false);
   const [content, setContent] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -635,7 +642,17 @@ export const Home: React.FC = () => {
         show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
         return;
       }
-      
+
+      // 多模板模式：项目默认 single，创建后切到 multi（页级模板在模板配置页指定）
+      if (multiTemplateMode) {
+        try {
+          await switchTemplateMode(projectId, { mode: 'multi' });
+        } catch (error) {
+          console.error('Failed to switch to multi-template mode:', error);
+          show({ message: t('home.messages.multiModeSwitchFailed'), type: 'error' });
+        }
+      }
+
       // 关联未完成解析的参考文件（已完成的在 initializeProject 中关联）
       if (referenceFiles.length > 0) {
         const unassociatedFiles = referenceFiles.filter(f => f.parse_status !== 'completed');
@@ -1150,6 +1167,20 @@ export const Home: React.FC = () => {
               </label>
             </div>
             
+            {/* 多模板模式开关 */}
+            <label className="flex items-center gap-2 cursor-pointer group mb-3" title={t('home.template.multiModeHint')}>
+              <input
+                type="checkbox"
+                checked={multiTemplateMode}
+                onChange={(e) => setMultiTemplateMode(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-banana-500 focus:ring-banana-400"
+              />
+              <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                {t('home.template.multiMode')}
+              </span>
+              <span className="text-xs text-gray-400">{t('home.template.multiModeHint')}</span>
+            </label>
+
             {/* 根据模式显示不同的内容 */}
             {useTemplateStyle ? (
               <TextStyleSelector

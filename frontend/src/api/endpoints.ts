@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material } from '@/types';
+import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material, TemplateAsset } from '@/types';
 import type { Settings } from '../types/index';
 
 export type { Material };
@@ -1525,6 +1525,187 @@ export const extractStyleFromImage = async (
   const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
     '/api/extract-style',
     formData
+  );
+  return response.data;
+};
+
+// ===== 每页模板（per-page template）API =====
+
+/**
+ * 列出项目模板库
+ */
+export const listTemplateAssets = async (
+  projectId: string
+): Promise<ApiResponse<{ assets: TemplateAsset[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ assets: TemplateAsset[] }>>(
+    `/api/projects/${projectId}/template-assets`
+  );
+  return response.data;
+};
+
+/**
+ * 上传单张模板图片（异步触发解析）
+ * @param opts.bindToPageId 上传后自动绑定到该页（PRD §10.3）
+ */
+export const uploadTemplateAsset = async (
+  projectId: string,
+  image: File,
+  opts?: { userLabel?: string; bindToPageId?: string }
+): Promise<ApiResponse<{ asset: TemplateAsset; analyze_task_id: string }>> => {
+  const formData = new FormData();
+  formData.append('image', image);
+  if (opts?.userLabel) formData.append('user_label', opts.userLabel);
+  const query = opts?.bindToPageId
+    ? `?bind_to_page=${encodeURIComponent(opts.bindToPageId)}`
+    : '';
+  const response = await apiClient.post<
+    ApiResponse<{ asset: TemplateAsset; analyze_task_id: string }>
+  >(`/api/projects/${projectId}/template-assets${query}`, formData);
+  return response.data;
+};
+
+/**
+ * 上传 PDF 拆页（异步，返回 task_id 供轮询）
+ */
+export const uploadTemplatePdf = async (
+  projectId: string,
+  pdf: File
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const formData = new FormData();
+  formData.append('pdf', pdf);
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/template-assets/upload-pdf`,
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 编辑模板资产（用户标记 / 修正解析）
+ */
+export const updateTemplateAsset = async (
+  projectId: string,
+  assetId: string,
+  patch: {
+    user_label?: string | null;
+    analysis_json?: TemplateAsset['analysis_json'];
+    analysis_notes?: string | null;
+    sort_order?: number;
+  }
+): Promise<ApiResponse<{ asset: TemplateAsset }>> => {
+  const response = await apiClient.patch<ApiResponse<{ asset: TemplateAsset }>>(
+    `/api/projects/${projectId}/template-assets/${assetId}`,
+    patch
+  );
+  return response.data;
+};
+
+/**
+ * 删除模板资产（引用页字段被后端置空）
+ */
+export const deleteTemplateAsset = async (
+  projectId: string,
+  assetId: string
+): Promise<ApiResponse<{ deleted: boolean; cleared_page_ids: string[] }>> => {
+  const response = await apiClient.delete<
+    ApiResponse<{ deleted: boolean; cleared_page_ids: string[] }>
+  >(`/api/projects/${projectId}/template-assets/${assetId}`);
+  return response.data;
+};
+
+/**
+ * 手动重新解析模板资产
+ */
+export const reanalyzeTemplateAsset = async (
+  projectId: string,
+  assetId: string
+): Promise<ApiResponse<{ analyze_task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ analyze_task_id: string }>>(
+    `/api/projects/${projectId}/template-assets/${assetId}/reanalyze`
+  );
+  return response.data;
+};
+
+/**
+ * 单页设置模板（asset / 文字风格 / 清空）
+ */
+export const updatePageTemplate = async (
+  projectId: string,
+  pageId: string,
+  patch: {
+    template_asset_id?: string | null;
+    template_style_text?: string | null;
+    selection_source?: 'manual' | 'auto' | 'batch_apply';
+  }
+): Promise<ApiResponse<{ page: Page }>> => {
+  const response = await apiClient.patch<ApiResponse<{ page: Page }>>(
+    `/api/projects/${projectId}/pages/${pageId}/template`,
+    patch
+  );
+  return response.data;
+};
+
+/**
+ * 切换模板模式（JSON 路径，决策 7）
+ * 单→多：{ mode: 'multi' }
+ * 多→单：{ mode: 'single', unified_asset_id? , unified_style_text? }
+ */
+export const switchTemplateMode = async (
+  projectId: string,
+  payload:
+    | { mode: 'multi' }
+    | { mode: 'single'; unified_asset_id?: string | null; unified_style_text?: string | null }
+): Promise<ApiResponse<{ project: Project }>> => {
+  const response = await apiClient.patch<ApiResponse<{ project: Project }>>(
+    `/api/projects/${projectId}/template-mode`,
+    payload
+  );
+  return response.data;
+};
+
+/**
+ * 多→单 + 新上传统一模板（multipart 路径）
+ */
+export const switchTemplateModeSingleWithUpload = async (
+  projectId: string,
+  image: File,
+  unifiedStyleText?: string
+): Promise<ApiResponse<{ asset: TemplateAsset; project: Project; analyze_task_id: string }>> => {
+  const formData = new FormData();
+  formData.append('image', image);
+  if (unifiedStyleText) formData.append('unified_style_text', unifiedStyleText);
+  const response = await apiClient.post<
+    ApiResponse<{ asset: TemplateAsset; project: Project; analyze_task_id: string }>
+  >(`/api/projects/${projectId}/template-mode/single-with-upload`, formData);
+  return response.data;
+};
+
+/**
+ * 全项目自动匹配（决策 5）
+ */
+export const autoMatchAllTemplates = async (
+  projectId: string,
+  opts?: { overwrite_existing?: boolean; preserve_non_empty?: boolean }
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/template-assets/auto-match`,
+    {
+      overwrite_existing: opts?.overwrite_existing ?? true,
+      preserve_non_empty: opts?.preserve_non_empty ?? false,
+    }
+  );
+  return response.data;
+};
+
+/**
+ * 单页自动匹配（PRD §9）
+ */
+export const autoMatchPageTemplate = async (
+  projectId: string,
+  pageId: string
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/pages/${pageId}/template/auto-match`
   );
   return response.data;
 };

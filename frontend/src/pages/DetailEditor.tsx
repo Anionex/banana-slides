@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon, Layers } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
@@ -24,6 +24,7 @@ const detailI18n = {
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
       description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲和描述", import: "导入", importExport: "导入/导出",
       pagesCompleted: "页已完成", noPages: "还没有页面",
+      toMultiTemplate: "转为多模板", toTemplateSetup: "前往模板配置", switchFailed: "切换模板模式失败",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
@@ -75,6 +76,7 @@ const detailI18n = {
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
       description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline & Descriptions", import: "Import", importExport: "Import/Export",
       pagesCompleted: "pages completed", noPages: "No pages yet",
+      toMultiTemplate: "Switch to multi-template", toTemplateSetup: "Go to template setup", switchFailed: "Failed to switch template mode",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
@@ -212,6 +214,7 @@ export const DetailEditor: React.FC = () => {
     generateDescriptions,
     generatePageDescription,
     regenerateRenovationPage,
+    switchTemplateMode,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -510,6 +513,16 @@ export const DetailEditor: React.FC = () => {
     handleRegeneratePageRef.current(pageId);
   }, []);
 
+  const handleSwitchToMulti = async () => {
+    if (!projectId) return;
+    try {
+      await switchTemplateMode(projectId, { mode: 'multi' });
+      navigate(`/project/${projectId}/template-setup`);
+    } catch {
+      show({ message: t('detail.switchFailed'), type: 'error' });
+    }
+  };
+
   const handleAiRefineDescriptions = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
     
@@ -637,11 +650,40 @@ export const DetailEditor: React.FC = () => {
             >
               <span className="hidden lg:inline">{t('common.previous')}</span>
             </Button>
+            {currentProject.template_mode === 'multi' ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Layers size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={() => navigate(`/project/${projectId}/template-setup`)}
+                disabled={isRenovationProcessing}
+                className="hidden md:inline-flex"
+              >
+                <span className="hidden lg:inline">{t('detail.toTemplateSetup')}</span>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Layers size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={handleSwitchToMulti}
+                disabled={isRenovationProcessing}
+                className="hidden md:inline-flex"
+              >
+                <span className="hidden lg:inline">{t('detail.toMultiTemplate')}</span>
+              </Button>
+            )}
             <Button
               variant="primary"
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => navigate(`/project/${projectId}/preview`)}
+              onClick={() =>
+                navigate(
+                  currentProject.template_mode === 'multi'
+                    ? `/project/${projectId}/template-setup`
+                    : `/project/${projectId}/preview`
+                )
+              }
               disabled={!hasAllDescriptions || isRenovationProcessing}
               title={!hasAllDescriptions && !isRenovationProcessing ? t('detail.disabledNextTip', { count: missingDescCount }) : undefined}
               className="text-xs md:text-sm"

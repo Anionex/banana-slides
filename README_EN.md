@@ -45,6 +45,50 @@
 
 </div>
 
+---
+
+<p align="center">
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=banana-slides">
+    <img src="./assets/atlas-cloud-logo.png" alt="Atlas Cloud" width="200">
+  </a>
+</p>
+
+> 🎁 **[Atlas Cloud](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=banana-slides)** serves both the **nano-banana image model family** and OpenAI-compatible LLMs — exactly matching Banana Slides' two cores: image generation and text generation. Set `AI_PROVIDER_FORMAT=atlascloud` and **a single key drives both**: images go through the Atlas async Media API (`google/nano-banana/text-to-image`, auto-switching to `google/nano-banana/edit` when reference images are provided), while text / captions use the OpenAI-compatible endpoint.
+>
+> 🖼️ Full image / video model list: [atlascloud.ai/models](https://www.atlascloud.ai/models) · 🤖 LLM-friendly plan: [coding plan](https://www.atlascloud.ai/console/coding-plan)
+
+```env
+AI_PROVIDER_FORMAT=atlascloud
+ATLASCLOUD_API_KEY=<atlascloud-api-key>
+ATLASCLOUD_API_BASE=https://api.atlascloud.ai/v1
+ATLASCLOUD_MEDIA_API_BASE=https://api.atlascloud.ai/api/v1/model
+IMAGE_MODEL=google/nano-banana/text-to-image
+TEXT_MODEL=deepseek-ai/deepseek-v4-pro
+```
+
+<details>
+<summary>nano-banana image models on Atlas Cloud</summary>
+
+Text-to-image:
+- `google/nano-banana/text-to-image`
+- `google/nano-banana-2/text-to-image`
+- `google/nano-banana-pro/text-to-image`
+- `google/nano-banana-pro/text-to-image-ultra`
+
+Image-to-image / edit:
+- `google/nano-banana/edit`
+- `google/nano-banana-2/edit`
+- `google/nano-banana-2/reference-to-image`
+- `google/nano-banana-2/reference-to-image-developer`
+- `google/nano-banana-pro/edit`
+- `google/nano-banana-pro/edit-ultra`
+
+See the full image / video model list at [atlascloud.ai/models](https://www.atlascloud.ai/models).
+
+</details>
+
+---
+
 ## 🔥 Latest Updates
 
 - **[2026-04-25]**: Asset Toolbox launched — Added three new modes based on original asset generation: full-image editing, marquee editing (overlay/replace), and smart erasure, providing a unified one-stop operation.

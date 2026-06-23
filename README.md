@@ -45,7 +45,52 @@
 
 </div>
 
+---
+
+<p align="center">
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=banana-slides">
+    <img src="./assets/atlas-cloud-logo.png" alt="Atlas Cloud" width="200">
+  </a>
+</p>
+
+> 🎁 **[Atlas Cloud](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=banana-slides)** 同时提供 **nano-banana 系列图像模型**和 OpenAI 兼容的 LLM —— 正好覆盖 Banana Slides 的「图像生成 + 文本生成」两大核心。设置 `AI_PROVIDER_FORMAT=atlascloud` 后，**一个 Key 即可同时驱动图像与文本**：图像走 Atlas 异步 Media API（`google/nano-banana/text-to-image`，带参考图时自动切到 `google/nano-banana/edit`），文本 / 图片描述走 OpenAI 兼容接口。
+>
+> 🖼️ 全部图像 / 视频模型：[atlascloud.ai/models](https://www.atlascloud.ai/models) · 🤖 LLM 友好套餐：[coding plan](https://www.atlascloud.ai/console/coding-plan)
+
+```env
+AI_PROVIDER_FORMAT=atlascloud
+ATLASCLOUD_API_KEY=<atlascloud-api-key>
+ATLASCLOUD_API_BASE=https://api.atlascloud.ai/v1
+ATLASCLOUD_MEDIA_API_BASE=https://api.atlascloud.ai/api/v1/model
+IMAGE_MODEL=google/nano-banana/text-to-image
+TEXT_MODEL=deepseek-ai/deepseek-v4-pro
+```
+
+<details>
+<summary>Atlas Cloud 上的 nano-banana 系列图像模型</summary>
+
+文生图（text-to-image）：
+- `google/nano-banana/text-to-image`
+- `google/nano-banana-2/text-to-image`
+- `google/nano-banana-pro/text-to-image`
+- `google/nano-banana-pro/text-to-image-ultra`
+
+图生图 / 图片编辑（image-to-image / edit）：
+- `google/nano-banana/edit`
+- `google/nano-banana-2/edit`
+- `google/nano-banana-2/reference-to-image`
+- `google/nano-banana-2/reference-to-image-developer`
+- `google/nano-banana-pro/edit`
+- `google/nano-banana-pro/edit-ultra`
+
+完整图像 / 视频模型清单见 [atlascloud.ai/models](https://www.atlascloud.ai/models)。
+
+</details>
+
+---
+
 ## 🔥 最新动态
+- **[2026-06-23]**：逐页模板上线 — 支持单/多模板两种模式，可上传图片或 PDF 构建项目模板库，AI 自动解析模板风格并一键为每页智能匹配，也可逐页手动绑定；两种模式随时双向切换（[文档](https://docs.bananaslides.online/zh/features/templates)）
 - **[2026-04-25]**： 素材工具箱上线 — 在原有素材生成基础上新增整图编辑、框选编辑（overlay/replace）、智能擦除三种模式，统一入口一站式操作
 - **[2026-04-25]**：支持通过 OpenAI 官方 OAuth 登录绑定账号，绑定后可直接使用 Codex 作为文本/图片生成 provider，无需手动填写 API Key，plus账号五小时可生成100+ 2k图（[教程](https://ziy68cvfvu3.feishu.cn/wiki/LDSOwPzkhiNonkkNTF1ct2VBnNc))（基于 OpenAI 官方 OAuth PKCE 授权流程，非逆向）
 - **[2026-04-25]**：支持保存自定义文字风格描述模板，可命名、标色、持久化复用，无需每次重新输入

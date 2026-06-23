@@ -29,6 +29,8 @@ from .prompts import (
     get_outline_generation_prompt_markdown,
     get_outline_parsing_prompt_markdown,
     get_description_to_outline_prompt_markdown,
+    get_template_analysis_prompt,
+    get_template_auto_match_prompt,
 )
 from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
@@ -830,36 +832,24 @@ class AIService:
                             extra_requirements: Optional[str] = None,
                             language='zh',
                             has_template: bool = True,
-                            aspect_ratio: str = "16:9") -> str:
+                            aspect_ratio: str = "16:9",
+                            page_style_text: Optional[str] = None) -> str:
         """
         Generate image generation prompt for a page
-        Based on demo.py gen_prompts()
-        
+
         Args:
-            outline: Complete outline
-            page: Page outline data
-            page_desc: Page description text
-            page_index: Page number (1-indexed)
-            has_material_images: 是否有素材图片（从项目描述中提取的图片）
-            extra_requirements: Optional extra requirements to apply to all pages
-            language: Output language
-            has_template: 是否有模板图片（False表示无模板图模式）
-        
-        Returns:
-            Image generation prompt
+            has_template: 是否有模板图片(False=无模板图模式)
+            page_style_text: 页级文字风格(per-page-template 决策 7);
+                非空时拼入风格段,优先级高于项目级 template_style
         """
         outline_text = self.generate_outline_text(outline)
-        
-        # Determine current section
         if 'part' in page:
             current_section = page['part']
         else:
             current_section = f"{page.get('title', 'Untitled')}"
-        
-        # 在传给文生图模型之前，移除 Markdown 图片链接
-        # 图片本身已经通过 additional_ref_images 传递，只保留文字描述
+
         cleaned_page_desc = self.remove_markdown_images(page_desc)
-        
+
         prompt = get_image_generation_prompt(
             page_desc=cleaned_page_desc,
             outline_text=outline_text,
@@ -869,9 +859,10 @@ class AIService:
             language=language,
             has_template=has_template,
             page_index=page_index,
-            aspect_ratio=aspect_ratio
+            aspect_ratio=aspect_ratio,
+            page_style_text=page_style_text,
         )
-        
+
         return prompt
     
     def generate_image(self, prompt: str, ref_image_path: Optional[str] = None, 
@@ -1169,3 +1160,126 @@ class AIService:
     def extract_style_description(self, image_path: str) -> str:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
+
+    # =========================================================================
+    # Per-page template (PRD §5.3 / §8) — analysis + auto-match
+    # =========================================================================
+
+    def analyze_template(self, image_path: str, language: str = 'zh') -> Dict:
+        """
+        Analyze a template image into the 9-field schema (PRD §5.3).
+
+        Reuses generate_json_with_image (3x soft retry). On model-declared
+        failure returns {"error": "not_a_slide"}; on retry exhaustion raises
+        json.JSONDecodeError.
+        """
+        prompt = get_template_analysis_prompt(language=language)
+        result = self.generate_json_with_image(prompt, image_path)
+        if isinstance(result, dict):
+            return result
+        raise ValueError(f"analyze_template expected dict, got {type(result).__name__}")
+
+    def auto_match_templates(self, project_id: str, language: str = 'zh',
+                              overwrite_existing: bool = True,
+                              preserve_non_empty: bool = False) -> List[Dict]:
+        """
+        Auto-match every page in a project to a template (decision 5).
+
+        - Candidates: ProjectTemplateAsset with analysis_status == 'completed'
+          (decision 2 — failed/pending assets stay manual-only)
+        - Pages: every Page with non-empty description_content
+        - Batching: <=50 pages AND <=20 templates → single LLM call;
+          otherwise 30-page batches, results concatenated in order
+        - preserve_non_empty=True skips pages that already have template_asset_id
+
+        Returns rows shaped like the prompt schema; caller (task) commits to DB.
+        """
+        from models import Project, Page, ProjectTemplateAsset
+
+        project = Project.query.get(project_id)
+        if not project:
+            raise ValueError(f"project not found: {project_id}")
+
+        templates_q = ProjectTemplateAsset.query.filter_by(
+            project_id=project_id, analysis_status='completed'
+        ).order_by(ProjectTemplateAsset.sort_order.asc()).all()
+        if not templates_q:
+            raise ValueError("NO_ANALYZED_TEMPLATES")
+
+        pages_q = Page.query.filter_by(project_id=project_id).order_by(
+            Page.order_index.asc()).all()
+
+        eligible_pages = []
+        for p in pages_q:
+            desc = p.get_description_content() if hasattr(p, 'get_description_content') else None
+            if not desc:
+                continue
+            if preserve_non_empty and p.template_asset_id:
+                continue
+            eligible_pages.append((p, desc))
+
+        if not eligible_pages:
+            return []
+
+        templates_payload = [self._trim_template_for_match(t) for t in templates_q]
+        pages_payload = [self._trim_page_for_match(p, desc) for p, desc in eligible_pages]
+
+        BATCH_PAGES, BATCH_TEMPLATES = 50, 20
+        if len(pages_payload) <= BATCH_PAGES and len(templates_payload) <= BATCH_TEMPLATES:
+            batches = [pages_payload]
+        else:
+            batches = [pages_payload[i:i + 30] for i in range(0, len(pages_payload), 30)]
+
+        all_results: List[Dict] = []
+        for batch in batches:
+            prompt = get_template_auto_match_prompt(
+                templates=templates_payload, pages=batch, language=language)
+            result = self.generate_json(prompt)
+            if not isinstance(result, list):
+                raise ValueError(f"auto_match_templates expected list, got {type(result).__name__}")
+            all_results.extend(result)
+
+        return all_results
+
+    @staticmethod
+    def _trim_template_for_match(asset) -> Dict:
+        """PRD §5.3 → matcher-friendly subset (decision 5 trimming)."""
+        analysis = asset.get_analysis() if hasattr(asset, 'get_analysis') else {}
+        analysis = analysis or {}
+        keywords = (analysis.get('style_keywords') or [])[:5]
+        notes = (asset.analysis_notes or analysis.get('notes') or '')[:200]
+        return {
+            'asset_id': asset.id,
+            'user_label': asset.user_label or '',
+            'template_role': analysis.get('template_role'),
+            'layout_structure': analysis.get('layout_structure'),
+            'content_capacity': analysis.get('content_capacity'),
+            'visual_density': analysis.get('visual_density'),
+            'style_keywords': keywords,
+            'notes': notes,
+        }
+
+    @staticmethod
+    def _trim_page_for_match(page, desc: Dict) -> Dict:
+        """Page → matcher-friendly subset (decision 5: title + 100-char summary + density)."""
+        title = (desc.get('title') or '').strip()
+        text_blocks = desc.get('text_content') or []
+        if isinstance(text_blocks, list):
+            joined = ' / '.join(str(t) for t in text_blocks if t)
+        else:
+            joined = str(text_blocks)
+        summary = joined[:100]
+        body_len = len(joined)
+        if body_len < 200:
+            density = 'low'
+        elif body_len < 600:
+            density = 'medium'
+        else:
+            density = 'high'
+        return {
+            'page_id': page.id,
+            'order_index': page.order_index,
+            'title': title,
+            'summary': summary,
+            'content_density': density,
+        }

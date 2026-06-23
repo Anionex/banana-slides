@@ -3,6 +3,7 @@ from .base import ImageProvider
 from .genai_provider import GenAIImageProvider
 from .openai_provider import OpenAIImageProvider
 from .anthropic_provider import AnthropicImageProvider
+from .atlas_provider import AtlasImageProvider
 from .baidu_inpainting_provider import BaiduInpaintingProvider, create_baidu_inpainting_provider
 from .lazyllm_provider import LazyLLMImageProvider
 from .codex_provider import CodexImageProvider
@@ -14,6 +15,7 @@ __all__ = [
     'GenAIImageProvider',
     'OpenAIImageProvider',
     'AnthropicImageProvider',
+    'AtlasImageProvider',
     'BaiduInpaintingProvider',
     'create_baidu_inpainting_provider',
     'LazyLLMImageProvider',
