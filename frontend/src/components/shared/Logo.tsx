@@ -17,7 +17,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 28, wordmark, className }) =>
   <span className={cn('inline-flex items-center gap-2 select-none', className)}>
     <img
       src="/logo.png"
-      alt=""
+      alt={wordmark != null ? '' : 'Banana Slides'}
       width={size}
       height={size}
       draggable={false}

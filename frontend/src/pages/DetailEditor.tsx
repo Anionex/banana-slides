@@ -203,7 +203,7 @@ const SortableFieldPill: React.FC<{
 const ProgressRing: React.FC<{ completed: number; total: number; label: string }> = ({ completed, total, label }) => {
   const r = 13;
   const c = 2 * Math.PI * r;
-  const pct = total > 0 ? completed / total : 0;
+  const pct = total > 0 ? Math.min(1, Math.max(0, completed / total)) : 0;
   return (
     <div className="flex items-center gap-1.5 pr-0.5" title={label}>
       <svg width="28" height="28" viewBox="0 0 32 32" className="-rotate-90">
@@ -750,7 +750,7 @@ export const DetailEditor: React.FC = () => {
                 className="relative w-10 h-10 grid place-items-center rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary text-gray-600 dark:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors"
               >
                 <Settings2 size={18} />
-                {descRequirements && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-banana-400 ring-2 ring-white dark:ring-background-secondary" />}
+                {descRequirements.trim() && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-banana-400 ring-2 ring-white dark:ring-background-secondary" />}
               </button>
               {settingsOpen && (
                 <div className="absolute top-full left-0 mt-1 z-50 w-80 rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
