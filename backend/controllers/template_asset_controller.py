@@ -291,13 +291,18 @@ def delete_template_asset(project_id: str, asset_id: str):
 
     referenced_page_ids = [p.id for p in asset.pages_referenced]
 
-    # Clear selection_source on pages that pointed at this asset.
-    # The DB FK ON DELETE SET NULL will null out template_asset_id once the row
-    # is gone; we additionally null selection_source to put those pages back
-    # into the "未确认" state per PRD §11.
+    # Explicitly clear both the FK and selection_source on referencing pages.
+    # We don't rely on the DB FK ON DELETE SET NULL because SQLite does not
+    # enforce foreign keys unless PRAGMA foreign_keys=ON (not set here); doing
+    # it in the update keeps the reset database-agnostic and puts those pages
+    # back into the "未确认" state per PRD §11.
     if referenced_page_ids:
         Page.query.filter(Page.id.in_(referenced_page_ids)).update(
-            {Page.template_selection_source: None}, synchronize_session=False
+            {
+                Page.template_asset_id: None,
+                Page.template_selection_source: None,
+            },
+            synchronize_session=False,
         )
 
     # Commit the DB delete before touching the filesystem: if the commit fails
