@@ -5,6 +5,7 @@ import { Landing } from './pages/Landing';
 import { History } from './pages/History';
 import { OutlineEditor } from './pages/OutlineEditor';
 import { DetailEditor } from './pages/DetailEditor';
+import { TemplateSetupPage } from './pages/TemplateSetupPage';
 import { SlidePreview } from './pages/SlidePreview';
 import { SettingsPage } from './pages/Settings';
 import { useProjectStore } from './store/useProjectStore';
@@ -40,6 +41,7 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/project/:projectId/outline" element={<OutlineEditor />} />
           <Route path="/project/:projectId/detail" element={<DetailEditor />} />
+          <Route path="/project/:projectId/template-setup" element={<TemplateSetupPage />} />
           <Route path="/project/:projectId/preview" element={<SlidePreview />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
