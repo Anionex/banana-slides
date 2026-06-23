@@ -279,7 +279,7 @@ import {
   RectangleHorizontal,
   LayoutTemplate,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { Button, IconButton, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { SwitchToSingleModeDialog } from '@/components/template/SwitchToSingleModeDialog';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
@@ -1634,35 +1634,29 @@ export const SlidePreview: React.FC = () => {
             </Button>
             {currentProject?.template_mode === 'multi' ? (
               <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={<LayoutTemplate size={16} className="md:w-[18px] md:h-[18px]" />}
+                <IconButton
+                  icon={<LayoutTemplate size={18} />}
+                  label={t('preview.templateSetup')}
+                  tooltipSide="bottom"
                   onClick={() => navigate(`/project/${projectId}/template-setup`)}
                   className="hidden lg:inline-flex"
-                >
-                  <span className="hidden xl:inline">{t('preview.templateSetup')}</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={<RectangleHorizontal size={16} className="md:w-[18px] md:h-[18px]" />}
+                />
+                <IconButton
+                  icon={<RectangleHorizontal size={18} />}
+                  label={t('preview.switchToSingle')}
+                  tooltipSide="bottom"
                   onClick={() => setIsSwitchSingleOpen(true)}
                   className="hidden lg:inline-flex"
-                >
-                  <span className="hidden xl:inline">{t('preview.switchToSingle')}</span>
-                </Button>
+                />
               </>
             ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<Layers size={16} className="md:w-[18px] md:h-[18px]" />}
+              <IconButton
+                icon={<Layers size={18} />}
+                label={t('preview.switchToMulti')}
+                tooltipSide="bottom"
                 onClick={handleSwitchToMulti}
                 className="hidden lg:inline-flex"
-              >
-                <span className="hidden xl:inline">{t('preview.switchToMulti')}</span>
-              </Button>
+              />
             )}
             <Button
               variant="ghost"
