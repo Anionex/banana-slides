@@ -262,7 +262,10 @@ def patch_template_asset(project_id: str, asset_id: str):
         asset.analysis_notes = data['analysis_notes']
         touched = True
     if 'analysis_json' in data:
-        asset.set_analysis(data['analysis_json'])
+        analysis_data = data['analysis_json']
+        if analysis_data is not None and not isinstance(analysis_data, dict):
+            return bad_request('analysis_json 必须是一个字典')
+        asset.set_analysis(analysis_data)
         asset.user_edited_analysis = True
         touched = True
     if 'sort_order' in data:

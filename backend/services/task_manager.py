@@ -2339,6 +2339,9 @@ def process_template_pdf_split_task(task_id: str, project_id: str,
                 except Exception as exc:
                     logger.warning('Failed to enqueue analyze for asset %s: %s',
                                    asset_id, exc)
+                    # Roll back so a failed commit doesn't poison the session and
+                    # break the remaining iterations of this loop.
+                    db.session.rollback()
 
             file_service.cleanup_template_pdf_temp(project_id, task_id)
 
@@ -2418,6 +2421,9 @@ def analyze_template_task(task_id: str, project_id: str, asset_id: str,
                                    'analysis_status': asset.analysis_status})
                 _commit_with_retry()
             except Exception as exc:
+                # Clear any poisoned session state from a failed commit so the
+                # FAILED-status writes below can actually go through.
+                db.session.rollback()
                 import traceback
                 logger.error('ANALYZE_TEMPLATE task %s crashed: %s',
                              task_id, traceback.format_exc())

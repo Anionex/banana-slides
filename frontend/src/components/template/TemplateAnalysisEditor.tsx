@@ -98,15 +98,18 @@ export const TemplateAnalysisEditor: React.FC<TemplateAnalysisEditorProps> = ({
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
 
-  // Re-sync local editor state when the asset's analysis changes (e.g. after a
-  // re-analyze completes or a different asset is selected).
+  // Re-sync local editor state only when a different asset is selected or this
+  // asset's analysis status actually changes (e.g. a re-analyze completes).
+  // Depending on analysis_json/notes object refs would re-fire on every
+  // background poll of *other* templates and clobber the user's unsaved edits.
   React.useEffect(() => {
     const next = asset.analysis_json ?? emptyAnalysis;
     setDraft(next);
     setNotes(asset.analysis_notes ?? '');
     setKeywordsText((next.style_keywords ?? []).join(', '));
     setPaletteText((next.color_palette ?? []).join(', '));
-  }, [asset.analysis_json, asset.analysis_notes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asset.id, asset.analysis_status]);
 
   const levelOptions: TemplateAnalysis['content_capacity'][] = ['low', 'medium', 'high'];
 
