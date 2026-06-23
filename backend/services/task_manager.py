@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import Callable, List, Dict, Any, Optional
@@ -15,7 +16,7 @@ import time
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
-from models import db, Task, Page, Material, PageImageVersion, Settings
+from models import db, Task, Page, Material, PageImageVersion, Settings, ProjectTemplateAsset, Project
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
@@ -256,6 +257,36 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
     logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}, cached: {cached_image_path}")
 
     return image_path, next_version
+
+
+def resolve_page_template(page, project, file_service):
+    """Per-page-template priority chain (PRD §13).
+
+    Returns (ref_image_abs_path | None, page_style_text | None).
+
+    Priority:
+      1. page.template_asset_id        → asset.image_path (per-page image)
+      2. page.template_style_text      → page-level style text
+      3. project.template_image_path   → legacy project-level image (backfill / single-mode)
+      4. project.template_style        → legacy project-level style
+    """
+    image_path = None
+    style_text = None
+
+    asset = getattr(page, 'template_asset', None)
+    if asset and getattr(asset, 'image_path', None):
+        image_path = file_service.get_absolute_path(asset.image_path)
+
+    if getattr(page, 'template_style_text', None):
+        style_text = page.template_style_text
+
+    if image_path is None and project and getattr(project, 'template_image_path', None):
+        image_path = file_service.get_template_path(project.id)
+
+    if not style_text and project and getattr(project, 'template_style', None):
+        style_text = project.template_style
+
+    return image_path, style_text
 
 
 def _commit_with_retry(max_retries=5, base_delay=0.5):
@@ -642,21 +673,22 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                     page_additional_ref_images = image_urls
                                     has_material_images = True
                             
-                            # 在子线程中动态获取模板路径，确保使用最新模板
-                            page_ref_image_path = None
-                            if use_template:
-                                page_ref_image_path = file_service.get_template_path(project_id)
-                                # 注意：如果有风格描述，即使没有模板图片也允许生成
-                                # 这个检查已经在 controller 层完成，这里不再检查
-                            
+                            # Per-page-template (PRD §13): resolve image + style
+                            # per-page, falling back to project-level for legacy/single-mode.
+                            project_for_template = Project.query.get(project_id)
+                            page_ref_image_path, page_style_text = resolve_page_template(
+                                page_obj, project_for_template, file_service)
+                            has_template_image = bool(page_ref_image_path)
+
                             # Generate image prompt
                             prompt = ai_service.generate_image_prompt(
                                 outline, page_data, desc_text, page_index,
                                 has_material_images=has_material_images,
                                 extra_requirements=extra_requirements,
                                 language=language,
-                                has_template=use_template,
-                                aspect_ratio=aspect_ratio
+                                has_template=has_template_image,
+                                aspect_ratio=aspect_ratio,
+                                page_style_text=page_style_text,
                             )
                             logger.debug(f"Generated image prompt for page {page_id}")
                             
@@ -747,7 +779,6 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
             
             # Update project status
-            from models import Project
             project = Project.query.get(project_id)
             if project and failed == 0:
                 project.status = 'COMPLETED'
@@ -832,25 +863,26 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     additional_ref_images = image_urls
                     has_material_images = True
             
-            # Get template path if use_template
-            ref_image_path = None
-            if use_template:
-                ref_image_path = file_service.get_template_path(project_id)
-                # 注意：如果有风格描述，即使没有模板图片也允许生成
-                # 这个检查已经在 controller 层完成，这里不再检查
-            
+            # Per-page-template (PRD §13): resolve image + style per-page,
+            # falling back to project-level for legacy/single-mode.
+            project_for_template = Project.query.get(project_id)
+            ref_image_path, page_style_text = resolve_page_template(
+                page, project_for_template, file_service)
+            has_template_image = bool(ref_image_path)
+
             # Generate image prompt
             page_data = page.get_outline_content() or {}
             if page.part:
                 page_data['part'] = page.part
-            
+
             prompt = ai_service.generate_image_prompt(
                 outline, page_data, desc_text, page.order_index + 1,
                 has_material_images=has_material_images,
                 extra_requirements=extra_requirements,
                 language=language,
-                has_template=use_template,
-                aspect_ratio=aspect_ratio
+                has_template=has_template_image,
+                aspect_ratio=aspect_ratio,
+                page_style_text=page_style_text,
             )
 
             def mark_generating():
@@ -2156,3 +2188,370 @@ def export_video_task(
             if placeholder_dir and os.path.exists(placeholder_dir):
                 import shutil
                 shutil.rmtree(placeholder_dir, ignore_errors=True)
+
+
+# ============================================================================
+# Per-page template tasks
+# ============================================================================
+
+
+def _set_task_processing(task_id: str) -> None:
+    task = Task.query.get(task_id)
+    if task and task.status == 'PENDING':
+        task.status = 'PROCESSING'
+        db.session.commit()
+
+
+def process_template_pdf_split_task(task_id: str, project_id: str,
+                                    pdf_relpath: str, file_service, app):
+    """SPLIT_TEMPLATE_PDF — render each page as PNG, import into asset library.
+
+    Each successful page becomes a `ProjectTemplateAsset(source='pdf_split')`
+    and triggers its own `analyze_template_task`. Per-page failures are kept
+    in `progress.failed` but do not abort the whole task.
+    """
+    if app is None:
+        raise ValueError('Flask app instance must be provided')
+
+    from services.pdf_image_service import pdf_to_page_images
+    from services.ai_service import AIService
+
+    with app.app_context():
+        task = Task.query.get(task_id)
+        if not task:
+            return
+
+        try:
+            _set_task_processing(task_id)
+
+            pdf_abs = file_service.get_absolute_path(pdf_relpath)
+            output_dir = file_service.get_template_pdf_temp_dir(project_id, task_id)
+
+            try:
+                renders = pdf_to_page_images(pdf_abs, str(output_dir))
+            except ValueError as exc:
+                # E.g. > max_pages — fail the whole task
+                task = Task.query.get(task_id)
+                if task:
+                    task.status = 'FAILED'
+                    task.error_message = str(exc)
+                    task.completed_at = datetime.utcnow()
+                    db.session.commit()
+                return
+
+            total = len(renders)
+            completed = 0
+            failed = 0
+            created_asset_ids = []
+
+            # Determine starting sort_order so PDF-imported assets append cleanly
+            base_sort = (
+                db.session.query(func.coalesce(func.max(ProjectTemplateAsset.sort_order), -1))
+                .filter(ProjectTemplateAsset.project_id == project_id)
+                .scalar()
+            ) + 1
+
+            ai_service = AIService()
+
+            task = Task.query.get(task_id)
+            if task:
+                task.set_progress({
+                    'total': total,
+                    'completed': 0,
+                    'failed': 0,
+                    'created_asset_ids': [],
+                })
+                db.session.commit()
+
+            for render in renders:
+                page_index = render['index']
+                src_path = render.get('path')
+                if not src_path:
+                    failed += 1
+                    task = Task.query.get(task_id)
+                    if task:
+                        task.update_progress(completed=completed, failed=failed)
+                        db.session.commit()
+                    continue
+
+                asset_id = str(uuid.uuid4())
+                try:
+                    image_path, thumb_path = file_service.save_template_asset_from_path(
+                        src_path, project_id, asset_id
+                    )
+                    asset = ProjectTemplateAsset(
+                        id=asset_id,
+                        project_id=project_id,
+                        image_path=image_path,
+                        thumb_path=thumb_path,
+                        source='pdf_split',
+                        source_pdf_id=task_id,
+                        source_page_index=page_index,
+                        analysis_status='pending',
+                        sort_order=base_sort + page_index - 1,
+                    )
+                    db.session.add(asset)
+                    db.session.commit()
+                    created_asset_ids.append(asset_id)
+                    completed += 1
+                except Exception as exc:
+                    logger.warning('Failed to import PDF page %s as asset: %s',
+                                   page_index, exc)
+                    db.session.rollback()
+                    failed += 1
+                    task = Task.query.get(task_id)
+                    if task:
+                        task.update_progress(completed=completed, failed=failed)
+                        db.session.commit()
+                    continue
+
+                task = Task.query.get(task_id)
+                if task:
+                    progress = task.get_progress()
+                    progress.update({
+                        'total': total,
+                        'completed': completed,
+                        'failed': failed,
+                        'created_asset_ids': list(created_asset_ids),
+                    })
+                    task.set_progress(progress)
+                    db.session.commit()
+
+                # Fire per-asset analyze task. Failure here is non-fatal.
+                try:
+                    sub_task = Task(
+                        project_id=project_id,
+                        task_type='ANALYZE_TEMPLATE',
+                        status='PENDING',
+                    )
+                    sub_task.set_progress({'asset_id': asset_id, 'stage': 'queued'})
+                    db.session.add(sub_task)
+                    db.session.commit()
+                    task_manager.submit_task(
+                        sub_task.id,
+                        analyze_template_task,
+                        project_id,
+                        asset_id,
+                        ai_service,
+                        file_service,
+                        app,
+                    )
+                except Exception as exc:
+                    logger.warning('Failed to enqueue analyze for asset %s: %s',
+                                   asset_id, exc)
+
+            file_service.cleanup_template_pdf_temp(project_id, task_id)
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED' if failed < total else 'FAILED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    'total': total,
+                    'completed': completed,
+                    'failed': failed,
+                    'created_asset_ids': created_asset_ids,
+                })
+                if failed >= total:
+                    task.error_message = 'All PDF pages failed to render'
+                db.session.commit()
+
+        except Exception as exc:
+            import traceback
+            logger.error('SPLIT_TEMPLATE_PDF task %s crashed: %s',
+                         task_id, traceback.format_exc())
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(exc)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+
+
+def analyze_template_task(task_id: str, project_id: str, asset_id: str,
+                          ai_service, file_service, app):
+    """ANALYZE_TEMPLATE — call ai_service.analyze_template, persist 9-field
+    schema (PRD §5.3). Decision 2: AI-declared not_a_slide → analysis_status
+    = 'failed', asset stays manual-only.
+    """
+    if app is None:
+        raise ValueError('Flask app instance must be provided')
+    with app.app_context():
+        task = Task.query.get(task_id)
+        if not task:
+            return
+        with text_resource_limiter.slot(label=f'analyze_template:{asset_id}'):
+            try:
+                _set_task_processing(task_id)
+                task.set_progress({'asset_id': asset_id, 'stage': 'calling_ai'})
+                db.session.commit()
+
+                asset = ProjectTemplateAsset.query.get(asset_id)
+                if not asset:
+                    raise ValueError(f'Asset {asset_id} no longer exists')
+
+                asset.analysis_status = 'processing'
+                _commit_with_retry()
+
+                image_abs_path = file_service.get_absolute_path(asset.image_path)
+                language = (app.config.get('OUTPUT_LANGUAGE') or 'zh').lower()
+
+                result = ai_service.analyze_template(image_abs_path, language=language)
+
+                asset = ProjectTemplateAsset.query.get(asset_id)
+                if isinstance(result, dict) and result.get('error') == 'not_a_slide':
+                    asset.analysis_status = 'failed'
+                    asset.analysis_error = 'not_a_slide'
+                    asset.analysis_json = None
+                    asset.analysis_notes = None
+                else:
+                    asset.set_analysis(result)
+                    asset.analysis_notes = (result or {}).get('notes')
+                    asset.analysis_status = 'completed'
+                    asset.analysis_error = None
+                _commit_with_retry()
+
+                task = Task.query.get(task_id)
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({'asset_id': asset_id, 'stage': 'done',
+                                   'analysis_status': asset.analysis_status})
+                _commit_with_retry()
+            except Exception as exc:
+                import traceback
+                logger.error('ANALYZE_TEMPLATE task %s crashed: %s',
+                             task_id, traceback.format_exc())
+                asset = ProjectTemplateAsset.query.get(asset_id)
+                if asset:
+                    asset.analysis_status = 'failed'
+                    asset.analysis_error = str(exc)[:500]
+                    db.session.commit()
+                task = Task.query.get(task_id)
+                if task:
+                    task.status = 'FAILED'
+                    task.error_message = str(exc)[:500]
+                    task.completed_at = datetime.utcnow()
+                    task.set_progress({'asset_id': asset_id, 'stage': 'failed'})
+                    db.session.commit()
+
+
+def auto_match_templates_task(task_id: str, project_id: str,
+                              page_id: Optional[str],
+                              overwrite_existing: bool,
+                              preserve_non_empty: bool,
+                              ai_service, app):
+    """AUTO_MATCH_TEMPLATES — calls ai_service.auto_match_templates and
+    writes per-page template_asset_id / style_text / match metadata.
+
+    Decision 5: batching is inside ai_service. Decision 7: writes are
+    bulk-by-page, no project-level fields touched. PRD §8.4: undecided
+    rows null out template_asset_id when overwrite_existing=True.
+    """
+    if app is None:
+        raise ValueError('Flask app instance must be provided')
+    with app.app_context():
+        task = Task.query.get(task_id)
+        if not task:
+            return
+        with text_resource_limiter.slot(label=f'auto_match:{project_id}'):
+            try:
+                _set_task_processing(task_id)
+                language = (app.config.get('OUTPUT_LANGUAGE') or 'zh').lower()
+
+                if page_id:
+                    page = Page.query.filter_by(
+                        id=page_id, project_id=project_id).first()
+                    if not page:
+                        raise ValueError(f'Page {page_id} not in project {project_id}')
+                    desc = page.get_description_content()
+                    if not desc:
+                        raise ValueError('MISSING_DESCRIPTION')
+                    templates = [t for t in ProjectTemplateAsset.query.filter_by(
+                        project_id=project_id, analysis_status='completed').order_by(
+                        ProjectTemplateAsset.sort_order.asc()).all()]
+                    if not templates:
+                        raise ValueError('NO_ANALYZED_TEMPLATES')
+                    pages_payload = [ai_service._trim_page_for_match(page, desc)]
+                    templates_payload = [ai_service._trim_template_for_match(t)
+                                         for t in templates]
+                    from .prompts import get_template_auto_match_prompt
+                    prompt = get_template_auto_match_prompt(
+                        templates=templates_payload, pages=pages_payload,
+                        language=language)
+                    results = ai_service.generate_json(prompt)
+                    if not isinstance(results, list):
+                        raise ValueError('auto_match: expected list response')
+                else:
+                    results = ai_service.auto_match_templates(
+                        project_id=project_id, language=language,
+                        overwrite_existing=overwrite_existing,
+                        preserve_non_empty=preserve_non_empty)
+
+                matched = 0
+                undecided = 0
+                # Only completed templates were offered to the model, so only
+                # they are valid auto-match targets.
+                valid_template_ids = {t.id for t in
+                                       ProjectTemplateAsset.query.filter_by(
+                                           project_id=project_id,
+                                           analysis_status='completed').all()}
+
+                for row in results:
+                    if not isinstance(row, dict):
+                        continue
+                    pid = row.get('page_id')
+                    if not pid:
+                        continue
+                    page = Page.query.filter_by(
+                        id=pid, project_id=project_id).first()
+                    if not page:
+                        continue
+                    if preserve_non_empty and page.template_asset_id:
+                        continue
+
+                    status = row.get('status', 'undecided')
+                    chosen = row.get('template_asset_id')
+                    if chosen and chosen not in valid_template_ids:
+                        chosen = None
+                        status = 'undecided'
+
+                    if status == 'matched' and chosen:
+                        page.template_asset_id = chosen
+                        page.template_selection_source = 'auto'
+                        page.template_match_reason = (row.get('reason') or '')[:500]
+                        try:
+                            page.template_match_confidence = float(
+                                row.get('confidence') or 0.0)
+                        except (TypeError, ValueError):
+                            page.template_match_confidence = None
+                        matched += 1
+                    else:
+                        if overwrite_existing:
+                            page.template_asset_id = None
+                            page.template_selection_source = None
+                            page.template_match_reason = (row.get('reason') or '')[:500]
+                            page.template_match_confidence = None
+                        undecided += 1
+
+                _commit_with_retry()
+
+                task = Task.query.get(task_id)
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    'total_pages': len(results),
+                    'matched': matched,
+                    'undecided': undecided,
+                    'scope': 'page' if page_id else 'project',
+                })
+                _commit_with_retry()
+            except Exception as exc:
+                import traceback
+                logger.error('AUTO_MATCH_TEMPLATES task %s crashed: %s',
+                             task_id, traceback.format_exc())
+                task = Task.query.get(task_id)
+                if task:
+                    task.status = 'FAILED'
+                    task.error_message = str(exc)[:500]
+                    task.completed_at = datetime.utcnow()
+                    db.session.commit()
