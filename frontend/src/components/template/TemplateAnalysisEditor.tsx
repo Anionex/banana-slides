@@ -72,6 +72,14 @@ const emptyAnalysis: TemplateAnalysis = {
   notes: '',
 };
 
+// Merge with defaults so a partial analysis_json (e.g. an LLM response missing
+// text_regions/image_regions) can't leave array fields undefined and crash the
+// render via draft[field].map().
+const withDefaults = (a?: TemplateAnalysis | null): TemplateAnalysis => ({
+  ...emptyAnalysis,
+  ...(a ?? {}),
+});
+
 export interface TemplateAnalysisEditorProps {
   asset: TemplateAsset;
   onSave: (analysis: TemplateAnalysis, notes: string) => Promise<void> | void;
@@ -85,7 +93,7 @@ export const TemplateAnalysisEditor: React.FC<TemplateAnalysisEditorProps> = ({
 }) => {
   const t = useT(i18n);
   const failed = asset.analysis_status === 'failed';
-  const [draft, setDraft] = useState<TemplateAnalysis>(asset.analysis_json ?? emptyAnalysis);
+  const [draft, setDraft] = useState<TemplateAnalysis>(withDefaults(asset.analysis_json));
   const [notes, setNotes] = useState<string>(asset.analysis_notes ?? '');
   // Keep keywords/palette as raw text while editing so trailing commas and
   // in-progress entries aren't stripped on every keystroke; parse on save.
@@ -103,7 +111,7 @@ export const TemplateAnalysisEditor: React.FC<TemplateAnalysisEditorProps> = ({
   // Depending on analysis_json/notes object refs would re-fire on every
   // background poll of *other* templates and clobber the user's unsaved edits.
   React.useEffect(() => {
-    const next = asset.analysis_json ?? emptyAnalysis;
+    const next = withDefaults(asset.analysis_json);
     setDraft(next);
     setNotes(asset.analysis_notes ?? '');
     setKeywordsText((next.style_keywords ?? []).join(', '));

@@ -2505,14 +2505,18 @@ def auto_match_templates_task(task_id: str, project_id: str,
                                            project_id=project_id,
                                            analysis_status='completed').all()}
 
+                # Pre-load all project pages once to avoid an N+1 query per row.
+                pages_by_id = {
+                    p.id: p for p in
+                    Page.query.filter_by(project_id=project_id).all()
+                }
                 for row in results:
                     if not isinstance(row, dict):
                         continue
                     pid = row.get('page_id')
                     if not pid:
                         continue
-                    page = Page.query.filter_by(
-                        id=pid, project_id=project_id).first()
+                    page = pages_by_id.get(pid)
                     if not page:
                         continue
                     if preserve_non_empty and page.template_asset_id:

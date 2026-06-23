@@ -1409,11 +1409,12 @@ const debouncedUpdatePage = debounce(
         set({
           currentProject: {
             ...currentProject,
-            pages: currentProject.pages.map((p) =>
-              p.id && cleared.has(p.id)
+            pages: currentProject.pages.map((p) => {
+              const pid = p.id || p.page_id;
+              return pid && cleared.has(pid)
                 ? { ...p, template_asset_id: null, template_selection_source: null }
-                : p
-            ),
+                : p;
+            }),
           },
         });
       }
