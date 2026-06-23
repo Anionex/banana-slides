@@ -63,13 +63,13 @@ test.describe('Preview text style template - Mock tests', () => {
 
     // Initially should show toggle label but NOT TextStyleSelector content
     await expect(page.getByText(/使用文字描述风格|Use text description for style/)).toBeVisible()
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).not.toBeVisible()
 
     // Toggle to text style mode (click label text — the actual input is sr-only/off-screen)
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
 
     // Now TextStyleSelector should be visible
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).toBeVisible()
     // Apply button should appear
     await expect(page.getByText(/应用风格|Apply Style/)).toBeVisible()
   })
@@ -100,7 +100,7 @@ test.describe('Preview text style template - Mock tests', () => {
 
     // Close modal without clicking Apply
     await page.getByText(/关闭|Close/).click()
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).not.toBeVisible()
 
     // Reopen — toggle is still on, textarea should be empty (draft discarded)
     await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
@@ -138,7 +138,7 @@ test.describe('Preview text style template - Integration tests', () => {
     await page.getByText(/应用风格|Apply Style/).click()
 
     // Modal should close
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).not.toBeVisible()
 
     // Reload and verify persistence
     await page.reload()
