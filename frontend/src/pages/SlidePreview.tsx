@@ -276,6 +276,7 @@ import {
   Loader2,
   Info,
   Layers,
+  RectangleHorizontal,
   LayoutTemplate,
 } from 'lucide-react';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
@@ -1645,7 +1646,7 @@ export const SlidePreview: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  icon={<Layers size={16} className="md:w-[18px] md:h-[18px]" />}
+                  icon={<RectangleHorizontal size={16} className="md:w-[18px] md:h-[18px]" />}
                   onClick={() => setIsSwitchSingleOpen(true)}
                   className="hidden lg:inline-flex"
                 >

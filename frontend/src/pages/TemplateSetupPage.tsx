@@ -10,7 +10,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
-  Layers,
+  RectangleHorizontal,
   LayoutTemplate,
   PenLine,
 } from 'lucide-react';
@@ -319,7 +319,7 @@ export const TemplateSetupPage: React.FC = () => {
 
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
             <IconButton
-              icon={<Layers size={16} />}
+              icon={<RectangleHorizontal size={16} />}
               label={t('ts.toSingle')}
               tooltipSide="bottom"
               onClick={() => setSwitchOpen(true)}
