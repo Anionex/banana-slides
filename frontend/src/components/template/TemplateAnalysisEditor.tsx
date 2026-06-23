@@ -108,7 +108,6 @@ export const TemplateAnalysisEditor: React.FC<TemplateAnalysisEditorProps> = ({
     setNotes(asset.analysis_notes ?? '');
     setKeywordsText((next.style_keywords ?? []).join(', '));
     setPaletteText((next.color_palette ?? []).join(', '));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id, asset.analysis_status]);
 
   const levelOptions: TemplateAnalysis['content_capacity'][] = ['low', 'medium', 'high'];
