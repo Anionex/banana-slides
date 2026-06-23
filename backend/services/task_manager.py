@@ -2327,6 +2327,15 @@ def process_template_pdf_split_task(task_id: str, project_id: str,
                     sub_task.set_progress({'asset_id': asset_id, 'stage': 'queued'})
                     db.session.add(sub_task)
                     db.session.commit()
+                except Exception as exc:
+                    logger.warning('Failed to enqueue analyze for asset %s: %s',
+                                   asset_id, exc)
+                    # Roll back so a failed commit doesn't poison the session and
+                    # break the remaining iterations of this loop.
+                    db.session.rollback()
+                    continue
+
+                try:
                     task_manager.submit_task(
                         sub_task.id,
                         analyze_template_task,
@@ -2337,11 +2346,13 @@ def process_template_pdf_split_task(task_id: str, project_id: str,
                         app,
                     )
                 except Exception as exc:
-                    logger.warning('Failed to enqueue analyze for asset %s: %s',
+                    # The PENDING row is already committed; if submission fails
+                    # mark it FAILED so it can't hang as "analyzing" forever.
+                    logger.warning('Failed to submit analyze task for asset %s: %s',
                                    asset_id, exc)
-                    # Roll back so a failed commit doesn't poison the session and
-                    # break the remaining iterations of this loop.
-                    db.session.rollback()
+                    sub_task.status = 'FAILED'
+                    sub_task.error_message = f'Task submission failed: {exc}'
+                    db.session.commit()
 
             task = Task.query.get(task_id)
             if task:
