@@ -10,24 +10,26 @@ Configuration priority (highest → lowest):
     3. Hard-coded defaults
 
 Supported provider formats:
-    gemini    — Google AI Studio (API key auth)
-    openai    — OpenAI-compatible endpoints
-    anthropic — Anthropic (Claude) API
-    vertex    — Google Cloud Vertex AI (service-account auth)
-    lazyllm   — LazyLLM multi-vendor framework
+    gemini     — Google AI Studio (API key auth)
+    openai     — OpenAI-compatible endpoints
+    anthropic  — Anthropic (Claude) API
+    vertex     — Google Cloud Vertex AI (service-account auth)
+    lazyllm    — LazyLLM multi-vendor framework
+    atlascloud — Atlas Cloud: OpenAI-compatible LLM (text/caption) +
+                 async Media API for image models (nano-banana family)
 """
 import os
 import logging
 from typing import Any, Dict, Optional
 
 from .text import TextProvider, GenAITextProvider, OpenAITextProvider, AnthropicTextProvider, LazyLLMTextProvider, CodexTextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider, CodexImageProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider, CodexImageProvider, AtlasImageProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'AnthropicTextProvider', 'LazyLLMTextProvider', 'CodexTextProvider',
-    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'AnthropicImageProvider', 'LazyLLMImageProvider', 'CodexImageProvider',
+    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'AnthropicImageProvider', 'LazyLLMImageProvider', 'CodexImageProvider', 'AtlasImageProvider',
     'get_text_provider', 'get_image_provider', 'get_provider_format',
     'get_caption_provider', 'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
 ]
@@ -132,6 +134,20 @@ def _build_provider_config() -> Dict[str, Any]:
                 "is required when AI_PROVIDER_FORMAT=openai."
             )
         logger.info("Provider config — format: openai, api_base: %s", cfg['api_base'])
+
+    elif fmt == 'atlascloud':
+        # Atlas Cloud: OpenAI-compatible LLM (text/caption) + async Media API (image).
+        cfg['api_key'] = _resolve_setting('ATLASCLOUD_API_KEY') or _resolve_setting('OPENAI_API_KEY')
+        # OpenAI-compatible base for text/caption providers.
+        cfg['api_base'] = _resolve_setting('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1')
+        # Async Media API base for the image provider.
+        cfg['media_api_base'] = _resolve_setting('ATLASCLOUD_MEDIA_API_BASE', 'https://api.atlascloud.ai/api/v1/model')
+        if not cfg['api_key']:
+            raise ValueError(
+                "ATLASCLOUD_API_KEY (from database settings or environment) "
+                "is required when AI_PROVIDER_FORMAT=atlascloud."
+            )
+        logger.info("Provider config — format: atlascloud, api_base: %s", cfg['api_base'])
 
     elif fmt == 'anthropic':
         cfg['api_key'] = _resolve_setting('ANTHROPIC_API_KEY') or _resolve_setting('OPENAI_API_KEY')
@@ -242,6 +258,21 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         logger.info("Per-model config — %s: openai, api_base: %s", model_type, api_base)
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
+    elif source_lower == 'atlascloud':
+        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+                   or _resolve_setting('ATLASCLOUD_API_KEY')
+                   or _resolve_setting('OPENAI_API_KEY'))
+        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+                    or _resolve_setting('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1'))
+        media_api_base = _resolve_setting('ATLASCLOUD_MEDIA_API_BASE', 'https://api.atlascloud.ai/api/v1/model')
+        if not api_key:
+            raise ValueError(
+                f"API key is required for {model_type} model with Atlas Cloud provider. "
+                f"Set {prefix}_API_KEY or ATLASCLOUD_API_KEY."
+            )
+        logger.info("Per-model config — %s: atlascloud, api_base: %s", model_type, api_base)
+        return {'format': 'atlascloud', 'api_key': api_key, 'api_base': api_base, 'media_api_base': media_api_base}
+
     elif source_lower == 'codex':
         oauth_token = _get_openai_oauth_token()
         if not oauth_token:
@@ -285,8 +316,9 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
     if fmt == 'anthropic':
         logger.info("Caption provider: Anthropic, model=%s", model)
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif fmt == 'openai':
-        logger.info("Caption provider: OpenAI, model=%s", model)
+    elif fmt in ('openai', 'atlascloud'):
+        # Atlas Cloud LLMs are OpenAI-compatible, so caption (multimodal text) reuses the OpenAI client.
+        logger.info("Caption provider: %s (OpenAI-compatible), model=%s", fmt, model)
         return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt == 'vertex':
         logger.info("Caption provider: Vertex AI, model=%s", model)
@@ -314,8 +346,9 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
     if fmt == 'anthropic':
         logger.info("Text provider: Anthropic, model=%s", model)
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif fmt == 'openai':
-        logger.info("Text provider: OpenAI, model=%s", model)
+    elif fmt in ('openai', 'atlascloud'):
+        # Atlas Cloud LLMs are OpenAI-compatible, so text generation reuses the OpenAI client.
+        logger.info("Text provider: %s (OpenAI-compatible), model=%s", fmt, model)
         return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt == 'vertex':
         logger.info("Text provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
@@ -352,6 +385,12 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         logger.info("Image provider: Anthropic, model=%s", model)
         logger.warning("Anthropic format is for compatible endpoints only (official API doesn't support image generation)")
         return AnthropicImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+    elif fmt == 'atlascloud':
+        # Atlas Cloud image models (nano-banana family) use the async Media API, not OpenAI's images endpoint.
+        media_base = config.get('media_api_base') or 'https://api.atlascloud.ai/api/v1/model'
+        image_model = model if '/' in model else 'google/nano-banana/text-to-image'
+        logger.info("Image provider: Atlas Cloud (async Media API), model=%s", image_model)
+        return AtlasImageProvider(api_key=config['api_key'], api_base=media_base, model=image_model)
     elif fmt == 'openai':
         logger.info("Image provider: OpenAI, model=%s", model)
         logger.warning("OpenAI format only supports 1K resolution, 4K is not available")

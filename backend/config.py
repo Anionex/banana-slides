@@ -47,7 +47,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
-    # Provider format: gemini | openai | vertex | lazyllm
+    # Provider format: gemini | openai | anthropic | atlascloud | vertex | lazyllm
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
     # Google Cloud Vertex AI (requires AI_PROVIDER_FORMAT=vertex)
@@ -71,6 +71,12 @@ class Config:
     ANTHROPIC_API_BASE = os.getenv('ANTHROPIC_API_BASE', '') or os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com')
     ANTHROPIC_VERSION = os.getenv('ANTHROPIC_VERSION', '2023-06-01')
     ANTHROPIC_MAX_TOKENS = int(os.getenv('ANTHROPIC_MAX_TOKENS', '8192'))
+
+    # Atlas Cloud 格式专用配置（当 AI_PROVIDER_FORMAT=atlascloud 时使用）
+    # 文本/描述走 OpenAI 兼容接口；图像走 Atlas 异步 Media API（nano-banana 等模型）
+    ATLASCLOUD_API_KEY = os.getenv('ATLASCLOUD_API_KEY', '')
+    ATLASCLOUD_API_BASE = os.getenv('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1')
+    ATLASCLOUD_MEDIA_API_BASE = os.getenv('ATLASCLOUD_MEDIA_API_BASE', 'https://api.atlascloud.ai/api/v1/model')
 
     # Lazyllm 格式专用配置（当 AI_PROVIDER_FORMAT=lazyllm 时使用）
     TEXT_MODEL_SOURCE = os.getenv('TEXT_MODEL_SOURCE', '')                   # 文本生成模型厂商（留空则跟随全局 AI_PROVIDER_FORMAT）
