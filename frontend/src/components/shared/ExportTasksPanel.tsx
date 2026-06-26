@@ -466,6 +466,12 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
     try {
       await api.deleteExport(projectId, file.filename);
       setExportedFiles(prev => prev.filter(item => item.filename !== file.filename));
+      tasks
+        .filter(task => (
+          task.projectId === projectId
+          && (task.filename === file.filename || task.downloadUrl?.endsWith(`/${file.filename}`))
+        ))
+        .forEach(task => removeTask(task.id));
     } catch (error: any) {
       setDeleteError(error?.response?.data?.error?.message || error?.message || t('export.deleteExportFailed'));
     } finally {
