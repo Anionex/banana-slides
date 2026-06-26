@@ -593,7 +593,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                     size="sm"
                     icon={<Trash2 size={14} />}
                     onClick={() => confirmDeleteExportedFile(file)}
-                    disabled={deletingFilename === file.filename}
+                    disabled={deletingFilename !== null}
                     className="px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                     title={t('common.delete')}
                     aria-label={`${t('common.delete')} ${file.filename}`}

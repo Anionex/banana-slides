@@ -7,6 +7,7 @@ import io
 import shutil
 import time
 import zipfile
+from pathlib import Path
 
 from flask import Blueprint, request, current_app
 from werkzeug.utils import secure_filename
@@ -105,17 +106,18 @@ def delete_export(project_id, filename):
         if not safe_filename or safe_filename != filename:
             return bad_request('Invalid export filename')
 
-        exports_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], project_id, 'exports')
-        exports_root = os.path.abspath(exports_dir)
-        file_path = os.path.abspath(os.path.join(exports_root, safe_filename))
+        exports_root = (Path(current_app.config['UPLOAD_FOLDER']) / project_id / 'exports').resolve()
+        file_path = (exports_root / safe_filename).resolve()
 
-        if os.path.commonpath([exports_root, file_path]) != exports_root:
+        try:
+            file_path.relative_to(exports_root)
+        except ValueError:
             return bad_request('Invalid export filename')
 
-        if not os.path.isfile(file_path):
+        if not file_path.is_file():
             return not_found('File')
 
-        os.remove(file_path)
+        file_path.unlink()
         return success_response(data={"filename": safe_filename}, message="Export file deleted")
 
     except Exception as e:
