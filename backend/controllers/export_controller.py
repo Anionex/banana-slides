@@ -49,7 +49,7 @@ def list_exports(project_id):
     返回 exports 目录下的文件列表（名称、大小、修改时间、下载链接）。
     """
     try:
-        project = Project.query.get(project_id)
+        project = db.session.get(Project, project_id)
         if not project:
             return not_found('Project')
 
@@ -98,7 +98,7 @@ def delete_export(project_id, filename):
     DELETE /api/projects/{project_id}/exports/{filename} - 删除项目已导出的文件
     """
     try:
-        project = Project.query.get(project_id)
+        project = db.session.get(Project, project_id)
         if not project:
             return not_found('Project')
 
