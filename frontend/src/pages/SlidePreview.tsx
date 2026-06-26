@@ -25,7 +25,7 @@ const previewI18n = {
       regionCropFailed: "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。"
     },
     preview: {
-      title: "预览", pageCount: "共 {{count}} 页", export: "导出",
+      title: "预览", pageCount: "共 {{count}} 页", export: "导出", exportTasks: "导出任务",
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportVideo: "导出为讲解视频",
@@ -148,7 +148,7 @@ const previewI18n = {
       regionCropFailed: "Cannot crop from current image (browser security restriction). Try uploading a reference image manually."
     },
     preview: {
-      title: "Preview", pageCount: "{{count}} pages", export: "Export",
+      title: "Preview", pageCount: "{{count}} pages", export: "Export", exportTasks: "Export Tasks",
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportVideo: "Export as Narration Video",
@@ -1701,6 +1701,8 @@ export const SlidePreview: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
+                title={t('preview.exportTasks')}
+                aria-label={t('preview.exportTasks')}
                 onClick={() => {
                   setShowExportTasksPanel(!showExportTasksPanel);
                   setShowExportMenu(false);

@@ -4,6 +4,7 @@ import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/sto
 import { useT } from '@/hooks/useT';
 import type { Page } from '@/types';
 import { Button } from './Button';
+import { useConfirm } from './ConfirmDialog';
 import { cn } from '@/utils';
 import * as api from '@/api/endpoints';
 
@@ -21,6 +22,10 @@ const exportI18n = {
       settingsTip: "可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项",
       codexReconnectTip: "如果是 Codex 登录过期或连接中断，也可以前往设置重新登录 OpenAI 账号后再试",
       exportedFiles: "已导出文件",
+      deleteExportTitle: "删除导出文件",
+      deleteExportMessage: "确定要删除「{{filename}}」吗？此操作会移除服务器上的文件。",
+      deleteExportConfirm: "删除文件",
+      deleteExportFailed: "删除导出文件失败",
     },
     shared: { historyRecords: "历史记录" }
   },
@@ -36,6 +41,10 @@ const exportI18n = {
       settingsTip: "Adjust settings in \"Project Settings → Export Settings\" or enable \"Allow Partial Results\"",
       codexReconnectTip: "If Codex login expired or the connection was interrupted, reconnect your OpenAI account in Settings and try again.",
       exportedFiles: "Exported Files",
+      deleteExportTitle: "Delete Exported File",
+      deleteExportMessage: "Delete \"{{filename}}\" from the server?",
+      deleteExportConfirm: "Delete File",
+      deleteExportFailed: "Failed to delete exported file",
     },
     shared: { historyRecords: "History Records" }
   }
@@ -414,6 +423,9 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
   const [isExpanded, setIsExpanded] = useState(true);
   const { tasks, removeTask, clearCompleted, restoreActiveTasks } = useExportTasksStore();
   const [exportedFiles, setExportedFiles] = useState<ExportedFile[]>([]);
+  const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const filteredTasks = projectId
     ? tasks.filter(task => task.projectId === projectId)
@@ -443,6 +455,35 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
       setIsExpanded(true);
     }
   }, [activeTasks.length, isExpanded]);
+
+  const deleteExportedFile = async (file: ExportedFile) => {
+    if (!projectId) return;
+
+    setDeletingFilename(file.filename);
+    setDeleteError(null);
+    try {
+      await api.deleteExport(projectId, file.filename);
+      const res = await api.listExports(projectId);
+      setExportedFiles(res.data?.files || []);
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.error?.message || error?.message || t('export.deleteExportFailed'));
+    } finally {
+      setDeletingFilename(null);
+    }
+  };
+
+  const confirmDeleteExportedFile = (file: ExportedFile) => {
+    confirm(
+      t('export.deleteExportMessage', { filename: file.filename }),
+      () => deleteExportedFile(file),
+      {
+        title: t('export.deleteExportTitle'),
+        confirmText: t('export.deleteExportConfirm'),
+        cancelText: t('common.cancel'),
+        variant: 'danger',
+      }
+    );
+  };
 
   // 同时没有任务也没有文件时隐藏面板
   if (filteredTasks.length === 0 && exportedFiles.length === 0) {
@@ -515,6 +556,11 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
               <div className="px-3 py-1 mb-1">
                 <span className="text-xs text-gray-400">{t('export.exportedFiles')}</span>
               </div>
+              {deleteError && (
+                <div className="mx-3 mb-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                  {deleteError}
+                </div>
+              )}
               {exportedFiles.map(file => (
                 <div key={file.filename} className="flex items-center gap-3 py-2 px-3 hover:bg-gray-50 dark:hover:bg-background-hover rounded-lg transition-colors">
                   <FileTypeIcon type={file.type} />
@@ -542,12 +588,23 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                   >
                     {t('common.download')}
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Trash2 size={14} />}
+                    onClick={() => confirmDeleteExportedFile(file)}
+                    disabled={deletingFilename === file.filename}
+                    className="px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    title={t('common.delete')}
+                    aria-label={`${t('common.delete')} ${file.filename}`}
+                  />
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
+      {ConfirmDialog}
     </div>
   );
 };

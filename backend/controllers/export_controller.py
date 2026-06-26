@@ -91,6 +91,37 @@ def list_exports(project_id):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+@export_bp.route('/<project_id>/exports/<filename>', methods=['DELETE'])
+def delete_export(project_id, filename):
+    """
+    DELETE /api/projects/{project_id}/exports/{filename} - 删除项目已导出的文件
+    """
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return not_found('Project')
+
+        safe_filename = secure_filename(filename)
+        if not safe_filename or safe_filename != filename:
+            return bad_request('Invalid export filename')
+
+        exports_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], project_id, 'exports')
+        exports_root = os.path.abspath(exports_dir)
+        file_path = os.path.abspath(os.path.join(exports_root, safe_filename))
+
+        if os.path.commonpath([exports_root, file_path]) != exports_root:
+            return bad_request('Invalid export filename')
+
+        if not os.path.isfile(file_path):
+            return not_found('File')
+
+        os.remove(file_path)
+        return success_response(data={"filename": safe_filename}, message="Export file deleted")
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
 @export_bp.route('/<project_id>/export/pptx', methods=['GET'])
 def export_pptx(project_id):
     """

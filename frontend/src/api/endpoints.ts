@@ -764,6 +764,19 @@ export const listExports = async (
 };
 
 /**
+ * 删除项目已导出的文件
+ */
+export const deleteExport = async (
+  projectId: string,
+  filename: string,
+): Promise<ApiResponse<{ filename: string }>> => {
+  const response = await apiClient.delete(
+    `/api/projects/${projectId}/exports/${encodeURIComponent(filename)}`
+  );
+  return response.data;
+};
+
+/**
  * 导出为讲解视频（异步任务）
  * @param projectId 项目ID
  * @param options 导出选项
