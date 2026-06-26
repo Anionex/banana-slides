@@ -26,6 +26,7 @@ const exportI18n = {
       deleteExportMessage: "确定要删除「{{filename}}」吗？此操作会移除服务器上的文件。",
       deleteExportConfirm: "删除文件",
       deleteExportFailed: "删除导出文件失败",
+      dismissDeleteError: "关闭删除错误",
     },
     shared: { historyRecords: "历史记录" }
   },
@@ -45,6 +46,7 @@ const exportI18n = {
       deleteExportMessage: "Delete \"{{filename}}\" from the server?",
       deleteExportConfirm: "Delete File",
       deleteExportFailed: "Failed to delete exported file",
+      dismissDeleteError: "Dismiss delete error",
     },
     shared: { historyRecords: "History Records" }
   }
@@ -463,8 +465,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
     setDeleteError(null);
     try {
       await api.deleteExport(projectId, file.filename);
-      const res = await api.listExports(projectId);
-      setExportedFiles(res.data?.files || []);
+      setExportedFiles(prev => prev.filter(item => item.filename !== file.filename));
     } catch (error: any) {
       setDeleteError(error?.response?.data?.error?.message || error?.message || t('export.deleteExportFailed'));
     } finally {
@@ -557,8 +558,17 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                 <span className="text-xs text-gray-400">{t('export.exportedFiles')}</span>
               </div>
               {deleteError && (
-                <div className="mx-3 mb-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
-                  {deleteError}
+                <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                  <span className="break-words">{deleteError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteError(null)}
+                    className="flex-shrink-0 rounded p-0.5 text-red-500 transition-colors hover:bg-red-100 hover:text-red-700"
+                    aria-label={t('export.dismissDeleteError')}
+                    title={t('export.dismissDeleteError')}
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
               )}
               {exportedFiles.map(file => (
@@ -591,7 +601,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                   <Button
                     variant="ghost"
                     size="sm"
-                    icon={<Trash2 size={14} />}
+                    icon={deletingFilename === file.filename ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                     onClick={() => confirmDeleteExportedFile(file)}
                     disabled={deletingFilename !== null}
                     className="px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
