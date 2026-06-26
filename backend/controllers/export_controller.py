@@ -41,6 +41,16 @@ def _parse_pptx_transition_effects():
     return valid_effects, None
 
 
+def _resolve_exports_root(project_id):
+    upload_folder = Path(current_app.config['UPLOAD_FOLDER']).resolve()
+    exports_root = (upload_folder / project_id / 'exports').resolve()
+    try:
+        exports_root.relative_to(upload_folder)
+    except ValueError:
+        return None
+    return exports_root
+
+
 @export_bp.route('/<project_id>/exports', methods=['GET'])
 def list_exports(project_id):
     """
@@ -53,22 +63,23 @@ def list_exports(project_id):
         if not project:
             return not_found('Project')
 
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        exports_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], project_id, 'exports')
+        exports_root = _resolve_exports_root(project_id)
+        if exports_root is None:
+            return bad_request('Invalid project ID')
 
-        if not os.path.isdir(exports_dir):
+        if not exports_root.is_dir():
             return success_response(data={"files": []})
 
         files = []
-        for name in sorted(os.listdir(exports_dir)):
-            filepath = os.path.join(exports_dir, name)
-            if not os.path.isfile(filepath):
+        for filepath in sorted(exports_root.iterdir(), key=lambda path: path.name):
+            name = filepath.name
+            if not filepath.is_file():
                 continue
             # 跳过临时目录和隐藏文件
             if name.startswith('.') or name.startswith('_'):
                 continue
 
-            stat = os.stat(filepath)
+            stat = filepath.stat()
             ext = os.path.splitext(name)[1].lower()
             file_type = {
                 '.mp4': 'video', '.pptx': 'pptx', '.pdf': 'pdf',
@@ -106,7 +117,9 @@ def delete_export(project_id, filename):
         if not safe_filename or safe_filename != filename:
             return bad_request('Invalid export filename')
 
-        exports_root = (Path(current_app.config['UPLOAD_FOLDER']) / project_id / 'exports').resolve()
+        exports_root = _resolve_exports_root(project_id)
+        if exports_root is None:
+            return bad_request('Invalid project ID')
         file_path = (exports_root / safe_filename).resolve()
 
         try:

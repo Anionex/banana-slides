@@ -55,3 +55,10 @@ def test_delete_export_missing_file_returns_404(client, app):
     response = client.delete(f"/api/projects/{project_id}/exports/missing.pptx")
 
     assert_error_response(response, 404)
+
+
+def test_export_root_rejects_project_id_escape(app):
+    from controllers.export_controller import _resolve_exports_root
+
+    with app.app_context():
+        assert _resolve_exports_root("..") is None
