@@ -44,8 +44,8 @@ test.describe('Settings page API key labels and links', () => {
   });
 
   test('AIHubMix API key guide uses current Console flow', async ({ page }) => {
-    await expect(page.getByText(/Console.*Top Up/)).toBeVisible();
-    await expect(page.getByText(/充值后.*Develop.*API Keys/)).toBeVisible();
-    await expect(page.getByText(/Add key/)).toBeVisible();
+    await expect(page.locator('li').filter({ hasText: /Console.*Top Up|Console.*Account.*Top Up/ })).toBeVisible();
+    await expect(page.locator('li').filter({ hasText: /充值后.*Develop.*API Keys|After topping up.*Develop.*API Keys/ })).toBeVisible();
+    await expect(page.locator('li').filter({ hasText: /Add key/ })).toBeVisible();
   });
 });
