@@ -74,7 +74,7 @@ describe('API client desktop detection', () => {
 
     expect((window as any).__BACKEND_PORT__).toBe(0);
     expect(warnSpy).toHaveBeenCalledWith('Desktop backend port is unavailable');
-    expect(() => getBaseURL()).toThrow('Desktop backend port is unavailable');
+    expect(getBaseURL()).toBe('http://127.0.0.1:0');
   });
 
   it('calls getBackendPort on module load in desktop mode', async () => {

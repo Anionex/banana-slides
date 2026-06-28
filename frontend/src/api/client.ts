@@ -37,7 +37,8 @@ export function getBaseURL(): string {
   if (!isDesktop) return '';
   const port = (window as any).__BACKEND_PORT__;
   if (!isValidPort(port)) {
-    throw new Error('Desktop backend port is unavailable');
+    console.warn('Desktop backend port is unavailable');
+    return 'http://127.0.0.1:0';
   }
   return `http://127.0.0.1:${port}`;
 }
