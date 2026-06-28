@@ -65,12 +65,16 @@ describe('API client desktop detection', () => {
     expect(absoluteRequestResult.baseURL).toBeUndefined();
   });
 
-  it('throws when desktop backend port is unavailable', async () => {
+  it('loads in desktop mode when backend port is unavailable but keeps API requests guarded', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     (window as any).electronAPI = createMockElectronAPI({
       getBackendPort: vi.fn().mockReturnValue(undefined),
     });
-    await expect(import('../api/client')).rejects.toThrow('Desktop backend port is unavailable');
-    expect((window as any).__BACKEND_PORT__).toBeUndefined();
+    const { getBaseURL } = await import('../api/client');
+
+    expect((window as any).__BACKEND_PORT__).toBe(0);
+    expect(warnSpy).toHaveBeenCalledWith('Desktop backend port is unavailable');
+    expect(() => getBaseURL()).toThrow('Desktop backend port is unavailable');
   });
 
   it('calls getBackendPort on module load in desktop mode', async () => {

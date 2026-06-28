@@ -96,7 +96,19 @@ function downloadFile(url, dest, redirectCount = 0) {
     const request = client.get(url, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
-        const redirectUrl = new URL(response.headers.location, url).toString();
+        const location = response.headers.location;
+        if (!location) {
+          reject(new Error(`Redirect missing Location header while downloading ${url}`));
+          return;
+        }
+
+        let redirectUrl;
+        try {
+          redirectUrl = new URL(location, url).toString();
+        } catch (error) {
+          reject(new Error(`Invalid redirect Location while downloading ${url}: ${location}`));
+          return;
+        }
         downloadFile(redirectUrl, dest, redirectCount + 1).then(resolve, reject);
         return;
       }

@@ -265,10 +265,14 @@ export const Home: React.FC = () => {
     const action = searchParams.get('action');
     if (action === 'material-generate') {
       setIsMaterialModalOpen(true);
-      setSearchParams({}, { replace: true });
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('action');
+      setSearchParams(nextSearchParams, { replace: true });
     } else if (action === 'material-center') {
       setIsMaterialCenterOpen(true);
-      setSearchParams({}, { replace: true });
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete('action');
+      setSearchParams(nextSearchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 

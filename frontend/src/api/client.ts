@@ -24,7 +24,8 @@ function resolveDesktopBackendPort(): number {
     return cachedPort;
   }
 
-  throw new Error('Desktop backend port is unavailable');
+  console.warn('Desktop backend port is unavailable');
+  return 0;
 }
 
 // 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态

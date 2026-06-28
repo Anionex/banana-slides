@@ -30,6 +30,16 @@ function shouldOpenInExternalBrowser(targetUrl) {
   }
 }
 
+function createUniqueDownloadUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    parsedUrl.searchParams.set('__bananaDownloadId', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    return parsedUrl.toString();
+  } catch (error) {
+    return url;
+  }
+}
+
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 480,
@@ -273,6 +283,7 @@ function setupIPC() {
   ipcMain.handle('download-file', async (_, { url, filename }) => {
     if (!mainWindow) return { success: false };
     const ext = (filename || 'file').split('.').pop() || '*';
+    const downloadUrl = createUniqueDownloadUrl(url);
     const { filePath: savePath, canceled } = await dialog.showSaveDialog(mainWindow, {
       defaultPath: filename || 'download',
       filters: [{ name: '所有文件', extensions: [ext, '*'] }],
@@ -288,7 +299,7 @@ function setupIPC() {
       downloadSession.removeListener('will-download', listener);
     };
     const listener = (_, item) => {
-      if (item.getURL() !== url) {
+      if (item.getURL() !== downloadUrl) {
         return;
       }
       item.setSavePath(savePath);
@@ -296,7 +307,7 @@ function setupIPC() {
     };
     downloadSession.on('will-download', listener);
     cleanupTimer = setTimeout(cleanup, 10000);
-    mainWindow.webContents.downloadURL(url);
+    mainWindow.webContents.downloadURL(downloadUrl);
     return { success: true };
   });
 }
