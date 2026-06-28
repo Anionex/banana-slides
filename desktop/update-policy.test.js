@@ -49,6 +49,18 @@ test('uses timestamp when versions are equal', () => {
   );
 });
 
+test('suppresses downgrade prompts even when latest release timestamp is newer', () => {
+  assert.equal(
+    updatePolicy.shouldNotifyUpdate({
+      currentVersion: '0.3.0',
+      latestVersion: '0.2.0',
+      currentBuildTimestamp: 1710001000,
+      latestReleaseTimestamp: 1710002000,
+    }),
+    false,
+  );
+});
+
 test('falls back to semver when timestamps are unavailable', () => {
   assert.equal(
     updatePolicy.shouldNotifyUpdate({
