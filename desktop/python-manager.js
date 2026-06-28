@@ -62,9 +62,11 @@ async function startBackend(userDataPath) {
 
   const ffmpegDir = path.join(process.resourcesPath, 'ffmpeg');
   const ffmpegExe = path.join(ffmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+  const pathEnvSeparator = process.platform === 'win32' ? ';' : ':';
 
   const env = {
     ...process.env,
+    PATH: [ffmpegDir, process.env.PATH].filter(Boolean).join(pathEnvSeparator),
     BACKEND_PORT: '0',
     DATABASE_PATH: path.join(dataDir, 'database.db'),
     UPLOAD_FOLDER: uploadsDir,

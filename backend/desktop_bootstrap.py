@@ -5,8 +5,6 @@ from sqlalchemy import inspect as sqlalchemy_inspect, text
 
 def repair_desktop_settings_schema(db):
     """Repair columns for desktop databases created by older builds."""
-    inspector = sqlalchemy_inspect(db.engine)
-    existing_tables = set(inspector.get_table_names())
     repair_specs = {
         'settings': {
             'ai_provider_format': 'VARCHAR(20)',
@@ -87,6 +85,8 @@ def repair_desktop_settings_schema(db):
 
     repaired = {}
     with db.engine.begin() as conn:
+        inspector = sqlalchemy_inspect(conn)
+        existing_tables = set(inspector.get_table_names())
         for table_name, required_columns in repair_specs.items():
             if table_name not in existing_tables:
                 continue

@@ -127,4 +127,24 @@ describe('API client desktop detection', () => {
       'slides.pptx',
     );
   });
+
+  it('does not prepend the backend URL to client-side download URLs', async () => {
+    const downloadFile = vi.fn();
+    (window as any).__BACKEND_PORT__ = 15000;
+    (window as any).electronAPI = createMockElectronAPI({ downloadFile });
+    const { triggerDownload } = await import('../api/client');
+
+    triggerDownload('data:text/plain,hello', 'hello.txt');
+
+    expect(downloadFile).toHaveBeenCalledWith('data:text/plain,hello', 'hello.txt');
+  });
+
+  it('does not prepend the backend URL to client-side image URLs', async () => {
+    (window as any).__BACKEND_PORT__ = 15000;
+    (window as any).electronAPI = createMockElectronAPI();
+    const { getImageUrl } = await import('../api/client');
+
+    expect(getImageUrl('/blob:https://example.com/id', 123)).toBe('blob:https://example.com/id');
+    expect(getImageUrl('data:image/png;base64,abc', 123)).toBe('data:image/png;base64,abc');
+  });
 });

@@ -28,6 +28,9 @@ function resolveDesktopBackendPort(): number {
   return 0;
 }
 
+const isClientSideUrl = (url: string) => /^\/?(data|blob):/i.test(url);
+const normalizeClientSideUrl = (url: string) => url.replace(/^\/(?=(data|blob):)/i, '');
+
 // 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态
 if (isDesktop) {
   (window as any).__BACKEND_PORT__ = resolveDesktopBackendPort();
@@ -51,6 +54,12 @@ export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string
   }
 
   if (isDesktop) {
+    if (isClientSideUrl(relativeOrAbsoluteUrl)) {
+      const url = normalizeClientSideUrl(relativeOrAbsoluteUrl);
+      (window as any).electronAPI.downloadFile(url, filename || 'download');
+      return;
+    }
+
     const normalizedPath = relativeOrAbsoluteUrl.startsWith('/')
       ? relativeOrAbsoluteUrl
       : `/${relativeOrAbsoluteUrl}`;
@@ -133,6 +142,10 @@ apiClient.interceptors.response.use(
 // 使用相对路径，通过代理转发到后端
 export const getImageUrl = (path?: string, timestamp?: string | number): string => {
   if (!path) return '';
+  if (isClientSideUrl(path)) {
+    return normalizeClientSideUrl(path);
+  }
+
   // 如果已经是完整URL，直接返回
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
