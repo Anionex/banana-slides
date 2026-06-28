@@ -88,9 +88,9 @@ def create_app():
     export_folder_env = os.environ.get('EXPORT_FOLDER')
 
     if db_path_env and not database_url_env:
-        db_path_env = os.path.abspath(db_path_env)
+        db_path_env = os.path.abspath(db_path_env.strip())
         os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path_env}'
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{Path(db_path_env).as_posix()}'
     if upload_folder_env:
         os.makedirs(upload_folder_env, exist_ok=True)
         app.config['UPLOAD_FOLDER'] = upload_folder_env

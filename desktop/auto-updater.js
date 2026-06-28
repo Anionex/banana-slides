@@ -3,7 +3,7 @@ const https = require('https');
 const path = require('path');
 const { app } = require('electron');
 const log = require('electron-log');
-const { resolveCurrentBuildTimestamp, shouldNotifyUpdate } = require('./update-policy');
+const { isVersionLess, resolveCurrentBuildTimestamp, shouldNotifyUpdate } = require('./update-policy');
 
 const REPO_OWNER = 'Anionex';
 const REPO_NAME = 'banana-slides';
@@ -89,6 +89,18 @@ async function checkForUpdates() {
   const latestVersion = release.tag_name.replace(/^v/, '');
   const buildMeta = readBuildMeta();
   const currentBuildTimestamp = resolveCurrentBuildTimestamp(buildMeta);
+  if (shouldNotifyUpdate({ currentVersion, latestVersion })) {
+    return {
+      version: latestVersion,
+      notes: release.body || '',
+      url: release.html_url,
+    };
+  }
+
+  if (isVersionLess(latestVersion, currentVersion)) {
+    return null;
+  }
+
   const releaseCommit = await fetchGitHubJson(`/repos/${REPO_OWNER}/${REPO_NAME}/commits/${encodeURIComponent(release.tag_name)}`);
   const latestReleaseTimestamp = extractReleaseTimestamp(releaseCommit, release);
 

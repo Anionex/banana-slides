@@ -34,7 +34,7 @@ def test_create_app_respects_database_url_env(monkeypatch, tmp_path):
 def test_create_app_accepts_relative_database_path_env(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv('DATABASE_URL', raising=False)
-    monkeypatch.setenv('DATABASE_PATH', 'desktop.db')
+    monkeypatch.setenv('DATABASE_PATH', ' desktop.db ')
     monkeypatch.setenv('TESTING', 'true')
     monkeypatch.setenv('FLASK_ENV', 'testing')
 
