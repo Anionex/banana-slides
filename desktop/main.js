@@ -315,8 +315,9 @@ function setupIPC() {
     };
     const listener = (_, item) => {
       const itemUrl = item.getURL();
+      const urlChain = typeof item.getURLChain === 'function' ? item.getURLChain() : [itemUrl];
       const isMatchingClientSideDownload = isClientSideDownloadUrl(downloadUrl) && isClientSideDownloadUrl(itemUrl);
-      if (itemUrl !== downloadUrl && !isMatchingClientSideDownload) {
+      if (!urlChain.includes(downloadUrl) && !isMatchingClientSideDownload) {
         return;
       }
       item.setSavePath(savePath);
