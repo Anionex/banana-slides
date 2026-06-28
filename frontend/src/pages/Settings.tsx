@@ -346,6 +346,8 @@ interface ServiceTestState {
   detail?: string;
 }
 
+const AIHUBMIX_AFFILIATE_URL = ['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('');
+
 // LazyLLM 支持的厂商列表
 const LAZYLLM_SOURCES = [
   { value: 'qwen', label: 'Qwen (通义千问)' },
@@ -1507,7 +1509,7 @@ export const Settings: React.FC = () => {
           <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
             <p className="text-sm text-gray-700 dark:text-foreground-secondary">
               {t('settings.apiKeyTip.before')}
-              <a href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
+              <a href={AIHUBMIX_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
               {t('settings.apiKeyTip.after')}
             </p>
           </div>
@@ -1523,7 +1525,7 @@ export const Settings: React.FC = () => {
                 {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
                 <span className="inline-flex items-center gap-2">
                   <a
-                    href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')}
+                    href={AIHUBMIX_AFFILIATE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 underline font-medium"
@@ -1531,7 +1533,7 @@ export const Settings: React.FC = () => {
                     {t('settings.apiKeyHelp.linkLabel')}
                   </a>
                   <button
-                    onClick={() => copyToClipboard('https://aihubmix.com/?aff=17EC')}
+                    onClick={() => copyToClipboard(AIHUBMIX_AFFILIATE_URL)}
                     className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
                   >
                     {t('settings.apiKeyHelp.copyLink')}
