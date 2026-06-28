@@ -809,6 +809,9 @@ def _get_test_image_path() -> Path:
 
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).resolve().parent
+        pyinstaller_root = getattr(sys, "_MEIPASS", None)
+        if pyinstaller_root:
+            candidates.append(Path(pyinstaller_root) / "assets" / "test_img.png")
         candidates.extend([
             exe_dir / "assets" / "test_img.png",
             exe_dir / "_internal" / "assets" / "test_img.png",

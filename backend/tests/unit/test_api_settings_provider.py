@@ -30,6 +30,21 @@ def _build_settings(**overrides):
     return settings
 
 
+def test_get_test_image_path_prefers_pyinstaller_meipass(tmp_path, monkeypatch):
+    """Packaged desktop builds should resolve bundled assets from sys._MEIPASS."""
+    project_root = tmp_path / 'project'
+    meipass_root = tmp_path / 'bundle'
+    bundled_asset = meipass_root / 'assets' / 'test_img.png'
+    bundled_asset.parent.mkdir(parents=True)
+    bundled_asset.write_bytes(b'png')
+
+    monkeypatch.setattr(settings_controller, 'PROJECT_ROOT', str(project_root))
+    monkeypatch.setattr(settings_controller.sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(settings_controller.sys, '_MEIPASS', str(meipass_root), raising=False)
+
+    assert settings_controller._get_test_image_path() == bundled_asset
+
+
 def test_update_settings_accepts_lazyllm_provider():
     """`lazyllm` should be accepted as a valid provider format."""
     app = Flask(__name__)

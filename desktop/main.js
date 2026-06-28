@@ -33,6 +33,9 @@ function shouldOpenInExternalBrowser(targetUrl) {
 }
 
 function createUniqueDownloadUrl(url) {
+  if (isClientSideDownloadUrl(url)) {
+    return url;
+  }
   try {
     const parsedUrl = new URL(url);
     parsedUrl.searchParams.set('__bananaDownloadId', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -40,6 +43,10 @@ function createUniqueDownloadUrl(url) {
   } catch (error) {
     return url;
   }
+}
+
+function isClientSideDownloadUrl(url) {
+  return typeof url === 'string' && /^(data|blob):/i.test(url);
 }
 
 function createSplashWindow() {
@@ -307,7 +314,9 @@ function setupIPC() {
       currentWindow.removeListener('closed', cleanup);
     };
     const listener = (_, item) => {
-      if (item.getURL() !== downloadUrl) {
+      const itemUrl = item.getURL();
+      const isMatchingClientSideDownload = isClientSideDownloadUrl(downloadUrl) && isClientSideDownloadUrl(itemUrl);
+      if (itemUrl !== downloadUrl && !isMatchingClientSideDownload) {
         return;
       }
       item.setSavePath(savePath);
