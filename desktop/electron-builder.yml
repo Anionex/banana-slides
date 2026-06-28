@@ -71,6 +71,7 @@ linux:
         - x64
   icon: resources/icon.png
   category: Office
+  maintainer: "Anionex <contact@anionex.com>"
   artifactName: "BananaSlides-${version}.${ext}"
 
 nsis:

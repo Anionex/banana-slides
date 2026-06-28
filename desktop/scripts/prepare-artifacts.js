@@ -160,6 +160,8 @@ async function ensureDownloadedArchive(url, expectedSha256) {
 function extractWindowsZip(zipPath, dest) {
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
+  const quotedZipPath = zipPath.replace(/'/g, "''");
+  const quotedDest = dest.replace(/'/g, "''");
   execFileSync(
     'powershell',
     [
@@ -167,9 +169,7 @@ function extractWindowsZip(zipPath, dest) {
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
-      zipPath,
-      dest,
+      `Expand-Archive -LiteralPath '${quotedZipPath}' -DestinationPath '${quotedDest}' -Force`,
     ],
     { stdio: 'inherit' },
   );
