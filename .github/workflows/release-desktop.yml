@@ -21,6 +21,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -100,16 +101,8 @@ jobs:
           path: desktop/.cache/ffmpeg
           key: windows-ffmpeg-btbn-7.1-d08d3c08dc2b84b3cb59ea110ac8b188684768fc77a5f0f288e13d0258ef1660
 
-      - name: Install FFmpeg on macOS
-        if: matrix.os == 'macos-latest'
-        run: brew install ffmpeg
-
-      - name: Install FFmpeg on Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Build desktop app
-        run: cd desktop && npm run build:${{ matrix.platform }}
+        run: cd desktop && npm run build:${{ matrix.platform }} -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
