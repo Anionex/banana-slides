@@ -66,9 +66,14 @@ def create_app():
     # Load configuration from Config class
     app.config.from_object(Config)
 
+    # Desktop DATABASE_PATH must win over any DATABASE_URL left in .env.
+    db_path_env = os.environ.get('DATABASE_PATH')
+    if db_path_env:
+        db_path_env = os.path.abspath(db_path_env.strip())
+
     # Allow DATABASE_URL env var to override config at runtime (supports test isolation)
     database_url_env = os.getenv('DATABASE_URL')
-    if database_url_env:
+    if database_url_env and not db_path_env:
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url_env
 
     # Ensure instance directory exists for the default SQLite path in Config
@@ -83,12 +88,10 @@ def create_app():
     app.config['UPLOAD_FOLDER'] = upload_folder
     
     # Desktop environment overrides (set by Electron python-manager)
-    db_path_env = os.environ.get('DATABASE_PATH')
     upload_folder_env = os.environ.get('UPLOAD_FOLDER')
     export_folder_env = os.environ.get('EXPORT_FOLDER')
 
-    if db_path_env and not database_url_env:
-        db_path_env = os.path.abspath(db_path_env.strip())
+    if db_path_env:
         os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{Path(db_path_env).as_posix()}'
     if upload_folder_env:
@@ -156,7 +159,7 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
-        if db_path_env and not database_url_env:
+        if db_path_env:
             db.create_all()
             from desktop_bootstrap import repair_desktop_settings_schema
             repair_desktop_settings_schema(db)

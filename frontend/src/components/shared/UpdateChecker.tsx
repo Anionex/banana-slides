@@ -62,16 +62,14 @@ export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
         <button
           onClick={() => (window as any).electronAPI.openExternal(update.url)}
           className="px-3 py-1 rounded-full text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors"
-          // @ts-expect-error -- WebkitAppRegion is a non-standard Electron CSS property
-          style={{ WebkitAppRegion: 'no-drag' }}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           {t('download')}
         </button>
         <button
           onClick={() => setDismissed(true)}
           className="p-1 rounded-full hover:bg-amber-200/50 transition-colors"
-          // @ts-expect-error -- WebkitAppRegion is a non-standard Electron CSS property
-          style={{ WebkitAppRegion: 'no-drag' }}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           <X size={14} className="text-amber-700" />
         </button>
