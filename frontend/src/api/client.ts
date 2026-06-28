@@ -45,6 +45,11 @@ export function getBaseURL(): string {
 
 // 统一下载入口：desktop 走原生保存对话框，web 走 window.open
 export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string): void {
+  if (!relativeOrAbsoluteUrl || typeof relativeOrAbsoluteUrl !== 'string') {
+    console.warn('Invalid download URL:', relativeOrAbsoluteUrl);
+    return;
+  }
+
   if (isDesktop) {
     const normalizedPath = relativeOrAbsoluteUrl.startsWith('/')
       ? relativeOrAbsoluteUrl

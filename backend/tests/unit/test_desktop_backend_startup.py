@@ -22,6 +22,8 @@ def _start_desktop_backend(tmp_path, db_path):
     exports_dir = tmp_path / "exports"
     run_cwd = tmp_path / "cwd"
     run_cwd.mkdir()
+    log_path = tmp_path / "backend.log"
+    log_file = log_path.open("w", encoding="utf-8")
 
     env = os.environ.copy()
     env.update(
@@ -37,23 +39,27 @@ def _start_desktop_backend(tmp_path, db_path):
         }
     )
 
-    return port, subprocess.Popen(
+    proc = subprocess.Popen(
         [sys.executable, str(backend_dir / "app.py")],
         cwd=run_cwd,
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=log_file,
         stderr=subprocess.STDOUT,
         text=True,
     )
+    log_file.close()
+    return port, proc, log_path
 
 
-def _wait_for_health(proc, port, db_path):
-    output = ""
+def _read_backend_log(log_path):
+    return log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
+
+
+def _wait_for_health(proc, port, db_path, log_path):
     deadline = time.time() + 20
     while time.time() < deadline:
         if proc.poll() is not None:
-            output += proc.stdout.read() if proc.stdout else ""
-            raise AssertionError(f"backend exited early with code {proc.returncode}\n{output}")
+            raise AssertionError(f"backend exited early with code {proc.returncode}\n{_read_backend_log(log_path)}")
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
                 assert response.status == 200
@@ -61,8 +67,7 @@ def _wait_for_health(proc, port, db_path):
                 return
         except Exception:
             time.sleep(0.25)
-    output += proc.stdout.read() if proc.stdout else ""
-    raise AssertionError(f"backend did not become healthy on port {port}\n{output}")
+    raise AssertionError(f"backend did not become healthy on port {port}\n{_read_backend_log(log_path)}")
 
 
 def _stop_backend(proc):
@@ -76,9 +81,9 @@ def _stop_backend(proc):
 
 def test_desktop_backend_starts_from_non_backend_cwd_with_database_path(tmp_path):
     db_path = tmp_path / "data" / "database.db"
-    port, proc = _start_desktop_backend(tmp_path, db_path)
+    port, proc, log_path = _start_desktop_backend(tmp_path, db_path)
     try:
-        _wait_for_health(proc, port, db_path)
+        _wait_for_health(proc, port, db_path, log_path)
     finally:
         _stop_backend(proc)
 
@@ -164,9 +169,9 @@ def test_desktop_backend_repairs_old_settings_schema_before_update(tmp_path):
             """
         )
 
-    port, proc = _start_desktop_backend(tmp_path, db_path)
+    port, proc, log_path = _start_desktop_backend(tmp_path, db_path)
     try:
-        _wait_for_health(proc, port, db_path)
+        _wait_for_health(proc, port, db_path, log_path)
         payload = json.dumps({
             "enable_text_reasoning": True,
             "text_thinking_budget": 2048,

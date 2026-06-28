@@ -155,7 +155,7 @@ function waitForBackend(port, timeoutMs = 30000) {
         setTimeout(check, 500);
       };
 
-      const req = http.get(`http://localhost:${port}/health`, (res) => {
+      const req = http.get(`http://127.0.0.1:${port}/health`, (res) => {
         if (res.statusCode === 200) {
           done = true;
           resolve();

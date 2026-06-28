@@ -310,7 +310,7 @@ function setupIPC() {
       cleanup();
     };
     downloadSession.on('will-download', listener);
-    cleanupTimer = setTimeout(cleanup, 10000);
+    cleanupTimer = setTimeout(cleanup, 300000);
     currentWindow.webContents.downloadURL(downloadUrl);
     return { success: true };
   });
