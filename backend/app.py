@@ -164,7 +164,7 @@ def create_app():
             if os.path.exists(migrations_dir):
                 try:
                     from flask_migrate import upgrade as alembic_upgrade
-                    alembic_upgrade()
+                    alembic_upgrade(directory=migrations_dir)
                 except Exception as e:
                     logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
                     db.create_all()
