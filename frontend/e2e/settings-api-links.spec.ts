@@ -31,8 +31,21 @@ test.describe('Settings page API key labels and links', () => {
   });
 
   test('AIHubMix has apply link', async ({ page }) => {
-    const aihubLink = page.locator('a[href="https://aihubmix.com/token?aff=17EC"]');
-    await expect(aihubLink).toBeVisible();
-    await expect(aihubLink).toHaveAttribute('target', '_blank');
+    const targetUrl = 'https://aihubmix.com/?aff=17EC';
+    const legacyUrl = targetUrl.replace('/?', '/token?');
+
+    const aihubLinks = page.locator(`a[href="${targetUrl}"]`);
+    await expect(aihubLinks).toHaveCount(2);
+    await expect(aihubLinks.first()).toBeVisible();
+    await expect(aihubLinks.first()).toHaveAttribute('target', '_blank');
+    await expect(aihubLinks.last()).toBeVisible();
+    await expect(aihubLinks.last()).toHaveAttribute('target', '_blank');
+    await expect(page.locator(`a[href="${legacyUrl}"]`)).toHaveCount(0);
+  });
+
+  test('AIHubMix API key guide uses current Console flow', async ({ page }) => {
+    await expect(page.getByText(/Console.*Develop.*API Keys/)).toBeVisible();
+    await expect(page.getByText(/Add key/)).toBeVisible();
+    await expect(page.getByText(/Top Up/)).toBeVisible();
   });
 });
