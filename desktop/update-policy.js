@@ -1,34 +1,13 @@
-function parseVersion(version) {
-  if (typeof version !== 'string') {
-    return null;
-  }
-
-  const match = version.trim().match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
-  if (!match) {
-    return null;
-  }
-
-  return match.slice(1, 4).map((value) => Number.parseInt(value, 10));
-}
+const semver = require('semver');
 
 function isVersionGreater(latestVersion, currentVersion) {
-  const latest = parseVersion(latestVersion);
-  const current = parseVersion(currentVersion);
-
+  const latest = semver.valid(latestVersion);
+  const current = semver.valid(currentVersion);
   if (!latest || !current) {
     return false;
   }
 
-  for (let index = 0; index < latest.length; index += 1) {
-    if (latest[index] > current[index]) {
-      return true;
-    }
-    if (latest[index] < current[index]) {
-      return false;
-    }
-  }
-
-  return false;
+  return semver.gt(latest, current);
 }
 
 function resolveCurrentBuildTimestamp(buildMeta) {

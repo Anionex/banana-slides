@@ -60,3 +60,15 @@ test('falls back to semver when timestamps are unavailable', () => {
     true,
   );
 });
+
+test('treats stable releases as newer than pre-release builds', () => {
+  assert.equal(
+    updatePolicy.shouldNotifyUpdate({
+      currentVersion: '0.3.0-ci.377.4',
+      latestVersion: '0.3.0',
+      currentBuildTimestamp: null,
+      latestReleaseTimestamp: null,
+    }),
+    true,
+  );
+});

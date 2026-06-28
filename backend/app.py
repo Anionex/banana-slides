@@ -88,6 +88,7 @@ def create_app():
     export_folder_env = os.environ.get('EXPORT_FOLDER')
 
     if db_path_env and not database_url_env:
+        db_path_env = os.path.abspath(db_path_env)
         os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path_env}'
     if upload_folder_env:
@@ -408,7 +409,7 @@ if __name__ == '__main__':
     if port == 0:
         from werkzeug.serving import make_server
 
-        server = make_server('0.0.0.0', 0, app, threaded=True)
+        server = make_server('127.0.0.1', 0, app, threaded=True)
         port = server.server_port
         print(f"LISTENING_ON:{port}", flush=True)
 

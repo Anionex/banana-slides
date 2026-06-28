@@ -55,6 +55,11 @@ async function startBackend(userDataPath) {
     windowsHide: true,
   });
 
+  backendProcess.on('error', (error) => {
+    log.error('[python-manager] Failed to start backend process:', error);
+    backendProcess = null;
+  });
+
   backendProcess.stdout.on('data', (data) => {
     const output = data.toString();
     for (const line of output.split(/\r?\n/)) {
