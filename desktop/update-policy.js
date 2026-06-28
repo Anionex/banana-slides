@@ -31,11 +31,15 @@ function resolveCurrentBuildTimestamp(buildMeta) {
 }
 
 function shouldNotifyUpdate({ currentVersion, latestVersion, currentBuildTimestamp, latestReleaseTimestamp }) {
+  if (isVersionGreater(latestVersion, currentVersion)) {
+    return true;
+  }
+
   if (Number.isFinite(currentBuildTimestamp) && Number.isFinite(latestReleaseTimestamp)) {
     return latestReleaseTimestamp > currentBuildTimestamp;
   }
 
-  return isVersionGreater(latestVersion, currentVersion);
+  return false;
 }
 
 module.exports = {

@@ -47,7 +47,8 @@ export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string
     const url = relativeOrAbsoluteUrl.startsWith('http')
       ? relativeOrAbsoluteUrl
       : `${getBaseURL()}${relativeOrAbsoluteUrl}`;
-    (window as any).electronAPI.downloadFile(url, filename || url.split('/').pop() || 'download');
+    const fallbackFilename = new URL(url).pathname.split('/').pop() || 'download';
+    (window as any).electronAPI.downloadFile(url, filename || fallbackFilename);
   } else {
     window.open(relativeOrAbsoluteUrl, '_blank');
   }

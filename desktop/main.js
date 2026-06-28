@@ -273,11 +273,11 @@ function setupIPC() {
   ipcMain.handle('download-file', async (_, { url, filename }) => {
     if (!mainWindow) return { success: false };
     const ext = (filename || 'file').split('.').pop() || '*';
-    const savePath = dialog.showSaveDialogSync(mainWindow, {
+    const { filePath: savePath, canceled } = await dialog.showSaveDialog(mainWindow, {
       defaultPath: filename || 'download',
       filters: [{ name: '所有文件', extensions: [ext, '*'] }],
     });
-    if (!savePath) return { success: false, canceled: true };
+    if (canceled || !savePath) return { success: false, canceled: true };
     const downloadSession = mainWindow.webContents.session;
     let cleanupTimer = null;
     const cleanup = () => {

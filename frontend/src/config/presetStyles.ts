@@ -1,4 +1,5 @@
 // Preset PPT style configuration with i18n support
+import { isDesktop } from '@/utils';
 
 export interface PresetStyle {
   id: string;
@@ -8,10 +9,7 @@ export interface PresetStyle {
   color: string;  // accent color for visual indicator
 }
 
-const publicAssetPath = (path: string) => {
-  const isDesktopMode = typeof window !== 'undefined' && 'electronAPI' in window;
-  return `${isDesktopMode ? '.' : ''}${path}`;
-};
+const publicAssetPath = (path: string) => `${isDesktop ? '.' : ''}${path}`;
 
 // Style IDs map to i18n keys in presetStyles namespace
 export const PRESET_STYLES: PresetStyle[] = [

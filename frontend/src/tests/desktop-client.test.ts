@@ -10,6 +10,7 @@ function createMockElectronAPI(overrides = {}) {
     minimizeWindow: vi.fn(),
     maximizeWindow: vi.fn(),
     closeWindow: vi.fn(),
+    downloadFile: vi.fn(),
     ...overrides,
   };
 }
@@ -93,5 +94,19 @@ describe('API client desktop detection', () => {
     (window as any).electronAPI = createMockElectronAPI();
     const { getImageUrl } = await import('../api/client');
     expect(getImageUrl('/uploads/example.png', 123)).toBe('http://127.0.0.1:15000/uploads/example.png?v=123');
+  });
+
+  it('strips query parameters from fallback desktop download filenames', async () => {
+    const downloadFile = vi.fn();
+    (window as any).__BACKEND_PORT__ = 15000;
+    (window as any).electronAPI = createMockElectronAPI({ downloadFile });
+    const { triggerDownload } = await import('../api/client');
+
+    triggerDownload('/exports/slides.pptx?token=abc');
+
+    expect(downloadFile).toHaveBeenCalledWith(
+      'http://127.0.0.1:15000/exports/slides.pptx?token=abc',
+      'slides.pptx',
+    );
   });
 });

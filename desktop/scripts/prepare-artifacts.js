@@ -9,6 +9,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
@@ -91,7 +92,8 @@ function downloadFile(url, dest, redirectCount = 0) {
   }
 
   return new Promise((resolve, reject) => {
-    const request = https.get(url, (response) => {
+    const client = url.startsWith('https:') ? https : http;
+    const request = client.get(url, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
         const redirectUrl = new URL(response.headers.location, url).toString();

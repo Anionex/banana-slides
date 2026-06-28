@@ -25,7 +25,7 @@ test('uses build timestamp for dirty builds', () => {
   );
 });
 
-test('suppresses update when current build is newer than released commit', () => {
+test('shows semver upgrade even when current build timestamp is newer', () => {
   assert.equal(
     updatePolicy.shouldNotifyUpdate({
       currentVersion: '0.3.0',
@@ -33,15 +33,15 @@ test('suppresses update when current build is newer than released commit', () =>
       currentBuildTimestamp: 1710002000,
       latestReleaseTimestamp: 1710001000,
     }),
-    false,
+    true,
   );
 });
 
-test('shows update when released commit is newer than current build', () => {
+test('uses timestamp when versions are equal', () => {
   assert.equal(
     updatePolicy.shouldNotifyUpdate({
-      currentVersion: '0.3.0',
-      latestVersion: '0.3.1',
+      currentVersion: '0.3.0-ci.377.4',
+      latestVersion: '0.3.0-ci.377.4',
       currentBuildTimestamp: 1710001000,
       latestReleaseTimestamp: 1710002000,
     }),

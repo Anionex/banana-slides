@@ -27,7 +27,8 @@ function fetchGitHubJson(requestPath) {
         }
 
         try {
-          resolve(JSON.parse(chunks.join('')));
+          const body = Buffer.concat(chunks).toString('utf8');
+          resolve(JSON.parse(body));
         } catch (error) {
           log.warn('[auto-updater] Parse error:', error.message);
           resolve(null);
