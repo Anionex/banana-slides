@@ -34,6 +34,7 @@ def app():
     
     # 设置测试数据库路径
     os.environ['DATABASE_PATH'] = temp_db
+    os.environ.pop('DATABASE_URL', None)
     os.environ.pop('ACCESS_CODE', None)
     
     # 现在导入app

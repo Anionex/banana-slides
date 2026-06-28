@@ -17,11 +17,13 @@ function createMockElectronAPI(overrides = {}) {
 describe('API client desktop detection', () => {
   beforeEach(() => {
     vi.resetModules();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
     delete (window as any).electronAPI;
     delete (window as any).__BACKEND_PORT__;
+    sessionStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -46,6 +48,22 @@ describe('API client desktop detection', () => {
     expect(result.baseURL).toBe('http://127.0.0.1:15000');
   });
 
+  it('does not override absolute baseURL or request URLs', async () => {
+    (window as any).__BACKEND_PORT__ = 15000;
+    (window as any).electronAPI = createMockElectronAPI();
+    const { apiClient } = await import('../api/client');
+    const interceptors = apiClient.interceptors.request as any;
+    const handlers = interceptors.handlers.filter((h: any) => h !== null);
+
+    const absoluteBaseURLConfig = { baseURL: 'https://api.example.com', headers: {} } as any;
+    const absoluteBaseURLResult = await handlers[0].fulfilled(absoluteBaseURLConfig);
+    expect(absoluteBaseURLResult.baseURL).toBe('https://api.example.com');
+
+    const absoluteRequestConfig = { url: 'https://api.example.com/status', baseURL: undefined, headers: {} } as any;
+    const absoluteRequestResult = await handlers[0].fulfilled(absoluteRequestConfig);
+    expect(absoluteRequestResult.baseURL).toBeUndefined();
+  });
+
   it('throws when desktop backend port is unavailable', async () => {
     (window as any).electronAPI = createMockElectronAPI({
       getBackendPort: vi.fn().mockReturnValue(undefined),
@@ -59,6 +77,15 @@ describe('API client desktop detection', () => {
     (window as any).electronAPI = createMockElectronAPI({ getBackendPort: mockGetPort });
     await import('../api/client');
     expect(mockGetPort).toHaveBeenCalled();
+  });
+
+  it('uses cached desktop backend port when the query parameter is unavailable', async () => {
+    sessionStorage.setItem('__desktop_backend_port__', '15001');
+    (window as any).electronAPI = createMockElectronAPI({
+      getBackendPort: vi.fn().mockReturnValue(undefined),
+    });
+    const { getBaseURL } = await import('../api/client');
+    expect(getBaseURL()).toBe('http://127.0.0.1:15001');
   });
 
   it('builds desktop image URLs with the resolved backend base URL', async () => {

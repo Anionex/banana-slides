@@ -278,9 +278,24 @@ function setupIPC() {
       filters: [{ name: '所有文件', extensions: [ext, '*'] }],
     });
     if (!savePath) return { success: false, canceled: true };
-    mainWindow.webContents.session.once('will-download', (_, item) => {
+    const downloadSession = mainWindow.webContents.session;
+    let cleanupTimer = null;
+    const cleanup = () => {
+      if (cleanupTimer) {
+        clearTimeout(cleanupTimer);
+        cleanupTimer = null;
+      }
+      downloadSession.removeListener('will-download', listener);
+    };
+    const listener = (_, item) => {
+      if (item.getURL() !== url) {
+        return;
+      }
       item.setSavePath(savePath);
-    });
+      cleanup();
+    };
+    downloadSession.on('will-download', listener);
+    cleanupTimer = setTimeout(cleanup, 10000);
     mainWindow.webContents.downloadURL(url);
     return { success: true };
   });

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, useToast, MaterialSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { getImageUrl } from '@/api/client';
+import { isDesktop } from '@/utils';
 
 // Template 组件自包含翻译
 const templateI18n = {
@@ -41,6 +42,8 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
+const publicAssetPath = (path: string) => `${isDesktop ? '.' : ''}${path}`;
+
 interface TemplateSelectorProps {
   onSelect: (templateFile: File | null, templateId?: string) => void;
   selectedTemplateId?: string | null;
@@ -65,9 +68,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const { show, ToastContainer } = useToast();
 
   const presetTemplates = [
-    { id: '1', nameKey: 'template.presets.retroScroll', preview: './templates/template_y.png', thumb: './templates/template_y-thumb.webp' },
-    { id: '2', nameKey: 'template.presets.vectorIllustration', preview: './templates/template_vector_illustration.png', thumb: './templates/template_vector_illustration-thumb.webp' },
-    { id: '3', nameKey: 'template.presets.glassEffect', preview: './templates/template_glass.png', thumb: './templates/template_glass-thumb.webp' },
+    { id: '1', nameKey: 'template.presets.retroScroll', preview: publicAssetPath('/templates/template_y.png'), thumb: publicAssetPath('/templates/template_y-thumb.webp') },
+    { id: '2', nameKey: 'template.presets.vectorIllustration', preview: publicAssetPath('/templates/template_vector_illustration.png'), thumb: publicAssetPath('/templates/template_vector_illustration-thumb.webp') },
+    { id: '3', nameKey: 'template.presets.glassEffect', preview: publicAssetPath('/templates/template_glass.png'), thumb: publicAssetPath('/templates/template_glass-thumb.webp') },
   ];
 
   useEffect(() => {
@@ -334,9 +337,9 @@ export const getTemplateFile = async (
   };
 
   const presetTemplates = [
-    { id: '1', preview: './templates/template_y.png' },
-    { id: '2', preview: './templates/template_vector_illustration.png' },
-    { id: '3', preview: './templates/template_glass.png' },
+    { id: '1', preview: publicAssetPath('/templates/template_y.png') },
+    { id: '2', preview: publicAssetPath('/templates/template_vector_illustration.png') },
+    { id: '3', preview: publicAssetPath('/templates/template_glass.png') },
   ];
 
   const presetTemplate = presetTemplates.find(t => t.id === templateId);

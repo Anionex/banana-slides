@@ -1,13 +1,30 @@
 import axios from 'axios';
 import { isDesktop } from '@/utils';
 
+const DESKTOP_BACKEND_PORT_STORAGE_KEY = '__desktop_backend_port__';
+
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port > 0 && port <= 65535;
+}
+
+function parsePort(value: unknown): number {
+  return Number.parseInt(String(value ?? ''), 10);
+}
+
 function resolveDesktopBackendPort(): number {
   const rawPort = (window as any).electronAPI?.getBackendPort?.();
-  const port = Number.parseInt(String(rawPort ?? ''), 10);
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error('Desktop backend port is unavailable');
+  const port = parsePort(rawPort);
+  if (isValidPort(port)) {
+    sessionStorage.setItem(DESKTOP_BACKEND_PORT_STORAGE_KEY, String(port));
+    return port;
   }
-  return port;
+
+  const cachedPort = parsePort(sessionStorage.getItem(DESKTOP_BACKEND_PORT_STORAGE_KEY));
+  if (isValidPort(cachedPort)) {
+    return cachedPort;
+  }
+
+  throw new Error('Desktop backend port is unavailable');
 }
 
 // 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态
@@ -18,7 +35,7 @@ if (isDesktop) {
 export function getBaseURL(): string {
   if (!isDesktop) return '';
   const port = (window as any).__BACKEND_PORT__;
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+  if (!isValidPort(port)) {
     throw new Error('Desktop backend port is unavailable');
   }
   return `http://127.0.0.1:${port}`;
@@ -44,7 +61,11 @@ export const apiClient = axios.create({
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
-    config.baseURL = getBaseURL();
+    const hasAbsoluteBaseURL = typeof config.baseURL === 'string' && /^https?:\/\//i.test(config.baseURL);
+    const hasAbsoluteRequestURL = typeof config.url === 'string' && /^https?:\/\//i.test(config.url);
+    if (!hasAbsoluteBaseURL && !hasAbsoluteRequestURL) {
+      config.baseURL = getBaseURL();
+    }
 
     // Attach access code header for backend enforcement
     const accessCode = localStorage.getItem('banana-access-code');

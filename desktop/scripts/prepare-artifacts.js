@@ -111,8 +111,13 @@ function downloadFile(url, dest, redirectCount = 0) {
       response.pipe(file);
       file.on('finish', () => {
         file.close(() => {
-          fs.renameSync(tempDest, dest);
-          resolve();
+          try {
+            fs.renameSync(tempDest, dest);
+            resolve();
+          } catch (error) {
+            fs.rmSync(tempDest, { force: true });
+            reject(error);
+          }
         });
       });
       file.on('error', (error) => {
