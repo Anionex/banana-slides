@@ -137,22 +137,37 @@ function waitForAnnouncedPort(timeoutMs = 15000) {
 function waitForBackend(port, timeoutMs = 30000) {
   const startTime = Date.now();
   return new Promise((resolve, reject) => {
+    let done = false;
+
     function check() {
+      if (done) return;
+
       if (Date.now() - startTime > timeoutMs) {
+        done = true;
         reject(new Error('Backend startup timed out after 30s'));
         return;
       }
+
+      let retryScheduled = false;
+      const scheduleRetry = () => {
+        if (done || retryScheduled) return;
+        retryScheduled = true;
+        setTimeout(check, 500);
+      };
+
       const req = http.get(`http://localhost:${port}/health`, (res) => {
         if (res.statusCode === 200) {
+          done = true;
           resolve();
         } else {
-          setTimeout(check, 500);
+          res.resume();
+          scheduleRetry();
         }
       });
-      req.on('error', () => setTimeout(check, 500));
+      req.on('error', scheduleRetry);
       req.setTimeout(2000, () => {
         req.destroy();
-        setTimeout(check, 500);
+        scheduleRetry();
       });
     }
     check();

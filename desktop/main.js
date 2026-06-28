@@ -8,6 +8,8 @@ let mainWindow = null;
 let splashWindow = null;
 let tray = null;
 let isQuitting = false;
+let backendStopped = false;
+let backendStopRequested = false;
 
 function isDev() {
   return process.env.NODE_ENV === 'development';
@@ -281,15 +283,17 @@ function setupIPC() {
 
   // 原生下载对话框：前端传入绝对 URL + 建议文件名
   ipcMain.handle('download-file', async (_, { url, filename }) => {
-    if (!mainWindow) return { success: false };
+    const currentWindow = mainWindow;
+    if (!currentWindow || currentWindow.isDestroyed()) return { success: false };
     const ext = (filename || 'file').split('.').pop() || '*';
     const downloadUrl = createUniqueDownloadUrl(url);
-    const { filePath: savePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+    const { filePath: savePath, canceled } = await dialog.showSaveDialog(currentWindow, {
       defaultPath: filename || 'download',
       filters: [{ name: '所有文件', extensions: [ext, '*'] }],
     });
     if (canceled || !savePath) return { success: false, canceled: true };
-    const downloadSession = mainWindow.webContents.session;
+    if (currentWindow.isDestroyed()) return { success: false };
+    const downloadSession = currentWindow.webContents.session;
     let cleanupTimer = null;
     const cleanup = () => {
       if (cleanupTimer) {
@@ -307,7 +311,7 @@ function setupIPC() {
     };
     downloadSession.on('will-download', listener);
     cleanupTimer = setTimeout(cleanup, 10000);
-    mainWindow.webContents.downloadURL(downloadUrl);
+    currentWindow.webContents.downloadURL(downloadUrl);
     return { success: true };
   });
 }
@@ -350,9 +354,18 @@ app.on('activate', () => {
   }
 });
 
-app.on('before-quit', async () => {
+app.on('before-quit', (event) => {
   isQuitting = true;
-  await pythonManager.stopBackend();
+  if (backendStopped) return;
+
+  event.preventDefault();
+  if (backendStopRequested) return;
+  backendStopRequested = true;
+
+  pythonManager.stopBackend().finally(() => {
+    backendStopped = true;
+    app.quit();
+  });
 });
 
 app.on('window-all-closed', () => {
