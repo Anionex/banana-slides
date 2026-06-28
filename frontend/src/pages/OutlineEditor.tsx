@@ -193,6 +193,7 @@ export const OutlineEditor: React.FC = () => {
   }, [isOutlineStreaming]);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
+  const autoGenerateStartedRef = useRef<string | null>(null);
 
   // 左侧可编辑文本区域 — desktop and mobile use separate refs to avoid
   // the shared-ref bug where insertAtCursor targets the wrong (hidden) instance.
@@ -405,6 +406,28 @@ export const OutlineEditor: React.FC = () => {
 
     await doGenerate();
   };
+
+  useEffect(() => {
+    if (!currentProject?.id || currentProject.pages.length > 0 || isOutlineStreaming) return;
+    if (!['idea', 'outline', 'descriptions'].includes(currentProject.creation_type || 'idea')) return;
+    if (autoGenerateStartedRef.current === currentProject.id) return;
+
+    autoGenerateStartedRef.current = currentProject.id;
+    void (async () => {
+      try {
+        const result = await generateOutlineStream();
+        const { currentProject: updatedProject } = useProjectStore.getState();
+        const pageCount = updatedProject?.pages.length ?? 0;
+        if (result && (!result.complete || pageCount === 0)) {
+          show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
+        }
+      } catch (error: any) {
+        console.error('自动生成大纲失败:', error);
+        const message = error.message || t('outline.messages.generateFailed');
+        show({ message, type: 'error' });
+      }
+    })();
+  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, show, t]);
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;

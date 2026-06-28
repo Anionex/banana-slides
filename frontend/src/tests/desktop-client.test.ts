@@ -46,17 +46,12 @@ describe('API client desktop detection', () => {
     expect(result.baseURL).toBe('http://127.0.0.1:15000');
   });
 
-  it('uses fallback port when desktop backend port is unavailable', async () => {
+  it('throws when desktop backend port is unavailable', async () => {
     (window as any).electronAPI = createMockElectronAPI({
       getBackendPort: vi.fn().mockReturnValue(undefined),
     });
-    const { apiClient } = await import('../api/client');
-    const interceptors = apiClient.interceptors.request as any;
-    const handlers = interceptors.handlers.filter((h: any) => h !== null);
-    const config = { baseURL: undefined, headers: {} } as any;
-    const result = await handlers[0].fulfilled(config);
-    expect(result.baseURL).toBe('http://127.0.0.1:5000');
-    expect((window as any).__BACKEND_PORT__).toBe(5000);
+    await expect(import('../api/client')).rejects.toThrow('Desktop backend port is unavailable');
+    expect((window as any).__BACKEND_PORT__).toBeUndefined();
   });
 
   it('calls getBackendPort on module load in desktop mode', async () => {

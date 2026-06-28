@@ -107,6 +107,52 @@ test.describe('OpenAI OAuth Settings Section', () => {
       expect(openedUrl).toContain('auth.openai.com');
     });
 
+    test('should auto-open manual callback when localhost callback port is unavailable', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: {
+              auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test',
+              callback_server_available: false,
+            },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.waitForSelector('text=Login with OpenAI');
+
+      await page.evaluate(() => {
+        (window as any).__openedUrl = null;
+        window.open = (url: any) => {
+          (window as any).__openedUrl = url;
+          return { closed: true } as Window;
+        };
+      });
+
+      await page.click('button:has-text("Login with OpenAI")');
+
+      await expect(page.getByText('检测到本机 1455 端口被占用，请登录后复制弹窗地址栏中的完整地址并粘贴到下方。')).toBeVisible();
+      await expect(page.getByPlaceholder('粘贴回调地址...')).toBeVisible();
+
+      const openedUrl = await page.evaluate(() => (window as any).__openedUrl);
+      expect(openedUrl).toContain('auth.openai.com');
+    });
+
     test('should call disconnect endpoint and update UI', async ({ page }) => {
       const base = await getBaseSettings();
       let disconnectCalled = false;
@@ -140,6 +186,89 @@ test.describe('OpenAI OAuth Settings Section', () => {
 
       await expect(page.locator('button', { hasText: 'Login with OpenAI' })).toBeVisible();
     });
+
+    test('should submit manual callback URL and update connected state', async ({ page }) => {
+      const base = await getBaseSettings();
+      let manualCallbackPayload: Record<string, unknown> | null = null;
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/openai-oauth/manual-callback', async (route) => {
+        manualCallbackPayload = route.request().postDataJSON();
+        await route.fulfill({
+          json: { success: true, data: { message: 'Connected', account_id: 'user@example.com' } },
+        });
+      });
+
+      await page.route('**/api/settings/openai-oauth/status', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { connected: true, account_id: 'user@example.com' } },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.getByRole('button', { name: /登录后连接失败|Connection failed after login/ }).click();
+
+      const callbackUrl = 'http://localhost:1455/auth/callback?code=auth-code&state=state-123';
+      await page.getByPlaceholder(/粘贴回调地址|Paste callback URL/).fill(callbackUrl);
+      await page.getByRole('button', { name: /提交|Submit/ }).click();
+
+      await expect(page.locator('text=user@example.com')).toBeVisible();
+      expect(manualCallbackPayload).toEqual({ callback_url: callbackUrl });
+    });
+
+    test('should mark OAuth disconnected after Codex settings test returns unauthorized', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: true, openai_oauth_account_id: 'user@example.com' } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/tests/text-model', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { task_id: 'codex-expired-task', status: 'PENDING' } },
+        });
+      });
+
+      await page.route('**/api/settings/tests/codex-expired-task/status', async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: {
+              status: 'FAILED',
+              error: 'Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。',
+              openai_oauth_disconnected: true,
+            },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await expect(page.locator('text=user@example.com')).toBeVisible();
+
+      const textModelTestBtn = page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1);
+      await textModelTestBtn.click();
+
+      await expect(page.locator('button', { hasText: 'Login with OpenAI' })).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=user@example.com')).not.toBeVisible();
+      await expect(page.getByText('Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。', { exact: true })).toBeVisible();
+    });
   });
 
   test.describe('Integration tests — real backend', () => {
@@ -167,6 +296,7 @@ test.describe('OpenAI OAuth Settings Section', () => {
       expect(data.data.auth_url).toContain('code_challenge_method=S256');
       expect(data.data.auth_url).toContain('originator=codex_cli_rs');
       expect(data.data.auth_url).toContain('localhost%3A1455');
+      expect(typeof data.data.callback_server_available).toBe('boolean');
     });
 
     test('OAuth disconnect endpoint works even when not connected', async ({ request }) => {

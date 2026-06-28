@@ -14,6 +14,7 @@ const mockGetProject = vi.fn()
 const mockAssociateFileToProject = vi.fn()
 const mockUploadTemplate = vi.fn()
 const mockGenerateFromDescription = vi.fn()
+const mockGenerateOutline = vi.fn()
 
 vi.mock('@/api/endpoints', () => ({
   createProject: (...args: any[]) => {
@@ -36,11 +37,14 @@ vi.mock('@/api/endpoints', () => ({
     callOrder.push('generateFromDescription')
     return mockGenerateFromDescription(...args)
   },
+  generateOutline: (...args: any[]) => {
+    callOrder.push('generateOutline')
+    return mockGenerateOutline(...args)
+  },
   // Other mocks needed by the store
   updatePage: vi.fn(),
   updatePageDescription: vi.fn(),
   updatePageOutline: vi.fn(),
-  generateOutline: vi.fn(),
   generateDescriptions: vi.fn(),
   generateImages: vi.fn(),
   getTaskStatus: vi.fn(),
@@ -76,6 +80,8 @@ describe('initializeProject - reference file association', () => {
     })
     mockUploadTemplate.mockResolvedValue({ data: {} })
     mockGenerateFromDescription.mockResolvedValue({ data: {} })
+    mockGenerateOutline.mockResolvedValue({ data: {} })
+    localStorage.clear()
 
     // Reset store
     const { result } = renderHook(() => useProjectStore())
@@ -104,7 +110,7 @@ describe('initializeProject - reference file association', () => {
     expect(mockAssociateFileToProject).toHaveBeenCalledWith('file-2', 'proj-001')
   })
 
-  it('should associate files BEFORE generating from description', async () => {
+  it('should associate files before loading the created description project', async () => {
     const { result } = renderHook(() => useProjectStore())
 
     await act(async () => {
@@ -117,13 +123,28 @@ describe('initializeProject - reference file association', () => {
       )
     })
 
-    // Verify call order: create → associate → generate
+    // Verify call order: create → associate → get project. SSE generation starts on the outline page.
     const createIdx = callOrder.indexOf('createProject')
     const associateIdx = callOrder.indexOf('associateFileToProject')
-    const generateIdx = callOrder.indexOf('generateFromDescription')
+    const getProjectIdx = callOrder.indexOf('getProject')
 
     expect(createIdx).toBeLessThan(associateIdx)
-    expect(associateIdx).toBeLessThan(generateIdx)
+    expect(associateIdx).toBeLessThan(getProjectIdx)
+    expect(mockGenerateFromDescription).not.toHaveBeenCalled()
+    expect(mockGenerateOutline).not.toHaveBeenCalled()
+    expect(localStorage.getItem('currentProjectId')).toBe('proj-001')
+  })
+
+  it('should create outline projects without calling the long synchronous generation endpoint', async () => {
+    const { result } = renderHook(() => useProjectStore())
+
+    await act(async () => {
+      await result.current.initializeProject('outline', 'Slide 1\n- Point')
+    })
+
+    expect(mockGenerateOutline).not.toHaveBeenCalled()
+    expect(mockGenerateFromDescription).not.toHaveBeenCalled()
+    expect(localStorage.getItem('currentProjectId')).toBe('proj-001')
   })
 
   it('should not call associateFileToProject when no file IDs provided', async () => {

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import * as api from '@/api/endpoints';
 import { devLog } from '@/utils/logger';
 import { getT } from '@/utils/i18nHelper';
+import { normalizeErrorMessage } from '@/utils';
 
 const exportI18n = {
   zh: { exportStore: { exportFailed: '导出失败', pollFailed: '轮询失败' } },
@@ -26,6 +27,7 @@ export interface ExportTask {
     completed: number;
     percent?: number;
     current_step?: string;
+    help_text?: string;
     messages?: string[];
     warnings?: string[];  // 导出警告信息
     warning_details?: {   // 警告详细信息
@@ -51,7 +53,7 @@ interface ExportTasksState {
   addTask: (task: Omit<ExportTask, 'createdAt'>) => void;
   updateTask: (id: string, updates: Partial<ExportTask>) => void;
   removeTask: (id: string) => void;
-  clearCompleted: () => void;
+  clearCompleted: (projectId?: string | null) => void;
   pollTask: (id: string, projectId: string, taskId: string) => Promise<void>;
   restoreActiveTasks: () => void; // 恢复正在进行的任务并重新开始轮询
 }
@@ -105,10 +107,14 @@ export const useExportTasksStore = create<ExportTasksState>()(
         }));
       },
 
-      clearCompleted: () => {
+      clearCompleted: (projectId) => {
         set((state) => ({
           tasks: state.tasks.filter(
-            (task) => task.status !== 'COMPLETED' && task.status !== 'FAILED'
+            (task) => {
+              const isCompleted = task.status === 'COMPLETED' || task.status === 'FAILED';
+              if (!isCompleted) return true;
+              return projectId != null ? task.projectId !== projectId : false;
+            }
           ),
         }));
       },
@@ -154,7 +160,10 @@ export const useExportTasksStore = create<ExportTasksState>()(
               updates.completedAt = new Date().toISOString();
               get().updateTask(id, updates);
             } else if (task.status === 'FAILED') {
-              updates.errorMessage = task.error_message || task.error || t('exportStore.exportFailed');
+              const taskErrorMessage = task.error_message
+                || (typeof task.error === 'string' ? task.error : task.error?.message)
+                || t('exportStore.exportFailed');
+              updates.errorMessage = normalizeErrorMessage(taskErrorMessage);
               updates.completedAt = new Date().toISOString();
               get().updateTask(id, updates);
             } else if (task.status === 'PENDING' || task.status === 'RUNNING' || task.status === 'PROCESSING') {
@@ -166,7 +175,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
             console.error('[ExportTasksStore] Poll error:', error);
             get().updateTask(id, {
               status: 'FAILED',
-              errorMessage: error.message || t('exportStore.pollFailed'),
+              errorMessage: normalizeErrorMessage(error.message || t('exportStore.pollFailed')),
               completedAt: new Date().toISOString(),
             });
           }
@@ -202,4 +211,3 @@ export const useExportTasksStore = create<ExportTasksState>()(
     }
   )
 );
-

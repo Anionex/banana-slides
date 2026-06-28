@@ -353,6 +353,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "anthropic" },
+    { name = "dashscope" },
     { name = "edge-tts" },
     { name = "elevenlabs" },
     { name = "flask" },
@@ -374,6 +375,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-pptx" },
     { name = "reportlab" },
+    { name = "requests" },
     { name = "rich" },
     { name = "socksio" },
     { name = "tenacity" },
@@ -381,6 +383,7 @@ dependencies = [
     { name = "typer" },
     { name = "volcengine-python-sdk", extra = ["ark"] },
     { name = "werkzeug" },
+    { name = "zhipuai" },
 ]
 
 [package.optional-dependencies]
@@ -403,6 +406,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "anthropic", specifier = ">=0.30.0" },
     { name = "black", marker = "extra == 'test'", specifier = ">=23.0.0" },
+    { name = "dashscope", specifier = ">=1.25.0" },
     { name = "edge-tts", specifier = ">=6.1.0" },
     { name = "elevenlabs", specifier = ">=2.45.0" },
     { name = "flake8", marker = "extra == 'test'", specifier = ">=6.1.0" },
@@ -413,7 +417,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.52.0" },
     { name = "httpx", specifier = ">=0.25.0" },
     { name = "img2pdf", specifier = ">=0.5.1" },
-    { name = "lazyllm", extras = ["online-advanced"], specifier = ">=0.7.3" },
+    { name = "lazyllm", specifier = ">=0.7.3" },
     { name = "markitdown", extras = ["all"] },
     { name = "onnxruntime", specifier = ">=1.18.0" },
     { name = "openai", specifier = ">=1.0.0" },
@@ -429,6 +433,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "python-pptx", specifier = ">=1.0.0" },
     { name = "reportlab", specifier = ">=4.1.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "socksio", specifier = ">=1.0.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
@@ -436,6 +441,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.9.0" },
     { name = "volcengine-python-sdk", extras = ["ark"], specifier = ">=5.0.9" },
     { name = "werkzeug", specifier = ">=3.0.1" },
+    { name = "zhipuai", specifier = ">=2.1.5.20250708" },
 ]
 provides-extras = ["test"]
 
@@ -915,6 +921,21 @@ wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/99/55/181022996c4063fc0e7666a47049a1ca705abb9c8a13830f074edb347495/cryptography-46.0.3-pp311-pypy311_pp73-manylinux_2_34_aarch64.whl", hash = "sha256:9394673a9f4de09e28b5356e7fff97d778f8abad85c9d5ac4a4b7e25a0de7717", size = 4242957, upload-time = "2025-10-15T23:18:22.18Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/ba/af/72cd6ef29f9c5f731251acadaeb821559fe25f10852f44a63374c9ca08c1/cryptography-46.0.3-pp311-pypy311_pp73-manylinux_2_34_x86_64.whl", hash = "sha256:94cd0549accc38d1494e1f8de71eca837d0509d0d44bf11d158524b0e12cebf9", size = 4409447, upload-time = "2025-10-15T23:18:24.209Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/0d/c3/e90f4a4feae6410f914f8ebac129b9ae7a8c92eb60a638012dde42030a9d/cryptography-46.0.3-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:6b5063083824e5509fdba180721d55909ffacccc8adbec85268b48439423d78c", size = 3438528, upload-time = "2025-10-15T23:18:26.227Z" },
+]
+
+[[package]]
+name = "dashscope"
+version = "1.25.19"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "certifi" },
+    { name = "cryptography" },
+    { name = "requests" },
+    { name = "websocket-client" },
+]
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/06/06/e53f4fa67604530ddac04f7789ca7d7773864412e74db8a10538d2f47b9e/dashscope-1.25.19-py3-none-any.whl", hash = "sha256:ee8f20c9928c8889344b4be26a4f3d4fa7236c852bf2d0c9e588803c9fe5ff47", size = 1462185, upload-time = "2026-05-25T11:39:57.889Z" },
 ]
 
 [[package]]
@@ -3580,6 +3601,15 @@ ark = [
 ]
 
 [[package]]
+name = "websocket-client"
+version = "1.9.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/2c/41/aa4bf9664e4cda14c3b39865b12251e8e7d239f4cd0e3cc1b6c2ccde25c1/websocket_client-1.9.0.tar.gz", hash = "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98", size = 70576, upload-time = "2025-10-07T21:16:36.495Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/34/db/b10e48aa8fff7407e67470363eac595018441cf32d5e1001567a7aeba5d2/websocket_client-1.9.0-py3-none-any.whl", hash = "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef", size = 82616, upload-time = "2025-10-07T21:16:34.951Z" },
+]
+
+[[package]]
 name = "websockets"
 version = "15.0.1"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -3921,4 +3951,20 @@ dependencies = [
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/b0/32/f60d87a99c05a53604c58f20f670c7ea6262b55e0bbeb836ffe4550b248b/youtube_transcript_api-1.0.3.tar.gz", hash = "sha256:902baf90e7840a42e1e148335e09fe5575dbff64c81414957aea7038e8a4db46", size = 2153252, upload-time = "2025-03-25T18:14:21.119Z" }
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/f0/44/40c03bb0f8bddfb9d2beff2ed31641f52d96c287ba881d20e0c074784ac2/youtube_transcript_api-1.0.3-py3-none-any.whl", hash = "sha256:d1874e57de65cf14c9d7d09b2b37c814d6287fa0e770d4922c4cd32a5b3f6c47", size = 2169911, upload-time = "2025-03-25T18:14:19.416Z" },
+]
+
+[[package]]
+name = "zhipuai"
+version = "2.1.5.20250825"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "cachetools" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "pyjwt" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9b/9b/972de785a9859bbb5ee6425e011f154001886207860acdedebd174b7f2c2/zhipuai-2.1.5.20250825.tar.gz", hash = "sha256:50fc3982565ee631bd640b1166a1d223de227958026a74a1dd0e26dbd58d729c", size = 69899, upload-time = "2025-08-25T10:58:52.796Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/49/95/22fc274f670e4531da20cc607991c34e7f8f4de5baa589e454e77e2492fa/zhipuai-2.1.5.20250825-py3-none-any.whl", hash = "sha256:aaad19881e514a4682598f07503b82d60b8b9a91cd83f9bcda988b94853c830d", size = 119097, upload-time = "2025-08-25T10:58:51.518Z" },
 ]

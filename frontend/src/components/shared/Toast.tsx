@@ -13,7 +13,7 @@ export const Toast: React.FC<ToastProps> = ({
   message,
   type = 'info',
   onClose,
-  duration = 3000,
+  duration = type === 'error' ? 5000 : 3000,
 }) => {
   useEffect(() => {
     if (duration > 0) {
@@ -89,4 +89,3 @@ export const useToast = () => {
     ),
   };
 };
-

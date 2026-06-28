@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
-import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
+import {
+  debounce,
+  downloadFromUrl,
+  normalizeProject,
+  normalizeErrorMessage,
+} from '@/utils';
 import { devLog } from '@/utils/logger';
 import { triggerDownload } from '@/api/client';
 import { getT } from '@/utils/i18nHelper';
@@ -118,6 +123,7 @@ interface ProjectState {
   generateDescriptions: (detailLevel?: string) => Promise<void>;
   generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
   regenerateRenovationPage: (pageId: string, keepLayout?: boolean) => Promise<void>;
+  generatePageImage: (pageId: string, forceRegenerate?: boolean) => Promise<void>;
   generateImages: (pageIds?: string[]) => Promise<void>;
   editPageImage: (
     pageId: string,
@@ -251,25 +257,7 @@ const debouncedUpdatePage = debounce(
         }
       }
 
-      // 4. 根据类型调用 AI 生成，失败时回滚项目
-      const generateWithRollback = async (fn: () => Promise<any>, label: string) => {
-        try {
-          await fn();
-          devLog(`[初始化项目] ${label}完成`);
-        } catch (error: any) {
-          console.error(`[初始化项目] ${label}失败:`, error);
-          try { await api.deleteProject(projectId); } catch (e: any) { console.error(`[初始化项目] 回滚失败，未能删除项目 ${projectId}:`, e); }
-          throw error;
-        }
-      };
-
-      if (type === 'outline') {
-        await generateWithRollback(() => api.generateOutline(projectId), '生成大纲');
-      } else if (type === 'description') {
-        await generateWithRollback(() => api.generateFromDescription(projectId, content), '从描述生成大纲和页面描述');
-      }
-
-      // 5. 获取完整项目信息
+      // 4. 获取完整项目信息。大纲/描述入口的 AI 生成由大纲页的 SSE 流程接管。
       const projectResponse = await api.getProject(projectId);
       const project = normalizeProject(projectResponse.data);
 
@@ -630,8 +618,11 @@ const debouncedUpdatePage = debounce(
               id: `streaming-${page.index}`,
               order_index: page.index,
               outline_content: { title: page.title, points: page.points },
+              description_content: page.description_text
+                ? { text: page.description_text, ...(page.extra_fields ? { extra_fields: page.extra_fields } : {}) }
+                : undefined,
               part: page.part,
-              status: 'DRAFT',
+              status: page.description_text ? 'DESCRIPTION_GENERATED' : 'DRAFT',
             };
             set({
               currentProject: { ...proj, pages: [...proj.pages, tempPage] },
@@ -978,6 +969,43 @@ const debouncedUpdatePage = debounce(
     }
   },
 
+  // 生成单页图片（用于预览页的手动重新生成）
+  generatePageImage: async (pageId: string, forceRegenerate: boolean = false) => {
+    const { currentProject } = get();
+    if (!currentProject) return;
+
+    if (get().pageGeneratingTasks[pageId]) {
+      devLog(`[单页生成] 页面 ${pageId} 正在生成中，跳过重复请求`);
+      return;
+    }
+
+    set({ error: null, warningMessage: null });
+
+    try {
+      const response = await api.generatePageImage(currentProject.id, pageId, forceRegenerate);
+      const taskId = response.data?.task_id;
+
+      if (taskId) {
+        devLog(`[单页生成] 收到 task_id: ${taskId}，开始轮询页面 ${pageId}`);
+        set((state) => ({
+          pageGeneratingTasks: {
+            ...state.pageGeneratingTasks,
+            [pageId]: taskId,
+          },
+        }));
+
+        await get().syncProject();
+        get().pollImageTask(taskId, [pageId]);
+      } else {
+        await get().syncProject();
+      }
+    } catch (error: any) {
+      console.error('[单页生成] 启动失败:', error);
+      await get().syncProject();
+      throw error;
+    }
+  },
+
   // 生成图片（非阻塞，每个页面显示生成状态）
   generateImages: async (pageIds?: string[]) => {
     const { currentProject, pageGeneratingTasks } = get();
@@ -1236,8 +1264,9 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.exportLinkFailed'));
       }
 
-      // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      triggerDownload(downloadUrl);
+      const filename = downloadUrl.split('/').pop()?.split('?')[0] || 'presentation.pptx';
+      // 使用浏览器或桌面原生保存对话框直接下载，避免 axios 受带宽和超时影响
+      triggerDownload(downloadUrl, filename);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1261,8 +1290,9 @@ const debouncedUpdatePage = debounce(
         throw new Error(t('store.exportLinkFailed'));
       }
 
-      // 使用浏览器直接下载链接，避免 axios 受带宽和超时影响
-      triggerDownload(downloadUrl);
+      const filename = downloadUrl.split('/').pop()?.split('?')[0] || 'presentation.pdf';
+      // 使用浏览器或桌面原生保存对话框直接下载，避免 axios 受带宽和超时影响
+      triggerDownload(downloadUrl, filename);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {

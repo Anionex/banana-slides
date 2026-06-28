@@ -370,7 +370,7 @@ async function bootstrap() {
     await pythonManager.waitForBackend(port);
 
     if (isDev()) {
-      mainWindow.loadURL(`http://localhost:${process.env.FRONTEND_PORT || 3000}`);
+      mainWindow.loadURL(`http://localhost:${process.env.FRONTEND_PORT || 3000}?backendPort=${port}`);
     } else {
       mainWindow.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'), {
         query: { backendPort: String(port) },

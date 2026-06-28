@@ -77,6 +77,18 @@ export function downloadFile(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
+export function downloadFromUrl(url: string, filename?: string) {
+  const link = document.createElement('a');
+  link.href = url;
+  if (filename) {
+    link.download = filename;
+  }
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 /**
  * 格式化日期
  */
@@ -109,7 +121,25 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
 
   if (!errorMessage) return isZh ? '操作失败' : 'Operation failed';
 
-  const message = errorMessage.toLowerCase();
+  const rawMessage = typeof errorMessage === 'string'
+    ? errorMessage
+    : (() => {
+        try {
+          return JSON.stringify(errorMessage);
+        } catch {
+          return String(errorMessage);
+        }
+      })();
+
+  if (!rawMessage) return isZh ? '操作失败' : 'Operation failed';
+
+  const message = rawMessage.toLowerCase();
+  const isCodexContext = (
+    message.includes('codex')
+    || message.includes('chatgpt.com')
+    || message.includes('/backend-api/codex/')
+    || message.includes('openai oauth')
+  );
 
   // Handle specific error messages
   if (message.includes('no template image found')) {
@@ -138,6 +168,11 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   } else if (message.includes('429') || message.includes('too many requests')) {
     return isZh ? '请求过于频繁，请稍后重试。' : 'Too many requests. Please try again later.';
   } else if (message.includes('401') || message.includes('unauthorized')) {
+    if (isCodexContext || (message.includes('oauth') && message.includes('not connected'))) {
+      return isZh
+        ? 'Codex 登录已过期或未连接，请前往设置重新登录 OpenAI 账号后再试。'
+        : 'Your Codex login has expired or is disconnected. Please reconnect your OpenAI account in Settings and try again.';
+    }
     return isZh ? '认证失败，请检查 API 密钥配置。' : 'Authentication failed. Please check API key settings.';
   } else if (message.includes('403') || message.includes('forbidden')) {
     return isZh ? '访问被拒绝，请检查 API 权限配置。' : 'Access denied. Please check API permissions.';
@@ -149,6 +184,22 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh ? '网络连接失败，请检查网络或后端服务是否正常运行。' : 'Network error. Please check your connection.';
   } else if (message.includes('timeout')) {
     return isZh ? '请求超时，请稍后重试。' : 'Request timed out. Please try again later.';
+  } else if (
+    message.includes('sslerror')
+    || message.includes('ssleoferror')
+    || message.includes('unexpected_eof_while_reading')
+    || message.includes('eof occurred in violation of protocol')
+    || message.includes('max retries exceeded')
+    || message.includes('httpsconnectionpool')
+  ) {
+    if (isCodexContext) {
+      return isZh
+        ? '连接 Codex 服务时中断，导致导出失败。请稍后重试；如果反复出现，可前往设置重新登录 OpenAI 账号后再试。'
+        : 'The connection to Codex was interrupted and the export failed. Please try again later, or reconnect your OpenAI account in Settings if it keeps happening.';
+    }
+    return isZh
+      ? '网络连接中断，导致操作失败。请稍后重试。'
+      : 'The connection was interrupted and the operation failed. Please try again later.';
   } else if (message.includes('样式提取失败') || message.includes('style extraction failed')) {
     if (message.includes('不支持图片输入') || message.includes('support image input')) {
       return isZh
@@ -160,7 +211,7 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
       : 'Editable PPTX export failed because text style extraction did not complete. Check the image caption model/API settings, or enable partial results and try again.';
   }
 
-  return errorMessage;
+  return rawMessage;
 }
 
 export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;

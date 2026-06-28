@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2 } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
+import { appVersion } from '@/utils/appVersion';
 
 // 组件内翻译
 const settingsI18n = {
@@ -19,7 +20,20 @@ const settingsI18n = {
         baiduOcr: "百度配置", serviceTest: "服务测试", lazyllmConfig: "LazyLLM 厂商配置",
         vendorApiKeys: "厂商 API Key 配置",
         advancedSettings: "高级设置",
-        elevenlabs: "ElevenLabs 语音合成"
+        elevenlabs: "ElevenLabs 语音合成",
+        about: "关于"
+      },
+      about: {
+        version: "当前版本",
+        source: "GitHub 项目",
+        checkUpdate: "检查更新",
+        checking: "检查中...",
+        upToDate: "您当前已是最新版本",
+        updateAvailable: "有版本更新：{{version}}",
+        unknown: "无法判断当前是否为最新版本",
+        failed: "检查更新失败",
+        resultTitle: "检查更新结果",
+        close: "关闭",
       },
       openaiOAuth: {
         title: "OpenAI 账号连接",
@@ -44,6 +58,7 @@ const settingsI18n = {
         manualCallbackPlaceholder: "粘贴回调地址...",
         manualCallbackSubmit: "提交",
         manualCallbackSuccess: "连接成功",
+        callbackPortBusy: "检测到本机 1455 端口被占用，请登录后复制弹窗地址栏中的完整地址并粘贴到下方。",
       },
       theme: { label: "主题模式", light: "浅色", dark: "深色", system: "跟随系统" },
       language: { label: "界面语言", zh: "中文", en: "English" },
@@ -154,7 +169,20 @@ const settingsI18n = {
         baiduOcr: "Baidu Configuration", serviceTest: "Service Test", lazyllmConfig: "LazyLLM Provider Configuration",
         vendorApiKeys: "Vendor API Key Configuration",
         advancedSettings: "Advanced Settings",
-        elevenlabs: "ElevenLabs Text-to-Speech"
+        elevenlabs: "ElevenLabs Text-to-Speech",
+        about: "About"
+      },
+      about: {
+        version: "Current Version",
+        source: "GitHub Project",
+        checkUpdate: "Check for Updates",
+        checking: "Checking...",
+        upToDate: "You're currently on the latest version",
+        updateAvailable: "Version update available: {{version}}",
+        unknown: "Unable to determine whether this is the latest version",
+        failed: "Failed to check for updates",
+        resultTitle: "Update Check Result",
+        close: "Close",
       },
       openaiOAuth: {
         title: "OpenAI Account",
@@ -179,6 +207,7 @@ const settingsI18n = {
         manualCallbackPlaceholder: "Paste callback URL...",
         manualCallbackSubmit: "Submit",
         manualCallbackSuccess: "Connected successfully",
+        callbackPortBusy: "Port 1455 is already in use. After logging in, copy the full popup address-bar URL and paste it below.",
       },
       theme: { label: "Theme", light: "Light", dark: "Dark", system: "System" },
       language: { label: "Interface Language", zh: "中文", en: "English" },
@@ -276,9 +305,9 @@ const settingsI18n = {
     }
   }
 };
-import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
+import { Button, Input, Card, Loading, Modal, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
-import type { OutputLanguage } from '@/api/endpoints';
+import type { OutputLanguage, UpdateCheckInfo } from '@/api/endpoints';
 import { OUTPUT_LANGUAGE_OPTIONS } from '@/api/endpoints';
 import type { Settings as SettingsType } from '@/types';
 
@@ -419,6 +448,135 @@ const GlobalVendorKeyInput: React.FC<{
   );
 };
 
+type SettingsTranslator = ReturnType<typeof useT>;
+
+function getLatestVersion(info: UpdateCheckInfo): string {
+  const sha = info.latest?.sha;
+  if (sha) {
+    return sha.length > 7 ? sha.slice(0, 7) : sha;
+  }
+  return info.latest?.tag || '';
+}
+
+function formatUpdateMessage(t: SettingsTranslator, info: UpdateCheckInfo): string {
+  if (info.status === 'up_to_date') return t('settings.about.upToDate');
+  if (info.status === 'update_available') return t('settings.about.updateAvailable', { version: getLatestVersion(info) });
+  return t('settings.about.unknown');
+}
+
+export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheckInfo | null>(null);
+  const [updateError, setUpdateError] = useState('');
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateError('');
+    try {
+      const response = await api.checkForUpdates();
+      setUpdateInfo(response.data || null);
+      setUpdateDialogOpen(true);
+    } catch (error: any) {
+      setUpdateInfo(null);
+      setUpdateError(error?.response?.data?.error?.message || error?.message || t('settings.about.failed'));
+      setUpdateDialogOpen(true);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const showSuccessCheck = updateInfo?.status === 'up_to_date';
+
+  return (
+    <>
+      <div className="pt-4 border-t border-gray-200 dark:border-border-primary">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-3 flex items-center">
+          <Info size={20} />
+          <span className="ml-2">{t('settings.sections.about')}</span>
+        </h2>
+        <div className="flex flex-col gap-3 text-sm text-gray-600 dark:text-foreground-tertiary sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <div title={appVersion.detail} aria-label={`${t('settings.about.version')} ${appVersion.detail}`}>
+              {t('settings.about.version')}: {appVersion.display}
+            </div>
+            <a
+              href="https://github.com/Anionex/banana-slides"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-banana-700 dark:text-banana hover:underline"
+            >
+              {t('settings.about.source')}
+            </a>
+            {updateInfo && (
+              <div className={updateInfo.update_available ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-foreground-tertiary'}>
+                <div>{formatUpdateMessage(t, updateInfo)}</div>
+              </div>
+            )}
+            {updateError && (
+              <div className="text-red-600 dark:text-red-400">
+                {t('settings.about.failed')}: {updateError}
+              </div>
+            )}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<RefreshCw size={16} className={checkingUpdate ? 'animate-spin' : ''} />}
+            onClick={handleCheckUpdate}
+            loading={checkingUpdate}
+          >
+            {checkingUpdate ? t('settings.about.checking') : t('settings.about.checkUpdate')}
+          </Button>
+        </div>
+      </div>
+
+      <Modal isOpen={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} title={t('settings.about.resultTitle')}>
+        <div className="space-y-4">
+          {updateInfo && (
+            <div className="space-y-2 text-sm text-gray-700 dark:text-foreground-secondary">
+              <div className="flex flex-col items-center gap-3 py-2 text-center">
+                {showSuccessCheck && (
+                  <CheckCircle
+                    size={44}
+                    data-testid="update-success-icon"
+                    className="text-green-600 dark:text-green-400"
+                    aria-hidden="true"
+                  />
+                )}
+                {updateInfo.update_available && (
+                  <ArrowUp
+                    size={44}
+                    data-testid="update-available-icon"
+                    className="text-orange-600 dark:text-orange-400"
+                    aria-hidden="true"
+                  />
+                )}
+                <p className={updateInfo.update_available
+                  ? 'text-xl font-semibold text-orange-600 dark:text-orange-400'
+                  : 'text-xl font-semibold text-gray-900 dark:text-foreground-primary'
+                }>
+                  {formatUpdateMessage(t, updateInfo)}
+                </p>
+              </div>
+            </div>
+          )}
+          {updateError && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {t('settings.about.failed')}: {updateError}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setUpdateDialogOpen(false)}>
+              {t('settings.about.close')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
+};
+
 const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   ai_provider_format: resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info),
   api_base_url: data.api_base_url || '',
@@ -489,6 +647,10 @@ export const Settings: React.FC = () => {
     try {
       const resp = await api.getOpenAIOAuthUrl();
       if (resp.success && resp.data?.auth_url) {
+        if (resp.data.callback_server_available === false) {
+          setManualCallbackOpen(true);
+          show({ message: t('settings.openaiOAuth.callbackPortBusy'), type: 'warning' });
+        }
         const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
         const onMessage = async (event: MessageEvent) => {
           if (event.data?.type === 'openai-oauth-callback') {
@@ -496,13 +658,13 @@ export const Settings: React.FC = () => {
             setOauthConnecting(false);
             if (event.data.success) {
               const statusResp = await api.getOpenAIOAuthStatus();
-              if (statusResp.success && statusResp.data) {
-                setSettings(prev => prev ? {
-                  ...prev,
-                  openai_oauth_connected: statusResp.data!.connected,
-                  openai_oauth_account_id: statusResp.data!.account_id || undefined,
-                } : prev);
-              }
+      if (statusResp.success && statusResp.data) {
+        setSettings(prev => prev ? {
+          ...prev,
+          openai_oauth_connected: statusResp.data!.connected,
+          openai_oauth_account_id: statusResp.data!.account_id || null,
+        } : prev);
+      }
             } else {
               show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
             }
@@ -530,7 +692,7 @@ export const Settings: React.FC = () => {
         setSettings(prev => prev ? {
           ...prev,
           openai_oauth_connected: false,
-          openai_oauth_account_id: undefined,
+          openai_oauth_account_id: null,
         } : prev);
         show({ message: t('settings.openaiOAuth.disconnectSuccess'), type: 'success' });
       }
@@ -552,7 +714,7 @@ export const Settings: React.FC = () => {
           setSettings(prev => prev ? {
             ...prev,
             openai_oauth_connected: statusResp.data!.connected,
-            openai_oauth_account_id: statusResp.data!.account_id || undefined,
+            openai_oauth_account_id: statusResp.data!.account_id || null,
           } : prev);
         }
         show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
@@ -742,6 +904,19 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const markOpenAIOAuthDisconnected = () => {
+    setSettings(prev => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        openai_oauth_connected: false,
+        openai_oauth_account_id: null,
+      };
+      sessionStorage.setItem('banana-settings', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -907,14 +1082,21 @@ export const Settings: React.FC = () => {
       pollInterval = setInterval(async () => {
         try {
           const statusResponse = await api.getTestStatus(taskId);
-          const taskStatus = statusResponse.data.status;
+          const statusData = statusResponse?.data;
+          if (!statusData) {
+            throw new Error(t('settings.serviceTest.testFailed'));
+          }
+          const taskStatus = statusData.status;
 
           if (taskStatus === 'COMPLETED') {
-            const detail = formatDetail(statusResponse.data.result || {});
-            const message = statusResponse.data.message || t('settings.messages.testSuccess');
+            const detail = formatDetail(statusData.result || {});
+            const message = statusData.message || t('settings.messages.testSuccess');
             finish({ status: 'success', message, detail }, message, 'success');
           } else if (taskStatus === 'FAILED') {
-            const errorMessage = statusResponse.data.error || t('settings.serviceTest.testFailed');
+            const errorMessage = statusData.error || t('settings.serviceTest.testFailed');
+            if (statusData.openai_oauth_disconnected) {
+              markOpenAIOAuthDisconnected();
+            }
             finish({ status: 'error', message: errorMessage }, `${t('settings.serviceTest.testFailed')}: ${errorMessage}`, 'error');
           }
           // 如果是 PENDING 或 PROCESSING，继续轮询
@@ -1623,6 +1805,8 @@ export const Settings: React.FC = () => {
             {isSaving ? t('settings.actions.saving') : t('settings.actions.save')}
           </Button>
         </div>
+
+        <SettingsAbout t={t} />
       </div>
     </>
   );

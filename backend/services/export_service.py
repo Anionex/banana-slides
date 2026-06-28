@@ -6,6 +6,8 @@ import math
 import os
 import json
 import logging
+import random
+import re
 import tempfile
 import base64
 import hashlib
@@ -16,11 +18,14 @@ from textwrap import dedent
 from dataclasses import dataclass, field
 from pptx import Presentation
 from pptx.util import Inches
+from pptx.oxml.xmlchemy import OxmlElement
+from pptx.oxml.ns import qn
 from PIL import Image
 import io
 import tempfile
 import img2pdf
 import fitz  # PyMuPDF
+from utils.pptx_math import latex_to_display_text, looks_like_latex_math
 logger = logging.getLogger(__name__)
 
 
@@ -191,6 +196,71 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
 class ExportService:
     """Service for exporting presentations"""
 
+    PPTX_TRANSITION_EFFECTS = {
+        'fade',
+        'page_turn',
+        'push',
+        'wipe',
+        'split',
+        'blinds',
+        'checker',
+        'wheel',
+    }
+
+    @staticmethod
+    def _apply_slide_transition(slide, effect: str) -> None:
+        """Add a PowerPoint slide transition node to a slide XML element."""
+        transition = OxmlElement('p:transition')
+        transition.set('spd', 'med')
+
+        if effect == 'fade':
+            transition.append(OxmlElement('p:fade'))
+        elif effect == 'page_turn':
+            cover = OxmlElement('p:cover')
+            cover.set('dir', 'l')
+            transition.append(cover)
+        elif effect == 'push':
+            push = OxmlElement('p:push')
+            push.set('dir', 'l')
+            transition.append(push)
+        elif effect == 'wipe':
+            wipe = OxmlElement('p:wipe')
+            wipe.set('dir', 'l')
+            transition.append(wipe)
+        elif effect == 'split':
+            split = OxmlElement('p:split')
+            split.set('orient', 'horz')
+            split.set('dir', 'out')
+            transition.append(split)
+        elif effect == 'blinds':
+            blinds = OxmlElement('p:blinds')
+            blinds.set('dir', 'vert')
+            transition.append(blinds)
+        elif effect == 'checker':
+            checker = OxmlElement('p:checker')
+            checker.set('dir', 'horz')
+            transition.append(checker)
+        elif effect == 'wheel':
+            wheel = OxmlElement('p:wheel')
+            wheel.set('spokes', '1')
+            transition.append(wheel)
+        else:
+            return
+
+        slide_element = slide._element
+        existing = slide_element.find(qn('p:transition'))
+        if existing is not None:
+            slide_element.remove(existing)
+
+        clr_map_ovr = slide_element.find(qn('p:clrMapOvr'))
+        if clr_map_ovr is not None:
+            insert_at = slide_element.index(clr_map_ovr) + 1
+        else:
+            c_sld = slide_element.find(qn('p:cSld'))
+            insert_at = slide_element.index(c_sld) + 1 if c_sld is not None else 0
+
+        slide_element.insert(insert_at, transition)
+
     # NOTE: clean background生成功能已迁移到解耦的InpaintProvider实现
     # - DefaultInpaintProvider: 基于mask的精确区域重绘（Volcengine）
     # - GenerativeEditInpaintProvider: 基于生成式大模型的整图编辑重绘（Gemini等）
@@ -218,6 +288,19 @@ class ExportService:
                 '当前用于图片样式提取的 caption/image_caption 模型不支持图片输入。'
                 '请在设置中改成支持视觉输入的模型，或检查 OpenAI 格式下的 image caption provider / model 配置。'
             )
+        elif (
+            'ssl' in lowered
+            or 'unexpected_eof_while_reading' in lowered
+            or 'eof occurred in violation of protocol' in lowered
+            or 'max retries exceeded' in lowered
+            or 'connection aborted' in lowered
+            or 'connection reset' in lowered
+        ) and ('codex' in lowered or 'chatgpt' in lowered):
+            help_text = (
+                '连接 Codex 服务时网络中断，导致文本样式提取失败。'
+                '请稍后重试；如果反复出现，可重新登录 Codex/OpenAI 后再试。'
+                '若只想先拿到可编辑结果，也可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+            )
         else:
             help_text = (
                 '文本样式提取依赖视觉模型分析文本截图。请检查 image caption provider、模型名与 API 权限；'
@@ -232,7 +315,12 @@ class ExportService:
         )
     
     @staticmethod
-    def create_pptx_from_images(image_paths: List[str], output_file: str = None, aspect_ratio: str = '16:9') -> bytes:
+    def create_pptx_from_images(
+        image_paths: List[str],
+        output_file: str = None,
+        aspect_ratio: str = '16:9',
+        transition_effects: Optional[List[str]] = None,
+    ) -> bytes:
         """
         Create PPTX file from image paths
         Based on demo.py create_pptx_from_images()
@@ -264,6 +352,12 @@ class ExportService:
         prs.slide_width = Inches(page_w)
         prs.slide_height = Inches(page_h)
         
+        valid_transition_effects = [
+            effect for effect in (transition_effects or [])
+            if effect in ExportService.PPTX_TRANSITION_EFFECTS
+        ]
+        transition_effect_queue: List[str] = []
+
         # Add each image as a slide
         for image_path in image_paths:
             if not os.path.exists(image_path):
@@ -282,6 +376,15 @@ class ExportService:
                 width=prs.slide_width,
                 height=prs.slide_height
             )
+
+            if valid_transition_effects:
+                if not transition_effect_queue:
+                    transition_effect_queue = valid_transition_effects[:]
+                    random.shuffle(transition_effect_queue)
+                ExportService._apply_slide_transition(
+                    slide,
+                    transition_effect_queue.pop(),
+                )
         
         # Save or return bytes
         if output_file:
@@ -1408,6 +1511,71 @@ class ExportService:
         """
         if text_styles_cache is None:
             text_styles_cache = {}
+
+        def choose_formula_text(text: str, text_style: Any = None) -> Optional[str]:
+            candidates = [text]
+            if text_style and getattr(text_style, 'colored_segments', None):
+                styled_text = ''.join(seg.text for seg in text_style.colored_segments).strip()
+                if styled_text and styled_text not in candidates:
+                    candidates.append(styled_text)
+
+            def score(candidate: str) -> int:
+                if not looks_like_latex_math(candidate):
+                    return -1
+                return (
+                    len(re.findall(r"\\[A-Za-z]+", candidate)) * 10
+                    + candidate.count("\\") * 4
+                    + len(re.findall(r"[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9+\-=()*])", candidate)) * 3
+                    + len(re.findall(r"[∀∃∈∉≤≥≠≈∑∏∫∞∂∇πΠΣ√]", candidate)) * 2
+                    - len(re.findall(r"\b[A-Za-z]{5,}\b", candidate)) * 2
+                )
+
+            scored = [(score(candidate), candidate) for candidate in candidates if candidate]
+            scored = [item for item in scored if item[0] >= 0]
+            if not scored:
+                return None
+            return max(scored, key=lambda item: item[0])[1]
+
+        def add_text_or_formula(elem, text, bbox_list, text_level='default', align='left'):
+            text_style = text_styles_cache.get(elem.element_id)
+            if text_style:
+                logger.debug(f"{'  ' * depth}  使用缓存的文字样式: color={text_style.font_color_rgb}, bold={text_style.is_bold}")
+
+            formula_text = choose_formula_text(text, text_style)
+            if formula_text:
+                if builder.add_math_element(
+                    slide=slide,
+                    latex=formula_text,
+                    bbox=bbox_list,
+                    text_style=text_style
+                ):
+                    return
+
+                fallback_text = latex_to_display_text(formula_text)
+                builder.add_text_element(
+                    slide=slide,
+                    text=fallback_text,
+                    bbox=bbox_list,
+                    text_level=text_level,
+                    align=align,
+                    text_style=text_style,
+                    allow_math_conversion=False
+                )
+                if warnings:
+                    warnings.add_text_render_failed(
+                        formula_text,
+                        '公式暂不支持原生转换，已使用可读文本回退'
+                    )
+                return
+
+            builder.add_text_element(
+                slide=slide,
+                text=text,
+                bbox=bbox_list,
+                text_level=text_level,
+                align=align,
+                text_style=text_style
+            )
         
         for elem in elements:
             elem_type = elem.element_type
@@ -1429,9 +1597,9 @@ class ExportService:
             ]
             
             logger.info(f"{'  ' * depth}  添加元素: type={elem_type}, bbox={bbox_list}, content={elem.content[:30] if elem.content else None}, image_path={elem.image_path}, 使用{'全局' if depth > 0 else '局部'}坐标")
-            
+
             # 根据类型添加元素（参考原实现的_add_mineru_text_to_slide和_add_mineru_image_to_slide）
-            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption']:
+            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption', 'equation', 'interline_equation', 'inline_equation']:
                 # 添加文本（参考_add_mineru_text_to_slide）
                 if elem.content:
                     text = elem.content.strip()
@@ -1439,19 +1607,8 @@ class ExportService:
                         try:
                             # 确定文本级别
                             level = 'title' if elem_type in ['title', 'heading'] else 'default'
-                            
-                            # 从缓存获取预提取的文字样式
-                            text_style = text_styles_cache.get(elem.element_id)
-                            if text_style:
-                                logger.debug(f"{'  ' * depth}  使用缓存的文字样式: color={text_style.font_color_rgb}, bold={text_style.is_bold}")
-                            
-                            builder.add_text_element(
-                                slide=slide,
-                                text=text,
-                                bbox=bbox_list,
-                                text_level=level,
-                                text_style=text_style
-                            )
+
+                            add_text_or_formula(elem, text, bbox_list, text_level=level)
                         except Exception as e:
                             logger.warning(f"添加文本元素失败: {e}")
                             if fail_fast:
@@ -1469,18 +1626,14 @@ class ExportService:
                     text = elem.content.strip()
                     if text:
                         try:
-                            # 从缓存获取预提取的文字样式
-                            text_style = text_styles_cache.get(elem.element_id)
-                            
                             # 表格单元格已经在上面统一处理了bbox_global和缩放
                             # 直接使用bbox_list即可
-                            builder.add_text_element(
-                                slide=slide,
-                                text=text,
-                                bbox=bbox_list,
+                            add_text_or_formula(
+                                elem,
+                                text,
+                                bbox_list,
                                 text_level=None,
-                                align='center',
-                                text_style=text_style
+                                align='center'
                             )
 
                         except Exception as e:

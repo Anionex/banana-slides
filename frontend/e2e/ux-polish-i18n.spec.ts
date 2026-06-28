@@ -1,7 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { seedProjectWithImages } from './helpers/seed-project';
 
-const BASE = process.env.BASE_URL || 'http://localhost:3000';
+const BASE = process.env.BASE_URL || 'http://localhost:3011';
 
 /**
  * Mock test: Verify disabled button tooltips and i18n strings

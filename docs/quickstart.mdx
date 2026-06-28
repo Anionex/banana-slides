@@ -47,15 +47,17 @@ docker compose -f docker-compose.prod.yml up -d
 
 ### Step 3: Open the App
 
-Visit [http://localhost:3000](http://localhost:3000) in your browser.
+Visit [http://localhost:3011](http://localhost:3011) in your browser.
 
 <Note>
-  Default ports are 3000 (frontend) and 5000 (backend). To change them, set `FRONTEND_PORT` and `BACKEND_PORT` in `.env`.
+  Default ports are 3011 (frontend) and 5011 (backend). To change them, set `FRONTEND_PORT` and `BACKEND_PORT` in `.env`.
 </Note>
 
 ---
 
 ## Update
+
+In the app, open **Settings → About → Check for Updates** to compare the current version SHA with the latest available version. Local source-code runs are checked with the current Git SHA as well.
 
 ```bash
 docker compose -f docker-compose.prod.yml pull && \

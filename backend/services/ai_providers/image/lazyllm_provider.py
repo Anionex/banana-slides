@@ -164,6 +164,27 @@ def _calculate_image_dimensions(
     return w, h, f"{w}{sep}{h}"
 
 
+def _prepare_reference_image_for_vendor(img: Image.Image, source: str) -> Image.Image:
+    """Return a reference image that satisfies vendor-side minimum dimensions.
+
+    Qwen/Wanxiang rejects reference images whose width or height is below 512px.
+    Upscaling the temporary file we pass to LazyLLM keeps user uploads unchanged
+    while avoiding provider-side validation errors for small test/reference images.
+    """
+    constraints = VENDOR_IMAGE_CONSTRAINTS.get(source, DEFAULT_CONSTRAINTS)
+    min_dim = constraints['min_dim']
+    if not min_dim:
+        return img
+
+    width, height = img.size
+    if width >= min_dim and height >= min_dim:
+        return img
+
+    scale = max(min_dim / max(width, 1), min_dim / max(height, 1))
+    new_size = (max(min_dim, int(width * scale)), max(min_dim, int(height * scale)))
+    return img.resize(new_size, Image.Resampling.LANCZOS)
+
+
 def _patch_doubao_remove_guidance_scale(client):
     """
     Monkey-patch the underlying images.generate() call to strip 'guidance_scale'.
@@ -253,9 +274,10 @@ class LazyLLMImageProvider(ImageProvider):
         if ref_images:
             file_paths = []
             for img in ref_images:
+                ref_img = _prepare_reference_image_for_vendor(img, self._source)
                 with tempfile.NamedTemporaryFile(prefix='lazyllm_ref_', suffix='.png', delete=False) as tmp:
                     temp_path = tmp.name
-                img.save(temp_path)
+                ref_img.save(temp_path)
                 file_paths.append(temp_path)
                 temp_paths.append(temp_path)
         try:

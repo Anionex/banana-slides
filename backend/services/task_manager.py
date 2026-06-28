@@ -7,6 +7,7 @@ import os
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
 from math import gcd
@@ -14,38 +15,91 @@ import time
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from PIL import Image, ImageDraw, ImageFilter
-from models import db, Task, Page, Material, PageImageVersion
+from models import db, Task, Page, Material, PageImageVersion, Settings
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
+logger = logging.getLogger(__name__)
 
-def _get_image_prompt_field_names() -> set | None:
-    """读取设置中允许进入文生图 prompt 的额外字段名。返回 None 表示全部允许。"""
+
+def get_image_prompt_field_names() -> set:
+    """读取设置中允许进入文生图 prompt 的额外字段名。"""
     try:
-        from models import Settings
         settings = Settings.get_settings()
-        if settings.image_prompt_extra_fields is None:
-            return None  # 未配置 → 全部允许
         return set(settings.get_image_prompt_extra_fields())
-    except Exception:
-        return None
+    except Exception as e:
+        logger.warning("Failed to retrieve image prompt extra fields; using defaults: %s", e)
+        return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
-def _append_extra_fields(desc_text: str, desc_content: dict) -> str:
+def _append_extra_fields(
+    desc_text: Optional[str],
+    desc_content: Optional[dict],
+    allowed_fields: Optional[set] = None,
+) -> str:
     """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    safe_desc = (desc_text or "").strip()
+    if not desc_content or not isinstance(desc_content, dict):
+        return safe_desc
     extra_fields = desc_content.get('extra_fields')
     if not extra_fields or not isinstance(extra_fields, dict):
-        return desc_text
-    allowed = _get_image_prompt_field_names()
-    parts = [desc_text]
+        return safe_desc
+    allowed = allowed_fields if allowed_fields is not None else get_image_prompt_field_names()
+    parts = []
+    if safe_desc:
+        parts.append(safe_desc)
     for name, value in extra_fields.items():
-        if value and (allowed is None or name in allowed):
-            parts.append(f"\n{name}：{value}")
-    return ''.join(parts)
+        if value is not None and str(value).strip() != "" and name in allowed:
+            parts.append(f"{name}：{value}")
+    return '\n'.join(parts)
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
 
-logger = logging.getLogger(__name__)
+
+class ResourceLimiter:
+    """Thread-safe concurrency limiter for a shared external resource."""
+
+    def __init__(self, name: str, capacity: int):
+        self.name = name
+        self.capacity = max(1, int(capacity))
+        self._in_use = 0
+        self._condition = threading.Condition()
+
+    def update_capacity(self, capacity: int):
+        new_capacity = max(1, int(capacity))
+        with self._condition:
+            if new_capacity == self.capacity:
+                return
+            logger.info(f"Updating {self.name} limiter: {self.capacity} -> {new_capacity}")
+            self.capacity = new_capacity
+            self._condition.notify_all()
+
+    @contextmanager
+    def slot(self, label: str, on_acquire: Optional[Callable[[], None]] = None):
+        waited = False
+        with self._condition:
+            while self._in_use >= self.capacity:
+                if not waited:
+                    waited = True
+                    logger.info(
+                        f"{self.name} limiter full ({self._in_use}/{self.capacity}), "
+                        f"waiting: {label}"
+                    )
+                self._condition.wait(timeout=0.5)
+
+            self._in_use += 1
+
+        if waited:
+            logger.info(f"{self.name} limiter slot acquired: {label}")
+
+        try:
+            if on_acquire:
+                on_acquire()
+            yield
+        finally:
+            with self._condition:
+                self._in_use -= 1
+                self._condition.notify()
 
 
 class TaskManager:
@@ -56,10 +110,14 @@ class TaskManager:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.active_tasks = {}  # task_id -> Future
         self.lock = threading.Lock()
+        self.max_workers = max_workers
     
     def submit_task(self, task_id: str, func: Callable, *args, **kwargs):
         """Submit a background task"""
-        future = self.executor.submit(func, task_id, *args, **kwargs)
+        with self.lock:
+            executor = self.executor
+
+        future = executor.submit(func, task_id, *args, **kwargs)
         
         with self.lock:
             self.active_tasks[task_id] = future
@@ -94,9 +152,42 @@ class TaskManager:
         """Shutdown the executor"""
         self.executor.shutdown(wait=True)
 
+    def update_max_workers(self, max_workers: int):
+        """Replace the shared executor so new tasks use a higher/lower ceiling."""
+        new_max_workers = max(1, int(max_workers))
+        old_executor = None
 
-# Global task manager instance
-task_manager = TaskManager(max_workers=4)
+        with self.lock:
+            if new_max_workers == self.max_workers:
+                return
+
+            logger.info(f"Updating background task pool size: {self.max_workers} -> {new_max_workers}")
+            old_executor = self.executor
+            self.executor = ThreadPoolExecutor(max_workers=new_max_workers)
+            self.max_workers = new_max_workers
+
+        if old_executor is not None:
+            old_executor.shutdown(wait=False, cancel_futures=False)
+
+
+def _compute_background_worker_target(description_workers: int, image_workers: int) -> int:
+    """Keep the shared task pool from becoming the product-level bottleneck."""
+    return max(8, int(description_workers) + int(image_workers) + 4)
+
+
+# Global task manager and resource limiters
+task_manager = TaskManager(max_workers=max(8, int(os.getenv('MAX_BACKGROUND_TASK_WORKERS', '16'))))
+image_resource_limiter = ResourceLimiter("image", int(os.getenv('MAX_IMAGE_WORKERS', '20')))
+text_resource_limiter = ResourceLimiter("text", int(os.getenv('MAX_DESCRIPTION_WORKERS', '20')))
+
+
+def sync_resource_limits(description_workers: int, image_workers: int):
+    """Apply the latest runtime settings to shared concurrency controls."""
+    task_manager.update_max_workers(
+        _compute_background_worker_target(description_workers, image_workers)
+    )
+    image_resource_limiter.update_capacity(image_workers)
+    text_resource_limiter.update_capacity(description_workers)
 
 
 def save_image_with_version(image, project_id: str, page_id: str, file_service,
@@ -350,11 +441,14 @@ def generate_descriptions_task(task_id: str, project_id: str, ai_service,
                         from services.ai_service_manager import get_ai_service
                         ai_service = get_ai_service()
                         
-                        desc_result = ai_service.generate_page_description(
-                            project_context, outline, page_outline, page_index,
-                            language=language,
-                            detail_level=detail_level
-                        )
+                        with text_resource_limiter.slot(
+                            f"description project={project_id} page={page_id}"
+                        ):
+                            desc_result = ai_service.generate_page_description(
+                                project_context, outline, page_outline, page_index,
+                                language=language,
+                                detail_level=detail_level
+                            )
 
                         # generate_page_description returns dict with text + optional extra_fields
                         desc_content = {
@@ -437,7 +531,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         resolution: str = "2K", app=None,
                         extra_requirements: str = None,
                         language: str = None,
-                        page_ids: list = None):
+                        page_ids: list = None,
+                        image_prompt_field_names: Optional[set] = None):
     """
     Background task for generating page images
     Based on demo.py gen_images_parallel()
@@ -464,6 +559,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
             all_pages_data = ai_service.flatten_outline(outline)
+            image_prompt_field_names = (
+                image_prompt_field_names
+                if image_prompt_field_names is not None
+                else get_image_prompt_field_names()
+            )
 
             # Build mapping from order_index to page_data so filtered pages
             # get matched to the correct outline entry (not just first N)
@@ -499,67 +599,73 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not page_obj:
                             raise ValueError(f"Page {page_id} not found")
                         
-                        # Update page status
-                        page_obj.status = 'GENERATING'
-                        db.session.commit()
-                        logger.debug(f"Page {page_id} status updated to GENERATING")
-                        
-                        # Get description content
-                        desc_content = page_obj.get_description_content()
-                        if not desc_content:
-                            raise ValueError("No description content for page")
-                        
-                        # 获取描述文本（可能是 text 字段或 text_content 数组）
-                        desc_text = desc_content.get('text', '')
-                        if not desc_text and desc_content.get('text_content'):
-                            # 如果 text 字段不存在，尝试从 text_content 数组获取
-                            text_content = desc_content.get('text_content', [])
-                            if isinstance(text_content, list):
-                                desc_text = '\n'.join(text_content)
-                            else:
-                                desc_text = str(text_content)
+                        def mark_generating():
+                            page_for_update = Page.query.get(page_id)
+                            if page_for_update:
+                                page_for_update.status = 'GENERATING'
+                                db.session.commit()
+                                logger.debug(f"Page {page_id} status updated to GENERATING")
 
-                        # 将 extra_fields 拼入描述文本供图片生成使用
-                        desc_text = _append_extra_fields(desc_text, desc_content)
+                        with image_resource_limiter.slot(
+                            f"project={project_id} page={page_id}",
+                            on_acquire=mark_generating,
+                        ):
+                            # Get description content
+                            desc_content = page_obj.get_description_content()
+                            if not desc_content:
+                                raise ValueError("No description content for page")
+                            
+                            # 获取描述文本（可能是 text 字段或 text_content 数组）
+                            desc_text = desc_content.get('text', '')
+                            if not desc_text and desc_content.get('text_content'):
+                                # 如果 text 字段不存在，尝试从 text_content 数组获取
+                                text_content = desc_content.get('text_content', [])
+                                if isinstance(text_content, list):
+                                    desc_text = '\n'.join(text_content)
+                                else:
+                                    desc_text = str(text_content)
 
-                        logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
-                        
-                        # 从当前页面的描述内容中提取图片 URL
-                        page_additional_ref_images = []
-                        has_material_images = False
-                        
-                        # 从描述文本中提取图片
-                        if desc_text:
-                            image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
-                            if image_urls:
-                                logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
-                                page_additional_ref_images = image_urls
-                                has_material_images = True
-                        
-                        # 在子线程中动态获取模板路径，确保使用最新模板
-                        page_ref_image_path = None
-                        if use_template:
-                            page_ref_image_path = file_service.get_template_path(project_id)
-                            # 注意：如果有风格描述，即使没有模板图片也允许生成
-                            # 这个检查已经在 controller 层完成，这里不再检查
-                        
-                        # Generate image prompt
-                        prompt = ai_service.generate_image_prompt(
-                            outline, page_data, desc_text, page_index,
-                            has_material_images=has_material_images,
-                            extra_requirements=extra_requirements,
-                            language=language,
-                            has_template=use_template,
-                            aspect_ratio=aspect_ratio
-                        )
-                        logger.debug(f"Generated image prompt for page {page_id}")
-                        
-                        # Generate image
-                        logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
-                        image = ai_service.generate_image(
-                            prompt, page_ref_image_path, aspect_ratio, resolution,
-                            additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
-                        )
+                            # 将 extra_fields 拼入描述文本供图片生成使用
+                            desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
+
+                            logger.debug(f"Got description text for page {page_id}: {desc_text[:100]}...")
+                            
+                            # 从当前页面的描述内容中提取图片 URL
+                            page_additional_ref_images = []
+                            has_material_images = False
+                            
+                            # 从描述文本中提取图片
+                            if desc_text:
+                                image_urls = ai_service.extract_image_urls_from_markdown(desc_text)
+                                if image_urls:
+                                    logger.info(f"Found {len(image_urls)} image(s) in page {page_id} description")
+                                    page_additional_ref_images = image_urls
+                                    has_material_images = True
+                            
+                            # 在子线程中动态获取模板路径，确保使用最新模板
+                            page_ref_image_path = None
+                            if use_template:
+                                page_ref_image_path = file_service.get_template_path(project_id)
+                                # 注意：如果有风格描述，即使没有模板图片也允许生成
+                                # 这个检查已经在 controller 层完成，这里不再检查
+                            
+                            # Generate image prompt
+                            prompt = ai_service.generate_image_prompt(
+                                outline, page_data, desc_text, page_index,
+                                has_material_images=has_material_images,
+                                extra_requirements=extra_requirements,
+                                language=language,
+                                has_template=use_template,
+                                aspect_ratio=aspect_ratio
+                            )
+                            logger.debug(f"Generated image prompt for page {page_id}")
+                            
+                            # Generate image
+                            logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
+                            image = ai_service.generate_image(
+                                prompt, page_ref_image_path, aspect_ratio, resolution,
+                                additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
+                            )
                         logger.info(f"✅ Image generated successfully for page {page_index}")
                         
                         if not image:
@@ -663,7 +769,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                                     use_template: bool = True, aspect_ratio: str = "16:9",
                                     resolution: str = "2K", app=None,
                                     extra_requirements: str = None,
-                                    language: str = None):
+                                    language: str = None,
+                                    image_prompt_field_names: Optional[set] = None):
     """
     Background task for generating a single page image
     
@@ -679,7 +786,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             if not task:
                 return
             
-            task.status = 'PROCESSING'
+            task.status = 'PENDING'
             db.session.commit()
             
             # Get page from database
@@ -687,14 +794,20 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             if not page or page.project_id != project_id:
                 raise ValueError(f"Page {page_id} not found")
             
-            # Update page status
-            page.status = 'GENERATING'
+            # Single-page requests should only flip to GENERATING after they acquire
+            # a real image-generation slot.
+            page.status = 'QUEUED'
             db.session.commit()
             
             # Get description content
             desc_content = page.get_description_content()
             if not desc_content:
                 raise ValueError("No description content for page")
+            image_prompt_field_names = (
+                image_prompt_field_names
+                if image_prompt_field_names is not None
+                else get_image_prompt_field_names()
+            )
             
             # 获取描述文本（可能是 text 字段或 text_content 数组）
             desc_text = desc_content.get('text', '')
@@ -706,7 +819,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     desc_text = str(text_content)
 
             # 将 extra_fields 拼入描述文本供图片生成使用
-            desc_text = _append_extra_fields(desc_text, desc_content)
+            desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
             # 从描述文本中提取图片 URL
             additional_ref_images = []
@@ -739,13 +852,27 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 has_template=use_template,
                 aspect_ratio=aspect_ratio
             )
+
+            def mark_generating():
+                task_obj = Task.query.get(task_id)
+                if task_obj:
+                    task_obj.status = 'PROCESSING'
+                    db.session.commit()
+                page_obj = Page.query.get(page_id)
+                if page_obj:
+                    page_obj.status = 'GENERATING'
+                    db.session.commit()
             
-            # Generate image
-            logger.info(f"🎨 Generating image for page {page_id}...")
-            image = ai_service.generate_image(
-                prompt, ref_image_path, aspect_ratio, resolution,
-                additional_ref_images=additional_ref_images if additional_ref_images else None
-            )
+            with image_resource_limiter.slot(
+                f"project={project_id} page={page_id}",
+                on_acquire=mark_generating,
+            ):
+                # Generate image
+                logger.info(f"🎨 Generating image for page {page_id}...")
+                image = ai_service.generate_image(
+                    prompt, ref_image_path, aspect_ratio, resolution,
+                    additional_ref_images=additional_ref_images if additional_ref_images else None
+                )
             
             if not image:
                 raise ValueError("Failed to generate image")
@@ -808,9 +935,6 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             if not task:
                 return
             
-            task.status = 'PROCESSING'
-            db.session.commit()
-            
             # Get page from database
             page = Page.query.get(page_id)
             if not page or page.project_id != project_id:
@@ -819,24 +943,34 @@ def edit_page_image_task(task_id: str, project_id: str, page_id: str,
             if not page.generated_image_path:
                 raise ValueError("Page must have generated image first")
             
-            # Update page status
-            page.status = 'GENERATING'
-            db.session.commit()
-            
             # Get current image path
             current_image_path = file_service.get_absolute_path(page.generated_image_path)
             
+            def mark_generating():
+                task_obj = Task.query.get(task_id)
+                if task_obj:
+                    task_obj.status = 'PROCESSING'
+                    db.session.commit()
+                page_obj = Page.query.get(page_id)
+                if page_obj:
+                    page_obj.status = 'GENERATING'
+                    db.session.commit()
+
             # Edit image
             logger.info(f"🎨 Editing image for page {page_id}...")
             try:
-                image = ai_service.edit_image(
-                    edit_instruction,
-                    current_image_path,
-                    aspect_ratio,
-                    resolution,
-                    original_description=original_description,
-                    additional_ref_images=additional_ref_images if additional_ref_images else None
-                )
+                with image_resource_limiter.slot(
+                    f"edit project={project_id} page={page_id}",
+                    on_acquire=mark_generating,
+                ):
+                    image = ai_service.edit_image(
+                        edit_instruction,
+                        current_image_path,
+                        aspect_ratio,
+                        resolution,
+                        original_description=original_description,
+                        additional_ref_images=additional_ref_images if additional_ref_images else None
+                    )
             finally:
                 # Clean up temp directory if created
                 if temp_dir:
@@ -914,23 +1048,33 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
     
     with app.app_context():
         try:
-            # Update task status to PROCESSING
+            # Update task status to PENDING until a real image slot is acquired
             task = Task.query.get(task_id)
             if not task:
                 return
             
-            task.status = 'PROCESSING'
+            task.status = 'PENDING'
             db.session.commit()
+
+            def mark_processing():
+                task_obj = Task.query.get(task_id)
+                if task_obj:
+                    task_obj.status = 'PROCESSING'
+                    db.session.commit()
             
             # Generate image (复用核心逻辑)
             logger.info(f"🎨 Generating material image with prompt: {prompt[:100]}...")
-            image = ai_service.generate_image(
-                prompt=prompt,
-                ref_image_path=ref_image_path,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-                additional_ref_images=additional_ref_images or None,
-            )
+            with image_resource_limiter.slot(
+                f"material-generate project={project_id} task={task_id}",
+                on_acquire=mark_processing,
+            ):
+                image = ai_service.generate_image(
+                    prompt=prompt,
+                    ref_image_path=ref_image_path,
+                    aspect_ratio=aspect_ratio,
+                    resolution=resolution,
+                    additional_ref_images=additional_ref_images or None,
+                )
             
             if not image:
                 raise ValueError("Failed to generate image")
@@ -1017,7 +1161,7 @@ def process_material_image_task(
             if not task:
                 return
 
-            task.status = 'PROCESSING'
+            task.status = 'PENDING'
             db.session.commit()
 
             refs = list(additional_ref_images or [])
@@ -1029,67 +1173,77 @@ def process_material_image_task(
                 source_image = Image.open(source_image_path).convert('RGB')
                 source_aspect_ratio = _aspect_ratio_from_size(*source_image.size)
 
-            if operation == 'generate':
-                result_image = ai_service.generate_image(
-                    prompt=prompt,
-                    ref_image_path=ref_image_path,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    additional_ref_images=refs if refs else None,
-                )
-            elif operation == 'edit_full':
-                if not source_image_path:
-                    raise ValueError("source_image_path is required for edit_full")
+            def mark_processing():
+                task_obj = Task.query.get(task_id)
+                if task_obj:
+                    task_obj.status = 'PROCESSING'
+                    db.session.commit()
 
-                if ref_image_path:
-                    refs.insert(0, ref_image_path)
+            with image_resource_limiter.slot(
+                f"material-process operation={operation} project={project_id} task={task_id}",
+                on_acquire=mark_processing,
+            ):
+                if operation == 'generate':
+                    result_image = ai_service.generate_image(
+                        prompt=prompt,
+                        ref_image_path=ref_image_path,
+                        aspect_ratio=aspect_ratio,
+                        resolution=resolution,
+                        additional_ref_images=refs if refs else None,
+                    )
+                elif operation == 'edit_full':
+                    if not source_image_path:
+                        raise ValueError("source_image_path is required for edit_full")
 
-                result_image = ai_service.edit_image(
-                    prompt=prompt,
-                    current_image_path=source_image_path,
-                    aspect_ratio=source_aspect_ratio,
-                    resolution=resolution,
-                    additional_ref_images=refs if refs else None,
-                )
-            elif operation in {'region_edit', 'erase_region'}:
-                if not source_image or not source_image_path:
-                    raise ValueError("source_image_path is required for region operations")
-                if not selection:
-                    raise ValueError("selection is required for region operations")
+                    if ref_image_path:
+                        refs.insert(0, ref_image_path)
 
-                bbox = _normalize_selection_bbox(selection, source_image.size)
-                marked_reference = _create_marked_reference_image(source_image, bbox)
-                if not temp_dir:
-                    raise ValueError("区域操作需要 temp_dir")
+                    result_image = ai_service.edit_image(
+                        prompt=prompt,
+                        current_image_path=source_image_path,
+                        aspect_ratio=source_aspect_ratio,
+                        resolution=resolution,
+                        additional_ref_images=refs if refs else None,
+                    )
+                elif operation in {'region_edit', 'erase_region'}:
+                    if not source_image or not source_image_path:
+                        raise ValueError("source_image_path is required for region operations")
+                    if not selection:
+                        raise ValueError("selection is required for region operations")
 
-                marked_reference_path = str(Path(temp_dir) / f"{task_id}_marked_region.png")
-                marked_reference.save(marked_reference_path)
-                refs.insert(0, marked_reference_path)
+                    bbox = _normalize_selection_bbox(selection, source_image.size)
+                    marked_reference = _create_marked_reference_image(source_image, bbox)
+                    if not temp_dir:
+                        raise ValueError("区域操作需要 temp_dir")
 
-                if ref_image_path:
-                    refs.insert(0, ref_image_path)
+                    marked_reference_path = str(Path(temp_dir) / f"{task_id}_marked_region.png")
+                    marked_reference.save(marked_reference_path)
+                    refs.insert(0, marked_reference_path)
 
-                instruction = _build_region_edit_instruction(prompt, operation)
-                generated = ai_service.edit_image(
-                    prompt=instruction,
-                    current_image_path=source_image_path,
-                    aspect_ratio=source_aspect_ratio,
-                    resolution=resolution,
-                    additional_ref_images=refs if refs else None,
-                )
+                    if ref_image_path:
+                        refs.insert(0, ref_image_path)
 
-                if generated is None:
-                    raise ValueError("Failed to process region edit")
+                    instruction = _build_region_edit_instruction(prompt, operation)
+                    generated = ai_service.edit_image(
+                        prompt=instruction,
+                        current_image_path=source_image_path,
+                        aspect_ratio=source_aspect_ratio,
+                        resolution=resolution,
+                        additional_ref_images=refs if refs else None,
+                    )
 
-                if generated.size != source_image.size:
-                    generated = generated.resize(source_image.size, Image.Resampling.LANCZOS)
+                    if generated is None:
+                        raise ValueError("Failed to process region edit")
 
-                if operation == 'erase_region' or apply_mode == 'overlay_selection':
-                    result_image = _blend_region_into_source(source_image, generated, bbox)
+                    if generated.size != source_image.size:
+                        generated = generated.resize(source_image.size, Image.Resampling.LANCZOS)
+
+                    if operation == 'erase_region' or apply_mode == 'overlay_selection':
+                        result_image = _blend_region_into_source(source_image, generated, bbox)
+                    else:
+                        result_image = generated
                 else:
-                    result_image = generated
-            else:
-                raise ValueError(f"Unsupported material operation: {operation}")
+                    raise ValueError(f"Unsupported material operation: {operation}")
 
             if result_image is None:
                 raise ValueError("Failed to generate image")
@@ -1261,7 +1415,10 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                             error = 'empty_input'
                         else:
                             # Step B: AI extract structured content
-                            content = ai_service.extract_page_content(md_text, language=language)
+                            with text_resource_limiter.slot(
+                                f"renovation-extract project={project_id} page-index={idx}"
+                            ):
+                                content = ai_service.extract_page_content(md_text, language=language)
                             error = None
 
                         # Step C: Optional layout caption
@@ -1275,7 +1432,10 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                                     elif page_obj.generated_image_path:
                                         image_path = file_service.get_absolute_path(page_obj.generated_image_path)
                                     if image_path and Path(image_path).exists():
-                                        caption = ai_service.generate_layout_caption(image_path)
+                                        with text_resource_limiter.slot(
+                                            f"layout-caption project={project_id} page-index={idx}"
+                                        ):
+                                            caption = ai_service.generate_layout_caption(image_path)
                                         if caption:
                                             content['description'] += f"\n\n{caption}"
                             except Exception as e:
@@ -1824,6 +1984,7 @@ def export_video_task(
                     narration_config,
                     fallback_topic=project_topic,
                 )
+                image_prompt_field_names = get_image_prompt_field_names()
 
                 # 收集需要生成旁白的页面
                 pages_needing_narration = []  # list of (page, page_index_in_valid, desc_text)
@@ -1835,7 +1996,7 @@ def export_video_task(
                         if not desc_text and desc_content.get('text_content'):
                             tc = desc_content.get('text_content', [])
                             desc_text = '\n'.join(tc) if isinstance(tc, list) else str(tc)
-                        desc_text = _append_extra_fields(desc_text, desc_content)
+                        desc_text = _append_extra_fields(desc_text, desc_content, image_prompt_field_names)
 
                     outline_content = page.get_outline_content() or {}
                     if not desc_text:

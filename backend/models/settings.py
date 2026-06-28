@@ -4,6 +4,10 @@ from datetime import datetime, timezone
 from . import db
 
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class Settings(db.Model):
     """
     Settings model - stores global application settings
@@ -151,8 +155,8 @@ class Settings(db.Model):
             'elevenlabs_enabled': self.elevenlabs_enabled,
             'elevenlabs_api_key_length': len(elevenlabs_api_key) if elevenlabs_api_key else 0,
             'elevenlabs_voice_id': self.elevenlabs_voice_id or '',
-            'openai_oauth_connected': bool(self.openai_oauth_access_token),
-            'openai_oauth_account_id': self.openai_oauth_account_id,
+            'openai_oauth_connected': self.is_openai_oauth_connected(),
+            'openai_oauth_account_id': self.openai_oauth_account_id if self.is_openai_oauth_connected() else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -182,12 +186,29 @@ class Settings(db.Model):
         if not self.openai_oauth_access_token:
             return None
         if self.openai_oauth_expires_at:
-            now = datetime.utcnow()
+            now = _utcnow_naive()
             if self.openai_oauth_expires_at < now:
                 if self.openai_oauth_refresh_token:
                     return self._refresh_openai_oauth()
                 return None
         return self.openai_oauth_access_token
+
+    def is_openai_oauth_connected(self):
+        """Return whether stored OpenAI OAuth credentials can still be presented as connected."""
+        if not self.openai_oauth_access_token:
+            return False
+        if self.openai_oauth_expires_at:
+            now = _utcnow_naive()
+            if self.openai_oauth_expires_at < now and not self.openai_oauth_refresh_token:
+                return False
+        return True
+
+    def clear_openai_oauth(self):
+        """Clear stored OpenAI OAuth credentials."""
+        self.openai_oauth_access_token = None
+        self.openai_oauth_refresh_token = None
+        self.openai_oauth_expires_at = None
+        self.openai_oauth_account_id = None
 
     def _refresh_openai_oauth(self):
         """Refresh the OpenAI OAuth token using the refresh token."""
@@ -210,9 +231,18 @@ class Settings(db.Model):
                 self.openai_oauth_refresh_token = data['refresh_token']
             expires_in = data.get('expires_in', 3600)
             from datetime import timedelta
-            self.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            self.openai_oauth_expires_at = _utcnow_naive() + timedelta(seconds=expires_in)
             db.session.commit()
             return self.openai_oauth_access_token
+        except requests.exceptions.HTTPError as exc:
+            status_code = getattr(getattr(exc, 'response', None), 'status_code', None)
+            if status_code in (400, 401):
+                self.clear_openai_oauth()
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+            return None
         except Exception:
             return None
 

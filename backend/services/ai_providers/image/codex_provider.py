@@ -31,18 +31,26 @@ _DEFAULT_TIMEOUT = 180  # image generation can be slow
 
 
 def _is_retryable_http_error(exc: BaseException) -> bool:
-    """Return True for transient HTTP errors worth retrying (429, 5xx)."""
+    """Return True for transient HTTP/network errors worth retrying."""
     if isinstance(exc, http_requests.exceptions.HTTPError) and exc.response is not None:
         return exc.response.status_code in (429, 500, 502, 503, 504)
+    if isinstance(exc, (
+        http_requests.exceptions.SSLError,
+        http_requests.exceptions.ConnectionError,
+        http_requests.exceptions.Timeout,
+        http_requests.exceptions.ChunkedEncodingError,
+    )):
+        return True
     return False
 
 
 def _log_codex_retry(retry_state):
     exc = retry_state.outcome.exception() if retry_state.outcome else None
     status = getattr(getattr(exc, 'response', None), 'status_code', '?')
+    exc_type = type(exc).__name__ if exc else 'UnknownError'
     logger.warning(
-        "Codex image request failed (HTTP %s), retrying %d/%d: %s",
-        status, retry_state.attempt_number, 5, exc,
+        "Codex image request failed (%s, HTTP %s), retrying %d/%d: %s",
+        exc_type, status, retry_state.attempt_number, 5, exc,
     )
 
 

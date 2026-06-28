@@ -15,6 +15,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 import requests
+from requests.exceptions import ChunkedEncodingError
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +74,15 @@ class TestIsRetryableHttpError:
     def test_http_error_without_response(self):
         exc = requests.exceptions.HTTPError()
         assert _is_retryable_http_error(exc) is False
+
+    @pytest.mark.parametrize("exc", [
+        requests.exceptions.SSLError("ssl eof"),
+        requests.exceptions.ConnectionError("connection reset"),
+        requests.exceptions.Timeout("timed out"),
+        ChunkedEncodingError("chunk broken"),
+    ])
+    def test_retryable_network_errors(self, exc):
+        assert _is_retryable_http_error(exc) is True
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +157,14 @@ class TestPostWithRetry:
             with pytest.raises(requests.exceptions.HTTPError):
                 _provider()._post_with_retry({"model": "test"})
             assert mock_post.call_count == 5
+
+    def test_retries_on_ssl_error_then_succeeds(self):
+        ok = _make_ok_response()
+        ssl_err = requests.exceptions.SSLError("unexpected eof")
+        with patch.object(_codex.http_requests, "post", side_effect=[ssl_err, ok]) as mock_post:
+            result = _provider()._post_with_retry({"model": "test"})
+            assert result is ok
+            assert mock_post.call_count == 2
 
 
 # ---------------------------------------------------------------------------

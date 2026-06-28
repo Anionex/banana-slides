@@ -17,6 +17,16 @@ description: "Export presentations as PPTX, PDF, or images"
   Docker deployment already installs the FFmpeg dependencies required for narration video export. For source installs, install an FFmpeg build with `libass` / the `ass` subtitle filter first, for example `brew install ffmpeg-full && brew unlink ffmpeg 2>/dev/null || true && brew link --overwrite --force ffmpeg-full` on macOS or `sudo apt-get update && sudo apt-get install -y ffmpeg libass9` on Ubuntu / Debian.
 </Note>
 
+## PPTX Export Panel
+
+Regular PPTX export now opens a settings panel before generating the file. You can enable slide transitions and choose classic effects such as Fade, Page Turn, Push, Wipe, Split, Blinds, Checkerboard, and Clock. When multiple effects are selected, each slide randomly uses one of the selected effects.
+
+## Exported Files
+
+The export tasks panel on the Slide Preview page lists export files already stored on the server for the current project. You can download PPTX, PDF, image archives, or narration videos again, or delete files you no longer need to free disk space. Deletion asks for confirmation first; after it succeeds, the file is removed from server storage and from the panel list.
+
+Export task history is scoped by project. Clicking **Clear** in one project removes only that project's completed or failed tasks and leaves export history from other projects untouched.
+
 ## Narration Strategy
 
 Narration video export now includes a final-step configuration panel so you can tune narration generation without changing the slide content itself.

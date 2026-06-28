@@ -47,15 +47,17 @@ docker compose -f docker-compose.prod.yml up -d
 
 ### 第三步：访问应用
 
-浏览器打开 [http://localhost:3000](http://localhost:3000)，即可开始使用。
+浏览器打开 [http://localhost:3011](http://localhost:3011)，即可开始使用。
 
 <Note>
-  默认端口为 3000（前端）和 5000（后端）。如需修改，在 `.env` 中设置 `FRONTEND_PORT` 和 `BACKEND_PORT`。
+  默认端口为 3011（前端）和 5011（后端）。如需修改，在 `.env` 中设置 `FRONTEND_PORT` 和 `BACKEND_PORT`。
 </Note>
 
 ---
 
 ## 更新
+
+在应用内进入 **设置 → 关于 → 检查更新**，可以根据当前版本 SHA 判断是否已有可用更新；源码运行时也会用当前 Git SHA 参与判断。
 
 ```bash
 docker compose -f docker-compose.prod.yml pull && \

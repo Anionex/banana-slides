@@ -1,15 +1,26 @@
 import axios from 'axios';
 import { isDesktop } from '@/utils';
 
+function resolveDesktopBackendPort(): number {
+  const rawPort = (window as any).electronAPI?.getBackendPort?.();
+  const port = Number.parseInt(String(rawPort ?? ''), 10);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error('Desktop backend port is unavailable');
+  }
+  return port;
+}
+
 // 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态
 if (isDesktop) {
-  const port = parseInt((window as any).electronAPI.getBackendPort(), 10) || 5000;
-  (window as any).__BACKEND_PORT__ = port;
+  (window as any).__BACKEND_PORT__ = resolveDesktopBackendPort();
 }
 
 export function getBaseURL(): string {
   if (!isDesktop) return '';
-  const port = (window as any).__BACKEND_PORT__ || 5000;
+  const port = (window as any).__BACKEND_PORT__;
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error('Desktop backend port is unavailable');
+  }
   return `http://127.0.0.1:${port}`;
 }
 

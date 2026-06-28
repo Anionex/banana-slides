@@ -18,6 +18,8 @@ from typing import Dict, Any, List, Optional, Tuple, Type
 from pathlib import Path
 from PIL import Image
 
+from utils.latex_utils import latex_to_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -282,6 +284,8 @@ class MinerUElementExtractor(ElementExtractor):
             def process_block(block):
                 bbox = block.get('bbox')
                 block_type = block.get('type', 'text')
+                equation_types = {'equation', 'interline_equation', 'inline_equation'}
+                is_equation_source_block = block_type in equation_types
                 
                 if not bbox or len(bbox) != 4:
                     return None
@@ -309,7 +313,7 @@ class MinerUElementExtractor(ElementExtractor):
                 ]
                 
                 # 对于 header/footer，需要根据实际内容判断类型
-                actual_content_type = block_type
+                actual_content_type = 'text' if is_equation_source_block else block_type
                 if block_type in ['header', 'footer']:
                     # 检查是否包含图片
                     has_image = False
@@ -340,7 +344,7 @@ class MinerUElementExtractor(ElementExtractor):
                         actual_content_type = 'text'
                 
                 # 辅助函数：从 lines 提取文本
-                def extract_text_from_lines(lines):
+                def extract_text_from_lines(lines, preserve_equations=False):
                     """从 lines 数组提取所有文本内容"""
                     line_texts = []
                     for line in lines:
@@ -351,10 +355,12 @@ class MinerUElementExtractor(ElementExtractor):
                             
                             if span_type == 'text' and span_content:
                                 span_texts.append(span_content)
-                            elif span_type == 'inline_equation' and span_content:
-                                from utils.latex_utils import latex_to_text
-                                converted = latex_to_text(span_content)
-                                span_texts.append(converted)
+                            elif span_type in equation_types and span_content:
+                                if preserve_equations:
+                                    span_texts.append(span_content)
+                                else:
+                                    converted = latex_to_text(span_content)
+                                    span_texts.append(converted)
                         
                         if span_texts:
                             line_text = ''.join(span_texts)
@@ -365,10 +371,13 @@ class MinerUElementExtractor(ElementExtractor):
                 content = None
                 if actual_content_type in ['text', 'title', 'table_caption', 'image_caption']:
                     if block.get('lines'):
-                        line_texts = extract_text_from_lines(block['lines'])
+                        line_texts = extract_text_from_lines(
+                            block['lines'],
+                            preserve_equations=is_equation_source_block
+                        )
                         if line_texts:
                             content = '\n'.join(line_texts).strip()
-                
+
                 elif actual_content_type == 'list':
                     # list 类型包含 blocks 子数组，每个 block 有 lines
                     if block.get('blocks'):
@@ -921,4 +930,3 @@ class ExtractorRegistry:
                    f"图片->{mineru_extractor.__class__.__name__}")
         
         return registry
-

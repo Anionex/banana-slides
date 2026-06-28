@@ -11,7 +11,6 @@ Simplified Flask Application Entry Point
 import os
 import hmac
 import logging
-import socket
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import event
@@ -31,7 +30,7 @@ load_dotenv(dotenv_path=_env_file, override=not os.getenv('DATABASE_PATH'))
 from flask import Flask
 from flask_cors import CORS
 from models import db
-from config import Config
+from config import Config, DEFAULT_BACKEND_PORT, DEFAULT_FRONTEND_PORT
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
@@ -68,8 +67,9 @@ def create_app():
     app.config.from_object(Config)
 
     # Allow DATABASE_URL env var to override config at runtime (supports test isolation)
-    if os.getenv('DATABASE_URL'):
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    database_url_env = os.getenv('DATABASE_URL')
+    if database_url_env:
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url_env
 
     # Ensure instance directory exists for the default SQLite path in Config
     backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -87,7 +87,7 @@ def create_app():
     upload_folder_env = os.environ.get('UPLOAD_FOLDER')
     export_folder_env = os.environ.get('EXPORT_FOLDER')
 
-    if db_path_env:
+    if db_path_env and not database_url_env:
         os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path_env}'
     if upload_folder_env:
@@ -98,7 +98,7 @@ def create_app():
         app.config['EXPORT_FOLDER'] = export_folder_env
 
     # CORS configuration (parse from environment)
-    raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
+    raw_cors = os.getenv('CORS_ORIGINS', f'http://localhost:{DEFAULT_FRONTEND_PORT}')
     if raw_cors.strip() == '*':
         cors_origins = '*'
     else:
@@ -118,7 +118,19 @@ def create_app():
     logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('werkzeug').setLevel(logging.INFO)  # Flask开发服务器日志保持INFO
+    werkzeug_log_level = app.config.get('WERKZEUG_LOG_LEVEL', 'INFO')
+    if isinstance(werkzeug_log_level, str):
+        werkzeug_log_level = werkzeug_log_level.strip()
+        werkzeug_log_level = (
+            int(werkzeug_log_level)
+            if werkzeug_log_level.isdigit()
+            else werkzeug_log_level.upper()
+        )
+    werkzeug_logger = logging.getLogger('werkzeug')
+    try:
+        werkzeug_logger.setLevel(werkzeug_log_level)
+    except (ValueError, TypeError):
+        werkzeug_logger.setLevel(logging.INFO)
     logging.getLogger('volcenginesdkarkruntime').setLevel(logging.WARNING)
 
     # Initialize extensions
@@ -143,7 +155,7 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
-        if db_path_env:
+        if db_path_env and not database_url_env:
             db.create_all()
             from desktop_bootstrap import repair_desktop_settings_schema
             repair_desktop_settings_schema(db)
@@ -277,6 +289,8 @@ def _load_settings_to_config(app):
         img_workers = settings.max_image_workers or Config.MAX_IMAGE_WORKERS
         app.config['MAX_DESCRIPTION_WORKERS'] = desc_workers
         app.config['MAX_IMAGE_WORKERS'] = img_workers
+        from services.task_manager import sync_resource_limits
+        sync_resource_limits(desc_workers, img_workers)
         logging.info(f"Loaded worker settings: desc={desc_workers}, img={img_workers}")
 
         # Load model settings (FIX for Issue #136: these were missing before)
@@ -373,18 +387,12 @@ def _compute_worktree_port(base_port: int) -> int:
     """Compute a deterministic port from the worktree directory name.
 
     Uses MD5 of the project root basename so each worktree gets a unique,
-    stable port pair (backend 5xxx, frontend 3xxx) without manual config.
+    stable port pair (backend 51xx, frontend 31xx) without manual config.
     """
     import hashlib
     basename = _project_root.name
     offset = int(hashlib.md5(basename.encode()).hexdigest()[:8], 16) % 500
     return base_port + offset
-
-
-def _reserve_ephemeral_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
 
 
 if __name__ == '__main__':
@@ -394,13 +402,37 @@ if __name__ == '__main__':
     elif os.getenv('BACKEND_PORT'):
         port = int(os.getenv('BACKEND_PORT'))
     else:
-        port = _compute_worktree_port(5000)
+        port = _compute_worktree_port(DEFAULT_BACKEND_PORT)
+    debug = os.getenv('FLASK_ENV', 'development') == 'development'
 
     if port == 0:
-        port = _reserve_ephemeral_port()
+        from werkzeug.serving import make_server
+
+        server = make_server('0.0.0.0', 0, app, threaded=True)
+        port = server.server_port
         print(f"LISTENING_ON:{port}", flush=True)
 
-    debug = os.getenv('FLASK_ENV', 'development') == 'development'
+        logging.info(
+            "\n"
+            "╔══════════════════════════════════════╗\n"
+            "║   🍌 Banana Slides API Server 🍌   ║\n"
+            "╚══════════════════════════════════════╝\n"
+            f"Server starting on: http://localhost:{port}\n"
+            f"Output Language: {Config.OUTPUT_LANGUAGE}\n"
+            f"Environment: {os.getenv('FLASK_ENV', 'development')}\n"
+            "Debug mode: False\n"
+            f"API Base URL: http://localhost:{port}/api\n"
+            f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}\n"
+            f"Uploads: {app.config['UPLOAD_FOLDER']}"
+        )
+
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
+        raise SystemExit(0)
     
     logging.info(
         "\n"

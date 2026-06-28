@@ -23,7 +23,8 @@ from services.task_manager import (
     task_manager,
     generate_descriptions_task,
     generate_images_task,
-    process_ppt_renovation_task
+    process_ppt_renovation_task,
+    get_image_prompt_field_names,
 )
 from utils import (
     success_response, error_response, not_found, bad_request,
@@ -145,6 +146,18 @@ def _smart_merge_pages(project_id, pages_data):
             'title': page_data.get('title'),
             'points': page_data.get('points', [])
         })
+        description_text = page_data.get('description_text')
+        if description_text:
+            desc_content = {
+                'text': description_text,
+                'generated_at': datetime.utcnow().isoformat(),
+            }
+            if page_data.get('extra_fields'):
+                desc_content['extra_fields'] = page_data['extra_fields']
+            page.set_description_content(desc_content)
+            page.status = 'DESCRIPTION_GENERATED'
+        elif not page.description_content:
+            page.status = 'DRAFT'
         pages_list.append(page)
 
     for p in old_pages[len(pages_data):]:
@@ -568,6 +581,8 @@ def generate_outline_stream(project_id):
                         'title': page_data.get('title', ''),
                         'points': page_data.get('points', []),
                         'part': page_data.get('part'),
+                        'description_text': page_data.get('description_text'),
+                        'extra_fields': page_data.get('extra_fields'),
                     })
 
                 # Handle lock_page_count: pad with blank pages if needed
@@ -1059,6 +1074,7 @@ def generate_images(project_id):
 
         # Get app instance for background task
         app = current_app._get_current_object()
+        image_prompt_field_names = get_image_prompt_field_names()
 
         # Submit background task
         task_manager.submit_task(
@@ -1075,7 +1091,8 @@ def generate_images(project_id):
             app,
             combined_requirements if combined_requirements.strip() else None,
             language,
-            selected_page_ids if selected_page_ids else None
+            selected_page_ids if selected_page_ids else None,
+            image_prompt_field_names
         )
         
         # Update project status

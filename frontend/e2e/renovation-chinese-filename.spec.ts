@@ -11,7 +11,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
-const BASE = process.env.BASE_URL || 'http://localhost:3000'
+const BASE = process.env.BASE_URL || 'http://localhost:3011'
 const API = `http://localhost:${Number(new URL(BASE).port) + 2000}`
 
 const __filename = fileURLToPath(import.meta.url)

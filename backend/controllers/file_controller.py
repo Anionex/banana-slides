@@ -41,8 +41,10 @@ def serve_file(project_id, file_type, filename):
         if not os.path.exists(file_path):
             return not_found('File')
         
-        # Serve file
-        return send_from_directory(file_dir, filename)
+        # Exports should be downloaded rather than opened in browser for better UX and
+        # to keep E2E download assertions stable.
+        as_attachment = file_type == 'exports'
+        return send_from_directory(file_dir, filename, as_attachment=as_attachment)
     
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -159,4 +161,3 @@ def serve_mineru_file(extract_id, filepath):
         return not_found('File')
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
-

@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPlatform: () => process.platform,
   getBackendPort: () => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('backendPort') || '5000';
+    return params.get('backendPort');
   },
   isElectron: true,
   downloadFile: (url, filename) => ipcRenderer.invoke('download-file', { url, filename }),

@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test'
 import * as path from 'path'
 import * as fs from 'fs'
 
-test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3000' })
+test.use({ baseURL: process.env.BASE_URL || 'http://localhost:3011' })
 
 const PROJECT_ID = 'mock-import-proj'
 

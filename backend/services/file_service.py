@@ -100,6 +100,30 @@ class FileService:
         materials_dir = self._get_project_dir(project_id) / "materials"
         materials_dir.mkdir(exist_ok=True, parents=True)
         return materials_dir
+
+    def get_materials_dir(self, project_id: str) -> Path:
+        """Get materials directory for project."""
+        return self._get_materials_dir(project_id)
+
+    def _save_validated_image_upload(self, file, destination: Path) -> None:
+        """
+        Save an uploaded image only after Pillow confirms the file contents.
+
+        The upload is first written to a sibling temp file so an invalid upload
+        cannot replace an existing valid template.
+        """
+        tmp_path = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            file.save(str(tmp_path))
+            with Image.open(str(tmp_path)) as image:
+                image.verify()
+            os.replace(tmp_path, destination)
+        except Exception as exc:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise ValueError("Invalid image file. Please upload a valid PNG, JPG, GIF, or WEBP image.") from exc
     
     def save_template_image(self, file, project_id: str) -> str:
         """
@@ -120,7 +144,7 @@ class FileService:
         filename = f"template.{ext}"
         
         filepath = template_dir / filename
-        file.save(str(filepath))
+        self._save_validated_image_upload(file, filepath)
         
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
@@ -436,7 +460,7 @@ class FileService:
         filename = f"template.{ext}"
         
         filepath = template_dir / filename
-        file.save(str(filepath))
+        self._save_validated_image_upload(file, filepath)
         
         # Return relative path
         return filepath.relative_to(self.upload_folder).as_posix()
