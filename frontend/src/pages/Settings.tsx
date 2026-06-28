@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
@@ -128,6 +129,41 @@ const settingsI18n = {
         copyLink: "复制链接",
       },
       apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
+      volcenginePromo: {
+        title: "火山 AgentPlans API Key 配置",
+        body: "官方活动页正在提供 Agent Plan / Coding Plan 限时折扣、豆包模型资源包和免费 Tokens 领取等活动。",
+        cta: "点击链接抢购",
+        copy: "复制链接",
+        guideLink: "火山 AgentPlans",
+        applyModels: "一键填写推荐模型",
+      },
+      volcengineKeyHelp: {
+        title: "订阅并获取火山 AgentPlans API Key",
+        step1: "打开官方活动页，订阅",
+        step2: "进入 Agent Plan 控制台",
+        step3: "在 Agent Plan 控制台创建专属 API Key",
+        step4: "回到本页填写 Agent Plan 专属 API Key",
+      },
+      doubaoVolcenginePromo: {
+        title: "豆包 / 火山方舟 API Key 配置",
+        body: "活动提供豆包图像创作模型 5.0、豆包大模型资源包、Agent Plan / Coding Plan 限时折扣和免费 Tokens 领取等活动；",
+        cta: "点击链接抢购",
+        copy: "复制链接",
+        guideLink: "火山引擎官方活动页",
+        applyModels: "一键填写推荐模型",
+        tokenTitle: "免费 Tokens 额度领取流程",
+        tokenStep1: "登录火山引擎账号并打开官方活动页",
+        tokenStep2: "点击活动页的「立即领取」",
+        tokenStep3: "进入火山方舟控制台，点击「开通服务」并完成「一键授权」",
+        tokenStep4: "单个模型可领取 50 万 Tokens，累计额度以活动页展示为准；调用时仍需填写普通方舟 API Key",
+      },
+      doubaoKeyHelp: {
+        title: "领取额度并获取普通方舟 API Key",
+        step1: "打开官方活动页，注册或登录火山引擎账号",
+        step2: "需要免费 Tokens 时，点击活动页的「立即领取」，进入火山方舟控制台完成「开通服务」和「一键授权」",
+        step3: "在火山方舟控制台开通需要调用的豆包模型，并前往 API Key 管理页面创建普通方舟 API Key",
+        step4: "回到本页填写普通方舟 API Key；Agent/Coding Plan 专属 Key 不适用",
+      },
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
         tip: "提示：图像生成测试可能需要数分钟（取决于模型），请耐心等待。",
@@ -279,6 +315,41 @@ const settingsI18n = {
         copyLink: "Copy link",
       },
       apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
+      volcenginePromo: {
+        title: "Volcengine AgentPlans API Key Setup",
+        body: "The official campaign page includes limited-time discounts for Agent Plan and Coding Plan, Doubao model bundles, and free Tokens claims.",
+        cta: "Open ModelArk",
+        copy: "Copy link",
+        guideLink: "Volcengine AgentPlans",
+        applyModels: "Fill recommended models",
+      },
+      volcengineKeyHelp: {
+        title: "Subscribe and get a Volcengine AgentPlans API Key",
+        step1: "Open the official campaign page and subscribe to ModelArk Agent Plan",
+        step2: "Go to the Agent Plan console",
+        step3: "Create a dedicated API Key in the Agent Plan console",
+        step4: "Return here and enter the dedicated Agent Plan API Key",
+      },
+      doubaoVolcenginePromo: {
+        title: "Doubao / ModelArk API Key Setup",
+        body: "Doubao uses the standard ModelArk API. The official campaign page includes Doubao image creation model 5.0, Doubao model bundles, limited-time discounts for Agent Plan and Coding Plan, and free Tokens claims; enter a standard ModelArk API Key here, not a dedicated Agent/Coding Plan key.",
+        cta: "Open ModelArk",
+        copy: "Copy link",
+        guideLink: "official Volcengine campaign page",
+        applyModels: "Fill recommended models",
+        tokenTitle: "Free Tokens quota claim flow",
+        tokenStep1: "Sign in to Volcengine and open the official campaign page",
+        tokenStep2: "Click \"Claim now\" on the campaign page",
+        tokenStep3: "Go to the ModelArk console, click \"Activate service\", and complete one-click authorization",
+        tokenStep4: "Each model can claim 500K Tokens; total quota follows the campaign page. Calls still use a standard ModelArk API Key",
+      },
+      doubaoKeyHelp: {
+        title: "Claim quota and get a standard ModelArk API Key",
+        step1: "Open the official campaign page and sign in to Volcengine",
+        step2: "To claim free Tokens, click \"Claim now\" on the campaign page, then activate service and complete one-click authorization in the ModelArk console",
+        step3: "Activate the Doubao model services you need in ModelArk, then open API Key management and create a standard ModelArk API Key",
+        step4: "Return here and enter the standard ModelArk API Key; dedicated Agent/Coding Plan keys do not apply",
+      },
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
         tip: "Tip: Image generation tests may take several minutes depending on the model, please be patient.",
@@ -347,11 +418,13 @@ interface ServiceTestState {
 }
 
 const AIHUBMIX_AFFILIATE_URL = ['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('');
+const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
+const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 
 // LazyLLM 支持的厂商列表
 const LAZYLLM_SOURCES = [
   { value: 'qwen', label: 'Qwen (通义千问)' },
-  { value: 'doubao', label: 'Doubao (豆包)' },
+  { value: 'doubao', label: 'Doubao (火山引擎)' },
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'glm', label: 'GLM (智谱)' },
   { value: 'siliconflow', label: 'SiliconFlow' },
@@ -362,15 +435,23 @@ const LAZYLLM_SOURCES = [
 ];
 
 // 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）
-const ALL_PROVIDER_SOURCES = [
+const getAllProviderSources = (isZh: boolean) => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'volcengine', label: isZh ? '* 火山 AgentPlans' : '* Volcengine AgentPlans' },
+  { value: 'doubao', label: isZh ? '* Doubao (豆包)' : '* Doubao' },
   { value: 'codex', label: 'Codex (OpenAI OAuth)' },
-  ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai'), // avoid duplicate 'openai'
+  ...LAZYLLM_SOURCES.filter(s => s.value !== 'openai' && s.value !== 'doubao'), // avoid duplicate promoted providers
 ];
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
-const API_KEY_PROVIDERS = new Set(['gemini', 'openai']);
+const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
+const FIXED_BASE_URL_PROVIDERS = new Set(['volcengine']);
+const VOLCENGINE_RECOMMENDED_MODELS = {
+  text: 'doubao-seed-2-1-pro-260628',
+  caption: 'doubao-seed-2-1-pro-260628',
+  image: 'doubao-seedream-5-0-260128',
+};
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
@@ -583,41 +664,50 @@ export const SettingsAbout: React.FC<{ t: SettingsTranslator }> = ({ t }) => {
   );
 };
 
-const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
-  ai_provider_format: resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info),
-  api_base_url: data.api_base_url || '',
-  api_key: '',
-  image_resolution: data.image_resolution || '2K',
-  max_description_workers: data.max_description_workers || 5,
-  max_image_workers: data.max_image_workers || 8,
-  text_model: data.text_model || '',
-  image_model: data.image_model || '',
-  mineru_api_base: data.mineru_api_base || '',
-  mineru_token: '',
-  image_caption_model: data.image_caption_model || '',
-  output_language: data.output_language || 'zh',
-  enable_text_reasoning: data.enable_text_reasoning || false,
-  text_thinking_budget: data.text_thinking_budget || 1024,
-  enable_image_reasoning: data.enable_image_reasoning || false,
-  image_thinking_budget: data.image_thinking_budget || 1024,
-  baidu_api_key: '',
-  text_model_source: data.text_model_source || '',
-  image_model_source: data.image_model_source || '',
-  image_caption_model_source: data.image_caption_model_source || '',
-  lazyllm_api_keys: {},
-  text_api_key: '',
-  text_api_base_url: data.text_api_base_url || '',
-  image_api_key: '',
-  image_api_base_url: data.image_api_base_url || '',
-  image_caption_api_key: '',
-  image_caption_api_base_url: data.image_caption_api_base_url || '',
-  openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
-  elevenlabs_api_key: '',
-});
+const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
+  const providerFormat = resolveLazyllmVendor(data.ai_provider_format || 'gemini', data.lazyllm_api_keys_info).toLowerCase();
+  const textModelSource = (data.text_model_source || '').toLowerCase();
+  const imageModelSource = (data.image_model_source || '').toLowerCase();
+  const imageCaptionModelSource = (data.image_caption_model_source || '').toLowerCase();
+
+  return {
+    ai_provider_format: providerFormat,
+    api_base_url: FIXED_BASE_URL_PROVIDERS.has(providerFormat) ? '' : (data.api_base_url || ''),
+    api_key: '',
+    image_resolution: data.image_resolution || '2K',
+    max_description_workers: data.max_description_workers || 5,
+    max_image_workers: data.max_image_workers || 8,
+    text_model: data.text_model || '',
+    image_model: data.image_model || '',
+    mineru_api_base: data.mineru_api_base || '',
+    mineru_token: '',
+    image_caption_model: data.image_caption_model || '',
+    output_language: data.output_language || 'zh',
+    enable_text_reasoning: data.enable_text_reasoning || false,
+    text_thinking_budget: data.text_thinking_budget || 1024,
+    enable_image_reasoning: data.enable_image_reasoning || false,
+    image_thinking_budget: data.image_thinking_budget || 1024,
+    baidu_api_key: '',
+    text_model_source: textModelSource,
+    image_model_source: imageModelSource,
+    image_caption_model_source: imageCaptionModelSource,
+    lazyllm_api_keys: {},
+    text_api_key: '',
+    text_api_base_url: FIXED_BASE_URL_PROVIDERS.has(textModelSource) ? '' : (data.text_api_base_url || ''),
+    image_api_key: '',
+    image_api_base_url: FIXED_BASE_URL_PROVIDERS.has(imageModelSource) ? '' : (data.image_api_base_url || ''),
+    image_caption_api_key: '',
+    image_caption_api_base_url: FIXED_BASE_URL_PROVIDERS.has(imageCaptionModelSource) ? '' : (data.image_caption_api_base_url || ''),
+    openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
+    elevenlabs_api_key: '',
+  };
+};
 
 // Settings 组件 - 纯嵌入模式（可复用）
 export const Settings: React.FC = () => {
   const t = useT(settingsI18n);
+  const { i18n } = useTranslation();
+  const isZh = i18n.language?.startsWith('zh') ?? true;
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
@@ -647,6 +737,18 @@ export const Settings: React.FC = () => {
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
   const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const allProviderSources = getAllProviderSources(isZh);
+  const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
+  const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
+  const usesVolcengineCampaignPromo = formData.ai_provider_format === 'volcengine' || formData.ai_provider_format === 'doubao';
+  const activeVolcenginePromoKey = formData.ai_provider_format === 'doubao'
+    ? 'settings.doubaoVolcenginePromo'
+    : 'settings.volcenginePromo';
+  const activeApiKeyHelpKey = formData.ai_provider_format === 'volcengine'
+    ? 'settings.volcengineKeyHelp'
+    : formData.ai_provider_format === 'doubao'
+      ? 'settings.doubaoKeyHelp'
+      : 'settings.apiKeyHelp';
 
   const handleOAuthLogin = async () => {
     setOauthConnecting(true);
@@ -1010,7 +1112,46 @@ export const Settings: React.FC = () => {
   };
 
   const handleFieldChange = (key: string, value: any) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [key]: value };
+
+      if (key === 'ai_provider_format') {
+        if (FIXED_BASE_URL_PROVIDERS.has(value)) {
+          next.api_base_url = '';
+        }
+      }
+
+      const perModelBaseKeys: Record<string, 'text_api_base_url' | 'image_api_base_url' | 'image_caption_api_base_url'> = {
+        text_model_source: 'text_api_base_url',
+        image_model_source: 'image_api_base_url',
+        image_caption_model_source: 'image_caption_api_base_url',
+      };
+      const apiBaseKey = perModelBaseKeys[key];
+      if (apiBaseKey) {
+        if (FIXED_BASE_URL_PROVIDERS.has(value)) {
+          next[apiBaseKey] = '';
+        }
+      }
+
+      return next;
+    });
+  };
+
+  const applyVolcengineRecommendedModels = () => {
+    const provider = formData.ai_provider_format === 'volcengine' ? 'volcengine' : 'doubao';
+    setFormData(prev => ({
+      ...prev,
+      text_model: VOLCENGINE_RECOMMENDED_MODELS.text,
+      image_caption_model: VOLCENGINE_RECOMMENDED_MODELS.caption,
+      image_model: VOLCENGINE_RECOMMENDED_MODELS.image,
+      text_model_source: provider,
+      image_caption_model_source: provider,
+      image_model_source: provider,
+      text_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.text_api_base_url,
+      image_caption_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.image_caption_api_base_url,
+      image_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.image_api_base_url,
+      openai_image_api_protocol: 'images',
+    }));
   };
 
   const updateServiceTest = (key: string, nextState: ServiceTestState) => {
@@ -1302,6 +1443,7 @@ export const Settings: React.FC = () => {
   const renderModelConfigGroup = (item: typeof modelConfigItems[0]) => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
+    const isFixedApiBaseProvider = FIXED_BASE_URL_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
@@ -1331,7 +1473,7 @@ export const Settings: React.FC = () => {
             className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
           >
             <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
-            {ALL_PROVIDER_SOURCES.map((option) => (
+            {allProviderSources.map((option) => (
               <option
                 key={option.value}
                 value={option.value}
@@ -1346,16 +1488,18 @@ export const Settings: React.FC = () => {
           </p>
         </div>
 
-        {/* Gemini/OpenAI 提供商：显示 API Base URL + API Key */}
+        {/* Gemini/OpenAI 提供商：显示 API Key，固定 Base URL 的提供商隐藏 Base URL 输入 */}
         {isApiKeyProvider && (
           <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-            <Input
-              label={t('settings.fields.perModelApiBaseUrl')}
-              type="text"
-              placeholder={t('settings.fields.perModelApiBaseUrlPlaceholder')}
-              value={formData[item.apiBaseKey] as string}
-              onChange={(e) => handleFieldChange(item.apiBaseKey, e.target.value)}
-            />
+            {!isFixedApiBaseProvider && (
+              <Input
+                label={t('settings.fields.perModelApiBaseUrl')}
+                type="text"
+                placeholder={t('settings.fields.perModelApiBaseUrlPlaceholder')}
+                value={formData[item.apiBaseKey] as string}
+                onChange={(e) => handleFieldChange(item.apiBaseKey, e.target.value)}
+              />
+            )}
             <div>
               <Input
                 label={t('settings.fields.perModelApiKey')}
@@ -1375,8 +1519,12 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* Image API Protocol: for image model when effective provider is openai */}
-        {item.sourceKey === 'image_model_source' && (sourceValue === 'openai' || (!sourceValue && formData.ai_provider_format === 'openai')) && (
+        {/* Image API Protocol: for image model when effective provider is OpenAI-compatible */}
+        {item.sourceKey === 'image_model_source' && (
+          sourceValue === 'openai'
+          || sourceValue === 'volcengine'
+          || (!sourceValue && ['openai', 'volcengine'].includes(formData.ai_provider_format))
+        ) && (
           <div className="pl-3 border-l-2 border-banana-300 dark:border-banana-600">
             <label className="block text-sm font-medium text-gray-700 dark:text-foreground-secondary mb-2">
               {t('settings.fields.imageApiProtocol')}
@@ -1458,7 +1606,7 @@ export const Settings: React.FC = () => {
                 onChange={(e) => handleFieldChange('ai_provider_format', e.target.value)}
                 className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
               >
-                {ALL_PROVIDER_SOURCES.map((option) => (
+                {allProviderSources.map((option) => (
                   <option
                     key={option.value}
                     value={option.value}
@@ -1471,17 +1619,21 @@ export const Settings: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
             </div>
 
-            {/* Gemini/OpenAI: API Base URL + API Key */}
+            {/* Gemini/OpenAI: API Key；固定 Base URL 的提供商隐藏 Base URL 输入 */}
             {API_KEY_PROVIDERS.has(formData.ai_provider_format) && (
               <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-                <Input
-                  label={t('settings.fields.apiBaseUrl')}
-                  type="text"
-                  placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
-                  value={formData.api_base_url}
-                  onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
-                />
-                <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
+                {!FIXED_BASE_URL_PROVIDERS.has(formData.ai_provider_format) && (
+                  <>
+                    <Input
+                      label={t('settings.fields.apiBaseUrl')}
+                      type="text"
+                      placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
+                      value={formData.api_base_url}
+                      onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
+                    />
+                    <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
+                  </>
+                )}
                 <div>
                   <Input
                     label={t('settings.fields.apiKey')}
@@ -1505,47 +1657,112 @@ export const Settings: React.FC = () => {
             )}
           </div>
 
-          {/* AIHubmix 提示 */}
-          <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
-            <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-              {t('settings.apiKeyTip.before')}
-              <a href={AIHUBMIX_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
-              {t('settings.apiKeyTip.after')}
-            </p>
-          </div>
+          {usesVolcengineCampaignPromo ? (
+            <div className="mt-3 pl-4 border-l-4 border-amber-300 dark:border-amber-600">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <a href={volcengineAgentPlansUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                  <img
+                    src={volcengineLogoUrl}
+                    alt={isZh ? '火山引擎' : 'BytePlus'}
+                    className="h-9 w-auto max-w-[160px] object-contain"
+                  />
+                </a>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-800 dark:text-foreground-primary">
+                    {t(`${activeVolcenginePromoKey}.title`)}
+                  </p>
+                  <p className="text-sm text-gray-700 dark:text-foreground-secondary">
+                    {t(`${activeVolcenginePromoKey}.body`)}{' '}
+                    <a href={volcengineAgentPlansUrl} target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 underline font-medium">
+                      {t(`${activeVolcenginePromoKey}.cta`)}
+                    </a>
+                  </p>
+                  <div className="pt-1">
+                    <p className="text-sm font-medium text-gray-800 dark:text-foreground-primary flex items-center gap-1.5">
+                      <HelpCircle size={15} className="text-amber-500" />
+                      {t(`${activeApiKeyHelpKey}.title`)}
+                    </p>
+                    <ol className="mt-1 text-sm text-gray-700 dark:text-foreground-secondary space-y-1 list-decimal list-inside">
+                      <li>
+                        {t(`${activeApiKeyHelpKey}.step1`)}{' '}
+                        <span className="inline-flex items-center gap-2">
+                          <a
+                            href={volcengineAgentPlansUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 underline font-medium"
+                          >
+                            {t(`${activeVolcenginePromoKey}.guideLink`)}
+                          </a>
+                          <button
+                            onClick={() => copyToClipboard(volcengineAgentPlansUrl)}
+                            className="text-xs px-2 py-0.5 rounded transition-colors bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300"
+                          >
+                            {t(`${activeVolcenginePromoKey}.copy`)}
+                          </button>
+                        </span>
+                      </li>
+                      <li>{t(`${activeApiKeyHelpKey}.step2`)}</li>
+                      <li>{t(`${activeApiKeyHelpKey}.step3`)}</li>
+                      <li>{t(`${activeApiKeyHelpKey}.step4`)}</li>
+                    </ol>
+                  </div>
+                  <div className="pt-1">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={applyVolcengineRecommendedModels}
+                    >
+                      {t(`${activeVolcenginePromoKey}.applyModels`)}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
+              <p className="text-sm text-gray-700 dark:text-foreground-secondary">
+                {t('settings.apiKeyTip.before')}
+                <a href={AIHUBMIX_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
+                {t('settings.apiKeyTip.after')}
+              </p>
+            </div>
+          )}
 
           {/* API Key 获取指南 */}
-          <div className="mt-2 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
-            <p className="text-sm font-medium text-gray-800 dark:text-foreground-primary flex items-center gap-1.5 mb-2">
-              <HelpCircle size={15} className="text-blue-500" />
-              {t('settings.apiKeyHelp.title')}
-            </p>
-            <ol className="text-sm text-gray-700 dark:text-foreground-secondary space-y-1 list-decimal list-inside ml-1">
-              <li>
-                {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
-                <span className="inline-flex items-center gap-2">
-                  <a
-                    href={AIHUBMIX_AFFILIATE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline font-medium"
-                  >
-                    {t('settings.apiKeyHelp.linkLabel')}
-                  </a>
-                  <button
-                    onClick={() => copyToClipboard(AIHUBMIX_AFFILIATE_URL)}
-                    className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
-                  >
-                    {t('settings.apiKeyHelp.copyLink')}
-                  </button>
-                </span>
-                {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[1]}
-              </li>
-              <li>{t('settings.apiKeyHelp.step2')}</li>
-              <li>{t('settings.apiKeyHelp.step3')}</li>
-              <li>{t('settings.apiKeyHelp.step4')}</li>
-            </ol>
-          </div>
+          {!usesVolcengineCampaignPromo && (
+            <div className="mt-2 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
+              <p className="text-sm font-medium text-gray-800 dark:text-foreground-primary flex items-center gap-1.5 mb-2">
+                <HelpCircle size={15} className="text-blue-500" />
+                {t(`${activeApiKeyHelpKey}.title`)}
+              </p>
+              <ol className="text-sm text-gray-700 dark:text-foreground-secondary space-y-1 list-decimal list-inside ml-1">
+                <li>
+                  {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
+                  <span className="inline-flex items-center gap-2">
+                    <a
+                      href={AIHUBMIX_AFFILIATE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline font-medium"
+                    >
+                      {t('settings.apiKeyHelp.linkLabel')}
+                    </a>
+                    <button
+                      onClick={() => copyToClipboard(AIHUBMIX_AFFILIATE_URL)}
+                      className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
+                    >
+                      {t('settings.apiKeyHelp.copyLink')}
+                    </button>
+                  </span>
+                  {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[1]}
+                </li>
+                <li>{t('settings.apiKeyHelp.step2')}</li>
+                <li>{t('settings.apiKeyHelp.step3')}</li>
+                <li>{t('settings.apiKeyHelp.step4')}</li>
+              </ol>
+            </div>
+          )}
         </div>
 
         {/* 模型配置区块 */}

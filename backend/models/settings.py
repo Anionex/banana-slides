@@ -111,17 +111,47 @@ class Settings(db.Model):
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
         d = Settings._get_config_defaults()
-        api_key = self._val('api_key', d)
+        effective_provider = self._val('ai_provider_format', d)
+        provider_defaults = Settings._get_api_defaults_for_provider(effective_provider)
+        api_base_url = self.api_base_url if self.api_base_url is not None else provider_defaults['api_base_url']
+        api_key = self.api_key if self.api_key is not None else provider_defaults['api_key']
         mineru_token = self._val('mineru_token', d)
         baidu_api_key = self._val('baidu_api_key', d)
         elevenlabs_api_key = self._val('elevenlabs_api_key', d)
-        text_api_key = self._val('text_api_key', d)
-        image_api_key = self._val('image_api_key', d)
-        image_caption_api_key = self._val('image_caption_api_key', d)
+        text_model_source = self._val('text_model_source', d)
+        image_model_source = self._val('image_model_source', d)
+        image_caption_model_source = self._val('image_caption_model_source', d)
+        text_api_defaults = Settings._get_api_defaults_for_provider(text_model_source, 'TEXT')
+        image_api_defaults = Settings._get_api_defaults_for_provider(image_model_source, 'IMAGE')
+        image_caption_api_defaults = Settings._get_api_defaults_for_provider(
+            image_caption_model_source, 'IMAGE_CAPTION'
+        )
+        text_api_key = self.text_api_key if self.text_api_key is not None else text_api_defaults['api_key']
+        image_api_key = self.image_api_key if self.image_api_key is not None else image_api_defaults['api_key']
+        image_caption_api_key = (
+            self.image_caption_api_key
+            if self.image_caption_api_key is not None
+            else image_caption_api_defaults['api_key']
+        )
+        text_api_base_url = (
+            self.text_api_base_url
+            if self.text_api_base_url is not None
+            else text_api_defaults['api_base_url']
+        )
+        image_api_base_url = (
+            self.image_api_base_url
+            if self.image_api_base_url is not None
+            else image_api_defaults['api_base_url']
+        )
+        image_caption_api_base_url = (
+            self.image_caption_api_base_url
+            if self.image_caption_api_base_url is not None
+            else image_caption_api_defaults['api_base_url']
+        )
         return {
             'id': self.id,
-            'ai_provider_format': self._val('ai_provider_format', d),
-            'api_base_url': self._val('api_base_url', d),
+            'ai_provider_format': effective_provider,
+            'api_base_url': api_base_url,
             'api_key_length': len(api_key) if api_key else 0,
             'image_resolution': self._val('image_resolution', d),
             'image_aspect_ratio': self._val('image_aspect_ratio', d),
@@ -141,16 +171,16 @@ class Settings(db.Model):
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
             'baidu_api_key_length': len(baidu_api_key) if baidu_api_key else 0,
-            'text_model_source': self._val('text_model_source', d),
-            'image_model_source': self._val('image_model_source', d),
-            'image_caption_model_source': self._val('image_caption_model_source', d),
+            'text_model_source': text_model_source,
+            'image_model_source': image_model_source,
+            'image_caption_model_source': image_caption_model_source,
             'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(self._val('lazyllm_api_keys', d)),
             'text_api_key_length': len(text_api_key) if text_api_key else 0,
-            'text_api_base_url': self._val('text_api_base_url', d),
+            'text_api_base_url': text_api_base_url,
             'image_api_key_length': len(image_api_key) if image_api_key else 0,
-            'image_api_base_url': self._val('image_api_base_url', d),
+            'image_api_base_url': image_api_base_url,
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
-            'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'image_caption_api_base_url': image_caption_api_base_url,
             'openai_image_api_protocol': self._val('openai_image_api_protocol', d) or 'auto',
             'elevenlabs_enabled': self.elevenlabs_enabled,
             'elevenlabs_api_key_length': len(elevenlabs_api_key) if elevenlabs_api_key else 0,
@@ -159,6 +189,44 @@ class Settings(db.Model):
             'openai_oauth_account_id': self.openai_oauth_account_id if self.is_openai_oauth_connected() else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    @staticmethod
+    def _get_api_defaults_for_provider(provider, prefix=None):
+        """Return API defaults for an explicit provider/source selection."""
+        from config import Config
+
+        provider = (provider or '').lower()
+        if not provider:
+            return {
+                'api_base_url': None,
+                'api_key': None,
+            }
+        specific_key = getattr(Config, f'{prefix}_API_KEY', None) if prefix else None
+        specific_base = getattr(Config, f'{prefix}_API_BASE', None) if prefix else None
+        if provider == 'gemini':
+            return {
+                'api_base_url': specific_base or Config.GOOGLE_API_BASE or None,
+                'api_key': specific_key or Config.GOOGLE_API_KEY or None,
+            }
+        if provider == 'openai':
+            return {
+                'api_base_url': specific_base or Config.OPENAI_API_BASE or None,
+                'api_key': specific_key or Config.OPENAI_API_KEY or None,
+            }
+        if provider == 'volcengine':
+            return {
+                'api_base_url': specific_base or Config.VOLCENGINE_API_BASE or None,
+                'api_key': specific_key or Config.VOLCENGINE_API_KEY or None,
+            }
+        if provider == 'lazyllm':
+            return {
+                'api_base_url': None,
+                'api_key': None,
+            }
+        return {
+            'api_base_url': None,
+            'api_key': None,
         }
 
     def _get_lazyllm_api_keys_info(self, raw=None):
@@ -256,6 +324,9 @@ class Settings(db.Model):
         if provider == 'openai':
             api_base = Config.OPENAI_API_BASE or None
             api_key = Config.OPENAI_API_KEY or None
+        elif provider == 'volcengine':
+            api_base = Config.VOLCENGINE_API_BASE or None
+            api_key = Config.VOLCENGINE_API_KEY or None
         elif provider == 'lazyllm':
             api_base = None
             api_key = None
