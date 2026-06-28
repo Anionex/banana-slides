@@ -9,7 +9,10 @@ export interface PresetStyle {
   color: string;  // accent color for visual indicator
 }
 
-const publicAssetPath = (path: string) => `${isDesktop ? '.' : ''}${path}`;
+const publicAssetPath = (assetPath: string) => {
+  const normalizedPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
+  return isDesktop ? `.${normalizedPath}` : normalizedPath;
+};
 
 // Style IDs map to i18n keys in presetStyles namespace
 export const PRESET_STYLES: PresetStyle[] = [

@@ -42,7 +42,10 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
-const publicAssetPath = (path: string) => `${isDesktop ? '.' : ''}${path}`;
+const publicAssetPath = (assetPath: string) => {
+  const normalizedPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
+  return isDesktop ? `.${normalizedPath}` : normalizedPath;
+};
 
 interface TemplateSelectorProps {
   onSelect: (templateFile: File | null, templateId?: string) => void;

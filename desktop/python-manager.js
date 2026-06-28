@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
+const readline = require('readline');
 const log = require('electron-log');
 
 let backendProcess = null;
@@ -17,6 +18,32 @@ function getBackendPath() {
   const resourcesPath = process.resourcesPath;
   const exeName = process.platform === 'win32' ? 'banana-backend.exe' : 'banana-backend';
   return path.join(resourcesPath, 'backend', exeName);
+}
+
+function handleBackendLine(line) {
+  if (!line.trim()) return;
+
+  const match = line.match(/^LISTENING_ON:(\d+)$/);
+  if (match) {
+    backendPort = parseInt(match[1], 10);
+    log.info(`[python-manager] Backend announced port ${backendPort}`);
+    return;
+  }
+
+  const werkzeugMatch = line.match(/Running on http:\/\/127\.0\.0\.1:(\d+)/);
+  if (werkzeugMatch) {
+    backendPort = parseInt(werkzeugMatch[1], 10);
+    log.info(`[python-manager] Backend detected on port ${backendPort} from startup logs`);
+  }
+  log.info(`[backend] ${line.trim()}`);
+}
+
+function spawnTaskkill(args) {
+  const taskkill = spawn('taskkill', args, { windowsHide: true });
+  taskkill.on('error', (error) => {
+    log.warn('[python-manager] taskkill failed:', error.message);
+  });
+  return taskkill;
 }
 
 async function startBackend(userDataPath) {
@@ -60,30 +87,19 @@ async function startBackend(userDataPath) {
     backendProcess = null;
   });
 
-  backendProcess.stdout.on('data', (data) => {
-    const output = data.toString();
-    for (const line of output.split(/\r?\n/)) {
-      if (!line.trim()) continue;
-      const match = line.match(/^LISTENING_ON:(\d+)$/);
-      if (match) {
-        backendPort = parseInt(match[1], 10);
-        log.info(`[python-manager] Backend announced port ${backendPort}`);
-        continue;
-      }
-      const werkzeugMatch = line.match(/Running on http:\/\/127\.0\.0\.1:(\d+)/);
-      if (werkzeugMatch) {
-        backendPort = parseInt(werkzeugMatch[1], 10);
-        log.info(`[python-manager] Backend detected on port ${backendPort} from startup logs`);
-      }
-      log.info(`[backend] ${line.trim()}`);
+  const stdoutReader = readline.createInterface({ input: backendProcess.stdout });
+  stdoutReader.on('line', handleBackendLine);
+
+  const stderrReader = readline.createInterface({ input: backendProcess.stderr });
+  stderrReader.on('line', (line) => {
+    if (line.trim()) {
+      log.warn(`[backend:err] ${line.trim()}`);
     }
   });
 
-  backendProcess.stderr.on('data', (data) => {
-    log.warn(`[backend:err] ${data.toString().trim()}`);
-  });
-
   backendProcess.on('exit', (code) => {
+    stdoutReader.close();
+    stderrReader.close();
     log.info(`[python-manager] Backend exited with code ${code}`);
     backendProcess = null;
   });
@@ -155,7 +171,7 @@ function stopBackend() {
       log.warn('[python-manager] Force killing backend');
       try {
         if (isWin) {
-          spawn('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true });
+          spawnTaskkill(['/F', '/T', '/PID', String(pid)]);
         } else {
           backendProcess.kill('SIGKILL');
         }
@@ -172,7 +188,7 @@ function stopBackend() {
 
     try {
       if (isWin) {
-        spawn('taskkill', ['/T', '/PID', String(pid)], { windowsHide: true });
+        spawnTaskkill(['/T', '/PID', String(pid)]);
       } else {
         backendProcess.kill('SIGTERM');
       }

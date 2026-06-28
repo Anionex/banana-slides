@@ -45,10 +45,18 @@ export function getBaseURL(): string {
 // 统一下载入口：desktop 走原生保存对话框，web 走 window.open
 export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string): void {
   if (isDesktop) {
-    const url = relativeOrAbsoluteUrl.startsWith('http')
+    const normalizedPath = relativeOrAbsoluteUrl.startsWith('/')
       ? relativeOrAbsoluteUrl
-      : `${getBaseURL()}${relativeOrAbsoluteUrl}`;
-    const fallbackFilename = new URL(url).pathname.split('/').pop() || 'download';
+      : `/${relativeOrAbsoluteUrl}`;
+    const url = /^https?:\/\//i.test(relativeOrAbsoluteUrl)
+      ? relativeOrAbsoluteUrl
+      : `${getBaseURL()}${normalizedPath}`;
+    let fallbackFilename = 'download';
+    try {
+      fallbackFilename = new URL(url).pathname.split('/').pop() || 'download';
+    } catch {
+      fallbackFilename = relativeOrAbsoluteUrl.split('?')[0].split('/').filter(Boolean).pop() || 'download';
+    }
     (window as any).electronAPI.downloadFile(url, filename || fallbackFilename);
   } else {
     window.open(relativeOrAbsoluteUrl, '_blank');

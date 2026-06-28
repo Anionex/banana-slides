@@ -113,4 +113,18 @@ describe('API client desktop detection', () => {
       'slides.pptx',
     );
   });
+
+  it('normalizes desktop download URLs without a leading slash', async () => {
+    const downloadFile = vi.fn();
+    (window as any).__BACKEND_PORT__ = 15000;
+    (window as any).electronAPI = createMockElectronAPI({ downloadFile });
+    const { triggerDownload } = await import('../api/client');
+
+    triggerDownload('exports/slides.pptx?token=abc');
+
+    expect(downloadFile).toHaveBeenCalledWith(
+      'http://127.0.0.1:15000/exports/slides.pptx?token=abc',
+      'slides.pptx',
+    );
+  });
 });
