@@ -120,12 +120,14 @@ const settingsI18n = {
       },
       apiKeyHelp: {
         title: "如何获取 API 密钥",
-        step1: "前往 {{link}} 注册账号",
-        step2: "点击顶栏「充值」，根据需要充值一定的额度",
-        step3: "点击顶栏「密钥」",
-        step4: "点击「创建 key」生成新的 API Key",
+        step1: "打开 {{link}}，登录或注册账号",
+        step2: "进入 Console 控制台，先在左侧 Account 区域点击「Top Up」完成充值",
+        step3: "充值后在左侧 Develop 区域点击「API Keys」",
+        step4: "在 API Keys 页面点击「Add key」生成新的 API Key，并复制到本页",
+        linkLabel: "访问 AIHubMix 官网 →",
+        copyLink: "复制链接",
       },
-      apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", after: "" },
+      apiKeyTip: { before: "若需快速配置或稳定高并发生图，可选择 ", linkLabel: "AIHubMix 申请 API Key", after: "" },
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
         tip: "提示：图像生成测试可能需要数分钟（取决于模型），请耐心等待。",
@@ -269,12 +271,14 @@ const settingsI18n = {
       },
       apiKeyHelp: {
         title: "How to get an API key",
-        step1: "Register at {{link}}",
-        step2: "Click \"Recharge\" in the top navigation bar and add credits as needed",
-        step3: "Click \"Keys\" in the top navigation bar",
-        step4: "Click \"Create Key\" to generate a new API Key",
+        step1: "Open {{link}}, then sign in or create an account",
+        step2: "Go to Console and first choose Account → Top Up in the left sidebar to add credits",
+        step3: "After topping up, choose Develop → API Keys in the left sidebar",
+        step4: "Click \"Add key\" on the API Keys page to create a new API key, then copy it into this page",
+        linkLabel: "Open AIHubMix →",
+        copyLink: "Copy link",
       },
-      apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", after: "" },
+      apiKeyTip: { before: "For quick setup or stable high-concurrency image generation, get an API key from ", linkLabel: "AIHubMix", after: "" },
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
         tip: "Tip: Image generation tests may take several minutes depending on the model, please be patient.",
@@ -341,6 +345,8 @@ interface ServiceTestState {
   message?: string;
   detail?: string;
 }
+
+const AIHUBMIX_AFFILIATE_URL = ['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('');
 
 // LazyLLM 支持的厂商列表
 const LAZYLLM_SOURCES = [
@@ -1503,7 +1509,8 @@ export const Settings: React.FC = () => {
           <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
             <p className="text-sm text-gray-700 dark:text-foreground-secondary">
               {t('settings.apiKeyTip.before')}
-              <a href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">AIHubmix 申请 API key</a>
+              <a href={AIHUBMIX_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
+              {t('settings.apiKeyTip.after')}
             </p>
           </div>
 
@@ -1518,18 +1525,18 @@ export const Settings: React.FC = () => {
                 {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
                 <span className="inline-flex items-center gap-2">
                   <a
-                    href={['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('')}
+                    href={AIHUBMIX_AFFILIATE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 underline font-medium"
                   >
-                    点击此处访问 AIHubmix →
+                    {t('settings.apiKeyHelp.linkLabel')}
                   </a>
                   <button
-                    onClick={() => copyToClipboard('https://aihubmix.com/?aff=17EC')}
+                    onClick={() => copyToClipboard(AIHUBMIX_AFFILIATE_URL)}
                     className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
                   >
-                    复制链接
+                    {t('settings.apiKeyHelp.copyLink')}
                   </button>
                 </span>
                 {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[1]}
