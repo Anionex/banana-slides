@@ -295,12 +295,16 @@ function setupIPC() {
     if (currentWindow.isDestroyed()) return { success: false };
     const downloadSession = currentWindow.webContents.session;
     let cleanupTimer = null;
+    let cleanedUp = false;
     const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       if (cleanupTimer) {
         clearTimeout(cleanupTimer);
         cleanupTimer = null;
       }
       downloadSession.removeListener('will-download', listener);
+      currentWindow.removeListener('closed', cleanup);
     };
     const listener = (_, item) => {
       if (item.getURL() !== downloadUrl) {
@@ -310,6 +314,7 @@ function setupIPC() {
       cleanup();
     };
     downloadSession.on('will-download', listener);
+    currentWindow.once('closed', cleanup);
     cleanupTimer = setTimeout(cleanup, 300000);
     currentWindow.webContents.downloadURL(downloadUrl);
     return { success: true };

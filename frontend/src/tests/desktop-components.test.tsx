@@ -54,8 +54,8 @@ describe('DesktopTitleBar', () => {
     render(<DesktopTitleBar />, { wrapper: Wrapper });
     await act(() => vi.runAllTimers());
     expect(screen.getByText('Banana Slides')).toBeInTheDocument();
-    expect(screen.getByTitle('最小化')).toBeInTheDocument();
-    expect(screen.getByTitle('关闭')).toBeInTheDocument();
+    expect(screen.getByTitle('Minimize')).toBeInTheDocument();
+    expect(screen.getByTitle('Close')).toBeInTheDocument();
   });
 
   it('shows nav buttons (history, settings) on all platforms', async () => {

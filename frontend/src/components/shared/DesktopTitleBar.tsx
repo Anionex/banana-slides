@@ -16,6 +16,10 @@ const titleBarI18n = {
     themeLight: '浅色',
     themeDark: '深色',
     themeSystem: '跟随系统',
+    refresh: '刷新',
+    minimize: '最小化',
+    maximize: '最大化',
+    close: '关闭',
   },
   en: {
     materialGenerate: 'Generate',
@@ -25,6 +29,10 @@ const titleBarI18n = {
     themeLight: 'Light',
     themeDark: 'Dark',
     themeSystem: 'System',
+    refresh: 'Refresh',
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    close: 'Close',
   },
 };
 
@@ -150,7 +158,7 @@ export function DesktopTitleBar() {
         <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
 
         {/* Zoom controls */}
-        <button className={navBtnClass} onClick={() => window.location.reload()} title="刷新">
+        <button className={navBtnClass} onClick={() => window.location.reload()} title={t('refresh')}>
           <RefreshCw size={12} />
         </button>
         <button className={navBtnClass} onClick={() => (window as any).electronAPI.zoomOut()} title="Ctrl+-">
@@ -208,7 +216,7 @@ export function DesktopTitleBar() {
             onMouseEnter={() => setHoveredBtn('min')}
             onMouseLeave={() => setHoveredBtn(null)}
             style={{ ...winBtnBase, backgroundColor: hoveredBtn === 'min' ? 'rgba(0,0,0,0.06)' : 'transparent' }}
-            title="最小化"
+            title={t('minimize')}
           >
             <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
               <line x1="0" y1="0.5" x2="10" y2="0.5" stroke="currentColor" strokeWidth="1" />
@@ -219,7 +227,7 @@ export function DesktopTitleBar() {
             onMouseEnter={() => setHoveredBtn('max')}
             onMouseLeave={() => setHoveredBtn(null)}
             style={{ ...winBtnBase, backgroundColor: hoveredBtn === 'max' ? 'rgba(0,0,0,0.06)' : 'transparent' }}
-            title="最大化"
+            title={t('maximize')}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" strokeWidth="1" />
@@ -230,7 +238,7 @@ export function DesktopTitleBar() {
             onMouseEnter={() => setHoveredBtn('close')}
             onMouseLeave={() => setHoveredBtn(null)}
             style={{ ...winBtnBase, backgroundColor: hoveredBtn === 'close' ? '#e81123' : 'transparent', color: hoveredBtn === 'close' ? '#fff' : '#6b7280' }}
-            title="关闭"
+            title={t('close')}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" strokeWidth="1.2" />
