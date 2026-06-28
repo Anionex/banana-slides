@@ -38,7 +38,10 @@ extraResources:
   - from: "ffmpeg/"
     to: "ffmpeg"
     filter:
-      - "**/*"
+      - "ffmpeg"
+      - "ffmpeg.exe"
+      - "ffprobe"
+      - "ffprobe.exe"
 
 icon: resources/icon
 

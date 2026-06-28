@@ -24,6 +24,8 @@
     "semver": "^7.6.0"
   },
   "devDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "cross-env": "^7.0.3",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"

@@ -410,6 +410,56 @@ docker compose up -d
 
 **Note: Special thanks to our talented developer friend [@ShellMonster](https://github.com/ShellMonster/) for providing the [Newbie Deployment Tutorial](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md). Designed specifically for beginners with no server deployment experience, you can [click the link](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md) to view it.**
 
+### Desktop Installation and Local Packaging
+
+The desktop app is packaged with Electron + PyInstaller. It starts the bundled backend locally, which is useful when you do not want to run Docker or source-mode frontend/backend services manually. See the full [Desktop documentation](https://docs.bananaslides.online/features/desktop).
+
+**Install a released build**
+
+1. Go to [GitHub Releases](https://github.com/Anionex/banana-slides/releases) and download the installer for your platform.
+2. On Windows, run `BananaSlides-<version>-Setup.exe`; on macOS, open `BananaSlides-<version>.dmg` and drag the app into Applications.
+3. On first launch, open **Settings** and configure your model provider. The local database, uploads, and exports are stored in a user-writable app data directory, not inside the installation directory.
+
+<details>
+  <summary>📒 Signing and system security notes</summary>
+
+The current desktop package does not claim completed commercial code signing or Apple notarization. Windows may show a SmartScreen prompt; macOS may show an "unidentified developer" warning and require manual approval. Before formal distribution, add Windows code signing, Apple Developer ID signing, and notarization.
+
+</details>
+
+**Local packaging**
+
+Build the frontend static files and PyInstaller backend first. The `prebuild:*` scripts in `desktop/` copy those artifacts and generate build metadata.
+
+```bash
+# 1. Build frontend
+cd frontend
+npm ci
+npm run build
+
+# 2. Package backend
+cd ../backend
+uv sync
+uv pip install pyinstaller
+uv run pyinstaller banana-slides.spec --noconfirm
+
+# 3. Package desktop app
+cd ../desktop
+npm ci
+npm run build:mac   # macOS arm64 DMG
+npm run build:win   # Windows x64 NSIS Setup
+```
+
+For macOS/Linux packaging, the `desktop` npm dependencies provide platform FFmpeg/FFprobe binaries by default; you can also point `FFMPEG_BIN` / `FFPROBE_BIN` at trusted local binaries, or provide fallback commands in `PATH`. Windows packaging downloads a pinned static FFmpeg archive and verifies its SHA256 by default, or you can point `FFMPEG_BIN` / `FFPROBE_BIN` at trusted local binaries.
+
+**Release flow**
+
+Pushing a `v*` tag triggers `.github/workflows/release-desktop.yml`, builds desktop artifacts on Windows, macOS, and Linux runners, and uploads them to a GitHub draft Release. Before publishing, verify at minimum:
+
+- Windows: install `BananaSlides-<version>-Setup.exe`, launch the app, create a project, open Settings, and exercise one export or download path.
+- macOS: mount `BananaSlides-<version>.dmg`, drag the app into Applications, launch it, confirm the bundled backend `/health` path is healthy, and confirm desktop requests use the actual backend port.
+- Update checks: **Check for Updates** should only report a GitHub Release newer than the current build, not an older release.
+
 ### Deploy from Source
 
 #### Environment Requirements

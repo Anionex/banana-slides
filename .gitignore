@@ -51,6 +51,8 @@
 !.github/**/*.md
 *.pyc
 .env
+/desktop/.cache/
+/desktop/resources/ffmpeg/
 
 # GCP service-account key (sensitive — never commit)
 gcp-service-account.json

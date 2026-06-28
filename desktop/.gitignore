@@ -4,5 +4,7 @@ build/
 frontend/
 backend/
 ffmpeg/
+.cache/
+resources/ffmpeg/
 *.log
 build-meta.json

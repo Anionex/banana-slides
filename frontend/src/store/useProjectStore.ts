@@ -3,7 +3,6 @@ import type { Project } from '@/types';
 import * as api from '@/api/endpoints';
 import {
   debounce,
-  downloadFromUrl,
   normalizeProject,
   normalizeErrorMessage,
 } from '@/utils';
