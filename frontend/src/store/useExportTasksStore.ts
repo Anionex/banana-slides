@@ -53,7 +53,7 @@ interface ExportTasksState {
   addTask: (task: Omit<ExportTask, 'createdAt'>) => void;
   updateTask: (id: string, updates: Partial<ExportTask>) => void;
   removeTask: (id: string) => void;
-  clearCompleted: () => void;
+  clearCompleted: (projectId?: string | null) => void;
   pollTask: (id: string, projectId: string, taskId: string) => Promise<void>;
   restoreActiveTasks: () => void; // 恢复正在进行的任务并重新开始轮询
 }
@@ -107,10 +107,14 @@ export const useExportTasksStore = create<ExportTasksState>()(
         }));
       },
 
-      clearCompleted: () => {
+      clearCompleted: (projectId) => {
         set((state) => ({
           tasks: state.tasks.filter(
-            (task) => task.status !== 'COMPLETED' && task.status !== 'FAILED'
+            (task) => {
+              const isCompleted = task.status === 'COMPLETED' || task.status === 'FAILED';
+              if (!isCompleted) return true;
+              return projectId != null ? task.projectId !== projectId : false;
+            }
           ),
         }));
       },

@@ -539,7 +539,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
               <div className="flex items-center justify-between px-3 py-1 mb-1">
                 <span className="text-xs text-gray-400">{t('shared.historyRecords')}</span>
                 <button
-                  onClick={clearCompleted}
+                  onClick={() => clearCompleted(projectId)}
                   className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
                 >
                   <Trash2 size={12} />

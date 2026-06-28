@@ -139,7 +139,7 @@ No longer restricted by complex menus, issue modification commands directly usin
 
 - **Multi-format Support**: One-click export to standard **PPTX** or **PDF** files.
 - **Playback Settings**: Enable page transition animations before exporting to PPTX. Supports classic effects including Fade, Push, Pan, Wipe, Split, Blinds, Checkerboard, and Clock, with support for multi-selection and random application.
-- **Export File Management**: The preview page lists files already exported on the server side, allowing you to directly download or delete files that are no longer needed.
+- **Export File Management**: The preview page lists files already exported on the server side, allowing you to directly download or delete files that are no longer needed. Export task history is cleared per project, so records from other projects are not removed by mistake.
 - **Perfect Adaptation**: Default 16:9 aspect ratio requires no secondary layout adjustments—ready for immediate presentation.
 
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />

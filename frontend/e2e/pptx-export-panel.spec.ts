@@ -108,6 +108,57 @@ test.describe('PPTX export panel', () => {
     expect(exportQuery?.get('transition_effects')).toBe('fade,page_turn,push')
   })
 
+  test('clears only the current project export history from the task panel', async ({ page }) => {
+    const projectId = 'mock-export-history-current'
+    const otherProjectId = 'mock-export-history-other'
+
+    await mockPreviewProject(page, projectId)
+    await page.addInitScript(({ currentProjectId, otherProjectId }) => {
+      window.localStorage.setItem('export-tasks-storage', JSON.stringify({
+        state: {
+          tasks: [
+            {
+              id: 'current-project-export',
+              taskId: '',
+              projectId: currentProjectId,
+              type: 'pptx',
+              status: 'COMPLETED',
+              downloadUrl: '/files/mock/current.pptx',
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: 'other-project-export',
+              taskId: '',
+              projectId: otherProjectId,
+              type: 'pdf',
+              status: 'COMPLETED',
+              downloadUrl: '/files/mock/other.pdf',
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+        version: 0,
+      }))
+    }, { currentProjectId: projectId, otherProjectId })
+
+    await page.goto(`/project/${projectId}/preview`)
+    await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 })
+
+    await page.getByLabel('导出任务').click()
+    await expect(page.getByText('PPTX')).toBeVisible()
+    await expect(page.getByText('PDF')).toBeHidden()
+
+    await page.getByRole('button', { name: '清除' }).click()
+
+    await expect.poll(async () => {
+      return page.evaluate(() => {
+        const raw = window.localStorage.getItem('export-tasks-storage')
+        if (!raw) return []
+        return JSON.parse(raw).state.tasks.map((task: { id: string }) => task.id)
+      })
+    }).toEqual(['other-project-export'])
+  })
+
   test('real backend exports PPTX with transition query enabled', async ({ request, baseURL }) => {
     const { projectId } = await seedProjectWithImages(baseURL!, 2)
 
