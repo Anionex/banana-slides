@@ -205,7 +205,7 @@
 
 [![通过雨云一键部署](https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg)](https://app.rainyun.com/apps/rca/store/7549/anionex_)
 
-[![](https://raw.githubusercontent.com/labring-actions/templates/main/Deploy-on-Sealos.svg)](https://gzg.sealos.run/?openapp=system-template%3FtemplateName%3Dbanana-slides&uid=W1Rq6kLI_b)
+[![通过 Sealos 一键部署](https://raw.githubusercontent.com/labring-actions/templates/main/Deploy-on-Sealos.svg)](https://gzg.sealos.run/?openapp=system-template%3FtemplateName%3Dbanana-slides&uid=W1Rq6kLI_b)
 
 2. 敬请期待
 
