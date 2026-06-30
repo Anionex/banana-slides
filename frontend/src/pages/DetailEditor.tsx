@@ -46,12 +46,12 @@ const detailI18n = {
       descRequirements: "描述生成要求",
       descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
       importModalTitle: "导入 Markdown",
-      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md`、`.markdown` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
       importPasteLabel: "粘贴内容",
       importPastePlaceholder: "把描述或大纲+描述的 Markdown 粘贴到这里...",
       importUploadLabel: "上传文件",
       importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
-      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importUploadFormatsHint: "支持 `.md`、`.markdown`、`.txt`",
       importConfirm: "导入到项目",
       importCancel: "取消",
       messages: {
@@ -64,6 +64,7 @@ const detailI18n = {
         exportSuccess: "导出成功", importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         importContentEmpty: "请先粘贴内容或上传文件",
         importReadFailed: "读取文件失败，请重试",
+        importInvalidFileType: "只能导入 .md、.markdown 或 .txt 文件",
         loadingProject: "加载项目中..."
       }
     }
@@ -97,12 +98,12 @@ const detailI18n = {
       descRequirements: "Generation Requirements",
       descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
       importModalTitle: "Import Markdown",
-      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importModalDesc: "Paste Markdown directly, or upload a `.md`, `.markdown`, or `.txt` file. Imported pages will be appended to the current project.",
       importPasteLabel: "Paste Content",
       importPastePlaceholder: "Paste description or outline+description Markdown here...",
       importUploadLabel: "Upload File",
       importUploadHint: "Click to choose a file, or drag a Markdown file here",
-      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importUploadFormatsHint: "Supports `.md`, `.markdown`, `.txt`",
       importConfirm: "Import into Project",
       importCancel: "Cancel",
       messages: {
@@ -116,6 +117,7 @@ const detailI18n = {
         exportSuccess: "Export successful", importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         importContentEmpty: "Paste some content or upload a file first",
         importReadFailed: "Failed to read file, please try again",
+        importInvalidFileType: "Only .md, .markdown, or .txt files can be imported",
         loadingProject: "Loading project..."
       }
     }
@@ -1016,6 +1018,7 @@ export const DetailEditor: React.FC = () => {
         cancelButtonLabel={t('detail.importCancel')}
         emptyError={t('detail.messages.importContentEmpty')}
         readFileError={t('detail.messages.importReadFailed')}
+        invalidFileTypeError={t('detail.messages.importInvalidFileType')}
       />
       <MaterialSelector
         projectId={projectId}

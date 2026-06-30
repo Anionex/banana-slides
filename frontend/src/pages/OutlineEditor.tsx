@@ -26,12 +26,12 @@ const outlineI18n = {
       outlineRequirements: "大纲生成要求",
       outlineRequirementsPlaceholder: "例如：限制在10页以内、每页要点不超过3条、多使用图表...",
       importModalTitle: "导入 Markdown",
-      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md`、`.markdown` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
       importPasteLabel: "粘贴内容",
       importPastePlaceholder: "把大纲或大纲+描述的 Markdown 粘贴到这里...",
       importUploadLabel: "上传文件",
       importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
-      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importUploadFormatsHint: "支持 `.md`、`.markdown`、`.txt`",
       importConfirm: "导入到项目",
       importCancel: "取消",
       messages: {
@@ -45,6 +45,7 @@ const outlineI18n = {
         importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         importContentEmpty: "请先粘贴内容或上传文件",
         importReadFailed: "读取文件失败，请重试",
+        importInvalidFileType: "只能导入 .md、.markdown 或 .txt 文件",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
         saveFailed: "保存失败",
       }
@@ -70,12 +71,12 @@ const outlineI18n = {
       outlineRequirements: "Generation Requirements",
       outlineRequirementsPlaceholder: "e.g., Limit to 10 pages, max 3 points per page, use more charts...",
       importModalTitle: "Import Markdown",
-      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importModalDesc: "Paste Markdown directly, or upload a `.md`, `.markdown`, or `.txt` file. Imported pages will be appended to the current project.",
       importPasteLabel: "Paste Content",
       importPastePlaceholder: "Paste outline or outline+description Markdown here...",
       importUploadLabel: "Upload File",
       importUploadHint: "Click to choose a file, or drag a Markdown file here",
-      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importUploadFormatsHint: "Supports `.md`, `.markdown`, `.txt`",
       importConfirm: "Import into Project",
       importCancel: "Cancel",
       messages: {
@@ -89,6 +90,7 @@ const outlineI18n = {
         importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         importContentEmpty: "Paste some content or upload a file first",
         importReadFailed: "Failed to read file, please try again",
+        importInvalidFileType: "Only .md, .markdown, or .txt files can be imported",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
         saveFailed: "Save failed",
       }
@@ -886,6 +888,7 @@ export const OutlineEditor: React.FC = () => {
         cancelButtonLabel={t('outline.importCancel')}
         emptyError={t('outline.messages.importContentEmpty')}
         readFileError={t('outline.messages.importReadFailed')}
+        invalidFileTypeError={t('outline.messages.importInvalidFileType')}
       />
       <MaterialSelector
         projectId={projectId}

@@ -1,7 +1,7 @@
 /**
  * E2E test: Import outline / description from Markdown files
  */
-import { test, expect } from '@playwright/test'
+import { test, expect, Page, Locator } from '@playwright/test'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -126,14 +126,26 @@ test.describe('Import Markdown (mocked)', () => {
     return filePath
   }
 
+  async function openImportModal(page: Page): Promise<Locator> {
+    await page.getByRole('button', { name: /导入\/导出/ }).click()
+    await page.getByRole('button', { name: /^导入$/ }).click()
+    const dialog = page.getByRole('dialog', { name: '导入 Markdown' })
+    await expect(dialog).toBeVisible()
+    return dialog.locator('input[type="file"]')
+  }
+
+  async function importSelectedFile(page: Page) {
+    await page.getByRole('button', { name: '导入到项目' }).click()
+  }
+
   test('import unified markdown on outline page — preserves outline + description', async ({ page }) => {
     const mdPath = writeTempFile('test-unified.md', UNIFIED_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
@@ -155,10 +167,10 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-unified-detail.md', UNIFIED_MD)
 
     await page.goto(`/project/${PROJECT_ID}/detail`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
@@ -171,10 +183,10 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-legacy.md', LEGACY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
@@ -188,12 +200,27 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-empty.md', EMPTY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=文件中未找到有效页面').first()).toBeVisible({ timeout: 5_000 })
+    expect(addPageCalls).toHaveLength(0)
+  })
+
+  test('rejects unsupported import files before parsing', async ({ page }) => {
+    const pdfPath = writeTempFile('test-import.pdf', '%PDF-1.7 fake pdf')
+
+    await page.goto(`/project/${PROJECT_ID}/outline`)
+
+    const fileInput = await openImportModal(page)
+    const textarea = page.getByPlaceholder('把大纲或大纲+描述的 Markdown 粘贴到这里...')
+    await textarea.fill('## 草稿页: 不应被误选文件清空')
+    await fileInput.setInputFiles(pdfPath)
+
+    await expect(page.getByText('只能导入 .md、.markdown 或 .txt 文件')).toBeVisible({ timeout: 5_000 })
+    await expect(textarea).toHaveValue('## 草稿页: 不应被误选文件清空')
     expect(addPageCalls).toHaveLength(0)
   })
 
@@ -220,11 +247,12 @@ test.describe('Import Markdown (mocked)', () => {
 
     // Use detail page "导出大纲+描述" for full export
     await page.goto(`/project/${PROJECT_ID}/detail`)
-    await page.waitForSelector('button:has-text("导出大纲+描述")', { timeout: 10_000 })
+    await page.getByRole('button', { name: /导入\/导出/ }).click()
+    await expect(page.getByRole('button', { name: '导出大纲和描述' })).toBeVisible()
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('button:has-text("导出大纲+描述")'),
+      page.getByRole('button', { name: '导出大纲和描述' }).click(),
     ])
     const downloadPath = await download.path()
     const exportedContent = fs.readFileSync(downloadPath!, 'utf-8')
@@ -239,8 +267,9 @@ test.describe('Import Markdown (mocked)', () => {
     // Import the exported file back
     addPageCalls = []
     const reimportPath = writeTempFile('roundtrip.md', exportedContent)
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(reimportPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 

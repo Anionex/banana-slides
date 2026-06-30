@@ -3,7 +3,7 @@ title: "Import & Export Format"
 description: "Markdown format for importing and exporting outlines and descriptions"
 ---
 
-Banana Slides uses Markdown files (`.md` / `.txt`) to import and export outlines and page descriptions. The format is human-readable and easy to edit in any text editor.
+Banana Slides uses Markdown files (`.md` / `.markdown` / `.txt`) to import and export outlines and page descriptions. The format is human-readable and easy to edit in any text editor.
 
 ## Format Structure
 
@@ -86,7 +86,7 @@ You can export from both the Outline Editor and Detail Editor:
 - Both Chinese and English markers are supported: `第 N 页` / `Page N`, `章节` / `Chapter`, `大纲要点` / `Outline Points`, `页面描述` / `Page Description`.
 - HTML tags in imported content are automatically stripped.
 - Short trailing field lines in the description section, such as `视觉焦点：...` or `Visual Focus: ...`, are parsed as extra fields and preserved.
-- Accepts `.md` and `.txt` files.
+- Accepts `.md`, `.markdown`, and `.txt` files. Non-text files such as PDF, Word, or images are rejected before reading, with a clear file-format message.
 
 ## Minimal Example
 

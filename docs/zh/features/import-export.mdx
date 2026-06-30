@@ -3,7 +3,7 @@ title: "导入导出格式"
 description: "大纲和描述的 Markdown 导入导出格式说明"
 ---
 
-Banana Slides 使用 Markdown 文件（`.md` / `.txt`）导入导出大纲和页面描述，格式可读性强，可用任意文本编辑器编辑。
+Banana Slides 使用 Markdown 文件（`.md` / `.markdown` / `.txt`）导入导出大纲和页面描述，格式可读性强，可用任意文本编辑器编辑。
 
 ## 格式结构
 
@@ -86,7 +86,7 @@ Banana Slides 使用 Markdown 文件（`.md` / `.txt`）导入导出大纲和页
 - 同时兼容中英文标记：`第 N 页` / `Page N`、`章节` / `Chapter`、`大纲要点` / `Outline Points`、`页面描述` / `Page Description`。
 - 导入内容中的 HTML 标签会被自动清除。
 - 页面描述末尾的短字段行（如 `视觉焦点：...`）会被识别为额外字段并保留。
-- 支持 `.md` 和 `.txt` 文件。
+- 支持 `.md`、`.markdown` 和 `.txt` 文件；PDF、Word、图片等非文本文件会在读取前被拦截，并提示更换文件格式。
 
 ## 最简示例
 

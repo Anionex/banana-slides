@@ -13,10 +13,12 @@ describe('ImportMarkdownModal', () => {
     pastePlaceholder: 'Paste here...',
     uploadLabel: 'Upload File',
     uploadHint: 'Choose or drop a file',
+    uploadFormatsHint: 'Supports .md and .txt',
     importButtonLabel: 'Import',
     cancelButtonLabel: 'Cancel',
     emptyError: 'Need content',
     readFileError: 'Read failed',
+    invalidFileTypeError: 'Only Markdown or text files can be imported',
   };
 
   beforeEach(() => {
@@ -52,5 +54,42 @@ describe('ImportMarkdownModal', () => {
       expect(screen.getByPlaceholderText('Paste here...')).toHaveValue('## Page 2: Market');
     });
     expect(screen.getByText('slides.md')).toBeInTheDocument();
+  });
+
+  it('rejects unsupported uploaded files before reading content', async () => {
+    render(<ImportMarkdownModal {...baseProps} />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(screen.getByPlaceholderText('Paste here...'), {
+      target: { value: '## Draft content' },
+    });
+    const file = new File(['%PDF-1.7'], 'slides.pdf', { type: 'application/pdf' });
+    const text = vi.fn().mockResolvedValue('%PDF-1.7');
+    Object.defineProperty(file, 'text', { value: text });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Only Markdown or text files can be imported')).toBeInTheDocument();
+    });
+    expect(text).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText('Paste here...')).toHaveValue('## Draft content');
+    expect(screen.queryByText('slides.pdf')).not.toBeInTheDocument();
+  });
+
+  it('rejects malformed uploaded file objects defensively', async () => {
+    render(<ImportMarkdownModal {...baseProps} />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const text = vi.fn().mockResolvedValue('not a real file');
+    const malformedFile = { type: 'text/plain', text } as unknown as File;
+
+    fireEvent.change(input, { target: { files: [malformedFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Only Markdown or text files can be imported')).toBeInTheDocument();
+    });
+    expect(text).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText('Paste here...')).toHaveValue('');
   });
 });
