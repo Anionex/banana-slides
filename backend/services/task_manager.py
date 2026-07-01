@@ -66,6 +66,10 @@ def get_image_quality_control_enabled() -> bool:
     try:
         return bool(Settings.get_settings().enable_image_quality_control)
     except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         logger.warning("Failed to retrieve image quality control setting; using disabled: %s", e)
         return False
 
@@ -141,6 +145,7 @@ def generate_image_until_quality_passes(
                 page_index=page_index,
             )
             last_review = review
+            last_error = None
             if review.get('passed'):
                 logger.info("Image quality control passed for page %s on attempt %s", page_index, attempt)
                 return image
@@ -154,6 +159,7 @@ def generate_image_until_quality_passes(
             )
         except Exception as e:
             last_error = e
+            last_review = None
             logger.warning(
                 "Image quality control attempt %s/%s failed for page %s: %s",
                 attempt,

@@ -100,6 +100,32 @@ def test_image_quality_control_fails_without_returning_unreviewed_image():
     assert len(ai_service.calls) == IMAGE_QUALITY_CONTROL_MAX_ATTEMPTS
 
 
+def test_image_quality_control_reports_latest_generation_error(monkeypatch):
+    ai_service = FakeReviewService([
+        {'passed': False, 'issues': ['bad style'], 'reason': 'Mismatch'},
+    ])
+    attempts = []
+
+    def generate():
+        attempts.append(True)
+        if len(attempts) == 1:
+            return _image('red')
+        raise RuntimeError('provider timeout')
+
+    with pytest.raises(ImageQualityControlError, match='provider timeout'):
+        generate_image_until_quality_passes(
+            generate,
+            ai_service,
+            'prompt',
+            'description',
+            quality_control_enabled=True,
+            max_attempts=2,
+        )
+
+    assert len(attempts) == 2
+    assert len(ai_service.calls) == 1
+
+
 def test_image_quality_control_disabled_keeps_current_single_attempt_behavior():
     ai_service = FakeReviewService([
         {'passed': False, 'issues': ['would fail'], 'reason': 'Rejected'},
