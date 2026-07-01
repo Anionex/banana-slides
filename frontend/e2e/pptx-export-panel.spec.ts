@@ -266,6 +266,44 @@ test.describe('PPTX export panel', () => {
     }).toEqual(['other-project-export'])
   })
 
+  test('shows a failed state when a restored export task no longer exists on the backend', async ({ page }) => {
+    const projectId = 'mock-stale-export-task'
+
+    await mockPreviewProject(page, projectId)
+    await page.route(`**/api/projects/${projectId}/tasks/missing-export-task`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: null }),
+      })
+    })
+    await page.addInitScript(({ projectId }) => {
+      window.localStorage.setItem('export-tasks-storage', JSON.stringify({
+        state: {
+          tasks: [
+            {
+              id: 'stale-export-task',
+              taskId: 'missing-export-task',
+              projectId,
+              type: 'pptx',
+              status: 'RUNNING',
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+        version: 0,
+      }))
+    }, { projectId })
+
+    await page.goto(`/project/${projectId}/preview`)
+    await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 })
+
+    await page.getByLabel('导出任务').click()
+    await expect(page.getByText('导出失败')).toBeVisible()
+    await expect(page.getByText('导出任务已不可用，请重新导出')).toBeVisible()
+    await expect(page.getByText('1 进行中')).toBeHidden()
+  })
+
   test('real backend exports PPTX with transition query enabled', async ({ request, baseURL }) => {
     const { projectId } = await seedProjectWithImages(baseURL!, 2)
 
