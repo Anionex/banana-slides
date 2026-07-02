@@ -38,6 +38,19 @@ describe('ImportMarkdownModal', () => {
     });
   });
 
+  it('keeps import disabled until content is provided', () => {
+    render(<ImportMarkdownModal {...baseProps} />);
+
+    const importButton = screen.getByText('Import');
+    expect(importButton).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText('Paste here...'), {
+      target: { value: '## Page 1: Intro' },
+    });
+
+    expect(importButton).toBeEnabled();
+  });
+
   it('loads uploaded file content into textarea', async () => {
     render(<ImportMarkdownModal {...baseProps} />);
 

@@ -61,6 +61,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
     }
   }, [trimmedContent]);
   const hasInvalidPreview = previewCount === 0;
+  const isImportDisabled = !trimmedContent || hasInvalidPreview;
 
   const resetState = useCallback(() => {
     setContent('');
@@ -223,7 +224,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
           <Button variant="ghost" size="sm" onClick={handleClose} disabled={isImporting}>
             {cancelButtonLabel}
           </Button>
-          <Button size="sm" onClick={handleImportClick} loading={isImporting} disabled={hasInvalidPreview}>
+          <Button size="sm" onClick={handleImportClick} loading={isImporting} disabled={isImportDisabled}>
             {importButtonLabel}
           </Button>
         </div>
