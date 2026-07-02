@@ -1099,7 +1099,7 @@ class ExportService:
                 element['element_id'] for element in page_data['elements']
             }
             last_results = {}
-            last_error = None
+            last_exception = None
 
             for attempt in range(1, max_global_attempts + 1):
                 try:
@@ -1124,7 +1124,7 @@ class ExportService:
                         return page_idx, results, None
 
                     last_results = results
-                    last_error = "全局识别未返回完整结果"
+                    last_exception = None
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次返回不完整，将重试: missing_sample=%s",
                         page_idx + 1,
@@ -1134,7 +1134,7 @@ class ExportService:
                     )
                 except Exception as e:
                     last_results = {}
-                    last_error = str(e)
+                    last_exception = str(e)
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次失败，将重试: %s",
                         page_idx + 1,
@@ -1148,9 +1148,9 @@ class ExportService:
                 page_idx + 1,
                 len(expected_element_ids),
                 len(last_results),
-                last_error,
+                last_exception or "全局识别未返回完整结果",
             )
-            return page_idx, last_results, last_error or "全局识别失败"
+            return page_idx, last_results, last_exception
         
         # 收集失败信息
         failed_extractions = []  # [(element_id, reason), ...]

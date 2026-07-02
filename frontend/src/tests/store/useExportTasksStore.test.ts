@@ -259,4 +259,34 @@ describe('useExportTasksStore', () => {
     expect(task.status).toBe('COMPLETED')
     expect(task.downloadUrl).toBe('/files/project-a/exports/demo.pptx')
   })
+
+  it('does not retry active export tasks after programming errors', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.getTaskStatus).mockRejectedValueOnce(new TypeError('Cannot read properties of undefined'))
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'active-editable',
+        taskId: 'task-a',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'PROCESSING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('active-editable', 'project-a', 'task-a')
+    })
+
+    const task = useExportTasksStore.getState().tasks[0]
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
+    expect(task.status).toBe('FAILED')
+    expect(task.errorMessage).toMatch(/Cannot read properties/)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000)
+    })
+
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
+  })
 })

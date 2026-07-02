@@ -29,8 +29,15 @@ const MAX_TRANSIENT_POLL_ERRORS = 6;
 
 const isTransientPollingError = (error: any): boolean => {
   const status = error?.response?.status;
-  if (!status) return true;
-  return [408, 429, 500, 502, 503, 504].includes(status);
+  if (status) {
+    return [408, 429, 500, 502, 503, 504].includes(status);
+  }
+  return Boolean(
+    error?.request
+    || error?.code === 'ERR_NETWORK'
+    || error?.code === 'ECONNABORTED'
+    || error?.message?.includes('Network Error')
+  );
 };
 
 // Note: Backend uses 'RUNNING' but we also accept 'PROCESSING' for compatibility
