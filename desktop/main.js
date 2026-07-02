@@ -132,7 +132,7 @@ function createMainWindow() {
     icon: getIconPath(),
     ...(isMac
       ? {
-          titleBarStyle: 'hiddenInset',
+          titleBarStyle: 'hidden',
           trafficLightPosition: { x: 16, y: 16 },
           backgroundColor: '#ffffff',
         }
