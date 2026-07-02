@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test'
 
 const getBackendUrl = () => {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL
   const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
-  const frontendPort = parseInt(new URL(frontendUrl).port || '3011', 10)
-  return `http://localhost:${frontendPort + 2000}`
+  const parsedFrontendUrl = new URL(frontendUrl)
+  const frontendPort = parseInt(parsedFrontendUrl.port || '3011', 10)
+  return `${parsedFrontendUrl.protocol}//${parsedFrontendUrl.hostname}:${frontendPort + 2000}`
 }
 
 test.describe('Markdown import preview', () => {
