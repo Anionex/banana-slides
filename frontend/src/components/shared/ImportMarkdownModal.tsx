@@ -60,7 +60,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
     }
   }, [getPreviewCount, trimmedContent]);
   const hasInvalidPreview = previewCount === 0;
-  const isImportDisabled = !trimmedContent || hasInvalidPreview;
+  const isImportDisabled = !trimmedContent || hasInvalidPreview || isImporting;
 
   const resetState = useCallback(() => {
     setContent('');
