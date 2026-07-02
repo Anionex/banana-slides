@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act } from '@testing-library/react'
 import { useExportTasksStore } from '@/store/useExportTasksStore'
 import * as api from '@/api/endpoints'
@@ -15,6 +15,11 @@ describe('useExportTasksStore', () => {
       useExportTasksStore.setState({ tasks: [] })
     })
     window.localStorage.clear()
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('clears completed export tasks only for the selected project', () => {
@@ -209,5 +214,49 @@ describe('useExportTasksStore', () => {
 
     expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
     expect(useExportTasksStore.getState().tasks).toEqual([])
+  })
+
+  it('keeps active export tasks running after transient poll errors', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.getTaskStatus)
+      .mockRejectedValueOnce({
+        message: 'Request failed with status code 502',
+        response: { status: 502 },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          status: 'COMPLETED',
+          progress: {
+            download_url: '/files/project-a/exports/demo.pptx',
+            filename: 'demo.pptx',
+          },
+        },
+      } as any)
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'active-editable',
+        taskId: 'task-a',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'PROCESSING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('active-editable', 'project-a', 'task-a')
+    })
+
+    expect(useExportTasksStore.getState().tasks[0].status).toBe('PROCESSING')
+    expect(useExportTasksStore.getState().tasks[0].progress?.help_text).toMatch(/继续查询|Continuing/)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    const task = useExportTasksStore.getState().tasks[0]
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(2)
+    expect(task.status).toBe('COMPLETED')
+    expect(task.downloadUrl).toBe('/files/project-a/exports/demo.pptx')
   })
 })

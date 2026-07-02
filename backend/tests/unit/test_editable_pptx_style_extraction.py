@@ -13,8 +13,33 @@ class FailingExtractor:
 
 
 class EmptyGlobalExtractor:
+    def __init__(self):
+        self.calls = 0
+
     def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
+        self.calls += 1
         return {}
+
+    def extract(self, image, text_content=None, **kwargs):
+        return TextStyleResult(font_color_rgb=(255, 0, 0), confidence=0.9)
+
+
+class FlakyGlobalExtractor:
+    def __init__(self):
+        self.calls = 0
+
+    def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
+        self.calls += 1
+        if self.calls < 3:
+            return {}
+        return {
+            element["element_id"]: TextStyleResult(
+                is_bold=True,
+                text_alignment="center",
+                confidence=0.9,
+            )
+            for element in text_elements
+        }
 
     def extract(self, image, text_content=None, **kwargs):
         return TextStyleResult(font_color_rgb=(255, 0, 0), confidence=0.9)
@@ -77,4 +102,40 @@ def test_hybrid_style_extraction_reports_missing_global_results_when_not_fail_fa
     )
 
     assert "text_0" in results
-    assert failures == [("text_0", "全局识别未返回完整结果")]
+    assert failures == [("text_0", "全局识别失败: 全局识别未返回完整结果")]
+
+
+def test_hybrid_style_extraction_retries_missing_global_results_before_success(tmp_path):
+    editable_images = _make_editable_images(tmp_path)
+    extractor = FlakyGlobalExtractor()
+
+    results, failures = ExportService._batch_extract_text_styles_hybrid(
+        editable_images=editable_images,
+        text_attribute_extractor=extractor,
+        max_workers=2,
+        fail_fast=True,
+    )
+
+    assert extractor.calls == 3
+    assert "text_0" in results
+    assert results["text_0"].is_bold is True
+    assert results["text_0"].text_alignment == "center"
+    assert failures == []
+
+
+def test_hybrid_style_extraction_fails_after_global_result_retries_are_exhausted(tmp_path):
+    editable_images = _make_editable_images(tmp_path)
+    extractor = EmptyGlobalExtractor()
+
+    try:
+        ExportService._batch_extract_text_styles_hybrid(
+            editable_images=editable_images,
+            text_attribute_extractor=extractor,
+            max_workers=2,
+            fail_fast=True,
+        )
+        assert False, "expected ExportError"
+    except ExportError as exc:
+        assert extractor.calls == 3
+        assert exc.error_type == "style_extraction"
+        assert "全局识别未返回完整结果" in exc.message

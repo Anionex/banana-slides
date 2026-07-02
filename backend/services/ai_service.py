@@ -36,6 +36,22 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+def _describe_json_response_text(text: str) -> str:
+    """Return a compact, non-secret hint about an AI response that failed JSON parsing."""
+    stripped = (text or "").strip()
+    if not stripped:
+        return "empty"
+    if stripped.startswith("!["):
+        return "markdown_image"
+    if stripped.startswith("```"):
+        return "markdown_fence"
+    if stripped.startswith("<"):
+        return "html_or_xml"
+    if stripped[:1] in ("{", "["):
+        return "json_like"
+    return "plain_text"
+
+
 class ProjectContext:
     """项目上下文数据类，统一管理 AI 需要的所有项目信息"""
     
@@ -280,7 +296,16 @@ class AIService:
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON解析失败（带图片），将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
+            logger.warning(
+                "JSON解析失败（带图片），将重新生成。provider=%s image=%s response_kind=%s response_len=%s "
+                "原始文本: %s... 错误: %s",
+                provider.__class__.__name__,
+                os.path.basename(image_path),
+                _describe_json_response_text(cleaned_text),
+                len(cleaned_text),
+                cleaned_text[:200],
+                str(e),
+            )
             raise
     
     @staticmethod
