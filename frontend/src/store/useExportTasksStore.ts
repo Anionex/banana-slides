@@ -26,7 +26,7 @@ const exportI18n = {
 const t = getT(exportI18n);
 const EXPORT_POLL_INTERVAL_MS = 2000;
 const MAX_TRANSIENT_POLL_ERRORS = 6;
-const activePolls = new Set<string>();
+export const activePolls = new Set<string>();
 
 const isTransientPollingError = (error: any): boolean => {
   const status = error?.response?.status;
@@ -267,9 +267,14 @@ export const useExportTasksStore = create<ExportTasksState>()(
               console.warn(
                 `[ExportTasksStore] Transient poll error ${consecutivePollErrors}/${MAX_TRANSIENT_POLL_ERRORS}; retrying in ${retryDelayMs}ms`
               );
+              const currentProgress = (
+                typeof currentTask.progress === 'object' && currentTask.progress
+              )
+                ? currentTask.progress
+                : { total: 100, completed: 0 };
               get().updateTask(id, {
                 progress: {
-                  ...(currentTask.progress || { total: 100, completed: 0 }),
+                  ...currentProgress,
                   help_text: `${normalizedMessage} ${t('exportStore.pollRetrying')}`,
                 },
               });

@@ -1152,7 +1152,7 @@ class ExportService:
                 len(best_results),
                 last_exception or "全局识别未返回完整结果",
             )
-            page_error = last_exception if not had_model_response else None
+            page_error = last_exception if (not best_results or not had_model_response) else None
             return page_idx, best_results, page_error
         
         # 收集失败信息

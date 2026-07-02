@@ -69,6 +69,14 @@ class PartialThenFailGlobalExtractor(PartialGlobalExtractor):
         raise RuntimeError("upstream timeout")
 
 
+class EmptyThenFailGlobalExtractor(PartialGlobalExtractor):
+    def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            return {}
+        raise RuntimeError("upstream timeout")
+
+
 class ComplementaryPartialGlobalExtractor(PartialGlobalExtractor):
     def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
         self.calls += 1
@@ -176,6 +184,24 @@ def test_hybrid_style_extraction_preserves_best_partial_global_results_after_lat
     assert results["text_0"].is_bold is True
     assert "text_1" in results
     assert failures == [("text_1", "全局识别未返回完整结果")]
+
+
+def test_hybrid_style_extraction_keeps_last_error_when_no_global_results(tmp_path):
+    editable_images = _make_editable_images(tmp_path)
+    extractor = EmptyThenFailGlobalExtractor()
+
+    try:
+        ExportService._batch_extract_text_styles_hybrid(
+            editable_images=editable_images,
+            text_attribute_extractor=extractor,
+            max_workers=2,
+            fail_fast=True,
+        )
+        assert False, "expected ExportError"
+    except ExportError as exc:
+        assert extractor.calls == 3
+        assert exc.error_type == "style_extraction"
+        assert "upstream timeout" in exc.message
 
 
 def test_hybrid_style_extraction_merges_partial_global_results_across_retries(tmp_path):

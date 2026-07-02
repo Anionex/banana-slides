@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act } from '@testing-library/react'
-import { useExportTasksStore } from '@/store/useExportTasksStore'
+import { activePolls, useExportTasksStore } from '@/store/useExportTasksStore'
 import * as api from '@/api/endpoints'
 
 vi.mock('@/api/endpoints', () => ({
@@ -11,6 +11,7 @@ describe('useExportTasksStore', () => {
   beforeEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
+    activePolls.clear()
     act(() => {
       useExportTasksStore.setState({ tasks: [] })
     })
