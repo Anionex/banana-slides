@@ -49,15 +49,17 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
+  const getPreviewCountRef = useRef(getPreviewCount);
+  getPreviewCountRef.current = getPreviewCount;
   const trimmedContent = content.trim();
   const previewCount = useMemo(() => {
-    if (!trimmedContent || !getPreviewCount) return null;
+    if (!trimmedContent || !getPreviewCountRef.current) return null;
     try {
-      return getPreviewCount(trimmedContent);
+      return getPreviewCountRef.current(trimmedContent);
     } catch {
       return 0;
     }
-  }, [getPreviewCount, trimmedContent]);
+  }, [trimmedContent]);
   const hasInvalidPreview = previewCount === 0;
 
   const resetState = useCallback(() => {

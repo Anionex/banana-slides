@@ -21,16 +21,16 @@ test.describe('Markdown import preview', () => {
     const projectId = created.data?.project_id as string
     expect(projectId).toBeTruthy()
 
-    await fetch(`${backendUrl}/api/projects/${projectId}/pages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        order_index: 0,
-        outline_content: { title: '原始页面', points: ['已有内容'] },
-      }),
-    })
-
     try {
+      await fetch(`${backendUrl}/api/projects/${projectId}/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_index: 0,
+          outline_content: { title: '原始页面', points: ['已有内容'] },
+        }),
+      })
+
       await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
       await page.goto(`/project/${projectId}/outline`)
       await expect(page.getByText('原始页面')).toBeVisible()
