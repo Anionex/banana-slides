@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { FileText, Upload } from 'lucide-react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, FileText, Upload } from 'lucide-react';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { Textarea } from './Textarea';
@@ -19,6 +19,9 @@ interface ImportMarkdownModalProps {
   cancelButtonLabel: string;
   emptyError: string;
   readFileError: string;
+  getPreviewCount?: (markdown: string) => number;
+  previewReadyLabel?: (count: number) => string;
+  previewEmptyLabel?: string;
 }
 
 export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
@@ -36,6 +39,9 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
   cancelButtonLabel,
   emptyError,
   readFileError,
+  getPreviewCount,
+  previewReadyLabel,
+  previewEmptyLabel,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState('');
@@ -43,6 +49,16 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
+  const trimmedContent = content.trim();
+  const previewCount = useMemo(() => {
+    if (!trimmedContent || !getPreviewCount) return null;
+    try {
+      return getPreviewCount(trimmedContent);
+    } catch {
+      return 0;
+    }
+  }, [getPreviewCount, trimmedContent]);
+  const hasInvalidPreview = previewCount === 0;
 
   const resetState = useCallback(() => {
     setContent('');
@@ -85,9 +101,13 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
   }, [readFile]);
 
   const handleImportClick = useCallback(async () => {
-    const markdown = content.trim();
+    const markdown = trimmedContent;
     if (!markdown) {
       setError(emptyError);
+      return;
+    }
+    if (hasInvalidPreview) {
+      setError(previewEmptyLabel || emptyError);
       return;
     }
 
@@ -102,7 +122,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
     } finally {
       setIsImporting(false);
     }
-  }, [content, emptyError, onClose, onImport, resetState]);
+  }, [emptyError, hasInvalidPreview, onClose, onImport, previewEmptyLabel, resetState, trimmedContent]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={title} size="lg">
@@ -169,6 +189,28 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
           </label>
         </div>
 
+        {previewCount !== null && (
+          <div
+            className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
+              previewCount > 0
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+            }`}
+            role="status"
+          >
+            {previewCount > 0 ? (
+              <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+            )}
+            <span>
+              {previewCount > 0
+                ? (previewReadyLabel ? previewReadyLabel(previewCount) : `${previewCount} pages detected`)
+                : (previewEmptyLabel || emptyError)}
+            </span>
+          </div>
+        )}
+
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             {error}
@@ -179,7 +221,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
           <Button variant="ghost" size="sm" onClick={handleClose} disabled={isImporting}>
             {cancelButtonLabel}
           </Button>
-          <Button size="sm" onClick={handleImportClick} loading={isImporting}>
+          <Button size="sm" onClick={handleImportClick} loading={isImporting} disabled={hasInvalidPreview}>
             {importButtonLabel}
           </Button>
         </div>

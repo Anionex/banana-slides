@@ -116,6 +116,7 @@ Supports three ways to get started—**Idea**, **Outline**, and **Page Descripti
 - **One-Sentence Generation**: Enter a topic, and the AI will automatically generate a well-structured outline and page-by-page content descriptions.
 - **Natural Language Editing**: Supports modifying outlines or descriptions via "Vibe" prompts (e.g., "Change page three to a case study"), with the AI responding and adjusting in real-time.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual adjustment of details.
+- **Safer Markdown Import**: The import dialog previews how many pages will be recognized before appending them, so malformed files are caught earlier.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 

@@ -13,6 +13,7 @@ describe('ImportMarkdownModal', () => {
     pastePlaceholder: 'Paste here...',
     uploadLabel: 'Upload File',
     uploadHint: 'Choose or drop a file',
+    uploadFormatsHint: 'Supports .md and .txt',
     importButtonLabel: 'Import',
     cancelButtonLabel: 'Cancel',
     emptyError: 'Need content',
@@ -52,5 +53,41 @@ describe('ImportMarkdownModal', () => {
       expect(screen.getByPlaceholderText('Paste here...')).toHaveValue('## Page 2: Market');
     });
     expect(screen.getByText('slides.md')).toBeInTheDocument();
+  });
+
+  it('shows import preview count from pasted markdown', async () => {
+    render(
+      <ImportMarkdownModal
+        {...baseProps}
+        getPreviewCount={(markdown) => markdown.split('## Page').length - 1}
+        previewReadyLabel={(count) => `${count} pages will be appended`}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Paste here...'), {
+      target: { value: '## Page 1: Intro\n\n## Page 2: Summary' },
+    });
+
+    expect(await screen.findByText('2 pages will be appended')).toBeInTheDocument();
+  });
+
+  it('disables import when preview detects no pages', () => {
+    const onImport = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ImportMarkdownModal
+        {...baseProps}
+        onImport={onImport}
+        getPreviewCount={() => 0}
+        previewEmptyLabel="No pages detected"
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Paste here...'), {
+      target: { value: 'plain text without page headings' },
+    });
+
+    expect(screen.getByText('No pages detected')).toBeInTheDocument();
+    expect(screen.getByText('Import')).toBeDisabled();
+    expect(onImport).not.toHaveBeenCalled();
   });
 });
