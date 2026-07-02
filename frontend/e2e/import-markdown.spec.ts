@@ -196,16 +196,16 @@ test.describe('Import Markdown (mocked)', () => {
     expect(addPageCalls[0].part).toBe('测试')
   })
 
-  test('import empty markdown shows error toast', async ({ page }) => {
+  test('import empty markdown shows preview error and disables import', async ({ page }) => {
     const mdPath = writeTempFile('test-empty.md', EMPTY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
 
     const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
-    await importSelectedFile(page)
 
-    await expect(page.locator('text=文件中未找到有效页面').first()).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('未识别到可导入页面')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('button', { name: '导入到项目' })).toBeDisabled()
     expect(addPageCalls).toHaveLength(0)
   })
 

@@ -52,6 +52,8 @@ const detailI18n = {
       importUploadLabel: "上传文件",
       importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
       importUploadFormatsHint: "支持 `.md`、`.markdown`、`.txt`",
+      importPreviewReady: "将追加 {{count}} 页到当前项目",
+      importPreviewEmpty: "未识别到可导入页面，请确认包含 `## 第 N 页: 标题` 或 `## Page N: Title`",
       importConfirm: "导入到项目",
       importCancel: "取消",
       messages: {
@@ -104,6 +106,8 @@ const detailI18n = {
       importUploadLabel: "Upload File",
       importUploadHint: "Click to choose a file, or drag a Markdown file here",
       importUploadFormatsHint: "Supports `.md`, `.markdown`, `.txt`",
+      importPreviewReady: "{{count}} page(s) will be appended to this project",
+      importPreviewEmpty: "No importable pages detected. Use `## Page N: Title` or `## 第 N 页: 标题`.",
       importConfirm: "Import into Project",
       importCancel: "Cancel",
       messages: {
@@ -575,6 +579,10 @@ export const DetailEditor: React.FC = () => {
     }
   }, [currentProject, projectId, syncProject, show, t]);
 
+  const getImportPreviewCount = useCallback((markdown: string) => (
+    parseMarkdownPages(markdown).length
+  ), []);
+
   if (!currentProject) {
     return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
   }
@@ -1014,6 +1022,9 @@ export const DetailEditor: React.FC = () => {
         uploadLabel={t('detail.importUploadLabel')}
         uploadHint={t('detail.importUploadHint')}
         uploadFormatsHint={t('detail.importUploadFormatsHint')}
+        getPreviewCount={getImportPreviewCount}
+        previewReadyLabel={(count) => t('detail.importPreviewReady', { count })}
+        previewEmptyLabel={t('detail.importPreviewEmpty')}
         importButtonLabel={t('detail.importConfirm')}
         cancelButtonLabel={t('detail.importCancel')}
         emptyError={t('detail.messages.importContentEmpty')}

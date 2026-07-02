@@ -116,6 +116,7 @@ Supports three ways to get started—**Idea**, **Outline**, and **Page Descripti
 - **One-Sentence Generation**: Enter a topic, and the AI will automatically generate a well-structured outline and page-by-page content descriptions.
 - **Natural Language Editing**: Supports modifying outlines or descriptions via "Vibe" prompts (e.g., "Change page three to a case study"), with the AI responding and adjusting in real-time.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual adjustment of details.
+- **Safer Markdown Import**: The import dialog previews how many pages will be recognized before appending them, so malformed files are caught earlier.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
@@ -140,7 +141,7 @@ No longer limited by complex menu buttons, issue modification commands directly 
 
 - **Multi-format Support**: One-click export to standard **PPTX** or **PDF** files.
 - **Playback Settings**: Enable slide transition animations before exporting to PPTX. Supports classic effects such as Fade, Push, Pan, Wipe, Split, Blinds, Checkerboard, and Clock, with the option to select multiple for random application.
-- **Export File Management**: The preview page lists files already exported on the server, allowing for direct download or deletion of unnecessary files. Export history is cleared on a per-project basis to prevent accidental deletion of records from other projects.
+- **Export File Management**: The preview page lists files already exported on the server, allowing for direct download or deletion of unnecessary files. Export history is cleared on a per-project basis to prevent accidental deletion of records from other projects. If a restored task is no longer available on the backend after refresh, the task panel now shows a clear failure state and prompts you to export again.
 - **Clearer Page Selection Export**: The page selection export now displays missing image status based on the current selection range. Unselected draft pages will not cause the export entry for selected completed pages to be greyed out. Explainer videos will only include pages without images if the placeholder frame option is explicitly checked.
 - **Perfect Fit**: Default 16:9 aspect ratio, requiring no manual layout adjustments for direct presentation.
 
