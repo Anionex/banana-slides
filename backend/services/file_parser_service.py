@@ -17,6 +17,127 @@ from services.ai_providers.text import strip_think_tags
 
 logger = logging.getLogger(__name__)
 
+MINERU_AUTH_ERROR_MESSAGE = "MinerU Token 无效或已过期，请在设置页更新 MinerU Token 后重试。"
+_MINERU_RESPONSE_TEXT_LIMIT = 500
+
+_MINERU_AUTH_TERMS = (
+    "unauthorized",
+    "authorization",
+    "auth",
+    "token",
+    "api key",
+    "apikey",
+    "forbidden",
+    "permission",
+    "credential",
+    "鉴权",
+    "认证",
+    "授权",
+    "令牌",
+    "密钥",
+    "权限",
+)
+
+
+def _contains_word_or_phrase(text: str, phrase: str) -> bool:
+    """Match term on word boundaries for ASCII phrases, with full fallback for non-ASCII."""
+    if not phrase:
+        return False
+
+    if all(ord(ch) < 128 for ch in phrase):
+        return bool(re.search(rf"\b{re.escape(phrase)}\b", text))
+
+    return phrase in text
+
+_MINERU_AUTH_FAILURE_TERMS = (
+    "expired",
+    "invalid",
+    "unauthorized",
+    "forbidden",
+    "denied",
+    "expire",
+    "failed",
+    "fail",
+    "failure",
+    "过期",
+    "无效",
+    "失败",
+    "拒绝",
+)
+
+
+def is_mineru_auth_error_message(message: str | None) -> bool:
+    """Return True when a user-facing parse error is a MinerU credential error."""
+    return bool(message and MINERU_AUTH_ERROR_MESSAGE in message)
+
+
+def _truncate_mineru_error_text(text: str) -> str:
+    if len(text) <= _MINERU_RESPONSE_TEXT_LIMIT:
+        return text
+    return text[:_MINERU_RESPONSE_TEXT_LIMIT] + "..."
+
+
+def _extract_response_error_text(response) -> str:
+    if response is None:
+        return ""
+
+    parts = []
+    status_code = getattr(response, "status_code", None)
+    if status_code:
+        parts.append(f"HTTP {status_code}")
+
+    try:
+        body = response.json()
+    except Exception:
+        try:
+            body_text = _truncate_mineru_error_text(str(getattr(response, "text", "") or "").strip())
+            if body_text:
+                parts.append(body_text)
+        except Exception:
+            pass
+    else:
+        if isinstance(body, dict):
+            for key in ("msg", "message", "error", "detail"):
+                value = body.get(key)
+                if isinstance(value, str) and value.strip():
+                    parts.append(value.strip())
+                elif isinstance(value, dict):
+                    nested = value.get("message") or value.get("msg") or value.get("error")
+                    if isinstance(nested, str) and nested.strip():
+                        parts.append(nested.strip())
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str) and item.strip():
+                            parts.append(item.strip())
+                        elif isinstance(item, dict):
+                            nested = item.get("message") or item.get("msg") or item.get("error")
+                            if isinstance(nested, str) and nested.strip():
+                                parts.append(nested.strip())
+        elif body is not None:
+            parts.append(str(body))
+
+    return " ".join(parts)
+
+
+def _looks_like_mineru_auth_error(text: str | None, status_code: int | None = None) -> bool:
+    if status_code in (401, 403):
+        return True
+
+    normalized = str(text or "").lower()
+    if not normalized:
+        return False
+
+    has_auth_term = any(_contains_word_or_phrase(normalized, term) for term in _MINERU_AUTH_TERMS)
+    has_failure_term = any(_contains_word_or_phrase(normalized, term) for term in _MINERU_AUTH_FAILURE_TERMS)
+    return has_auth_term and has_failure_term
+
+
+def _mineru_auth_error_with_detail(detail: str | None = None) -> str:
+    detail = (detail or "").strip()
+    if not detail:
+        return MINERU_AUTH_ERROR_MESSAGE
+    return f"{MINERU_AUTH_ERROR_MESSAGE}MinerU 返回：{detail}"
+
 
 def _get_ai_provider_format(provider_format: str = None) -> str:
     """Get the configured AI provider format
@@ -280,7 +401,11 @@ class FileParserService:
             result = response.json()
             
             if result.get("code") != 0:
-                error_msg = f"Failed to get upload URL: {result.get('msg')}"
+                result_msg = result.get('msg')
+                if _looks_like_mineru_auth_error(result_msg):
+                    error_msg = _mineru_auth_error_with_detail(result_msg)
+                else:
+                    error_msg = f"Failed to get upload URL: {result_msg}"
                 logger.error(error_msg)
                 return None, None, error_msg
             
@@ -289,7 +414,15 @@ class FileParserService:
             return batch_id, upload_url, None
             
         except requests.exceptions.RequestException as e:
-            error_msg = f"Network error while requesting upload URL: {str(e)}"
+            response = getattr(e, "response", None)
+            response_text = _extract_response_error_text(response)
+            if response is not None and _looks_like_mineru_auth_error(
+                f"{response_text} {str(e)}",
+                getattr(response, "status_code", None),
+            ):
+                error_msg = _mineru_auth_error_with_detail(response_text or str(e))
+            else:
+                error_msg = f"Network error while requesting upload URL: {str(e)}"
             logger.error(error_msg)
             return None, None, error_msg
     
@@ -341,7 +474,11 @@ class FileParserService:
                 task_info = response.json()
                 
                 if task_info.get("code") != 0:
-                    error_msg = f"Failed to query task status: {task_info.get('msg')}"
+                    task_msg = task_info.get('msg')
+                    if _looks_like_mineru_auth_error(task_msg):
+                        error_msg = _mineru_auth_error_with_detail(task_msg)
+                    else:
+                        error_msg = f"Failed to query task status: {task_msg}"
                     logger.error(error_msg)
                     return None, None, error_msg
                 
@@ -354,7 +491,10 @@ class FileParserService:
                     return self._download_markdown(full_zip_url)
                 elif task_status == "failed":
                     err_msg = task_info["data"]["extract_result"][0].get("err_msg", "Unknown error")
-                    error_msg = f"File parsing failed: {err_msg}"
+                    if _looks_like_mineru_auth_error(err_msg):
+                        error_msg = _mineru_auth_error_with_detail(err_msg)
+                    else:
+                        error_msg = f"File parsing failed: {err_msg}"
                     logger.error(error_msg)
                     return None, None, error_msg
                 else:
@@ -362,6 +502,16 @@ class FileParserService:
                     time.sleep(2)  # Wait 2 seconds before next poll
                     
             except requests.exceptions.RequestException as e:
+                response = getattr(e, "response", None)
+                response_text = _extract_response_error_text(response)
+                if response is not None and _looks_like_mineru_auth_error(
+                    f"{response_text} {str(e)}",
+                    getattr(response, "status_code", None),
+                ):
+                    error_msg = _mineru_auth_error_with_detail(response_text or str(e))
+                    logger.error(error_msg)
+                    return None, None, error_msg
+
                 logger.warning(f"Network error while polling result: {str(e)}, retrying...")
                 time.sleep(2)
     
