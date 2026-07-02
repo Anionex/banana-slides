@@ -6,6 +6,8 @@ directories:
   output: dist
   buildResources: resources
 
+afterPack: scripts/adhoc-sign-macos.js
+
 files:
   - "main.js"
   - "python-manager.js"
@@ -54,6 +56,7 @@ win:
 
 mac:
   icon: resources/icon.icns
+  identity: null
   target:
     - target: dmg
       arch:

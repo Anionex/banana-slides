@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const log = require('electron-log');
+const fs = require('fs');
 const pythonManager = require('./python-manager');
 const autoUpdater = require('./auto-updater');
 
@@ -13,6 +14,62 @@ let backendStopRequested = false;
 
 function isDev() {
   return process.env.NODE_ENV === 'development';
+}
+
+function isSmokeMode() {
+  return process.env.BANANA_DESKTOP_SMOKE === '1';
+}
+
+function getSmokeQuitDelayMs() {
+  const delay = Number(process.env.BANANA_DESKTOP_SMOKE_QUIT_DELAY_MS || 10000);
+  return Number.isFinite(delay) && delay >= 0 ? delay : 10000;
+}
+
+async function writeSmokeResult(extra = {}) {
+  if (!isSmokeMode()) return;
+
+  const resultPath = process.env.BANANA_DESKTOP_SMOKE_RESULT || '';
+  const screenshotPath = process.env.BANANA_DESKTOP_SMOKE_SCREENSHOT || '';
+  const result = {
+    ok: true,
+    version: app.getVersion(),
+    platform: process.platform,
+    backendPort: pythonManager.getPort(),
+    windowBounds: mainWindow?.getBounds() || null,
+    windowVisible: mainWindow?.isVisible() || false,
+    windowTitle: mainWindow?.getTitle() || '',
+    url: mainWindow?.webContents?.getURL() || '',
+    timestamp: new Date().toISOString(),
+    ...extra,
+  };
+
+  try {
+    if (screenshotPath && mainWindow && !mainWindow.isDestroyed()) {
+      const image = await mainWindow.webContents.capturePage();
+      fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+      fs.writeFileSync(screenshotPath, image.toPNG());
+      result.screenshotPath = screenshotPath;
+    }
+    if (resultPath) {
+      fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+      fs.writeFileSync(resultPath, JSON.stringify(result, null, 2));
+    }
+  } catch (error) {
+    log.error('[main] Failed to write smoke result:', error);
+    if (resultPath) {
+      fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+      fs.writeFileSync(resultPath, JSON.stringify({
+        ok: false,
+        error: error.message,
+        ...result,
+      }, null, 2));
+    }
+  } finally {
+    setTimeout(() => {
+      isQuitting = true;
+      app.quit();
+    }, getSmokeQuitDelayMs());
+  }
 }
 
 function getIconPath() {
@@ -107,6 +164,7 @@ function createMainWindow() {
     mainWindow.webContents.setZoomFactor(0.8);
     mainWindow.show();
     mainWindow.focus();
+    setTimeout(() => writeSmokeResult(), 1000);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

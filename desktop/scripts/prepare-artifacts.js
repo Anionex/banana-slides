@@ -32,8 +32,27 @@ function copyDir(src, dest) {
     process.exit(1);
   }
   fs.rmSync(dest, { recursive: true, force: true });
-  fs.cpSync(src, dest, { recursive: true });
+  copyDirDereferenceSymlinks(src, dest);
   console.log(`Copied  ${path.relative(repoRoot, src)}  →  ${path.relative(repoRoot, dest)}`);
+}
+
+function copyDirDereferenceSymlinks(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    const stat = entry.isSymbolicLink() ? fs.statSync(srcPath) : null;
+
+    if (entry.isDirectory() || stat?.isDirectory()) {
+      copyDirDereferenceSymlinks(srcPath, destPath);
+      continue;
+    }
+
+    if (entry.isFile() || stat?.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
+      fs.chmodSync(destPath, fs.statSync(srcPath).mode);
+    }
+  }
 }
 
 function copyFile(src, dest) {

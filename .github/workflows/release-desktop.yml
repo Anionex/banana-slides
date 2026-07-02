@@ -106,6 +106,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Smoke test Windows installer
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path desktop/dist -Filter '*.exe' | Select-Object -First 1
+          if (-not $installer) {
+            throw 'No Windows installer was produced'
+          }
+          desktop/scripts/smoke-windows.ps1 -InstallerPath $installer.FullName -OutDir "$env:RUNNER_TEMP/banana-desktop-smoke"
+
+      - name: Upload Windows smoke artifacts
+        if: always() && matrix.platform == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-win-smoke
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/banana-desktop-smoke/**
+
+      - name: Smoke test macOS DMG
+        if: matrix.platform == 'mac'
+        run: |
+          chmod +x desktop/scripts/smoke-macos-dmg.sh
+          dmg="$(find desktop/dist -maxdepth 1 -name '*.dmg' | head -1)"
+          if [ -z "$dmg" ]; then
+            echo "No macOS DMG was produced" >&2
+            exit 1
+          fi
+          desktop/scripts/smoke-macos-dmg.sh "$dmg" "$RUNNER_TEMP/banana-desktop-smoke-mac"
+
+      - name: Upload macOS smoke artifacts
+        if: always() && matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-mac-smoke
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/banana-desktop-smoke-mac/**
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
