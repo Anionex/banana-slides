@@ -374,7 +374,7 @@ function setupIPC() {
     const listener = (_, item) => {
       const itemUrl = item.getURL();
       const urlChain = typeof item.getURLChain === 'function' ? item.getURLChain() : [itemUrl];
-      const isMatchingClientSideDownload = isClientSideDownloadUrl(downloadUrl) && isClientSideDownloadUrl(itemUrl);
+      const isMatchingClientSideDownload = isClientSideDownloadUrl(downloadUrl) && itemUrl === downloadUrl;
       if (!urlChain.includes(downloadUrl) && !isMatchingClientSideDownload) {
         return;
       }

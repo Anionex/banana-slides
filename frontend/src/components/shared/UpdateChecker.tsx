@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { DESKTOP_TITLEBAR_HEIGHT, DESKTOP_UPDATE_BANNER_HEIGHT, isDesktop } from '@/utils';
@@ -21,8 +21,13 @@ interface UpdateCheckerProps {
 export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const onVisibilityChangeRef = useRef(onVisibilityChange);
   const t = useT(updateI18n);
   const isVisible = isDesktop && !!update && !dismissed;
+
+  useEffect(() => {
+    onVisibilityChangeRef.current = onVisibilityChange;
+  });
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -40,8 +45,8 @@ export function UpdateChecker({ onVisibilityChange }: UpdateCheckerProps) {
   }, []);
 
   useEffect(() => {
-    onVisibilityChange?.(isVisible);
-  }, [isVisible, onVisibilityChange]);
+    onVisibilityChangeRef.current?.(isVisible);
+  }, [isVisible]);
 
   if (!isVisible || !update || dismissed) return null;
 

@@ -141,21 +141,34 @@ function downloadFile(url, dest, redirectCount = 0) {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       const tempDest = `${dest}.tmp-${process.pid}`;
       const file = fs.createWriteStream(tempDest);
+      let completed = false;
+      let settled = false;
+      const settle = (callback) => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
       response.pipe(file);
       file.on('finish', () => {
-        file.close(() => {
-          try {
-            fs.renameSync(tempDest, dest);
-            resolve();
-          } catch (error) {
-            fs.rmSync(tempDest, { force: true });
-            reject(error);
-          }
-        });
+        completed = true;
+      });
+      file.on('close', () => {
+        if (!completed) {
+          fs.rmSync(tempDest, { force: true });
+          settle(() => reject(new Error(`Download stream closed before finishing: ${url}`)));
+          return;
+        }
+        try {
+          fs.renameSync(tempDest, dest);
+          settle(resolve);
+        } catch (error) {
+          fs.rmSync(tempDest, { force: true });
+          settle(() => reject(error));
+        }
       });
       file.on('error', (error) => {
         fs.rmSync(tempDest, { force: true });
-        reject(error);
+        settle(() => reject(error));
       });
     });
     request.on('error', reject);
