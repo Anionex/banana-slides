@@ -100,14 +100,15 @@ describe('DescriptionCard', () => {
     expect(screen.getByText('Test description content')).toBeInTheDocument()
   })
 
-  it('renders page number', () => {
+  it('renders page number badge', () => {
     render(<DescriptionCard {...defaultProps} />)
-    expect(screen.getByText('descriptionCard.page')).toBeInTheDocument()
+    // 页码以零填充徽章呈现（index 0 → "01"）
+    expect(screen.getByText('01')).toBeInTheDocument()
   })
 
   it('opens edit modal when edit button is clicked', () => {
     render(<DescriptionCard {...defaultProps} />)
-    fireEvent.click(screen.getByText('common.edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
     // Modal should now be open with the textarea
     expect(screen.getByText('descriptionCard.descriptionTitle')).toBeInTheDocument()
   })
@@ -117,7 +118,7 @@ describe('DescriptionCard', () => {
     render(<DescriptionCard {...defaultProps} onUpdate={onUpdate} />)
 
     // Open edit modal
-    fireEvent.click(screen.getByText('common.edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
 
     // Find textarea and change content
     const textarea = screen.getByDisplayValue('Test description content')
@@ -139,7 +140,7 @@ describe('DescriptionCard', () => {
     render(<DescriptionCard {...defaultProps} />)
 
     // Open edit modal
-    fireEvent.click(screen.getByText('common.edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
 
     // Get the textarea and focus it (triggers focusMainDesc to set up paste target)
     const textarea = screen.getByDisplayValue('Test description content')
@@ -177,7 +178,7 @@ describe('DescriptionCard', () => {
     render(<DescriptionCard {...defaultProps} />)
 
     // Open edit modal
-    fireEvent.click(screen.getByText('common.edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
 
     const textarea = screen.getByDisplayValue('Test description content')
 
@@ -219,7 +220,7 @@ describe('DescriptionCard', () => {
 
     render(<DescriptionCard {...defaultProps} projectId="proj-42" />)
 
-    fireEvent.click(screen.getByText('common.edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
 
     const textarea = screen.getByDisplayValue('Test description content')
 
@@ -247,7 +248,7 @@ describe('DescriptionCard', () => {
 
     render(<DescriptionCard {...defaultProps} projectId={undefined} />)
 
-    fireEvent.click(screen.getByText('common.edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
 
     const textarea = screen.getByDisplayValue('Test description content')
 

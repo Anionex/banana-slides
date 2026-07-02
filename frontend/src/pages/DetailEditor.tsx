@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, MoreHorizontal, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
@@ -20,10 +20,10 @@ const detailI18n = {
   zh: {
     home: { title: '蕉幻' },
     detail: {
-      title: "编辑页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
+      title: "编辑页面描述", sectionTitle: "页面描述", pageCount: "共 {{count}} 页", generateImages: "生成图片",
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
       description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲和描述", import: "导入", importExport: "导入/导出",
-      pagesCompleted: "页已完成", noPages: "还没有页面",
+      pagesCompleted: "页已完成", progressLabel: "已完成 {{completed}} / {{total}} 页", noPages: "还没有页面",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
@@ -73,10 +73,10 @@ const detailI18n = {
   en: {
     home: { title: 'Banana Slides' },
     detail: {
-      title: "Edit Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
+      title: "Edit Descriptions", sectionTitle: "Page Descriptions", pageCount: "{{count}} pages", generateImages: "Generate Images",
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
       description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline & Descriptions", import: "Import", importExport: "Import/Export",
-      pagesCompleted: "pages completed", noPages: "No pages yet",
+      pagesCompleted: "pages completed", progressLabel: "{{completed}} / {{total}} pages done", noPages: "No pages yet",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
@@ -125,7 +125,7 @@ const detailI18n = {
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
+import { Button, Logo, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
@@ -203,6 +203,7 @@ const SortableFieldPill: React.FC<{
   );
 };
 
+// 顶栏进度环：直观呈现「已完成 / 总数」，替代纯文字计数
 export const DetailEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -589,9 +590,11 @@ export const DetailEditor: React.FC = () => {
     (p) => p.description_content
   );
   const missingDescCount = currentProject.pages.filter(p => !p.description_content).length;
+  const totalPages = currentProject.pages.length;
+  const completedCount = totalPages - missingDescCount;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background-primary flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-background-primary bg-[radial-gradient(110%_45%_at_50%_4%,rgba(255,205,20,0.20),transparent_55%)] dark:bg-[radial-gradient(110%_45%_at_50%_4%,rgba(255,202,0,0.09),transparent_50%)]">
       {/* 顶栏 */}
       <header className="bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-2 md:py-3 flex-shrink-0">
         <div className="flex items-center justify-between gap-2 md:gap-4">
@@ -613,12 +616,7 @@ export const DetailEditor: React.FC = () => {
             >
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <span className="text-xl md:text-2xl">🍌</span>
-              <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
-            </div>
-            <span className="text-gray-400 hidden lg:inline">|</span>
-            <span className="text-sm md:text-lg font-semibold hidden lg:inline">{t('detail.title')}</span>
+            <Logo wordmark={t('home.title')} size={28} />
           </div>
           
           {/* 中间：AI 修改输入框 */}
@@ -636,7 +634,7 @@ export const DetailEditor: React.FC = () => {
           {/* 右侧：操作按钮 */}
           <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/outline`)}
@@ -673,7 +671,7 @@ export const DetailEditor: React.FC = () => {
       </header>
 
       {/* 操作栏 */}
-      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+      <div className="border-b border-gray-200/70 dark:border-border-primary/70 px-3 md:px-6 py-3 md:py-5 flex-shrink-0">
         {isRenovationProcessing ? (
           <div className="max-w-xl mx-auto">
             <div className="flex items-center justify-between mb-1.5">
@@ -702,26 +700,46 @@ export const DetailEditor: React.FC = () => {
             </div>
           </div>
         ) : (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          {/* 左：区块标题 + 进度分数 */}
+          <div className="flex items-end gap-3 md:gap-4 min-w-0">
+            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 dark:text-foreground-primary leading-none truncate">
+              {t('detail.sectionTitle')}
+            </h2>
+            {totalPages > 0 && (
+              <span
+                className="shrink-0 flex items-baseline font-bold tabular-nums tracking-tight leading-none"
+                aria-label={t('detail.progressLabel', { completed: completedCount, total: totalPages })}
+              >
+                <span className="text-2xl md:text-3xl text-banana-500">{String(completedCount).padStart(2, '0')}</span>
+                <span className="mx-0.5 text-lg md:text-xl text-gray-300 dark:text-foreground-tertiary">⁄</span>
+                <span className="text-lg md:text-xl text-gray-400 dark:text-foreground-tertiary">{String(totalPages).padStart(2, '0')}</span>
+              </span>
+            )}
+          </div>
+          {/* 右：操作 */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button
-              variant="primary"
+              variant="secondary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
-              className="flex-1 sm:flex-initial text-sm md:text-base"
+              className="text-sm md:text-base"
             >
               {t('detail.batchGenerate')}
             </Button>
 
             {/* 描述设置面板 */}
             <div className="relative" ref={settingsRef}>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => setSettingsOpen(!settingsOpen)}
-                icon={<span className="relative"><Settings2 size={16} />{descRequirements && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-banana-400" />}</span>}
                 title={t('detail.descSettings')}
-              />
+                aria-label={t('detail.descSettings')}
+                className="relative w-10 h-10 grid place-items-center rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary text-gray-600 dark:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-banana-500 focus-visible:ring-offset-2"
+              >
+                <Settings2 size={18} />
+                {!!descRequirements.trim() && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-banana-400 ring-2 ring-white dark:ring-background-secondary" />}
+              </button>
               {settingsOpen && (
                 <div className="absolute top-full left-0 mt-1 z-50 w-80 rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none p-4 space-y-4">
                   {/* 生成模式 */}
@@ -880,18 +898,17 @@ export const DetailEditor: React.FC = () => {
               )}
             </div>
 
-            <div className="w-px h-6 bg-gray-200 dark:bg-border-primary flex-shrink-0" />
-            {/* 导入导出下拉菜单 */}
+            {/* 导入/导出溢出菜单 */}
             <div className="relative" ref={fileMenuRef}>
-              <Button
-                variant="secondary"
+              <button
+                type="button"
                 onClick={() => setFileMenuOpen(!fileMenuOpen)}
-                icon={<FileText size={16} className="md:w-[18px] md:h-[18px]" />}
-                className="text-sm md:text-base"
+                title={t('detail.importExport')}
+                aria-label={t('detail.importExport')}
+                className="w-10 h-10 grid place-items-center rounded-xl border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary text-gray-600 dark:text-foreground-secondary hover:bg-gray-50 dark:hover:bg-background-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-banana-500 focus-visible:ring-offset-2"
               >
-                {t('detail.importExport')}
-                <ChevronDown size={14} className={`ml-1 transition-transform duration-200 ${fileMenuOpen ? 'rotate-180' : ''}`} />
-              </Button>
+                <MoreHorizontal size={18} />
+              </button>
               {fileMenuOpen && (
                 <div className="absolute top-full right-0 mt-1 z-50 min-w-[160px] rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary shadow-lg dark:shadow-none overflow-hidden">
                   <button
@@ -924,10 +941,6 @@ export const DetailEditor: React.FC = () => {
                 </div>
               )}
             </div>
-            <span className="text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary whitespace-nowrap">
-              {currentProject.pages.filter((p) => p.description_content).length} /{' '}
-              {currentProject.pages.length} {t('detail.pagesCompleted')}
-            </span>
           </div>
         </div>
         )}
