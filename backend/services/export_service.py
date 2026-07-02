@@ -1110,23 +1110,23 @@ class ExportService:
                     )
                     results = raw_results if isinstance(raw_results, dict) else {}
                     had_model_response = True
-                    missing_element_ids = expected_element_ids - set(results.keys())
+                    best_results.update(results)
+                    missing_element_ids = expected_element_ids - set(best_results.keys())
 
                     logger.info(
-                        "全局识别页面 %s 第 %s/%s 次完成: expected=%s returned=%s missing=%s",
+                        "全局识别页面 %s 第 %s/%s 次完成: expected=%s returned=%s accumulated=%s missing=%s",
                         page_idx + 1,
                         attempt,
                         max_global_attempts,
                         len(expected_element_ids),
                         len(results),
+                        len(best_results),
                         len(missing_element_ids),
                     )
 
                     if not missing_element_ids:
-                        return page_idx, results, None
+                        return page_idx, best_results, None
 
-                    if len(results) > len(best_results):
-                        best_results = results
                     last_exception = None
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次返回不完整，将重试: missing_sample=%s",
