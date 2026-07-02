@@ -6,14 +6,35 @@ import { getT } from '@/utils/i18nHelper';
 import { normalizeErrorMessage } from '@/utils';
 
 const exportI18n = {
-  zh: { exportStore: { exportFailed: '导出失败', pollFailed: '轮询失败' } },
-  en: { exportStore: { exportFailed: 'Export failed', pollFailed: 'Polling failed' } }
+  zh: {
+    exportStore: {
+      exportFailed: '导出失败',
+      pollFailed: '轮询失败',
+      staleTask: '导出任务已不可用，请重新导出',
+    },
+  },
+  en: {
+    exportStore: {
+      exportFailed: 'Export failed',
+      pollFailed: 'Polling failed',
+      staleTask: 'This export task is no longer available. Please export again.',
+    },
+  },
 };
 const t = getT(exportI18n);
 
 // Note: Backend uses 'RUNNING' but we also accept 'PROCESSING' for compatibility
 export type ExportTaskStatus = 'PENDING' | 'PROCESSING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type ExportTaskType = 'pptx' | 'pdf' | 'editable-pptx' | 'images' | 'video';
+const EXPORT_TASK_STATUSES = new Set<ExportTaskStatus>(['PENDING', 'PROCESSING', 'RUNNING', 'COMPLETED', 'FAILED']);
+const MAX_UNUSABLE_TASK_RESPONSES = 3;
+const unusableTaskResponseCounts = new Map<string, number>();
+
+const isExportTaskStatus = (status: unknown): status is ExportTaskStatus => (
+  typeof status === 'string' && EXPORT_TASK_STATUSES.has(status as ExportTaskStatus)
+);
+
+const hasTask = (tasks: ExportTask[], id: string) => tasks.some(task => task.id === id);
 
 export interface ExportTask {
   id: string;
@@ -102,6 +123,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
       },
 
       removeTask: (id) => {
+        unusableTaskResponseCounts.delete(id);
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== id),
         }));
@@ -121,17 +143,44 @@ export const useExportTasksStore = create<ExportTasksState>()(
 
       pollTask: async (id, projectId, taskId) => {
         const poll = async () => {
+          if (!hasTask(get().tasks, id)) {
+            unusableTaskResponseCounts.delete(id);
+            return;
+          }
+
           try {
             const response = await api.getTaskStatus(projectId, taskId);
             const task = response.data;
 
-            if (!task) {
-              console.warn('[ExportTasksStore] No task data in response');
+            if (!hasTask(get().tasks, id)) {
+              unusableTaskResponseCounts.delete(id);
               return;
             }
 
+            if (!task || !isExportTaskStatus(task.status)) {
+              const retryCount = unusableTaskResponseCounts.get(id) ?? 0;
+              if (retryCount < MAX_UNUSABLE_TASK_RESPONSES) {
+                unusableTaskResponseCounts.set(id, retryCount + 1);
+                console.warn(
+                  `[ExportTasksStore] No usable task data in response, retrying (${retryCount + 1}/${MAX_UNUSABLE_TASK_RESPONSES})`
+                );
+                setTimeout(poll, 2000);
+                return;
+              }
+
+              console.warn('[ExportTasksStore] No usable task data in response after retries');
+              unusableTaskResponseCounts.delete(id);
+              get().updateTask(id, {
+                status: 'FAILED',
+                errorMessage: t('exportStore.staleTask'),
+                completedAt: new Date().toISOString(),
+              });
+              return;
+            }
+            unusableTaskResponseCounts.delete(id);
+
             const updates: Partial<ExportTask> = {
-              status: task.status as ExportTaskStatus,
+              status: task.status,
             };
 
             if (task.progress) {
