@@ -35,6 +35,16 @@ function isFrameworkRootBinary(filePath) {
   return path.basename(filePath) === frameworkName;
 }
 
+function shouldSignBundle(entryPath) {
+  if (!entryPath.endsWith('.app') && !entryPath.endsWith('.framework')) {
+    return false;
+  }
+
+  // PyInstaller's embedded Python.framework is a partial framework layout; signing
+  // its Mach-O files is enough, while signing the directory itself is ambiguous.
+  return !entryPath.endsWith(`${path.sep}Python.framework`);
+}
+
 function codesign(targetPath) {
   execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', targetPath], {
     stdio: 'inherit',
@@ -69,7 +79,7 @@ exports.default = async function adhocSignMacos(context) {
   const nestedBundles = [];
 
   walk(appPath, (entryPath, entry) => {
-    if (entry.isDirectory() && (entryPath.endsWith('.app') || entryPath.endsWith('.framework'))) {
+    if (entry.isDirectory() && shouldSignBundle(entryPath)) {
       nestedBundles.push(entryPath);
       return;
     }

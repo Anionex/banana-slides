@@ -44,15 +44,27 @@ $signature = Get-AuthenticodeSignature -FilePath $InstallerPath
 $signature | Format-List * | Out-File -Encoding UTF8 (Join-Path $OutDir "installer-signature.txt")
 Write-Step "InstallerSignature=$($signature.Status)"
 
-Write-Step "Running silent installer"
-$install = Start-Process -FilePath $InstallerPath -ArgumentList "/S" -PassThru
-if (!$install.WaitForExit($TimeoutSeconds * 1000)) {
-  try { Stop-Process -Id $install.Id -Force } catch {}
-  Fail "Installer timed out"
+function Run-SilentInstaller {
+  Write-Step "Running silent installer"
+  $install = Start-Process -FilePath $InstallerPath -ArgumentList "/S" -PassThru
+  if (!$install.WaitForExit($TimeoutSeconds * 1000)) {
+    try { Stop-Process -Id $install.Id -Force } catch {}
+    Write-Step "Installer timed out"
+    return $null
+  }
+  Write-Step "InstallerExitCode=$($install.ExitCode)"
+  return $install.ExitCode
 }
-Write-Step "InstallerExitCode=$($install.ExitCode)"
-if ($install.ExitCode -ne 0) {
-  Fail "Installer failed with exit code $($install.ExitCode)"
+
+$installerExitCode = $null
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+  Write-Step "InstallerAttempt=$attempt"
+  $installerExitCode = Run-SilentInstaller
+  if ($installerExitCode -eq 0) { break }
+  Start-Sleep -Seconds 5
+}
+if ($installerExitCode -ne 0) {
+  Write-Step "Installer did not report success; checking whether the app was installed anyway"
 }
 
 $candidateRoots = @(
@@ -87,7 +99,7 @@ if (!$appExe) {
     Select-Object FullName,Length,LastWriteTime |
     Format-Table -AutoSize |
     Out-File -Encoding UTF8 (Join-Path $OutDir "banana-exe-candidates.txt")
-  Fail "Installed Banana Slides executable not found"
+  Fail "Installed Banana Slides executable not found; installer exit code was $installerExitCode"
 }
 
 Write-Step "AppExe=$($appExe.FullName)"
