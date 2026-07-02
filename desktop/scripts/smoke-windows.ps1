@@ -67,27 +67,42 @@ if ($installerExitCode -ne 0) {
   Write-Step "Installer did not report success; checking whether the app was installed anyway"
 }
 
-$candidateRoots = @(
-  "$env:LOCALAPPDATA\Programs\Banana Slides",
-  "$env:LOCALAPPDATA\Programs\banana-slides",
-  "$env:LOCALAPPDATA\Programs\BananaSlides",
-  "$env:ProgramFiles\Banana Slides",
-  "${env:ProgramFiles(x86)}\Banana Slides"
-) | Where-Object { $_ -and (Test-Path $_) }
+function Get-CandidateRoots {
+  @(
+    "$env:LOCALAPPDATA\Programs\Banana Slides",
+    "$env:LOCALAPPDATA\Programs\banana-slides",
+    "$env:LOCALAPPDATA\Programs\BananaSlides",
+    "$env:LOCALAPPDATA\Programs",
+    "$env:ProgramFiles\Banana Slides",
+    "${env:ProgramFiles(x86)}\Banana Slides"
+  ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+}
 
 function Find-InstalledApp {
-  foreach ($root in ($candidateRoots + "$env:LOCALAPPDATA\Programs")) {
-    if (Test-Path $root) {
-      $found = Get-ChildItem -Path $root -Recurse -Filter "Banana Slides.exe" -ErrorAction SilentlyContinue |
-        Select-Object -First 1
-      if ($found) { return $found }
+  $explicitCandidates = @(
+    "$env:LOCALAPPDATA\Programs\Banana Slides\Banana Slides.exe",
+    "$env:LOCALAPPDATA\Programs\banana-slides\Banana Slides.exe",
+    "$env:LOCALAPPDATA\Programs\BananaSlides\Banana Slides.exe",
+    "$env:ProgramFiles\Banana Slides\Banana Slides.exe",
+    "${env:ProgramFiles(x86)}\Banana Slides\Banana Slides.exe"
+  )
+  foreach ($candidate in $explicitCandidates) {
+    if ($candidate -and (Test-Path $candidate)) {
+      return Get-Item $candidate
     }
+  }
+
+  foreach ($root in (Get-CandidateRoots)) {
+    $found = Get-ChildItem -Path $root -Recurse -File -Filter "*.exe" -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -eq "Banana Slides.exe" -and $_.FullName -notmatch "\\resources\\backend\\" } |
+      Select-Object -First 1
+    if ($found) { return $found }
   }
   return $null
 }
 
 $appExe = $null
-$searchDeadline = (Get-Date).AddSeconds(30)
+$searchDeadline = (Get-Date).AddSeconds(90)
 while ((Get-Date) -lt $searchDeadline) {
   $appExe = Find-InstalledApp
   if ($appExe) { break }
@@ -95,7 +110,12 @@ while ((Get-Date) -lt $searchDeadline) {
 }
 
 if (!$appExe) {
-  Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Recurse -Filter "*Banana*.exe" -ErrorAction SilentlyContinue |
+  Start-Sleep -Seconds 5
+  $appExe = Find-InstalledApp
+}
+
+if (!$appExe) {
+  Get-ChildItem -Path (Get-CandidateRoots) -Recurse -File -Filter "*Banana*.exe" -ErrorAction SilentlyContinue |
     Select-Object FullName,Length,LastWriteTime |
     Format-Table -AutoSize |
     Out-File -Encoding UTF8 (Join-Path $OutDir "banana-exe-candidates.txt")
