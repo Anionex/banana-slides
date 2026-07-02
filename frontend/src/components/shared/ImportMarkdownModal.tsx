@@ -43,6 +43,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
   previewReadyLabel,
   previewEmptyLabel,
 }) => {
+  const invalidPreviewMessage = previewEmptyLabel || 'No valid pages detected';
   const inputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState('');
   const [error, setError] = useState('');
@@ -108,7 +109,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
       return;
     }
     if (hasInvalidPreview) {
-      setError(previewEmptyLabel || emptyError);
+      setError(invalidPreviewMessage);
       return;
     }
 
@@ -123,7 +124,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
     } finally {
       setIsImporting(false);
     }
-  }, [emptyError, hasInvalidPreview, onClose, onImport, previewEmptyLabel, resetState, trimmedContent]);
+  }, [emptyError, hasInvalidPreview, invalidPreviewMessage, onClose, onImport, resetState, trimmedContent]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={title} size="lg">
@@ -207,7 +208,7 @@ export const ImportMarkdownModal: React.FC<ImportMarkdownModalProps> = ({
             <span>
               {previewCount > 0
                 ? (previewReadyLabel ? previewReadyLabel(previewCount) : `${previewCount} pages detected`)
-                : (previewEmptyLabel || emptyError)}
+                : invalidPreviewMessage}
             </span>
           </div>
         )}

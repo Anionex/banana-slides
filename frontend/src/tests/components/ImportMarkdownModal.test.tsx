@@ -103,4 +103,20 @@ describe('ImportMarkdownModal', () => {
     expect(screen.getByText('Import')).toBeDisabled();
     expect(onImport).not.toHaveBeenCalled();
   });
+
+  it('uses a non-empty fallback message for invalid preview content', () => {
+    render(
+      <ImportMarkdownModal
+        {...baseProps}
+        getPreviewCount={() => 0}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Paste here...'), {
+      target: { value: 'plain text without page headings' },
+    });
+
+    expect(screen.getByText('No valid pages detected')).toBeInTheDocument();
+    expect(screen.queryByText('Need content')).not.toBeInTheDocument();
+  });
 });
