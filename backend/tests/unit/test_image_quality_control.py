@@ -8,6 +8,7 @@ from services.task_manager import (
     ImageQualityControlError,
     generate_image_until_quality_passes,
     get_image_quality_control_enabled,
+    review_image_quality,
 )
 
 
@@ -18,12 +19,24 @@ class FakeReviewService:
 
     def review_generated_slide_image(self, image_path, **kwargs):
         self.calls.append((image_path, kwargs))
-        assert image_path.endswith('.png')
+        assert image_path.endswith('.jpg')
         return self.reviews.pop(0)
 
 
 def _image(color='blue'):
     return Image.new('RGB', (160, 90), color=color)
+
+
+def test_quality_review_uses_jpeg_temp_image_and_handles_alpha():
+    ai_service = FakeReviewService([
+        {'passed': True, 'issues': [], 'reason': 'Looks good'},
+    ])
+    image = Image.new('RGBA', (160, 90), color=(0, 120, 255, 128))
+
+    result = review_image_quality(ai_service, image, 'prompt', 'description')
+
+    assert result['passed'] is True
+    assert len(ai_service.calls) == 1
 
 
 def test_settings_api_persists_and_resets_image_quality_control(client):

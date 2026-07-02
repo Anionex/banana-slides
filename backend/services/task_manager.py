@@ -94,10 +94,13 @@ def review_image_quality(
     page_index: Optional[int] = None,
 ) -> dict:
     """Run the multimodal quality review on an unsaved generated image."""
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
         temp_path = tmp.name
     try:
-        image.save(temp_path, format='PNG')
+        review_image = image
+        if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+            review_image = image.convert('RGB')
+        review_image.save(temp_path, format='JPEG', quality=85)
         return ai_service.review_generated_slide_image(
             temp_path,
             generation_prompt=generation_prompt,

@@ -593,7 +593,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => ({
   api_base_url: data.api_base_url || '',
   api_key: '',
   image_resolution: data.image_resolution || '2K',
-  enable_image_quality_control: data.enable_image_quality_control || false,
+  enable_image_quality_control: data.enable_image_quality_control ?? false,
   max_description_workers: data.max_description_workers || 5,
   max_image_workers: data.max_image_workers || 8,
   text_model: data.text_model || '',
