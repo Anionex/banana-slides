@@ -85,6 +85,13 @@ def _format_quality_review_failure(review: Optional[dict]) -> str:
     return reason or details or "质量控制未通过"
 
 
+def _get_absolute_page_index(page_obj, fallback_index: Optional[int]) -> Optional[int]:
+    order_index = getattr(page_obj, 'order_index', None)
+    if order_index is None:
+        return fallback_index
+    return order_index + 1
+
+
 def review_image_quality(
     ai_service,
     image: Image.Image,
@@ -98,7 +105,7 @@ def review_image_quality(
         temp_path = tmp.name
     try:
         review_image = image
-        if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+        if image.mode != 'RGB':
             review_image = image.convert('RGB')
         review_image.save(temp_path, format='JPEG', quality=85)
         return ai_service.review_generated_slide_image(
@@ -798,7 +805,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                                 prompt,
                                 desc_text,
                                 page_data=page_data,
-                                page_index=page_index,
+                                page_index=_get_absolute_page_index(page_obj, page_index),
                                 quality_control_enabled=quality_control_enabled,
                             )
                         logger.info(f"✅ Image generated successfully for page {page_index}")

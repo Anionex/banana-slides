@@ -6,6 +6,7 @@ from services.ai_service import AIService
 from services.task_manager import (
     IMAGE_QUALITY_CONTROL_MAX_ATTEMPTS,
     ImageQualityControlError,
+    _get_absolute_page_index,
     generate_image_until_quality_passes,
     get_image_quality_control_enabled,
     review_image_quality,
@@ -30,13 +31,24 @@ def _image(color='blue'):
 def test_quality_review_uses_jpeg_temp_image_and_handles_alpha():
     ai_service = FakeReviewService([
         {'passed': True, 'issues': [], 'reason': 'Looks good'},
+        {'passed': True, 'issues': [], 'reason': 'Looks good'},
     ])
-    image = Image.new('RGBA', (160, 90), color=(0, 120, 255, 128))
 
-    result = review_image_quality(ai_service, image, 'prompt', 'description')
+    for image in [
+        Image.new('RGBA', (160, 90), color=(0, 120, 255, 128)),
+        Image.new('P', (160, 90), color=1),
+    ]:
+        result = review_image_quality(ai_service, image, 'prompt', 'description')
+        assert result['passed'] is True
 
-    assert result['passed'] is True
-    assert len(ai_service.calls) == 1
+    assert len(ai_service.calls) == 2
+
+
+def test_quality_review_uses_absolute_page_index_for_partial_generation():
+    class PageLike:
+        order_index = 4
+
+    assert _get_absolute_page_index(PageLike(), 1) == 5
 
 
 def test_settings_api_persists_and_resets_image_quality_control(client):
