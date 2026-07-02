@@ -322,6 +322,9 @@ def update_settings():
                 return bad_request("Image thinking budget must be between 1 and 8192")
             settings.image_thinking_budget = budget
 
+        if "enable_image_quality_control" in data:
+            settings.enable_image_quality_control = bool(data["enable_image_quality_control"])
+
         # Update Baidu OCR configuration
         if "baidu_api_key" in data:
             settings.baidu_api_key = data["baidu_api_key"] or None
@@ -416,6 +419,7 @@ def reset_settings():
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
+        settings.enable_image_quality_control = False
         settings.description_generation_mode = None
         settings.description_extra_fields = None
         settings.image_prompt_extra_fields = None
@@ -527,6 +531,7 @@ def get_active_config():
         "image_model": current_app.config.get("IMAGE_MODEL"),
         "output_language": current_app.config.get("OUTPUT_LANGUAGE"),
         "image_caption_model": current_app.config.get("IMAGE_CAPTION_MODEL"),
+        "enable_image_quality_control": current_app.config.get("ENABLE_IMAGE_QUALITY_CONTROL", False),
     })
 
 
@@ -734,6 +739,7 @@ def _sync_settings_to_config(settings: Settings):
     current_app.config["TEXT_THINKING_BUDGET"] = settings.text_thinking_budget
     current_app.config["ENABLE_IMAGE_REASONING"] = settings.enable_image_reasoning
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
+    current_app.config["ENABLE_IMAGE_QUALITY_CONTROL"] = settings.enable_image_quality_control
     
     # Sync Baidu OCR settings (fall back to Config default when NULL)
     current_app.config["BAIDU_API_KEY"] = settings.baidu_api_key or Config.BAIDU_API_KEY

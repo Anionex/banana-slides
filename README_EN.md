@@ -134,6 +134,7 @@ Supports three ways to get started—**Idea**, **Outline**, and **Page Descripti
 No longer limited by complex menu buttons, issue modification commands directly through **natural language**.
 - **Partial Redrawing**: Make verbal modifications to unsatisfactory areas (e.g., "Change this chart to a pie chart").
 - **Full-page Optimization**: Generate high-definition, stylistically consistent pages based on nano banana pro🍌.
+- **Quality Control Mode**: Enable it from Settings or the preview page to automatically check generated images for garbled text, low-quality visuals, and prompt mismatch. Only images that pass are saved as new versions.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3" />
 

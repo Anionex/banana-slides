@@ -36,6 +36,7 @@ class Settings(db.Model):
     text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
     enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
     image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
+    enable_image_quality_control = db.Column(db.Boolean, nullable=False, default=False)  # 生成图片落库前是否开启视觉质检
     
     # 描述生成模式: streaming / parallel (NULL=默认 streaming)
     description_generation_mode = db.Column(db.String(20), nullable=True)
@@ -140,6 +141,7 @@ class Settings(db.Model):
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
+            'enable_image_quality_control': self.enable_image_quality_control,
             'baidu_api_key_length': len(baidu_api_key) if baidu_api_key else 0,
             'text_model_source': self._val('text_model_source', d),
             'image_model_source': self._val('image_model_source', d),

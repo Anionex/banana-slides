@@ -181,6 +181,7 @@ export interface Settings {
   text_thinking_budget: number;
   enable_image_reasoning: boolean;
   image_thinking_budget: number;
+  enable_image_quality_control: boolean;
   baidu_api_key_length: number;
   // LazyLLM 配置
   text_model_source?: string;

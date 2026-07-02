@@ -286,7 +286,9 @@ def _load_settings_to_config(app):
         app.config['TEXT_THINKING_BUDGET'] = settings.text_thinking_budget
         app.config['ENABLE_IMAGE_REASONING'] = settings.enable_image_reasoning
         app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget
+        app.config['ENABLE_IMAGE_QUALITY_CONTROL'] = settings.enable_image_quality_control
         logging.info(f"Loaded reasoning config: text={settings.enable_text_reasoning}(budget={settings.text_thinking_budget}), image={settings.enable_image_reasoning}(budget={settings.image_thinking_budget})")
+        logging.info(f"Loaded image quality control: {settings.enable_image_quality_control}")
         
         # Load Baidu API settings
         if settings.baidu_api_key:

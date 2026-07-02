@@ -5,6 +5,7 @@ No need for Celery or Redis, uses in-memory task tracking
 import logging
 import os
 import shutil
+import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
@@ -20,6 +21,12 @@ from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 
 logger = logging.getLogger(__name__)
+
+IMAGE_QUALITY_CONTROL_MAX_ATTEMPTS = 3
+
+
+class ImageQualityControlError(ValueError):
+    """Raised when generated images repeatedly fail quality review."""
 
 
 def get_image_prompt_field_names() -> set:
@@ -52,6 +59,123 @@ def _append_extra_fields(
         if value is not None and str(value).strip() != "" and name in allowed:
             parts.append(f"{name}：{value}")
     return '\n'.join(parts)
+
+
+def get_image_quality_control_enabled() -> bool:
+    """Return whether generated page images should pass visual QC before saving."""
+    try:
+        return bool(Settings.get_settings().enable_image_quality_control)
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.warning("Failed to retrieve image quality control setting; using disabled: %s", e)
+        return False
+
+
+def _format_quality_review_failure(review: Optional[dict]) -> str:
+    if not review:
+        return "质量控制未通过"
+    issues = review.get('issues') or []
+    reason = (review.get('reason') or '').strip()
+    details = "；".join(str(issue).strip() for issue in issues if str(issue).strip())
+    if reason and details:
+        return f"{reason}（{details}）"
+    return reason or details or "质量控制未通过"
+
+
+def review_image_quality(
+    ai_service,
+    image: Image.Image,
+    generation_prompt: str,
+    page_desc: str,
+    page_data: Optional[Dict[str, Any]] = None,
+    page_index: Optional[int] = None,
+) -> dict:
+    """Run the multimodal quality review on an unsaved generated image."""
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        temp_path = tmp.name
+    try:
+        image.save(temp_path, format='PNG')
+        return ai_service.review_generated_slide_image(
+            temp_path,
+            generation_prompt=generation_prompt,
+            page_desc=page_desc,
+            page_outline=page_data or {},
+            page_index=page_index,
+        )
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+
+
+def generate_image_until_quality_passes(
+    generate_image: Callable[[], Optional[Image.Image]],
+    ai_service,
+    generation_prompt: str,
+    page_desc: str,
+    page_data: Optional[Dict[str, Any]] = None,
+    page_index: Optional[int] = None,
+    quality_control_enabled: bool = False,
+    max_attempts: int = IMAGE_QUALITY_CONTROL_MAX_ATTEMPTS,
+) -> Image.Image:
+    """Generate an image and, when enabled, retry until QC passes or attempts are exhausted."""
+    attempts = max(1, int(max_attempts)) if quality_control_enabled else 1
+    last_error: Optional[Exception] = None
+    last_review: Optional[dict] = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            image = generate_image()
+            if not image:
+                raise ValueError("Failed to generate image")
+
+            if not quality_control_enabled:
+                return image
+
+            review = review_image_quality(
+                ai_service,
+                image,
+                generation_prompt,
+                page_desc,
+                page_data=page_data,
+                page_index=page_index,
+            )
+            last_review = review
+            last_error = None
+            if review.get('passed'):
+                logger.info("Image quality control passed for page %s on attempt %s", page_index, attempt)
+                return image
+
+            logger.warning(
+                "Image quality control rejected page %s on attempt %s/%s: %s",
+                page_index,
+                attempt,
+                attempts,
+                _format_quality_review_failure(review),
+            )
+        except Exception as e:
+            last_error = e
+            last_review = None
+            logger.warning(
+                "Image quality control attempt %s/%s failed for page %s: %s",
+                attempt,
+                attempts,
+                page_index,
+                e,
+            )
+            if attempt >= attempts and not quality_control_enabled:
+                raise
+
+    if last_review:
+        reason = _format_quality_review_failure(last_review)
+        raise ImageQualityControlError(f"图片质量控制未通过：{reason}。请调整页面描述或提示词后重试。")
+    if last_error:
+        raise ImageQualityControlError(f"图片质量控制失败：{last_error}。请调整页面描述或提示词后重试。") from last_error
+    raise ImageQualityControlError("图片质量控制未通过。请调整页面描述或提示词后重试。")
 from pathlib import Path
 from services.pdf_service import split_pdf_to_pages
 
@@ -564,6 +688,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                 if image_prompt_field_names is not None
                 else get_image_prompt_field_names()
             )
+            quality_control_enabled = get_image_quality_control_enabled()
 
             # Build mapping from order_index to page_data so filtered pages
             # get matched to the correct outline entry (not just first N)
@@ -660,11 +785,18 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                             )
                             logger.debug(f"Generated image prompt for page {page_id}")
                             
-                            # Generate image
                             logger.info(f"🎨 Calling AI service to generate image for page {page_index}/{len(pages)}...")
-                            image = ai_service.generate_image(
-                                prompt, page_ref_image_path, aspect_ratio, resolution,
-                                additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
+                            image = generate_image_until_quality_passes(
+                                lambda: ai_service.generate_image(
+                                    prompt, page_ref_image_path, aspect_ratio, resolution,
+                                    additional_ref_images=page_additional_ref_images if page_additional_ref_images else None
+                                ),
+                                ai_service,
+                                prompt,
+                                desc_text,
+                                page_data=page_data,
+                                page_index=page_index,
+                                quality_control_enabled=quality_control_enabled,
                             )
                         logger.info(f"✅ Image generated successfully for page {page_index}")
                         
@@ -808,6 +940,7 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 if image_prompt_field_names is not None
                 else get_image_prompt_field_names()
             )
+            quality_control_enabled = get_image_quality_control_enabled()
             
             # 获取描述文本（可能是 text 字段或 text_content 数组）
             desc_text = desc_content.get('text', '')
@@ -867,11 +1000,18 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 f"project={project_id} page={page_id}",
                 on_acquire=mark_generating,
             ):
-                # Generate image
                 logger.info(f"🎨 Generating image for page {page_id}...")
-                image = ai_service.generate_image(
-                    prompt, ref_image_path, aspect_ratio, resolution,
-                    additional_ref_images=additional_ref_images if additional_ref_images else None
+                image = generate_image_until_quality_passes(
+                    lambda: ai_service.generate_image(
+                        prompt, ref_image_path, aspect_ratio, resolution,
+                        additional_ref_images=additional_ref_images if additional_ref_images else None
+                    ),
+                    ai_service,
+                    prompt,
+                    desc_text,
+                    page_data=page_data,
+                    page_index=page.order_index + 1,
+                    quality_control_enabled=quality_control_enabled,
                 )
             
             if not image:

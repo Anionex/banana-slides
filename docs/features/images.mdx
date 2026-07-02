@@ -13,6 +13,17 @@ Click **Batch Generate Images** — AI generates all pages in parallel. Each car
   If the current resolution is 1K, a warning dialog recommends switching to 2K or 4K — the difference in text clarity is significant. Change this in **Project Settings → Global Settings**.
 </Note>
 
+## Quality Control Mode
+
+Enable **Quality Control** from **Settings → Image Generation Configuration** or from the switch below the generation button on the Slide Preview page.
+
+When enabled, each generated image is not saved as a version immediately. A vision model first checks whether:
+- the slide contains garbled, unreadable, or clearly incorrect text
+- the illustration, layout, or rendering quality is too low
+- the visual content, style, or layout substantially deviates from the page description and prompt
+
+If the review rejects the image, Banana Slides automatically regenerates it, up to 3 attempts. Only images that pass the review are saved to the database and added to version history. If all attempts fail, the page is marked as failed and prompts you to adjust the page description or prompt.
+
 ## Single-Page Refinement
 
 When one slide doesn't look right, no need to regenerate everything:
