@@ -1429,7 +1429,13 @@ const debouncedUpdatePage = debounce(
             pages: currentProject.pages.map((p) => {
               const pid = p.id || p.page_id;
               return pid && cleared.has(pid)
-                ? { ...p, template_asset_id: null, template_selection_source: null }
+                ? {
+                    ...p,
+                    template_asset_id: null,
+                    template_selection_source: null,
+                    template_match_reason: null,
+                    template_match_confidence: null,
+                  }
                 : p;
             }),
           },

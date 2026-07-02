@@ -2350,9 +2350,17 @@ def process_template_pdf_split_task(task_id: str, project_id: str,
                     # mark it FAILED so it can't hang as "analyzing" forever.
                     logger.warning('Failed to submit analyze task for asset %s: %s',
                                    asset_id, exc)
-                    sub_task.status = 'FAILED'
-                    sub_task.error_message = f'Task submission failed: {exc}'
-                    db.session.commit()
+                    try:
+                        sub_task.status = 'FAILED'
+                        sub_task.error_message = f'Task submission failed: {exc}'
+                        db.session.commit()
+                    except Exception as commit_exc:
+                        logger.error(
+                            'Failed to commit FAILED status for sub_task %s: %s',
+                            sub_task.id,
+                            commit_exc,
+                        )
+                        db.session.rollback()
 
             task = Task.query.get(task_id)
             if task:

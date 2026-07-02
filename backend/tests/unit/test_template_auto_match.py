@@ -268,6 +268,52 @@ def test_auto_match_threshold_triggers_batching(app):
     assert max(actual_pages_per_call) <= 30
 
 
+def test_auto_match_wraps_single_dict_response(app):
+    from models import db, Project, Page, ProjectTemplateAsset
+    from services.ai_service import AIService
+
+    with app.app_context():
+        proj = Project(creation_type='idea', status='DRAFT')
+        db.session.add(proj)
+        db.session.commit()
+        proj_id = proj.id
+
+        asset = ProjectTemplateAsset(
+            project_id=proj_id,
+            image_path='p/template.png',
+            analysis_status='completed',
+        )
+        asset.set_analysis({'template_role': 'content'})
+        page = Page(id=str(uuid.uuid4()), project_id=proj_id, order_index=0)
+        page.set_description_content({'title': 'P1', 'text_content': ['hello']})
+        db.session.add_all([asset, page])
+        db.session.commit()
+
+    class FakeAIService(AIService):
+        def __init__(self):
+            pass
+
+        def generate_json(self, prompt, thinking_budget=1000):
+            return {
+                'page_id': 'page-1',
+                'template_asset_id': None,
+                'status': 'undecided',
+                'confidence': 0.2,
+                'reason': 'single result',
+            }
+
+    with app.app_context():
+        results = FakeAIService().auto_match_templates(proj_id)
+
+    assert results == [{
+        'page_id': 'page-1',
+        'template_asset_id': None,
+        'status': 'undecided',
+        'confidence': 0.2,
+        'reason': 'single result',
+    }]
+
+
 def test_auto_match_endpoint_missing_descriptions_400(client, stub_submit_task):
     from models import db, Page
     project_id = _make_project(client)

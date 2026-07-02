@@ -1235,6 +1235,8 @@ class AIService:
             prompt = get_template_auto_match_prompt(
                 templates=templates_payload, pages=batch, language=language)
             result = self.generate_json(prompt)
+            if isinstance(result, dict):
+                result = [result]
             if not isinstance(result, list):
                 raise ValueError(f"auto_match_templates expected list, got {type(result).__name__}")
             all_results.extend(result)
