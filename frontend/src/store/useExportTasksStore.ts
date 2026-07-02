@@ -10,6 +10,7 @@ const exportI18n = {
     exportStore: {
       exportFailed: '导出失败',
       pollFailed: '轮询失败',
+      pollRetrying: '正在继续查询任务状态...',
       staleTask: '导出任务已不可用，请重新导出',
     },
   },
@@ -17,11 +18,28 @@ const exportI18n = {
     exportStore: {
       exportFailed: 'Export failed',
       pollFailed: 'Polling failed',
+      pollRetrying: 'Continuing to check task status...',
       staleTask: 'This export task is no longer available. Please export again.',
     },
   },
 };
 const t = getT(exportI18n);
+const EXPORT_POLL_INTERVAL_MS = 2000;
+const MAX_TRANSIENT_POLL_ERRORS = 6;
+export const activePolls = new Set<string>();
+
+const isTransientPollingError = (error: any): boolean => {
+  const status = error?.response?.status;
+  if (status) {
+    return [408, 429, 500, 502, 503, 504].includes(status);
+  }
+  return Boolean(
+    error?.request
+    || error?.code === 'ERR_NETWORK'
+    || error?.code === 'ECONNABORTED'
+    || error?.message?.includes('Network Error')
+  );
+};
 
 // Note: Backend uses 'RUNNING' but we also accept 'PROCESSING' for compatibility
 export type ExportTaskStatus = 'PENDING' | 'PROCESSING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
@@ -142,18 +160,31 @@ export const useExportTasksStore = create<ExportTasksState>()(
       },
 
       pollTask: async (id, projectId, taskId) => {
+        const existingTask = get().tasks.find(task => task.id === id);
+        if (!existingTask || existingTask.status === 'COMPLETED' || existingTask.status === 'FAILED') {
+          return;
+        }
+        if (activePolls.has(id)) {
+          return;
+        }
+        activePolls.add(id);
+        let consecutivePollErrors = 0;
+
         const poll = async () => {
           if (!hasTask(get().tasks, id)) {
             unusableTaskResponseCounts.delete(id);
+            activePolls.delete(id);
             return;
           }
 
           try {
             const response = await api.getTaskStatus(projectId, taskId);
+            consecutivePollErrors = 0;
             const task = response.data;
 
             if (!hasTask(get().tasks, id)) {
               unusableTaskResponseCounts.delete(id);
+              activePolls.delete(id);
               return;
             }
 
@@ -170,6 +201,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
 
               console.warn('[ExportTasksStore] No usable task data in response after retries');
               unusableTaskResponseCounts.delete(id);
+              activePolls.delete(id);
               get().updateTask(id, {
                 status: 'FAILED',
                 errorMessage: t('exportStore.staleTask'),
@@ -207,6 +239,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
 
             if (task.status === 'COMPLETED') {
               updates.completedAt = new Date().toISOString();
+              activePolls.delete(id);
               get().updateTask(id, updates);
             } else if (task.status === 'FAILED') {
               const taskErrorMessage = task.error_message
@@ -214,14 +247,48 @@ export const useExportTasksStore = create<ExportTasksState>()(
                 || t('exportStore.exportFailed');
               updates.errorMessage = normalizeErrorMessage(taskErrorMessage);
               updates.completedAt = new Date().toISOString();
+              activePolls.delete(id);
               get().updateTask(id, updates);
             } else if (task.status === 'PENDING' || task.status === 'RUNNING' || task.status === 'PROCESSING') {
               get().updateTask(id, updates);
               // Continue polling
-              setTimeout(poll, 2000);
+              setTimeout(poll, EXPORT_POLL_INTERVAL_MS);
             }
           } catch (error: any) {
             console.error('[ExportTasksStore] Poll error:', error);
+            const currentTask = get().tasks.find(task => task.id === id);
+            const isActiveTask = currentTask
+              && (currentTask.status === 'PENDING' || currentTask.status === 'RUNNING' || currentTask.status === 'PROCESSING');
+
+            consecutivePollErrors += 1;
+            if (
+              isActiveTask
+              && isTransientPollingError(error)
+              && consecutivePollErrors <= MAX_TRANSIENT_POLL_ERRORS
+            ) {
+              const retryDelayMs = Math.min(10000, EXPORT_POLL_INTERVAL_MS * consecutivePollErrors);
+              const normalizedMessage = normalizeErrorMessage(error.message || t('exportStore.pollFailed'));
+              console.warn(
+                `[ExportTasksStore] Transient poll error ${consecutivePollErrors}/${MAX_TRANSIENT_POLL_ERRORS}; retrying in ${retryDelayMs}ms`
+              );
+              const currentProgress = (
+                currentTask.progress
+                && typeof currentTask.progress === 'object'
+                && !Array.isArray(currentTask.progress)
+              )
+                ? currentTask.progress
+                : { total: 100, completed: 0 };
+              get().updateTask(id, {
+                progress: {
+                  ...currentProgress,
+                  help_text: `${normalizedMessage} ${t('exportStore.pollRetrying')}`,
+                },
+              });
+              setTimeout(poll, retryDelayMs);
+              return;
+            }
+
+            activePolls.delete(id);
             get().updateTask(id, {
               status: 'FAILED',
               errorMessage: normalizeErrorMessage(error.message || t('exportStore.pollFailed')),

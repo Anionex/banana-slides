@@ -1,6 +1,153 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Editable export failure UI', () => {
+  test('keeps editable export task alive after a transient gateway poll error', async ({ page }) => {
+    const projectId = 'mock-editable-export-poll-retry';
+    let pollCount = 0;
+
+    await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'));
+
+    await page.route(url => new URL(url).pathname.startsWith('/api/'), async route => {
+      const url = new URL(route.request().url());
+
+      if (url.pathname === '/api/access-code/check') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { enabled: false } }),
+        });
+      }
+
+      if (url.pathname === `/api/projects/${projectId}`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              project_id: projectId,
+              id: projectId,
+              status: 'COMPLETED',
+              template_style: 'default',
+              export_allow_partial: false,
+              pages: [
+                {
+                  id: 'p1',
+                  page_id: 'p1',
+                  order_index: 0,
+                  generated_image_path: '/files/mock/slide-1.png',
+                  outline_content: { title: 'Slide 1', points: [] },
+                  description_content: { text: 'desc' },
+                  status: 'COMPLETED',
+                },
+              ],
+            },
+          }),
+        });
+      }
+
+      if (url.pathname === `/api/projects/${projectId}/export/editable-pptx`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: { task_id: 'editable-export-task-retry' },
+          }),
+        });
+      }
+
+      if (url.pathname === `/api/projects/${projectId}/tasks/editable-export-task-retry`) {
+        pollCount += 1;
+        if (pollCount === 1) {
+          return route.fulfill({
+            status: 502,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: false, error: { message: 'Bad gateway' } }),
+          });
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              task_id: 'editable-export-task-retry',
+              task_type: 'EXPORT_EDITABLE_PPTX',
+              status: 'COMPLETED',
+              progress: {
+                total: 100,
+                completed: 100,
+                failed: 0,
+                percent: 100,
+                download_url: `/files/${projectId}/exports/recovered.pptx`,
+                filename: 'recovered.pptx',
+              },
+            },
+          }),
+        });
+      }
+
+      if (url.pathname === '/api/settings') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) });
+      }
+
+      if (url.pathname === `/api/projects/${projectId}/exports`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { files: [] } }),
+        });
+      }
+
+      if (url.pathname === '/api/output-language') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { language: 'zh' } }),
+        });
+      }
+
+      if (url.pathname === '/api/user-templates') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { templates: [] } }),
+        });
+      }
+
+      if (url.pathname.includes('/image-versions')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { versions: [] } }),
+        });
+      }
+
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) });
+    });
+
+    await page.route('**/files/**', async route => {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.alloc(256) });
+    });
+
+    await page.goto(`/project/${projectId}/preview`);
+    await page.waitForFunction(() => document.body.innerText.length > 50, { timeout: 15000 });
+
+    await page.locator('button:has-text("导出")').first().click();
+    await page.getByRole('button', { name: /导出可编辑 PPTX/ }).click();
+    await page.getByRole('button', { name: '开始导出' }).click();
+
+    await expect
+      .poll(() => pollCount, { timeout: 15000 })
+      .toBe(2);
+
+    await page.getByRole('button', { name: '导出任务' }).click();
+    await expect(page.getByRole('button', { name: '下载' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('导出失败')).toHaveCount(0);
+  });
+
   test('shows normalized task panel error when style extraction fails', async ({ page }) => {
     const projectId = 'mock-editable-export-failure';
     let pollCount = 0;

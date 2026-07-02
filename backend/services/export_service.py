@@ -9,6 +9,7 @@ import logging
 import random
 import re
 import tempfile
+import time
 import base64
 import hashlib
 from datetime import datetime, timezone
@@ -1086,23 +1087,81 @@ class ExportService:
                 }
         
         if not all_text_items:
-            return {}
+            return {}, []
         
         # Step 2: 并行执行两种识别
         global_results = {}  # 全局识别结果
         local_results = {}   # 单个裁剪识别结果
         
         def extract_global_for_page(page_idx, page_data):
-            """全局识别单页"""
-            try:
-                results = text_attribute_extractor.extract_batch_with_full_image(
-                    full_image=page_data['image_path'],
-                    text_elements=page_data['elements']
-                )
-                return page_idx, results, None
-            except Exception as e:
-                logger.warning(f"全局识别页面 {page_idx + 1} 失败: {e}")
-                return page_idx, {}, str(e)
+            """全局识别单页，并对异常或缺失结果做页级重试。"""
+            max_global_attempts = 3
+            expected_element_ids = {
+                element['element_id'] for element in page_data['elements']
+            }
+            best_results = {}
+            had_model_response = False
+            last_exception = None
+
+            for attempt in range(1, max_global_attempts + 1):
+                if attempt > 1:
+                    time.sleep(1)
+                try:
+                    raw_results = text_attribute_extractor.extract_batch_with_full_image(
+                        full_image=page_data['image_path'],
+                        text_elements=page_data['elements']
+                    )
+                    if raw_results is not None and not isinstance(raw_results, dict):
+                        raise ValueError("Expected dict or None from style extractor")
+                    results = {
+                        key: value for key, value in raw_results.items()
+                        if value is not None
+                    } if raw_results is not None else {}
+                    had_model_response = True
+                    best_results.update(results)
+                    missing_element_ids = expected_element_ids - set(best_results.keys())
+
+                    logger.info(
+                        "全局识别页面 %s 第 %s/%s 次完成: expected=%s returned=%s accumulated=%s missing=%s",
+                        page_idx + 1,
+                        attempt,
+                        max_global_attempts,
+                        len(expected_element_ids),
+                        len(results),
+                        len(best_results),
+                        len(missing_element_ids),
+                    )
+
+                    if not missing_element_ids:
+                        return page_idx, best_results, None
+
+                    last_exception = None
+                    logger.warning(
+                        "全局识别页面 %s 第 %s/%s 次返回不完整，将重试: missing_sample=%s",
+                        page_idx + 1,
+                        attempt,
+                        max_global_attempts,
+                        list(missing_element_ids)[:5],
+                    )
+                except Exception as e:
+                    last_exception = str(e)
+                    logger.warning(
+                        "全局识别页面 %s 第 %s/%s 次失败，将重试: %s",
+                        page_idx + 1,
+                        attempt,
+                        max_global_attempts,
+                        e,
+                    )
+
+            logger.error(
+                "全局识别页面 %s 重试耗尽: expected=%s returned=%s last_error=%s",
+                page_idx + 1,
+                len(expected_element_ids),
+                len(best_results),
+                last_exception or "全局识别未返回完整结果",
+            )
+            page_error = last_exception if (not best_results or not had_model_response) else None
+            return page_idx, best_results, page_error
         
         # 收集失败信息
         failed_extractions = []  # [(element_id, reason), ...]
