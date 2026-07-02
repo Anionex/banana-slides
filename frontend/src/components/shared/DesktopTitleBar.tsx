@@ -85,7 +85,7 @@ export function DesktopTitleBar() {
     padding: 0,
   };
 
-  const navBtnClass = 'flex h-7 items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all cursor-pointer';
+  const navBtnClass = 'flex h-7 items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded transition-all cursor-pointer';
   const macBrandOffset = 2;
 
   return (
@@ -102,8 +102,8 @@ export function DesktopTitleBar() {
         alignItems: 'center',
         userSelect: 'none',
         WebkitAppRegion: 'drag' as any,
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+        backgroundColor: isDark ? '#18181b' : '#ffffff',
+        borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
         paddingLeft: isMac ? macLeadingSpace : 0,
       }}
     >
@@ -120,7 +120,7 @@ export function DesktopTitleBar() {
         }}
       >
         <img src={logoUrl} alt="" style={{ width: 18, height: 18, display: 'block', flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 600, lineHeight: '18px', color: '#374151', letterSpacing: '0.2px' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, lineHeight: '18px', color: isDark ? '#e4e4e7' : '#374151', letterSpacing: '0.2px' }}>
           Banana Slides
         </span>
       </div>
@@ -155,7 +155,7 @@ export function DesktopTitleBar() {
           <span>{t('settings')}</span>
         </button>
 
-        <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 16, backgroundColor: isDark ? '#3f3f46' : '#d1d5db', margin: '0 4px' }} />
 
         {/* Zoom controls */}
         <button className={navBtnClass} onClick={() => window.location.reload()} title={t('refresh')}>
@@ -168,7 +168,7 @@ export function DesktopTitleBar() {
           <ZoomIn size={13} />
         </button>
 
-        <div style={{ width: 1, height: 16, backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 16, backgroundColor: isDark ? '#3f3f46' : '#d1d5db', margin: '0 4px' }} />
 
         {/* Language toggle */}
         <button
@@ -190,14 +190,14 @@ export function DesktopTitleBar() {
           </button>
           {isThemeMenuOpen && (
             <div
-              className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[100px]"
+              className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[100px]"
               style={{ zIndex: 10001 }}
             >
               {([['light', Sun, t('themeLight')], ['dark', Moon, t('themeDark')], ['system', Monitor, t('themeSystem')]] as const).map(([value, Icon, label]) => (
                 <button
                   key={value}
                   onClick={() => { setTheme(value as any); setIsThemeMenuOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-100 ${theme === value ? 'text-orange-500' : 'text-gray-700'}`}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-700 ${theme === value ? 'text-orange-500' : 'text-gray-700 dark:text-zinc-300'}`}
                 >
                   <Icon size={12} />
                   <span>{label}</span>

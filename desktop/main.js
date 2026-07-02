@@ -175,8 +175,8 @@ function createMainWindow() {
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    event.preventDefault();
     if (shouldOpenInExternalBrowser(url)) {
+      event.preventDefault();
       shell.openExternal(url);
     }
   });
