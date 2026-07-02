@@ -1,7 +1,14 @@
 from pathlib import Path
 
+import pytest
+import services.export_service as export_service_module
 from services.export_service import ExportError, ExportService
 from services.image_editability.text_attribute_extractors import TextStyleResult
+
+
+@pytest.fixture(autouse=True)
+def no_retry_delay(monkeypatch):
+    monkeypatch.setattr(export_service_module.time, "sleep", lambda _seconds: None)
 
 
 class FailingExtractor:
@@ -28,6 +35,12 @@ class NullResultGlobalExtractor(EmptyGlobalExtractor):
     def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
         self.calls += 1
         return {"text_0": None}
+
+
+class NonDictGlobalExtractor(EmptyGlobalExtractor):
+    def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
+        self.calls += 1
+        return []
 
 
 class FlakyGlobalExtractor:
@@ -172,6 +185,24 @@ def test_hybrid_style_extraction_filters_null_global_results(tmp_path):
     assert extractor.calls == 3
     assert "text_0" in results
     assert failures == [("text_0", "全局识别未返回完整结果")]
+
+
+def test_hybrid_style_extraction_retries_non_dict_global_results(tmp_path):
+    editable_images = _make_editable_images(tmp_path)
+    extractor = NonDictGlobalExtractor()
+
+    try:
+        ExportService._batch_extract_text_styles_hybrid(
+            editable_images=editable_images,
+            text_attribute_extractor=extractor,
+            max_workers=2,
+            fail_fast=True,
+        )
+        assert False, "expected ExportError"
+    except ExportError as exc:
+        assert extractor.calls == 3
+        assert exc.error_type == "style_extraction"
+        assert "Expected dict or None" in exc.message
 
 
 def test_hybrid_style_extraction_reports_only_missing_global_results(tmp_path):

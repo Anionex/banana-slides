@@ -9,6 +9,7 @@ import logging
 import random
 import re
 import tempfile
+import time
 import base64
 import hashlib
 from datetime import datetime, timezone
@@ -1103,15 +1104,19 @@ class ExportService:
             last_exception = None
 
             for attempt in range(1, max_global_attempts + 1):
+                if attempt > 1:
+                    time.sleep(1)
                 try:
                     raw_results = text_attribute_extractor.extract_batch_with_full_image(
                         full_image=page_data['image_path'],
                         text_elements=page_data['elements']
                     )
+                    if raw_results is not None and not isinstance(raw_results, dict):
+                        raise ValueError("Expected dict or None from style extractor")
                     results = {
                         key: value for key, value in raw_results.items()
                         if value is not None
-                    } if isinstance(raw_results, dict) else {}
+                    } if raw_results is not None else {}
                     had_model_response = True
                     best_results.update(results)
                     missing_element_ids = expected_element_ids - set(best_results.keys())
