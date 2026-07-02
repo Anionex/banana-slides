@@ -1,0 +1,169 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to upload to, for example v0.3.0. Leave empty to build CI artifacts only.'
+        required: false
+        type: string
+      version:
+        description: 'Desktop package version override, for example 0.3.0. Defaults to tag_name/current tag without v.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Sync version from tag
+        shell: bash
+        env:
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${INPUT_VERSION:-}"
+          if [ -z "$VERSION" ] && [ -n "$INPUT_TAG_NAME" ]; then
+            VERSION="${INPUT_TAG_NAME#v}"
+          fi
+          if [ -z "$VERSION" ] && [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "No version override supplied; keeping desktop/package.json version."
+            exit 0
+          fi
+          VERSION="$VERSION" node -e "
+            const fs = require('fs');
+            const pkgPath = 'desktop/package.json';
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            pkg.version = process.env.VERSION;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Desktop package version set to $VERSION"
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Install backend dependencies
+        run: cd backend && uv sync
+
+      - name: Install PyInstaller
+        run: uv pip install pyinstaller
+
+      - name: Package backend
+        run: cd backend && uv run pyinstaller banana-slides.spec --noconfirm
+
+      - name: Install Electron dependencies
+        run: cd desktop && npm ci
+
+      - name: Cache Windows FFmpeg download
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: desktop/.cache/ffmpeg
+          key: windows-ffmpeg-btbn-7.1-d08d3c08dc2b84b3cb59ea110ac8b188684768fc77a5f0f288e13d0258ef1660
+
+      - name: Build desktop app
+        run: cd desktop && npm run build:${{ matrix.platform }} -- --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test Windows installer
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path desktop/dist -Filter '*.exe' | Select-Object -First 1
+          if (-not $installer) {
+            throw 'No Windows installer was produced'
+          }
+          desktop/scripts/smoke-windows.ps1 -InstallerPath $installer.FullName -OutDir "$env:RUNNER_TEMP/banana-desktop-smoke"
+
+      - name: Upload Windows smoke artifacts
+        if: always() && matrix.platform == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-win-smoke
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/banana-desktop-smoke/**
+
+      - name: Smoke test macOS DMG
+        if: matrix.platform == 'mac'
+        run: |
+          chmod +x desktop/scripts/smoke-macos-dmg.sh
+          dmg="$(find desktop/dist -maxdepth 1 -name '*.dmg' | head -1)"
+          if [ -z "$dmg" ]; then
+            echo "No macOS DMG was produced" >&2
+            exit 1
+          fi
+          desktop/scripts/smoke-macos-dmg.sh "$dmg" "$RUNNER_TEMP/banana-desktop-smoke-mac"
+
+      - name: Upload macOS smoke artifacts
+        if: always() && matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-mac-smoke
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/banana-desktop-smoke-mac/**
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-${{ matrix.platform }}
+          if-no-files-found: error
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag_name != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          files: |
+            desktop/dist/*.dmg
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

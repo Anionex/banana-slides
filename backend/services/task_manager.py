@@ -2369,6 +2369,7 @@ def process_template_pdf_split_task(task_id: str, project_id: str,
                 db.session.commit()
 
         except Exception as exc:
+            db.session.rollback()
             import traceback
             logger.error('SPLIT_TEMPLATE_PDF task %s crashed: %s',
                          task_id, traceback.format_exc())
@@ -2570,6 +2571,7 @@ def auto_match_templates_task(task_id: str, project_id: str,
                 })
                 _commit_with_retry()
             except Exception as exc:
+                db.session.rollback()
                 import traceback
                 logger.error('AUTO_MATCH_TEMPLATES task %s crashed: %s',
                              task_id, traceback.format_exc())

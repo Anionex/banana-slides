@@ -23,6 +23,18 @@ def _default_project_root() -> Path:
     return backend_dir.parent
 
 
+def _resolve_mineru_root(project_root: Optional[Path] = None) -> Path:
+    if project_root is not None:
+        upload_folder = project_root / 'uploads'
+    else:
+        try:
+            from flask import current_app
+            upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+        except (RuntimeError, KeyError):
+            upload_folder = _default_project_root() / 'uploads'
+    return upload_folder / 'mineru_files'
+
+
 def convert_mineru_path_to_local(mineru_path: str, project_root: Optional[Path] = None) -> Optional[Path]:
     """
     将 /files/mineru/{extract_id}/{rel_path} 格式的路径转换为本地文件系统路径
@@ -40,18 +52,13 @@ def convert_mineru_path_to_local(mineru_path: str, project_root: Optional[Path] 
         
         # Remove '/files/mineru/' prefix
         rel_path = mineru_path[len('/files/mineru/'):].lstrip('/\\')
-        
-        # Get project root if not provided
-        if project_root is None:
-            project_root = _default_project_root()
-        
-        # Construct full path: {project_root}/uploads/mineru_files/{rel_path}
-        mineru_root = project_root / 'uploads' / 'mineru_files'
+
+        mineru_root = _resolve_mineru_root(project_root)
         local_path = Path(os.path.realpath(mineru_root / rel_path))
         if not _is_path_within(local_path, mineru_root):
             logger.warning(f"Path traversal attempt blocked for MinerU path: {mineru_path}")
             return None
-        
+
         return local_path
     except Exception as e:
         logger.warning(f"Failed to convert MinerU path to local: {mineru_path}, error: {str(e)}")
@@ -78,9 +85,7 @@ def find_mineru_file_with_prefix(mineru_path: str, project_root: Optional[Path] 
     
     if local_path is None:
         return None
-    if project_root is None:
-        project_root = _default_project_root()
-    mineru_root = project_root / 'uploads' / 'mineru_files'
+    mineru_root = _resolve_mineru_root(project_root)
     
     # Direct file matching
     if local_path.exists() and local_path.is_file():

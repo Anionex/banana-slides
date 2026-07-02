@@ -1,3 +1,4 @@
+[//]: # "Banana Slides is an AI-native PPT generation app for creating editable presentations from ideas, outlines, documents, images, and custom templates. Features: prompt-to-slide generation, template control, material parsing, conversational editing, PPTX export, project history, and reproducible workflows. Quick Start / Install / Usage / Demo / API / Deploy / Architecture / Test / Screenshot guides are provided for local Docker deployment and online use."
 <div align="center">
 
 <p>
@@ -117,6 +118,7 @@
 - **一句话生成**：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述。
 - **自然语言编辑**：支持以 Vibe 形式口头修改大纲或描述（如"把第三页改成案例分析"），AI 实时响应调整。
 - **大纲/描述模式**：既可一键批量生成，也可手动调整细节。
+- **Markdown 导入更确定**：导入弹窗会在执行前预览可识别页数，避免格式不对时误以为已经追加成功。
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
@@ -140,6 +142,8 @@
 ### 4. 开箱即用的格式导出
 - **多格式支持**：一键导出标准 **PPTX** 或 **PDF** 文件。
 - **播放设置**：导出 PPTX 前可开启页面切换动画，支持淡入淡出、翻页、平移、擦除、分割、百叶窗、棋盘、时钟等经典效果并可多选随机应用。
+- **导出文件管理**：预览页会列出服务器端已导出的文件，可直接下载或删除不再需要的文件；导出任务历史按项目隔离清除，避免误删其他项目记录。刷新后若后端任务已不可用，任务面板会明确显示失败并提示重新导出。
+- **选页导出更清晰**：原有选页导出会按当前选择范围提示缺图状态，未选中的草稿页不会让已选完成页的导出入口变灰；讲解视频需明确勾选占位帧选项才会包含未配图页面。
 - **完美适配**：默认 16:9 比例，排版无需二次调整，直接演示。
 
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
@@ -239,7 +243,7 @@ cp .env.example .env
 > **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix(点击此处可直接访问)](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**<br>
 > **友情提示：谷歌nano banana pro模型接口费用较高，请注意调用成本**
 ```env
-# AI Provider格式配置 (gemini / openai / vertex)
+# AI Provider格式配置 (gemini / openai / volcengine / vertex)
 AI_PROVIDER_FORMAT=gemini
 
 # Gemini 格式配置（当 AI_PROVIDER_FORMAT=gemini 时使用）
@@ -251,6 +255,10 @@ GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://aihubmix.com/v1
+
+# 火山方舟 AgentPlans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
+VOLCENGINE_API_KEY=your-volcengine-api-key-here
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
 
 # Vertex AI 配置（AI_PROVIDER_FORMAT=vertex）
 # 需要 GCP 项目和服务账户密钥
@@ -497,7 +505,8 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/e1273f35-7539-4c5f-b737-d79213b84fed" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/e5e48e68-8ed8-4889-9fed-60ffbb7523f9" />
+
 
 
 
@@ -551,17 +560,34 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 
 <div align="center">
+<a href="中文链接">
+    <img src="./assets/huoshan.png" alt="火山引擎" width="150"/ >
+    <p>感谢<strong>火山引擎 </strong>赞助了本项目<br>
+      方舟 Agent Plan 限时2.5折订阅，<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">点击链接抢购</a></p>
+</a>
+</div>
+
+<!-- 注意，英文README使用这个版本： -->
+<!--
+<div align="center">
+<a href="英文链接">
+    <img src="./assets/byteplus.png" alt="BytePlus" width="150"/ >
+    <p> Thanks to Dola seed for sponsoring this project! Register via <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">this link</a> to get 500,000 tokens of free inference quota per model. </p>
+</a>
+</div>
+-->
+
+
+<div align="center">
 
  <br>
 
 <a href="https://api.chatfire.site/login?inviteCode=A15CD6A0"><img width="200" alt="image" src="https://github.com/user-attachments/assets/d6bd255f-ba2c-4ea3-bd90-fef292fc3397" />
 </a>
 
-
 感谢AI火宝对本项目的赞助
  
 </div>
-
 
 
 ## 致谢

@@ -66,6 +66,13 @@ def _asset_or_404(project_id: str, asset_id: str):
     return asset, None
 
 
+def _mark_task_submission_failed(task: Task, exc: Exception) -> None:
+    task.status = 'FAILED'
+    task.error_message = f'Task submission failed: {exc}'
+    task.completed_at = datetime.utcnow()
+    db.session.commit()
+
+
 def _enqueue_analyze_template(project_id: str, asset_id: str) -> str:
     """Create a task row + submit the analyze background task.
 
@@ -87,15 +94,19 @@ def _enqueue_analyze_template(project_id: str, asset_id: str) -> str:
     ai_service = AIService()
     file_service = FileService(current_app.config['UPLOAD_FOLDER'])
     app = current_app._get_current_object()
-    task_manager.submit_task(
-        task.id,
-        analyze_template_task,
-        project_id,
-        asset_id,
-        ai_service,
-        file_service,
-        app,
-    )
+    try:
+        task_manager.submit_task(
+            task.id,
+            analyze_template_task,
+            project_id,
+            asset_id,
+            ai_service,
+            file_service,
+            app,
+        )
+    except Exception as exc:
+        _mark_task_submission_failed(task, exc)
+        raise
     return task.id
 
 
@@ -227,14 +238,18 @@ def upload_template_pdf(project_id: str):
         process_template_pdf_split_task,
     )
     app = current_app._get_current_object()
-    task_manager.submit_task(
-        task.id,
-        process_template_pdf_split_task,
-        project_id,
-        pdf_relpath,
-        file_service,
-        app,
-    )
+    try:
+        task_manager.submit_task(
+            task.id,
+            process_template_pdf_split_task,
+            project_id,
+            pdf_relpath,
+            file_service,
+            app,
+        )
+    except Exception as exc:
+        _mark_task_submission_failed(task, exc)
+        raise
     return success_response({'task_id': task.id}, status_code=202)
 
 
@@ -418,7 +433,10 @@ def patch_template_mode(project_id: str):
     # mode == 'single' — multi → single must specify a unifier (asset / text / both)
     unified_asset_id = data.get('unified_asset_id')
     unified_style_text = data.get('unified_style_text')
-    if unified_asset_id is None and not (unified_style_text or '').strip():
+    if unified_style_text is not None:
+        unified_style_text = str(unified_style_text)
+    unified_style_text = (unified_style_text or '').strip() or None
+    if unified_asset_id is None and not unified_style_text:
         return bad_request(
             'unified_asset_id or unified_style_text is required when switching to single'
         )
@@ -432,7 +450,7 @@ def patch_template_mode(project_id: str):
 
     Page.query.filter_by(project_id=project_id).update({
         Page.template_asset_id: unified_asset_id,
-        Page.template_style_text: unified_style_text or None,
+        Page.template_style_text: unified_style_text,
         Page.template_selection_source: 'batch_apply',
         Page.template_match_reason: None,
         Page.template_match_confidence: None,
@@ -532,16 +550,20 @@ def _enqueue_auto_match(project_id: str, *, page_id: str | None,
 
     ai_service = AIService()
     app = current_app._get_current_object()
-    task_manager.submit_task(
-        task.id,
-        auto_match_templates_task,
-        project_id,
-        page_id,
-        overwrite_existing,
-        preserve_non_empty,
-        ai_service,
-        app,
-    )
+    try:
+        task_manager.submit_task(
+            task.id,
+            auto_match_templates_task,
+            project_id,
+            page_id,
+            overwrite_existing,
+            preserve_non_empty,
+            ai_service,
+            app,
+        )
+    except Exception as exc:
+        _mark_task_submission_failed(task, exc)
+        raise
     return task.id
 
 

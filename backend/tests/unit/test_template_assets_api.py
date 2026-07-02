@@ -71,6 +71,52 @@ def test_upload_template_asset_creates_record_and_enqueues_analyze(
     assert any(c['func'] == 'analyze_template_task' for c in stub_submit_task)
 
 
+def test_upload_template_asset_marks_task_failed_when_submit_fails(client, monkeypatch):
+    from models import Task
+    from services import task_manager as tm
+
+    def _fail_submit(*args, **kwargs):
+        raise RuntimeError('queue full')
+
+    monkeypatch.setattr(tm.task_manager, 'submit_task', _fail_submit)
+    project_id = _make_project(client)
+
+    with pytest.raises(RuntimeError, match='queue full'):
+        client.post(
+            f'/api/projects/{project_id}/template-assets',
+            data={'image': (_png_bytes(), 'cover.png')},
+            content_type='multipart/form-data',
+        )
+
+    task = Task.query.filter_by(project_id=project_id, task_type='ANALYZE_TEMPLATE').one()
+    assert task.status == 'FAILED'
+    assert 'Task submission failed: queue full' in task.error_message
+    assert task.completed_at is not None
+
+
+def test_upload_template_pdf_marks_task_failed_when_submit_fails(client, monkeypatch):
+    from models import Task
+    from services import task_manager as tm
+
+    def _fail_submit(*args, **kwargs):
+        raise RuntimeError('executor stopped')
+
+    monkeypatch.setattr(tm.task_manager, 'submit_task', _fail_submit)
+    project_id = _make_project(client)
+
+    with pytest.raises(RuntimeError, match='executor stopped'):
+        client.post(
+            f'/api/projects/{project_id}/template-assets/upload-pdf',
+            data={'pdf': (io.BytesIO(b'%PDF-1.4\n%%EOF\n'), 'template.pdf')},
+            content_type='multipart/form-data',
+        )
+
+    task = Task.query.filter_by(project_id=project_id, task_type='SPLIT_TEMPLATE_PDF').one()
+    assert task.status == 'FAILED'
+    assert 'Task submission failed: executor stopped' in task.error_message
+    assert task.completed_at is not None
+
+
 def test_upload_with_bind_to_page_links_page(client, stub_submit_task):
     project_id = _make_project(client)
     page_id = _make_page(client, project_id)

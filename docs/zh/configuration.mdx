@@ -11,6 +11,7 @@ description: "环境变量与服务商设置"
 |------|------|
 | `gemini` | Google Gemini API（默认） |
 | `openai` | OpenAI 兼容 API |
+| `volcengine` | 火山方舟 AgentPlans（OpenAI 兼容） |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
 
@@ -33,6 +34,18 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
+
+## 火山 AgentPlans
+
+火山方舟 Agent Plan 模型订阅套餐可通过 OpenAI 兼容接口接入。选择设置页里的“火山 AgentPlans”，或在 `.env` 中配置：
+
+```env
+AI_PROVIDER_FORMAT=volcengine
+VOLCENGINE_API_KEY=your-volcengine-api-key
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+```
+
+也可以继续使用设置页的通用 API Key 字段覆盖以上配置，而 API Base URL 将由系统自动管理。
 
 ## Vertex AI
 
@@ -76,7 +89,9 @@ LazyLLM 源码提供了 `lazyllm install online-advanced`，但当前 PyPI wheel
 
 ## AIHubMix（推荐中转）
 
-[AIHubMix](https://aihubmix.com/?aff=17EC) 是推荐的 API 中转服务，同时支持 Gemini 和 OpenAI 两种接口格式，且能稳定进行高并发文生图操作。[点击此处申请 AIHubMix API Key](https://aihubmix.com/token?aff=17EC)。
+[AIHubMix](https://aihubmix.com/?aff=17EC) 是推荐的 API 中转服务，同时支持 Gemini 和 OpenAI 两种接口格式，且能稳定进行高并发文生图操作。[点击此处申请 AIHubMix API Key](https://aihubmix.com/?aff=17EC)。
+
+获取 API Key 时，打开 AIHubMix 官网并登录或注册账号，进入 **Console** 控制台，先在左侧 **Account → Top Up** 完成充值；充值后进入 **Develop → API Keys** 页面点击 **Add key** 创建密钥，然后复制到本项目设置页或 `.env`。
 
 ```env
 AI_PROVIDER_FORMAT=openai

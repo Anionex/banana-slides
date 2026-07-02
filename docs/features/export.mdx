@@ -21,6 +21,12 @@ description: "Export presentations as PPTX, PDF, or images"
 
 Regular PPTX export now opens a settings panel before generating the file. You can enable slide transitions and choose classic effects such as Fade, Page Turn, Push, Wipe, Split, Blinds, Checkerboard, and Clock. When multiple effects are selected, each slide randomly uses one of the selected effects.
 
+## Exported Files
+
+The export tasks panel on the Slide Preview page lists export files already stored on the server for the current project. You can download PPTX, PDF, image archives, or narration videos again, or delete files you no longer need to free disk space. Deletion asks for confirmation first; after it succeeds, the file is removed from server storage and from the panel list.
+
+Export task history is scoped by project. Clicking **Clear** in one project removes only that project's completed or failed tasks and leaves export history from other projects untouched. After a refresh, if a restored export task is no longer available on the backend, the panel marks it as failed and asks you to export again instead of leaving it stuck as in progress.
+
 ## Narration Strategy
 
 Narration video export now includes a final-step configuration panel so you can tune narration generation without changing the slide content itself.
@@ -58,6 +64,8 @@ Only elements classified as icons qualify (an OpenCV flood-fill heuristic runs o
 ## Page Selection
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.
+
+The export menu checks image readiness for the current export range. PPTX, PDF, Images, and Editable PPTX require every selected page to have a generated image; unfinished draft pages outside the selection no longer block exporting finished pages. For Narration Video, if the range still includes pages without images, you must explicitly enable **Include pages without images** in the video export dialog before Banana Slides exports placeholder frames.
 
 ## Narration Video
 

@@ -1,0 +1,153 @@
+---
+title: "桌面版"
+description: "安装桌面应用、本地打包和发布验证"
+---
+
+桌面版使用 Electron 承载前端，并通过 PyInstaller 打包后的内置后端提供 API。它适合本地使用场景：不需要手动启动浏览器端前后端服务，也不依赖 Docker 容器运行。
+
+<Note>
+  桌面版仍然需要配置可用的模型服务密钥。首次启动后进入「设置」填写 provider、模型和 API Key；配置会写入本机应用数据目录。
+</Note>
+
+## 安装已发布版本
+
+从 [GitHub Releases](https://github.com/Anionex/banana-slides/releases) 下载与系统匹配的安装包。
+
+| 系统 | 产物 | 安装方式 |
+|------|------|----------|
+| Windows | `BananaSlides-<version>-Setup.exe` | 双击 NSIS 安装包，按向导安装 |
+| macOS | `BananaSlides-<version>.dmg` | 打开 DMG，将 Banana Slides 拖入 Applications |
+| Linux | `BananaSlides-<version>.AppImage` / `BananaSlides-<version>.deb` | AppImage 赋予执行权限后运行，或用系统包管理器安装 deb |
+
+桌面版会把数据库、上传文件、素材和导出文件放在用户可写的应用数据目录，而不是安装包资源目录。升级应用前仍建议备份重要项目数据。
+
+## 本地运行与打包前置条件
+
+本地打包需要同时准备前端、后端和 Electron 依赖：
+
+- Node.js 20+
+- Python 3.11
+- uv
+- PyInstaller
+- Electron 依赖（在 `desktop/` 下安装）
+- macOS / Linux 默认使用 `desktop` npm 依赖提供的平台 FFmpeg/FFprobe；也可以通过 `FFMPEG_BIN` / `FFPROBE_BIN` 指定可信本地二进制，或使用 `PATH` 中的兜底命令
+- Windows 默认下载固定版本的静态 FFmpeg 并校验 SHA256；也可以通过 `FFMPEG_BIN` / `FFPROBE_BIN` 指定可信本地二进制
+
+<Note>
+  `desktop/electron-builder.yml` 当前配置 Windows x64 NSIS 安装包、macOS arm64 DMG，以及 Linux x64 AppImage/deb。跨平台打包建议优先使用对应系统或 GitHub Actions runner。
+</Note>
+
+## 本地打包
+
+从仓库根目录开始执行：
+
+```bash
+cd frontend
+npm ci
+npm run build
+
+cd ../backend
+uv sync
+uv pip install pyinstaller
+uv run pyinstaller banana-slides.spec --noconfirm
+
+cd ../desktop
+npm ci
+npm run build:mac
+```
+
+Windows 打包在 Windows 环境中执行最后一步：
+
+```powershell
+cd desktop
+npm ci
+npm run build:win
+```
+
+Linux 打包：
+
+```bash
+cd desktop
+npm ci
+npm run build:linux
+```
+
+`npm run build:*` 会先运行 `desktop/scripts/prepare-artifacts.js` 和 `desktop/scripts/sync-build-meta.js`：
+
+- 将 `frontend/dist/` 复制到 `desktop/frontend/`
+- 将 `backend/dist/banana-backend/` 复制到 `desktop/backend/`
+- 复制或生成 FFmpeg、macOS 图标等资源
+- 生成 `desktop/build-meta.json`，供更新检测判断当前构建是否新于 GitHub Release
+
+打包输出位于 `desktop/dist/`。
+
+## Release flow
+
+桌面版 release 由 `.github/workflows/release-desktop.yml` 驱动。推送 `v*` tag 后会触发：
+
+1. 从 tag 同步 `desktop/package.json` 版本号。
+2. 构建前端静态文件。
+3. 使用 uv 安装后端依赖，并用 PyInstaller 打包 `backend/banana-slides.spec`。
+4. 安装 Electron 依赖。
+5. 在 Windows、macOS、Linux runner 上分别运行 `npm run build:win`、`npm run build:mac`、`npm run build:linux`。
+6. 将 `desktop/dist/*` 上传到 GitHub draft Release。
+
+发布 draft Release 前需要人工检查产物命名、版本号、平台覆盖和 release notes。自动更新检测读取 `Anionex/banana-slides` 的最新 GitHub Release，并结合 `build-meta.json` 中的提交时间判断是否提示更新。
+
+## 签名与分发限制
+
+当前配置可以生成安装包，但不等于已完成正式签名分发。
+
+- Windows：未签名安装包可能触发 SmartScreen 或“未知发布者”提示。正式分发前应使用代码签名证书签名安装包和可执行文件。
+- macOS：未完成 Apple Developer ID 签名和 notarization 的 DMG / App 可能被 Gatekeeper 阻止。正式分发前应接入签名、notarization 和 stapling。
+- 自动更新：当前实现是检查 GitHub Releases 并提示下载新版本，不是静默增量更新。
+- 架构限制：当前 macOS 配置为 arm64，Windows 配置为 x64；如需 Intel Mac 或 Windows arm64，需要补充 electron-builder target。
+
+<Warning>
+  不要为了跳过系统安全提示而关闭用户机器的全局安全策略。验收未签名包时，只按 Windows/macOS 对单个应用提供的手动允许流程处理。
+</Warning>
+
+## Windows EXE 验证
+
+Windows 验证至少覆盖：
+
+1. 使用 GitHub Actions Windows runner 或本机 Windows 环境生成 `BananaSlides-<version>-Setup.exe`。
+2. 安装包可打开，安装路径可选择，桌面/开始菜单快捷方式按配置创建。
+3. 启动应用后能看到桌面窗口和启动页，内置后端正常启动。
+4. 在应用内打开「设置」，保存一组模型配置后刷新仍能回显。
+5. 创建一个项目，执行一次预览页导出或下载动作，确认桌面下载路径可用。
+6. 退出应用后确认后端进程随桌面应用关闭。
+
+如使用 CI 作为 Windows 打包验证，需要在 PR 或 release 记录中附上成功的 workflow run 链接和产物名称。
+
+## macOS DMG 验证
+
+macOS 验证至少覆盖：
+
+1. 在 macOS runner 或本机执行 `npm run build:mac`，生成 `BananaSlides-<version>.dmg`。
+2. 挂载 DMG 后应用图标和名称正确，可拖入 Applications。
+3. 从 Applications 启动应用；若系统提示未验证开发者，仅按单应用允许流程继续。
+4. 桌面窗口加载完成后，内置后端 `/health` 正常，前端请求使用桌面端实际后端端口。
+5. 图片 URL、长任务轮询或 SSE、导出/下载路径至少验证一个真实工作流。
+6. 关闭窗口并退出应用后，确认无残留的打包后端进程。
+
+## 常见问题
+
+### 启动后提示后端不可用
+
+先确认安装包内包含 `desktop/backend/` 资源，以及系统没有安全软件阻止内置后端进程启动。开发或打包验证时也要确认 PyInstaller 已生成 `backend/dist/banana-backend/`。
+
+### 打包时提示找不到 frontend 或 backend 资源
+
+先分别完成 `frontend/dist/` 和 `backend/dist/banana-backend/` 构建，再进入 `desktop/` 运行 `npm run build:*`。
+
+### macOS 打包时找不到 FFmpeg
+
+安装 FFmpeg，或设置：
+
+```bash
+export FFMPEG_BIN=/absolute/path/to/ffmpeg
+export FFPROBE_BIN=/absolute/path/to/ffprobe
+```
+
+然后重新运行 `npm run build:mac`。

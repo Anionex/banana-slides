@@ -116,6 +116,24 @@ def test_switch_multi_to_single_with_existing_asset_overwrites_pages(
         assert p.template_selection_source == 'batch_apply'
 
 
+def test_switch_multi_to_single_coerces_non_string_style_text(
+        client, stub_submit_task):
+    from models import Page
+
+    project_id = _make_project(client)
+    page_ids = _make_pages(client, project_id, n=2)
+    client.patch(f'/api/projects/{project_id}/template-mode', json={'mode': 'multi'})
+
+    resp = client.patch(
+        f'/api/projects/{project_id}/template-mode',
+        json={'mode': 'single', 'unified_style_text': 12345},
+    )
+
+    assert resp.status_code == 200
+    pages = Page.query.filter(Page.id.in_(page_ids)).all()
+    assert {p.template_style_text for p in pages} == {'12345'}
+
+
 def test_switch_multi_to_single_requires_unifier(client, stub_submit_task):
     project_id = _make_project(client)
     resp = client.patch(

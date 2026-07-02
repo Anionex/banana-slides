@@ -6,6 +6,7 @@ Create Date: 2026-04-24
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 revision = '016_user_style_templates'
 down_revision = 'c153f8c4e111'
@@ -13,7 +14,16 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(table_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return inspector.has_table(table_name)
+
+
 def upgrade():
+    if _table_exists('user_style_templates'):
+        return
+
     op.create_table(
         'user_style_templates',
         sa.Column('id', sa.String(36), primary_key=True),
@@ -26,4 +36,5 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table('user_style_templates')
+    if _table_exists('user_style_templates'):
+        op.drop_table('user_style_templates')

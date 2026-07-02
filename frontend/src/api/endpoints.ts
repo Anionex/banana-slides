@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, getBaseURL } from './client';
 import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material, TemplateAsset } from '@/types';
 import type { Settings } from '../types/index';
 
@@ -157,7 +157,7 @@ export const generateOutlineStream = async (
   const lang = language || await getStoredOutputLanguage();
   const accessCode = localStorage.getItem('banana-access-code');
 
-  const response = await fetch(`/api/projects/${projectId}/generate/outline/stream`, {
+  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/outline/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -270,7 +270,7 @@ export const generateDescriptionsStream = async (
   const lang = language || await getStoredOutputLanguage();
   const accessCode = localStorage.getItem('banana-access-code');
 
-  const response = await fetch(`/api/projects/${projectId}/generate/descriptions/stream`, {
+  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/descriptions/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -760,6 +760,19 @@ export const listExports = async (
   download_url: string;
 }> }>> => {
   const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+/**
+ * 删除项目已导出的文件
+ */
+export const deleteExport = async (
+  projectId: string,
+  filename: string,
+): Promise<ApiResponse<{ filename: string }>> => {
+  const response = await apiClient.delete(
+    `/api/projects/${projectId}/exports/${encodeURIComponent(filename)}`
+  );
   return response.data;
 };
 

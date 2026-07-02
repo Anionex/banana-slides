@@ -8,7 +8,8 @@ from sqlalchemy import engine_from_config, pool
 # Add the backend directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app import create_app
+os.environ['BANANA_SKIP_AUTO_MIGRATE'] = '1'
+
 from models import db
 
 # this is the Alembic Config object, which provides
@@ -17,16 +18,19 @@ config = context.config
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # target_metadata is used for autogenerate support.
 target_metadata = db.metadata
 
 
 def get_url() -> str:
-    """Get database URL from Flask application config."""
-    app = create_app()
-    return app.config["SQLALCHEMY_DATABASE_URI"]
+    """Get database URL from Alembic config or environment."""
+    return (
+        config.get_main_option("sqlalchemy.url")
+        or os.getenv("DATABASE_URL")
+        or "sqlite:///instance/database.db"
+    )
 
 
 def run_migrations_offline() -> None:
@@ -45,9 +49,8 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    app = create_app()
     connectable = engine_from_config(
-        {"sqlalchemy.url": app.config["SQLALCHEMY_DATABASE_URI"]},
+        {"sqlalchemy.url": get_url()},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
@@ -67,6 +70,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
-
-

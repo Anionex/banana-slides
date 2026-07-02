@@ -15,7 +15,7 @@
         "groups": [
           {
             "group": "快速上手",
-            "pages": ["zh/index", "zh/quickstart", "zh/configuration"]
+            "pages": ["zh/index", "zh/quickstart", "zh/configuration", "zh/features/desktop"]
           },
           {
             "group": "创作流程",
@@ -54,7 +54,7 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index", "quickstart", "configuration"]
+            "pages": ["index", "quickstart", "configuration", "features/desktop"]
           },
           {
             "group": "Creation Flow",

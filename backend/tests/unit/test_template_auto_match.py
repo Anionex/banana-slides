@@ -285,3 +285,34 @@ def test_auto_match_endpoint_missing_descriptions_400(client, stub_submit_task):
     assert resp.status_code == 400
     err = resp.get_json()['error']
     assert err['code'] == 'MISSING_DESCRIPTIONS'
+
+
+def test_auto_match_endpoint_marks_task_failed_when_submit_fails(
+        client, monkeypatch, app, stub_submit_task):
+    from models import Task
+    from services import task_manager as tm
+
+    project_id = _make_project(client)
+    _upload_asset(client, project_id)
+    _mark_assets_completed(app, project_id)
+    _make_pages_with_descriptions(app, project_id, n=1)
+
+    def _fail_submit(*args, **kwargs):
+        raise RuntimeError('auto-match queue full')
+
+    monkeypatch.setattr(tm.task_manager, 'submit_task', _fail_submit)
+
+    with pytest.raises(RuntimeError, match='auto-match queue full'):
+        client.post(
+            f'/api/projects/{project_id}/template-assets/auto-match',
+            json={'overwrite_existing': True, 'preserve_non_empty': False},
+        )
+
+    with app.app_context():
+        task = Task.query.filter_by(
+            project_id=project_id,
+            task_type='AUTO_MATCH_TEMPLATES',
+        ).one()
+        assert task.status == 'FAILED'
+        assert 'Task submission failed: auto-match queue full' in task.error_message
+        assert task.completed_at is not None

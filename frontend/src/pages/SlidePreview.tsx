@@ -25,7 +25,7 @@ const previewI18n = {
       regionCropFailed: "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。"
     },
     preview: {
-      title: "预览", pageCount: "共 {{count}} 页", export: "导出",
+      title: "预览", pageCount: "共 {{count}} 页", export: "导出", exportTasks: "导出任务",
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportVideo: "导出为讲解视频",
@@ -69,6 +69,7 @@ const previewI18n = {
       videoEnableKenBurns: "启用画面动效",
       videoKenBurnsTip: "为每页幻灯片添加缓慢的缩放或平移动画，让视频画面更有节奏感",
       videoIncludeNoImage: "包含未配图页面（生成占位帧）",
+      videoMissingImagesWarning: "本次导出范围还有 {{count}} 页未生成图片。勾选“包含未配图页面”才会用占位帧导出，否则请先生成图片。",
       videoStartExport: "开始导出",
       videoCancel: "取消",
       editablePptxDialogTitle: "导出可编辑 PPTX",
@@ -116,7 +117,7 @@ const previewI18n = {
       confirmRegenerateAll: "将重新生成所有页面（历史记录将会保存），确定继续吗？",
       confirmRegenerateTitle: "确认重新生成",
       generationFailed: "生成失败",
-      disabledExportTip: "还有 {{count}} 页未生成图片，请先生成所有页面图片",
+      disabledExportTip: "本次导出范围还有 {{count}} 页未生成图片，请先生成图片或调整选择范围",
       messages: {
         exportSuccess: "导出成功", exportFailed: "导出失败",
         regenerateSuccess: "重新生成完成", regenerateFailed: "重新生成失败",
@@ -148,7 +149,7 @@ const previewI18n = {
       regionCropFailed: "Cannot crop from current image (browser security restriction). Try uploading a reference image manually."
     },
     preview: {
-      title: "Preview", pageCount: "{{count}} pages", export: "Export",
+      title: "Preview", pageCount: "{{count}} pages", export: "Export", exportTasks: "Export Tasks",
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportVideo: "Export as Narration Video",
@@ -192,6 +193,7 @@ const previewI18n = {
       videoEnableKenBurns: "Enable camera motion",
       videoKenBurnsTip: "Adds slow zoom or pan animation to each slide for a more dynamic video",
       videoIncludeNoImage: "Include pages without images (placeholder frames)",
+      videoMissingImagesWarning: "{{count}} page(s) in this export range still have no images. Enable \"Include pages without images\" to export placeholder frames, or generate images first.",
       videoStartExport: "Start Export",
       videoCancel: "Cancel",
       editablePptxDialogTitle: "Export Editable PPTX",
@@ -239,7 +241,7 @@ const previewI18n = {
       confirmRegenerateAll: "Will regenerate all pages (history will be saved). Continue?",
       confirmRegenerateTitle: "Confirm Regenerate",
       generationFailed: "Generation failed",
-      disabledExportTip: "{{count}} page(s) have no images yet. Please generate all page images first",
+      disabledExportTip: "{{count}} page(s) in this export range have no images yet. Generate images first or adjust the selection",
       messages: {
         exportSuccess: "Export successful", exportFailed: "Export failed",
         regenerateSuccess: "Regeneration complete", regenerateFailed: "Failed to regenerate",
@@ -285,6 +287,7 @@ import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorMod
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
+import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -1243,7 +1246,7 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          triggerDownload(downloadUrl);
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling
@@ -1570,10 +1573,17 @@ export const SlidePreview: React.FC = () => {
     ? getImageUrl(selectedPage.generated_image_path, selectedPage.updated_at)
     : '';
 
-  const hasAllImages = currentProject.pages.every(
-    (p) => p.generated_image_path
-  );
-  const missingImageCount = currentProject.pages.filter(p => !p.generated_image_path).length;
+  const exportRangePages = isMultiSelectMode && selectedPageIds.size > 0
+    ? currentProject.pages.filter((page) => {
+        const pageId = page.id || page.page_id;
+        return pageId ? selectedPageIds.has(pageId) : false;
+      })
+    : currentProject.pages;
+  const exportMissingImageCount = exportRangePages.filter(p => !p.generated_image_path).length;
+  const exportRangeHasAllImages = exportRangePages.length > 0 && exportMissingImageCount === 0;
+  const exportRangeMissingTip = exportMissingImageCount > 0
+    ? t('preview.disabledExportTip', { count: exportMissingImageCount })
+    : undefined;
   const isEnglishUi = i18n.language?.startsWith('en');
   const getNarrationOptionLabel = (options: Array<{ value: string; zh: string; en: string }>, value: string) => {
     const match = options.find(item => item.value === value);
@@ -1701,6 +1711,8 @@ export const SlidePreview: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
+                title={t('preview.exportTasks')}
+                aria-label={t('preview.exportTasks')}
                 onClick={() => {
                   setShowExportTasksPanel(!showExportTasksPanel);
                   setShowExportMenu(false);
@@ -1739,7 +1751,7 @@ export const SlidePreview: React.FC = () => {
                 setShowExportTasksPanel(false);
               }}
               disabled={isMultiSelectMode && selectedPageIds.size === 0}
-              title={!isMultiSelectMode && !hasAllImages ? t('preview.disabledExportTip', { count: missingImageCount }) : undefined}
+              title={exportRangeMissingTip}
               className="text-xs md:text-sm"
             >
               <span className="hidden sm:inline">
@@ -1765,7 +1777,8 @@ export const SlidePreview: React.FC = () => {
                     setShowExportMenu(false);
                     setShowPptxExportDialog(true);
                   }}
-                  disabled={!hasAllImages}
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportPptx')}
@@ -1776,21 +1789,24 @@ export const SlidePreview: React.FC = () => {
                     setEditablePptxDialogIconTransparent(currentProject?.enable_icon_subject_extraction ?? true);
                     setShowEditablePptxDialog(true);
                   }}
-                  disabled={!hasAllImages}
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportEditablePptx')}
                 </button>
                 <button
                   onClick={() => handleExport('pdf')}
-                  disabled={!hasAllImages}
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportPdf')}
                 </button>
                 <button
                   onClick={() => handleExport('images')}
-                  disabled={!hasAllImages}
+                  disabled={!exportRangeHasAllImages}
+                  title={exportRangeMissingTip}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('preview.exportImages')}
@@ -1815,11 +1831,12 @@ export const SlidePreview: React.FC = () => {
                         }
                         setElevenLabsVoicesLoading(false);
                       }
-                    } catch (error) {
-                      console.error('Failed to load settings before video export:', error);
-                    }
-                    setShowVideoExportDialog(true);
-                  }}
+                  } catch (error) {
+                    console.error('Failed to load settings before video export:', error);
+                  }
+                  setVideoIncludeNoImage(false);
+                  setShowVideoExportDialog(true);
+                }}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
                 >
                   {t('preview.exportVideo')}
@@ -2159,6 +2176,11 @@ export const SlidePreview: React.FC = () => {
                   />
                   <span className="text-sm">{t('preview.videoIncludeNoImage')}</span>
                 </label>
+                {!exportRangeHasAllImages && (
+                  <div className="rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    {t('preview.videoMissingImagesWarning', { count: exportMissingImageCount })}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
@@ -2170,7 +2192,9 @@ export const SlidePreview: React.FC = () => {
               </button>
               <button
                 onClick={() => { setShowVideoExportDialog(false); handleExport('video'); }}
-                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
+                disabled={!exportRangeHasAllImages && !videoIncludeNoImage}
+                title={!exportRangeHasAllImages && !videoIncludeNoImage ? exportRangeMissingTip : undefined}
+                className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {t('preview.videoStartExport')}
               </button>
