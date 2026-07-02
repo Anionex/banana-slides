@@ -26,6 +26,15 @@ function isMachO(filePath) {
   }
 }
 
+function isFrameworkRootBinary(filePath) {
+  const parent = path.dirname(filePath);
+  if (!parent.endsWith('.framework')) {
+    return false;
+  }
+  const frameworkName = path.basename(parent, '.framework');
+  return path.basename(filePath) === frameworkName;
+}
+
 function codesign(targetPath) {
   execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', targetPath], {
     stdio: 'inherit',
@@ -64,7 +73,7 @@ exports.default = async function adhocSignMacos(context) {
       nestedBundles.push(entryPath);
       return;
     }
-    if (entry.isFile() && isMachO(entryPath)) {
+    if (entry.isFile() && !isFrameworkRootBinary(entryPath) && isMachO(entryPath)) {
       machOFiles.push(entryPath);
     }
   });

@@ -63,13 +63,23 @@ $candidateRoots = @(
   "${env:ProgramFiles(x86)}\Banana Slides"
 ) | Where-Object { $_ -and (Test-Path $_) }
 
-$appExe = $null
-foreach ($root in ($candidateRoots + "$env:LOCALAPPDATA\Programs")) {
-  if (Test-Path $root) {
-    $appExe = Get-ChildItem -Path $root -Recurse -Filter "Banana Slides.exe" -ErrorAction SilentlyContinue |
-      Select-Object -First 1
-    if ($appExe) { break }
+function Find-InstalledApp {
+  foreach ($root in ($candidateRoots + "$env:LOCALAPPDATA\Programs")) {
+    if (Test-Path $root) {
+      $found = Get-ChildItem -Path $root -Recurse -Filter "Banana Slides.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+      if ($found) { return $found }
+    }
   }
+  return $null
+}
+
+$appExe = $null
+$searchDeadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt $searchDeadline) {
+  $appExe = Find-InstalledApp
+  if ($appExe) { break }
+  Start-Sleep -Seconds 2
 }
 
 if (!$appExe) {
