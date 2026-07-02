@@ -489,6 +489,10 @@ export const OutlineEditor: React.FC = () => {
     }
   }, [currentProject, projectId, syncProject, show, t]);
 
+  const getImportPreviewCount = useCallback((markdown: string) => (
+    parseMarkdownPages(markdown).length
+  ), []);
+
 
   if (!currentProject) {
     return <Loading fullscreen message={t('outline.messages.loadingProject')} />;
@@ -886,7 +890,7 @@ export const OutlineEditor: React.FC = () => {
         uploadLabel={t('outline.importUploadLabel')}
         uploadHint={t('outline.importUploadHint')}
         uploadFormatsHint={t('outline.importUploadFormatsHint')}
-        getPreviewCount={(markdown) => parseMarkdownPages(markdown).length}
+        getPreviewCount={getImportPreviewCount}
         previewReadyLabel={(count) => t('outline.importPreviewReady', { count })}
         previewEmptyLabel={t('outline.importPreviewEmpty')}
         importButtonLabel={t('outline.importConfirm')}

@@ -577,6 +577,10 @@ export const DetailEditor: React.FC = () => {
     }
   }, [currentProject, projectId, syncProject, show, t]);
 
+  const getImportPreviewCount = useCallback((markdown: string) => (
+    parseMarkdownPages(markdown).length
+  ), []);
+
   if (!currentProject) {
     return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
   }
@@ -1016,7 +1020,7 @@ export const DetailEditor: React.FC = () => {
         uploadLabel={t('detail.importUploadLabel')}
         uploadHint={t('detail.importUploadHint')}
         uploadFormatsHint={t('detail.importUploadFormatsHint')}
-        getPreviewCount={(markdown) => parseMarkdownPages(markdown).length}
+        getPreviewCount={getImportPreviewCount}
         previewReadyLabel={(count) => t('detail.importPreviewReady', { count })}
         previewEmptyLabel={t('detail.importPreviewEmpty')}
         importButtonLabel={t('detail.importConfirm')}
