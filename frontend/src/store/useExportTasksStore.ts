@@ -26,6 +26,7 @@ const exportI18n = {
 const t = getT(exportI18n);
 const EXPORT_POLL_INTERVAL_MS = 2000;
 const MAX_TRANSIENT_POLL_ERRORS = 6;
+const activePolls = new Set<string>();
 
 const isTransientPollingError = (error: any): boolean => {
   const status = error?.response?.status;
@@ -159,11 +160,16 @@ export const useExportTasksStore = create<ExportTasksState>()(
       },
 
       pollTask: async (id, projectId, taskId) => {
+        if (activePolls.has(id)) {
+          return;
+        }
+        activePolls.add(id);
         let consecutivePollErrors = 0;
 
         const poll = async () => {
           if (!hasTask(get().tasks, id)) {
             unusableTaskResponseCounts.delete(id);
+            activePolls.delete(id);
             return;
           }
 
@@ -174,6 +180,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
 
             if (!hasTask(get().tasks, id)) {
               unusableTaskResponseCounts.delete(id);
+              activePolls.delete(id);
               return;
             }
 
@@ -190,6 +197,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
 
               console.warn('[ExportTasksStore] No usable task data in response after retries');
               unusableTaskResponseCounts.delete(id);
+              activePolls.delete(id);
               get().updateTask(id, {
                 status: 'FAILED',
                 errorMessage: t('exportStore.staleTask'),
@@ -227,6 +235,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
 
             if (task.status === 'COMPLETED') {
               updates.completedAt = new Date().toISOString();
+              activePolls.delete(id);
               get().updateTask(id, updates);
             } else if (task.status === 'FAILED') {
               const taskErrorMessage = task.error_message
@@ -234,6 +243,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
                 || t('exportStore.exportFailed');
               updates.errorMessage = normalizeErrorMessage(taskErrorMessage);
               updates.completedAt = new Date().toISOString();
+              activePolls.delete(id);
               get().updateTask(id, updates);
             } else if (task.status === 'PENDING' || task.status === 'RUNNING' || task.status === 'PROCESSING') {
               get().updateTask(id, updates);
@@ -267,6 +277,7 @@ export const useExportTasksStore = create<ExportTasksState>()(
               return;
             }
 
+            activePolls.delete(id);
             get().updateTask(id, {
               status: 'FAILED',
               errorMessage: normalizeErrorMessage(error.message || t('exportStore.pollFailed')),

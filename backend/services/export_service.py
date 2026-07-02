@@ -1098,7 +1098,8 @@ class ExportService:
             expected_element_ids = {
                 element['element_id'] for element in page_data['elements']
             }
-            last_results = {}
+            best_results = {}
+            had_model_response = False
             last_exception = None
 
             for attempt in range(1, max_global_attempts + 1):
@@ -1108,6 +1109,7 @@ class ExportService:
                         text_elements=page_data['elements']
                     )
                     results = raw_results if isinstance(raw_results, dict) else {}
+                    had_model_response = True
                     missing_element_ids = expected_element_ids - set(results.keys())
 
                     logger.info(
@@ -1123,7 +1125,8 @@ class ExportService:
                     if not missing_element_ids:
                         return page_idx, results, None
 
-                    last_results = results
+                    if len(results) > len(best_results):
+                        best_results = results
                     last_exception = None
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次返回不完整，将重试: missing_sample=%s",
@@ -1133,7 +1136,6 @@ class ExportService:
                         list(missing_element_ids)[:5],
                     )
                 except Exception as e:
-                    last_results = {}
                     last_exception = str(e)
                     logger.warning(
                         "全局识别页面 %s 第 %s/%s 次失败，将重试: %s",
@@ -1147,10 +1149,11 @@ class ExportService:
                 "全局识别页面 %s 重试耗尽: expected=%s returned=%s last_error=%s",
                 page_idx + 1,
                 len(expected_element_ids),
-                len(last_results),
+                len(best_results),
                 last_exception or "全局识别未返回完整结果",
             )
-            return page_idx, last_results, last_exception
+            page_error = last_exception if not had_model_response else None
+            return page_idx, best_results, page_error
         
         # 收集失败信息
         failed_extractions = []  # [(element_id, reason), ...]

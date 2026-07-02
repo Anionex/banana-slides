@@ -289,4 +289,45 @@ describe('useExportTasksStore', () => {
 
     expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
   })
+
+  it('does not start duplicate polling loops for the same export task', async () => {
+    let resolveStatus: (value: any) => void = () => {}
+    vi.mocked(api.getTaskStatus).mockReturnValueOnce(new Promise(resolve => {
+      resolveStatus = resolve
+    }) as any)
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'active-editable',
+        taskId: 'task-a',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'PROCESSING',
+      })
+    })
+
+    const firstPoll = useExportTasksStore.getState().pollTask('active-editable', 'project-a', 'task-a')
+
+    await Promise.resolve()
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('active-editable', 'project-a', 'task-a')
+    })
+
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveStatus({
+        data: {
+          status: 'COMPLETED',
+          progress: {
+            download_url: '/files/project-a/exports/demo.pptx',
+          },
+        },
+      })
+      await firstPoll
+    })
+
+    expect(useExportTasksStore.getState().tasks[0].status).toBe('COMPLETED')
+  })
 })

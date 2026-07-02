@@ -59,6 +59,16 @@ class PartialGlobalExtractor:
         return TextStyleResult(font_color_rgb=(255, 0, 0), confidence=0.9)
 
 
+class PartialThenFailGlobalExtractor(PartialGlobalExtractor):
+    def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            return {
+                "text_0": TextStyleResult(is_bold=True, confidence=0.9),
+            }
+        raise RuntimeError("upstream timeout")
+
+
 class EditableImageStub:
     class BBox:
         def __init__(self):
@@ -135,6 +145,23 @@ def test_hybrid_style_extraction_reports_only_missing_global_results(tmp_path):
 
     assert extractor.calls == 3
     assert "text_0" in results
+    assert "text_1" in results
+    assert failures == [("text_1", "全局识别未返回完整结果")]
+
+
+def test_hybrid_style_extraction_preserves_best_partial_global_results_after_later_errors(tmp_path):
+    editable_images = _make_editable_images(tmp_path, ["text_0", "text_1"])
+    extractor = PartialThenFailGlobalExtractor()
+
+    results, failures = ExportService._batch_extract_text_styles_hybrid(
+        editable_images=editable_images,
+        text_attribute_extractor=extractor,
+        max_workers=2,
+        fail_fast=False,
+    )
+
+    assert extractor.calls == 3
+    assert results["text_0"].is_bold is True
     assert "text_1" in results
     assert failures == [("text_1", "全局识别未返回完整结果")]
 
