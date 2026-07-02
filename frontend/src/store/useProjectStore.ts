@@ -1387,8 +1387,14 @@ const debouncedUpdatePage = debounce(
           currentProject: {
             ...currentProject,
             pages: currentProject.pages.map((p) =>
-              p.id === opts.bindToPageId
-                ? { ...p, template_asset_id: asset.id, template_selection_source: 'manual' }
+              (p.id === opts.bindToPageId || p.page_id === opts.bindToPageId)
+                ? {
+                    ...p,
+                    template_asset_id: asset.id,
+                    template_selection_source: 'manual',
+                    template_match_reason: null,
+                    template_match_confidence: null,
+                  }
                 : p
             ),
           },

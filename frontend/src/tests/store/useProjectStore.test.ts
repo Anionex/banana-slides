@@ -21,10 +21,11 @@ vi.mock('@/api/endpoints', () => ({
   getTaskStatus: vi.fn(),
   exportPPTX: vi.fn(),
   exportPDF: vi.fn(),
+  uploadTemplateAsset: vi.fn(),
   deleteTemplateAsset: vi.fn(),
 }))
 
-import { deleteTemplateAsset } from '@/api/endpoints'
+import { deleteTemplateAsset, uploadTemplateAsset } from '@/api/endpoints'
 
 describe('useProjectStore', () => {
   beforeEach(() => {
@@ -131,6 +132,44 @@ describe('useProjectStore', () => {
   })
 
   describe('模板资产删除', () => {
+    it('should bind uploaded template by page_id and clear stale match metadata', async () => {
+      vi.mocked(uploadTemplateAsset).mockResolvedValue({
+        data: {
+          asset: { id: 'asset-1', project_id: 'proj-123', image_path: 'a.png' },
+          analyze_task_id: null,
+        },
+      } as any)
+      const { result } = renderHook(() => useProjectStore())
+
+      act(() => {
+        result.current.setCurrentProject({
+          id: 'proj-123',
+          status: 'DRAFT',
+          pages: [{
+            page_id: 'page-1',
+            template_asset_id: 'old-asset',
+            template_selection_source: 'auto_match',
+            template_match_reason: 'stale',
+            template_match_confidence: 0.91,
+          }],
+        } as any)
+      })
+
+      await act(async () => {
+        await result.current.uploadTemplateAsset(
+          'proj-123',
+          new File(['x'], 'a.png', { type: 'image/png' }),
+          { bindToPageId: 'page-1' }
+        )
+      })
+
+      const page = result.current.currentProject?.pages[0]
+      expect(page?.template_asset_id).toBe('asset-1')
+      expect(page?.template_selection_source).toBe('manual')
+      expect(page?.template_match_reason).toBeNull()
+      expect(page?.template_match_confidence).toBeNull()
+    })
+
     it('should clear optimistic template match metadata for affected pages', async () => {
       vi.mocked(deleteTemplateAsset).mockResolvedValue({
         data: { cleared_page_ids: ['page-1'] },

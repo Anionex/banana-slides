@@ -226,6 +226,32 @@ def test_patch_page_template_clears_match_metadata_on_manual(client, stub_submit
     assert page.template_selection_source == 'manual'
 
 
+def test_patch_page_template_clears_metadata_when_empty(client, stub_submit_task):
+    from models import db, Page
+    project_id = _make_project(client)
+    asset_id = _upload_asset(client, project_id)
+    page_id = _make_pages(client, project_id, n=1)[0]
+
+    page = Page.query.get(page_id)
+    page.template_asset_id = asset_id
+    page.template_match_reason = 'auto reasoning'
+    page.template_match_confidence = 0.92
+    page.template_selection_source = 'auto'
+    db.session.commit()
+
+    resp = client.patch(
+        f'/api/projects/{project_id}/pages/{page_id}/template',
+        json={'template_asset_id': None, 'template_style_text': None},
+    )
+    assert resp.status_code == 200
+    page = Page.query.get(page_id)
+    assert page.template_asset_id is None
+    assert page.template_style_text is None
+    assert page.template_selection_source is None
+    assert page.template_match_reason is None
+    assert page.template_match_confidence is None
+
+
 def test_auto_match_requires_descriptions(client, stub_submit_task):
     project_id = _make_project(client)
     _make_pages(client, project_id, n=2)

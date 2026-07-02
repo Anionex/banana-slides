@@ -186,6 +186,8 @@ def upload_template_asset(project_id: str):
     if bind_to_page:
         page.template_asset_id = asset_id
         page.template_selection_source = 'manual'
+        page.template_match_reason = None
+        page.template_match_confidence = None
 
     db.session.commit()
 
@@ -396,17 +398,22 @@ def patch_page_template(project_id: str, page_id: str):
         text = data['template_style_text']
         page.template_style_text = (text or None)
 
-    selection_source = data.get('selection_source', 'manual')
-    if selection_source not in VALID_SELECTION_SOURCES:
-        return bad_request(
-            f"selection_source must be one of {sorted(VALID_SELECTION_SOURCES)}"
-        )
-    page.template_selection_source = selection_source
-
-    # Manual selection invalidates auto-match metadata
-    if selection_source == 'manual':
+    if page.template_asset_id is None and page.template_style_text is None:
+        page.template_selection_source = None
         page.template_match_reason = None
         page.template_match_confidence = None
+    else:
+        selection_source = data.get('selection_source', 'manual')
+        if selection_source not in VALID_SELECTION_SOURCES:
+            return bad_request(
+                f"selection_source must be one of {sorted(VALID_SELECTION_SOURCES)}"
+            )
+        page.template_selection_source = selection_source
+
+        # Manual selection invalidates auto-match metadata
+        if selection_source == 'manual':
+            page.template_match_reason = None
+            page.template_match_confidence = None
 
     page.updated_at = datetime.utcnow()
     db.session.commit()
