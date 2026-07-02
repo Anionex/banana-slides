@@ -1,3 +1,4 @@
+[//]: # "Banana Slides is an AI-native PPT generation app for creating editable presentations from ideas, outlines, documents, images, and custom templates. Features: prompt-to-slide generation, template control, material parsing, conversational editing, PPTX export, project history, and reproducible workflows. Quick Start / Install / Usage / Demo / API / Deploy / Architecture / Test / Screenshot guides are provided for local Docker deployment and online use."
 <div align="center">
 
 <p>
@@ -116,6 +117,7 @@
 - **一句话生成**：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述。
 - **自然语言编辑**：支持以 Vibe 形式口头修改大纲或描述（如"把第三页改成案例分析"），AI 实时响应调整。
 - **大纲/描述模式**：既可一键批量生成，也可手动调整细节。
+- **Markdown 导入更确定**：导入弹窗会在执行前预览可识别页数，避免格式不对时误以为已经追加成功。
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
@@ -139,7 +141,8 @@
 ### 4. 开箱即用的格式导出
 - **多格式支持**：一键导出标准 **PPTX** 或 **PDF** 文件。
 - **播放设置**：导出 PPTX 前可开启页面切换动画，支持淡入淡出、翻页、平移、擦除、分割、百叶窗、棋盘、时钟等经典效果并可多选随机应用。
-- **导出文件管理**：预览页会列出服务器端已导出的文件，可直接下载或删除不再需要的文件；导出任务历史按项目隔离清除，避免误删其他项目记录。
+- **导出文件管理**：预览页会列出服务器端已导出的文件，可直接下载或删除不再需要的文件；导出任务历史按项目隔离清除，避免误删其他项目记录。刷新后若后端任务已不可用，任务面板会明确显示失败并提示重新导出。
+- **选页导出更清晰**：原有选页导出会按当前选择范围提示缺图状态，未选中的草稿页不会让已选完成页的导出入口变灰；讲解视频需明确勾选占位帧选项才会包含未配图页面。
 - **完美适配**：默认 16:9 比例，排版无需二次调整，直接演示。
 
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
@@ -387,56 +390,6 @@ docker compose up -d
 ```
 
 **注：感谢优秀开发者朋友 [@ShellMonster](https://github.com/ShellMonster/) 提供了[新人部署教程](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md)，专为没有任何服务器部署经验的新手设计，可[点击链接](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md)查看。**
-
-### 桌面版安装与本地打包
-
-桌面版基于 Electron + PyInstaller 打包，会在本机启动内置后端，适合不想手动运行 Docker 或源码服务的用户。完整说明见[桌面版文档](https://docs.bananaslides.online/zh/features/desktop)。
-
-**安装已发布版本**
-
-1. 前往 [GitHub Releases](https://github.com/Anionex/banana-slides/releases) 下载对应系统的安装包。
-2. Windows 使用 `BananaSlides-<version>-Setup.exe` 安装；macOS 使用 `BananaSlides-<version>.dmg`，打开后将应用拖入 Applications。
-3. 首次启动后进入「设置」填写模型服务配置；本地数据库、上传文件和导出文件会保存在用户可写目录，不写入安装目录。
-
-<details>
-  <summary>📒 签名与系统安全提示</summary>
-
-当前桌面包未承诺完成商业代码签名或 Apple notarization。Windows 可能出现 SmartScreen 提示；macOS 可能出现“无法验证开发者”提示，需要按系统提示手动允许。正式分发前应补充 Windows 代码签名证书、Apple Developer ID 签名和 notarization。
-
-</details>
-
-**本地打包**
-
-打包前需先生成前端静态文件和 PyInstaller 后端产物；`desktop` 目录的 `prebuild:*` 脚本会复制这些产物并生成构建元数据。
-
-```bash
-# 1. 构建前端
-cd frontend
-npm ci
-npm run build
-
-# 2. 打包后端
-cd ../backend
-uv sync
-uv pip install pyinstaller
-uv run pyinstaller banana-slides.spec --noconfirm
-
-# 3. 打包桌面应用
-cd ../desktop
-npm ci
-npm run build:mac   # macOS arm64 DMG
-npm run build:win   # Windows x64 NSIS Setup
-```
-
-macOS/Linux 打包默认使用 `desktop` npm 依赖提供的平台 FFmpeg/FFprobe 二进制；也可以通过 `FFMPEG_BIN` / `FFPROBE_BIN` 指向可信本地二进制，或在 `PATH` 中提供兜底命令。Windows 打包默认下载固定版本的静态 FFmpeg 并校验 SHA256，也可以通过 `FFMPEG_BIN` / `FFPROBE_BIN` 指向可信本地二进制。
-
-**Release flow**
-
-推送 `v*` tag 会触发 `.github/workflows/release-desktop.yml`，在 Windows、macOS、Linux runner 上构建桌面产物，并上传到 GitHub draft Release。发布前需要至少验证：
-
-- Windows：安装 `BananaSlides-<version>-Setup.exe` 后可启动应用，并能创建项目、访问设置、执行一次导出或下载路径。
-- macOS：挂载 `BananaSlides-<version>.dmg`，拖入 Applications 后可启动应用，内置后端 `/health` 正常，桌面模式请求能命中实际后端端口。
-- 更新检测：桌面端「检查更新」只提示比当前构建更新的 GitHub Release，不应把旧 release 误报为更新。
 
 ### 从源码部署
 
