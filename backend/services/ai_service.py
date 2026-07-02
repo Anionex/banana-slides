@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 def _describe_json_response_text(text: str) -> str:
     """Return a compact, non-secret hint about an AI response that failed JSON parsing."""
-    stripped = (text or "").strip()
+    stripped = str(text or "").strip()
     if not stripped:
         return "empty"
     if stripped.startswith("!["):

@@ -24,6 +24,12 @@ class EmptyGlobalExtractor:
         return TextStyleResult(font_color_rgb=(255, 0, 0), confidence=0.9)
 
 
+class NullResultGlobalExtractor(EmptyGlobalExtractor):
+    def extract_batch_with_full_image(self, full_image, text_elements, **kwargs):
+        self.calls += 1
+        return {"text_0": None}
+
+
 class FlakyGlobalExtractor:
     def __init__(self):
         self.calls = 0
@@ -148,6 +154,22 @@ def test_hybrid_style_extraction_reports_missing_global_results_when_not_fail_fa
         fail_fast=False,
     )
 
+    assert "text_0" in results
+    assert failures == [("text_0", "全局识别未返回完整结果")]
+
+
+def test_hybrid_style_extraction_filters_null_global_results(tmp_path):
+    editable_images = _make_editable_images(tmp_path)
+    extractor = NullResultGlobalExtractor()
+
+    results, failures = ExportService._batch_extract_text_styles_hybrid(
+        editable_images=editable_images,
+        text_attribute_extractor=extractor,
+        max_workers=2,
+        fail_fast=False,
+    )
+
+    assert extractor.calls == 3
     assert "text_0" in results
     assert failures == [("text_0", "全局识别未返回完整结果")]
 

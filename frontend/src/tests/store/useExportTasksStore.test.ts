@@ -291,6 +291,24 @@ describe('useExportTasksStore', () => {
     expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
   })
 
+  it('does not poll tasks that are already completed', async () => {
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'completed-export',
+        taskId: 'task-a',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'COMPLETED',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('completed-export', 'project-a', 'task-a')
+    })
+
+    expect(api.getTaskStatus).not.toHaveBeenCalled()
+  })
+
   it('does not start duplicate polling loops for the same export task', async () => {
     let resolveStatus: (value: any) => void = () => {}
     vi.mocked(api.getTaskStatus).mockReturnValueOnce(new Promise(resolve => {

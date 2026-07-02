@@ -1108,7 +1108,10 @@ class ExportService:
                         full_image=page_data['image_path'],
                         text_elements=page_data['elements']
                     )
-                    results = raw_results if isinstance(raw_results, dict) else {}
+                    results = {
+                        key: value for key, value in raw_results.items()
+                        if value is not None
+                    } if isinstance(raw_results, dict) else {}
                     had_model_response = True
                     best_results.update(results)
                     missing_element_ids = expected_element_ids - set(best_results.keys())

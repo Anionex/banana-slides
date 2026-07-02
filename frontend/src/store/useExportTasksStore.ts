@@ -160,6 +160,10 @@ export const useExportTasksStore = create<ExportTasksState>()(
       },
 
       pollTask: async (id, projectId, taskId) => {
+        const existingTask = get().tasks.find(task => task.id === id);
+        if (!existingTask || existingTask.status === 'COMPLETED' || existingTask.status === 'FAILED') {
+          return;
+        }
         if (activePolls.has(id)) {
           return;
         }
@@ -268,7 +272,9 @@ export const useExportTasksStore = create<ExportTasksState>()(
                 `[ExportTasksStore] Transient poll error ${consecutivePollErrors}/${MAX_TRANSIENT_POLL_ERRORS}; retrying in ${retryDelayMs}ms`
               );
               const currentProgress = (
-                typeof currentTask.progress === 'object' && currentTask.progress
+                currentTask.progress
+                && typeof currentTask.progress === 'object'
+                && !Array.isArray(currentTask.progress)
               )
                 ? currentTask.progress
                 : { total: 100, completed: 0 };
