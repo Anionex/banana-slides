@@ -1625,11 +1625,12 @@ class ExportService:
             logger.info(f"{'  ' * depth}  添加元素: type={elem_type}, bbox={bbox_list}, content={elem.content[:30] if elem.content else None}, image_path={elem.image_path}, 使用{'全局' if depth > 0 else '局部'}坐标")
 
             if text_only and elem_type not in ExportService.EDITABLE_TEXT_ELEMENT_TYPES:
-                if elem.children:
+                children = getattr(elem, 'children', None)
+                if children:
                     ExportService._add_editable_elements_to_slide(
                         builder=builder,
                         slide=slide,
-                        elements=elem.children,
+                        elements=children,
                         scale_x=scale_x,
                         scale_y=scale_y,
                         depth=depth + 1,
