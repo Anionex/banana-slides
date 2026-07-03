@@ -73,6 +73,7 @@ class ImageEditabilityService:
         
         extractors = self._extractor_registry.get_all_extractors()
         inpaint_providers = self._inpaint_registry.get_all_providers()
+        self._has_inpaint_providers = bool(inpaint_providers)
         logger.info(
             f"ImageEditabilityService: {len(extractors)} extractors, "
             f"{len(inpaint_providers)} inpaint providers, "
@@ -162,7 +163,7 @@ class ImageEditabilityService:
         
         # 3. 生成clean background（根据元素类型选择重绘方法）
         clean_background = None
-        if self._inpaint_registry and elements:
+        if self._has_inpaint_providers and elements:
             clean_background = self._generate_clean_background(
                 image_path=image_path,
                 elements=elements,

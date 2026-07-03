@@ -1643,7 +1643,7 @@ class ExportService:
                 continue
 
             # 根据类型添加元素（参考原实现的_add_mineru_text_to_slide和_add_mineru_image_to_slide）
-            if elem_type in ExportService.EDITABLE_TEXT_ELEMENT_TYPES - {'table_cell'}:
+            if elem_type in ExportService.EDITABLE_TEXT_ELEMENT_TYPES and elem_type != 'table_cell':
                 # 添加文本（参考_add_mineru_text_to_slide）
                 if elem.content:
                     text = elem.content.strip()
