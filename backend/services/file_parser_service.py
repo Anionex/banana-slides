@@ -9,6 +9,7 @@ import zipfile
 import io
 import requests
 import tempfile
+from pathlib import Path
 from typing import Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
@@ -58,6 +59,7 @@ class FileParserService:
                  lazyllm_image_caption_source: str = "", 
                  provider_format: str = None,
                  mineru_model_version: str = "vlm",
+                 upload_folder: Optional[str] = None,
                  ):
         """
         Initialize the file parser service
@@ -73,6 +75,7 @@ class FileParserService:
             lazyllm_image_caption_source: image caption model provider for lazyllm
             provider_format: AI provider format ('gemini' or 'openai'). If not provided, reads from environment variable.
             mineru_model_version: MinerU model version ('vlm' or 'pipeline'). Default is 'vlm'.
+            upload_folder: Folder used by the Flask file server for parsed MinerU assets.
         """
         self.mineru_token = mineru_token
         self.mineru_api_base = mineru_api_base
@@ -83,6 +86,11 @@ class FileParserService:
         self._image_caption_model = image_caption_model
         self._provider_format = _get_ai_provider_format(provider_format)
         self._caption_provider = None
+        if upload_folder:
+            self._upload_folder = Path(upload_folder).expanduser().resolve()
+        else:
+            current_file = Path(__file__).resolve()
+            self._upload_folder = current_file.parent.parent.parent / 'uploads'
     
     def _get_caption_provider(self):
         """Lazily initialize caption provider via the provider factory"""
@@ -379,18 +387,8 @@ class FileParserService:
             import uuid
             extract_id = str(uuid.uuid4())[:8]
             
-            # Get upload folder from Flask config (we'll need to pass this)
-            # For now, use a hardcoded path relative to project root
-            import os
-            from pathlib import Path
-            
-            # Navigate to project root (assuming this file is in backend/services/)
-            current_file = Path(__file__).resolve()
-            backend_dir = current_file.parent.parent
-            project_root = backend_dir.parent
-            
             # Create directory for mineru extracts
-            mineru_storage = project_root / 'uploads' / 'mineru_files' / extract_id
+            mineru_storage = self._upload_folder / 'mineru_files' / extract_id
             mineru_storage.mkdir(parents=True, exist_ok=True)
             
             logger.info(f"Extracting ZIP to: {mineru_storage}")
@@ -440,8 +438,7 @@ class FileParserService:
             logger.error(error_msg)
             return None, None, error_msg
     
-    @staticmethod
-    def extract_header_footer_from_layout(extract_id: str) -> str:
+    def extract_header_footer_from_layout(self, extract_id: str) -> str:
         """
         从 MinerU layout.json 的 discarded_blocks 中提取页眉页脚文本。
 
@@ -454,9 +451,7 @@ class FileParserService:
         import json
         from pathlib import Path
 
-        current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent.parent
-        mineru_dir = project_root / 'uploads' / 'mineru_files' / extract_id
+        mineru_dir = self._upload_folder / 'mineru_files' / extract_id
         layout_file = mineru_dir / 'layout.json'
 
         if not layout_file.exists():

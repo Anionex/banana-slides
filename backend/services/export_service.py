@@ -11,6 +11,7 @@ import re
 import tempfile
 import base64
 import hashlib
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -195,6 +196,24 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
 
 class ExportService:
     """Service for exporting presentations"""
+
+    EDITABLE_TEXT_ELEMENT_TYPES = {
+        'text',
+        'title',
+        'list',
+        'paragraph',
+        'header',
+        'footer',
+        'heading',
+        'table_cell',
+        'table_caption',
+        'image_caption',
+        'equation',
+        'interline_equation',
+        'inline_equation',
+    }
+    TEXT_ONLY_BACKGROUND_MAX_ATTEMPTS = 3
+    TEXT_ONLY_BACKGROUND_EXPAND_PIXELS = (2, 6, 10)
 
     PPTX_TRANSITION_EFFECTS = {
         'fade',
@@ -822,6 +841,327 @@ class ExportService:
                 text_items.extend(child_items)
         
         return text_items
+
+    @staticmethod
+    def _bbox_to_list(bbox) -> List[int]:
+        """Convert a BBox-like object to an integer list."""
+        return [
+            int(round(bbox.x0)),
+            int(round(bbox.y0)),
+            int(round(bbox.x1)),
+            int(round(bbox.y1)),
+        ]
+
+    @staticmethod
+    def _collect_text_only_background_targets(elements: List, depth: int = 0) -> List[Dict[str, Any]]:
+        """
+        Collect only the text elements that should be erased from the text-only
+        export background. Non-text containers are traversed but never erased.
+        """
+        targets = []
+
+        for elem in elements:
+            elem_type = getattr(elem, 'element_type', None)
+            bbox = getattr(elem, 'bbox_global', None) if depth > 0 else getattr(elem, 'bbox', None)
+            if depth > 0 and bbox is None:
+                bbox = getattr(elem, 'bbox', None)
+
+            if elem_type in ExportService.EDITABLE_TEXT_ELEMENT_TYPES and bbox is not None:
+                content = (getattr(elem, 'content', None) or '').strip()
+                if content and getattr(bbox, 'area', 0) > 0:
+                    targets.append({
+                        'element_id': getattr(elem, 'element_id', ''),
+                        'element_type': elem_type,
+                        'content': content,
+                        'bbox': ExportService._bbox_to_list(bbox),
+                    })
+
+            children = getattr(elem, 'children', None)
+            if children:
+                targets.extend(
+                    ExportService._collect_text_only_background_targets(
+                        elements=children,
+                        depth=depth + 1
+                    )
+                )
+
+        return targets
+
+    @staticmethod
+    def _create_text_only_verification_image(
+        original_path: str,
+        candidate_path: str,
+        output_path: str
+    ) -> str:
+        """Create a side-by-side image: original on the left, candidate on the right."""
+        with Image.open(original_path) as original_img, Image.open(candidate_path) as candidate_img:
+            with original_img.convert('RGB') as original:
+                candidate_rgb = candidate_img.convert('RGB')
+                try:
+                    candidate = candidate_rgb.resize(original.size)
+                    try:
+                        width, height = original.size
+                        header_h = max(36, int(height * 0.035))
+                        canvas = Image.new('RGB', (width * 2, height + header_h), 'white')
+                        try:
+                            canvas.paste(original, (0, header_h))
+                            canvas.paste(candidate, (width, header_h))
+
+                            try:
+                                from PIL import ImageDraw
+                                draw = ImageDraw.Draw(canvas)
+                                draw.text((12, 10), "LEFT: original", fill=(0, 0, 0))
+                                draw.text((width + 12, 10), "RIGHT: candidate background", fill=(0, 0, 0))
+                            except Exception:
+                                logger.debug("Failed to draw verification labels", exc_info=True)
+
+                            canvas.save(output_path)
+                        finally:
+                            canvas.close()
+                    finally:
+                        candidate.close()
+                finally:
+                    candidate_rgb.close()
+
+        return output_path
+
+    @staticmethod
+    def _parse_text_only_background_verification(
+        result: Any,
+        fallback_missed_count: int
+    ) -> Dict[str, Any]:
+        """Normalize VLM verification output into comparable fields."""
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            result = {}
+
+        missed_texts = result.get('missed_texts') or []
+        unwanted_changes = result.get('unwanted_changes') or []
+        try:
+            missed_count = int(result.get('missed_text_count', len(missed_texts)))
+        except (TypeError, ValueError):
+            missed_count = len(missed_texts) if isinstance(missed_texts, list) else fallback_missed_count
+        try:
+            unwanted_change_count = int(result.get('unwanted_change_count', len(unwanted_changes)))
+        except (TypeError, ValueError):
+            unwanted_change_count = len(unwanted_changes) if isinstance(unwanted_changes, list) else 0
+
+        success = bool(result.get('success')) and missed_count == 0
+        return {
+            'success': success,
+            'missed_text_count': max(0, missed_count),
+            'missed_texts': missed_texts if isinstance(missed_texts, list) else [],
+            'unwanted_change_count': max(0, unwanted_change_count),
+            'unwanted_changes': unwanted_changes if isinstance(unwanted_changes, list) else [],
+            'notes': result.get('notes', ''),
+            'raw': result,
+        }
+
+    @staticmethod
+    def _verify_text_only_background(
+        ai_service,
+        original_path: str,
+        candidate_path: str,
+        text_targets: List[Dict[str, Any]],
+        output_dir: Path,
+        attempt_index: int
+    ) -> Dict[str, Any]:
+        """Ask the caption/VLM provider to verify that target text was erased."""
+        if ai_service is None:
+            raise ValueError("text-only background verification requires an AI service")
+
+        from services.prompts import get_text_only_background_verification_prompt
+
+        comparison_path = output_dir / f"text_only_verify_attempt_{attempt_index}.png"
+        ExportService._create_text_only_verification_image(
+            original_path=original_path,
+            candidate_path=candidate_path,
+            output_path=str(comparison_path)
+        )
+
+        elements_json = json.dumps(text_targets, ensure_ascii=False, indent=2)
+        result = ai_service.generate_json_with_image(
+            prompt=get_text_only_background_verification_prompt(elements_json),
+            image_path=str(comparison_path),
+            thinking_budget=1000
+        )
+        return ExportService._parse_text_only_background_verification(
+            result,
+            fallback_missed_count=len(text_targets)
+        )
+
+    @staticmethod
+    def _generate_text_only_clean_background(
+        editable_img,
+        inpaint_provider,
+        ai_service,
+        warnings: ExportWarnings,
+        verifier=None,
+        max_attempts: Optional[int] = None
+    ) -> Optional[str]:
+        """
+        Generate a background for text-only editable export by erasing only the
+        editable text targets. VLM verifies each candidate; if none fully pass,
+        pick the candidate with the fewest missed text targets.
+        """
+        text_targets = ExportService._collect_text_only_background_targets(editable_img.elements)
+        if not text_targets:
+            logger.info("text_only 背景修复：没有文字目标，使用原图背景")
+            return None
+        if inpaint_provider is None:
+            warnings.add_warning("text_only 底图修复缺少 inpaint provider，已回退到原图背景")
+            return None
+
+        attempts = max_attempts or ExportService.TEXT_ONLY_BACKGROUND_MAX_ATTEMPTS
+        if ai_service is None and verifier is None:
+            attempts = 1
+        else:
+            attempts = max(1, min(attempts, len(ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS)))
+        original_path = editable_img.image_path
+        output_dir = Path(original_path).parent / 'text_only_background' / Path(original_path).stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        bboxes = [target['bbox'] for target in text_targets]
+        types = [target['element_type'] for target in text_targets]
+        best_candidate = None
+        best_score = None
+        verification_errors = []
+
+        with Image.open(original_path) as source_img:
+            source = source_img.convert('RGB')
+            try:
+                for attempt_index in range(attempts):
+                    expand_pixels = ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS[attempt_index]
+                    logger.info(
+                        "text_only 底图修复尝试 %s/%s: targets=%s expand=%s",
+                        attempt_index + 1,
+                        attempts,
+                        len(text_targets),
+                        expand_pixels
+                    )
+                    candidate_img = None
+                    source_copy = source.copy()
+                    try:
+                        candidate_img = inpaint_provider.inpaint_regions(
+                            image=source_copy,
+                            bboxes=bboxes,
+                            types=types,
+                            expand_pixels=expand_pixels,
+                            save_mask_path=str(output_dir / f'text_only_mask_attempt_{attempt_index + 1}.png')
+                        )
+                    finally:
+                        if candidate_img is not source_copy:
+                            source_copy.close()
+                    if candidate_img is None:
+                        verification_errors.append(f"attempt {attempt_index + 1}: inpaint returned empty")
+                        continue
+
+                    candidate_path = output_dir / f"text_only_background_attempt_{attempt_index + 1}.png"
+                    try:
+                        candidate_img.save(str(candidate_path))
+                    finally:
+                        candidate_img.close()
+
+                    try:
+                        if verifier:
+                            verification = verifier(
+                                original_path=original_path,
+                                candidate_path=str(candidate_path),
+                                text_targets=text_targets,
+                                attempt_index=attempt_index + 1
+                            )
+                            verification = ExportService._parse_text_only_background_verification(
+                                verification,
+                                fallback_missed_count=len(text_targets)
+                            )
+                        elif ai_service:
+                            verification = ExportService._verify_text_only_background(
+                                ai_service=ai_service,
+                                original_path=original_path,
+                                candidate_path=str(candidate_path),
+                                text_targets=text_targets,
+                                output_dir=output_dir,
+                                attempt_index=attempt_index + 1
+                            )
+                        else:
+                            verification = {
+                                'success': True,
+                                'missed_text_count': 0,
+                                'unwanted_change_count': 0,
+                                'notes': 'Skipped VLM verification (no AI service available)',
+                            }
+                    except Exception as e:
+                        logger.warning("text_only 底图 VLM 验证失败: %s", e, exc_info=True)
+                        verification_errors.append(f"attempt {attempt_index + 1}: {e}")
+                        verification = {
+                            'success': False,
+                            'missed_text_count': len(text_targets),
+                            'unwanted_change_count': 0,
+                            'notes': str(e),
+                        }
+
+                    score = (
+                        verification['missed_text_count'],
+                        verification.get('unwanted_change_count', 0),
+                        attempt_index,
+                    )
+                    logger.info(
+                        "text_only 底图验证结果: success=%s missed=%s unwanted=%s",
+                        verification['success'],
+                        verification['missed_text_count'],
+                        verification.get('unwanted_change_count', 0)
+                    )
+                    if best_score is None or score < best_score:
+                        best_score = score
+                        best_candidate = (candidate_path, verification)
+                    if verification['success']:
+                        break
+            finally:
+                source.close()
+
+        if best_candidate is None:
+            if verification_errors:
+                warnings.add_warning(f"text_only 底图修复失败，已回退到原图背景：{verification_errors[-1]}")
+            return None
+
+        chosen_path, chosen_verification = best_candidate
+        final_path = output_dir / 'text_only_clean_background.png'
+        shutil.copyfile(chosen_path, final_path)
+        if not hasattr(editable_img, 'metadata') or editable_img.metadata is None:
+            editable_img.metadata = {}
+        editable_img.metadata['text_only_background_verification'] = chosen_verification
+
+        if not chosen_verification.get('success'):
+            warnings.add_warning(
+                "text_only 底图 VLM 验证未完全通过，"
+                f"已选择漏抹最少版本（漏抹 {chosen_verification.get('missed_text_count', 0)} 处）"
+            )
+
+        return str(final_path)
+
+    @staticmethod
+    def _generate_text_only_clean_backgrounds(
+        editable_images: List,
+        inpaint_registry,
+        ai_service,
+        warnings: ExportWarnings,
+        verifier=None
+    ) -> None:
+        """Generate text-erased backgrounds for all text-only export pages."""
+        if inpaint_registry is None:
+            return
+        inpaint_provider = inpaint_registry.get_provider('text')
+        for editable_img in editable_images:
+            clean_background = ExportService._generate_text_only_clean_background(
+                editable_img=editable_img,
+                inpaint_provider=inpaint_provider,
+                ai_service=ai_service,
+                warnings=warnings,
+                verifier=verifier
+            )
+            if clean_background:
+                editable_img.clean_background = clean_background
     
     @staticmethod
     def _batch_extract_text_styles(
@@ -1259,7 +1599,10 @@ class ExportService:
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
         enable_icon_subject_extraction: bool = False,  # 是否对小尺寸图标走百度智能抠图
-        fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
+        text_only: bool = False,  # 是否仅让文字层可编辑，底图只抹除文字目标
+        fail_fast: bool = True,  # 是否在遇到错误时立即停止（False则收集警告继续）
+        text_only_background_verifier = None,  # 测试/定制用：验证 text-only 底图候选
+        text_only_inpaint_registry = None  # 测试/定制用：提供 text-only 底图修复 provider
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -1284,6 +1627,8 @@ class ExportService:
                 可通过 TextAttributeExtractorFactory.create_caption_model_extractor() 创建
             export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid'，默认 'hybrid')
             export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid'，默认 'hybrid')
+            text_only: 仅文字层可编辑。为 True 时只抹除底图中的文字目标，
+                保留图片/图表/图标等非文字元素，并只叠加识别出的文字元素。
             fail_fast: 是否在遇到错误时立即停止（默认 True）。设为 False 则收集警告继续导出。
 
         Returns:
@@ -1292,6 +1637,7 @@ class ExportService:
             - warnings: ExportWarnings 对象，包含所有警告信息
         """
         from services.image_editability import ServiceConfig, ImageEditabilityService
+        from services.image_editability.inpaint_providers import InpaintProviderRegistry
         from utils.pptx_builder import PPTXBuilder
         
         # 初始化警告收集器
@@ -1328,8 +1674,11 @@ class ExportService:
                 max_depth=max_depth,
                 extractor_method=export_extractor_method,
                 inpaint_method=export_inpaint_method,
-                enable_icon_subject_extraction=enable_icon_subject_extraction,
+                enable_icon_subject_extraction=enable_icon_subject_extraction and not text_only,
             )
+            if text_only:
+                text_only_inpaint_registry = text_only_inpaint_registry or config.inpaint_registry
+                config.inpaint_registry = InpaintProviderRegistry()
             editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
@@ -1358,6 +1707,18 @@ class ExportService:
                         raise
                 
                 editable_images = results
+
+        if text_only and text_only_inpaint_registry is not None:
+            report_progress("底图修复", "开始生成仅文字抹除底图并进行 VLM 复核...", 41)
+            ai_service = getattr(text_attribute_extractor, 'ai_service', None) if text_attribute_extractor else None
+            ExportService._generate_text_only_clean_backgrounds(
+                editable_images=editable_images,
+                inpaint_registry=text_only_inpaint_registry,
+                ai_service=ai_service,
+                warnings=warnings,
+                verifier=text_only_background_verifier
+            )
+            report_progress("底图修复", "完成仅文字抹除底图生成", 44)
         
         # 2.5. 使用混合策略提取所有文本元素的样式（如果提供了提取器）
         # 混合策略：全局识别（粗体/斜体/下划线/对齐）+ 单个裁剪识别（颜色）
@@ -1410,12 +1771,16 @@ class ExportService:
             # 创建空白幻灯片
             slide = builder.add_blank_slide()
             
-            # 添加背景图（参考原实现，使用slide.shapes.add_picture）
-            if editable_img.clean_background and os.path.exists(editable_img.clean_background):
-                logger.info(f"    添加clean background: {editable_img.clean_background}")
+            # 添加背景图：text_only 模式优先使用只抹除文字目标后的底图。
+            background_path = editable_img.clean_background
+            if text_only and (not background_path or not os.path.exists(background_path)):
+                background_path = editable_img.image_path
+            if background_path and os.path.exists(background_path):
+                background_label = "文字抹除底图" if text_only and background_path != editable_img.image_path else "clean background"
+                logger.info(f"    添加{background_label}: {background_path}")
                 try:
                     slide.shapes.add_picture(
-                        editable_img.clean_background,
+                        background_path,
                         left=0,
                         top=0,
                         width=builder.prs.slide_width,
@@ -1454,6 +1819,7 @@ class ExportService:
                 depth=0,
                 text_styles_cache=text_styles_cache,  # 使用预提取的样式缓存
                 warnings=warnings,  # 收集警告
+                text_only=text_only,
                 fail_fast=fail_fast  # 传递 fail_fast 参数
             )
             
@@ -1492,6 +1858,7 @@ class ExportService:
         depth: int = 0,
         text_styles_cache: Dict[str, Any] = None,  # 预提取的文本样式缓存，key为element_id
         warnings: 'ExportWarnings' = None,  # 警告收集器
+        text_only: bool = False,  # 是否只添加文本类元素
         fail_fast: bool = False  # 是否在遇到错误时立即停止
     ):
         """
@@ -1598,8 +1965,27 @@ class ExportService:
             
             logger.info(f"{'  ' * depth}  添加元素: type={elem_type}, bbox={bbox_list}, content={elem.content[:30] if elem.content else None}, image_path={elem.image_path}, 使用{'全局' if depth > 0 else '局部'}坐标")
 
+            if text_only and elem_type not in ExportService.EDITABLE_TEXT_ELEMENT_TYPES:
+                children = getattr(elem, 'children', None)
+                if children:
+                    ExportService._add_editable_elements_to_slide(
+                        builder=builder,
+                        slide=slide,
+                        elements=children,
+                        scale_x=scale_x,
+                        scale_y=scale_y,
+                        depth=depth + 1,
+                        text_styles_cache=text_styles_cache,
+                        warnings=warnings,
+                        text_only=text_only,
+                        fail_fast=fail_fast
+                    )
+                else:
+                    logger.debug(f"{'  ' * depth}  text_only 跳过非文字元素: {elem_type}")
+                continue
+
             # 根据类型添加元素（参考原实现的_add_mineru_text_to_slide和_add_mineru_image_to_slide）
-            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption', 'equation', 'interline_equation', 'inline_equation']:
+            if elem_type in ExportService.EDITABLE_TEXT_ELEMENT_TYPES and elem_type != 'table_cell':
                 # 添加文本（参考_add_mineru_text_to_slide）
                 if elem.content:
                     text = elem.content.strip()
@@ -1673,6 +2059,7 @@ class ExportService:
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
                         warnings=warnings,
+                        text_only=text_only,
                         fail_fast=fail_fast
                     )
                 else:
@@ -1738,6 +2125,7 @@ class ExportService:
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
                         warnings=warnings,
+                        text_only=text_only,
                         fail_fast=fail_fast
                     )
                 else:

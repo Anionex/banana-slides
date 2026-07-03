@@ -77,6 +77,8 @@ const previewI18n = {
       editablePptxIconTransparent: "图标透明背景",
       editablePptxIconTransparentDesc: "对识别为图标的图片调用本地 RMBG-2.0 模型抠出透明背景，避免原 PPT 底色与新底色冲突。",
       editablePptxModelHint: "首次启用会下载约 512MB 模型到 ~/.cache/banana-slides/models/，CPU 推理对内存要求较高，建议机器有 ≥ 16GB 可用内存。",
+      editablePptxTextOnly: "仅文字层可编辑",
+      editablePptxTextOnlyDesc: "保留整页原图作为背景，只把识别出的文字叠加为可编辑文本框。",
       editablePptxRangeLabel: "导出范围",
       editablePptxRangeAll: "全部 {{count}} 页",
       editablePptxRangePages: "第 {{pages}} 页（共 {{count}} 页）",
@@ -208,6 +210,8 @@ const previewI18n = {
       editablePptxIconTransparent: "Icon Transparent Background",
       editablePptxIconTransparentDesc: "Run images classified as icons through the local RMBG-2.0 model to produce transparent-background PNGs, avoiding background color clashes.",
       editablePptxModelHint: "First use downloads a ~512MB model to ~/.cache/banana-slides/models/. CPU inference is memory-intensive; recommended: ≥16GB free memory.",
+      editablePptxTextOnly: "Only Text Layers Editable",
+      editablePptxTextOnlyDesc: "Keep the full slide image as the background and overlay only detected text as editable text boxes.",
       editablePptxRangeLabel: "Export range",
       editablePptxRangeAll: "All {{count}} pages",
       editablePptxRangePages: "Pages {{pages}} ({{count}} total)",
@@ -429,6 +433,7 @@ export const SlidePreview: React.FC = () => {
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
   const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
   const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
+  const [editablePptxDialogTextOnly, setEditablePptxDialogTextOnly] = useState(false);
   const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
   const [pptxTransitionEffects, setPptxTransitionEffects] = useState<PptxTransitionEffect[]>(['fade']);
   const [videoEnableKenBurns, setVideoEnableKenBurns] = useState(false);
@@ -1276,6 +1281,7 @@ export const SlidePreview: React.FC = () => {
     options?: {
       pptxTransitionEnabled?: boolean;
       pptxTransitionEffects?: PptxTransitionEffect[];
+      editableTextOnly?: boolean;
     },
   ) => {
     setShowExportMenu(false);
@@ -1321,7 +1327,9 @@ export const SlidePreview: React.FC = () => {
         
         show({ message: t('slidePreview.exportStarted'), type: 'success' });
         
-        const response = await apiExportEditablePPTX(projectId, undefined, pageIds);
+        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, {
+          textOnly: options?.editableTextOnly ?? false,
+        });
         const taskId = response.data?.task_id;
         
         if (taskId) {
@@ -1847,6 +1855,7 @@ export const SlidePreview: React.FC = () => {
                   onClick={() => {
                     setShowExportMenu(false);
                     setEditablePptxDialogIconTransparent(currentProject?.enable_icon_subject_extraction ?? true);
+                    setEditablePptxDialogTextOnly(false);
                     setShowEditablePptxDialog(true);
                   }}
                   disabled={!exportRangeHasAllImages}
@@ -2285,6 +2294,18 @@ export const SlidePreview: React.FC = () => {
                 )}
               </div>
             </label>
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-background-hover mt-2">
+              <input
+                type="checkbox"
+                checked={editablePptxDialogTextOnly}
+                onChange={(e) => setEditablePptxDialogTextOnly(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-banana-500 focus:ring-banana-500"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">{t('preview.editablePptxTextOnly')}</div>
+                <div className="text-xs text-gray-500 dark:text-foreground-tertiary mt-1">{t('preview.editablePptxTextOnlyDesc')}</div>
+              </div>
+            </label>
             {(() => {
               const totalPages = currentProject?.pages?.length ?? 0;
               const isPartial = isMultiSelectMode && selectedPageIds.size > 0;
@@ -2328,7 +2349,9 @@ export const SlidePreview: React.FC = () => {
                       return;
                     }
                   }
-                  handleExport('editable-pptx');
+                  handleExport('editable-pptx', {
+                    editableTextOnly: editablePptxDialogTextOnly,
+                  });
                 }}
                 className="px-4 py-2 text-sm bg-banana-500 text-white rounded-lg hover:bg-banana-600 transition-colors"
               >

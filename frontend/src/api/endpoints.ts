@@ -747,13 +747,17 @@ export const exportImages = async (
 export const exportEditablePPTX = async (
   projectId: string,
   filename?: string,
-  pageIds?: string[]
+  pageIds?: string[],
+  options?: {
+    textOnly?: boolean;
+  }
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
   >(`/api/projects/${projectId}/export/editable-pptx`, {
     filename,
-    page_ids: pageIds
+    page_ids: pageIds,
+    text_only: options?.textOnly ?? false
   });
   return response.data;
 };

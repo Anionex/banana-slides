@@ -1567,6 +1567,7 @@ def create_ppt_renovation_project():
             image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
             provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
             lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
+            upload_folder=current_app.config['UPLOAD_FOLDER'],
         )
 
         app = current_app._get_current_object()

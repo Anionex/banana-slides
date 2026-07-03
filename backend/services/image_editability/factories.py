@@ -308,7 +308,7 @@ class InpaintProviderFactory:
     def create_generative_edit_provider(
         ai_service: Optional[Any] = None,
         aspect_ratio: str = "16:9",
-        resolution: str = "2K"
+        resolution: Optional[str] = None
     ) -> InpaintProvider:
         """
         创建基于生成式大模型的Inpaint提供者
@@ -319,7 +319,7 @@ class InpaintProviderFactory:
         Args:
             ai_service: AIService实例（可选，如果不提供则自动获取）
             aspect_ratio: 目标宽高比
-            resolution: 目标分辨率
+            resolution: 目标分辨率；未提供时跟随当前应用的 DEFAULT_RESOLUTION
         
         Returns:
             GenerativeEditInpaintProvider实例
@@ -330,6 +330,12 @@ class InpaintProviderFactory:
         if ai_service is None:
             from services.ai_service_manager import get_ai_service
             ai_service = get_ai_service()
+        if resolution is None:
+            try:
+                from flask import current_app
+                resolution = current_app.config.get('DEFAULT_RESOLUTION', '2K')
+            except RuntimeError:
+                resolution = '2K'
         
         logger.info("创建GenerativeEditInpaintProvider")
         return GenerativeEditInpaintProvider(ai_service, aspect_ratio, resolution)
@@ -587,7 +593,8 @@ class ServiceConfig:
         # 创建MinerU解析服务
         parser_service = FileParserService(
             mineru_token=mineru_token,
-            mineru_api_base=mineru_api_base
+            mineru_api_base=mineru_api_base,
+            upload_folder=str(upload_path),
         )
         
         # 创建提取器注册表
@@ -763,4 +770,3 @@ class TextAttributeExtractorFactory:
         logger.info("创建TextAttributeExtractorRegistry")
         
         return registry
-

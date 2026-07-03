@@ -909,6 +909,7 @@ def _create_file_parser():
             Config, 'IMAGE_CAPTION_MODEL_SOURCE', None
         ),
         provider_format=caption_format,
+        upload_folder=current_app.config.get("UPLOAD_FOLDER", Config.UPLOAD_FOLDER),
     )
 
 
