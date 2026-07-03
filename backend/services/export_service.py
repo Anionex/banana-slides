@@ -895,23 +895,33 @@ class ExportService:
     ) -> str:
         """Create a side-by-side image: original on the left, candidate on the right."""
         with Image.open(original_path) as original_img, Image.open(candidate_path) as candidate_img:
-            original = original_img.convert('RGB')
-            candidate = candidate_img.convert('RGB').resize(original.size)
-            width, height = original.size
-            header_h = max(36, int(height * 0.035))
-            canvas = Image.new('RGB', (width * 2, height + header_h), 'white')
-            canvas.paste(original, (0, header_h))
-            canvas.paste(candidate, (width, header_h))
+            with original_img.convert('RGB') as original:
+                candidate_rgb = candidate_img.convert('RGB')
+                try:
+                    candidate = candidate_rgb.resize(original.size)
+                    try:
+                        width, height = original.size
+                        header_h = max(36, int(height * 0.035))
+                        canvas = Image.new('RGB', (width * 2, height + header_h), 'white')
+                        try:
+                            canvas.paste(original, (0, header_h))
+                            canvas.paste(candidate, (width, header_h))
 
-            try:
-                from PIL import ImageDraw
-                draw = ImageDraw.Draw(canvas)
-                draw.text((12, 10), "LEFT: original", fill=(0, 0, 0))
-                draw.text((width + 12, 10), "RIGHT: candidate background", fill=(0, 0, 0))
-            except Exception:
-                logger.debug("Failed to draw verification labels", exc_info=True)
+                            try:
+                                from PIL import ImageDraw
+                                draw = ImageDraw.Draw(canvas)
+                                draw.text((12, 10), "LEFT: original", fill=(0, 0, 0))
+                                draw.text((width + 12, 10), "RIGHT: candidate background", fill=(0, 0, 0))
+                            except Exception:
+                                logger.debug("Failed to draw verification labels", exc_info=True)
 
-            canvas.save(output_path)
+                            canvas.save(output_path)
+                        finally:
+                            canvas.close()
+                    finally:
+                        candidate.close()
+                finally:
+                    candidate_rgb.close()
 
         return output_path
 
@@ -1020,83 +1030,95 @@ class ExportService:
 
         with Image.open(original_path) as source_img:
             source = source_img.convert('RGB')
-            for attempt_index in range(attempts):
-                expand_pixels = ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS[attempt_index]
-                logger.info(
-                    "text_only 底图修复尝试 %s/%s: targets=%s expand=%s",
-                    attempt_index + 1,
-                    attempts,
-                    len(text_targets),
-                    expand_pixels
-                )
-                candidate_img = inpaint_provider.inpaint_regions(
-                    image=source.copy(),
-                    bboxes=bboxes,
-                    types=types,
-                    expand_pixels=expand_pixels,
-                    save_mask_path=str(output_dir / f'text_only_mask_attempt_{attempt_index + 1}.png')
-                )
-                if candidate_img is None:
-                    verification_errors.append(f"attempt {attempt_index + 1}: inpaint returned empty")
-                    continue
+            try:
+                for attempt_index in range(attempts):
+                    expand_pixels = ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS[attempt_index]
+                    logger.info(
+                        "text_only 底图修复尝试 %s/%s: targets=%s expand=%s",
+                        attempt_index + 1,
+                        attempts,
+                        len(text_targets),
+                        expand_pixels
+                    )
+                    candidate_img = None
+                    source_copy = source.copy()
+                    try:
+                        candidate_img = inpaint_provider.inpaint_regions(
+                            image=source_copy,
+                            bboxes=bboxes,
+                            types=types,
+                            expand_pixels=expand_pixels,
+                            save_mask_path=str(output_dir / f'text_only_mask_attempt_{attempt_index + 1}.png')
+                        )
+                    finally:
+                        if candidate_img is not source_copy:
+                            source_copy.close()
+                    if candidate_img is None:
+                        verification_errors.append(f"attempt {attempt_index + 1}: inpaint returned empty")
+                        continue
 
-                candidate_path = output_dir / f"text_only_background_attempt_{attempt_index + 1}.png"
-                candidate_img.save(str(candidate_path))
+                    candidate_path = output_dir / f"text_only_background_attempt_{attempt_index + 1}.png"
+                    try:
+                        candidate_img.save(str(candidate_path))
+                    finally:
+                        candidate_img.close()
 
-                try:
-                    if verifier:
-                        verification = verifier(
-                            original_path=original_path,
-                            candidate_path=str(candidate_path),
-                            text_targets=text_targets,
-                            attempt_index=attempt_index + 1
-                        )
-                        verification = ExportService._parse_text_only_background_verification(
-                            verification,
-                            fallback_missed_count=len(text_targets)
-                        )
-                    elif ai_service:
-                        verification = ExportService._verify_text_only_background(
-                            ai_service=ai_service,
-                            original_path=original_path,
-                            candidate_path=str(candidate_path),
-                            text_targets=text_targets,
-                            output_dir=output_dir,
-                            attempt_index=attempt_index + 1
-                        )
-                    else:
+                    try:
+                        if verifier:
+                            verification = verifier(
+                                original_path=original_path,
+                                candidate_path=str(candidate_path),
+                                text_targets=text_targets,
+                                attempt_index=attempt_index + 1
+                            )
+                            verification = ExportService._parse_text_only_background_verification(
+                                verification,
+                                fallback_missed_count=len(text_targets)
+                            )
+                        elif ai_service:
+                            verification = ExportService._verify_text_only_background(
+                                ai_service=ai_service,
+                                original_path=original_path,
+                                candidate_path=str(candidate_path),
+                                text_targets=text_targets,
+                                output_dir=output_dir,
+                                attempt_index=attempt_index + 1
+                            )
+                        else:
+                            verification = {
+                                'success': True,
+                                'missed_text_count': 0,
+                                'unwanted_change_count': 0,
+                                'notes': 'Skipped VLM verification (no AI service available)',
+                            }
+                    except Exception as e:
+                        logger.warning("text_only 底图 VLM 验证失败: %s", e, exc_info=True)
+                        verification_errors.append(f"attempt {attempt_index + 1}: {e}")
                         verification = {
-                            'success': True,
-                            'missed_text_count': 0,
+                            'success': False,
+                            'missed_text_count': len(text_targets),
                             'unwanted_change_count': 0,
-                            'notes': 'Skipped VLM verification (no AI service available)',
+                            'notes': str(e),
                         }
-                except Exception as e:
-                    logger.warning("text_only 底图 VLM 验证失败: %s", e, exc_info=True)
-                    verification_errors.append(f"attempt {attempt_index + 1}: {e}")
-                    verification = {
-                        'success': False,
-                        'missed_text_count': len(text_targets),
-                        'unwanted_change_count': 0,
-                        'notes': str(e),
-                    }
 
-                score = (
-                    verification['missed_text_count'],
-                    verification.get('unwanted_change_count', 0),
-                    attempt_index,
-                )
-                logger.info(
-                    "text_only 底图验证结果: success=%s missed=%s unwanted=%s",
-                    verification['success'],
-                    verification['missed_text_count'],
-                    verification.get('unwanted_change_count', 0)
-                )
-                if best_score is None or score < best_score:
-                    best_score = score
-                    best_candidate = (candidate_path, verification)
-                if verification['success']:
-                    break
+                    score = (
+                        verification['missed_text_count'],
+                        verification.get('unwanted_change_count', 0),
+                        attempt_index,
+                    )
+                    logger.info(
+                        "text_only 底图验证结果: success=%s missed=%s unwanted=%s",
+                        verification['success'],
+                        verification['missed_text_count'],
+                        verification.get('unwanted_change_count', 0)
+                    )
+                    if best_score is None or score < best_score:
+                        best_score = score
+                        best_candidate = (candidate_path, verification)
+                    if verification['success']:
+                        break
+            finally:
+                source.close()
 
         if best_candidate is None:
             if verification_errors:
