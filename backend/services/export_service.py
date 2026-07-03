@@ -1004,7 +1004,10 @@ class ExportService:
             return None
 
         attempts = max_attempts or ExportService.TEXT_ONLY_BACKGROUND_MAX_ATTEMPTS
-        attempts = max(1, min(attempts, len(ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS)))
+        if ai_service is None and verifier is None:
+            attempts = 1
+        else:
+            attempts = max(1, min(attempts, len(ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS)))
         original_path = editable_img.image_path
         output_dir = Path(original_path).parent / 'text_only_background'
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -1048,7 +1051,11 @@ class ExportService:
                             text_targets=text_targets,
                             attempt_index=attempt_index + 1
                         )
-                    else:
+                        verification = ExportService._parse_text_only_background_verification(
+                            verification,
+                            fallback_missed_count=len(text_targets)
+                        )
+                    elif ai_service:
                         verification = ExportService._verify_text_only_background(
                             ai_service=ai_service,
                             original_path=original_path,
@@ -1057,10 +1064,13 @@ class ExportService:
                             output_dir=output_dir,
                             attempt_index=attempt_index + 1
                         )
-                    verification = ExportService._parse_text_only_background_verification(
-                        verification,
-                        fallback_missed_count=len(text_targets)
-                    )
+                    else:
+                        verification = {
+                            'success': True,
+                            'missed_text_count': 0,
+                            'unwanted_change_count': 0,
+                            'notes': 'Skipped VLM verification (no AI service available)',
+                        }
                 except Exception as e:
                     logger.warning("text_only 底图 VLM 验证失败: %s", e, exc_info=True)
                     verification_errors.append(f"attempt {attempt_index + 1}: {e}")

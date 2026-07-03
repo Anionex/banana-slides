@@ -470,6 +470,35 @@ def test_text_only_background_picks_least_missed_candidate_after_retries(tmp_pat
     assert editable_image.metadata["text_only_background_verification"]["missed_text_count"] == 1
 
 
+def test_text_only_background_without_vlm_only_inpaints_once(tmp_path):
+    original = tmp_path / "original.png"
+    Image.new("RGB", (300, 120), "white").save(original)
+    output = tmp_path / "text-only-no-vlm.pptx"
+    editable_image = _EditableImage(str(original), [_EditableElement("text", "Editable title")])
+    provider = _FakeTextOnlyInpaintProvider([
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+    ])
+
+    _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(
+        editable_images=[editable_image],
+        output_file=str(output),
+        slide_width_pixels=300,
+        slide_height_pixels=120,
+        text_only=True,
+        fail_fast=True,
+        text_only_inpaint_registry=_FakeInpaintRegistry(provider),
+    )
+
+    assert len(provider.calls) == 1
+    assert provider.calls[0]["expand_pixels"] == 2
+    assert not warnings.has_warnings()
+    assert editable_image.metadata["text_only_background_verification"]["notes"] == (
+        "Skipped VLM verification (no AI service available)"
+    )
+
+
 def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):
     background = tmp_path / "slide.png"
     Image.new("RGB", (300, 120), "white").save(background)

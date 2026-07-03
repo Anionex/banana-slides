@@ -72,7 +72,7 @@ class ImageEditabilityService:
         self._enable_icon_subject_extraction = config.enable_icon_subject_extraction
         
         extractors = self._extractor_registry.get_all_extractors()
-        inpaint_providers = self._inpaint_registry.get_all_providers()
+        inpaint_providers = self._inpaint_registry.get_all_providers() if self._inpaint_registry else []
         self._has_inpaint_providers = bool(inpaint_providers)
         logger.info(
             f"ImageEditabilityService: {len(extractors)} extractors, "
