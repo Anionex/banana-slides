@@ -12,6 +12,7 @@ Configuration priority (highest → lowest):
 Supported provider formats:
     gemini    — Google AI Studio (API key auth)
     openai    — OpenAI-compatible endpoints
+    volcengine — Volcengine ModelArk Agent Plans (OpenAI-compatible)
     anthropic — Anthropic (Claude) API
     vertex    — Google Cloud Vertex AI (service-account auth)
     lazyllm   — LazyLLM multi-vendor framework
@@ -113,7 +114,7 @@ def _build_provider_config() -> Dict[str, Any]:
     """Assemble provider-specific configuration dict.
 
     Returns a dict always containing ``'format'`` plus format-specific keys:
-        - gemini / openai / anthropic → ``api_key``, ``api_base``
+        - gemini / openai / volcengine / anthropic → ``api_key``, ``api_base``
         - vertex          → ``project_id``, ``location``
         - lazyllm         → ``text_source``, ``image_source``
 
@@ -132,6 +133,20 @@ def _build_provider_config() -> Dict[str, Any]:
                 "is required when AI_PROVIDER_FORMAT=openai."
             )
         logger.info("Provider config — format: openai, api_base: %s", cfg['api_base'])
+
+    elif fmt == 'volcengine':
+        cfg['api_key'] = (
+            _resolve_setting('VOLCENGINE_API_KEY')
+            or _resolve_setting('ARK_API_KEY')
+        )
+        cfg['api_base'] = _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3')
+
+        if not cfg['api_key']:
+            raise ValueError(
+                "VOLCENGINE_API_KEY or ARK_API_KEY (from database settings or environment) "
+                "is required when AI_PROVIDER_FORMAT=volcengine."
+            )
+        logger.info("Provider config — format: volcengine, api_base: %s", cfg['api_base'])
 
     elif fmt == 'anthropic':
         cfg['api_key'] = _resolve_setting('ANTHROPIC_API_KEY') or _resolve_setting('OPENAI_API_KEY')
@@ -196,6 +211,7 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
     via {MODEL_TYPE}_MODEL_SOURCE. The source can be:
       - 'gemini': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to global
       - 'openai': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to global
+      - 'volcengine': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to Volcengine/global
       - 'anthropic': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to global
       - A LazyLLM vendor name (qwen, doubao, etc.): uses lazyllm with that vendor
       - None/empty: falls back to global _build_provider_config()
@@ -242,6 +258,21 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
         logger.info("Per-model config — %s: openai, api_base: %s", model_type, api_base)
         return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
+    elif source_lower == 'volcengine':
+        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+                   or _resolve_setting('VOLCENGINE_API_KEY')
+                   or _resolve_setting('ARK_API_KEY'))
+        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+                    or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3'))
+
+        if not api_key:
+            raise ValueError(
+                f"API key is required for {model_type} model with Volcengine AgentPlans provider. "
+                f"Set {prefix}_API_KEY, VOLCENGINE_API_KEY, or ARK_API_KEY."
+            )
+        logger.info("Per-model config — %s: volcengine, api_base: %s", model_type, api_base)
+        return {'format': 'volcengine', 'api_key': api_key, 'api_base': api_base}
+
     elif source_lower == 'codex':
         oauth_token = _get_openai_oauth_token()
         if not oauth_token:
@@ -285,8 +316,8 @@ def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
     if fmt == 'anthropic':
         logger.info("Caption provider: Anthropic, model=%s", model)
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif fmt == 'openai':
-        logger.info("Caption provider: OpenAI, model=%s", model)
+    elif fmt in ('openai', 'volcengine'):
+        logger.info("Caption provider: %s, model=%s", fmt, model)
         return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt == 'vertex':
         logger.info("Caption provider: Vertex AI, model=%s", model)
@@ -314,8 +345,8 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
     if fmt == 'anthropic':
         logger.info("Text provider: Anthropic, model=%s", model)
         return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif fmt == 'openai':
-        logger.info("Text provider: OpenAI, model=%s", model)
+    elif fmt in ('openai', 'volcengine'):
+        logger.info("Text provider: %s, model=%s", fmt, model)
         return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
     elif fmt == 'vertex':
         logger.info("Text provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
@@ -352,9 +383,9 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         logger.info("Image provider: Anthropic, model=%s", model)
         logger.warning("Anthropic format is for compatible endpoints only (official API doesn't support image generation)")
         return AnthropicImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif fmt == 'openai':
-        logger.info("Image provider: OpenAI, model=%s", model)
-        logger.warning("OpenAI format only supports 1K resolution, 4K is not available")
+    elif fmt in ('openai', 'volcengine'):
+        logger.info("Image provider: %s, model=%s", fmt, model)
+        logger.warning("%s format may not support all resolution settings; provider limits apply", fmt)
         image_api_protocol = _resolve_setting('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
         return OpenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model, image_api_protocol=image_api_protocol)
     elif fmt == 'vertex':

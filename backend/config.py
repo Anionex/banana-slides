@@ -47,7 +47,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
-    # Provider format: gemini | openai | vertex | lazyllm
+    # Provider format: gemini | openai | volcengine | vertex | lazyllm
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
     # Google Cloud Vertex AI (requires AI_PROVIDER_FORMAT=vertex)
@@ -63,6 +63,10 @@ class Config:
     OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://aihubmix.com/v1')
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '480.0'))  # 8 分钟：留出 gpt-image-2 生图(~225s)+传输的余量
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
+
+    # 火山方舟 Agent Plans（OpenAI-compatible）
+    VOLCENGINE_API_KEY = os.getenv('VOLCENGINE_API_KEY', '') or os.getenv('ARK_API_KEY', '')
+    VOLCENGINE_API_BASE = os.getenv('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3')
 
     # Anthropic 格式专用配置（当 AI_PROVIDER_FORMAT=anthropic 时使用）
     # 支持 ANTHROPIC_AUTH_TOKEN 作为 ANTHROPIC_API_KEY 的别名

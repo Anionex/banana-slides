@@ -16,6 +16,7 @@ const previewI18n = {
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
+      switchedToMulti: "已切换为多模板模式", switchFailed: "切换模板模式失败: {{error}}",
       exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功",
       saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
       loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
@@ -86,6 +87,7 @@ const previewI18n = {
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
       projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
+      switchToMulti: "转为多模板", switchToSingle: "转为单模板", templateSetup: "模板配置",
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
@@ -144,6 +146,7 @@ const previewI18n = {
       versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
+      switchedToMulti: "Switched to multi-template mode", switchFailed: "Failed to switch template mode: {{error}}",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
       exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully",
       saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
@@ -214,6 +217,7 @@ const previewI18n = {
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
+      switchToMulti: "Switch to multi", switchToSingle: "Switch to single", templateSetup: "Template setup",
       projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
@@ -287,12 +291,17 @@ import {
   FileText,
   Loader2,
   Info,
+  Layers,
+  RectangleHorizontal,
+  LayoutTemplate,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { Button, IconButton, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { SwitchToSingleModeDialog } from '@/components/template/SwitchToSingleModeDialog';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
+import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -391,6 +400,10 @@ export const SlidePreview: React.FC = () => {
     taskProgress,
     pageGeneratingTasks,
     warningMessage,
+    templateAssets,
+    loadTemplateAssets,
+    switchTemplateMode,
+    switchTemplateModeWithUpload,
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
@@ -463,6 +476,7 @@ export const SlidePreview: React.FC = () => {
   const isEditingRequirements = useRef(false); // 跟踪用户是否正在编辑额外要求
   const [templateStyle, setTemplateStyle] = useState<string>('');
   const [isSavingTemplateStyle, setIsSavingTemplateStyle] = useState(false);
+  const [isSwitchSingleOpen, setIsSwitchSingleOpen] = useState(false);
   const isEditingTemplateStyle = useRef(false); // 跟踪用户是否正在编辑风格描述
   const lastProjectId = useRef<string | null>(null); // 跟踪上一次的项目ID
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
@@ -609,6 +623,13 @@ export const SlidePreview: React.FC = () => {
     };
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
+
+  // 多模板模式：加载项目模板库（供转单模板弹层使用）
+  useEffect(() => {
+    if (projectId && currentProject?.template_mode === 'multi') {
+      loadTemplateAssets(projectId);
+    }
+  }, [projectId, currentProject?.template_mode, loadTemplateAssets]);
 
   // 监听警告消息
   const lastWarningRef = React.useRef<string | null>(null);
@@ -1285,7 +1306,7 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          triggerDownload(downloadUrl);
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling
@@ -1458,6 +1479,34 @@ export const SlidePreview: React.FC = () => {
       setIsSavingTemplateStyle(false);
     }
   }, [currentProject, projectId, templateStyle, syncProject, show]);
+
+  // 模板模式切换
+  const handleSwitchToMulti = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      await switchTemplateMode(projectId, { mode: 'multi' });
+      await syncProject(projectId);
+      show({ message: t('slidePreview.switchedToMulti'), type: 'success' });
+    } catch (error: any) {
+      show({ message: t('slidePreview.switchFailed', { error: error.message || '' }), type: 'error' });
+    }
+  }, [projectId, switchTemplateMode, syncProject, show, t]);
+
+  const handleSwitchToSingleExisting = useCallback(async (assetId: string, unifiedStyleText?: string) => {
+    if (!projectId) return;
+    await switchTemplateMode(projectId, {
+      mode: 'single',
+      unified_asset_id: assetId,
+      unified_style_text: unifiedStyleText ?? null,
+    });
+    await syncProject(projectId);
+  }, [projectId, switchTemplateMode, syncProject]);
+
+  const handleSwitchToSingleUpload = useCallback(async (file: File, unifiedStyleText?: string) => {
+    if (!projectId) return;
+    await switchTemplateModeWithUpload(projectId, file, unifiedStyleText);
+    await syncProject(projectId);
+  }, [projectId, switchTemplateModeWithUpload, syncProject]);
 
   const handleSaveExportSettings = useCallback(async () => {
     if (!currentProject || !projectId) return;
@@ -1653,6 +1702,32 @@ export const SlidePreview: React.FC = () => {
             >
               <span className="hidden xl:inline">{t('preview.projectSettings')}</span>
             </Button>
+            {currentProject?.template_mode === 'multi' ? (
+              <>
+                <IconButton
+                  icon={<LayoutTemplate size={18} />}
+                  label={t('preview.templateSetup')}
+                  tooltipSide="bottom"
+                  onClick={() => navigate(`/project/${projectId}/template-setup`)}
+                  className="hidden lg:inline-flex"
+                />
+                <IconButton
+                  icon={<RectangleHorizontal size={18} />}
+                  label={t('preview.switchToSingle')}
+                  tooltipSide="bottom"
+                  onClick={() => setIsSwitchSingleOpen(true)}
+                  className="hidden lg:inline-flex"
+                />
+              </>
+            ) : (
+              <IconButton
+                icon={<Layers size={18} />}
+                label={t('preview.switchToMulti')}
+                tooltipSide="bottom"
+                onClick={handleSwitchToMulti}
+                className="hidden lg:inline-flex"
+              />
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -3061,6 +3136,15 @@ export const SlidePreview: React.FC = () => {
           />
         </>
       )}
+
+      {/* 多→单模板切换弹层 */}
+      <SwitchToSingleModeDialog
+        isOpen={isSwitchSingleOpen}
+        onClose={() => setIsSwitchSingleOpen(false)}
+        assets={templateAssets}
+        onConfirmExisting={handleSwitchToSingleExisting}
+        onConfirmUpload={handleSwitchToSingleUpload}
+      />
 
       {/* 1K分辨率警告对话框 */}
       <Modal

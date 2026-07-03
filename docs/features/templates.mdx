@@ -1,0 +1,69 @@
+---
+title: "Per-Page Templates"
+description: "Apply one consistent style to a whole deck, or pick a template for each page individually"
+---
+
+Templates make every generated page match the visual style you want. Banana Slides supports two modes: **single template** (one style for the whole deck) and **multi template** (each page can differ).
+
+## The two modes
+
+| Mode | Meaning | Best for |
+|------|---------|----------|
+| Single template | All pages use the same template | Consistent reports and lecture decks |
+| Multi template | Each page can bind a different template | Polished decks where cover, data, and closing pages each have their own style |
+
+<Note>
+  **Underlying data semantics**: regardless of mode, every page records its own template. Single-template mode simply means "all pages currently happen to use the same template" — it is a UI hint, not a separate data shape. That's why you can switch back and forth at any time without losing structure.
+</Note>
+
+## Single template: pick once at creation
+
+When creating a project on the home page, choose **Single template** and select or upload one template in the template area. After creation, that template is applied to every page automatically and you go straight to the outline editor — no extra configuration needed.
+
+## Multi template: the project template library
+
+After creating a project with **Multi template**, you first edit the outline and descriptions; clicking **Next** after the descriptions step opens the **Template Setup** page (also reachable any time afterward from the **Template Setup** entry at the top of the preview page). This is where you manage the project's **template library**:
+
+### Upload templates
+
+- **Upload template**: add a single image directly to the library
+- **Upload PDF**: upload a multi-page PDF (e.g. a brand book or style deck); the system automatically splits it page by page into template images and adds each to the library
+
+### AI template analysis
+
+After each template is uploaded, the AI automatically analyzes its visual characteristics (color palette, layout, text regions, image regions, etc.) for use in auto-matching.
+
+- Analysis status is shown while in progress; once complete you can **edit the analysis** and add a **template label** on the card
+- If a template fails analysis, it can still be **selected manually** for generation — it just won't enter the auto-match candidate pool; you can re-run analysis
+
+### One-click auto-match
+
+Click **Auto-match** and the AI considers each page's title and description together with every template's style in the library, then recommends the best-fit template for each page along with a reason and confidence score. You can then review page by page:
+
+- Matched pages show the recommendation source and reason
+- Pages the AI can't decide stay "Unconfirmed" for you to assign manually
+
+### Per-page binding
+
+On each page card you can manually **select a template** at any time to override the auto-match result, or assign a template to an "Unconfirmed" page. Each page also supports its own **text template** (describing that page's style in words).
+
+## Switching modes
+
+You can switch between the two modes in both directions at any stage, and already-generated images are never wiped by the switch.
+
+**Multi → single**: click **Switch to single**. Because all pages must converge on one template, a dialog asks you to **pick one from the existing library** (or upload a new one) as the unifying template; once confirmed, every page references it.
+
+<Warning>
+  Switching to single overwrites each page's original template binding with the chosen one. Already-generated images are kept, but regenerating a page will use the new unifying template.
+</Warning>
+
+**Single → multi**: click **Switch to multi**; the project enters multi-template mode and the library unlocks. Every page first inherits the currently selected template, after which you can adjust them page by page.
+
+## Effect of deleting a template
+
+Deleting a template from the library resets every page that referenced it to "Unconfirmed"; those pages need a new template before they can generate with one. A confirmation prompt appears before deletion.
+
+## FAQ
+
+- **Generation says a template or style description is required**: make sure at least one page is bound to a template, or fill in a style description in project settings.
+- **Auto-match assigns the same template to several pages**: this is expected — the AI judges globally, and similar content may share a template. You can adjust any page manually.

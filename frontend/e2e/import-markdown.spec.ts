@@ -1,7 +1,7 @@
 /**
  * E2E test: Import outline / description from Markdown files
  */
-import { test, expect } from '@playwright/test'
+import { test, expect, Page, Locator } from '@playwright/test'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -70,10 +70,12 @@ test.describe('Import Markdown (mocked)', () => {
   test.setTimeout(60_000)
 
   let addPageCalls: any[]
+  let singleAddRequests: number
   let projectPages: any[]
 
   test.beforeEach(async ({ page }) => {
     addPageCalls = []
+    singleAddRequests = 0
     projectPages = []
 
     await page.route('**/api/settings', r =>
@@ -92,9 +94,31 @@ test.describe('Import Markdown (mocked)', () => {
     await page.route(`**/api/projects/${PROJECT_ID}`, r =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockProject(projectPages)) }))
 
+    await page.route(`**/api/projects/${PROJECT_ID}/pages/batch`, async (route) => {
+      const body = route.request().postDataJSON()
+      for (const pageBody of body.pages) {
+        addPageCalls.push(pageBody)
+        const newPage = {
+          id: `page-${addPageCalls.length}`,
+          page_id: `page-${addPageCalls.length}`,
+          order_index: pageBody.order_index ?? projectPages.length,
+          outline_content: pageBody.outline_content || { title: '', points: [] },
+          description_content: pageBody.description_content || null,
+          part: pageBody.part || null,
+          status: 'DRAFT',
+        }
+        projectPages.push(newPage)
+      }
+      await route.fulfill({
+        status: 201, contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: projectPages.slice(-body.pages.length) })
+      })
+    })
+
     // Add page endpoint: capture calls and grow projectPages
     await page.route(`**/api/projects/${PROJECT_ID}/pages`, async (route) => {
       if (route.request().method() === 'POST') {
+        singleAddRequests += 1
         const body = route.request().postDataJSON()
         addPageCalls.push(body)
         const newPage = {
@@ -126,18 +150,31 @@ test.describe('Import Markdown (mocked)', () => {
     return filePath
   }
 
+  async function openImportModal(page: Page): Promise<Locator> {
+    await page.getByRole('button', { name: /导入\/导出/ }).click()
+    await page.getByRole('button', { name: /^导入$/ }).click()
+    const dialog = page.getByRole('dialog', { name: '导入 Markdown' })
+    await expect(dialog).toBeVisible()
+    return dialog.locator('input[type="file"]')
+  }
+
+  async function importSelectedFile(page: Page) {
+    await page.getByRole('button', { name: '导入到项目' }).click()
+  }
+
   test('import unified markdown on outline page — preserves outline + description', async ({ page }) => {
     const mdPath = writeTempFile('test-unified.md', UNIFIED_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
     expect(addPageCalls).toHaveLength(2)
+    expect(singleAddRequests).toBe(0)
     // Page 1: outline + description + part
     expect(addPageCalls[0].outline_content.title).toBe('AI简介')
     expect(addPageCalls[0].outline_content.points).toContain('什么是人工智能')
@@ -155,14 +192,15 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-unified-detail.md', UNIFIED_MD)
 
     await page.goto(`/project/${PROJECT_ID}/detail`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
     expect(addPageCalls).toHaveLength(2)
+    expect(singleAddRequests).toBe(0)
     expect(addPageCalls[0].outline_content.title).toBe('AI简介')
     expect(addPageCalls[0].description_content).toEqual({ text: '这是关于AI简介的描述内容。' })
   })
@@ -171,30 +209,48 @@ test.describe('Import Markdown (mocked)', () => {
     const mdPath = writeTempFile('test-legacy.md', LEGACY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
     expect(addPageCalls).toHaveLength(1)
+    expect(singleAddRequests).toBe(0)
     expect(addPageCalls[0].outline_content.title).toBe('旧格式页面')
     expect(addPageCalls[0].outline_content.points).toContain('要点一')
     expect(addPageCalls[0].part).toBe('测试')
   })
 
-  test('import empty markdown shows error toast', async ({ page }) => {
+  test('import empty markdown shows preview error and disables import', async ({ page }) => {
     const mdPath = writeTempFile('test-empty.md', EMPTY_MD)
 
     await page.goto(`/project/${PROJECT_ID}/outline`)
-    await page.waitForSelector('button:has-text("导入")', { timeout: 10_000 })
 
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(mdPath)
 
-    await expect(page.locator('text=文件中未找到有效页面').first()).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('未识别到可导入页面')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('button', { name: '导入到项目' })).toBeDisabled()
     expect(addPageCalls).toHaveLength(0)
+    expect(singleAddRequests).toBe(0)
+  })
+
+  test('rejects unsupported import files before parsing', async ({ page }) => {
+    const pdfPath = writeTempFile('test-import.pdf', '%PDF-1.7 fake pdf')
+
+    await page.goto(`/project/${PROJECT_ID}/outline`)
+
+    const fileInput = await openImportModal(page)
+    const textarea = page.getByPlaceholder('把大纲或大纲+描述的 Markdown 粘贴到这里...')
+    await textarea.fill('## 草稿页: 不应被误选文件清空')
+    await fileInput.setInputFiles(pdfPath)
+
+    await expect(page.getByText('只能导入 .md、.markdown 或 .txt 文件')).toBeVisible({ timeout: 5_000 })
+    await expect(textarea).toHaveValue('## 草稿页: 不应被误选文件清空')
+    expect(addPageCalls).toHaveLength(0)
+    expect(singleAddRequests).toBe(0)
   })
 
   test('export→import round-trip preserves data', async ({ page }) => {
@@ -220,11 +276,12 @@ test.describe('Import Markdown (mocked)', () => {
 
     // Use detail page "导出大纲+描述" for full export
     await page.goto(`/project/${PROJECT_ID}/detail`)
-    await page.waitForSelector('button:has-text("导出大纲+描述")', { timeout: 10_000 })
+    await page.getByRole('button', { name: /导入\/导出/ }).click()
+    await expect(page.getByRole('button', { name: '导出大纲和描述' })).toBeVisible()
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('button:has-text("导出大纲+描述")'),
+      page.getByRole('button', { name: '导出大纲和描述' }).click(),
     ])
     const downloadPath = await download.path()
     const exportedContent = fs.readFileSync(downloadPath!, 'utf-8')
@@ -239,13 +296,15 @@ test.describe('Import Markdown (mocked)', () => {
     // Import the exported file back
     addPageCalls = []
     const reimportPath = writeTempFile('roundtrip.md', exportedContent)
-    const fileInput = page.locator('input[type="file"][accept=".md,.txt"]').first()
+    const fileInput = await openImportModal(page)
     await fileInput.setInputFiles(reimportPath)
+    await importSelectedFile(page)
 
     await expect(page.locator('text=导入成功').first()).toBeVisible({ timeout: 5_000 })
 
     // Verify round-trip fidelity
     expect(addPageCalls).toHaveLength(2)
+    expect(singleAddRequests).toBe(0)
     expect(addPageCalls[0].outline_content.title).toBe('导论')
     expect(addPageCalls[0].outline_content.points).toEqual(['背景介绍', '研究目的'])
     expect(addPageCalls[0].part).toBe('第一章')

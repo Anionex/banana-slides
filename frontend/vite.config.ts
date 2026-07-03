@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
   const gitShortSha = env.VITE_APP_COMMIT_SHORT_SHA || gitSha.slice(0, 7)
   
   return {
+    base: './',
     envDir,
     plugins: [react()],
     define: {

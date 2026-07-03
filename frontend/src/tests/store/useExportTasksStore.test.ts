@@ -1,9 +1,16 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { act } from '@testing-library/react'
 import { useExportTasksStore } from '@/store/useExportTasksStore'
+import * as api from '@/api/endpoints'
+
+vi.mock('@/api/endpoints', () => ({
+  getTaskStatus: vi.fn(),
+}))
 
 describe('useExportTasksStore', () => {
   beforeEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
     act(() => {
       useExportTasksStore.setState({ tasks: [] })
     })
@@ -132,5 +139,75 @@ describe('useExportTasksStore', () => {
     expect(useExportTasksStore.getState().tasks.map(task => task.id)).toEqual([
       'active-current',
     ])
+  })
+
+  it('marks a restored active task as failed when the backend no longer returns task data', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.getTaskStatus).mockResolvedValue({
+      success: true,
+      data: undefined,
+    })
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'stale-export',
+        taskId: 'missing-task',
+        projectId: 'project-a',
+        type: 'pptx',
+        status: 'RUNNING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('stale-export', 'project-a', 'missing-task')
+    })
+
+    expect(useExportTasksStore.getState().tasks.find(item => item.id === 'stale-export')?.status).toBe('RUNNING')
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
+
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+    }
+
+    const task = useExportTasksStore.getState().tasks.find(item => item.id === 'stale-export')
+    expect(task?.status).toBe('FAILED')
+    expect(task?.errorMessage).toMatch(/导出任务已不可用|no longer available/)
+    expect(task?.completedAt).toBeTruthy()
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(4)
+  })
+
+  it('stops retrying when the task is removed while polling is active', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.getTaskStatus).mockResolvedValue({
+      success: true,
+      data: undefined,
+    })
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'removed-export',
+        taskId: 'missing-task',
+        projectId: 'project-a',
+        type: 'pptx',
+        status: 'RUNNING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('removed-export', 'project-a', 'missing-task')
+    })
+
+    act(() => {
+      useExportTasksStore.getState().removeTask('removed-export')
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
+    expect(useExportTasksStore.getState().tasks).toEqual([])
   })
 })

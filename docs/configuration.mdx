@@ -11,6 +11,7 @@ Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
 |--------|-------------|
 | `gemini` | Google Gemini API (default) |
 | `openai` | OpenAI-compatible API |
+| `volcengine` | Volcengine ModelArk AgentPlans (OpenAI-compatible) |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | Multi-vendor Chinese model routing |
 
@@ -33,6 +34,18 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
+
+## Volcengine AgentPlans
+
+Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint. Select "Volcengine AgentPlans" in Settings, or configure `.env`:
+
+```env
+AI_PROVIDER_FORMAT=volcengine
+VOLCENGINE_API_KEY=your-volcengine-api-key
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+```
+
+The generic API Key field in Settings can still override the API key, while the Base URL is managed automatically.
 
 ## Vertex AI
 

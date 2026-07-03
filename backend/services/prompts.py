@@ -819,8 +819,13 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
                                 language: str = None,
                                 has_template: bool = True,
                                 page_index: int = 1,
-                                aspect_ratio: str = "16:9") -> str:
-    """生成图片生成 prompt"""
+                                aspect_ratio: str = "16:9",
+                                page_style_text: str = None) -> str:
+    """生成图片生成 prompt
+
+    has_template: 是否有模板**图片**(用作 ref_image)。控制 "和模板图片严格相似" 措辞。
+    page_style_text: 页级文字风格(per-page-template 决策 7)。非空时拼入显式风格段。
+    """
     material_images_note = ""
     if has_material_images:
         material_images_note = (
@@ -836,12 +841,22 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
     template_style_guideline = "- 配色和设计语言和模板图片严格相似。" if has_template else "- 严格按照风格描述进行设计。"
     forbidden_template_text_guidline = "- 只参考风格设计，禁止出现模板中的文字。\n" if has_template else ""
 
+    page_style_block = ""
+    if page_style_text and page_style_text.strip():
+        page_style_block = (
+            "\n\n<page_style>\n"
+            f"{page_style_text.strip()}\n"
+            "</page_style>\n"
+            "- 必须遵循上述 page_style 中的视觉风格、配色、版式语言。"
+        )
+
     prompt = (f"""\
 你是一位专家级UI UX演示设计师，专注于生成设计良好的PPT页面。
 当前PPT页面的页面描述如下:
 <page_description>
 {page_desc}
 </page_description>
+{page_style_block}
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，{aspect_ratio}比例。
@@ -1243,3 +1258,316 @@ Output format — use exactly this delimiter before each narration:
         normalized_config,
     )
     return prompt
+
+
+# =============================================================================
+# 8. 模板解析 & 自动匹配 Prompts (per-page-template, PRD §5.3 / §8)
+# =============================================================================
+
+def get_template_analysis_prompt(language: str = 'zh') -> str:
+    """
+    PRD §5.3 9-field schema. Returns markdown-fenced JSON; parsed by
+    AIService.generate_json_with_image (3x soft retry).
+
+    On unrecognizable input the model must return {"error": "not_a_slide"};
+    the caller flips analysis_status='failed' (decision 2).
+    """
+    is_zh = language.lower().startswith('zh')
+
+    if is_zh:
+        return """你是一名 PPT 模板视觉分析师。仔细观察这张幻灯片图像，提取它作为"模板"的结构化特征。
+
+# 输出要求
+
+严格返回**一个** JSON 对象，包裹在 ```json 代码块中。**禁止**输出代码块以外的任何文字。
+
+如果这张图根本不是幻灯片（例如是一张照片、表情包、自拍），返回：
+```json
+{"error": "not_a_slide"}
+```
+
+# JSON Schema (9 字段)
+
+```json
+{
+  "template_role": "cover | content | section_divider | summary | data | comparison | timeline | other",
+  "layout_structure": "用 kebab-case 概括版式，如 title-top-two-column / hero-image-bottom-text",
+  "content_capacity": "low | medium | high",
+  "text_regions": [
+    {"name": "title", "position": "top | center | bottom | left | right", "size": "small | medium | large"}
+  ],
+  "image_regions": [
+    {"name": "hero", "position": "top | center | bottom | left | right", "size": "small | medium | large"}
+  ],
+  "visual_density": "low | medium | high",
+  "style_keywords": ["最多 5 个英文形容词，如 academic / clean / minimalist / bold / playful"],
+  "color_palette": ["最多 5 个主色 hex，#RRGGBB"],
+  "notes": "用一两句话补充任何 schema 字段未覆盖的视觉特征，如固定 logo、装饰元素、特殊版式约束"
+}
+```
+
+# 示例 1 — 封面页
+
+```json
+{
+  "template_role": "cover",
+  "layout_structure": "centered-title-large-hero-bg",
+  "content_capacity": "low",
+  "text_regions": [
+    {"name": "title", "position": "center", "size": "large"},
+    {"name": "subtitle", "position": "center", "size": "medium"}
+  ],
+  "image_regions": [
+    {"name": "background", "position": "center", "size": "large"}
+  ],
+  "visual_density": "low",
+  "style_keywords": ["bold", "modern", "high-contrast"],
+  "color_palette": ["#0E1A2B", "#F4B400"],
+  "notes": "底部 1/4 处有半透明渐变蒙版，便于叠加白色标题"
+}
+```
+
+# 示例 2 — 双栏正文
+
+```json
+{
+  "template_role": "content",
+  "layout_structure": "title-top-two-column",
+  "content_capacity": "medium",
+  "text_regions": [
+    {"name": "title", "position": "top", "size": "medium"},
+    {"name": "left_body", "position": "left", "size": "medium"},
+    {"name": "right_body", "position": "right", "size": "medium"}
+  ],
+  "image_regions": [],
+  "visual_density": "medium",
+  "style_keywords": ["academic", "clean", "blue"],
+  "color_palette": ["#FFFFFF", "#1F4E79", "#4472C4"],
+  "notes": "右下角有固定 logo 区域，左栏与右栏之间有 4px 浅灰分割线"
+}
+```
+
+# 示例 3 — 时间线
+
+```json
+{
+  "template_role": "timeline",
+  "layout_structure": "horizontal-timeline-five-nodes",
+  "content_capacity": "high",
+  "text_regions": [
+    {"name": "title", "position": "top", "size": "medium"},
+    {"name": "node_labels", "position": "center", "size": "small"}
+  ],
+  "image_regions": [
+    {"name": "node_icons", "position": "center", "size": "small"}
+  ],
+  "visual_density": "high",
+  "style_keywords": ["infographic", "timeline", "professional"],
+  "color_palette": ["#2E75B6", "#A9D18E", "#FFC000", "#ED7D31"],
+  "notes": "贯穿水平的箭头主线，5 个等距节点，节点上方放图标、下方放文字"
+}
+```
+
+# 关键约束
+
+- `style_keywords` 与 `color_palette` 最多 5 项
+- `text_regions` / `image_regions` 数组可空，但必须存在
+- 所有 enum 字段严格使用上述候选值，不得自创
+- `notes` 字段是你主观补充的"AI 观察"，鼓励填写但不超过 80 字"""
+
+    return """You are a slide-template visual analyst. Inspect this slide image and extract structured features that describe it **as a template**.
+
+# Output
+
+Return exactly **one** JSON object inside a ```json fenced code block. Do NOT emit any text outside the code block.
+
+If the image is clearly not a slide (e.g. a photo, meme, selfie), return:
+```json
+{"error": "not_a_slide"}
+```
+
+# JSON Schema (9 fields)
+
+```json
+{
+  "template_role": "cover | content | section_divider | summary | data | comparison | timeline | other",
+  "layout_structure": "kebab-case layout label, e.g. title-top-two-column / hero-image-bottom-text",
+  "content_capacity": "low | medium | high",
+  "text_regions": [
+    {"name": "title", "position": "top | center | bottom | left | right", "size": "small | medium | large"}
+  ],
+  "image_regions": [
+    {"name": "hero", "position": "top | center | bottom | left | right", "size": "small | medium | large"}
+  ],
+  "visual_density": "low | medium | high",
+  "style_keywords": ["up to 5 English adjectives, e.g. academic / clean / minimalist / bold / playful"],
+  "color_palette": ["up to 5 dominant hex colors, #RRGGBB"],
+  "notes": "one or two sentences capturing visual specifics not covered by other fields, e.g. fixed logo, decorative motifs, layout constraints"
+}
+```
+
+# Example 1 — cover
+
+```json
+{
+  "template_role": "cover",
+  "layout_structure": "centered-title-large-hero-bg",
+  "content_capacity": "low",
+  "text_regions": [
+    {"name": "title", "position": "center", "size": "large"},
+    {"name": "subtitle", "position": "center", "size": "medium"}
+  ],
+  "image_regions": [
+    {"name": "background", "position": "center", "size": "large"}
+  ],
+  "visual_density": "low",
+  "style_keywords": ["bold", "modern", "high-contrast"],
+  "color_palette": ["#0E1A2B", "#F4B400"],
+  "notes": "Translucent gradient overlay on the lower quarter to host white title text"
+}
+```
+
+# Example 2 — two-column content
+
+```json
+{
+  "template_role": "content",
+  "layout_structure": "title-top-two-column",
+  "content_capacity": "medium",
+  "text_regions": [
+    {"name": "title", "position": "top", "size": "medium"},
+    {"name": "left_body", "position": "left", "size": "medium"},
+    {"name": "right_body", "position": "right", "size": "medium"}
+  ],
+  "image_regions": [],
+  "visual_density": "medium",
+  "style_keywords": ["academic", "clean", "blue"],
+  "color_palette": ["#FFFFFF", "#1F4E79", "#4472C4"],
+  "notes": "Fixed logo area at bottom-right, 4px light-gray divider between columns"
+}
+```
+
+# Example 3 — timeline
+
+```json
+{
+  "template_role": "timeline",
+  "layout_structure": "horizontal-timeline-five-nodes",
+  "content_capacity": "high",
+  "text_regions": [
+    {"name": "title", "position": "top", "size": "medium"},
+    {"name": "node_labels", "position": "center", "size": "small"}
+  ],
+  "image_regions": [
+    {"name": "node_icons", "position": "center", "size": "small"}
+  ],
+  "visual_density": "high",
+  "style_keywords": ["infographic", "timeline", "professional"],
+  "color_palette": ["#2E75B6", "#A9D18E", "#FFC000", "#ED7D31"],
+  "notes": "Horizontal arrow spine, 5 evenly-spaced nodes, icons above, labels below"
+}
+```
+
+# Constraints
+
+- `style_keywords` and `color_palette`: up to 5 items
+- `text_regions` / `image_regions` may be empty arrays but must be present
+- All enum fields must use the listed candidates only
+- `notes` is your subjective "AI observation"; encouraged but max ~80 words"""
+
+
+def get_template_auto_match_prompt(templates: list, pages: list, language: str = 'zh') -> str:
+    """
+    Decision 5 prompt. Returns the full instruction string ready for
+    generate_json. The caller is responsible for input trimming
+    (page summary <= 100 chars, notes <= 200 chars, style_keywords <= 5).
+    """
+    is_zh = language.lower().startswith('zh')
+
+    templates_json = json.dumps(templates, ensure_ascii=False, indent=2)
+    pages_json = json.dumps(pages, ensure_ascii=False, indent=2)
+
+    if is_zh:
+        return f"""你是一名 PPT 模板调度师。给定一组项目内的"模板"和一份按 order_index 排序的页面摘要，请为每页选择最合适的模板。
+
+# 候选模板（asset_id 必须从这里挑选，禁止编造）
+
+```json
+{templates_json}
+```
+
+# 待匹配页面
+
+```json
+{pages_json}
+```
+
+# 输出要求
+
+严格返回**一个** JSON 数组，包裹在 ```json 代码块中。每个元素对应一页：
+
+```json
+[
+  {{
+    "page_id": "<必须等于输入页面的 page_id>",
+    "template_asset_id": "<候选模板里的 asset_id；status=undecided 时为 null>",
+    "status": "matched | undecided",
+    "confidence": 0.0,
+    "reason": "≤80 字，解释为什么选这张/为什么放弃"
+  }}
+]
+```
+
+# 选择原则
+
+1. **匹配性优先**：页面的 `content_density` 和模板的 `content_capacity` / `visual_density` 应当吻合（low↔low, high↔high）。
+2. **节奏感**：避免连续 5 页用同一张模板；同一模板间至少留 1 页间隔（除非候选数量不足）。
+3. **角色对齐**：封面页应分到 `template_role=cover` 的模板；分章节、总结也按角色优先。
+4. **不确定时**：宁可返回 `status=undecided`（`template_asset_id=null`），让用户手动决定，也不要乱猜。`confidence < 0.5` 时建议改用 undecided。
+5. **绝不**返回不在候选列表里的 `asset_id`。
+
+# 输出长度
+
+数组长度必须严格等于待匹配页面数量；`page_id` 顺序应与输入一致。"""
+
+    return f"""You are a slide-template assigner. Given a project's template library and a page-summary list (sorted by order_index), pick the best template for each page.
+
+# Candidate templates (asset_id MUST come from this list; never invent)
+
+```json
+{templates_json}
+```
+
+# Pages to match
+
+```json
+{pages_json}
+```
+
+# Output
+
+Return exactly **one** JSON array inside a ```json fenced code block. One element per page:
+
+```json
+[
+  {{
+    "page_id": "<must match an input page_id>",
+    "template_asset_id": "<an asset_id from the candidates; null when status=undecided>",
+    "status": "matched | undecided",
+    "confidence": 0.0,
+    "reason": "<= 80 chars: why this template, or why undecided"
+  }}
+]
+```
+
+# Principles
+
+1. **Fit first**: page `content_density` should align with template `content_capacity` / `visual_density` (low↔low, high↔high).
+2. **Rhythm**: avoid 5 consecutive pages with the same template; keep at least 1 page gap when candidates allow.
+3. **Role alignment**: covers should pick `template_role=cover`; section dividers and summaries follow their roles.
+4. **When unsure**: prefer `status=undecided` (template_asset_id=null) over guessing. confidence<0.5 should be undecided.
+5. **Never** return an asset_id outside the candidate list.
+
+# Length
+
+Array length must equal the number of input pages; `page_id` order must match the input."""

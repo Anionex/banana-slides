@@ -37,6 +37,51 @@ export interface ImageVersion {
   created_at?: string;
 }
 
+// 模板模式
+export type TemplateMode = 'single' | 'multi';
+
+// 模板选择来源
+export type TemplateSelectionSource = 'manual' | 'auto' | 'batch_apply';
+
+// 模板资产解析状态
+export type TemplateAnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+// 模板解析区域（文本/图片）
+export interface TemplateRegion {
+  name: string;
+  position: string;
+  size: string;
+}
+
+// 模板解析结果（PRD §5.3 九字段 schema）
+export interface TemplateAnalysis {
+  template_role: string;
+  layout_structure: string;
+  content_capacity: 'low' | 'medium' | 'high';
+  text_regions: TemplateRegion[];
+  image_regions: TemplateRegion[];
+  visual_density: 'low' | 'medium' | 'high';
+  style_keywords: string[];
+  color_palette: string[];
+  notes: string;
+}
+
+// 项目模板库中的一张模板资产
+export interface TemplateAsset {
+  id: string;
+  image_url: string;
+  thumb_url: string | null;
+  analysis_status: TemplateAnalysisStatus;
+  analysis_json: TemplateAnalysis | null;
+  analysis_notes: string | null;
+  analysis_error: string | null;
+  user_label: string | null;
+  user_edited_analysis: boolean;
+  source: 'upload' | 'pdf_split' | 'system_preset';
+  sort_order: number;
+  referenced_page_ids?: string[];
+}
+
 // 页面
 export interface Page {
   page_id: string;  // 后端返回 page_id
@@ -52,6 +97,12 @@ export interface Page {
   created_at?: string;
   updated_at?: string;
   image_versions?: ImageVersion[]; // 历史版本列表
+  // 页级模板（per-page template）
+  template_asset_id?: string | null;
+  template_style_text?: string | null;
+  template_selection_source?: TemplateSelectionSource | null;
+  template_match_reason?: string | null;
+  template_match_confidence?: number | null;
 }
 
 export interface NarrationConfig {
@@ -84,6 +135,7 @@ export interface Project {
   template_image_url?: string; // 后端返回 template_image_url
   template_image_path?: string; // 前端使用的别名
   template_style?: string; // 风格描述文本（无模板图模式）
+  template_mode?: TemplateMode; // 单/多模板模式（UI hint，底层始终每页一个模板）
   // 导出设置
   export_extractor_method?: ExportExtractorMethod; // 组件提取方法
   export_inpaint_method?: ExportInpaintMethod; // 背景图获取方法

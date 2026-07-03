@@ -21,7 +21,11 @@ vi.mock('@/api/endpoints', () => ({
   getTaskStatus: vi.fn(),
   exportPPTX: vi.fn(),
   exportPDF: vi.fn(),
+  uploadTemplateAsset: vi.fn(),
+  deleteTemplateAsset: vi.fn(),
 }))
+
+import { deleteTemplateAsset, uploadTemplateAsset } from '@/api/endpoints'
 
 describe('useProjectStore', () => {
   beforeEach(() => {
@@ -31,6 +35,7 @@ describe('useProjectStore', () => {
       result.current.setCurrentProject(null)
       result.current.setError(null)
       result.current.setGlobalLoading(false)
+      useProjectStore.setState({ templateAssets: [] })
     })
   })
 
@@ -126,6 +131,94 @@ describe('useProjectStore', () => {
     })
   })
 
+  describe('模板资产删除', () => {
+    it('should bind uploaded template by page_id and clear stale match metadata', async () => {
+      vi.mocked(uploadTemplateAsset).mockResolvedValue({
+        data: {
+          asset: { id: 'asset-1', project_id: 'proj-123', image_path: 'a.png' },
+          analyze_task_id: null,
+        },
+      } as any)
+      const { result } = renderHook(() => useProjectStore())
+
+      act(() => {
+        result.current.setCurrentProject({
+          id: 'proj-123',
+          status: 'DRAFT',
+          pages: [{
+            page_id: 'page-1',
+            template_asset_id: 'old-asset',
+            template_selection_source: 'auto_match',
+            template_match_reason: 'stale',
+            template_match_confidence: 0.91,
+          }],
+        } as any)
+      })
+
+      await act(async () => {
+        await result.current.uploadTemplateAsset(
+          'proj-123',
+          new File(['x'], 'a.png', { type: 'image/png' }),
+          { bindToPageId: 'page-1' }
+        )
+      })
+
+      const page = result.current.currentProject?.pages[0]
+      expect(page?.template_asset_id).toBe('asset-1')
+      expect(page?.template_selection_source).toBe('manual')
+      expect(page?.template_match_reason).toBeNull()
+      expect(page?.template_match_confidence).toBeNull()
+    })
+
+    it('should clear optimistic template match metadata for affected pages', async () => {
+      vi.mocked(deleteTemplateAsset).mockResolvedValue({
+        data: { cleared_page_ids: ['page-1'] },
+      } as any)
+      const { result } = renderHook(() => useProjectStore())
+
+      act(() => {
+        result.current.setCurrentProject({
+          id: 'proj-123',
+          status: 'DRAFT',
+          pages: [
+            {
+              id: 'page-1',
+              template_asset_id: 'asset-1',
+              template_selection_source: 'auto_match',
+              template_match_reason: 'fits',
+              template_match_confidence: 0.92,
+            },
+            {
+              id: 'page-2',
+              template_asset_id: 'asset-2',
+              template_selection_source: 'manual',
+              template_match_reason: 'keep',
+              template_match_confidence: 0.8,
+            },
+          ],
+        } as any)
+        useProjectStore.setState({
+          templateAssets: [
+          { id: 'asset-1', project_id: 'proj-123', image_path: 'a.png' },
+          { id: 'asset-2', project_id: 'proj-123', image_path: 'b.png' },
+          ] as any,
+        })
+      })
+
+      await act(async () => {
+        await result.current.deleteTemplateAsset('proj-123', 'asset-1')
+      })
+
+      expect(result.current.templateAssets.map((a) => a.id)).toEqual(['asset-2'])
+      const clearedPage = result.current.currentProject?.pages[0]
+      expect(clearedPage?.template_asset_id).toBeNull()
+      expect(clearedPage?.template_selection_source).toBeNull()
+      expect(clearedPage?.template_match_reason).toBeNull()
+      expect(clearedPage?.template_match_confidence).toBeNull()
+      expect(result.current.currentProject?.pages[1].template_match_reason).toBe('keep')
+    })
+  })
+
   describe('清除状态', () => {
     it('should clear project by setting null', () => {
       const { result } = renderHook(() => useProjectStore())
@@ -146,4 +239,3 @@ describe('useProjectStore', () => {
     })
   })
 })
-

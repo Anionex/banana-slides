@@ -1,13 +1,13 @@
 import { create } from 'zustand';
-import type { Project } from '@/types';
+import type { Project, TemplateAsset, Task } from '@/types';
 import * as api from '@/api/endpoints';
 import {
   debounce,
-  downloadFromUrl,
   normalizeProject,
   normalizeErrorMessage,
 } from '@/utils';
 import { devLog } from '@/utils/logger';
+import { triggerDownload } from '@/api/client';
 import { getT } from '@/utils/i18nHelper';
 
 const storeI18n = {
@@ -78,6 +78,25 @@ const storeI18n = {
 };
 const t = getT(storeI18n);
 
+// 清理旧原型遗留的 per-project localStorage key（交接文档 §3：旧 demo 数据不迁移）。
+// 模块加载时执行一次，把废弃的模板相关 key 直接删除。
+(function cleanupLegacyTemplateLocalStorageKeys() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  const legacyPrefixes = ['template_mode_', 'template_assets_', 'page_template_assign_'];
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && legacyPrefixes.some((prefix) => key.startsWith(prefix))) {
+        toRemove.push(key);
+      }
+    }
+    toRemove.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // localStorage 不可用时静默跳过
+  }
+})();
+
 interface ProjectState {
   // 状态
   currentProject: Project | null;
@@ -93,6 +112,8 @@ interface ProjectState {
   isOutlineStreaming: boolean;
   // 流式描述生成中
   isDescriptionStreaming: boolean;
+  // 项目模板库（per-page template）
+  templateAssets: TemplateAsset[];
 
   // Actions
   setCurrentProject: (project: Project | null) => void;
@@ -138,6 +159,20 @@ interface ProjectState {
   exportPPTX: (pageIds?: string[]) => Promise<void>;
   exportPDF: (pageIds?: string[]) => Promise<void>;
   exportEditablePPTX: (filename?: string, pageIds?: string[]) => Promise<void>;
+
+  // 每页模板（per-page template）
+  loadTemplateAssets: (projectId: string) => Promise<TemplateAsset[]>;
+  uploadTemplateAsset: (projectId: string, file: File, opts?: { userLabel?: string; bindToPageId?: string }) => Promise<TemplateAsset>;
+  uploadTemplatePdf: (projectId: string, file: File) => Promise<string>;
+  updateTemplateAsset: (projectId: string, assetId: string, patch: { user_label?: string | null; analysis_json?: TemplateAsset['analysis_json']; analysis_notes?: string | null; sort_order?: number }) => Promise<TemplateAsset>;
+  deleteTemplateAsset: (projectId: string, assetId: string) => Promise<string[]>;
+  reanalyzeTemplateAsset: (projectId: string, assetId: string) => Promise<string>;
+  updatePageTemplate: (projectId: string, pageId: string, patch: { template_asset_id?: string | null; template_style_text?: string | null; selection_source?: 'manual' | 'auto' | 'batch_apply' }) => Promise<void>;
+  switchTemplateMode: (projectId: string, payload: { mode: 'multi' } | { mode: 'single'; unified_asset_id?: string | null; unified_style_text?: string | null }) => Promise<void>;
+  switchTemplateModeWithUpload: (projectId: string, file: File, unifiedStyleText?: string) => Promise<void>;
+  autoMatchAll: (projectId: string, opts?: { overwrite_existing?: boolean; preserve_non_empty?: boolean }) => Promise<string>;
+  autoMatchPage: (projectId: string, pageId: string) => Promise<string>;
+  pollTemplateTask: (taskId: string, projectId: string, onProgress?: (task: Task) => void) => Promise<Task>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
@@ -196,6 +231,7 @@ const debouncedUpdatePage = debounce(
   warningMessage: null,
   isOutlineStreaming: false,
   isDescriptionStreaming: false,
+  templateAssets: [],
 
   // Setters
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -509,7 +545,7 @@ const debouncedUpdatePage = debounce(
               devLog('[导出可编辑PPTX] 从任务响应中获取下载链接:', downloadUrl);
               // 延迟一下，确保状态更新完成后再打开下载链接
               setTimeout(() => {
-                window.open(downloadUrl, '_blank');
+                triggerDownload(downloadUrl);
               }, 500);
             } else {
               console.warn('[导出可编辑PPTX] 任务完成但没有下载链接');
@@ -1264,7 +1300,8 @@ const debouncedUpdatePage = debounce(
       }
 
       const filename = downloadUrl.split('/').pop()?.split('?')[0] || 'presentation.pptx';
-      downloadFromUrl(downloadUrl, filename);
+      // 使用浏览器或桌面原生保存对话框直接下载，避免 axios 受带宽和超时影响
+      triggerDownload(downloadUrl, filename);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1289,7 +1326,8 @@ const debouncedUpdatePage = debounce(
       }
 
       const filename = downloadUrl.split('/').pop()?.split('?')[0] || 'presentation.pdf';
-      downloadFromUrl(downloadUrl, filename);
+      // 使用浏览器或桌面原生保存对话框直接下载，避免 axios 受带宽和超时影响
+      triggerDownload(downloadUrl, filename);
     } catch (error: any) {
       set({ error: error.message || t('store.exportFailed') });
     } finally {
@@ -1311,5 +1349,210 @@ const debouncedUpdatePage = debounce(
       console.error('[导出可编辑PPTX] 导出失败:', error);
       set({ error: error.message || t('store.exportEditableFailed') });
     }
+  },
+
+  // ===== 每页模板（per-page template）=====
+
+  loadTemplateAssets: async (projectId) => {
+    const response = await api.listTemplateAssets(projectId);
+    const assets = response.data?.assets || [];
+    set({ templateAssets: assets });
+    return assets;
+  },
+
+  uploadTemplateAsset: async (projectId, file, opts) => {
+    const response = await api.uploadTemplateAsset(projectId, file, opts);
+    const asset = response.data!.asset;
+    const analyzeTaskId = response.data!.analyze_task_id;
+    set((state) => ({ templateAssets: [...state.templateAssets, asset] }));
+    // 后台轮询解析任务，完成/失败后刷新模板库，避免“解析中”徽章一直停留到手动刷新。
+    // 失败也刷新，让 'failed' 状态浮现；用户切走项目后不刷新，避免覆盖新项目的模板库。
+    if (analyzeTaskId) {
+      const refreshIfCurrent = () => {
+        const cur = get().currentProject;
+        if (cur && cur.id === projectId) {
+          get().loadTemplateAssets(projectId).catch(() => {});
+        }
+      };
+      get()
+        .pollTemplateTask(analyzeTaskId, projectId)
+        .then(refreshIfCurrent)
+        .catch(refreshIfCurrent);
+    }
+    // 绑定到页面时同步本地 page 字段
+    if (opts?.bindToPageId) {
+      const { currentProject } = get();
+      if (currentProject) {
+        set({
+          currentProject: {
+            ...currentProject,
+            pages: currentProject.pages.map((p) =>
+              (p.id === opts.bindToPageId || p.page_id === opts.bindToPageId)
+                ? {
+                    ...p,
+                    template_asset_id: asset.id,
+                    template_selection_source: 'manual',
+                    template_match_reason: null,
+                    template_match_confidence: null,
+                  }
+                : p
+            ),
+          },
+        });
+      }
+    }
+    return asset;
+  },
+
+  uploadTemplatePdf: async (projectId, file) => {
+    const response = await api.uploadTemplatePdf(projectId, file);
+    return response.data!.task_id;
+  },
+
+  updateTemplateAsset: async (projectId, assetId, patch) => {
+    const response = await api.updateTemplateAsset(projectId, assetId, patch);
+    const updated = response.data!.asset;
+    set((state) => ({
+      templateAssets: state.templateAssets.map((a) => (a.id === assetId ? updated : a)),
+    }));
+    return updated;
+  },
+
+  deleteTemplateAsset: async (projectId, assetId) => {
+    const response = await api.deleteTemplateAsset(projectId, assetId);
+    const clearedPageIds = response.data?.cleared_page_ids || [];
+    set((state) => ({
+      templateAssets: state.templateAssets.filter((a) => a.id !== assetId),
+    }));
+    // 乐观更新：把被清空的页面字段置空
+    if (clearedPageIds.length > 0) {
+      const { currentProject } = get();
+      if (currentProject) {
+        const cleared = new Set(clearedPageIds);
+        set({
+          currentProject: {
+            ...currentProject,
+            pages: currentProject.pages.map((p) => {
+              const pid = p.id || p.page_id;
+              return pid && cleared.has(pid)
+                ? {
+                    ...p,
+                    template_asset_id: null,
+                    template_selection_source: null,
+                    template_match_reason: null,
+                    template_match_confidence: null,
+                  }
+                : p;
+            }),
+          },
+        });
+      }
+    }
+    return clearedPageIds;
+  },
+
+  reanalyzeTemplateAsset: async (projectId, assetId) => {
+    const response = await api.reanalyzeTemplateAsset(projectId, assetId);
+    // 乐观更新：把该 asset 状态置 pending
+    set((state) => ({
+      templateAssets: state.templateAssets.map((a) =>
+        a.id === assetId ? { ...a, analysis_status: 'pending', analysis_error: null } : a
+      ),
+    }));
+    return response.data!.analyze_task_id;
+  },
+
+  updatePageTemplate: async (projectId, pageId, patch) => {
+    const response = await api.updatePageTemplate(projectId, pageId, patch);
+    const updatedPage = response.data?.page;
+    const { currentProject } = get();
+    if (currentProject && updatedPage) {
+      set({
+        currentProject: {
+          ...currentProject,
+          pages: currentProject.pages.map((p) =>
+            (p.id === pageId || p.page_id === pageId)
+              ? { ...p, ...updatedPage, id: p.id, page_id: p.page_id }
+              : p
+          ),
+        },
+      });
+    }
+  },
+
+  switchTemplateMode: async (projectId, payload) => {
+    await api.switchTemplateMode(projectId, payload);
+    // 模式切换可能批量改写所有页，刷新整个项目
+    await get().syncProject(projectId);
+  },
+
+  switchTemplateModeWithUpload: async (projectId, file, unifiedStyleText) => {
+    const response = await api.switchTemplateModeSingleWithUpload(projectId, file, unifiedStyleText);
+    const asset = response.data?.asset;
+    if (asset) {
+      set((state) => ({ templateAssets: [...state.templateAssets, asset] }));
+    }
+    await get().syncProject(projectId);
+  },
+
+  autoMatchAll: async (projectId, opts) => {
+    const response = await api.autoMatchAllTemplates(projectId, opts);
+    return response.data!.task_id;
+  },
+
+  autoMatchPage: async (projectId, pageId) => {
+    const response = await api.autoMatchPageTemplate(projectId, pageId);
+    return response.data!.task_id;
+  },
+
+  // 轮询模板相关任务（解析 / PDF 拆页 / 自动匹配），完成或失败时 resolve。
+  // 不污染全局 activeTaskId/taskProgress，便于多任务并发。
+  pollTemplateTask: async (taskId, projectId, onProgress) => {
+    // Cap the loop so a stuck/dead worker can't poll forever (~15 min).
+    const MAX_ATTEMPTS = 450;
+    // Tolerate a few transient network errors before giving up.
+    const MAX_CONSECUTIVE_ERRORS = 5;
+    return new Promise<Task>((resolve, reject) => {
+      let attempts = 0;
+      let consecutiveErrors = 0;
+      const poll = async () => {
+        // Stop polling if the user navigated to a different project so we
+        // don't keep firing requests for a screen that's no longer visible.
+        const { currentProject } = get();
+        if (!currentProject || currentProject.id !== projectId) {
+          reject(new Error('Project changed, polling stopped'));
+          return;
+        }
+        if (attempts++ >= MAX_ATTEMPTS) {
+          reject(new Error(t('store.taskFailed')));
+          return;
+        }
+        try {
+          const response = await api.getTaskStatus(projectId, taskId);
+          consecutiveErrors = 0;
+          const task = response.data;
+          if (!task) {
+            setTimeout(poll, 2000);
+            return;
+          }
+          if (onProgress) onProgress(task);
+          if (task.status === 'COMPLETED') {
+            resolve(task);
+          } else if (task.status === 'FAILED') {
+            reject(new Error(task.error_message || task.error || t('store.taskFailed')));
+          } else {
+            setTimeout(poll, 2000);
+          }
+        } catch (error: any) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            reject(error);
+          } else {
+            setTimeout(poll, 2000);
+          }
+        }
+      };
+      poll();
+    });
   },
 };});

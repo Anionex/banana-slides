@@ -1031,7 +1031,15 @@ def generate_images(project_id):
         if use_template:
             ref_image_path = file_service.get_template_path(project_id)
         
-        if not ref_image_path and not project.template_style:
+        # Per-page-template (PRD §13): multi-mode projects carry templates on
+        # pages, not on the project, so the project-level check alone would
+        # wrongly block generation. Allow it when any target page has a
+        # per-page template binding (asset or style text).
+        has_page_template = any(
+            getattr(p, 'template_asset_id', None) or getattr(p, 'template_style_text', None)
+            for p in pages
+        )
+        if not ref_image_path and not project.template_style and not has_page_template:
             return bad_request("请先上传模板图片或添加风格描述。")
         
         # Reconstruct outline from pages with part structure

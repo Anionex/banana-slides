@@ -59,6 +59,7 @@ vi.mock('@/api/auth', () => ({
 
 vi.mock('@/utils', () => ({
   debounce: (fn: any) => fn,
+  isDesktop: false,
   normalizeProject: (data: any) => data,
   normalizeErrorMessage: (msg: string) => msg,
 }))

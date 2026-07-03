@@ -11,6 +11,7 @@ description: "环境变量与服务商设置"
 |------|------|
 | `gemini` | Google Gemini API（默认） |
 | `openai` | OpenAI 兼容 API |
+| `volcengine` | 火山方舟 AgentPlans（OpenAI 兼容） |
 | `vertex` | Google Cloud Vertex AI |
 | `lazyllm` | 多厂商国产模型路由 |
 
@@ -33,6 +34,18 @@ AI_PROVIDER_FORMAT=openai
 OPENAI_API_KEY=your-api-key
 OPENAI_API_BASE=https://api.openai.com/v1
 ```
+
+## 火山 AgentPlans
+
+火山方舟 Agent Plan 模型订阅套餐可通过 OpenAI 兼容接口接入。选择设置页里的“火山 AgentPlans”，或在 `.env` 中配置：
+
+```env
+AI_PROVIDER_FORMAT=volcengine
+VOLCENGINE_API_KEY=your-volcengine-api-key
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+```
+
+也可以继续使用设置页的通用 API Key 字段覆盖以上配置，而 API Base URL 将由系统自动管理。
 
 ## Vertex AI
 

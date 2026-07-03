@@ -50,6 +50,42 @@ def serve_file(project_id, file_type, filename):
         return error_response('SERVER_ERROR', str(e), 500)
 
 
+@file_bp.route('/<project_id>/template-assets/<asset_id>/<filename>', methods=['GET'])
+def serve_template_asset(project_id, asset_id, filename):
+    """
+    GET /files/{project_id}/template-assets/{asset_id}/{filename}
+
+    Serve per-project template asset files (original.* and thumb.jpg).
+    """
+    try:
+        safe_filename = secure_filename(filename)
+        if not safe_filename:
+            return not_found('File')
+
+        root = Path(current_app.config['UPLOAD_FOLDER']).resolve()
+        file_dir = (root / project_id / 'template-assets' / asset_id).resolve()
+
+        try:
+            file_dir.relative_to(root)
+        except ValueError:
+            return error_response('INVALID_PATH', 'Invalid file path', 403)
+        if not file_dir.exists() or not file_dir.is_dir():
+            return not_found('File')
+
+        file_path = (file_dir / safe_filename).resolve()
+        try:
+            file_path.relative_to(file_dir)
+        except ValueError:
+            return error_response('INVALID_PATH', 'Invalid file path', 403)
+        if not file_path.exists() or not file_path.is_file():
+            return not_found('File')
+
+        return send_from_directory(str(file_dir), safe_filename)
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
 @file_bp.route('/user-templates/<template_id>/<filename>', methods=['GET'])
 def serve_user_template(template_id, filename):
     """

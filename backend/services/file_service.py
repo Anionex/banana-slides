@@ -95,6 +95,24 @@ class FileService:
         exports_dir.mkdir(exist_ok=True, parents=True)
         return exports_dir
 
+    def _get_template_assets_dir(self, project_id: str) -> Path:
+        """Get the per-project template asset library directory."""
+        assets_dir = self._get_project_dir(project_id) / "template-assets"
+        assets_dir.mkdir(exist_ok=True, parents=True)
+        return assets_dir
+
+    def _get_template_asset_dir(self, project_id: str, asset_id: str) -> Path:
+        """Get the directory of a single template asset."""
+        asset_dir = self._get_template_assets_dir(project_id) / asset_id
+        asset_dir.mkdir(exist_ok=True, parents=True)
+        return asset_dir
+
+    def _get_template_pdf_dir(self, project_id: str) -> Path:
+        """Get the directory for template PDF uploads + per-task page renders."""
+        pdf_dir = self._get_project_dir(project_id) / "template-pdf"
+        pdf_dir.mkdir(exist_ok=True, parents=True)
+        return pdf_dir
+
     def _get_materials_dir(self, project_id: str) -> Path:
         """Get materials directory for project (for standalone generated assets)"""
         materials_dir = self._get_project_dir(project_id) / "materials"
@@ -483,6 +501,121 @@ class FileService:
             shutil.rmtree(template_dir)
 
         return True
+
+    # ---------- Template assets (per-page template feature) ----------
+
+    def _make_asset_thumbnail(self, src_image: Image.Image, dest: Path,
+                              quality: int = 85, max_width: int = 480) -> None:
+        """Resize + convert + save JPEG thumbnail for a template asset."""
+        thumb = resize_image_for_thumbnail(src_image, max_width)
+        thumb = convert_image_to_rgb(thumb)
+        thumb.save(str(dest), 'JPEG', quality=quality, optimize=True)
+
+    def save_template_asset(self, file, project_id: str, asset_id: str) -> tuple[str, str]:
+        """
+        Save a template asset upload: original (verified) + JPEG thumbnail.
+
+        Returns:
+            (image_path, thumb_path) — both relative to upload_folder.
+        """
+        asset_dir = self._get_template_asset_dir(project_id, asset_id)
+
+        original_filename = secure_filename(file.filename or '')
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'png'
+        if ext == 'jpeg':
+            ext = 'jpg'
+        original_dest = asset_dir / f"original.{ext}"
+
+        self._save_validated_image_upload(file, original_dest)
+
+        thumb_dest = asset_dir / "thumb.jpg"
+        with Image.open(str(original_dest)) as img:
+            self._make_asset_thumbnail(img, thumb_dest)
+
+        image_path = original_dest.relative_to(self.upload_folder).as_posix()
+        thumb_path = thumb_dest.relative_to(self.upload_folder).as_posix()
+        return image_path, thumb_path
+
+    def save_template_asset_from_path(self, src_path: str, project_id: str,
+                                      asset_id: str) -> tuple[str, str]:
+        """
+        Copy an existing local image into the template-assets dir as `original.<ext>`
+        and generate a thumbnail. Used by the PDF-split pipeline.
+        """
+        import shutil
+        src = Path(src_path)
+        if not src.exists() or not src.is_file():
+            raise ValueError(f"Source image does not exist: {src_path}")
+
+        asset_dir = self._get_template_asset_dir(project_id, asset_id)
+        ext = src.suffix.lstrip('.').lower() or 'png'
+        if ext == 'jpeg':
+            ext = 'jpg'
+        original_dest = asset_dir / f"original.{ext}"
+        shutil.copyfile(str(src), str(original_dest))
+
+        thumb_dest = asset_dir / "thumb.jpg"
+        with Image.open(str(original_dest)) as img:
+            self._make_asset_thumbnail(img, thumb_dest)
+
+        image_path = original_dest.relative_to(self.upload_folder).as_posix()
+        thumb_path = thumb_dest.relative_to(self.upload_folder).as_posix()
+        return image_path, thumb_path
+
+    def delete_template_asset(self, project_id: str, asset_id: str) -> None:
+        """Delete the template-assets/<asset_id>/ directory and all its files."""
+        import shutil
+        asset_dir = self._get_template_assets_dir(project_id) / asset_id
+        if asset_dir.exists():
+            shutil.rmtree(asset_dir)
+
+    def save_template_pdf(self, file, project_id: str, task_id: str) -> str:
+        """
+        Save an uploaded template PDF as template-pdf/<task_id>.pdf.
+
+        Returns:
+            Relative path from upload_folder.
+        """
+        pdf_dir = self._get_template_pdf_dir(project_id)
+        original_filename = secure_filename(file.filename or '')
+        if '.' in original_filename and original_filename.rsplit('.', 1)[1].lower() != 'pdf':
+            raise ValueError("Template PDF must have a .pdf extension")
+        dest = pdf_dir / f"{task_id}.pdf"
+        tmp_path = dest.with_name(f".{dest.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            file.save(str(tmp_path))
+            with open(tmp_path, 'rb') as fh:
+                if fh.read(4) != b'%PDF':
+                    raise ValueError("Uploaded file is not a valid PDF")
+            os.replace(tmp_path, dest)
+        except Exception:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+        return dest.relative_to(self.upload_folder).as_posix()
+
+    def get_template_pdf_temp_dir(self, project_id: str, task_id: str) -> Path:
+        """Return (and create) the per-task scratch dir for PDF page renders."""
+        pdf_dir = self._get_template_pdf_dir(project_id)
+        task_dir = pdf_dir / task_id
+        task_dir.mkdir(exist_ok=True, parents=True)
+        return task_dir
+
+    def cleanup_template_pdf_temp(self, project_id: str, task_id: str) -> None:
+        """
+        Remove the per-task PDF page-image scratch directory.
+
+        Does NOT delete the original `<task_id>.pdf`; that is kept 7 days for retry
+        (TODO: scheduled cleanup is out of scope for this PR — see spec §4.3).
+        """
+        import shutil
+        task_dir = self._get_template_pdf_dir(project_id) / task_id
+        if task_dir.exists() and task_dir.is_dir():
+            shutil.rmtree(task_dir)
+
+    # ---------- /Template assets ----------
 
     def save_user_template_thumbnail(self, template_id: str, original_path: str,
                                       quality: int = 80, max_width: int = 600) -> Optional[str]:
