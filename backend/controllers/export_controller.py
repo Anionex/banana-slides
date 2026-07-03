@@ -384,7 +384,8 @@ def export_editable_pptx(project_id):
             "filename": "optional_custom_name.pptx",
             "page_ids": ["id1", "id2"],  // 可选，要导出的页面ID列表（不提供则导出所有）
             "max_depth": 1,      // 可选，递归深度（默认1=不递归，2=递归一层）
-            "max_workers": 4     // 可选，并发数（默认4）
+            "max_workers": 4,    // 可选，并发数（默认4）
+            "text_only": false   // 可选，仅让文字层可编辑，默认false
         }
     
     Returns:
@@ -433,6 +434,7 @@ def export_editable_pptx(project_id):
         # max_depth 语义：1=只处理表层不递归，2=递归一层（处理图片/图表中的子元素）
         max_depth = data.get('max_depth', 1)  # 默认不递归，与测试脚本一致
         max_workers = data.get('max_workers', 4)
+        text_only = data.get('text_only', False)
         
         # Validate parameters
         # max_depth >= 1: 至少处理表层元素
@@ -441,6 +443,9 @@ def export_editable_pptx(project_id):
         
         if not isinstance(max_workers, int) or max_workers < 1 or max_workers > 16:
             return bad_request("max_workers must be an integer between 1 and 16")
+
+        if not isinstance(text_only, bool):
+            return bad_request("text_only must be a boolean")
         
         # Create task record
         task = Task(
@@ -451,7 +456,10 @@ def export_editable_pptx(project_id):
         db.session.add(task)
         db.session.commit()
         
-        logger.info(f"Created export task {task.id} for project {project_id} (recursive analysis: depth={max_depth}, workers={max_workers})")
+        logger.info(
+            f"Created export task {task.id} for project {project_id} "
+            f"(recursive analysis: depth={max_depth}, workers={max_workers}, text_only={text_only})"
+        )
         
         # Get services
         from services.file_service import FileService
@@ -488,6 +496,7 @@ def export_editable_pptx(project_id):
             export_extractor_method=export_extractor_method,
             export_inpaint_method=export_inpaint_method,
             enable_icon_subject_extraction=enable_icon_subject_extraction,
+            text_only=text_only,
             app=app
         )
         
@@ -498,7 +507,8 @@ def export_editable_pptx(project_id):
                 "task_id": task.id,
                 "method": "recursive_analysis",
                 "max_depth": max_depth,
-                "max_workers": max_workers
+                "max_workers": max_workers,
+                "text_only": text_only
             },
             message="Export task created (using recursive analysis)"
         )

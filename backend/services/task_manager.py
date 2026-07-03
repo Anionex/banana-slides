@@ -1758,6 +1758,7 @@ def export_editable_pptx_with_recursive_analysis_task(
     export_extractor_method: str = 'hybrid',
     export_inpaint_method: str = 'hybrid',
     enable_icon_subject_extraction: bool = True,
+    text_only: bool = False,
     app=None
 ):
     """
@@ -1781,9 +1782,10 @@ def export_editable_pptx_with_recursive_analysis_task(
         max_workers: 并发处理数
         export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid')
         export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid')
+        text_only: 是否仅叠加可编辑文字层，保留整页原图作为背景
         app: Flask应用实例
     """
-    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method}, icon_subject_extraction={enable_icon_subject_extraction})")
+    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method}, icon_subject_extraction={enable_icon_subject_extraction}, text_only={text_only})")
     
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -1906,7 +1908,7 @@ def export_editable_pptx_with_recursive_analysis_task(
             progress_callback("准备", "文字属性提取器已初始化", 5)
             
             # Step 3: 调用导出方法（使用项目的导出设置）
-            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, fail_fast={fail_fast})...")
+            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method}, text_only={text_only}, fail_fast={fail_fast})...")
             progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
 
             _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
@@ -1921,6 +1923,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                 export_extractor_method=export_extractor_method,
                 export_inpaint_method=export_inpaint_method,
                 enable_icon_subject_extraction=enable_icon_subject_extraction,
+                text_only=text_only,
                 fail_fast=fail_fast
             )
             
@@ -1954,6 +1957,7 @@ def export_editable_pptx_with_recursive_analysis_task(
                     "filename": filename,
                     "method": "recursive_analysis",
                     "max_depth": max_depth,
+                    "text_only": text_only,
                     "warnings": warning_messages,  # 单独的警告列表
                     "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
                 })

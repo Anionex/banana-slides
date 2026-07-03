@@ -153,6 +153,7 @@ No longer restricted by complex menu buttons, issue modification commands direct
 ### 5. Freely Editable PPTX Export (In Beta)
 
 - **Export images as high-fidelity, clean-background PPT pages with freely editable images and text**
+- Enable **Only Text Layers Editable** before export to keep the full slide image as the background and make only detected text editable. This option is off by default.
 - For related updates, see https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 

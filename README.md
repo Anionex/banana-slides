@@ -152,6 +152,7 @@
 
 ### 5. 可自由编辑的pptx导出（Beta迭代中）
 - **导出图像为高还原度、背景干净的、可自由编辑图像和文字的PPT页面**
+- 可在导出前勾选「仅文字层可编辑」，保留整页原图作为背景，只让识别出的文字变成可编辑文本框（默认不勾选）。
 - 相关更新见 https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 

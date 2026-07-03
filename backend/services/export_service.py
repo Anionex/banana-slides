@@ -196,6 +196,22 @@ def _get_page_size_inches(aspect_ratio: str = '16:9', base: float = 10.0) -> Tup
 class ExportService:
     """Service for exporting presentations"""
 
+    EDITABLE_TEXT_ELEMENT_TYPES = {
+        'text',
+        'title',
+        'list',
+        'paragraph',
+        'header',
+        'footer',
+        'heading',
+        'table_cell',
+        'table_caption',
+        'image_caption',
+        'equation',
+        'interline_equation',
+        'inline_equation',
+    }
+
     PPTX_TRANSITION_EFFECTS = {
         'fade',
         'page_turn',
@@ -1259,6 +1275,7 @@ class ExportService:
         export_extractor_method: str = 'hybrid',  # 组件提取方法: mineru, hybrid
         export_inpaint_method: str = 'hybrid',  # 背景修复方法: generative, baidu, hybrid
         enable_icon_subject_extraction: bool = False,  # 是否对小尺寸图标走百度智能抠图
+        text_only: bool = False,  # 是否保留整页原图背景，仅叠加可编辑文字层
         fail_fast: bool = True  # 是否在遇到错误时立即停止（False则收集警告继续）
     ) -> Tuple[Optional[bytes], ExportWarnings]:
         """
@@ -1284,6 +1301,8 @@ class ExportService:
                 可通过 TextAttributeExtractorFactory.create_caption_model_extractor() 创建
             export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid'，默认 'hybrid')
             export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid'，默认 'hybrid')
+            text_only: 仅文字层可编辑。为 True 时使用原始整页图片作为背景，
+                跳过图片/图表/表格背景等非文字元素，只叠加识别出的文字元素。
             fail_fast: 是否在遇到错误时立即停止（默认 True）。设为 False 则收集警告继续导出。
 
         Returns:
@@ -1292,6 +1311,7 @@ class ExportService:
             - warnings: ExportWarnings 对象，包含所有警告信息
         """
         from services.image_editability import ServiceConfig, ImageEditabilityService
+        from services.image_editability.inpaint_providers import InpaintProviderRegistry
         from utils.pptx_builder import PPTXBuilder
         
         # 初始化警告收集器
@@ -1328,8 +1348,10 @@ class ExportService:
                 max_depth=max_depth,
                 extractor_method=export_extractor_method,
                 inpaint_method=export_inpaint_method,
-                enable_icon_subject_extraction=enable_icon_subject_extraction,
+                enable_icon_subject_extraction=enable_icon_subject_extraction and not text_only,
             )
+            if text_only:
+                config.inpaint_registry = InpaintProviderRegistry()
             editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
@@ -1410,12 +1432,14 @@ class ExportService:
             # 创建空白幻灯片
             slide = builder.add_blank_slide()
             
-            # 添加背景图（参考原实现，使用slide.shapes.add_picture）
-            if editable_img.clean_background and os.path.exists(editable_img.clean_background):
-                logger.info(f"    添加clean background: {editable_img.clean_background}")
+            # 添加背景图：text_only 模式保留整页原图，只叠加文字层。
+            background_path = editable_img.image_path if text_only else editable_img.clean_background
+            if background_path and os.path.exists(background_path):
+                background_label = "原图背景" if text_only else "clean background"
+                logger.info(f"    添加{background_label}: {background_path}")
                 try:
                     slide.shapes.add_picture(
-                        editable_img.clean_background,
+                        background_path,
                         left=0,
                         top=0,
                         width=builder.prs.slide_width,
@@ -1454,6 +1478,7 @@ class ExportService:
                 depth=0,
                 text_styles_cache=text_styles_cache,  # 使用预提取的样式缓存
                 warnings=warnings,  # 收集警告
+                text_only=text_only,
                 fail_fast=fail_fast  # 传递 fail_fast 参数
             )
             
@@ -1492,6 +1517,7 @@ class ExportService:
         depth: int = 0,
         text_styles_cache: Dict[str, Any] = None,  # 预提取的文本样式缓存，key为element_id
         warnings: 'ExportWarnings' = None,  # 警告收集器
+        text_only: bool = False,  # 是否只添加文本类元素
         fail_fast: bool = False  # 是否在遇到错误时立即停止
     ):
         """
@@ -1598,8 +1624,26 @@ class ExportService:
             
             logger.info(f"{'  ' * depth}  添加元素: type={elem_type}, bbox={bbox_list}, content={elem.content[:30] if elem.content else None}, image_path={elem.image_path}, 使用{'全局' if depth > 0 else '局部'}坐标")
 
+            if text_only and elem_type not in ExportService.EDITABLE_TEXT_ELEMENT_TYPES:
+                if elem.children:
+                    ExportService._add_editable_elements_to_slide(
+                        builder=builder,
+                        slide=slide,
+                        elements=elem.children,
+                        scale_x=scale_x,
+                        scale_y=scale_y,
+                        depth=depth + 1,
+                        text_styles_cache=text_styles_cache,
+                        warnings=warnings,
+                        text_only=text_only,
+                        fail_fast=fail_fast
+                    )
+                else:
+                    logger.debug(f"{'  ' * depth}  text_only 跳过非文字元素: {elem_type}")
+                continue
+
             # 根据类型添加元素（参考原实现的_add_mineru_text_to_slide和_add_mineru_image_to_slide）
-            if elem_type in ['text', 'title', 'list', 'paragraph', 'header', 'footer', 'heading', 'table_caption', 'image_caption', 'equation', 'interline_equation', 'inline_equation']:
+            if elem_type in ExportService.EDITABLE_TEXT_ELEMENT_TYPES - {'table_cell'}:
                 # 添加文本（参考_add_mineru_text_to_slide）
                 if elem.content:
                     text = elem.content.strip()
@@ -1673,6 +1717,7 @@ class ExportService:
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
                         warnings=warnings,
+                        text_only=text_only,
                         fail_fast=fail_fast
                     )
                 else:
@@ -1738,6 +1783,7 @@ class ExportService:
                         depth=depth + 1,
                         text_styles_cache=text_styles_cache,
                         warnings=warnings,
+                        text_only=text_only,
                         fail_fast=fail_fast
                     )
                 else:

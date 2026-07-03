@@ -13,6 +13,15 @@ def _slide_xml(pptx_path):
         return archive.read("ppt/slides/slide1.xml").decode("utf-8")
 
 
+def _pptx_media_payloads(pptx_path):
+    with ZipFile(pptx_path) as archive:
+        return [
+            archive.read(name)
+            for name in archive.namelist()
+            if name.startswith("ppt/media/")
+        ]
+
+
 def test_builder_writes_native_omml_equation_instead_of_raw_tex(tmp_path):
     builder = PPTXBuilder()
     builder.create_presentation()
@@ -288,6 +297,49 @@ def test_editable_export_prefers_latex_text_segments_for_formula_source(tmp_path
     assert r"\geq" not in slide_xml
 
 
+def test_editable_export_text_only_keeps_original_background_and_text_layers(tmp_path):
+    original = tmp_path / "original.png"
+    clean_background = tmp_path / "clean.png"
+    chart_image = tmp_path / "chart.png"
+    Image.new("RGB", (300, 120), "red").save(original)
+    Image.new("RGB", (300, 120), "blue").save(clean_background)
+    Image.new("RGB", (120, 60), "green").save(chart_image)
+    output = tmp_path / "text-only.pptx"
+
+    title = _EditableElement("text", "Editable title")
+    title.element_id = "title"
+    chart_label = _EditableElement("text", "Chart label")
+    chart_label.element_id = "chart_label"
+    chart_label.bbox = _BBox(20, 20, 140, 50)
+    chart_label.bbox_global = chart_label.bbox
+    chart = _EditableElement("figure", "")
+    chart.element_id = "chart"
+    chart.image_path = str(chart_image)
+    chart.children = [chart_label]
+
+    editable_image = _EditableImage(str(original), [title, chart])
+    editable_image.clean_background = str(clean_background)
+
+    ExportService.create_editable_pptx_with_recursive_analysis(
+        editable_images=[editable_image],
+        output_file=str(output),
+        slide_width_pixels=300,
+        slide_height_pixels=120,
+        text_only=True,
+        fail_fast=True,
+    )
+
+    slide_xml = _slide_xml(output)
+    media_payloads = _pptx_media_payloads(output)
+
+    assert "Editable title" in slide_xml
+    assert "Chart label" in slide_xml
+    assert len(media_payloads) == 1
+    assert original.read_bytes() in media_payloads
+    assert clean_background.read_bytes() not in media_payloads
+    assert chart_image.read_bytes() not in media_payloads
+
+
 def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):
     background = tmp_path / "slide.png"
     Image.new("RGB", (300, 120), "white").save(background)
@@ -309,4 +361,3 @@ def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):
     slide_xml = _slide_xml(output)
     assert "<m:oMath" not in slide_xml
     assert "Revenue formula" in slide_xml
-
