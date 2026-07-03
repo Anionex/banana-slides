@@ -121,6 +121,25 @@ class TestPageBatchCreate:
 
         assert response.status_code == 400
 
+    @pytest.mark.parametrize('page_payload', [
+        {'order_index': '1', 'outline_content': {'title': 'bad'}},
+        {'order_index': 1, 'outline_content': 'bad'},
+        {'order_index': 1, 'description_content': 'bad'},
+    ])
+    def test_batch_create_pages_validates_payload_types(self, client, page_payload):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '批量导入测试'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        response = client.post(f'/api/projects/{project_id}/pages/batch', json={
+            'pages': [page_payload]
+        })
+
+        assert response.status_code == 400
+
 
 class TestProjectGet:
     """项目获取测试"""

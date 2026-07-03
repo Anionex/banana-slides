@@ -123,6 +123,12 @@ def create_pages_batch(project_id):
                 return bad_request(f"pages[{index}] must be an object")
             if 'order_index' not in page_data:
                 return bad_request(f"pages[{index}].order_index is required")
+            if not isinstance(page_data['order_index'], int):
+                return bad_request(f"pages[{index}].order_index must be an integer")
+            if 'outline_content' in page_data and not isinstance(page_data['outline_content'], dict):
+                return bad_request(f"pages[{index}].outline_content must be an object")
+            if 'description_content' in page_data and not isinstance(page_data['description_content'], dict):
+                return bad_request(f"pages[{index}].description_content must be an object")
 
         ordered_pages = sorted(
             enumerate(pages_data),
