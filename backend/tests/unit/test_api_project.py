@@ -56,6 +56,72 @@ class TestProjectCreate:
         assert response.status_code in [400, 422]
 
 
+class TestPageBatchCreate:
+    """页面批量创建测试"""
+
+    def test_batch_create_pages_preserves_request_order_and_shifts_existing_pages(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '批量导入测试'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        first_page = assert_success_response(client.post(f'/api/projects/{project_id}/pages', json={
+            'order_index': 0,
+            'outline_content': {'title': '原始第一页', 'points': ['已有内容']},
+        }), 201)['data']
+        second_page = assert_success_response(client.post(f'/api/projects/{project_id}/pages', json={
+            'order_index': 1,
+            'outline_content': {'title': '原始第二页', 'points': ['已有内容']},
+        }), 201)['data']
+
+        response = client.post(f'/api/projects/{project_id}/pages/batch', json={
+            'pages': [
+                {
+                    'order_index': 1,
+                    'part': '导入章节',
+                    'outline_content': {'title': '导入第一页', 'points': ['A']},
+                    'description_content': {'text': '第一页描述'},
+                },
+                {
+                    'order_index': 2,
+                    'outline_content': {'title': '导入第二页', 'points': ['B']},
+                },
+            ]
+        })
+
+        created = assert_success_response(response, 201)['data']
+        assert [page['outline_content']['title'] for page in created] == ['导入第一页', '导入第二页']
+        assert created[0]['status'] == 'DESCRIPTION_GENERATED'
+        assert created[0]['part'] == '导入章节'
+
+        project = assert_success_response(client.get(f'/api/projects/{project_id}'))['data']
+        pages = sorted(project['pages'], key=lambda page: page['order_index'])
+
+        assert [page['outline_content']['title'] for page in pages] == [
+            '原始第一页',
+            '导入第一页',
+            '导入第二页',
+            '原始第二页',
+        ]
+        assert [page['order_index'] for page in pages] == [0, 1, 2, 3]
+        assert pages[0]['page_id'] == first_page['page_id']
+        assert pages[3]['page_id'] == second_page['page_id']
+
+    def test_batch_create_pages_rejects_empty_payload(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '批量导入测试'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        response = client.post(f'/api/projects/{project_id}/pages/batch', json={'pages': []})
+
+        assert response.status_code == 400
+
+
 class TestProjectGet:
     """项目获取测试"""
     

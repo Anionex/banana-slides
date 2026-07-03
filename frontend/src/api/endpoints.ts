@@ -588,6 +588,17 @@ export const addPage = async (projectId: string, data: Partial<Page>): Promise<A
   return response.data;
 };
 
+/**
+ * 批量添加页面
+ */
+export const addPages = async (projectId: string, pages: Partial<Page>[]): Promise<ApiResponse<Page[]>> => {
+  const response = await apiClient.post<ApiResponse<Page[]>>(
+    `/api/projects/${projectId}/pages/batch`,
+    { pages }
+  );
+  return response.data;
+};
+
 // ===== 任务查询 =====
 
 /**

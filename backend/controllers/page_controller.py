@@ -25,6 +25,24 @@ logger = logging.getLogger(__name__)
 page_bp = Blueprint('pages', __name__, url_prefix='/api/projects')
 
 
+def _build_page_from_payload(project_id, data, order_index):
+    page = Page(
+        project_id=project_id,
+        order_index=order_index,
+        part=data.get('part'),
+        status='DRAFT'
+    )
+
+    if 'outline_content' in data:
+        page.set_outline_content(data['outline_content'])
+
+    if 'description_content' in data:
+        page.set_description_content(data['description_content'])
+        page.status = 'DESCRIPTION_GENERATED'
+
+    return page
+
+
 @page_bp.route('/<project_id>/pages', methods=['POST'])
 def create_page(project_id):
     """
@@ -48,21 +66,7 @@ def create_page(project_id):
         if not data or 'order_index' not in data:
             return bad_request("order_index is required")
         
-        # Create new page
-        page = Page(
-            project_id=project_id,
-            order_index=data['order_index'],
-            part=data.get('part'),
-            status='DRAFT'
-        )
-        
-        if 'outline_content' in data:
-            page.set_outline_content(data['outline_content'])
-
-        if 'description_content' in data:
-            page.set_description_content(data['description_content'])
-            page.status = 'DESCRIPTION_GENERATED'
-
+        page = _build_page_from_payload(project_id, data, data['order_index'])
         db.session.add(page)
         
         # Update other pages' order_index if necessary
@@ -80,6 +84,71 @@ def create_page(project_id):
         
         return success_response(page.to_dict(), status_code=201)
     
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@page_bp.route('/<project_id>/pages/batch', methods=['POST'])
+def create_pages_batch(project_id):
+    """
+    POST /api/projects/{project_id}/pages/batch - Add multiple pages atomically
+
+    Request body:
+    {
+        "pages": [
+            {
+                "order_index": 2,
+                "part": "optional",
+                "outline_content": {"title": "...", "points": []},
+                "description_content": {"text": "..."}
+            }
+        ]
+    }
+    """
+    try:
+        project = Project.query.get(project_id)
+
+        if not project:
+            return not_found('Project')
+
+        data = request.get_json()
+        pages_data = data.get('pages') if data else None
+
+        if not isinstance(pages_data, list) or len(pages_data) == 0:
+            return bad_request("pages must be a non-empty array")
+
+        for index, page_data in enumerate(pages_data):
+            if not isinstance(page_data, dict):
+                return bad_request(f"pages[{index}] must be an object")
+            if 'order_index' not in page_data:
+                return bad_request(f"pages[{index}].order_index is required")
+
+        ordered_pages = sorted(
+            enumerate(pages_data),
+            key=lambda item: (item[1]['order_index'], item[0])
+        )
+        insert_at = ordered_pages[0][1]['order_index']
+
+        other_pages = Page.query.filter(
+            Page.project_id == project_id,
+            Page.order_index >= insert_at
+        ).all()
+
+        for existing_page in other_pages:
+            existing_page.order_index += len(pages_data)
+
+        created_pages = []
+        for offset, (_original_index, page_data) in enumerate(ordered_pages):
+            page = _build_page_from_payload(project_id, page_data, insert_at + offset)
+            db.session.add(page)
+            created_pages.append(page)
+
+        project.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return success_response([page.to_dict() for page in created_pages], status_code=201)
+
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)

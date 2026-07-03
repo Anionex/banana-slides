@@ -132,7 +132,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
@@ -573,14 +573,14 @@ export const DetailEditor: React.FC = () => {
         throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
-        addPage(projectId, {
+      await addPages(projectId, parsed.map(({ title, points, text: desc, part, extra_fields }, i) => (
+        {
           outline_content: { title, points },
           description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
-        })
-      ));
+        }
+      )));
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
     } catch (error) {
