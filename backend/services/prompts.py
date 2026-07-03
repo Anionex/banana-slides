@@ -1094,6 +1094,48 @@ def get_batch_text_attribute_extraction_prompt(text_elements_json: str) -> str:
     return prompt
 
 
+def get_text_only_background_verification_prompt(text_elements_json: str) -> str:
+    """生成仅文字层可编辑导出底图修复质量验证 prompt。"""
+    prompt = f"""你是一位严谨的 PPT 导出质检员。图片由左右两部分组成：左侧是原始幻灯片，右侧是修复后的底图候选。
+
+目标：右侧底图必须移除指定文字区域里的文字内容，同时保留图标、照片、图表、装饰形状、背景纹理等非文字视觉元素。
+
+需要移除的文字元素如下（bbox 是原始幻灯片像素坐标）：
+
+```json
+{text_elements_json}
+```
+
+请对比左右两侧，重点检查右侧候选图：
+1. 指定文字是否仍有可读残留、明显字形、笔画、阴影或轮廓。
+2. 非文字视觉元素是否被误删或明显损坏。
+3. 背景修复是否留下严重痕迹。
+
+只返回 JSON 对象，不要包含其他文字：
+```json
+{{
+  "success": true,
+  "missed_text_count": 0,
+  "missed_texts": [
+    {{"element_id": "xxx", "content": "仍可读的文字", "reason": "说明"}}
+  ],
+  "unwanted_change_count": 0,
+  "unwanted_changes": [
+    {{"reason": "说明"}}
+  ],
+  "notes": "简短说明"
+}}
+```
+
+判断规则：
+- 只要有任意指定文字仍可读，success 必须为 false，并计入 missed_text_count。
+- 如果右侧已经看不出指定文字，即使局部有轻微修复纹理，也可以 success=true。
+- 不要把左侧原图里的文字算作遗漏，只检查右侧候选图。
+"""
+
+    return prompt
+
+
 def get_ppt_page_content_extraction_prompt(markdown_text: str, language: str = None) -> str:
     """从 fileparser 解析出的 markdown 文本中提取页面内容（title, points, description）"""
     prompt = f"""\

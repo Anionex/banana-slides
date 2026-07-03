@@ -230,10 +230,38 @@ class _EditableImage:
     width = 300
     height = 120
     clean_background = None
+    metadata = None
 
     def __init__(self, image_path, elements):
         self.image_path = image_path
         self.elements = elements
+        self.clean_background = None
+        self.metadata = {}
+
+
+class _FakeTextOnlyInpaintProvider:
+    def __init__(self, colors):
+        self.colors = colors
+        self.calls = []
+        self.output_paths = []
+
+    def inpaint_regions(self, image, bboxes, types=None, **kwargs):
+        self.calls.append({
+            "bboxes": bboxes,
+            "types": types,
+            "expand_pixels": kwargs.get("expand_pixels"),
+        })
+        color = self.colors[len(self.calls) - 1]
+        return Image.new("RGB", image.size, color)
+
+
+class _FakeInpaintRegistry:
+    def __init__(self, provider):
+        self.provider = provider
+
+    def get_provider(self, element_type):
+        assert element_type == "text"
+        return self.provider
 
 
 def test_editable_export_renders_latex_text_content_as_native_omml(tmp_path):
@@ -297,7 +325,7 @@ def test_editable_export_prefers_latex_text_segments_for_formula_source(tmp_path
     assert r"\geq" not in slide_xml
 
 
-def test_editable_export_text_only_keeps_original_background_and_text_layers(tmp_path):
+def test_editable_export_text_only_uses_clean_background_and_text_layers(tmp_path):
     original = tmp_path / "original.png"
     clean_background = tmp_path / "clean.png"
     chart_image = tmp_path / "chart.png"
@@ -335,9 +363,111 @@ def test_editable_export_text_only_keeps_original_background_and_text_layers(tmp
     assert "Editable title" in slide_xml
     assert "Chart label" in slide_xml
     assert len(media_payloads) == 1
-    assert original.read_bytes() in media_payloads
-    assert clean_background.read_bytes() not in media_payloads
+    assert clean_background.read_bytes() in media_payloads
+    assert original.read_bytes() not in media_payloads
     assert chart_image.read_bytes() not in media_payloads
+
+
+def test_text_only_background_retries_until_vlm_confirms_erasure(tmp_path):
+    original = tmp_path / "original.png"
+    chart_image = tmp_path / "chart.png"
+    Image.new("RGB", (300, 120), "white").save(original)
+    Image.new("RGB", (120, 60), "green").save(chart_image)
+    output = tmp_path / "text-only-verified.pptx"
+
+    title = _EditableElement("text", "Editable title")
+    title.element_id = "title"
+    chart_label = _EditableElement("text", "Chart label")
+    chart_label.element_id = "chart_label"
+    chart_label.bbox = _BBox(20, 20, 140, 50)
+    chart_label.bbox_global = chart_label.bbox
+    chart = _EditableElement("figure", "")
+    chart.element_id = "chart"
+    chart.image_path = str(chart_image)
+    chart.children = [chart_label]
+    editable_image = _EditableImage(str(original), [title, chart])
+
+    provider = _FakeTextOnlyInpaintProvider([
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+    ])
+    verifier_results = [
+        {"success": False, "missed_text_count": 2},
+        {"success": False, "missed_text_count": 1},
+        {"success": True, "missed_text_count": 0},
+    ]
+
+    def verifier(**kwargs):
+        return verifier_results[kwargs["attempt_index"] - 1]
+
+    _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(
+        editable_images=[editable_image],
+        output_file=str(output),
+        slide_width_pixels=300,
+        slide_height_pixels=120,
+        text_only=True,
+        fail_fast=True,
+        text_only_inpaint_registry=_FakeInpaintRegistry(provider),
+        text_only_background_verifier=verifier,
+    )
+
+    media_payloads = _pptx_media_payloads(output)
+    final_background = tmp_path / "text_only_background" / "text_only_clean_background.png"
+
+    assert len(provider.calls) == 3
+    assert provider.calls[0]["bboxes"] == [[40, 30, 260, 90], [20, 20, 140, 50]]
+    assert provider.calls[0]["types"] == ["text", "text"]
+    assert len(media_payloads) == 1
+    assert final_background.read_bytes() in media_payloads
+    assert original.read_bytes() not in media_payloads
+    assert chart_image.read_bytes() not in media_payloads
+    assert not warnings.has_warnings()
+    assert editable_image.metadata["text_only_background_verification"]["success"] is True
+
+
+def test_text_only_background_picks_least_missed_candidate_after_retries(tmp_path):
+    original = tmp_path / "original.png"
+    Image.new("RGB", (300, 120), "white").save(original)
+    output = tmp_path / "text-only-best-effort.pptx"
+    editable_image = _EditableImage(str(original), [_EditableElement("text", "Editable title")])
+
+    provider = _FakeTextOnlyInpaintProvider([
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+    ])
+    verifier_results = [
+        {"success": False, "missed_text_count": 3},
+        {"success": False, "missed_text_count": 1},
+        {"success": False, "missed_text_count": 2},
+    ]
+
+    def verifier(**kwargs):
+        return verifier_results[kwargs["attempt_index"] - 1]
+
+    _, warnings = ExportService.create_editable_pptx_with_recursive_analysis(
+        editable_images=[editable_image],
+        output_file=str(output),
+        slide_width_pixels=300,
+        slide_height_pixels=120,
+        text_only=True,
+        fail_fast=True,
+        text_only_inpaint_registry=_FakeInpaintRegistry(provider),
+        text_only_background_verifier=verifier,
+    )
+
+    media_payloads = _pptx_media_payloads(output)
+    second_attempt = tmp_path / "text_only_background" / "text_only_background_attempt_2.png"
+    final_background = tmp_path / "text_only_background" / "text_only_clean_background.png"
+
+    assert len(provider.calls) == 3
+    assert second_attempt.read_bytes() == final_background.read_bytes()
+    assert len(media_payloads) == 1
+    assert final_background.read_bytes() in media_payloads
+    assert warnings.has_warnings()
+    assert "漏抹 1 处" in warnings.other_warnings[0]
+    assert editable_image.metadata["text_only_background_verification"]["missed_text_count"] == 1
 
 
 def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):

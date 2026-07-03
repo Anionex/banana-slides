@@ -43,7 +43,7 @@ Defaults to 16:9. You can change the ratio when creating a project or in **Proje
 
 The extraction process preserves font size, color, bold styling, text positioning, and table content. However, due to OCR accuracy limits and current model capabilities, complex layouts may have discrepancies from the original slide appearance.
 
-In the export dialog, you can enable **Only Text Layers Editable**. It is off by default. When enabled, Banana Slides keeps the full slide image as the background and overlays only detected text as editable text boxes, which is useful when visual fidelity matters most and you only need to edit copy.
+In the export dialog, you can enable **Only Text Layers Editable**. It is off by default. When enabled, Banana Slides generates a background that erases only detected text while preserving icons, images, charts, and other non-text visuals, then overlays the detected text as editable text boxes. VLM verification checks whether the background still contains text; if text remains, Banana Slides retries the erasure and keeps the candidate with the fewest missed text regions when all retries fail.
 
 <Note>
   For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).
