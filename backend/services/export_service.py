@@ -1019,7 +1019,7 @@ class ExportService:
         else:
             attempts = max(1, min(attempts, len(ExportService.TEXT_ONLY_BACKGROUND_EXPAND_PIXELS)))
         original_path = editable_img.image_path
-        output_dir = Path(original_path).parent / 'text_only_background'
+        output_dir = Path(original_path).parent / 'text_only_background' / Path(original_path).stem
         output_dir.mkdir(parents=True, exist_ok=True)
 
         bboxes = [target['bbox'] for target in text_targets]

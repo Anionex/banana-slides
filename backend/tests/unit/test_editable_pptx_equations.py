@@ -413,7 +413,7 @@ def test_text_only_background_retries_until_vlm_confirms_erasure(tmp_path):
     )
 
     media_payloads = _pptx_media_payloads(output)
-    final_background = tmp_path / "text_only_background" / "text_only_clean_background.png"
+    final_background = tmp_path / "text_only_background" / original.stem / "text_only_clean_background.png"
 
     assert len(provider.calls) == 3
     assert provider.calls[0]["bboxes"] == [[40, 30, 260, 90], [20, 20, 140, 50]]
@@ -458,8 +458,8 @@ def test_text_only_background_picks_least_missed_candidate_after_retries(tmp_pat
     )
 
     media_payloads = _pptx_media_payloads(output)
-    second_attempt = tmp_path / "text_only_background" / "text_only_background_attempt_2.png"
-    final_background = tmp_path / "text_only_background" / "text_only_clean_background.png"
+    second_attempt = tmp_path / "text_only_background" / original.stem / "text_only_background_attempt_2.png"
+    final_background = tmp_path / "text_only_background" / original.stem / "text_only_clean_background.png"
 
     assert len(provider.calls) == 3
     assert second_attempt.read_bytes() == final_background.read_bytes()
@@ -497,6 +497,39 @@ def test_text_only_background_without_vlm_only_inpaints_once(tmp_path):
     assert editable_image.metadata["text_only_background_verification"]["notes"] == (
         "Skipped VLM verification (no AI service available)"
     )
+
+
+def test_text_only_backgrounds_are_unique_per_slide_image(tmp_path):
+    first = tmp_path / "slide_a.png"
+    second = tmp_path / "slide_b.png"
+    Image.new("RGB", (300, 120), "white").save(first)
+    Image.new("RGB", (300, 120), "white").save(second)
+    output = tmp_path / "text-only-unique-backgrounds.pptx"
+    first_editable = _EditableImage(str(first), [_EditableElement("text", "First")])
+    second_editable = _EditableImage(str(second), [_EditableElement("text", "Second")])
+    provider = _FakeTextOnlyInpaintProvider([
+        (255, 0, 0),
+        (0, 255, 0),
+    ])
+
+    ExportService.create_editable_pptx_with_recursive_analysis(
+        editable_images=[first_editable, second_editable],
+        output_file=str(output),
+        slide_width_pixels=300,
+        slide_height_pixels=120,
+        text_only=True,
+        fail_fast=True,
+        text_only_inpaint_registry=_FakeInpaintRegistry(provider),
+    )
+
+    first_background = tmp_path / "text_only_background" / first.stem / "text_only_clean_background.png"
+    second_background = tmp_path / "text_only_background" / second.stem / "text_only_clean_background.png"
+    media_payloads = _pptx_media_payloads(output)
+
+    assert first_background.read_bytes() != second_background.read_bytes()
+    assert first_background.read_bytes() in media_payloads
+    assert second_background.read_bytes() in media_payloads
+    assert len(media_payloads) == 2
 
 
 def test_equation_metadata_without_latex_content_stays_plain_text(tmp_path):
