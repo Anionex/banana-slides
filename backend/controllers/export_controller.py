@@ -8,6 +8,7 @@ import shutil
 import time
 import zipfile
 from pathlib import Path
+from datetime import datetime
 
 from flask import Blueprint, request, current_app
 from werkzeug.utils import secure_filename
@@ -484,21 +485,28 @@ def export_editable_pptx(project_id):
         )
 
         # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
-        task_manager.submit_task(
-            task.id,
-            export_editable_pptx_with_recursive_analysis_task,
-            project_id=project_id,
-            filename=filename,
-            file_service=file_service,
-            page_ids=selected_page_ids if selected_page_ids else None,
-            max_depth=max_depth,
-            max_workers=max_workers,
-            export_extractor_method=export_extractor_method,
-            export_inpaint_method=export_inpaint_method,
-            enable_icon_subject_extraction=enable_icon_subject_extraction,
-            text_only=text_only,
-            app=app
-        )
+        try:
+            task_manager.submit_task(
+                task.id,
+                export_editable_pptx_with_recursive_analysis_task,
+                project_id=project_id,
+                filename=filename,
+                file_service=file_service,
+                page_ids=selected_page_ids if selected_page_ids else None,
+                max_depth=max_depth,
+                max_workers=max_workers,
+                export_extractor_method=export_extractor_method,
+                export_inpaint_method=export_inpaint_method,
+                enable_icon_subject_extraction=enable_icon_subject_extraction,
+                text_only=text_only,
+                app=app
+            )
+        except Exception as submission_err:
+            task.status = 'FAILED'
+            task.error_message = f"Task submission failed: {submission_err}"
+            task.completed_at = datetime.utcnow()
+            db.session.commit()
+            raise
         
         logger.info(f"Submitted recursive export task {task.id} to task manager")
         
