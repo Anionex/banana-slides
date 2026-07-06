@@ -188,6 +188,9 @@ banana-cli pages versions --project-id <id> --page-id <pid>
 banana-cli pages set-current --project-id <id> --page-id <pid> --version-id <vid>
 ```
 
+`--order-index` 必须是非负整数。Banana Slides 会在保存前拒绝非法页序号，
+让 API 和 CLI 调用者直接看到明确错误，而不是留下不确定的页面顺序。
+
 ### exports — 导出
 
 ```bash

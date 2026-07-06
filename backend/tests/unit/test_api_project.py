@@ -59,6 +59,40 @@ class TestProjectCreate:
 class TestPageBatchCreate:
     """页面批量创建测试"""
 
+    @pytest.mark.parametrize('order_index', ['1', 1.5, True, -1])
+    def test_create_page_rejects_invalid_order_index(self, client, order_index):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '单页插入校验测试'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        response = client.post(f'/api/projects/{project_id}/pages', json={
+            'order_index': order_index,
+            'outline_content': {'title': '坏顺序', 'points': ['应被拒绝']},
+        })
+
+        error = assert_error_response(response, 400)
+        assert error['error']['message'] == 'order_index must be a non-negative integer'
+
+    def test_create_page_accepts_integer_order_index(self, client):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': '单页插入校验测试'
+        })
+        data = assert_success_response(response, 201)
+        project_id = data['data']['project_id']
+
+        response = client.post(f'/api/projects/{project_id}/pages', json={
+            'order_index': 0,
+            'outline_content': {'title': '合法页面', 'points': ['正常创建']},
+        })
+
+        created = assert_success_response(response, 201)['data']
+        assert created['order_index'] == 0
+        assert created['outline_content']['title'] == '合法页面'
+
     def test_batch_create_pages_preserves_request_order_and_shifts_existing_pages(self, client):
         response = client.post('/api/projects', json={
             'creation_type': 'idea',
@@ -123,6 +157,8 @@ class TestPageBatchCreate:
 
     @pytest.mark.parametrize('page_payload', [
         {'order_index': '1', 'outline_content': {'title': 'bad'}},
+        {'order_index': True, 'outline_content': {'title': 'bad'}},
+        {'order_index': -1, 'outline_content': {'title': 'bad'}},
         {'order_index': 1, 'outline_content': 'bad'},
         {'order_index': 1, 'description_content': 'bad'},
     ])

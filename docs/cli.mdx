@@ -188,6 +188,10 @@ banana-cli pages versions --project-id <id> --page-id <pid>
 banana-cli pages set-current --project-id <id> --page-id <pid> --version-id <vid>
 ```
 
+`--order-index` must be a non-negative integer. Banana Slides rejects invalid
+page positions before saving so API and CLI callers get a clear error instead
+of an uncertain page order.
+
 ### exports -- Export
 
 ```bash

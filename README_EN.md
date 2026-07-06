@@ -117,6 +117,7 @@ Supports three starting methods—**Ideas**, **Outline**, and **Page Description
 - **One-sentence Generation**: Enter a topic, and the AI automatically generates a well-structured outline and page-by-page content descriptions.
 - **Natural Language Editing**: Supports conversational modifications to the outline or descriptions via Vibe prompts (e.g., "Change page three to a case study"), with AI responding and adjusting in real-time.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual adjustment of details.
+- **Clear Page Order Validation**: Manual/API page creation requires a non-negative integer page position, preventing unusual input from leaving page order uncertain.
 - **Reliable Markdown Import**: The import popup provides a preview of identifiable pages before execution and appends pages all at once according to the file order, avoiding formatting errors or uncertain ordering during multi-page imports.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />

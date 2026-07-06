@@ -43,6 +43,10 @@ def _build_page_from_payload(project_id, data, order_index):
     return page
 
 
+def _is_valid_order_index(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 @page_bp.route('/<project_id>/pages', methods=['POST'])
 def create_page(project_id):
     """
@@ -65,6 +69,8 @@ def create_page(project_id):
         
         if not data or 'order_index' not in data:
             return bad_request("order_index is required")
+        if not _is_valid_order_index(data['order_index']):
+            return bad_request("order_index must be a non-negative integer")
         
         page = _build_page_from_payload(project_id, data, data['order_index'])
         db.session.add(page)
@@ -123,8 +129,8 @@ def create_pages_batch(project_id):
                 return bad_request(f"pages[{index}] must be an object")
             if 'order_index' not in page_data:
                 return bad_request(f"pages[{index}].order_index is required")
-            if not isinstance(page_data['order_index'], int):
-                return bad_request(f"pages[{index}].order_index must be an integer")
+            if not _is_valid_order_index(page_data['order_index']):
+                return bad_request(f"pages[{index}].order_index must be a non-negative integer")
             if (
                 'outline_content' in page_data
                 and page_data['outline_content'] is not None
