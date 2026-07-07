@@ -18,6 +18,12 @@ describe('normalizeErrorMessage', () => {
     expect(message).toContain('允许返回半成品');
   });
 
+  test('maps MinerU layout analysis result-missing failures to partial-result guidance', () => {
+    const message = normalizeErrorMessage('可编辑 PPTX 版面分析失败: 第 1 页无法完成分析。原始错误: MinerU结果目录不存在: C:\\uploads\\mineru_files\\abc');
+    expect(message).toContain('MinerU');
+    expect(message).toContain('允许返回半成品');
+  });
+
   test('maps codex oauth 401 failures to relogin guidance', () => {
     const message = normalizeErrorMessage('401 OpenAI OAuth is not connected for codex export');
     expect(message).toContain('重新登录');
