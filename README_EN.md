@@ -153,6 +153,7 @@ No longer limited by complex menu buttons, issue modification commands directly 
 ### 5. Editable PPTX Export (Beta)
 
 - **Export images as high-fidelity, clean-background PPT pages with fully editable images and text**
+- If MinerU layout analysis occasionally fails, enable **Allow Partial Results** in **Project Settings → Export Settings**: failed pages keep the original slide image as the background, and the export continues to produce an openable PPTX.
 - For related updates, see https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 

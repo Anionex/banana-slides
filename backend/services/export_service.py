@@ -57,6 +57,7 @@ class ExportError(Exception):
             'text_render': '文本渲染失败可能是由于字体或编码问题。请检查页面内容是否包含特殊字符。',
             'image_add': '图片添加失败可能是由于图片文件损坏或路径错误。请尝试重新生成该页面的图片。',
             'inpaint': '背景修复失败可能是由于API配置问题。请检查「项目设置 -> 导出设置」中的背景图获取方法配置。',
+            'layout_analysis': '版面分析失败可能是由于 MinerU 未生成结果文件、结果目录被清理，或桌面端上传目录权限异常。请重试导出；如果只想先拿到 PPTX，可在「项目设置 -> 导出设置」中开启「返回半成品」。',
             'config': '配置错误。请检查「项目设置 -> 导出设置」中的相关配置。',
             'service': '服务不可用。请稍后重试或联系管理员。',
         }
@@ -310,6 +311,33 @@ class ExportService:
         return ExportError(
             message=f"文本样式提取失败: {message}",
             error_type='style_extraction',
+            details=details,
+            help_text=help_text,
+        )
+
+    @staticmethod
+    def _build_layout_analysis_error(
+        message: str,
+        *,
+        page_idx: Optional[int] = None,
+        image_path: Optional[str] = None
+    ) -> ExportError:
+        details: Dict[str, Any] = {}
+        if page_idx is not None:
+            details['page'] = page_idx + 1
+        if image_path:
+            details['image_path'] = image_path
+
+        page_prefix = f"第 {page_idx + 1} 页" if page_idx is not None else "页面"
+        help_text = (
+            '可编辑 PPTX 需要先用 MinerU 分析每页图片的版面。当前 MinerU 没有生成可读取的结果目录，'
+            '常见原因包括解析服务未完成、结果目录被清理、桌面端上传目录权限/磁盘异常。'
+            '请重试导出；如果只想先拿到可打开的 PPTX，可在「项目设置 -> 导出设置」中开启「返回半成品」，'
+            '系统会把失败页面保留为原图背景并继续导出。'
+        )
+        return ExportError(
+            message=f"可编辑 PPTX 版面分析失败: {page_prefix}无法完成分析。原始错误: {message}",
+            error_type='layout_analysis',
             details=details,
             help_text=help_text,
         )
@@ -1292,6 +1320,7 @@ class ExportService:
             - warnings: ExportWarnings 对象，包含所有警告信息
         """
         from services.image_editability import ServiceConfig, ImageEditabilityService
+        from services.image_editability.data_models import EditableImage
         from utils.pptx_builder import PPTXBuilder
         
         # 初始化警告收集器
@@ -1354,8 +1383,44 @@ class ExportService:
                         percent = 5 + int(35 * completed_count / total_pages)
                         report_progress("版面分析", f"已完成第 {completed_count}/{total_pages} 页的版面分析", percent)
                     except Exception as e:
+                        page_number = idx + 1
                         logger.error(f"处理图片 {image_paths[idx]} 失败: {e}")
-                        raise
+                        if fail_fast:
+                            raise ExportService._build_layout_analysis_error(
+                                str(e),
+                                page_idx=idx,
+                                image_path=image_paths[idx],
+                            ) from e
+
+                        try:
+                            with Image.open(image_paths[idx]) as fallback_img:
+                                width, height = fallback_img.size
+                        except Exception as img_err:
+                            logger.warning(f"无法读取回退背景图片尺寸 {image_paths[idx]}: {img_err}")
+                            width, height = slide_width_pixels, slide_height_pixels
+                        results[idx] = EditableImage(
+                            image_id=f"fallback_{idx + 1}",
+                            image_path=image_paths[idx],
+                            width=width,
+                            height=height,
+                            elements=[],
+                            clean_background=None,
+                            depth=0,
+                            metadata={
+                                'fallback_reason': 'layout_analysis_failed',
+                                'error': str(e),
+                            },
+                        )
+                        warnings.add_warning(
+                            f"第 {page_number} 页版面分析失败，已保留原图背景继续导出: {e}"
+                        )
+                        completed_count += 1
+                        percent = 5 + int(35 * completed_count / total_pages)
+                        report_progress(
+                            "版面分析",
+                            f"第 {page_number} 页分析失败，已使用原图背景继续",
+                            percent,
+                        )
                 
                 editable_images = results
         

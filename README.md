@@ -152,6 +152,7 @@
 
 ### 5. 可自由编辑的pptx导出（Beta迭代中）
 - **导出图像为高还原度、背景干净的、可自由编辑图像和文字的PPT页面**
+- 如果 MinerU 版面分析偶发失败，可在「项目设置 → 导出设置」开启「允许返回半成品」：失败页面会保留原图背景，导出任务继续生成可打开的 PPTX。
 - 相关更新见 https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 

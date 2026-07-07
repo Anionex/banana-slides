@@ -209,6 +209,16 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
     return isZh
       ? '可编辑 PPTX 导出失败：文本样式提取没有成功完成。请检查 image caption 模型/API 配置，或在项目设置中开启“允许返回半成品”后重试。'
       : 'Editable PPTX export failed because text style extraction did not complete. Check the image caption model/API settings, or enable partial results and try again.';
+  } else if (
+    message.includes('版面分析失败')
+    || message.includes('layout_analysis')
+    || message.includes('layout analysis failed')
+    || message.includes('mineru结果目录不存在')
+    || message.includes('mineru result')
+  ) {
+    return isZh
+      ? '可编辑 PPTX 导出失败：MinerU 没有生成可读取的版面分析结果。请重试导出；如果只想先拿到可打开的 PPTX，可在项目设置中开启“允许返回半成品”。'
+      : 'Editable PPTX export failed because MinerU did not produce readable layout-analysis results. Try exporting again, or enable partial results in project settings to get an openable PPTX first.';
   }
 
   return rawMessage;

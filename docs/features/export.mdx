@@ -100,4 +100,4 @@ When ElevenLabs is enabled in Settings, the voice dropdown in the export dialog 
 The **Allow Partial Results** option in **Project Settings → Export Settings** now applies consistently across export flows.
 
 - When disabled: the export fails immediately on critical gaps or errors, such as editable PPTX extraction failure, missing narration text for video export, or failure to generate usable narration audio.
-- When enabled: the system will continue whenever possible. For example, video export can fall back to silent clips for pages that do not have usable narration.
+- When enabled: the system will continue whenever possible. For example, editable PPTX export can keep the original slide image as the page background when MinerU layout analysis fails for an individual page, and video export can fall back to silent clips for pages that do not have usable narration.
