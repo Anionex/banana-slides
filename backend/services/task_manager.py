@@ -40,6 +40,22 @@ def get_image_prompt_field_names() -> set:
         return set(Settings.DEFAULT_IMAGE_PROMPT_FIELDS)
 
 
+def _require_task_selected_pages_found(page_ids, pages):
+    if not page_ids:
+        return
+
+    found_page_ids = {page.id for page in pages}
+    missing_page_ids = [
+        page_id for page_id in dict.fromkeys(page_ids)
+        if page_id not in found_page_ids
+    ]
+    if missing_page_ids:
+        raise ValueError(
+            "Cannot export: selected page IDs were not found in this project: "
+            f"{', '.join(missing_page_ids)}"
+        )
+
+
 def _append_extra_fields(
     desc_text: Optional[str],
     desc_content: Optional[dict],
@@ -1787,7 +1803,9 @@ def export_editable_pptx_with_recursive_analysis_task(
     
     if app is None:
         raise ValueError("Flask app instance must be provided")
-    
+
+    placeholder_dir = None
+
     with app.app_context():
         import os
         from datetime import datetime
@@ -1814,15 +1832,29 @@ def export_editable_pptx_with_recursive_analysis_task(
 
             # Get pages (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
+            _require_task_selected_pages_found(page_ids, pages)
             if not pages:
                 raise ValueError('No pages found for project')
             
             image_paths = []
+            missing_image_page_ids = []
             for page in pages:
-                if page.generated_image_path:
-                    img_path = file_service.get_absolute_path(page.generated_image_path)
-                    if os.path.exists(img_path):
-                        image_paths.append(img_path)
+                if not page.generated_image_path:
+                    missing_image_page_ids.append(page.id)
+                    continue
+
+                img_path = file_service.get_absolute_path(page.generated_image_path)
+                if not os.path.isfile(img_path):
+                    missing_image_page_ids.append(page.id)
+                    continue
+
+                image_paths.append(img_path)
+
+            if missing_image_page_ids:
+                raise ValueError(
+                    "Cannot export: selected pages are missing generated image files. "
+                    f"Regenerate these pages first: {', '.join(missing_image_page_ids)}"
+                )
             
             if not image_paths:
                 raise ValueError('No generated images found for project')
@@ -2032,6 +2064,8 @@ def export_video_task(
     if app is None:
         raise ValueError("Flask app instance must be provided")
 
+    placeholder_dir = None
+
     with app.app_context():
         import os
         from models import Project, Settings
@@ -2107,6 +2141,12 @@ def export_video_task(
             })
             db.session.commit()
 
+            # 获取页面
+            pages = get_filtered_pages(project_id, page_ids)
+            _require_task_selected_pages_found(page_ids, pages)
+            if not pages:
+                raise ValueError("没有找到可导出的页面")
+
             # 检查 FFmpeg
             ffmpeg_path = app.config.get('FFMPEG_PATH', 'ffmpeg')
             if not check_ffmpeg_available(ffmpeg_path):
@@ -2118,15 +2158,8 @@ def export_video_task(
             if not check_ffmpeg_ass_filter_available(ffmpeg_path):
                 progress_callback("准备", "当前 FFmpeg 缺少 ASS 字幕滤镜，若需字幕请先安装带 libass 的版本", 3)
 
-            # 获取页面
-            pages = get_filtered_pages(project_id, page_ids)
-            if not pages:
-                raise ValueError("没有找到可导出的页面")
-
             # 构建页面列表：有图片的用实际图片，无图片的根据选项处理
             valid_pages = []
-            placeholder_dir = None
-
             if include_no_image_pages:
                 video_width = app.config.get('VIDEO_OUTPUT_WIDTH', 1920)
                 video_height = app.config.get('VIDEO_OUTPUT_HEIGHT', 1080)
@@ -2136,9 +2169,15 @@ def export_video_task(
             for page in pages:
                 if page.generated_image_path:
                     img_path = file_service.get_absolute_path(page.generated_image_path)
-                    if os.path.exists(img_path):
+                    if os.path.isfile(img_path):
                         valid_pages.append((page, img_path))
                         continue
+
+                if not include_no_image_pages:
+                    raise ValueError(
+                        "Cannot export video: selected pages are missing generated image files. "
+                        f"Regenerate page {page.id} first, or enable include_no_image_pages."
+                    )
 
                 if include_no_image_pages:
                     # 为无图页面生成占位帧

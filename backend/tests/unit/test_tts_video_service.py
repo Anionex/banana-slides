@@ -640,7 +640,6 @@ class TestPageNarrationModel:
             assert page.get_narration_text() == 'test'
 
 
-@needs_app
 class TestExportVideoRoute:
     """测试视频导出 API 路由"""
 
@@ -676,7 +675,23 @@ class TestExportVideoRoute:
         db.session.add(page)
         db.session.commit()
 
-        return project.id
+        return project.id, page.id
+
+    def _add_draft_page_without_image(self, app, project_id: str):
+        from models import db, Page
+
+        with app.app_context():
+            page = Page(
+                project_id=project_id,
+                order_index=1,
+                outline_content='{"title": "未配图页面", "points": ["要点 2"]}',
+                description_content='{"text": "没有图片的测试描述"}',
+                narration_text='测试旁白',
+                status='DRAFT',
+            )
+            db.session.add(page)
+            db.session.commit()
+            return page.id
 
     def _wait_for_task(self, client, project_id: str, task_id: str, timeout_seconds: float = 15.0):
         deadline = time.time() + timeout_seconds
@@ -697,7 +712,7 @@ class TestExportVideoRoute:
         assert response.status_code == 404
 
     def test_export_video_returns_normalized_narration_config(self, client, app):
-        project_id = self._create_project_with_image_page(app, allow_partial=True)
+        project_id, _ = self._create_project_with_image_page(app, allow_partial=True)
         response = client.post(
             f'/api/projects/{project_id}/export/video',
             json={
@@ -724,12 +739,73 @@ class TestExportVideoRoute:
         )
         assert response.status_code == 400
 
-    @needs_app
+    def test_export_video_rejects_unknown_selected_page_id(self, client, app):
+        project_id, page_id = self._create_project_with_image_page(app, allow_partial=True)
+
+        response = client.post(
+            f'/api/projects/{project_id}/export/video',
+            json={'page_ids': [page_id, 'missing-page-id']},
+        )
+
+        assert response.status_code == 400
+        payload = response.get_json()
+        assert payload['success'] is False
+        assert payload['error']['code'] == 'EXPORT_PAGES_NOT_FOUND'
+        assert payload['error']['missing_page_ids'] == ['missing-page-id']
+
+    def test_export_video_rejects_selected_page_without_image_unless_placeholder_enabled(self, client, app):
+        project_id, ready_page_id = self._create_project_with_image_page(app, allow_partial=True)
+        draft_page_id = self._add_draft_page_without_image(app, project_id)
+
+        response = client.post(
+            f'/api/projects/{project_id}/export/video',
+            json={
+                'page_ids': [ready_page_id, draft_page_id],
+                'include_no_image_pages': False,
+            },
+        )
+
+        assert response.status_code == 400
+        payload = response.get_json()
+        assert payload['success'] is False
+        assert payload['error']['code'] == 'EXPORT_PAGES_MISSING_IMAGES'
+        assert payload['error']['missing_page_ids'] == [draft_page_id]
+
+    def test_export_video_task_fails_if_selected_page_disappears_before_execution(self, app):
+        from models import db, Page, Task
+        from services.file_service import FileService
+        from services.task_manager import export_video_task
+
+        with app.app_context():
+            project_id, ready_page_id = self._create_project_with_image_page(app, allow_partial=True)
+            draft_page_id = self._add_draft_page_without_image(app, project_id)
+
+            db.session.delete(db.session.get(Page, draft_page_id))
+            task = Task(project_id=project_id, task_type='EXPORT_VIDEO', status='PENDING')
+            db.session.add(task)
+            db.session.commit()
+            task_id = task.id
+
+        export_video_task(
+            task_id=task_id,
+            project_id=project_id,
+            filename='video.mp4',
+            file_service=FileService(app.config['UPLOAD_FOLDER']),
+            page_ids=[ready_page_id, draft_page_id],
+            app=app,
+        )
+
+        with app.app_context():
+            task = db.session.get(Task, task_id)
+            assert task.status == 'FAILED'
+            assert 'selected page IDs were not found' in task.error_message
+            assert draft_page_id in task.error_message
+
     def test_export_video_without_partial_fails_when_narration_missing(self, client, app):
         if not check_ffmpeg_available():
             pytest.skip("ffmpeg not available")
 
-        project_id = self._create_project_with_image_page(app, allow_partial=False)
+        project_id, _ = self._create_project_with_image_page(app, allow_partial=False)
 
         response = client.post(
             f'/api/projects/{project_id}/export/video',
@@ -745,12 +821,11 @@ class TestExportVideoRoute:
         assert '未开启“允许返回半成品”' in task_payload['error_message']
         assert '缺少旁白文本' in task_payload['error_message']
 
-    @needs_app
     def test_export_video_with_partial_allows_silent_result(self, client, app):
         if not check_ffmpeg_available():
             pytest.skip("ffmpeg not available")
 
-        project_id = self._create_project_with_image_page(app, allow_partial=True)
+        project_id, _ = self._create_project_with_image_page(app, allow_partial=True)
 
         response = client.post(
             f'/api/projects/{project_id}/export/video',

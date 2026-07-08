@@ -65,7 +65,7 @@ Only elements classified as icons qualify (an OpenCV flood-fill heuristic runs o
 
 You can select specific pages to export rather than exporting the entire presentation. Enable **Multi-select** on the Slide Preview page, check the pages you want, then click **Export**.
 
-The export menu checks image readiness for the current export range. PPTX, PDF, Images, and Editable PPTX require every selected page to have a generated image; unfinished draft pages outside the selection no longer block exporting finished pages. For Narration Video, if the range still includes pages without images, you must explicitly enable **Include pages without images** in the video export dialog before Banana Slides exports placeholder frames.
+The export menu checks image readiness for the current export range. PPTX, PDF, Images, and Editable PPTX require every selected page to have a generated image; unfinished draft pages outside the selection no longer block exporting finished pages. Direct API or CLI exports enforce the same rule on the backend: if any selected page has no generated image, or its recorded image file is missing, Banana Slides returns a clear error instead of silently skipping that slide and producing an incomplete file. For Narration Video, if the range still includes pages without images, you must explicitly enable **Include pages without images** in the video export dialog before Banana Slides exports placeholder frames.
 
 ## Narration Video
 
