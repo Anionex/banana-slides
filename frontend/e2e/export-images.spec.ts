@@ -75,6 +75,41 @@ test.describe('Export Images - Backend API', () => {
     const fileResp = await request.get(data.download_url)
     expect(fileResp.ok()).toBe(true)
   })
+
+  test('rejects mixed export ranges instead of silently omitting pages without images', async ({ request, baseURL }) => {
+    const { projectId, pageIds } = await seedProjectWithImages(baseURL!, 1)
+
+    const createDraftResp = await request.post(`/api/projects/${projectId}/pages`, {
+      data: { order_index: 1, outline_content: { title: 'Draft slide without image' } },
+    })
+    expect(createDraftResp.ok()).toBe(true)
+    const draftPageId = (await createDraftResp.json()).data?.page_id
+    expect(draftPageId).toBeTruthy()
+
+    const allPagesResp = await request.get(`/api/projects/${projectId}/export/images`)
+    expect(allPagesResp.status()).toBe(400)
+    const allPagesPayload = await allPagesResp.json()
+    expect(allPagesPayload.error.code).toBe('EXPORT_PAGES_MISSING_IMAGES')
+    expect(allPagesPayload.error.missing_page_ids).toContain(draftPageId)
+
+    const selectedReadyResp = await request.get(
+      `/api/projects/${projectId}/export/images?page_ids=${pageIds[0]}`
+    )
+    expect(selectedReadyResp.ok()).toBe(true)
+  })
+
+  test('rejects unknown page IDs instead of exporting only the matched subset', async ({ request, baseURL }) => {
+    const { projectId, pageIds } = await seedProjectWithImages(baseURL!, 1)
+
+    const resp = await request.get(
+      `/api/projects/${projectId}/export/images?page_ids=${pageIds[0]},missing-page-id`
+    )
+
+    expect(resp.status()).toBe(400)
+    const payload = await resp.json()
+    expect(payload.error.code).toBe('EXPORT_PAGES_NOT_FOUND')
+    expect(payload.error.missing_page_ids).toEqual(['missing-page-id'])
+  })
 })
 
 test.describe('Export Images - UI Mock', () => {

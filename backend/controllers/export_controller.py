@@ -51,6 +51,79 @@ def _resolve_exports_root(project_id):
     return exports_root
 
 
+def _require_exportable_image_paths(pages, file_service):
+    """Return image paths only when every requested page has an existing image."""
+    missing_image_page_ids = []
+    missing_file_page_ids = []
+    image_items = []
+
+    for page in pages:
+        page_id = page.id or getattr(page, 'page_id', None)
+        if not page.generated_image_path:
+            missing_image_page_ids.append(page_id)
+            continue
+
+        abs_path = file_service.get_absolute_path(page.generated_image_path)
+        if not os.path.isfile(abs_path):
+            missing_file_page_ids.append(page_id)
+            continue
+
+        image_items.append((page, abs_path))
+
+    if missing_image_page_ids:
+        count = len(missing_image_page_ids)
+        return None, error_response(
+            'EXPORT_PAGES_MISSING_IMAGES',
+            (
+                f"Cannot export: {count} page{'s' if count != 1 else ''} in the selected "
+                "range has no generated image. Generate images for all selected pages first."
+            ),
+            400,
+            {'missing_page_ids': missing_image_page_ids},
+        )
+
+    if missing_file_page_ids:
+        count = len(missing_file_page_ids)
+        return None, error_response(
+            'EXPORT_IMAGE_FILES_MISSING',
+            (
+                f"Cannot export: generated image file is missing for {count} "
+                f"page{'s' if count != 1 else ''}. Regenerate those pages first."
+            ),
+            400,
+            {'missing_page_ids': missing_file_page_ids},
+        )
+
+    if not image_items:
+        return None, bad_request("No generated images found for project")
+
+    return image_items, None
+
+
+def _validate_selected_pages_found(selected_page_ids, pages):
+    if not selected_page_ids:
+        return None
+
+    found_page_ids = {page.id for page in pages}
+    missing_page_ids = [
+        page_id for page_id in dict.fromkeys(selected_page_ids)
+        if page_id not in found_page_ids
+    ]
+    if not missing_page_ids:
+        return None
+
+    count = len(missing_page_ids)
+    return error_response(
+        'EXPORT_PAGES_NOT_FOUND',
+        (
+            f"Cannot export: {count} selected page ID{'s were' if count != 1 else ' was'} "
+            "not found in this project. Check the selected pages and export again."
+        ),
+        400,
+        {'missing_page_ids': missing_page_ids},
+    )
+
+
 @export_bp.route('/<project_id>/exports', methods=['GET'])
 def list_exports(project_id):
     """
@@ -168,6 +241,10 @@ def export_pptx(project_id):
         
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
         logger.debug(f"[export_pptx] Exporting {len(pages)} pages")
+
+        selected_pages_error = _validate_selected_pages_found(selected_page_ids, pages)
+        if selected_pages_error:
+            return selected_pages_error
         
         if not pages:
             return bad_request("No pages found for project")
@@ -175,14 +252,10 @@ def export_pptx(project_id):
         # Get image paths
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
-        image_paths = []
-        for page in pages:
-            if page.generated_image_path:
-                abs_path = file_service.get_absolute_path(page.generated_image_path)
-                image_paths.append(abs_path)
-        
-        if not image_paths:
-            return bad_request("No generated images found for project")
+        image_items, image_error = _require_exportable_image_paths(pages, file_service)
+        if image_error:
+            return image_error
+        image_paths = [path for _, path in image_items]
         
         # Determine export directory and filename
         exports_dir = file_service._get_exports_dir(project_id)
@@ -251,6 +324,10 @@ def export_pdf(project_id):
         # Get page_ids from query params and fetch filtered pages
         selected_page_ids = parse_page_ids_from_query(request)
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+
+        selected_pages_error = _validate_selected_pages_found(selected_page_ids, pages)
+        if selected_pages_error:
+            return selected_pages_error
         
         if not pages:
             return bad_request("No pages found for project")
@@ -258,14 +335,10 @@ def export_pdf(project_id):
         # Get image paths
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
-        image_paths = []
-        for page in pages:
-            if page.generated_image_path:
-                abs_path = file_service.get_absolute_path(page.generated_image_path)
-                image_paths.append(abs_path)
-        
-        if not image_paths:
-            return bad_request("No generated images found for project")
+        image_items, image_error = _require_exportable_image_paths(pages, file_service)
+        if image_error:
+            return image_error
+        image_paths = [path for _, path in image_items]
         
         # Determine export directory and filename
         exports_dir = file_service._get_exports_dir(project_id)
@@ -318,20 +391,19 @@ def export_images(project_id):
 
         selected_page_ids = parse_page_ids_from_query(request)
         pages = get_filtered_pages(s_project_id, selected_page_ids if selected_page_ids else None)
+
+        selected_pages_error = _validate_selected_pages_found(selected_page_ids, pages)
+        if selected_pages_error:
+            return selected_pages_error
+
         if not pages:
             return bad_request("No pages found for project")
 
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
 
-        image_items = []
-        for page in pages:
-            if page.generated_image_path:
-                abs_path = file_service.get_absolute_path(page.generated_image_path)
-                if os.path.exists(abs_path):
-                    image_items.append((page, abs_path))
-
-        if not image_items:
-            return bad_request("No generated images found for project")
+        image_items, image_error = _require_exportable_image_paths(pages, file_service)
+        if image_error:
+            return image_error
 
         exports_dir = file_service._get_exports_dir(s_project_id)
         timestamp = int(time.time())
@@ -414,17 +486,19 @@ def export_editable_pptx(project_id):
         # Get page_ids from request body and fetch filtered pages
         selected_page_ids = parse_page_ids_from_body(data)
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
+
+        selected_pages_error = _validate_selected_pages_found(selected_page_ids, pages)
+        if selected_pages_error:
+            return selected_pages_error
         
         if not pages:
             return bad_request("No pages found for project")
         
-        # Check if pages have generated images
-        has_images = any(page.generated_image_path for page in pages)
-        if not has_images:
-            return bad_request("No generated images found for project")
+        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+        _, image_error = _require_exportable_image_paths(pages, file_service)
+        if image_error:
+            return image_error
         
-        # Get parameters from request body
-        data = request.get_json() or {}
         filename = data.get('filename', f'presentation_editable_{project_id}.pptx')
         if not filename.endswith('.pptx'):
             filename += '.pptx'
@@ -454,10 +528,7 @@ def export_editable_pptx(project_id):
         logger.info(f"Created export task {task.id} for project {project_id} (recursive analysis: depth={max_depth}, workers={max_workers})")
         
         # Get services
-        from services.file_service import FileService
         from services.task_manager import task_manager, export_editable_pptx_with_recursive_analysis_task
-        
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
         # Get Flask app instance for background task
         app = current_app._get_current_object()
@@ -566,12 +637,18 @@ def export_video(project_id):
 
         pages = get_filtered_pages(project_id, selected_page_ids if selected_page_ids else None)
 
+        selected_pages_error = _validate_selected_pages_found(selected_page_ids, pages)
+        if selected_pages_error:
+            return selected_pages_error
+
         if not pages:
             return bad_request("No pages found for project")
 
-        has_images = any(page.generated_image_path for page in pages)
-        if not has_images and not include_no_image_pages:
-            return bad_request("No generated images found for project. Enable 'include pages without images' to export all pages.")
+        if not include_no_image_pages:
+            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+            _, image_error = _require_exportable_image_paths(pages, file_service)
+            if image_error:
+                return image_error
 
         # 根据语言自动选择默认语音
         if 'voice' not in data:
@@ -590,7 +667,6 @@ def export_video(project_id):
         logger.info(f"Created video export task {task.id} for project {project_id}")
 
         # 提交后台任务
-        from services.file_service import FileService
         from services.task_manager import task_manager, export_video_task
 
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
