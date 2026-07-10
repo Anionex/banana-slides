@@ -198,6 +198,7 @@ def generate_image_until_quality_passes(
         raise ImageQualityControlError(f"图片质量控制失败：{last_error}。请调整页面描述或提示词后重试。") from last_error
     raise ImageQualityControlError("图片质量控制未通过。请调整页面描述或提示词后重试。")
 from pathlib import Path
+from services.file_parser_service import is_mineru_auth_error_message
 from services.pdf_service import split_pdf_to_pages
 
 
@@ -1594,6 +1595,8 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                         _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
                         if error_msg:
                             logger.warning(f"Page {idx} parse warning: {error_msg}")
+                            if is_mineru_auth_error_message(error_msg):
+                                raise ValueError(error_msg)
                         md_text = md_text or ''
 
                         # Supplement with header/footer from layout.json
