@@ -22,7 +22,7 @@
   <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
   <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
   <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
-  <a href="https://github.com/Anionex/banana-slides"><img src="https://img.shields.io/badge/version-v0.9.0-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><img src="https://img.shields.io/badge/version-v0.9.0--rc.2-44cc11?style=flat-square" alt="Version"></a>
   <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
   <br>
   <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
@@ -38,6 +38,8 @@
   &nbsp;|&nbsp;
   <a href="https://docs.bananaslides.online/"><b>📖 Documentation</b></a>
   &nbsp;|&nbsp;
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><b>💻 Desktop RC2</b></a>
+  &nbsp;|&nbsp;
  <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>Deployment Guide</b></a>
 </p>
 <p>
@@ -48,7 +50,7 @@
 
 ## 🔥 Latest News
 
-- **[2026-07-05]**: Release Candidate 1 for version 0.9.0 is out, including multiple feature updates. Feedback is welcome; [Download and Install Now](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.1)
+- **[2026-07-11]**: Release Candidate 2 for version 0.9.0 is out. It includes everything in RC1 and fixes the Windows desktop MinerU directory mismatch for editable PPTX export and the FFprobe path error in explainer video export; [Download and Install Now](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
 - **[2026-06-23]**: Page-by-page templates are live — Support for single/multiple template modes. Upload images or PDFs to build your project template library. AI automatically analyzes template styles and provides one-click smart matching for each page, or you can manually bind them page by page. Seamlessly switch between the two modes at any time ([Documentation](https://docs.bananaslides.online/zh/features/templates))
 - **[2026-04-25]**: Asset Toolbox is live — Added three new modes: full-image editing, selection editing (overlay/replace), and smart erase, built upon existing asset generation. Unified entry for one-stop operations.
 - **[2026-04-25]**: Support for account linking via official OpenAI OAuth. Once linked, Codex can be used directly as a text/image generation provider without manually entering an API Key. Plus accounts can generate 100+ 2k images in five hours ([Tutorial](https://ziy68cvfvu3.feishu.cn/wiki/LDSOwPzkhiNonkkNTF1ct2VBnNc)) (Based on official OpenAI OAuth PKCE authorization flow, non-reverse engineered)
