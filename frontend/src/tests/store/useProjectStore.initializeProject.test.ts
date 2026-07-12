@@ -160,6 +160,16 @@ describe('initializeProject - reference file association', () => {
     })
   })
 
+  it('should safely normalize an unexpected non-string content value', async () => {
+    const { result } = renderHook(() => useProjectStore())
+
+    await act(async () => {
+      await result.current.initializeProject('idea', null as unknown as string)
+    })
+
+    expect(mockCreateProject).toHaveBeenCalledWith({ idea_prompt: '' })
+  })
+
   it('should not call associateFileToProject when no file IDs provided', async () => {
     const { result } = renderHook(() => useProjectStore())
 

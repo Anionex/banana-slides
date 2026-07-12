@@ -243,7 +243,7 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
-      const normalizedContent = content.trim();
+      const normalizedContent = typeof content === 'string' ? content.trim() : '';
 
       if (type === 'idea') {
         request.idea_prompt = normalizedContent;
