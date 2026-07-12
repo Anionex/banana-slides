@@ -243,13 +243,14 @@ const debouncedUpdatePage = debounce(
     set({ isGlobalLoading: true, error: null });
     try {
       const request: any = {};
+      const normalizedContent = content.trim();
 
       if (type === 'idea') {
-        request.idea_prompt = content;
+        request.idea_prompt = normalizedContent;
       } else if (type === 'outline') {
-        request.outline_text = content;
+        request.outline_text = normalizedContent;
       } else if (type === 'description') {
-        request.description_text = content;
+        request.description_text = normalizedContent;
       }
 
       // 添加风格描述（如果有）

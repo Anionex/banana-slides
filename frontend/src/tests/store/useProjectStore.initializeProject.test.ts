@@ -148,6 +148,18 @@ describe('initializeProject - reference file association', () => {
     expect(localStorage.getItem('currentProjectId')).toBe('proj-001')
   })
 
+  it('should trim project content before sending it to the API', async () => {
+    const { result } = renderHook(() => useProjectStore())
+
+    await act(async () => {
+      await result.current.initializeProject('outline', '  Slide 1\n- Point  ')
+    })
+
+    expect(mockCreateProject).toHaveBeenCalledWith({
+      outline_text: 'Slide 1\n- Point',
+    })
+  })
+
   it('should not call associateFileToProject when no file IDs provided', async () => {
     const { result } = renderHook(() => useProjectStore())
 

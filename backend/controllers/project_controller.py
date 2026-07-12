@@ -36,6 +36,19 @@ logger = logging.getLogger(__name__)
 project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
 
+def _get_required_project_content(data, creation_type):
+    """Return normalized content for the selected creation mode."""
+    field_name = {
+        'idea': 'idea_prompt',
+        'outline': 'outline_text',
+        'descriptions': 'description_text',
+    }[creation_type]
+    value = data.get(field_name)
+    if not isinstance(value, str):
+        return field_name, None
+    return field_name, value.strip()
+
+
 def _get_project_reference_files_content(project_id: str) -> list:
     """
     Get reference files content for a project
@@ -234,6 +247,16 @@ def create_project():
         
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
+
+        content_field, content = _get_required_project_content(data, creation_type)
+        if not content:
+            return bad_request(f"{content_field} must contain non-whitespace text")
+
+        template_style = data.get('template_style')
+        if template_style is not None and not isinstance(template_style, str):
+            return bad_request("template_style must be a string")
+        if template_style:
+            template_style = template_style.strip() or None
         
         # Validate and set aspect ratio if provided
         image_aspect_ratio = '16:9'
@@ -246,10 +269,10 @@ def create_project():
         # Create project
         project = Project(
             creation_type=creation_type,
-            idea_prompt=data.get('idea_prompt'),
-            outline_text=data.get('outline_text'),
-            description_text=data.get('description_text'),
-            template_style=data.get('template_style'),
+            idea_prompt=content if creation_type == 'idea' else None,
+            outline_text=content if creation_type == 'outline' else None,
+            description_text=content if creation_type == 'descriptions' else None,
+            template_style=template_style,
             image_aspect_ratio=image_aspect_ratio,
             status='DRAFT'
         )
