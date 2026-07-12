@@ -44,9 +44,14 @@ def _get_required_project_content(data, creation_type):
         'descriptions': 'description_text',
     }[creation_type]
     value = data.get(field_name)
+    if value is None:
+        return field_name, None, f"{field_name} is required"
     if not isinstance(value, str):
-        return field_name, None
-    return field_name, value.strip()
+        return field_name, None, f"{field_name} must be a string"
+    content = value.strip()
+    if not content:
+        return field_name, None, f"{field_name} must contain non-whitespace text"
+    return field_name, content, None
 
 
 def _get_project_reference_files_content(project_id: str) -> list:
@@ -248,9 +253,9 @@ def create_project():
         if creation_type not in ['idea', 'outline', 'descriptions']:
             return bad_request("Invalid creation_type")
 
-        content_field, content = _get_required_project_content(data, creation_type)
-        if not content:
-            return bad_request(f"{content_field} must contain non-whitespace text")
+        _, content, content_error = _get_required_project_content(data, creation_type)
+        if content_error:
+            return bad_request(content_error)
 
         template_style = data.get('template_style')
         if template_style is not None:

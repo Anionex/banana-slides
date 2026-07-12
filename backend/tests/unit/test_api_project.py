@@ -34,19 +34,31 @@ class TestProjectCreate:
         data = assert_success_response(response, 201)
         assert 'project_id' in data['data']
 
-    @pytest.mark.parametrize('payload, field_name', [
-        ({'creation_type': 'idea', 'idea_prompt': '  \n\t '}, 'idea_prompt'),
-        ({'creation_type': 'outline', 'outline_text': ''}, 'outline_text'),
-        ({'creation_type': 'descriptions', 'description_text': None}, 'description_text'),
-        ({'creation_type': 'descriptions', 'description_text': ['not text']}, 'description_text'),
+    @pytest.mark.parametrize('payload, expected_message', [
+        (
+            {'creation_type': 'idea', 'idea_prompt': '  \n\t '},
+            'idea_prompt must contain non-whitespace text',
+        ),
+        (
+            {'creation_type': 'outline', 'outline_text': ''},
+            'outline_text must contain non-whitespace text',
+        ),
+        (
+            {'creation_type': 'descriptions', 'description_text': None},
+            'description_text is required',
+        ),
+        (
+            {'creation_type': 'descriptions', 'description_text': ['not text']},
+            'description_text must be a string',
+        ),
     ])
     def test_create_project_rejects_missing_blank_or_non_text_content(
-        self, client, payload, field_name
+        self, client, payload, expected_message
     ):
         response = client.post('/api/projects', json=payload)
 
         data = assert_error_response(response, 400)
-        assert field_name in data['error']['message']
+        assert data['error']['message'] == expected_message
 
     def test_create_project_normalizes_selected_content_and_template_style(self, client):
         response = client.post('/api/projects', json={
