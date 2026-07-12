@@ -73,6 +73,22 @@ class TestProjectCreate:
 
         data = assert_error_response(response, 400)
         assert 'template_style' in data['error']['message']
+
+    @pytest.mark.parametrize('template_style', ['', '   \n\t '])
+    def test_create_project_normalizes_empty_template_style_to_none(
+        self, client, template_style
+    ):
+        response = client.post('/api/projects', json={
+            'creation_type': 'idea',
+            'idea_prompt': 'AI 产品发布会',
+            'template_style': template_style,
+        })
+
+        created = assert_success_response(response, 201)['data']
+        project = assert_success_response(
+            client.get(f"/api/projects/{created['project_id']}")
+        )['data']
+        assert project['template_style'] is None
     
     def test_create_project_missing_type(self, client):
         """测试缺少creation_type参数"""

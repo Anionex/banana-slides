@@ -253,9 +253,9 @@ def create_project():
             return bad_request(f"{content_field} must contain non-whitespace text")
 
         template_style = data.get('template_style')
-        if template_style is not None and not isinstance(template_style, str):
-            return bad_request("template_style must be a string")
-        if template_style:
+        if template_style is not None:
+            if not isinstance(template_style, str):
+                return bad_request("template_style must be a string")
             template_style = template_style.strip() or None
         
         # Validate and set aspect ratio if provided
