@@ -20,6 +20,7 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
 
   const visibleBounds = await page.evaluate(async () => {
     const imageResponse = await fetch('/favicon.png')
+    if (!imageResponse.ok) throw new Error(`Failed to fetch favicon: ${imageResponse.status}`)
     const bitmap = await createImageBitmap(await imageResponse.blob())
     const canvas = document.createElement('canvas')
     canvas.width = bitmap.width
