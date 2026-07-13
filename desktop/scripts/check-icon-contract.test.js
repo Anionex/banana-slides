@@ -7,6 +7,7 @@ const {
   assertIconComposer,
   assertPng,
   checkIconContract,
+  isVersionAtLeast,
   readPngMetadata,
   readTopLevelYamlSection,
 } = require('./check-icon-contract');
@@ -30,7 +31,6 @@ test('legacy app icon fallback must be opaque to avoid the macOS gray backplate'
 
 test('Icon Composer contract rejects a drifting dark appearance', () => {
   const sourcePath = path.resolve(__dirname, '../resources/BananaSlides.icon');
-  const brandPath = path.resolve(__dirname, '../resources/BananaSlides.icon/Assets/brand-logo.png');
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'banana-icon-composer-'));
   const composerPath = path.join(tempDir, 'BananaSlides.icon');
   try {
@@ -41,12 +41,18 @@ test('Icon Composer contract rejects a drifting dark appearance', () => {
     fs.writeFileSync(manifestPath, JSON.stringify(manifest));
 
     assert.throws(
-      () => assertIconComposer(composerPath, brandPath),
+      () => assertIconComposer(composerPath),
       /#111111 background/,
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test('electron-builder version ranges may omit the patch component', () => {
+  assert.equal(isVersionAtLeast('^26.15', '26.3.0'), true);
+  assert.equal(isVersionAtLeast('~26.2', '26.3.0'), false);
+  assert.equal(isVersionAtLeast('invalid', '26.3.0'), false);
 });
 
 test('PNG metadata parser reports a truncated chunk without a RangeError', () => {

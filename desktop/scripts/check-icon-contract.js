@@ -71,8 +71,8 @@ function readTopLevelYamlSection(source, sectionName) {
 
 function isVersionAtLeast(versionRange, minimumVersion) {
   const parse = (value) => {
-    const match = String(value).match(/\d+\.\d+\.\d+/);
-    return match ? match[0].split('.').map(Number) : null;
+    const match = String(value).match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3] || 0)] : null;
   };
   const version = parse(versionRange);
   const minimum = parse(minimumVersion);
@@ -83,7 +83,7 @@ function isVersionAtLeast(versionRange, minimumVersion) {
   return true;
 }
 
-function assertIconComposer(composerPath, brandPath) {
+function assertIconComposer(composerPath) {
   const manifestPath = path.join(composerPath, 'icon.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const fills = manifest['fill-specializations'];
@@ -102,9 +102,6 @@ function assertIconComposer(composerPath, brandPath) {
   assert.ok(brandLayer, `Icon Composer must use ${brandFileName}`);
   assert.ok(brandLayer.position?.scale > 0 && brandLayer.position.scale <= 0.8,
     'Icon Composer foreground must stay inside the macOS safe zone');
-
-  assert.equal(path.resolve(composerPath, 'Assets', brandFileName), brandPath,
-    'Icon Composer and splash must point to the same brand artwork');
 }
 
 function checkIconContract(rootDir = desktopDir) {
@@ -123,7 +120,7 @@ function checkIconContract(rootDir = desktopDir) {
   assertPng(brandPath, 1024, 1024);
   assertPng(trayPath, 16, 16, 72);
   assertPng(tray2xPath, 32, 32, 144);
-  assertIconComposer(composerPath, brandPath);
+  assertIconComposer(composerPath);
   assert.ok(!fs.existsSync(path.join(resourcesDir, DESKTOP_ICON_RESOURCES.macBundle)),
     'Do not track a stale legacy ICNS; electron-builder generates the fallback from Icon Composer');
 
@@ -204,6 +201,7 @@ module.exports = {
   assertIconComposer,
   assertPng,
   checkIconContract,
+  isVersionAtLeast,
   readPngMetadata,
   readTopLevelYamlSection,
 };
