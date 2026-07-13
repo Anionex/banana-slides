@@ -139,7 +139,9 @@ function downloadToPath({
     };
 
     downloadSession.on('will-download', listener);
-    currentWindow?.once('closed', handleWindowClosed);
+    if (currentWindow && !currentWindow.isDestroyed()) {
+      currentWindow.once('closed', handleWindowClosed);
+    }
     cleanupTimer = setTimeout(() => {
       activeItem?.cancel();
       finish({ success: false, state: 'timeout', error: 'Download did not finish within five minutes.' });

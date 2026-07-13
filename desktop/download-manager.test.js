@@ -104,6 +104,9 @@ test('does not touch window listeners after the Electron window is destroyed', a
   const downloadSession = new FakeDownloadSession(Buffer.from('pptx bytes'));
   const currentWindow = new EventEmitter();
   currentWindow.isDestroyed = () => true;
+  currentWindow.once = () => {
+    throw new Error('Object has been destroyed');
+  };
   currentWindow.removeListener = () => {
     throw new Error('Object has been destroyed');
   };
