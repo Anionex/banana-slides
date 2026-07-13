@@ -64,11 +64,28 @@ test.describe('Settings: Per-model provider integration (real backend)', () => {
     expect(placeholder).toMatch(/长度|length/i)
   })
 
+  test('clear-all action persists default-provider fallback', async ({ page }) => {
+    await page.goto('/settings')
+
+    await expect(page.getByTestId('per-model-provider-override-alert')).toBeVisible()
+    await page.getByRole('button', { name: /全部跟随默认配置/ }).click()
+    await page.getByRole('button', { name: /保存/ }).click()
+    await expect(page.locator('text=保存成功').or(page.locator('text=saved'))).toBeVisible({ timeout: 5000 })
+
+    await page.reload()
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('')
+    await expect(getModelGroup(page, 1).locator('select')).toHaveValue('')
+    await expect(getModelGroup(page, 2).locator('select')).toHaveValue('')
+    await expect(page.getByTestId('per-model-provider-override-alert')).toBeHidden()
+  })
+
   test('reset clears per-model config from backend', async ({ page }) => {
     await page.goto('/settings')
 
-    // Verify we start with per-model config
     const textGroup = getModelGroup(page, 0)
+    await textGroup.locator('select').selectOption('openai')
+    await page.getByRole('button', { name: /保存/ }).click()
+    await expect(page.locator('text=保存成功').or(page.locator('text=saved'))).toBeVisible({ timeout: 5000 })
     await expect(textGroup.locator('select')).toHaveValue('openai')
 
     // Click reset

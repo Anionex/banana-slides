@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 
@@ -184,7 +184,13 @@ const settingsI18n = {
           parsePreview: "解析预览：{{preview}}"
         }
       },
-      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置" },
+      providerOverride: {
+        notice: "独立模型提供商会覆盖上方默认 API：{{providers}}。如果你希望这些模型使用 {{defaultProvider}}，请清除独立配置。",
+        text: "文本",
+        image: "图像生成",
+        caption: "图片识别",
+      },
+      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置", useDefaultForAllModels: "全部跟随默认配置" },
       messages: {
         loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
         resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
@@ -372,7 +378,13 @@ const settingsI18n = {
           parsePreview: "Parse preview: {{preview}}"
         }
       },
-      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default" },
+      providerOverride: {
+        notice: "Per-model providers override the default API above: {{providers}}. Clear these overrides if you want the models to use {{defaultProvider}}.",
+        text: "Text",
+        image: "Image generation",
+        caption: "Image caption",
+      },
+      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default", useDefaultForAllModels: "Use default for all models" },
       messages: {
         loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
         resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
@@ -755,6 +767,25 @@ export const Settings: React.FC = () => {
     : formData.ai_provider_format === 'doubao'
       ? 'settings.doubaoKeyHelp'
       : 'settings.apiKeyHelp';
+  const getProviderLabel = (value: string) =>
+    allProviderSources.find(option => option.value === value)?.label || value;
+  const providerOverrides = [
+    { key: 'text_model_source' as const, label: t('settings.providerOverride.text') },
+    { key: 'image_model_source' as const, label: t('settings.providerOverride.image') },
+    { key: 'image_caption_model_source' as const, label: t('settings.providerOverride.caption') },
+  ].filter(item => Boolean(formData[item.key]));
+  const providerOverrideSummary = providerOverrides
+    .map(item => `${item.label}: ${getProviderLabel(formData[item.key])}`)
+    .join(isZh ? '、' : ', ');
+
+  const clearPerModelProviderOverrides = () => {
+    setFormData(prev => ({
+      ...prev,
+      text_model_source: '',
+      image_model_source: '',
+      image_caption_model_source: '',
+    }));
+  };
 
   const handleOAuthLogin = async () => {
     setOauthConnecting(true);
@@ -1783,6 +1814,30 @@ export const Settings: React.FC = () => {
             <FileText size={20} />
             <span className="ml-2">{t('settings.sections.modelConfig')}</span>
           </h2>
+          {providerOverrides.length > 0 && (
+            <div
+              data-testid="per-model-provider-override-alert"
+              className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex items-start gap-2 text-sm">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <p>
+                  {t('settings.providerOverride.notice', {
+                    providers: providerOverrideSummary,
+                    defaultProvider: getProviderLabel(formData.ai_provider_format),
+                  })}
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={clearPerModelProviderOverrides}
+                className="shrink-0"
+              >
+                {t('settings.actions.useDefaultForAllModels')}
+              </Button>
+            </div>
+          )}
           <div className="space-y-4">
             {modelConfigItems.map(renderModelConfigGroup)}
           </div>

@@ -4,6 +4,12 @@ const log = require('electron-log');
 const fs = require('fs');
 const pythonManager = require('./python-manager');
 const autoUpdater = require('./auto-updater');
+const {
+  copyLocalExportToPath,
+  createUniqueDownloadUrl,
+  downloadToPath,
+  resolveLocalExportPath,
+} = require('./download-manager');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -103,23 +109,6 @@ function shouldOpenInExternalBrowser(targetUrl) {
   } catch (error) {
     return false;
   }
-}
-
-function createUniqueDownloadUrl(url) {
-  if (isClientSideDownloadUrl(url)) {
-    return url;
-  }
-  try {
-    const parsedUrl = new URL(url);
-    parsedUrl.searchParams.set('__bananaDownloadId', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    return parsedUrl.toString();
-  } catch (error) {
-    return url;
-  }
-}
-
-function isClientSideDownloadUrl(url) {
-  return typeof url === 'string' && /^(data|blob):/i.test(url);
 }
 
 function createSplashWindow() {
@@ -374,34 +363,38 @@ function setupIPC() {
     });
     if (canceled || !savePath) return { success: false, canceled: true };
     if (currentWindow.isDestroyed()) return { success: false };
-    const downloadSession = currentWindow.webContents.session;
-    let cleanupTimer = null;
-    let cleanedUp = false;
-    const cleanup = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      if (cleanupTimer) {
-        clearTimeout(cleanupTimer);
-        cleanupTimer = null;
+    const localExportPath = await resolveLocalExportPath(downloadUrl, app.getPath('userData'));
+    if (currentWindow.isDestroyed()) return { success: false };
+    const result = localExportPath
+      ? await copyLocalExportToPath(localExportPath, savePath)
+      : await downloadToPath({
+          downloadSession: currentWindow.webContents.session,
+          downloadUrl,
+          savePath,
+          currentWindow,
+        });
+    if (!result.success) {
+      log.error('[main] Download failed:', { url: downloadUrl, savePath, ...result });
+      if (!currentWindow.isDestroyed()) {
+        const localizedError = {
+          interrupted: '下载被中断，请重试。',
+          timeout: '下载超时，请重试。',
+          missing: '目标文件没有写入。',
+          empty: '目标文件为空。',
+          failed: '文件复制或下载失败。',
+          cancelled: '下载已取消。',
+        }[result.state];
+        await dialog.showMessageBox(currentWindow, {
+          type: 'error',
+          title: '保存失败',
+          message: '文件没有保存成功',
+          detail: `${localizedError || result.error || '下载失败'}\n\n目标位置：${savePath}`,
+        });
       }
-      downloadSession.removeListener('will-download', listener);
-      currentWindow.removeListener('closed', cleanup);
-    };
-    const listener = (_, item) => {
-      const itemUrl = item.getURL();
-      const urlChain = typeof item.getURLChain === 'function' ? item.getURLChain() : [itemUrl];
-      const isMatchingClientSideDownload = isClientSideDownloadUrl(downloadUrl) && itemUrl === downloadUrl;
-      if (!urlChain.includes(downloadUrl) && !isMatchingClientSideDownload) {
-        return;
-      }
-      item.setSavePath(savePath);
-      cleanup();
-    };
-    downloadSession.on('will-download', listener);
-    currentWindow.once('closed', cleanup);
-    cleanupTimer = setTimeout(cleanup, 300000);
-    currentWindow.webContents.downloadURL(downloadUrl);
-    return { success: true };
+    } else {
+      log.info('[main] Download completed:', result.filePath);
+    }
+    return result;
   });
 }
 

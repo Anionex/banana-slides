@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { useConfirm } from './ConfirmDialog';
 import { cn } from '@/utils';
 import * as api from '@/api/endpoints';
+import { triggerDownload } from '@/api/client';
 
 // Export 组件自包含翻译
 const exportI18n = {
@@ -364,14 +365,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             variant="primary"
             size="sm"
             icon={<Download size={14} />}
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = task.downloadUrl!;
-              a.download = task.filename || '';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            }}
+            onClick={() => triggerDownload(task.downloadUrl!, task.filename)}
             className="text-xs px-2 py-1"
           >
             {t('common.download')}
@@ -592,14 +586,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                     variant="primary"
                     size="sm"
                     icon={<Download size={14} />}
-                    onClick={() => {
-                      const a = document.createElement('a');
-                      a.href = file.download_url;
-                      a.download = file.filename;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                    }}
+                    onClick={() => triggerDownload(file.download_url, file.filename)}
                     className="text-xs px-2 py-1"
                   >
                     {t('common.download')}

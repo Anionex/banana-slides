@@ -83,6 +83,9 @@ hiddenimports = [
 # collect_submodules 自动抓取所有子模块，避免手动漏写
 hiddenimports += collect_submodules('google')
 hiddenimports += collect_submodules('openai')
+# LazyLLM discovers vendor adapters dynamically at runtime. PyInstaller cannot
+# see those imports, so desktop builds must collect the supplier package.
+hiddenimports += collect_submodules('lazyllm.module.llms.onlinemodule.supplier')
 hiddenimports += collect_submodules('anthropic')
 hiddenimports += collect_submodules('flask_migrate')
 hiddenimports += collect_submodules('flask_sqlalchemy')

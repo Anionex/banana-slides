@@ -76,7 +76,7 @@ test.describe('Settings: Per-model provider configuration', () => {
     await page.goto('/settings')
 
     // Text model: OpenAI selected → should show API Base URL + API Key fields
-    const textSelect = page.locator('select').nth(0)
+    const textSelect = getModelGroup(page, 0).locator('select')
     await expect(textSelect).toHaveValue('openai')
 
     const textGroup = getModelGroup(page, 0)
@@ -84,7 +84,7 @@ test.describe('Settings: Per-model provider configuration', () => {
     await expect(textBaseUrl).toHaveValue('https://test-openai.example.com/v1')
 
     // Image model: Gemini selected → should show API Base URL + API Key fields
-    const imageSelect = page.locator('select').nth(1)
+    const imageSelect = getModelGroup(page, 1).locator('select')
     await expect(imageSelect).toHaveValue('gemini')
 
     const imageGroup = getModelGroup(page, 1)
@@ -92,13 +92,35 @@ test.describe('Settings: Per-model provider configuration', () => {
     await expect(imageBaseUrl).toHaveValue('https://test-gemini.example.com')
 
     // Image caption: Doubao (lazyllm vendor) → should show vendor API Key, NOT base URL
-    const captionSelect = page.locator('select').nth(2)
+    const captionSelect = getModelGroup(page, 2).locator('select')
     await expect(captionSelect).toHaveValue('doubao')
 
     // Doubao is lazyllm vendor → no API Base URL field, but has vendor API Key
     const captionGroup = getModelGroup(page, 2)
     await expect(captionGroup.locator('text=API Base URL')).toBeHidden()
     await expect(captionGroup.locator('text=API Key').first()).toBeVisible()
+  })
+
+  test('warns when model providers override the default and clears them together', async ({ page }) => {
+    await page.route('**/api/settings', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettingsWithPerModel) })
+    )
+
+    await page.goto('/settings')
+
+    const alert = page.getByTestId('per-model-provider-override-alert')
+    await expect(alert).toContainText('独立模型提供商会覆盖上方默认 API')
+    await expect(alert).toContainText('文本: OpenAI')
+    await expect(alert).toContainText('图像生成: Gemini')
+    await expect(alert).toContainText('图片识别:')
+    await expect(alert).toContainText('Doubao')
+
+    await page.getByRole('button', { name: '全部跟随默认配置' }).click()
+
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('')
+    await expect(getModelGroup(page, 1).locator('select')).toHaveValue('')
+    await expect(getModelGroup(page, 2).locator('select')).toHaveValue('')
+    await expect(alert).toBeHidden()
   })
 
   test('switching provider shows/hides conditional fields', async ({ page }) => {
@@ -175,12 +197,12 @@ test.describe('Settings: Per-model provider configuration', () => {
 
     // First load — default config
     await page.goto('/settings')
-    await expect(page.locator('select').nth(0)).toHaveValue('deepseek')
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('deepseek')
 
     // Simulate reload with updated data
     usePerModel = true
     await page.goto('/settings')
-    await expect(page.locator('select').nth(0)).toHaveValue('openai')
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('openai')
 
     const textGroup = getModelGroup(page, 0)
     const textBaseUrl = textGroup.locator('input[type="text"]').nth(1)
@@ -201,7 +223,7 @@ test.describe('Settings: Per-model provider configuration', () => {
     await page.goto('/settings')
 
     // Verify initial state has per-model config
-    await expect(page.locator('select').nth(0)).toHaveValue('openai')
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('openai')
 
     // Click reset
     await page.getByRole('button', { name: /重置/ }).click()
@@ -209,7 +231,7 @@ test.describe('Settings: Per-model provider configuration', () => {
     await page.getByRole('button', { name: /确定重置/ }).click()
 
     // After reset: sources revert to env defaults, no API base URL fields
-    await expect(page.locator('select').nth(0)).toHaveValue('deepseek')
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('deepseek')
 
     const textGroup = getModelGroup(page, 0)
     await expect(textGroup.locator('text=API Base URL')).toBeHidden()
