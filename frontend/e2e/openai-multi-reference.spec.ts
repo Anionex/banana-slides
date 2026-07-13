@@ -96,19 +96,22 @@ test.describe('OpenAI native multi-reference generation', () => {
 
   test.afterAll(async ({ request }) => {
     if (!originalEffectiveSettings || !originalRawSettings) return
-    const response = await request.put('/api/settings', {
-      data: {
-        ai_provider_format: originalEffectiveSettings.ai_provider_format,
-        image_model_source: originalRawSettings.image_model_source,
-        image_model: originalRawSettings.image_model,
-        image_api_key: originalRawSettings.image_api_key,
-        image_api_base_url: originalRawSettings.image_api_base_url,
-        openai_image_api_protocol: originalRawSettings.openai_image_api_protocol || 'auto',
-        image_resolution: originalEffectiveSettings.image_resolution,
-      },
-    })
-    expect(response.ok()).toBe(true)
-    restoreRawImageSettings(originalRawSettings)
+    try {
+      const response = await request.put('/api/settings', {
+        data: {
+          ai_provider_format: originalEffectiveSettings.ai_provider_format,
+          image_model_source: originalRawSettings.image_model_source,
+          image_model: originalRawSettings.image_model,
+          image_api_key: originalRawSettings.image_api_key,
+          image_api_base_url: originalRawSettings.image_api_base_url,
+          openai_image_api_protocol: originalRawSettings.openai_image_api_protocol || 'auto',
+          image_resolution: originalEffectiveSettings.image_resolution,
+        },
+      })
+      expect(response.ok()).toBe(true)
+    } finally {
+      restoreRawImageSettings(originalRawSettings)
+    }
   })
 
   test('sends the template and every description image to images.edit', async ({ page, request }) => {
