@@ -163,3 +163,11 @@ test('packages the download manager with the desktop application', () => {
   const builderConfig = fs.readFileSync(path.join(__dirname, 'electron-builder.yml'), 'utf8');
   assert.match(builderConfig, /- "download-manager\.js"/);
 });
+
+test('rechecks the desktop window after resolving an export asynchronously', () => {
+  const mainSource = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  assert.match(
+    mainSource,
+    /const localExportPath = await resolveLocalExportPath\([^;]+;\s+if \(currentWindow\.isDestroyed\(\)\) return \{ success: false \};\s+const result =/,
+  );
+});
