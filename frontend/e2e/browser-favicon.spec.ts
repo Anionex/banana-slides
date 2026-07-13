@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
   await page.goto('/')
 
-  const favicon = page.locator('link[rel="icon"]')
+  const favicon = page.locator('link[rel="icon"][href="/favicon.png"]')
+  await expect(favicon).toHaveCount(1)
   await expect(favicon).toHaveAttribute('type', 'image/png')
   await expect(favicon).toHaveAttribute('sizes', '64x64')
   await expect(favicon).toHaveAttribute('href', '/favicon.png')
@@ -25,6 +26,10 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
     const canvas = document.createElement('canvas')
     canvas.width = bitmap.width
     canvas.height = bitmap.height
+    if (canvas.width === 0 || canvas.height === 0) {
+      bitmap.close()
+      return { width: 0, height: 0 }
+    }
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas 2D context is unavailable')
     context.drawImage(bitmap, 0, 0)
