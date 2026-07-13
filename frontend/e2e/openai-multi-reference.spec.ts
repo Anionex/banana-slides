@@ -66,8 +66,8 @@ test.describe('OpenAI native multi-reference generation', () => {
 
   let fakeOpenAI: Server | undefined
   let projectId: string | undefined
-  let originalRawSettings: RawImageSettings
-  let originalEffectiveSettings: Record<string, unknown>
+  let originalRawSettings: RawImageSettings | undefined
+  let originalEffectiveSettings: Record<string, unknown> | undefined
 
   test.beforeAll(async ({ request }) => {
     const response = await request.get('/api/settings')
@@ -77,20 +77,25 @@ test.describe('OpenAI native multi-reference generation', () => {
   })
 
   test.afterEach(async ({ request }) => {
-    if (projectId) {
-      const response = await request.delete(`/api/projects/${projectId}`)
-      expect(response.ok()).toBe(true)
+    try {
+      if (projectId) {
+        const response = await request.delete(`/api/projects/${projectId}`)
+        expect(response.ok()).toBe(true)
+      }
+    } finally {
       projectId = undefined
-    }
-    if (fakeOpenAI) {
-      await new Promise<void>((resolve, reject) => {
-        fakeOpenAI!.close((error) => error ? reject(error) : resolve())
-      })
+      const server = fakeOpenAI
       fakeOpenAI = undefined
+      if (server) {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => error ? reject(error) : resolve())
+        })
+      }
     }
   })
 
   test.afterAll(async ({ request }) => {
+    if (!originalEffectiveSettings || !originalRawSettings) return
     const response = await request.put('/api/settings', {
       data: {
         ai_provider_format: originalEffectiveSettings.ai_provider_format,
@@ -118,7 +123,10 @@ test.describe('OpenAI native multi-reference generation', () => {
         receivedReferenceCount = (
           body.match(/name="image(?:\[\])?"/g) || []
         ).length
-        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Connection': 'close',
+        })
         res.end(JSON.stringify({
           data: [{ b64_json: RESPONSE_IMAGE.toString('base64') }],
         }))
