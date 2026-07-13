@@ -4,15 +4,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { createRequire } = require('node:module');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const appPath = process.argv[2];
+const appPath = process.argv[2] || '';
 const outDir = path.resolve(process.argv[3] || '/tmp/banana-desktop-markdown-image');
-if (!appPath) {
-  process.stderr.write('Usage: test-markdown-image-macos.js <app-path> [out-dir]\n');
-  process.exit(2);
-}
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const frontendRequire = createRequire(path.join(repoRoot, 'frontend', 'package.json'));
@@ -27,6 +24,30 @@ const fixtureImage = fs.readFileSync(path.join(repoRoot, 'frontend', 'e2e', 'fix
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function assertSafeOutputDirectory(outputDir) {
+  const candidate = path.resolve(outputDir);
+  const allowedRoots = [
+    '/tmp',
+    os.tmpdir(),
+    process.env.RUNNER_TEMP,
+  ]
+    .filter(Boolean)
+    .map((itemPath) => path.resolve(itemPath));
+  const isAllowed = allowedRoots.some((root) => {
+    const relative = path.relative(root, candidate);
+    return (
+      relative !== ''
+      && relative !== '..'
+      && !relative.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relative)
+    );
+  });
+  if (!isAllowed) {
+    throw new Error(`Unsafe output directory: ${candidate}`);
+  }
+  return candidate;
 }
 
 async function freePort() {
@@ -61,7 +82,11 @@ async function jsonRequest(url, options = {}) {
 }
 
 async function main() {
+  if (!appPath) {
+    throw new Error('Usage: test-markdown-image-macos.js <app-path> [out-dir]');
+  }
   assert.ok(fs.existsSync(executable), `App executable not found: ${executable}`);
+  assertSafeOutputDirectory(outDir);
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -166,6 +191,7 @@ async function main() {
         const smoke = JSON.parse(fs.readFileSync(smokeResultPath, 'utf8'));
         await fetch(`http://127.0.0.1:${smoke.backendPort}/api/projects/${projectId}`, {
           method: 'DELETE',
+          signal: AbortSignal.timeout(5000),
         });
       } catch {
         // Cleanup failure must not prevent the browser and app from closing.
@@ -178,9 +204,18 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(testResultPath, JSON.stringify({ ok: false, error: error.stack || error.message }, null, 2));
-  process.stderr.write(`${error.stack || error.message}\n`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    try {
+      assertSafeOutputDirectory(outDir);
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(testResultPath, JSON.stringify({ ok: false, error: error.stack || error.message }, null, 2));
+    } catch {
+      // Do not write diagnostics to a path that failed the deletion safety check.
+    }
+    process.stderr.write(`${error.stack || error.message}\n`);
+    process.exit(1);
+  });
+}
+
+module.exports = { assertSafeOutputDirectory };

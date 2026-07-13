@@ -13,7 +13,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "cross-env NODE_ENV=development electron .",
-    "test": "node --test update-policy.test.js download-manager.test.js",
+    "test": "node --test update-policy.test.js download-manager.test.js markdown-image-script.test.js",
     "test:download-session": "electron scripts/test-download-session.js",
     "prepare": "node scripts/prepare-artifacts.js",
     "build:meta": "node scripts/sync-build-meta.js",
