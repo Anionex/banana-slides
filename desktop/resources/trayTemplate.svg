@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <mask id="slide-cutouts">
+      <rect width="32" height="32" fill="white" />
+      <rect x="14" y="10" width="10" height="2.4" rx="1.2" fill="black" />
+      <rect x="16" y="14.5" width="8" height="2.4" rx="1.2" fill="black" />
+      <path d="M19 18.5 24 21.5 19 24.5Z" fill="black" />
+    </mask>
+  </defs>
+  <g mask="url(#slide-cutouts)">
+    <rect x="9" y="6" width="19" height="18" rx="4" />
+    <path d="M8 4C3.5 9.5 3.5 18.5 8 24c4.8 5.8 14.5 6.6 20 0" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" />
+  </g>
+</svg>

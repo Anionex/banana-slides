@@ -48,6 +48,18 @@ cp -R "$app_path" "$install_dir/"
 installed_app="$install_dir/$(basename "$app_path")"
 log "InstalledApp=$installed_app"
 
+bundle_icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$installed_app/Contents/Info.plist" 2>/dev/null || true)"
+[[ "$bundle_icon_name" == "icon.icns" ]] || fail "Unexpected CFBundleIconFile: $bundle_icon_name"
+bundle_icon="$installed_app/Contents/Resources/$bundle_icon_name"
+[[ -f "$bundle_icon" ]] || fail "Bundle icon missing: $bundle_icon"
+cmp -s "$bundle_icon" "$(dirname "$0")/../resources/icon.icns" || fail "Packaged ICNS differs from the verified app icon"
+
+for tray_icon in trayTemplate.png trayTemplate@2x.png; do
+  installed_tray_icon="$installed_app/Contents/Resources/$tray_icon"
+  [[ -f "$installed_tray_icon" ]] || fail "Tray template icon missing: $installed_tray_icon"
+  cmp -s "$installed_tray_icon" "$(dirname "$0")/../resources/$tray_icon" || fail "Packaged $tray_icon differs from source"
+done
+
 codesign --verify --deep --strict --verbose=2 "$installed_app" 2>&1 | tee "$out_dir/codesign-verify.txt" || fail "codesign verification failed"
 spctl -a -vv "$installed_app" > "$out_dir/spctl.txt" 2>&1 || true
 
@@ -86,6 +98,8 @@ node -e '
   if (!result.backendPort) throw new Error("Missing backendPort");
   if (!result.windowVisible) throw new Error("Window was not visible");
   if (!result.url || !result.url.includes("index.html")) throw new Error(`Unexpected URL: ${result.url}`);
+  if (result.iconPolicy?.dockOverrideApplied !== false) throw new Error("Packaged macOS must not override the bundle Dock icon");
+  if (result.iconPolicy?.trayTemplateImage !== true) throw new Error("macOS Tray icon was not marked as a template image");
 ' "$result_path"
 
 [[ -f "$screenshot_path" ]] || fail "Screenshot missing"

@@ -10,6 +10,11 @@ const {
   downloadToPath,
   resolveLocalExportPath,
 } = require('./download-manager');
+const {
+  getApplicationIconPath,
+  getTrayIconPath,
+  shouldSetDockIcon,
+} = require('./icon-policy');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -17,6 +22,10 @@ let tray = null;
 let isQuitting = false;
 let backendStopped = false;
 let backendStopRequested = false;
+const runtimeIconState = {
+  dockOverrideApplied: false,
+  trayTemplateImage: false,
+};
 
 function isDev() {
   return process.env.NODE_ENV === 'development';
@@ -60,6 +69,7 @@ async function writeSmokeResult(extra = {}) {
     windowVisible: mainWindow?.isVisible() || false,
     windowTitle: mainWindow?.getTitle() || '',
     url: mainWindow?.webContents?.getURL() || '',
+    iconPolicy: runtimeIconState,
     timestamp: new Date().toISOString(),
     ...extra,
   };
@@ -95,11 +105,21 @@ async function writeSmokeResult(extra = {}) {
 }
 
 function getIconPath() {
-  const ext = process.platform === 'win32' ? 'ico' : 'png';
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, `icon.${ext}`);
-  }
-  return path.join(__dirname, 'resources', `icon.${ext}`);
+  return getApplicationIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    desktopDir: __dirname,
+  });
+}
+
+function getTrayPath() {
+  return getTrayIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    desktopDir: __dirname,
+  });
 }
 
 function shouldOpenInExternalBrowser(targetUrl) {
@@ -134,7 +154,6 @@ function createMainWindow() {
     minWidth: 680,
     minHeight: 480,
     show: false,
-    icon: getIconPath(),
     ...(isMac
       ? {
           titleBarStyle: 'hidden',
@@ -143,6 +162,7 @@ function createMainWindow() {
         }
       : {
           frame: false,
+          icon: getIconPath(),
         }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -151,8 +171,9 @@ function createMainWindow() {
     },
   });
 
-  if (isMac) {
+  if (shouldSetDockIcon({ platform: process.platform, isPackaged: app.isPackaged })) {
     app.dock.setIcon(getIconPath());
+    runtimeIconState.dockOverrideApplied = true;
   }
 
   mainWindow.on('close', (e) => {
@@ -188,7 +209,13 @@ function createMainWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(getIconPath()).resize({ width: 16, height: 16 });
+  let icon = nativeImage.createFromPath(getTrayPath());
+  if (process.platform === 'darwin') {
+    icon.setTemplateImage(true);
+    runtimeIconState.trayTemplateImage = true;
+  } else {
+    icon = icon.resize({ width: 16, height: 16 });
+  }
   tray = new Tray(icon);
   tray.setToolTip('Banana Slides');
 
