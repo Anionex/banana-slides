@@ -33,6 +33,11 @@ describe('Markdown Component', () => {
     expect(img).toHaveAttribute('src', 'https://example.com/img.png')
   })
 
+  it('keeps backend file images relative in web mode', () => {
+    render(<Markdown>![material](/files/materials/example.png)</Markdown>)
+    expect(screen.getByAltText('material')).toHaveAttribute('src', '/files/materials/example.png')
+  })
+
   it('renders inline LaTeX formula with $ delimiters', () => {
     const { container } = render(<Markdown>The formula $E = mc^2$ is famous</Markdown>)
     // KaTeX renders math into spans with class "katex"

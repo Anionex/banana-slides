@@ -134,6 +134,9 @@ jobs:
             exit 1
           fi
           desktop/scripts/smoke-macos-dmg.sh "$dmg" "$RUNNER_TEMP/banana-desktop-smoke-mac"
+          node desktop/scripts/test-markdown-image-macos.js \
+            "$RUNNER_TEMP/banana-desktop-smoke-mac/Applications/Banana Slides.app" \
+            "$RUNNER_TEMP/banana-desktop-markdown-image-mac"
 
       - name: Upload macOS smoke artifacts
         if: always() && matrix.platform == 'mac'
@@ -141,7 +144,9 @@ jobs:
         with:
           name: banana-slides-desktop-mac-smoke
           if-no-files-found: ignore
-          path: ${{ runner.temp }}/banana-desktop-smoke-mac/**
+          path: |
+            ${{ runner.temp }}/banana-desktop-smoke-mac/**
+            ${{ runner.temp }}/banana-desktop-markdown-image-mac/**
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
