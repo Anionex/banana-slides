@@ -114,7 +114,10 @@ test.describe('Settings: Per-model provider configuration', () => {
     await expect(getModelGroup(page, 0).locator('select')).toHaveValue('openai')
     await expect(getModelGroup(page, 1).locator('select')).toHaveValue('gemini')
     await expect(getModelGroup(page, 2).locator('select')).toHaveValue('doubao')
-    await expect(page.getByText('为此模型选择独立的提供商，不选则使用上方默认配置')).toHaveCount(3)
+    await expect(
+      page.getByText('为此模型选择独立的提供商，不选则使用上方默认配置')
+        .or(page.getByText('Select an independent provider for this model, leave empty to use default config'))
+    ).toHaveCount(3)
   })
 
   test('switching provider shows/hides conditional fields', async ({ page }) => {
