@@ -55,6 +55,6 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
     return { width: maxX - minX + 1, height: maxY - minY + 1 }
   })
 
-  expect(visibleBounds.width).toBeGreaterThanOrEqual(58)
-  expect(visibleBounds.height).toBeGreaterThanOrEqual(50)
+  expect(visibleBounds.width).toBe(64)
+  expect(visibleBounds.height).toBeGreaterThanOrEqual(54)
 })
