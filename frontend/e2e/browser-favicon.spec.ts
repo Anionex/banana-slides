@@ -13,16 +13,8 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
   expect(response.ok()).toBe(true)
   expect(response.headers()['content-type']).toContain('image/png')
 
-  const dimensions = await page.evaluate(async (src) => {
-    const image = new Image()
-    const loaded = new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve()
-      image.onerror = () => reject(new Error('Failed to decode favicon'))
-    })
-    image.src = src
-    await loaded
-    return { width: image.naturalWidth, height: image.naturalHeight }
-  }, faviconUrl)
-
-  expect(dimensions).toEqual({ width: 64, height: 64 })
+  const buffer = await response.body()
+  expect(buffer.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
+  expect(buffer.readUInt32BE(16)).toBe(64)
+  expect(buffer.readUInt32BE(20)).toBe(64)
 })
