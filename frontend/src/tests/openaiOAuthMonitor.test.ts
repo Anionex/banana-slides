@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  OPENAI_OAUTH_CALLBACK_ORIGIN,
   startOpenAIOAuthMonitor,
   type OpenAIOAuthStatus,
 } from '@/utils/openaiOAuthMonitor';
@@ -83,6 +84,7 @@ describe('startOpenAIOAuthMonitor', () => {
 
     currentStatus = connected;
     window.dispatchEvent(new MessageEvent('message', {
+      origin: OPENAI_OAUTH_CALLBACK_ORIGIN,
       data: { type: 'openai-oauth-callback', success: true },
     }));
     await flushPromises();
@@ -104,6 +106,28 @@ describe('startOpenAIOAuthMonitor', () => {
     await vi.advanceTimersByTimeAsync(500);
 
     expect(getStatus).not.toHaveBeenCalled();
+    monitor.stop();
+  });
+
+  it('ignores OAuth-shaped messages from an untrusted origin', async () => {
+    const getStatus = vi.fn(async () => disconnected);
+    const onFailure = vi.fn();
+    const monitor = startOpenAIOAuthMonitor({
+      desktop: false,
+      popup: { closed: false } as Window,
+      getStatus,
+      onConnected: vi.fn(),
+      onFailure,
+    });
+
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://attacker.example',
+      data: { type: 'openai-oauth-callback', success: false, message: 'Denied' },
+    }));
+    await flushPromises();
+
+    expect(getStatus).not.toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
     monitor.stop();
   });
 
@@ -162,6 +186,7 @@ describe('startOpenAIOAuthMonitor', () => {
     await flushPromises();
 
     window.dispatchEvent(new MessageEvent('message', {
+      origin: OPENAI_OAUTH_CALLBACK_ORIGIN,
       data: { type: 'openai-oauth-callback', success: false, message: 'Denied by user' },
     }));
     const callsAtFailure = getStatus.mock.calls.length;
@@ -231,6 +256,7 @@ describe('startOpenAIOAuthMonitor', () => {
     const callsAtStop = getStatus.mock.calls.length;
     window.dispatchEvent(new Event('focus'));
     window.dispatchEvent(new MessageEvent('message', {
+      origin: OPENAI_OAUTH_CALLBACK_ORIGIN,
       data: { type: 'openai-oauth-callback', success: true },
     }));
     await vi.advanceTimersByTimeAsync(1000);

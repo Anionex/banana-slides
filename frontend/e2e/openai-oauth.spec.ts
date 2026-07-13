@@ -227,6 +227,7 @@ test.describe('OpenAI OAuth Settings Section', () => {
       callbackSent = true;
       await page.evaluate(() => {
         window.dispatchEvent(new MessageEvent('message', {
+          origin: 'http://localhost:1455',
           data: { type: 'openai-oauth-callback', success: true },
         }));
       });
@@ -263,6 +264,7 @@ test.describe('OpenAI OAuth Settings Section', () => {
       await page.getByRole('button', { name: 'Login with OpenAI' }).click();
       await page.evaluate(() => {
         window.dispatchEvent(new MessageEvent('message', {
+          origin: 'http://localhost:1455',
           data: { type: 'openai-oauth-callback', success: false, message: 'Access denied' },
         }));
       });

@@ -1,5 +1,6 @@
 export const OPENAI_OAUTH_POLL_INTERVAL_MS = 1000;
 export const OPENAI_OAUTH_TIMEOUT_MS = 2 * 60 * 1000;
+export const OPENAI_OAUTH_CALLBACK_ORIGIN = 'http://localhost:1455';
 
 export interface OpenAIOAuthStatus {
   connected: boolean;
@@ -78,6 +79,7 @@ export function startOpenAIOAuthMonitor({
   };
 
   function onMessage(event: MessageEvent) {
+    if (event.origin !== OPENAI_OAUTH_CALLBACK_ORIGIN) return;
     if (event.data?.type !== 'openai-oauth-callback') return;
     if (!event.data.success) {
       finishFailure('callback_error', event.data.message);

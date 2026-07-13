@@ -769,7 +769,11 @@ export const Settings: React.FC = () => {
     oauthMonitorStopRef.current = null;
   }, []);
 
-  useEffect(() => stopOAuthMonitor, [stopOAuthMonitor]);
+  useEffect(() => {
+    return () => {
+      stopOAuthMonitor();
+    };
+  }, [stopOAuthMonitor]);
 
   useEffect(() => {
     if (settings) {
