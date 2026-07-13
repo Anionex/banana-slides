@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
+import { isDesktop } from '@/utils';
+import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
 
 // 组件内翻译
 const settingsI18n = {
@@ -47,6 +49,8 @@ const settingsI18n = {
         connecting: "连接中...",
         disconnecting: "断开中...",
         connectFailed: "连接失败",
+        popupBlocked: "登录窗口被浏览器拦截，请允许弹出窗口后重试",
+        connectTimeout: "登录等待超时，请重试或使用手动回调方式连接",
         disconnectFailed: "断开失败",
         disconnectSuccess: "已断开 OpenAI 账号",
         hint: "连接后，可在上方模型配置中选择 Codex 作为提供商，使用你的 OpenAI 账号额度",
@@ -235,6 +239,8 @@ const settingsI18n = {
         connecting: "Connecting...",
         disconnecting: "Disconnecting...",
         connectFailed: "Connection failed",
+        popupBlocked: "The login window was blocked. Allow popups and try again.",
+        connectTimeout: "Login timed out. Try again or use the manual callback option.",
         disconnectFailed: "Disconnect failed",
         disconnectSuccess: "OpenAI account disconnected",
         hint: "When connected, select Codex as the provider in model configuration above to use your OpenAI account credits",
@@ -743,6 +749,8 @@ export const Settings: React.FC = () => {
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
   const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const oauthMonitorStopRef = useRef<(() => void) | null>(null);
+  const oauthAttemptRef = useRef(0);
   const allProviderSources = getAllProviderSources(isZh);
   const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
   const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
@@ -755,44 +763,76 @@ export const Settings: React.FC = () => {
     : formData.ai_provider_format === 'doubao'
       ? 'settings.doubaoKeyHelp'
       : 'settings.apiKeyHelp';
+  const stopOAuthMonitor = useCallback(() => {
+    oauthAttemptRef.current += 1;
+    oauthMonitorStopRef.current?.();
+    oauthMonitorStopRef.current = null;
+  }, []);
+
+  useEffect(() => stopOAuthMonitor, [stopOAuthMonitor]);
+
+  const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
+    setSettings(prev => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        openai_oauth_connected: connected,
+        openai_oauth_account_id: accountId,
+      };
+      sessionStorage.setItem('banana-settings', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const handleOAuthLogin = async () => {
+    stopOAuthMonitor();
+    const attemptId = oauthAttemptRef.current;
     setOauthConnecting(true);
     try {
       const resp = await api.getOpenAIOAuthUrl();
+      if (attemptId !== oauthAttemptRef.current) return;
       if (resp.success && resp.data?.auth_url) {
         if (resp.data.callback_server_available === false) {
           setManualCallbackOpen(true);
           show({ message: t('settings.openaiOAuth.callbackPortBusy'), type: 'warning' });
         }
         const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
-        const onMessage = async (event: MessageEvent) => {
-          if (event.data?.type === 'openai-oauth-callback') {
-            window.removeEventListener('message', onMessage);
+        if (!popup && !isDesktop) {
+          setOauthConnecting(false);
+          show({ message: t('settings.openaiOAuth.popupBlocked'), type: 'error' });
+          return;
+        }
+
+        const monitor = startOpenAIOAuthMonitor({
+          desktop: isDesktop,
+          popup,
+          getStatus: async () => {
+            const statusResp = await api.getOpenAIOAuthStatus();
+            return statusResp.success && statusResp.data ? statusResp.data : null;
+          },
+          onConnected: status => {
+            oauthMonitorStopRef.current = null;
             setOauthConnecting(false);
-            if (event.data.success) {
-              const statusResp = await api.getOpenAIOAuthStatus();
-      if (statusResp.success && statusResp.data) {
-        setSettings(prev => prev ? {
-          ...prev,
-          openai_oauth_connected: statusResp.data!.connected,
-          openai_oauth_account_id: statusResp.data!.account_id || null,
-        } : prev);
-      }
-            } else {
-              show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
-            }
-          }
-        };
-        window.addEventListener('message', onMessage);
-        const checkClosed = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(checkClosed);
+            applyOAuthStatus(true, status.account_id || null);
+            show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
+          },
+          onFailure: (reason, message) => {
+            oauthMonitorStopRef.current = null;
             setOauthConnecting(false);
-            window.removeEventListener('message', onMessage);
-          }
-        }, 1000);
+            const errorMessage = reason === 'timeout'
+              ? t('settings.openaiOAuth.connectTimeout')
+              : message || t('settings.openaiOAuth.connectFailed');
+            show({ message: errorMessage, type: 'error' });
+          },
+        });
+        oauthMonitorStopRef.current = monitor.stop;
+      } else {
+        setOauthConnecting(false);
+        show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
       }
     } catch {
+      if (attemptId !== oauthAttemptRef.current) return;
+      stopOAuthMonitor();
       setOauthConnecting(false);
       show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
     }
@@ -820,15 +860,13 @@ export const Settings: React.FC = () => {
     try {
       const resp = await api.submitOAuthManualCallback(manualCallbackUrl.trim());
       if (resp.success) {
+        stopOAuthMonitor();
+        setOauthConnecting(false);
         setManualCallbackUrl('');
         setManualCallbackOpen(false);
         const statusResp = await api.getOpenAIOAuthStatus();
         if (statusResp.success && statusResp.data) {
-          setSettings(prev => prev ? {
-            ...prev,
-            openai_oauth_connected: statusResp.data!.connected,
-            openai_oauth_account_id: statusResp.data!.account_id || null,
-          } : prev);
+          applyOAuthStatus(statusResp.data.connected, statusResp.data.account_id || null);
         }
         show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
       } else {

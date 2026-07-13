@@ -23,6 +23,8 @@ The desktop app stores its database, uploads, materials, and exports in a user-w
 
 Desktop installers do not include the project-root `.env` used by source deployments. Configure the API provider, base URL, models, and API key on the in-app **Settings** page instead; these settings persist in the local database under the app data directory. A provider selected for a model takes precedence over the **Default API Configuration** above it; choose **Default configuration** in the provider dropdown to use the settings above. If a service test shows an unexpected provider (for example, MiniMax after you configured Gemini), change that model's provider to **Default configuration**, save, and test again.
 
+When connecting an OpenAI/Codex account, the desktop app opens the OAuth login in the system browser. After the callback page shows `Connected`, the app polls its local backend and updates to **Connected** automatically; no manual refresh is required. It also checks immediately when the app regains focus. In web mode, a failed callback or an early popup close ends the connecting state. Either mode ends with an actionable message after a two-minute timeout. Web deployments continue to use the popup `postMessage` callback and report a blocked popup immediately.
+
 Desktop exports open the system save dialog. After you choose a destination, the app waits for the file to be written and verifies that it is not empty before reporting success. If the download is interrupted, times out, or does not write the destination file, the app displays an error that includes the selected path. Task files and historical exports in the preview page's **Export Tasks** panel use the same desktop save flow.
 
 ## Local Packaging Requirements
@@ -133,7 +135,8 @@ macOS verification should cover at least:
 3. Launch the app from Applications; if macOS warns about an unidentified developer, continue only through the per-app approval flow.
 4. After the desktop window loads, confirm the bundled backend `/health` path is healthy and frontend requests use the actual desktop backend port.
 5. Verify at least one real workflow involving image URLs, long-running task polling or SSE, and export/download behavior.
-6. Quit the app and confirm no packaged backend process remains.
+6. Start an OpenAI OAuth login from **Settings** and confirm the app shows the connected account after the system-browser callback without a refresh.
+7. Quit the app and confirm no packaged backend process remains.
 
 ## Troubleshooting
 
@@ -144,6 +147,10 @@ Confirm the installer includes `desktop/backend/`, and check whether security so
 ### Gemini Is Configured but Another Provider Is Shown
 
 The text generation, image generation, and image captioning models can each use their own provider, which takes precedence over the default API. Return to **Settings → Model Configuration**, change the unexpected model provider to **Default configuration**, save, and rerun the service test. The desktop app does not need or create a `.env` file in its installation directory.
+
+### The Browser Says OpenAI Is Connected but the App Is Still Waiting
+
+The desktop app checks local OAuth status every second and checks immediately when it regains focus, so a refresh should not be necessary. After two minutes it ends the connecting state and prompts you to retry. You can also expand **Connection failed after login?** and paste the complete callback URL from the browser address bar. Confirm that the bundled backend is still running and that security software is not blocking local requests.
 
 ### No File Appears After Choosing a Desktop Save Location
 

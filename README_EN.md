@@ -69,6 +69,8 @@
     * Optimized format example prompts, HTTP error message copy, Modal closing experience, cleaning of old project localStorage, and removed redundant prompts for first-time project creation.
     * Several other optimizations and fixes.
 
+> **Desktop configuration and export:** Desktop installers do not include a project-root `.env`; save API settings in the app instead. OpenAI OAuth opens in the system browser, and the app automatically shows the connected account after the callback without requiring a refresh. If login times out, retry or use the manual callback option in Settings. Desktop exports use the system save dialog and report success only after the file is written and verified.
+
 ## ✨ Project Origin
 
 Have you ever found yourself in this dilemma: a presentation due tomorrow, but the PPT is still a blank slate; countless brilliant ideas in your head, but your enthusiasm is drained by tedious layout and design?
