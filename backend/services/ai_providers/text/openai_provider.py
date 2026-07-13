@@ -20,7 +20,7 @@ class OpenAITextProvider(TextProvider):
         
         Args:
             api_key: API key
-            api_base: API base URL (e.g., https://aihubmix.com/v1)
+            api_base: API base URL (e.g., https://api.inferera.com/v1)
             model: Model name to use
         """
         self.client = OpenAI(

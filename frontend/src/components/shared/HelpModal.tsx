@@ -121,7 +121,7 @@ const CONFIG_LINKS = [
   {
     key: 'featuresOverview',
     descKey: 'featuresOverviewDesc',
-    href: { zh: 'https://docs.bananaslides.online/zh/features/overview', en: 'https://docs.bananaslides.online/features/overview' },
+    href: { zh: 'https://docs.inferera.com/zh/features/overview', en: 'https://docs.inferera.com/features/overview' },
   },
   {
     key: 'feishuTutorial',
@@ -134,7 +134,7 @@ const CONFIG_LINKS = [
   {
     key: 'faq',
     descKey: 'faqDesc',
-    href: { zh: 'https://docs.bananaslides.online/zh/faq', en: 'https://docs.bananaslides.online/faq' },
+    href: { zh: 'https://docs.inferera.com/zh/faq', en: 'https://docs.inferera.com/faq' },
   },
 ];
 

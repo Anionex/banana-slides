@@ -125,7 +125,7 @@ def _build_provider_config() -> Dict[str, Any]:
 
     if fmt == 'openai':
         cfg['api_key'] = _resolve_setting('OPENAI_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
-        cfg['api_base'] = _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1')
+        cfg['api_base'] = _resolve_setting('OPENAI_API_BASE', 'https://api.inferera.com/v1')
 
         if not cfg['api_key']:
             raise ValueError(
@@ -248,7 +248,7 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
                    or _resolve_setting('OPENAI_API_KEY')
                    or _resolve_setting('GOOGLE_API_KEY'))
         api_base = (_resolve_setting(f'{prefix}_API_BASE')
-                    or _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1'))
+                    or _resolve_setting('OPENAI_API_BASE', 'https://api.inferera.com/v1'))
 
         if not api_key:
             raise ValueError(

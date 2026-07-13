@@ -34,9 +34,9 @@
   <b>Go from idea to presentation in minutes without tedious formatting. Request changes via conversation and move towards true "Vibe PPT".</b>
 </p>
 <p>
-  <a href="https://bananaslides.online/"><b>🚀 Online Demo</b></a>
+  <a href="https://inferera.com/"><b>🚀 Online Demo</b></a>
   &nbsp;|&nbsp;
-  <a href="https://docs.bananaslides.online/"><b>📖 Documentation</b></a>
+  <a href="https://docs.inferera.com/"><b>📖 Documentation</b></a>
   &nbsp;|&nbsp;
   <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><b>💻 Desktop RC2</b></a>
   &nbsp;|&nbsp;
@@ -51,12 +51,12 @@
 ## 🔥 Latest News
 
 - **[2026-07-11]**: Release Candidate 2 for version 0.9.0 is out. It includes everything in RC1 and fixes the Windows desktop MinerU directory mismatch for editable PPTX export and the FFprobe path error in explainer video export; [Download and Install Now](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
-- **[2026-06-23]**: Page-by-page templates are live — Support for single/multiple template modes. Upload images or PDFs to build your project template library. AI automatically analyzes template styles and provides one-click smart matching for each page, or you can manually bind them page by page. Seamlessly switch between the two modes at any time ([Documentation](https://docs.bananaslides.online/zh/features/templates))
+- **[2026-06-23]**: Page-by-page templates are live — Support for single/multiple template modes. Upload images or PDFs to build your project template library. AI automatically analyzes template styles and provides one-click smart matching for each page, or you can manually bind them page by page. Seamlessly switch between the two modes at any time ([Documentation](https://docs.inferera.com/zh/features/templates))
 - **[2026-04-25]**: Asset Toolbox is live — Added three new modes: full-image editing, selection editing (overlay/replace), and smart erase, built upon existing asset generation. Unified entry for one-stop operations.
 - **[2026-04-25]**: Support for account linking via official OpenAI OAuth. Once linked, Codex can be used directly as a text/image generation provider without manually entering an API Key. Plus accounts can generate 100+ 2k images in five hours ([Tutorial](https://ziy68cvfvu3.feishu.cn/wiki/LDSOwPzkhiNonkkNTF1ct2VBnNc)) (Based on official OpenAI OAuth PKCE authorization flow, non-reverse engineered)
 - **[2026-04-25]**: Support for saving custom text style description templates. Can be named, color-coded, and reused persistently without re-entering every time.
 - **[2026-04-23]**: Support for gpt-image-2 model. Exportable editable background effects have also been improved due to enhanced model capabilities (Select "Generative Acquisition" in Settings - Export Options - Background Acquisition)
-- **[2026-04-11]**: Support for [CLI operations and added agent skills](https://docs.bananaslides.online/cli)
+- **[2026-04-11]**: Support for [CLI operations and added agent skills](https://docs.inferera.com/cli)
 - **[2026-03]**: Added several features and optimizations, such as extra fields, multiple aspect ratio settings, etc.
 - **[2026-02-09]**: New Features and Optimizations
   * New Features
@@ -245,7 +245,7 @@ cp .env.example .env
 <details>
 <summary>Click to expand details</summary>
   
-> **The LLM interface in this project follows the AIHubMix platform format standards. It is recommended to use [AIHubMix (click here to visit)](https://aihubmix.com/?aff=17EC) to obtain API keys and reduce migration costs.**<br>
+> **The LLM interface in this project follows the AIHubMix platform format standards. It is recommended to use [AIHubMix (click here to visit)](https://api.inferera.com/?aff=17EC) to obtain API keys and reduce migration costs.**<br>
 > **Friendly Reminder: The interface costs for Google nano banana pro models are high, please be mindful of the invocation costs.**
 ```env
 
@@ -258,14 +258,14 @@ AI_PROVIDER_FORMAT=gemini
 GOOGLE_API_KEY=your-api-key-here
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
 
-# Proxy Example: https://aihubmix.com/gemini
+# Proxy Example: https://api.inferera.com/gemini
 
 # OpenAI Format Configuration (Used when AI_PROVIDER_FORMAT=openai)
 
 OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 
-# Proxy Example: https://aihubmix.com/v1
+# Proxy Example: https://api.inferera.com/v1
 
 # Volcengine Ark AgentPlans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
 
@@ -557,7 +557,7 @@ Welcome to follow the author's social media, where I share information about thi
 
 ## **🔧 Frequently Asked Questions**
 
-Refer to the [official documentation](https://docs.bananaslides.online/zh/faq)
+Refer to the [official documentation](https://docs.inferera.com/zh/faq)
 
 You can also ask questions directly on DeepWiki 
 <a href="https://deepwiki.com/Anionex/banana-slides"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
@@ -582,7 +582,7 @@ If you have any questions or cooperation intentions, please contact: davidyang04
 <h2>🚀 Sponsor </h2>
 <br>
 <div align="center">
-<a href="https://aihubmix.com/?aff=17EC">
+<a href="https://api.inferera.com/?aff=17EC">
   <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
 </a>
 <p>Thanks to AIHubMix for sponsoring this project</p>

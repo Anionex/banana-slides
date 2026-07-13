@@ -109,7 +109,7 @@ class OpenAIImageProvider(ImageProvider):
 
         Args:
             api_key: API key
-            api_base: API base URL (e.g., https://aihubmix.com/v1)
+            api_base: API base URL (e.g., https://api.inferera.com/v1)
             model: Model name to use
             image_api_protocol: 'auto' (detect by model name), 'images' (force images.generate), 'chat' (force chat.completions)
         """
