@@ -17,4 +17,37 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
   expect(buffer.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
   expect(buffer.readUInt32BE(16)).toBe(64)
   expect(buffer.readUInt32BE(20)).toBe(64)
+
+  const visibleBounds = await page.evaluate(async () => {
+    const imageResponse = await fetch('/favicon.png')
+    const bitmap = await createImageBitmap(await imageResponse.blob())
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas 2D context is unavailable')
+    context.drawImage(bitmap, 0, 0)
+    bitmap.close()
+
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    let minX = canvas.width
+    let maxX = -1
+    let minY = canvas.height
+    let maxY = -1
+
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        if (pixels[(y * canvas.width + x) * 4 + 3] === 0) continue
+        minX = Math.min(minX, x)
+        maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y)
+        maxY = Math.max(maxY, y)
+      }
+    }
+
+    return { width: maxX - minX + 1, height: maxY - minY + 1 }
+  })
+
+  expect(visibleBounds.width).toBeGreaterThanOrEqual(58)
+  expect(visibleBounds.height).toBeGreaterThanOrEqual(50)
 })
