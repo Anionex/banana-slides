@@ -19,10 +19,9 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
   expect(buffer.readUInt32BE(16)).toBe(64)
   expect(buffer.readUInt32BE(20)).toBe(64)
 
-  const visibleBounds = await page.evaluate(async () => {
-    const imageResponse = await fetch('/favicon.png')
-    if (!imageResponse.ok) throw new Error(`Failed to fetch favicon: ${imageResponse.status}`)
-    const bitmap = await createImageBitmap(await imageResponse.blob())
+  const visibleBounds = await page.evaluate(async (pngBytes) => {
+    const blob = new Blob([new Uint8Array(pngBytes)], { type: 'image/png' })
+    const bitmap = await createImageBitmap(blob)
     const canvas = document.createElement('canvas')
     canvas.width = bitmap.width
     canvas.height = bitmap.height
@@ -43,7 +42,7 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
 
     for (let y = 0; y < canvas.height; y += 1) {
       for (let x = 0; x < canvas.width; x += 1) {
-        if (pixels[(y * canvas.width + x) * 4 + 3] === 0) continue
+        if (pixels[(y * canvas.width + x) * 4 + 3] < 10) continue
         minX = Math.min(minX, x)
         maxX = Math.max(maxX, x)
         minY = Math.min(minY, y)
@@ -53,7 +52,7 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
 
     if (maxX === -1 || maxY === -1) return { width: 0, height: 0 }
     return { width: maxX - minX + 1, height: maxY - minY + 1 }
-  })
+  }, Array.from(buffer))
 
   expect(visibleBounds.width).toBe(64)
   expect(visibleBounds.height).toBeGreaterThanOrEqual(54)
