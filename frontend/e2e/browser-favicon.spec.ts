@@ -46,6 +46,7 @@ test('browser tab uses the Banana Slides logo favicon', async ({ page }) => {
       }
     }
 
+    if (maxX === -1 || maxY === -1) return { width: 0, height: 0 }
     return { width: maxX - minX + 1, height: maxY - minY + 1 }
   })
 
