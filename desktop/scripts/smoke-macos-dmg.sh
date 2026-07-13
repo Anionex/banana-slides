@@ -27,6 +27,11 @@ fail() {
 }
 
 cleanup() {
+  if [[ -n "${app_pid:-}" ]] && kill -0 "$app_pid" >/dev/null 2>&1; then
+    pkill -TERM -P "$app_pid" >/dev/null 2>&1 || true
+    kill "$app_pid" >/dev/null 2>&1 || true
+    wait "$app_pid" >/dev/null 2>&1 || true
+  fi
   if hdiutil info | grep -q "$mount_dir"; then
     hdiutil detach "$mount_dir" >/dev/null 2>&1 || true
   fi
@@ -87,7 +92,6 @@ while (( SECONDS < deadline )); do
 done
 
 if [[ ! -f "$result_path" ]]; then
-  kill "$app_pid" >/dev/null 2>&1 || true
   fail "Smoke result file was not created"
 fi
 
@@ -109,4 +113,5 @@ backend_port="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(proce
 curl -fsS "http://127.0.0.1:${backend_port}/health" > "$out_dir/backend-health.json"
 
 wait "$app_pid" || true
+app_pid=""
 log "RESULT: PASS"

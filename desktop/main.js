@@ -209,11 +209,26 @@ function createMainWindow() {
 }
 
 function createTray() {
-  let icon = nativeImage.createFromPath(getTrayPath());
-  if (process.platform === 'darwin') {
+  const trayPath = getTrayPath();
+  let icon = nativeImage.createFromPath(trayPath);
+  let usesTemplateImage = process.platform === 'darwin';
+  let usesFallbackImage = false;
+  if (icon.isEmpty()) {
+    const fallbackPath = path.join(__dirname, 'resources', 'icon.png');
+    log.error('[main] Failed to load tray icon, using app icon fallback:', { trayPath, fallbackPath });
+    icon = nativeImage.createFromPath(fallbackPath);
+    usesTemplateImage = false;
+    usesFallbackImage = true;
+  }
+  if (icon.isEmpty()) {
+    log.error('[main] Failed to load both the Tray icon and its fallback:', trayPath);
+    return;
+  }
+
+  if (usesTemplateImage) {
     icon.setTemplateImage(true);
     runtimeIconState.trayTemplateImage = true;
-  } else if (process.platform === 'linux') {
+  } else if (process.platform === 'linux' || usesFallbackImage) {
     icon = icon.resize({ width: 16, height: 16 });
   }
   tray = new Tray(icon);

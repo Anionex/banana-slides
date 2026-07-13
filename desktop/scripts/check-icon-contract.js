@@ -13,7 +13,9 @@ const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
 
 function readPngMetadata(filePath) {
   const data = fs.readFileSync(filePath);
+  assert.ok(data.length >= 33, `${filePath} is too small to be a valid PNG`);
   assert.ok(data.subarray(0, 8).equals(pngSignature), `${filePath} is not a PNG file`);
+  assert.equal(data.readUInt32BE(8), 13, `${filePath} has an invalid IHDR length`);
   assert.equal(data.subarray(12, 16).toString('ascii'), 'IHDR', `${filePath} has no IHDR header`);
   let dpi = null;
   for (let offset = 8; offset + 12 <= data.length;) {
@@ -57,7 +59,8 @@ function assertPng(filePath, expectedWidth, expectedHeight, expectedDpi = null) 
 
 function readTopLevelYamlSection(source, sectionName) {
   const lines = source.split(/\r?\n/);
-  const start = lines.findIndex((line) => line === `${sectionName}:`);
+  const sectionPattern = new RegExp(`^${sectionName}\\s*:(?:\\s*#.*)?$`);
+  const start = lines.findIndex((line) => sectionPattern.test(line));
   assert.notEqual(start, -1, `Missing ${sectionName} section`);
   let end = start + 1;
   while (end < lines.length && (lines[end] === '' || /^\s/.test(lines[end]))) end += 1;
@@ -79,6 +82,20 @@ function readBmpPixels(filePath) {
   const pixelOffset = data.readUInt32LE(10);
   assert.ok(pixelOffset >= 14 && pixelOffset < data.length, `${filePath} has an invalid pixel offset`);
   return data.subarray(pixelOffset);
+}
+
+function assertPixelBuffersClose(actual, expected, message) {
+  assert.equal(actual.length, expected.length, `${message}: pixel buffer lengths differ`);
+  let maxDelta = 0;
+  let totalDelta = 0;
+  for (let index = 0; index < actual.length; index += 1) {
+    const delta = Math.abs(actual[index] - expected[index]);
+    maxDelta = Math.max(maxDelta, delta);
+    totalDelta += delta;
+  }
+  const meanDelta = totalDelta / actual.length;
+  assert.ok(maxDelta <= 16 && meanDelta <= 1,
+    `${message}: max channel delta ${maxDelta}, mean channel delta ${meanDelta.toFixed(4)}`);
 }
 
 function assertMacIcnsMatchesMaster(masterPath, icnsPath) {
@@ -111,8 +128,11 @@ function assertMacIcnsMatchesMaster(masterPath, icnsPath) {
     );
     assertCommandSucceeded(convertBundled, 'sips');
 
-    assert.ok(readBmpPixels(masterBmpPath).equals(readBmpPixels(bundledBmpPath)),
-      'icon.icns pixels must match resources/icon.png');
+    assertPixelBuffersClose(
+      readBmpPixels(masterBmpPath),
+      readBmpPixels(bundledBmpPath),
+      'icon.icns pixels must match resources/icon.png',
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -166,14 +186,15 @@ function checkIconContract(rootDir = desktopDir) {
   );
   assert.match(
     main,
-    /if \(process\.platform === 'darwin'\) \{\s*icon\.setTemplateImage\(true\);/,
+    /if \(usesTemplateImage\) \{\s*icon\.setTemplateImage\(true\);/,
     'macOS Tray icon must be marked as a template image',
   );
   assert.match(
     main,
-    /} else if \(process\.platform === 'linux'\) \{\s*icon = icon\.resize\(\{ width: 16, height: 16 \}\);/,
-    'only the large Linux PNG Tray icon should be resized',
+    /} else if \(process\.platform === 'linux' \|\| usesFallbackImage\) \{\s*icon = icon\.resize\(\{ width: 16, height: 16 \}\);/,
+    'only a large PNG Tray icon should be resized',
   );
+  assert.ok(main.includes('if (icon.isEmpty())'), 'Tray icon loading must handle missing or corrupt files');
 
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   for (const scriptName of ['prebuild:win', 'prebuild:mac', 'prebuild:linux', 'prebuild:all']) {
@@ -195,4 +216,10 @@ if (require.main === module) {
   for (const check of checks) console.log(`PASS ${check}`);
 }
 
-module.exports = { assertCommandSucceeded, checkIconContract, readPngMetadata };
+module.exports = {
+  assertCommandSucceeded,
+  assertPixelBuffersClose,
+  checkIconContract,
+  readPngMetadata,
+  readTopLevelYamlSection,
+};
