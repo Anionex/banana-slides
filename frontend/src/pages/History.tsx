@@ -73,14 +73,14 @@ const historyI18n = {
 };
 
 const DEFAULT_PAGE_SIZE = 5;
-const PAGE_SIZE_OPTIONS = [5, 10, 20] as const;
+const PAGE_SIZE_OPTIONS: number[] = [5, 10, 20];
 const PAGE_SIZE_KEY = 'history_page_size';
 
 const getStoredHistoryPageSize = (savedValue: string | null): number => {
   if (savedValue === null) return DEFAULT_PAGE_SIZE;
 
   const parsedValue = Number(savedValue);
-  return PAGE_SIZE_OPTIONS.includes(parsedValue as (typeof PAGE_SIZE_OPTIONS)[number])
+  return PAGE_SIZE_OPTIONS.includes(parsedValue)
     ? parsedValue
     : DEFAULT_PAGE_SIZE;
 };
@@ -95,16 +95,9 @@ export const History: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [totalProjects, setTotalProjects] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => {
-    const saved = localStorage.getItem(PAGE_SIZE_KEY);
-    const normalizedPageSize = getStoredHistoryPageSize(saved);
-
-    if (saved !== null && saved !== String(normalizedPageSize)) {
-      localStorage.setItem(PAGE_SIZE_KEY, String(normalizedPageSize));
-    }
-
-    return normalizedPageSize;
-  });
+  const [pageSize, setPageSize] = useState(() =>
+    getStoredHistoryPageSize(localStorage.getItem(PAGE_SIZE_KEY))
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
@@ -115,6 +108,13 @@ export const History: React.FC = () => {
   const { confirm, ConfirmDialog } = useConfirm();
 
   const totalPages = Math.ceil(totalProjects / pageSize);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(PAGE_SIZE_KEY);
+    if (saved !== null && saved !== String(pageSize)) {
+      localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+    }
+  }, [pageSize]);
 
   const loadProjects = useCallback(async (page: number) => {
     setIsLoading(true);
@@ -537,7 +537,7 @@ export const History: React.FC = () => {
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
                 pageSize={pageSize}
-                pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
                 onPageSizeChange={handlePageSizeChange}
                 pageSizeLabel={t('history.perPage')}
               />
