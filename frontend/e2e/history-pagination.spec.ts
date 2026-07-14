@@ -251,7 +251,7 @@ test.describe('History pagination — mock', () => {
 test.describe('History pagination — integration', () => {
   const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
   const frontendPort = parseInt(new URL(frontendUrl).port || '3011')
-  const BACKEND_URL = `http://localhost:${frontendPort + 2000}`
+  const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${frontendPort + 2000}`
 
   async function createSimpleProject(index: number): Promise<string> {
     const resp = await fetch(`${BACKEND_URL}/api/projects`, {
@@ -311,6 +311,7 @@ test.describe('History pagination — integration', () => {
       await page.goto('/history')
 
       await expect(page.locator('text=/历史项目|Project History/')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByRole('heading', { name: 'PagTest-99', exact: true })).toBeVisible()
       const pagination = page.locator('nav[aria-label="Pagination"]')
       await expect(pagination.locator('select')).toHaveValue('5')
       await expect.poll(() => page.evaluate(() => localStorage.getItem('history_page_size'))).toBe('5')
