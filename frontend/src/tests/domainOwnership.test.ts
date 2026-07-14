@@ -13,6 +13,8 @@ describe('domain ownership', () => {
     'docs/quickstart.mdx',
     'docs/zh/quickstart.mdx',
     'skills/banana-cli/references/setup.md',
+    'frontend/src/components/shared/Footer.tsx',
+    'frontend/src/components/shared/HelpModal.tsx',
   ];
 
   it.each(firstPartyFiles)('keeps the first-party domain in %s', (relativePath) => {
