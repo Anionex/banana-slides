@@ -34,9 +34,9 @@
   <b>在几分钟内从想法到演示文稿，无需繁琐排版、口头提出修改，迈向真正的 "Vibe PPT"</b>
 </p>
 <p>
-  <a href="https://inferera.com/"><b>🚀 在线 Demo</b></a>
+  <a href="https://bananaslides.online/"><b>🚀 在线 Demo</b></a>
   &nbsp;|&nbsp;
-  <a href="https://docs.inferera.com/"><b>📖 文档</b></a>
+  <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
   &nbsp;|&nbsp;
   <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><b>💻 桌面版 RC2</b></a>
   &nbsp;|&nbsp;
@@ -50,12 +50,12 @@
 
 ## 🔥 最新动态
 - **[2026-07-11]**：0.9.0 候选版本 2 发布，包含 RC1 的全部能力，并修复 Windows 桌面端可编辑 PPTX 的 MinerU 目录不一致、讲解视频 FFprobe 路径错误；[一键下载并安装](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
-- **[2026-06-23]**：逐页模板上线 — 支持单/多模板两种模式，可上传图片或 PDF 构建项目模板库，AI 自动解析模板风格并一键为每页智能匹配，也可逐页手动绑定；两种模式随时双向切换（[文档](https://docs.inferera.com/zh/features/templates)）
+- **[2026-06-23]**：逐页模板上线 — 支持单/多模板两种模式，可上传图片或 PDF 构建项目模板库，AI 自动解析模板风格并一键为每页智能匹配，也可逐页手动绑定；两种模式随时双向切换（[文档](https://docs.bananaslides.online/zh/features/templates)）
 - **[2026-04-25]**： 素材工具箱上线 — 在原有素材生成基础上新增整图编辑、框选编辑（overlay/replace）、智能擦除三种模式，统一入口一站式操作
 - **[2026-04-25]**：支持通过 OpenAI 官方 OAuth 登录绑定账号，绑定后可直接使用 Codex 作为文本/图片生成 provider，无需手动填写 API Key，plus账号五小时可生成100+ 2k图（[教程](https://ziy68cvfvu3.feishu.cn/wiki/LDSOwPzkhiNonkkNTF1ct2VBnNc))（基于 OpenAI 官方 OAuth PKCE 授权流程，非逆向）
 - **[2026-04-25]**：支持保存自定义文字风格描述模板，可命名、标色、持久化复用，无需每次重新输入
 - **[2026-04-23]**：支持了gpt-image-2模型，同时导出可编辑背景效果也因模型能力升级得到了提升（在 设置-导出选项-背景获取 选择 生成式获取）
-- **[2026-04-11]**：支持了[cli操作并加入了agent skills](https://docs.inferera.com/cli)
+- **[2026-04-11]**：支持了[cli操作并加入了agent skills](https://docs.bananaslides.online/cli)
 - **[2026-03]**：加入了若干功能和优化，如额外字段、多比例设定等
 - **[2026-02-09]**： 新功能和优化
   * 新功能
@@ -530,7 +530,7 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 
 ## **🔧 常见问题**
-可见[官网文档](https://docs.inferera.com/zh/faq)
+可见[官网文档](https://docs.bananaslides.online/zh/faq)
 
 也可以直接到 DeepWiki 提问 
 <a href="https://deepwiki.com/Anionex/banana-slides"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>

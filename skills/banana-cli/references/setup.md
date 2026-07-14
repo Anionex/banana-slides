@@ -1,6 +1,6 @@
 # Banana Slides Setup
 
-Full documentation: https://docs.inferera.com/
+Full documentation: https://docs.bananaslides.online/
 
 ## Install and Start Backend
 
