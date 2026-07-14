@@ -111,10 +111,11 @@ export const History: React.FC = () => {
 
   useEffect(() => {
     const saved = localStorage.getItem(PAGE_SIZE_KEY);
-    if (saved !== null && saved !== String(pageSize)) {
-      localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+    const normalizedPageSize = getStoredHistoryPageSize(saved);
+    if (saved !== null && saved !== String(normalizedPageSize)) {
+      localStorage.setItem(PAGE_SIZE_KEY, String(normalizedPageSize));
     }
-  }, [pageSize]);
+  }, []);
 
   const loadProjects = useCallback(async (page: number) => {
     setIsLoading(true);
