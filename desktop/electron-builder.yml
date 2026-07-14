@@ -10,6 +10,7 @@ afterPack: scripts/adhoc-sign-macos.js
 
 files:
   - "main.js"
+  - "icon-policy.js"
   - "download-manager.js"
   - "python-manager.js"
   - "preload.js"
@@ -17,9 +18,7 @@ files:
   - "update-policy.js"
   - "build-meta.json"
   - "splash.html"
-  - "logo.png"
-  - "resources/icon.icns"
-  - "resources/icon.ico"
+  - "resources/BananaSlides.icon/Assets/brand-logo.png"
   - "resources/icon.png"
   - "package.json"
   - "node_modules/**/*"
@@ -29,6 +28,10 @@ extraResources:
     to: "icon.ico"
   - from: "resources/icon.png"
     to: "icon.png"
+  - from: "resources/trayTemplate.png"
+    to: "trayTemplate.png"
+  - from: "resources/trayTemplate@2x.png"
+    to: "trayTemplate@2x.png"
   - from: "backend/"
     to: "backend"
     filter:
@@ -56,7 +59,8 @@ win:
   artifactName: "BananaSlides-${version}-win-${arch}-Setup.${ext}"
 
 mac:
-  icon: resources/icon.icns
+  icon: resources/BananaSlides.icon
+  darkModeSupport: true
   identity: null
   target:
     - target: dmg

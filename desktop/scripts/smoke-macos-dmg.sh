@@ -27,7 +27,32 @@ fail() {
 }
 
 cleanup() {
-  if hdiutil info | grep -q "$mount_dir"; then
+  if [[ -n "${app_pid:-}" ]] && kill -0 "$app_pid" >/dev/null 2>&1; then
+    pkill -TERM -P "$app_pid" >/dev/null 2>&1 || true
+    kill "$app_pid" >/dev/null 2>&1 || true
+    for _ in 1 2 3; do
+      if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 1
+    done
+    if kill -0 "$app_pid" >/dev/null 2>&1; then
+      pkill -KILL -P "$app_pid" >/dev/null 2>&1 || true
+      kill -KILL "$app_pid" >/dev/null 2>&1 || true
+    fi
+    wait "$app_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${install_dir:-}" ]]; then
+    pkill -TERM -f "$install_dir" >/dev/null 2>&1 || true
+    for _ in 1 2 3; do
+      if ! pgrep -f "$install_dir" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 1
+    done
+    pkill -KILL -f "$install_dir" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${mount_dir:-}" ]] && hdiutil info | grep -q "$mount_dir"; then
     hdiutil detach "$mount_dir" >/dev/null 2>&1 || true
   fi
 }
@@ -47,6 +72,34 @@ log "MountedApp=$app_path"
 cp -R "$app_path" "$install_dir/"
 installed_app="$install_dir/$(basename "$app_path")"
 log "InstalledApp=$installed_app"
+
+bundle_icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$installed_app/Contents/Info.plist" 2>/dev/null || true)"
+[[ "$bundle_icon_name" == "icon.icns" ]] || fail "Unexpected CFBundleIconFile: $bundle_icon_name"
+bundle_icon="$installed_app/Contents/Resources/$bundle_icon_name"
+[[ -f "$bundle_icon" ]] || fail "Bundle icon missing: $bundle_icon"
+
+bundle_icon_asset_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$installed_app/Contents/Info.plist" 2>/dev/null || true)"
+[[ "$bundle_icon_asset_name" == "Icon" ]] || fail "Unexpected CFBundleIconName: $bundle_icon_asset_name"
+asset_catalog="$installed_app/Contents/Resources/Assets.car"
+[[ -f "$asset_catalog" ]] || fail "Adaptive Assets.car missing: $asset_catalog"
+[[ "$(stat -f%z "$asset_catalog")" -gt 10000 ]] || fail "Adaptive Assets.car is unexpectedly small"
+assetutil --info "$asset_catalog" > "$out_dir/icon-assets.json"
+node -e '
+  const assets = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+  const header = assets.find((asset) => asset.Appearances);
+  if (!assets.some((asset) => asset.Name === "Icon" && asset.AssetType === "Icon Image")) {
+    throw new Error("Assets.car does not contain the Icon app icon");
+  }
+  if (!header?.Appearances || !("NSAppearanceNameDarkAqua" in header.Appearances)) {
+    throw new Error("Assets.car does not contain a dark appearance");
+  }
+' "$out_dir/icon-assets.json"
+
+for tray_icon in trayTemplate.png trayTemplate@2x.png; do
+  installed_tray_icon="$installed_app/Contents/Resources/$tray_icon"
+  [[ -f "$installed_tray_icon" ]] || fail "Tray template icon missing: $installed_tray_icon"
+  cmp -s "$installed_tray_icon" "$(dirname "$0")/../resources/$tray_icon" || fail "Packaged $tray_icon differs from source"
+done
 
 codesign --verify --deep --strict --verbose=2 "$installed_app" 2>&1 | tee "$out_dir/codesign-verify.txt" || fail "codesign verification failed"
 spctl -a -vv "$installed_app" > "$out_dir/spctl.txt" 2>&1 || true
@@ -75,7 +128,6 @@ while (( SECONDS < deadline )); do
 done
 
 if [[ ! -f "$result_path" ]]; then
-  kill "$app_pid" >/dev/null 2>&1 || true
   fail "Smoke result file was not created"
 fi
 
@@ -86,6 +138,8 @@ node -e '
   if (!result.backendPort) throw new Error("Missing backendPort");
   if (!result.windowVisible) throw new Error("Window was not visible");
   if (!result.url || !result.url.includes("index.html")) throw new Error(`Unexpected URL: ${result.url}`);
+  if (result.iconPolicy?.dockOverrideApplied !== false) throw new Error("Packaged macOS must not override the bundle Dock icon");
+  if (result.iconPolicy?.trayTemplateImage !== true) throw new Error("macOS Tray icon was not marked as a template image");
 ' "$result_path"
 
 [[ -f "$screenshot_path" ]] || fail "Screenshot missing"
@@ -95,4 +149,5 @@ backend_port="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(proce
 curl -fsS "http://127.0.0.1:${backend_port}/health" > "$out_dir/backend-health.json"
 
 wait "$app_pid" || true
+app_pid=""
 log "RESULT: PASS"

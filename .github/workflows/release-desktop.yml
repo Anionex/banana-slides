@@ -26,7 +26,7 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-          - os: macos-latest
+          - os: macos-26
             platform: mac
           - os: ubuntu-latest
             platform: linux
@@ -93,6 +93,14 @@ jobs:
 
       - name: Install Electron dependencies
         run: cd desktop && npm ci
+
+      - name: Enable Icon Composer toolchain
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          actool_path="$(xcrun --find actool)"
+          echo "$(dirname "$actool_path")" >> "$GITHUB_PATH"
+          "$actool_path" --version
 
       - name: Cache Windows FFmpeg download
         if: matrix.os == 'windows-latest'

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage, nativeTheme } = require('electron');
 const path = require('path');
 const log = require('electron-log');
 const fs = require('fs');
@@ -10,6 +10,11 @@ const {
   downloadToPath,
   resolveLocalExportPath,
 } = require('./download-manager');
+const {
+  getApplicationIconPath,
+  getTrayIconPath,
+  shouldSetDockIcon,
+} = require('./icon-policy');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -17,6 +22,10 @@ let tray = null;
 let isQuitting = false;
 let backendStopped = false;
 let backendStopRequested = false;
+const runtimeIconState = {
+  dockOverrideApplied: false,
+  trayTemplateImage: false,
+};
 
 function isDev() {
   return process.env.NODE_ENV === 'development';
@@ -60,6 +69,7 @@ async function writeSmokeResult(extra = {}) {
     windowVisible: mainWindow?.isVisible() || false,
     windowTitle: mainWindow?.getTitle() || '',
     url: mainWindow?.webContents?.getURL() || '',
+    iconPolicy: runtimeIconState,
     timestamp: new Date().toISOString(),
     ...extra,
   };
@@ -95,11 +105,21 @@ async function writeSmokeResult(extra = {}) {
 }
 
 function getIconPath() {
-  const ext = process.platform === 'win32' ? 'ico' : 'png';
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, `icon.${ext}`);
-  }
-  return path.join(__dirname, 'resources', `icon.${ext}`);
+  return getApplicationIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    desktopDir: __dirname,
+  });
+}
+
+function getTrayPath() {
+  return getTrayIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    desktopDir: __dirname,
+  });
 }
 
 function shouldOpenInExternalBrowser(targetUrl) {
@@ -118,6 +138,7 @@ function createSplashWindow() {
     frame: false,
     resizable: false,
     transparent: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111111' : '#ffffff',
     center: true,
     skipTaskbar: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
@@ -134,7 +155,6 @@ function createMainWindow() {
     minWidth: 680,
     minHeight: 480,
     show: false,
-    icon: getIconPath(),
     ...(isMac
       ? {
           titleBarStyle: 'hidden',
@@ -143,6 +163,7 @@ function createMainWindow() {
         }
       : {
           frame: false,
+          icon: getIconPath(),
         }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -151,8 +172,9 @@ function createMainWindow() {
     },
   });
 
-  if (isMac) {
+  if (app.dock && shouldSetDockIcon({ platform: process.platform, isPackaged: app.isPackaged })) {
     app.dock.setIcon(getIconPath());
+    runtimeIconState.dockOverrideApplied = true;
   }
 
   mainWindow.on('close', (e) => {
@@ -188,7 +210,28 @@ function createMainWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(getIconPath()).resize({ width: 16, height: 16 });
+  const trayPath = getTrayPath();
+  let icon = nativeImage.createFromPath(trayPath);
+  let usesTemplateImage = process.platform === 'darwin';
+  let usesFallbackImage = false;
+  if (icon.isEmpty()) {
+    const fallbackPath = path.join(__dirname, 'resources', 'icon.png');
+    log.error('[main] Failed to load tray icon, using app icon fallback:', { trayPath, fallbackPath });
+    icon = nativeImage.createFromPath(fallbackPath);
+    usesTemplateImage = false;
+    usesFallbackImage = true;
+  }
+  if (icon.isEmpty()) {
+    log.error('[main] Failed to load both the Tray icon and its fallback:', trayPath);
+    return;
+  }
+
+  if (usesTemplateImage) {
+    icon.setTemplateImage(true);
+    runtimeIconState.trayTemplateImage = true;
+  } else if (process.platform === 'linux' || usesFallbackImage) {
+    icon = icon.resize({ width: 16, height: 16 });
+  }
   tray = new Tray(icon);
   tray.setToolTip('Banana Slides');
 

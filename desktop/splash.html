@@ -6,10 +6,31 @@
 <title>Banana Slides</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    color-scheme: light dark;
+    --splash-background: linear-gradient(150deg, #ffffff 0%, #fdfdf8 50%, #fafaf0 100%);
+    --icon-background: #ffffff;
+    --icon-shadow: 0 5px 16px rgba(112, 65, 12, 0.16), inset 0 1px 0 rgba(255,255,255,0.85);
+    --title-color: #292524;
+    --tagline-color: #78716c;
+    --progress-track: rgba(0, 0, 0, 0.06);
+    --status-color: #a8a29e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --splash-background: linear-gradient(150deg, #171717 0%, #111111 55%, #0c0c0c 100%);
+      --icon-background: #111111;
+      --icon-shadow: 0 5px 18px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255,255,255,0.12);
+      --title-color: #fafaf9;
+      --tagline-color: #a8a29e;
+      --progress-track: rgba(255, 255, 255, 0.1);
+      --status-color: #78716c;
+    }
+  }
   body {
     width: 480px; height: 360px; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(150deg, #ffffff 0%, #fdfdf8 50%, #fafaf0 100%);
+    background: var(--splash-background);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     user-select: none; -webkit-app-region: drag;
@@ -19,10 +40,19 @@
     display: flex; flex-direction: column;
     align-items: center; gap: 14px;
   }
-  .logo-img {
-    width: 92px; height: auto;
-    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.08));
+  .logo-shell {
+    width: 104px; height: 104px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 24px;
+    overflow: hidden;
+    background: var(--icon-background);
+    box-shadow: var(--icon-shadow);
     animation: float 3s ease-in-out infinite;
+  }
+  .logo-img {
+    display: block;
+    width: 82px; height: 82px;
+    object-fit: contain;
   }
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -30,10 +60,10 @@
   }
   .app-name {
     font-size: 24px; font-weight: 700;
-    color: #292524; letter-spacing: 0.4px;
+    color: var(--title-color); letter-spacing: 0.4px;
   }
   .tagline {
-    font-size: 13px; color: #78716c;
+    font-size: 13px; color: var(--tagline-color);
     font-weight: 500; letter-spacing: 0.2px;
   }
   .progress-area {
@@ -42,7 +72,7 @@
   }
   .progress-bar {
     width: 100%; height: 2px;
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--progress-track);
     border-radius: 1px; overflow: hidden;
   }
   .progress-fill {
@@ -58,13 +88,15 @@
   }
   .status-text {
     margin-top: 10px; font-size: 11px;
-    color: #a8a29e; letter-spacing: 0.5px;
+    color: var(--status-color); letter-spacing: 0.5px;
   }
 </style>
 </head>
 <body>
   <div class="logo-area">
-    <img class="logo-img" src="logo.png" alt="Banana Slides" onerror="this.outerHTML='<div style=&quot;font-size:52px&quot;>🍌</div>'" />
+    <div class="logo-shell">
+      <img class="logo-img" src="resources/BananaSlides.icon/Assets/brand-logo.png" alt="Banana Slides" onerror="this.outerHTML='<div style=&quot;font-size:52px&quot;>🍌</div>'" />
+    </div>
     <div class="app-name">Banana Slides</div>
     <div class="tagline">AI-native presentation studio</div>
   </div>

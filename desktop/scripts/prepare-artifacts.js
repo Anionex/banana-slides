@@ -17,8 +17,6 @@ const { execFileSync } = require('child_process');
 const desktopDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(desktopDir, '..');
 const generatedFfmpegDir = path.join(desktopDir, 'ffmpeg');
-const generatedMacIconDir = path.join(desktopDir, 'resources', 'icon.iconset');
-const generatedMacIconPath = path.join(desktopDir, 'resources', 'icon.icns');
 const ffmpegCacheDir = path.join(desktopDir, '.cache', 'ffmpeg');
 
 const windowsFfmpegArchive = {
@@ -243,54 +241,6 @@ function findFile(root, fileName) {
   return '';
 }
 
-function prepareMacIconArtifacts() {
-  if (process.platform !== 'darwin') {
-    return;
-  }
-
-  const sourcePng = path.join(desktopDir, 'resources', 'icon.png');
-  if (!fs.existsSync(sourcePng)) {
-    console.error(`ERROR: source not found: ${sourcePng}`);
-    process.exit(1);
-  }
-
-  const sipsBinary = resolveCommandBinary('sips');
-  const iconutilBinary = resolveCommandBinary('iconutil');
-  if (!sipsBinary || !iconutilBinary) {
-    console.error('ERROR: sips/iconutil not found; cannot generate macOS icon.icns.');
-    process.exit(1);
-  }
-
-  fs.rmSync(generatedMacIconDir, { recursive: true, force: true });
-  fs.mkdirSync(generatedMacIconDir, { recursive: true });
-
-  const iconVariants = [
-    { size: 16, name: 'icon_16x16.png' },
-    { size: 32, name: 'icon_16x16@2x.png' },
-    { size: 32, name: 'icon_32x32.png' },
-    { size: 64, name: 'icon_32x32@2x.png' },
-    { size: 128, name: 'icon_128x128.png' },
-    { size: 256, name: 'icon_128x128@2x.png' },
-    { size: 256, name: 'icon_256x256.png' },
-    { size: 512, name: 'icon_256x256@2x.png' },
-    { size: 512, name: 'icon_512x512.png' },
-    { size: 1024, name: 'icon_512x512@2x.png' },
-  ];
-
-  iconVariants.forEach(({ size, name }) => {
-    execFileSync(sipsBinary, ['-z', String(size), String(size), sourcePng, '--out', path.join(generatedMacIconDir, name)], {
-      stdio: 'inherit',
-    });
-  });
-
-  execFileSync(iconutilBinary, ['--convert', 'icns', '--output', generatedMacIconPath, generatedMacIconDir], {
-    stdio: 'inherit',
-  });
-
-  fs.rmSync(generatedMacIconDir, { recursive: true, force: true });
-  console.log(`Generated  ${path.relative(repoRoot, generatedMacIconPath)}`);
-}
-
 async function prepareWindowsFfmpegArtifacts() {
   const { ffmpegSource, ffprobeSource } = requirePairedFfmpegEnv();
   if (ffmpegSource && ffprobeSource) {
@@ -383,7 +333,6 @@ async function main() {
   );
 
   await prepareFfmpegArtifacts();
-  prepareMacIconArtifacts();
 
   console.log('Artifacts ready.');
 }
