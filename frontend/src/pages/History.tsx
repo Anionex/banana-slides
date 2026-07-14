@@ -73,7 +73,17 @@ const historyI18n = {
 };
 
 const DEFAULT_PAGE_SIZE = 5;
+const PAGE_SIZE_OPTIONS = [5, 10, 20] as const;
 const PAGE_SIZE_KEY = 'history_page_size';
+
+const getStoredHistoryPageSize = (savedValue: string | null): number => {
+  if (savedValue === null) return DEFAULT_PAGE_SIZE;
+
+  const parsedValue = Number(savedValue);
+  return PAGE_SIZE_OPTIONS.includes(parsedValue as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? parsedValue
+    : DEFAULT_PAGE_SIZE;
+};
 
 export const History: React.FC = () => {
   const navigate = useNavigate();
@@ -87,7 +97,13 @@ export const History: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => {
     const saved = localStorage.getItem(PAGE_SIZE_KEY);
-    return saved ? Number(saved) : DEFAULT_PAGE_SIZE;
+    const normalizedPageSize = getStoredHistoryPageSize(saved);
+
+    if (saved !== null && saved !== String(normalizedPageSize)) {
+      localStorage.setItem(PAGE_SIZE_KEY, String(normalizedPageSize));
+    }
+
+    return normalizedPageSize;
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -521,6 +537,7 @@ export const History: React.FC = () => {
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
                 pageSize={pageSize}
+                pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
                 onPageSizeChange={handlePageSizeChange}
                 pageSizeLabel={t('history.perPage')}
               />
