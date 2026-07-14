@@ -85,6 +85,22 @@ const getStoredHistoryPageSize = (savedValue: string | null): number => {
     : DEFAULT_PAGE_SIZE;
 };
 
+const readHistoryPageSize = (): number => {
+  try {
+    return getStoredHistoryPageSize(localStorage.getItem(PAGE_SIZE_KEY));
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+};
+
+const saveHistoryPageSize = (pageSize: number): void => {
+  try {
+    localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  } catch {
+    // Browsing history remains usable when storage is blocked or full.
+  }
+};
+
 export const History: React.FC = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
@@ -95,9 +111,7 @@ export const History: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [totalProjects, setTotalProjects] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() =>
-    getStoredHistoryPageSize(localStorage.getItem(PAGE_SIZE_KEY))
-  );
+  const [pageSize, setPageSize] = useState(readHistoryPageSize);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
@@ -110,10 +124,14 @@ export const History: React.FC = () => {
   const totalPages = Math.ceil(totalProjects / pageSize);
 
   useEffect(() => {
-    const saved = localStorage.getItem(PAGE_SIZE_KEY);
-    const normalizedPageSize = getStoredHistoryPageSize(saved);
-    if (saved !== null && saved !== String(normalizedPageSize)) {
-      localStorage.setItem(PAGE_SIZE_KEY, String(normalizedPageSize));
+    try {
+      const saved = localStorage.getItem(PAGE_SIZE_KEY);
+      const normalizedPageSize = getStoredHistoryPageSize(saved);
+      if (saved !== null && saved !== String(normalizedPageSize)) {
+        saveHistoryPageSize(normalizedPageSize);
+      }
+    } catch {
+      // Storage availability is optional; the in-memory default still works.
     }
   }, []);
 
@@ -147,7 +165,7 @@ export const History: React.FC = () => {
   }, []);
 
   const handlePageSizeChange = useCallback((size: number) => {
-    localStorage.setItem(PAGE_SIZE_KEY, String(size));
+    saveHistoryPageSize(size);
     setPageSize(size);
     setCurrentPage(1);
     setSelectedProjects(new Set());

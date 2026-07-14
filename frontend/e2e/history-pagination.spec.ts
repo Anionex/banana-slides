@@ -218,6 +218,32 @@ test.describe('History pagination — mock', () => {
     expect(firstRequest).toContain('offset=0')
     await expect.poll(() => page.evaluate(() => localStorage.getItem('history_page_size'))).toBe('5')
   })
+
+  test('should remain usable when page-size storage access is blocked', async ({
+    page,
+  }) => {
+    await setupMockRoutes(page, 12)
+    await page.addInitScript(() => {
+      const originalGetItem = Storage.prototype.getItem
+      const originalSetItem = Storage.prototype.setItem
+      Storage.prototype.getItem = function (key: string) {
+        if (key === 'history_page_size') throw new DOMException('Storage blocked', 'SecurityError')
+        return originalGetItem.call(this, key)
+      }
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === 'history_page_size') throw new DOMException('Storage blocked', 'SecurityError')
+        return originalSetItem.call(this, key, value)
+      }
+    })
+
+    await page.goto('/history')
+    await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
+
+    const pagination = page.locator('nav[aria-label="Pagination"]')
+    await expect(pagination.locator('select')).toHaveValue('5')
+    await pagination.locator('select').selectOption('10')
+    await expect(pagination.locator('select')).toHaveValue('10')
+  })
 })
 
 // ───────────────── Integration test ─────────────────
