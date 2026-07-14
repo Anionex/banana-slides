@@ -36,7 +36,7 @@
 <p>
   <a href="https://bananaslides.online/"><b>🚀 在线 Demo</b></a>
   &nbsp;|&nbsp;
-  <a href="https://docs.inferera.com/"><b>📖 文档</b></a>
+  <a href="https://docs.bananaslides.online/"><b>📖 文档</b></a>
   &nbsp;|&nbsp;
   <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><b>💻 桌面版 RC2</b></a>
   &nbsp;|&nbsp;
