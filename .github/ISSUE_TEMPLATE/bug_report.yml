@@ -8,7 +8,7 @@ body:
       label: Deployment Method / 部署方式
       description: Where did you encounter this issue? / 你在哪里遇到了这个问题？
       options:
-        - Demo Website / 在线 Demo (bananaslides.online)
+        - Demo Website / 在线 Demo (inferera.com)
         - Docker Compose (docker-compose.yml)
         - Docker Compose with Pre-built Images (docker-compose.prod.yml)
         - Local Development / 本地开发 (uv + npm)

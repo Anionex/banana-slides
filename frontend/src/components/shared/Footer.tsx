@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 const GITHUB_REPO = 'Anionex/banana-slides';
 const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
-const DOCS_URL = 'https://docs.bananaslides.online';
+const DOCS_URL = 'https://docs.inferera.com';
 
 export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain, ArrowUp, HelpCircle, Link2, ChevronDown, Volume2, Info, RefreshCw, CheckCircle } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
+import { isDesktop } from '@/utils';
+import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
 
 // 组件内翻译
 const settingsI18n = {
@@ -47,6 +49,8 @@ const settingsI18n = {
         connecting: "连接中...",
         disconnecting: "断开中...",
         connectFailed: "连接失败",
+        popupBlocked: "登录窗口被浏览器拦截，请允许弹出窗口后重试",
+        connectTimeout: "登录等待超时，请重试或使用手动回调方式连接",
         disconnectFailed: "断开失败",
         disconnectSuccess: "已断开 OpenAI 账号",
         hint: "连接后，可在上方模型配置中选择 Codex 作为提供商，使用你的 OpenAI 账号额度",
@@ -184,13 +188,7 @@ const settingsI18n = {
           parsePreview: "解析预览：{{preview}}"
         }
       },
-      providerOverride: {
-        notice: "独立模型提供商会覆盖上方默认 API：{{providers}}。如果你希望这些模型使用 {{defaultProvider}}，请清除独立配置。",
-        text: "文本",
-        image: "图像生成",
-        caption: "图片识别",
-      },
-      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置", useDefaultForAllModels: "全部跟随默认配置" },
+      actions: { save: "保存设置", saving: "保存中...", resetToDefault: "重置为默认配置" },
       messages: {
         loadFailed: "加载设置失败", saveSuccess: "设置保存成功", saveFailed: "保存设置失败",
         resetConfirm: "将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？",
@@ -241,6 +239,8 @@ const settingsI18n = {
         connecting: "Connecting...",
         disconnecting: "Disconnecting...",
         connectFailed: "Connection failed",
+        popupBlocked: "The login window was blocked. Allow popups and try again.",
+        connectTimeout: "Login timed out. Try again or use the manual callback option.",
         disconnectFailed: "Disconnect failed",
         disconnectSuccess: "OpenAI account disconnected",
         hint: "When connected, select Codex as the provider in model configuration above to use your OpenAI account credits",
@@ -378,13 +378,7 @@ const settingsI18n = {
           parsePreview: "Parse preview: {{preview}}"
         }
       },
-      providerOverride: {
-        notice: "Per-model providers override the default API above: {{providers}}. Clear these overrides if you want the models to use {{defaultProvider}}.",
-        text: "Text",
-        image: "Image generation",
-        caption: "Image caption",
-      },
-      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default", useDefaultForAllModels: "Use default for all models" },
+      actions: { save: "Save Settings", saving: "Saving...", resetToDefault: "Reset to Default" },
       messages: {
         loadFailed: "Failed to load settings", saveSuccess: "Settings saved successfully", saveFailed: "Failed to save settings",
         resetConfirm: "This will reset all configurations (LLM, image generation, concurrency, etc.) to environment defaults. Custom settings will be lost. Continue?",
@@ -433,7 +427,7 @@ interface ServiceTestState {
   detail?: string;
 }
 
-const AIHUBMIX_AFFILIATE_URL = ['https://', 'aihubmix', '.com/?', 'aff=17EC'].join('');
+const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 
@@ -755,6 +749,8 @@ export const Settings: React.FC = () => {
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false);
   const [manualCallbackSubmitting, setManualCallbackSubmitting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const oauthMonitorStopRef = useRef<(() => void) | null>(null);
+  const oauthAttemptRef = useRef(0);
   const allProviderSources = getAllProviderSources(isZh);
   const volcengineAgentPlansUrl = isZh ? VOLCENGINE_AGENTPLANS_CN_URL : VOLCENGINE_AGENTPLANS_EN_URL;
   const volcengineLogoUrl = isZh ? '/volcengine/huoshan.png' : '/volcengine/byteplus.png';
@@ -767,64 +763,88 @@ export const Settings: React.FC = () => {
     : formData.ai_provider_format === 'doubao'
       ? 'settings.doubaoKeyHelp'
       : 'settings.apiKeyHelp';
-  const getProviderLabel = (value: string) =>
-    allProviderSources.find(option => option.value === value)?.label || value;
-  const providerOverrides = [
-    { key: 'text_model_source' as const, label: t('settings.providerOverride.text') },
-    { key: 'image_model_source' as const, label: t('settings.providerOverride.image') },
-    { key: 'image_caption_model_source' as const, label: t('settings.providerOverride.caption') },
-  ].filter(item => Boolean(formData[item.key]));
-  const providerOverrideSummary = providerOverrides
-    .map(item => `${item.label}: ${getProviderLabel(formData[item.key])}`)
-    .join(isZh ? '、' : ', ');
+  const stopOAuthMonitor = useCallback(() => {
+    oauthAttemptRef.current += 1;
+    oauthMonitorStopRef.current?.();
+    oauthMonitorStopRef.current = null;
+  }, []);
 
-  const clearPerModelProviderOverrides = () => {
-    setFormData(prev => ({
-      ...prev,
-      text_model_source: '',
-      image_model_source: '',
-      image_caption_model_source: '',
-    }));
-  };
+  useEffect(() => {
+    return () => {
+      stopOAuthMonitor();
+    };
+  }, [stopOAuthMonitor]);
+
+  useEffect(() => {
+    if (settings) {
+      try {
+        sessionStorage.setItem('banana-settings', JSON.stringify(settings));
+      } catch (error) {
+        console.warn('Failed to persist settings in sessionStorage:', error);
+      }
+    }
+  }, [settings]);
+
+  const applyOAuthStatus = useCallback((connected: boolean, accountId: string | null) => {
+    setSettings(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        openai_oauth_connected: connected,
+        openai_oauth_account_id: accountId,
+      };
+    });
+  }, []);
 
   const handleOAuthLogin = async () => {
+    stopOAuthMonitor();
+    const attemptId = oauthAttemptRef.current;
     setOauthConnecting(true);
     try {
       const resp = await api.getOpenAIOAuthUrl();
+      if (attemptId !== oauthAttemptRef.current) return;
       if (resp.success && resp.data?.auth_url) {
         if (resp.data.callback_server_available === false) {
           setManualCallbackOpen(true);
           show({ message: t('settings.openaiOAuth.callbackPortBusy'), type: 'warning' });
         }
         const popup = window.open(resp.data.auth_url, 'openai-oauth', 'width=600,height=700');
-        const onMessage = async (event: MessageEvent) => {
-          if (event.data?.type === 'openai-oauth-callback') {
-            window.removeEventListener('message', onMessage);
+        if ((!popup || popup.closed) && !isDesktop) {
+          setOauthConnecting(false);
+          show({ message: t('settings.openaiOAuth.popupBlocked'), type: 'error' });
+          return;
+        }
+
+        const monitor = startOpenAIOAuthMonitor({
+          desktop: isDesktop,
+          popup,
+          getStatus: async () => {
+            const statusResp = await api.getOpenAIOAuthStatus();
+            return statusResp.success && statusResp.data ? statusResp.data : null;
+          },
+          onConnected: status => {
+            oauthMonitorStopRef.current = null;
             setOauthConnecting(false);
-            if (event.data.success) {
-              const statusResp = await api.getOpenAIOAuthStatus();
-      if (statusResp.success && statusResp.data) {
-        setSettings(prev => prev ? {
-          ...prev,
-          openai_oauth_connected: statusResp.data!.connected,
-          openai_oauth_account_id: statusResp.data!.account_id || null,
-        } : prev);
-      }
-            } else {
-              show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
-            }
-          }
-        };
-        window.addEventListener('message', onMessage);
-        const checkClosed = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(checkClosed);
+            applyOAuthStatus(true, status.account_id || null);
+            show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
+          },
+          onFailure: (reason, message) => {
+            oauthMonitorStopRef.current = null;
             setOauthConnecting(false);
-            window.removeEventListener('message', onMessage);
-          }
-        }, 1000);
+            const errorMessage = reason === 'timeout'
+              ? t('settings.openaiOAuth.connectTimeout')
+              : message || t('settings.openaiOAuth.connectFailed');
+            show({ message: errorMessage, type: 'error' });
+          },
+        });
+        oauthMonitorStopRef.current = monitor.stop;
+      } else {
+        setOauthConnecting(false);
+        show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
       }
     } catch {
+      if (attemptId !== oauthAttemptRef.current) return;
+      stopOAuthMonitor();
       setOauthConnecting(false);
       show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
     }
@@ -852,16 +872,11 @@ export const Settings: React.FC = () => {
     try {
       const resp = await api.submitOAuthManualCallback(manualCallbackUrl.trim());
       if (resp.success) {
+        stopOAuthMonitor();
+        setOauthConnecting(false);
         setManualCallbackUrl('');
         setManualCallbackOpen(false);
-        const statusResp = await api.getOpenAIOAuthStatus();
-        if (statusResp.success && statusResp.data) {
-          setSettings(prev => prev ? {
-            ...prev,
-            openai_oauth_connected: statusResp.data!.connected,
-            openai_oauth_account_id: statusResp.data!.account_id || null,
-          } : prev);
-        }
+        applyOAuthStatus(true, resp.data?.account_id || null);
         show({ message: t('settings.openaiOAuth.manualCallbackSuccess'), type: 'success' });
       } else {
         show({ message: t('settings.openaiOAuth.connectFailed'), type: 'error' });
@@ -1042,7 +1057,6 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData(formDataFromSettings(response.data));
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
       }
     } catch (error: any) {
       console.error('加载设置失败:', error);
@@ -1058,13 +1072,11 @@ export const Settings: React.FC = () => {
   const markOpenAIOAuthDisconnected = () => {
     setSettings(prev => {
       if (!prev) return prev;
-      const next = {
+      return {
         ...prev,
         openai_oauth_connected: false,
         openai_oauth_account_id: null,
       };
-      sessionStorage.setItem('banana-settings', JSON.stringify(next));
-      return next;
     });
   };
 
@@ -1101,7 +1113,6 @@ export const Settings: React.FC = () => {
       const response = await api.updateSettings(payload);
       if (response.data) {
         setSettings(response.data);
-        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
         show({ message: t('settings.messages.saveSuccess'), type: 'success' });
         show({ message: t('settings.messages.testServiceTip'), type: 'info' });
         // Clear all sensitive fields after save
@@ -1766,7 +1777,7 @@ export const Settings: React.FC = () => {
             <div className="mt-3 pl-4 border-l-4 border-blue-300 dark:border-blue-600">
               <p className="text-sm text-gray-700 dark:text-foreground-secondary">
                 {t('settings.apiKeyTip.before')}
-                <a href={AIHUBMIX_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
+                <a href={INFERERA_AFFILIATE_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-medium">{t('settings.apiKeyTip.linkLabel')}</a>
                 {t('settings.apiKeyTip.after')}
               </p>
             </div>
@@ -1784,7 +1795,7 @@ export const Settings: React.FC = () => {
                   {t('settings.apiKeyHelp.step1', { link: '{{link}}' }).split('{{link}}')[0]}
                   <span className="inline-flex items-center gap-2">
                     <a
-                      href={AIHUBMIX_AFFILIATE_URL}
+                      href={INFERERA_AFFILIATE_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 underline font-medium"
@@ -1792,7 +1803,7 @@ export const Settings: React.FC = () => {
                       {t('settings.apiKeyHelp.linkLabel')}
                     </a>
                     <button
-                      onClick={() => copyToClipboard(AIHUBMIX_AFFILIATE_URL)}
+                      onClick={() => copyToClipboard(INFERERA_AFFILIATE_URL)}
                       className="text-xs px-2 py-0.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
                     >
                       {t('settings.apiKeyHelp.copyLink')}
@@ -1814,30 +1825,6 @@ export const Settings: React.FC = () => {
             <FileText size={20} />
             <span className="ml-2">{t('settings.sections.modelConfig')}</span>
           </h2>
-          {providerOverrides.length > 0 && (
-            <div
-              data-testid="per-model-provider-override-alert"
-              className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex items-start gap-2 text-sm">
-                <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <p>
-                  {t('settings.providerOverride.notice', {
-                    providers: providerOverrideSummary,
-                    defaultProvider: getProviderLabel(formData.ai_provider_format),
-                  })}
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={clearPerModelProviderOverrides}
-                className="shrink-0"
-              >
-                {t('settings.actions.useDefaultForAllModels')}
-              </Button>
-            </div>
-          )}
           <div className="space-y-4">
             {modelConfigItems.map(renderModelConfigGroup)}
           </div>

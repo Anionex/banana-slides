@@ -97,7 +97,11 @@ describe('API client desktop detection', () => {
     (window as any).__BACKEND_PORT__ = 15000;
     (window as any).electronAPI = createMockElectronAPI();
     const { getImageUrl } = await import('../api/client');
+    expect(getImageUrl('/files/materials/example.png')).toBe(
+      'http://127.0.0.1:15000/files/materials/example.png',
+    );
     expect(getImageUrl('/uploads/example.png', 123)).toBe('http://127.0.0.1:15000/uploads/example.png?v=123');
+    expect(getImageUrl('https://example.com/image.png')).toBe('https://example.com/image.png');
   });
 
   it('strips query parameters from fallback desktop download filenames', async () => {

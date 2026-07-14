@@ -251,7 +251,7 @@ export interface Settings {
   openai_image_api_protocol?: string;
   // OpenAI Codex OAuth
   openai_oauth_connected: boolean;
-  openai_oauth_account_id?: string;
+  openai_oauth_account_id?: string | null;
   // ElevenLabs TTS
   elevenlabs_enabled: boolean;
   elevenlabs_api_key_length: number;

@@ -62,21 +62,8 @@ test.describe('Settings: Per-model provider integration (real backend)', () => {
     const apiKeyInput = textGroup.locator('input[type="password"]')
     const placeholder = await apiKeyInput.getAttribute('placeholder')
     expect(placeholder).toMatch(/长度|length/i)
-  })
-
-  test('clear-all action persists default-provider fallback', async ({ page }) => {
-    await page.goto('/settings')
-
-    await expect(page.getByTestId('per-model-provider-override-alert')).toBeVisible()
-    await page.getByRole('button', { name: /全部跟随默认配置/ }).click()
-    await page.getByRole('button', { name: /保存/ }).click()
-    await expect(page.locator('text=保存成功').or(page.locator('text=saved'))).toBeVisible({ timeout: 5000 })
-
-    await page.reload()
-    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('')
-    await expect(getModelGroup(page, 1).locator('select')).toHaveValue('')
-    await expect(getModelGroup(page, 2).locator('select')).toHaveValue('')
-    await expect(page.getByTestId('per-model-provider-override-alert')).toBeHidden()
+    await expect(page.getByTestId('per-model-provider-override-alert')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /全部跟随默认配置/ })).toHaveCount(0)
   })
 
   test('reset clears per-model config from backend', async ({ page }) => {

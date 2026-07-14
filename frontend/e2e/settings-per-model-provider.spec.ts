@@ -11,7 +11,7 @@ const mockSettingsWithPerModel = {
   data: {
     id: 1,
     ai_provider_format: 'gemini',
-    api_base_url: 'https://aihubmix.com/gemini',
+    api_base_url: 'https://api.inferera.com/gemini',
     api_key_length: 51,
     text_model: 'glm-4.5',
     image_model: 'imagen-3.0-generate-001',
@@ -101,26 +101,23 @@ test.describe('Settings: Per-model provider configuration', () => {
     await expect(captionGroup.locator('text=API Key').first()).toBeVisible()
   })
 
-  test('warns when model providers override the default and clears them together', async ({ page }) => {
+  test('keeps per-model providers without showing a global warning', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettingsWithPerModel) })
     )
 
     await page.goto('/settings')
 
-    const alert = page.getByTestId('per-model-provider-override-alert')
-    await expect(alert).toContainText('独立模型提供商会覆盖上方默认 API')
-    await expect(alert).toContainText('文本: OpenAI')
-    await expect(alert).toContainText('图像生成: Gemini')
-    await expect(alert).toContainText('图片识别:')
-    await expect(alert).toContainText('Doubao')
-
-    await page.getByRole('button', { name: '全部跟随默认配置' }).click()
-
-    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('')
-    await expect(getModelGroup(page, 1).locator('select')).toHaveValue('')
-    await expect(getModelGroup(page, 2).locator('select')).toHaveValue('')
-    await expect(alert).toBeHidden()
+    await expect(page.getByTestId('per-model-provider-override-alert')).toHaveCount(0)
+    await expect(page.getByText('独立模型提供商会覆盖上方默认 API')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '全部跟随默认配置' })).toHaveCount(0)
+    await expect(getModelGroup(page, 0).locator('select')).toHaveValue('openai')
+    await expect(getModelGroup(page, 1).locator('select')).toHaveValue('gemini')
+    await expect(getModelGroup(page, 2).locator('select')).toHaveValue('doubao')
+    await expect(
+      page.getByText('为此模型选择独立的提供商，不选则使用上方默认配置')
+        .or(page.getByText('Select an independent provider for this model, leave empty to use default config'))
+    ).toHaveCount(3)
   })
 
   test('switching provider shows/hides conditional fields', async ({ page }) => {
