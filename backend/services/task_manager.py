@@ -1021,6 +1021,18 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             project_for_template = Project.query.get(project_id)
             ref_image_path, page_style_text = resolve_page_template(
                 page, project_for_template, file_service)
+            if not use_template:
+                ref_image_path = None
+            if ref_image_path and not Path(ref_image_path).is_file():
+                logger.warning(
+                    "Template image disappeared before generation for page %s: %s",
+                    page_id,
+                    ref_image_path,
+                )
+                ref_image_path = None
+            if not ref_image_path and not page_style_text:
+                raise ValueError(
+                    "No template image or style description found for page")
             has_template_image = bool(ref_image_path)
 
             # Generate image prompt

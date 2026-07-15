@@ -12,6 +12,7 @@ from services.task_manager import (
     generate_single_page_image_task,
     edit_page_image_task,
     get_image_prompt_field_names,
+    resolve_page_template,
 )
 from datetime import datetime
 from pathlib import Path
@@ -497,15 +498,21 @@ def generate_page_image(project_id, page_id):
         
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         
-        # Get template path
-        ref_image_path = None
-        if use_template:
-            ref_image_path = file_service.get_template_path(project_id)
-        
-        # 检查是否有模板图片或风格描述
-        # 如果都没有，则返回错误
-        if not ref_image_path and not project.template_style:
-            return bad_request("No template image or style description found for project")
+        # Multi-template projects keep their template binding on each page,
+        # while legacy/single-template projects keep it on the project.
+        ref_image_path, page_style_text = resolve_page_template(
+            page, project, file_service)
+        if not use_template:
+            ref_image_path = None
+        if ref_image_path and not Path(ref_image_path).is_file():
+            logger.warning(
+                "Template image is missing for page %s: %s",
+                page_id,
+                ref_image_path,
+            )
+            ref_image_path = None
+        if not ref_image_path and not page_style_text:
+            return bad_request("No template image or style description found for page")
         
         # Generate prompt
         page_data = page.get_outline_content() or {}
