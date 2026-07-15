@@ -53,7 +53,11 @@ const SYSTEM_PRESETS: Record<PresetType, Record<'zh' | 'en', Preset[]>> = {
 const STORAGE_KEY_PREFIX = 'presetCapsules_';
 
 function loadUserPresets(type: PresetType): Preset[] {
-  return loadStoredPresets(localStorage, `${STORAGE_KEY_PREFIX}${type}`);
+  try {
+    return loadStoredPresets(window.localStorage, `${STORAGE_KEY_PREFIX}${type}`);
+  } catch {
+    return [];
+  }
 }
 
 function saveUserPresets(type: PresetType, presets: Preset[]) {

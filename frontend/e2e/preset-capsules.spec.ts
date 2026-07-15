@@ -48,7 +48,10 @@ async function openPresetPanel(
   type: 'outline' | 'description',
 ) {
   const addButton = page.locator(`[data-testid="${type}-add-preset"]`)
-  if (!(await addButton.isVisible())) {
+  try {
+    await addButton.waitFor({ state: 'visible', timeout: 1000 })
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error
     const panelName = type === 'outline'
       ? /大纲生成要求|Outline Generation Requirements/i
       : /描述设置|Description Settings/i
