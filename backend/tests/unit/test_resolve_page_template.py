@@ -148,6 +148,51 @@ def test_resolve_no_template_at_all(client, stub_submit_task, app):
         assert style_text is None
 
 
+def test_single_page_generation_accepts_bound_multi_template(
+        client, stub_submit_task, monkeypatch):
+    """A page-level asset must satisfy the single-page generation guard."""
+    from controllers import page_controller
+
+    project_id = _make_project(client)
+    page_resp = client.post(
+        f'/api/projects/{project_id}/pages',
+        json={
+            'order_index': 0,
+            'outline_content': {'title': 'Bound page', 'points': []},
+            'description_content': {'text': 'Generate this page'},
+        },
+    )
+    page_id = page_resp.get_json()['data']['page_id']
+    asset_id = _upload_asset(client, project_id)
+
+    mode_resp = client.patch(
+        f'/api/projects/{project_id}/template-mode', json={'mode': 'multi'})
+    assert mode_resp.status_code == 200
+    bind_resp = client.patch(
+        f'/api/projects/{project_id}/pages/{page_id}/template',
+        json={
+            'template_asset_id': asset_id,
+            'selection_source': 'auto',
+        },
+    )
+    assert bind_resp.status_code == 200
+
+    class StubAI:
+        @staticmethod
+        def extract_image_urls_from_markdown(_text):
+            return []
+
+    monkeypatch.setattr(page_controller, 'get_ai_service', StubAI)
+    response = client.post(
+        f'/api/projects/{project_id}/pages/{page_id}/generate/image',
+        json={'force_regenerate': True},
+    )
+
+    assert response.status_code == 202, response.get_json()
+    assert response.get_json()['data']['page_id'] == page_id
+    assert stub_submit_task[-1]['func'] == 'generate_single_page_image_task'
+
+
 def test_image_prompt_includes_page_style_block(client, stub_submit_task, app):
     """generate_image_prompt threads page_style_text into the prompt body."""
     from services.ai_service import AIService
