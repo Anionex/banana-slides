@@ -1021,6 +1021,8 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
             project_for_template = Project.query.get(project_id)
             ref_image_path, page_style_text = resolve_page_template(
                 page, project_for_template, file_service)
+            if not use_template:
+                ref_image_path = None
             has_template_image = bool(ref_image_path)
 
             # Generate image prompt

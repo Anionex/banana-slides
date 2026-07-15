@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, errors } from '@playwright/test'
 
 import {
   addPage,
@@ -75,8 +75,13 @@ test('a bound multi-template page can be generated from the preview', async ({ p
   )
   await page.getByRole('button', { name: /重新生成|Regenerate/i }).click()
   const generateAnyway = page.getByRole('button', { name: /仍然生成|Generate anyway/i })
-  if (await generateAnyway.isVisible()) {
+  try {
+    await generateAnyway.waitFor({ state: 'visible', timeout: 3000 })
     await generateAnyway.click()
+  } catch (error) {
+    if (!(error instanceof errors.TimeoutError)) {
+      throw error
+    }
   }
 
   const generateResponse = await generateResponsePromise

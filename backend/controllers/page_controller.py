@@ -502,6 +502,8 @@ def generate_page_image(project_id, page_id):
         # while legacy/single-template projects keep it on the project.
         ref_image_path, page_style_text = resolve_page_template(
             page, project, file_service)
+        if not use_template:
+            ref_image_path = None
         if not ref_image_path and not page_style_text:
             return bad_request("No template image or style description found for project")
         
