@@ -587,6 +587,13 @@ def auto_match_project(project_id: str):
     preserve_non_empty = bool(data.get('preserve_non_empty', False))
 
     pages = Page.query.filter_by(project_id=project_id).all()
+    if not pages:
+        return error_response(
+            'NO_PAGES',
+            'Project pages are still being generated; wait before auto-match',
+            400,
+        )
+
     missing = [p.id for p in pages if not p.get_description_content()]
     if missing:
         return error_response(
@@ -594,6 +601,34 @@ def auto_match_project(project_id: str):
             'All pages must have descriptions before auto-match',
             400,
             extra={'missing_page_ids': missing},
+        )
+
+    analyzing_count = (
+        ProjectTemplateAsset.query
+        .filter(
+            ProjectTemplateAsset.project_id == project_id,
+            ProjectTemplateAsset.analysis_status.in_(['pending', 'processing']),
+        )
+        .count()
+    )
+    if analyzing_count:
+        return error_response(
+            'TEMPLATES_ANALYZING',
+            'Wait for template analysis to finish before auto-match',
+            409,
+            extra={'analyzing_count': analyzing_count},
+        )
+
+    has_completed = (
+        ProjectTemplateAsset.query
+        .filter_by(project_id=project_id, analysis_status='completed')
+        .first()
+    )
+    if not has_completed:
+        return error_response(
+            'NO_ANALYZED_TEMPLATES',
+            'No template assets have completed analysis yet',
+            400,
         )
 
     task_id = _enqueue_auto_match(

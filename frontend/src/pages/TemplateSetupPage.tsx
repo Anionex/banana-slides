@@ -67,6 +67,10 @@ const i18n = {
       saved: '已保存',
       matchDone: '自动匹配完成',
       matchFailed: '自动匹配失败',
+      waitForPages: '页面仍在生成，请等待页面描述完成后再自动匹配',
+      waitForDescriptions: '请先完成所有页面描述，再进行自动匹配',
+      waitForTemplates: '模板仍在解析，请等待全部解析完成',
+      needAnalyzedTemplate: '至少需要一个解析成功的模板才能自动匹配',
       loading: '加载中…',
     },
   },
@@ -111,6 +115,10 @@ const i18n = {
       saved: 'Saved',
       matchDone: 'Auto-match completed',
       matchFailed: 'Auto-match failed',
+      waitForPages: 'Pages are still being generated. Wait for page descriptions before auto-matching',
+      waitForDescriptions: 'Complete every page description before auto-matching',
+      waitForTemplates: 'Templates are still being analyzed. Wait for all analyses to finish',
+      needAnalyzedTemplate: 'At least one successfully analyzed template is required for auto-match',
       loading: 'Loading…',
     },
   },
@@ -169,6 +177,21 @@ export const TemplateSetupPage: React.FC = () => {
     loadTemplateAssets(projectId);
   }, [projectId, currentProject?.id]);
 
+  const hasAnalyzingAssets = templateAssets.some(
+    (asset) => asset.analysis_status === 'pending' || asset.analysis_status === 'processing'
+  );
+
+  // PDF splitting starts per-page analysis tasks without returning their IDs.
+  // Refresh the library while those tasks run so readiness and badges recover
+  // automatically instead of staying stale until the user reloads the page.
+  useEffect(() => {
+    if (!projectId || !hasAnalyzingAssets) return;
+    const timer = window.setInterval(() => {
+      loadTemplateAssets(projectId).catch(() => {});
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [projectId, hasAnalyzingAssets, loadTemplateAssets]);
+
   // 路由守卫：单模板模式直接跳预览（决策 6）
   useEffect(() => {
     if (currentProject && currentProject.id === projectId && currentProject.template_mode === 'single') {
@@ -182,6 +205,17 @@ export const TemplateSetupPage: React.FC = () => {
 
   const pages = currentProject.pages;
   const assetById = (id?: string | null) => templateAssets.find((a) => a.id === id) || null;
+  const hasCompletedAsset = templateAssets.some((asset) => asset.analysis_status === 'completed');
+  const hasMissingDescriptions = pages.some((page) => !page.description_content);
+  const autoMatchBlockReason = pages.length === 0
+    ? t('ts.waitForPages')
+    : hasMissingDescriptions
+      ? t('ts.waitForDescriptions')
+      : hasAnalyzingAssets
+        ? t('ts.waitForTemplates')
+        : !hasCompletedAsset
+          ? t('ts.needAnalyzedTemplate')
+          : null;
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -326,17 +360,23 @@ export const TemplateSetupPage: React.FC = () => {
               tooltipSide="bottom"
               onClick={() => setSwitchOpen(true)}
             />
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Sparkles size={16} />}
-              loading={matchingAll}
-              onClick={handleAutoMatchAll}
-            >
-              <span className="hidden sm:inline">
-                {matchingAll ? t('ts.matching') : t('ts.autoMatchAll')}
-              </span>
-            </Button>
+            <span className="inline-flex" title={autoMatchBlockReason || undefined}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Sparkles size={16} />}
+                loading={matchingAll}
+                disabled={!!autoMatchBlockReason}
+                aria-label={autoMatchBlockReason
+                  ? `${t('ts.autoMatchAll')}: ${autoMatchBlockReason}`
+                  : t('ts.autoMatchAll')}
+                onClick={handleAutoMatchAll}
+              >
+                <span className="hidden sm:inline">
+                  {matchingAll ? t('ts.matching') : t('ts.autoMatchAll')}
+                </span>
+              </Button>
+            </span>
             <Button
               variant="primary"
               size="sm"
@@ -348,6 +388,16 @@ export const TemplateSetupPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {autoMatchBlockReason && (
+        <div
+          role="status"
+          data-testid="auto-match-readiness"
+          className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 md:px-6"
+        >
+          {autoMatchBlockReason}
+        </div>
+      )}
 
       {matchTask && (
         <div className="px-3 md:px-6 pt-3">
@@ -514,6 +564,13 @@ export const TemplateSetupPage: React.FC = () => {
                 const pageId = page.id || page.page_id;
                 const asset = assetById(page.template_asset_id);
                 const hasDesc = !!page.description_content;
+                const pageAutoMatchBlockReason = !hasDesc
+                  ? t('ts.noDescHint')
+                  : hasAnalyzingAssets
+                    ? t('ts.waitForTemplates')
+                    : !hasCompletedAsset
+                      ? t('ts.needAnalyzedTemplate')
+                      : null;
                 const editingStyle = styleDraftPageId === pageId;
                 const title =
                   page.outline_content?.title || t('ts.page', { num: String(idx + 1) });
@@ -558,8 +615,8 @@ export const TemplateSetupPage: React.FC = () => {
                         <IconButton
                           size="sm"
                           icon={<Sparkles size={15} />}
-                          label={hasDesc ? t('ts.autoMatchPage') : t('ts.noDescHint')}
-                          disabled={!hasDesc}
+                          label={pageAutoMatchBlockReason || t('ts.autoMatchPage')}
+                          disabled={!!pageAutoMatchBlockReason}
                           onClick={() => handleAutoMatchPage(pageId)}
                         />
                         <IconButton

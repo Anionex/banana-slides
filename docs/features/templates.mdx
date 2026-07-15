@@ -33,13 +33,14 @@ After creating a project with **Multi template**, you first edit the outline and
 
 After each template is uploaded, the AI automatically analyzes its visual characteristics (color palette, layout, text regions, image regions, etc.) for use in auto-matching.
 
-- Analysis status is shown while in progress; once complete you can **edit the analysis** and add a **template label** on the card
+- Analysis status is shown while in progress, and the page automatically refreshes analysis progress for images and PDF-split pages; once complete you can **edit the analysis** and add a **template label** on the card
 - If a template fails analysis, it can still be **selected manually** for generation — it just won't enter the auto-match candidate pool; you can re-run analysis
 
 ### One-click auto-match
 
 Click **Auto-match** and the AI considers each page's title and description together with every template's style in the library, then recommends the best-fit template for each page along with a reason and confidence score. You can then review page by page:
 
+- Auto-match stays disabled with a specific reason while page descriptions are incomplete, templates are still being analyzed, or no template has completed analysis; it becomes available automatically when ready, preventing in-progress page content from being refreshed too early
 - Matched pages show the recommendation source and reason
 - Pages the AI can't decide stay "Unconfirmed" for you to assign manually
 
