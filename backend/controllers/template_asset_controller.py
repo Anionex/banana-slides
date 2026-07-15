@@ -603,13 +603,10 @@ def auto_match_project(project_id: str):
             extra={'missing_page_ids': missing},
         )
 
-    analyzing_count = (
-        ProjectTemplateAsset.query
-        .filter(
-            ProjectTemplateAsset.project_id == project_id,
-            ProjectTemplateAsset.analysis_status.in_(['pending', 'processing']),
-        )
-        .count()
+    assets = ProjectTemplateAsset.query.filter_by(project_id=project_id).all()
+    analyzing_count = sum(
+        1 for asset in assets
+        if asset.analysis_status in ('pending', 'processing')
     )
     if analyzing_count:
         return error_response(
@@ -619,10 +616,8 @@ def auto_match_project(project_id: str):
             extra={'analyzing_count': analyzing_count},
         )
 
-    has_completed = (
-        ProjectTemplateAsset.query
-        .filter_by(project_id=project_id, analysis_status='completed')
-        .first()
+    has_completed = any(
+        asset.analysis_status == 'completed' for asset in assets
     )
     if not has_completed:
         return error_response(
