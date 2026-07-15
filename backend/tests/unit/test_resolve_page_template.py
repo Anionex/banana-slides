@@ -227,6 +227,8 @@ def test_single_page_generation_rejects_disabled_image_only_template(
     )
 
     assert response.status_code == 400
+    assert response.get_json()['error']['message'] == (
+        'No template image or style description found for page')
     assert len(stub_submit_task) == submitted_before
 
 

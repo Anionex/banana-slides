@@ -512,7 +512,7 @@ def generate_page_image(project_id, page_id):
             )
             ref_image_path = None
         if not ref_image_path and not page_style_text:
-            return bad_request("No template image or style description found for project")
+            return bad_request("No template image or style description found for page")
         
         # Generate prompt
         page_data = page.get_outline_content() or {}
