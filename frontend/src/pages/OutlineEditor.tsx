@@ -243,7 +243,8 @@ export const OutlineEditor: React.FC = () => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof Node)) return;
-      if (target instanceof Element && target.closest('[role="dialog"]')) return;
+      const element = target instanceof Element ? target : target.parentElement;
+      if (element?.closest('[role="dialog"]')) return;
       if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
         setFileMenuOpen(false);
       }

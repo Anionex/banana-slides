@@ -22,7 +22,8 @@ function normalizePresets(value: unknown): StoredPreset[] {
   });
 }
 
-export function loadStoredPresets(storage: PresetStorage, key: string): StoredPreset[] {
+export function loadStoredPresets(storage: PresetStorage | null | undefined, key: string): StoredPreset[] {
+  if (!storage) return [];
   try {
     const raw = storage.getItem(key);
     if (raw === null) return [];

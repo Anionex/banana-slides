@@ -54,6 +54,10 @@ describe('loadStoredPresets', () => {
     expect(loadStoredPresets(unavailableStorage, KEY)).toEqual([]);
   });
 
+  test.each([null, undefined])('returns an empty list when storage is %s', (storage) => {
+    expect(loadStoredPresets(storage, KEY)).toEqual([]);
+  });
+
   test('keeps repaired presets available when the cache cannot be rewritten', () => {
     const readOnlyStorage = {
       getItem: () => JSON.stringify([{ name: '  Keep  ', content: '  Usable  ' }]),
