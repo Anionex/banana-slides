@@ -186,10 +186,22 @@ export const TemplateSetupPage: React.FC = () => {
   // automatically instead of staying stale until the user reloads the page.
   useEffect(() => {
     if (!projectId || !hasAnalyzingAssets) return;
-    const timer = window.setInterval(() => {
-      loadTemplateAssets(projectId).catch(() => {});
-    }, 2000);
-    return () => window.clearInterval(timer);
+    let active = true;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        await loadTemplateAssets(projectId);
+      } catch {
+        // A later poll can recover from a transient refresh failure.
+      } finally {
+        if (active) timer = window.setTimeout(poll, 2000);
+      }
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [projectId, hasAnalyzingAssets, loadTemplateAssets]);
 
   // 路由守卫：单模板模式直接跳预览（决策 6）

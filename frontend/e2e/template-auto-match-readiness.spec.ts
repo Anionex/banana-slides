@@ -78,6 +78,8 @@ test('mocked UI waits for template analysis, refreshes readiness, then allows ma
 }) => {
   const projectId = 'auto-match-readiness-project'
   let assetListCalls = 0
+  let concurrentPolls = 0
+  let maxConcurrentPolls = 0
   let autoMatchCalls = 0
 
   const project = {
@@ -120,6 +122,12 @@ test('mocked UI waits for template analysis, refreshes readiness, then allows ma
     // React StrictMode may load twice on mount; keep the mocked task pending
     // through those initial reads so only the 2-second readiness poll advances it.
     const analysisStatus = assetListCalls <= 3 ? 'processing' : 'completed'
+    const isSlowPoll = assetListCalls > 3
+    if (isSlowPoll) {
+      concurrentPolls += 1
+      maxConcurrentPolls = Math.max(maxConcurrentPolls, concurrentPolls)
+      await new Promise((resolve) => setTimeout(resolve, 2500))
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -144,6 +152,7 @@ test('mocked UI waits for template analysis, refreshes readiness, then allows ma
         },
       }),
     })
+    if (isSlowPoll) concurrentPolls -= 1
   })
 
   await page.route(`**/api/projects/${projectId}/template-assets/auto-match`, async (route) => {
@@ -175,8 +184,9 @@ test('mocked UI waits for template analysis, refreshes readiness, then allows ma
   )
   expect(autoMatchCalls).toBe(0)
 
-  await expect(autoMatch).toBeEnabled({ timeout: 8000 })
+  await expect(autoMatch).toBeEnabled({ timeout: 12000 })
   await expect(page.getByTestId('auto-match-readiness')).toHaveCount(0)
+  expect(maxConcurrentPolls).toBe(1)
 
   await autoMatch.click()
   await expect.poll(() => autoMatchCalls).toBe(1)

@@ -574,6 +574,29 @@ def _enqueue_auto_match(project_id: str, *, page_id: str | None,
     return task.id
 
 
+def _auto_match_asset_readiness_error(project_id: str):
+    assets = ProjectTemplateAsset.query.filter_by(project_id=project_id).all()
+    analyzing_count = sum(
+        1 for asset in assets
+        if asset.analysis_status in ('pending', 'processing')
+    )
+    if analyzing_count:
+        return error_response(
+            'TEMPLATES_ANALYZING',
+            'Wait for template analysis to finish before auto-match',
+            409,
+            extra={'analyzing_count': analyzing_count},
+        )
+
+    if not any(asset.analysis_status == 'completed' for asset in assets):
+        return error_response(
+            'NO_ANALYZED_TEMPLATES',
+            'No template assets have completed analysis yet',
+            400,
+        )
+    return None
+
+
 @template_assets_bp.route(
     '/<project_id>/template-assets/auto-match', methods=['POST']
 )
@@ -603,28 +626,9 @@ def auto_match_project(project_id: str):
             extra={'missing_page_ids': missing},
         )
 
-    assets = ProjectTemplateAsset.query.filter_by(project_id=project_id).all()
-    analyzing_count = sum(
-        1 for asset in assets
-        if asset.analysis_status in ('pending', 'processing')
-    )
-    if analyzing_count:
-        return error_response(
-            'TEMPLATES_ANALYZING',
-            'Wait for template analysis to finish before auto-match',
-            409,
-            extra={'analyzing_count': analyzing_count},
-        )
-
-    has_completed = any(
-        asset.analysis_status == 'completed' for asset in assets
-    )
-    if not has_completed:
-        return error_response(
-            'NO_ANALYZED_TEMPLATES',
-            'No template assets have completed analysis yet',
-            400,
-        )
+    readiness_error = _auto_match_asset_readiness_error(project_id)
+    if readiness_error:
+        return readiness_error
 
     task_id = _enqueue_auto_match(
         project_id,
@@ -652,17 +656,9 @@ def auto_match_page(project_id: str, page_id: str):
             400,
             extra={'missing_page_ids': [page.id]},
         )
-    has_completed = (
-        ProjectTemplateAsset.query
-        .filter_by(project_id=project_id, analysis_status='completed')
-        .first()
-    )
-    if not has_completed:
-        return error_response(
-            'NO_ANALYZED_TEMPLATES',
-            'No template assets have completed analysis yet',
-            400,
-        )
+    readiness_error = _auto_match_asset_readiness_error(project_id)
+    if readiness_error:
+        return readiness_error
 
     task_id = _enqueue_auto_match(
         project_id,
