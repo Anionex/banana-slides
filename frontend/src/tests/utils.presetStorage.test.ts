@@ -33,6 +33,7 @@ describe('loadStoredPresets', () => {
       { name: '  Keep me  ', content: '  Valid content  ', legacy: true },
       { name: '', content: 'Blank name' },
       { name: 'Wrong content type', content: 123 },
+      [{ name: 'Nested preset', content: 'Not a record' }],
       null,
     ]));
 

@@ -9,7 +9,7 @@ function normalizePresets(value: unknown): StoredPreset[] {
   if (!Array.isArray(value)) return [];
 
   return value.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object') return [];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
 
     const { name, content } = entry as Record<string, unknown>;
     if (typeof name !== 'string' || typeof content !== 'string') return [];
