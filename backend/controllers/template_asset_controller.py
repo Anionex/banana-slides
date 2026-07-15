@@ -575,10 +575,15 @@ def _enqueue_auto_match(project_id: str, *, page_id: str | None,
 
 
 def _auto_match_asset_readiness_error(project_id: str):
-    assets = ProjectTemplateAsset.query.filter_by(project_id=project_id).all()
+    status_rows = (
+        db.session.query(ProjectTemplateAsset.analysis_status)
+        .filter_by(project_id=project_id)
+        .all()
+    )
+    statuses = [status for (status,) in status_rows]
     analyzing_count = sum(
-        1 for asset in assets
-        if asset.analysis_status in ('pending', 'processing')
+        1 for status in statuses
+        if status in ('pending', 'processing')
     )
     if analyzing_count:
         return error_response(
@@ -588,7 +593,7 @@ def _auto_match_asset_readiness_error(project_id: str):
             extra={'analyzing_count': analyzing_count},
         )
 
-    if not any(asset.analysis_status == 'completed' for asset in assets):
+    if not any(status == 'completed' for status in statuses):
         return error_response(
             'NO_ANALYZED_TEMPLATES',
             'No template assets have completed analysis yet',

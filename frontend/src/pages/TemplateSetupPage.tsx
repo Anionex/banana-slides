@@ -185,10 +185,11 @@ export const TemplateSetupPage: React.FC = () => {
   // Refresh the library while those tasks run so readiness and badges recover
   // automatically instead of staying stale until the user reloads the page.
   useEffect(() => {
-    if (!projectId || !hasAnalyzingAssets) return;
+    if (!projectId || currentProject?.id !== projectId || !hasAnalyzingAssets) return;
     let active = true;
     let timer: number | undefined;
     const poll = async () => {
+      if (!active || currentProject?.id !== projectId) return;
       try {
         await loadTemplateAssets(projectId);
       } catch {
@@ -202,7 +203,7 @@ export const TemplateSetupPage: React.FC = () => {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [projectId, hasAnalyzingAssets, loadTemplateAssets]);
+  }, [projectId, currentProject?.id, hasAnalyzingAssets, loadTemplateAssets]);
 
   // 路由守卫：单模板模式直接跳预览（决策 6）
   useEffect(() => {
