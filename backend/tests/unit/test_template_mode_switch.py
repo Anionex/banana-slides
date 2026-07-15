@@ -268,7 +268,7 @@ def test_auto_match_requires_descriptions(client, stub_submit_task):
     assert len(err['missing_page_ids']) == 2
 
 
-def test_auto_match_single_page_requires_completed_asset(client, stub_submit_task):
+def test_auto_match_single_page_waits_for_pending_asset(client, stub_submit_task):
     from models import db, Page
     project_id = _make_project(client)
     page_id = _make_pages(client, project_id, n=1)[0]
@@ -280,5 +280,5 @@ def test_auto_match_single_page_requires_completed_asset(client, stub_submit_tas
     resp = client.post(
         f'/api/projects/{project_id}/pages/{page_id}/template/auto-match'
     )
-    assert resp.status_code == 400
-    assert resp.get_json()['error']['code'] == 'NO_ANALYZED_TEMPLATES'
+    assert resp.status_code == 409
+    assert resp.get_json()['error']['code'] == 'TEMPLATES_ANALYZING'
