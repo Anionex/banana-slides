@@ -1030,6 +1030,9 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                     ref_image_path,
                 )
                 ref_image_path = None
+            if not ref_image_path and not page_style_text:
+                raise ValueError(
+                    "No template image or style description found for page")
             has_template_image = bool(ref_image_path)
 
             # Generate image prompt
