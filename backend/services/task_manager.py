@@ -1023,6 +1023,13 @@ def generate_single_page_image_task(task_id: str, project_id: str, page_id: str,
                 page, project_for_template, file_service)
             if not use_template:
                 ref_image_path = None
+            if ref_image_path and not Path(ref_image_path).is_file():
+                logger.warning(
+                    "Template image disappeared before generation for page %s: %s",
+                    page_id,
+                    ref_image_path,
+                )
+                ref_image_path = None
             has_template_image = bool(ref_image_path)
 
             # Generate image prompt

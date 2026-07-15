@@ -504,6 +504,13 @@ def generate_page_image(project_id, page_id):
             page, project, file_service)
         if not use_template:
             ref_image_path = None
+        if ref_image_path and not Path(ref_image_path).is_file():
+            logger.warning(
+                "Template image is missing for page %s: %s",
+                page_id,
+                ref_image_path,
+            )
+            ref_image_path = None
         if not ref_image_path and not page_style_text:
             return bad_request("No template image or style description found for project")
         

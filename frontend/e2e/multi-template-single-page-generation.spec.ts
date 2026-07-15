@@ -8,7 +8,10 @@ import {
 } from './helpers/seed-template-project'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3011'
-const BACKEND_URL = BASE_URL.replace(/:\d+$/, (port) => `:${Number(port.slice(1)) + 2000}`)
+const frontendUrl = new URL(BASE_URL)
+const FRONTEND_URL = frontendUrl.origin
+const backendPort = frontendUrl.port ? Number(frontendUrl.port) + 2000 : 5011
+const BACKEND_URL = `${frontendUrl.protocol}//${frontendUrl.hostname}:${backendPort}`
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -67,7 +70,7 @@ test('a bound multi-template page can be generated from the preview', async ({ p
   expect(before.pages[0].template_asset_id).toBe(assetId)
   expect(before.pages[0].template_selection_source).toBe('auto')
 
-  await page.goto(`${BASE_URL}/project/${projectId}/preview`)
+  await page.goto(`${FRONTEND_URL}/project/${projectId}/preview`)
   const generateResponsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
