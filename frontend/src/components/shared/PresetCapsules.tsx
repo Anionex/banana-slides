@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useT } from '@/hooks/useT';
 import { Modal } from '@/components/shared/Modal';
+import { loadStoredPresets, type StoredPreset } from '@/utils/presetStorage';
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
 const presetI18n = {
@@ -33,10 +34,7 @@ const presetI18n = {
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export interface Preset {
-  name: string;
-  content: string;
-}
+export type Preset = StoredPreset;
 
 export type PresetType = 'outline' | 'description';
 
@@ -55,12 +53,7 @@ const SYSTEM_PRESETS: Record<PresetType, Record<'zh' | 'en', Preset[]>> = {
 const STORAGE_KEY_PREFIX = 'presetCapsules_';
 
 function loadUserPresets(type: PresetType): Preset[] {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${type}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadStoredPresets(localStorage, `${STORAGE_KEY_PREFIX}${type}`);
 }
 
 function saveUserPresets(type: PresetType, presets: Preset[]) {

@@ -320,6 +320,7 @@ export const DetailEditor: React.FC = () => {
   // 点击外部关闭下拉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return;
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
         setSettingsOpen(false);
       }
