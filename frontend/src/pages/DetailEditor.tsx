@@ -322,8 +322,7 @@ export const DetailEditor: React.FC = () => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof Node)) return;
-      const root = document.getElementById('root');
-      if (root && !root.contains(target)) return;
+      if (target instanceof Element && target.closest('[role="dialog"]')) return;
       if (settingsRef.current && !settingsRef.current.contains(target)) {
         setSettingsOpen(false);
       }
