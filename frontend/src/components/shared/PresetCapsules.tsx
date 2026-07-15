@@ -61,7 +61,11 @@ function loadUserPresets(type: PresetType): Preset[] {
 }
 
 function saveUserPresets(type: PresetType, presets: Preset[]) {
-  localStorage.setItem(`${STORAGE_KEY_PREFIX}${type}`, JSON.stringify(presets));
+  try {
+    window.localStorage.setItem(`${STORAGE_KEY_PREFIX}${type}`, JSON.stringify(presets));
+  } catch {
+    // Keep the in-memory presets usable when browser storage is unavailable.
+  }
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────

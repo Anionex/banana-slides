@@ -133,6 +133,29 @@ test.describe('Preset capsules - OutlineEditor (mock)', () => {
     await expect(page.locator('[data-testid="outline-delete-preset-0"]')).toBeVisible()
   })
 
+  test('keeps a newly added preset usable when localStorage is read-only', async ({ page }) => {
+    await page.addInitScript(() => {
+      const originalSetItem = Storage.prototype.setItem
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key.startsWith('presetCapsules_')) {
+          throw new DOMException('Storage quota exceeded', 'QuotaExceededError')
+        }
+        return originalSetItem.call(this, key, value)
+      }
+    })
+
+    await page.goto(`/project/${PROJECT_ID}/outline`)
+    await page.waitForLoadState('networkidle')
+    await openPresetPanel(page, 'outline')
+
+    await page.locator('[data-testid="outline-add-preset"]').click()
+    await page.locator('[data-testid="outline-preset-name-input"]').fill('仅本次使用')
+    await page.locator('[data-testid="outline-preset-content-input"]').fill('缓存不可写也可继续')
+    await page.locator('[data-testid="outline-preset-confirm"]').click()
+
+    await expect(page.locator('[data-testid="outline-user-preset-0"]')).toContainText('仅本次使用')
+  })
+
   test('clicking custom preset appends content', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('presetCapsules_outline', JSON.stringify([
