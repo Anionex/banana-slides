@@ -298,7 +298,11 @@ test.describe('Video export narration config', () => {
 
       await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeVisible()
     } finally {
-      await fetch(`${BACKEND_URL}/api/projects/${projectId}`, { method: 'DELETE' })
+      try {
+        await fetch(`${BACKEND_URL}/api/projects/${projectId}`, { method: 'DELETE' })
+      } catch (error) {
+        console.warn('Failed to clean up video export E2E project:', error)
+      }
     }
   })
 })
