@@ -19,7 +19,7 @@ function getBrowserStorage(): ExtraFieldStorage | null {
   }
 }
 
-function normalizeAvailableExtraFields(value: unknown): string[] {
+export function normalizeAvailableExtraFields(value: unknown): string[] {
   if (!Array.isArray(value)) return [...DEFAULT_AVAILABLE_EXTRA_FIELDS];
 
   const uniqueFields: string[] = [];

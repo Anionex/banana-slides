@@ -17,6 +17,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   DEFAULT_AVAILABLE_EXTRA_FIELDS,
   loadAvailableExtraFields,
+  normalizeAvailableExtraFields,
   saveAvailableExtraFields,
 } from '@/utils/extraFieldStorage';
 
@@ -249,6 +250,10 @@ export const DetailEditor: React.FC = () => {
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
+  useEffect(() => {
+    saveAvailableExtraFields(availableFields);
+  }, [availableFields]);
+
   // Load settings from DB on mount
   useEffect(() => {
     (async () => {
@@ -265,10 +270,9 @@ export const DetailEditor: React.FC = () => {
         setExtraFieldNames(activeFields);
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
-        setAvailableFields(prev => {
-          const merged = [...new Set([...prev, ...activeFields])];
-          return saveAvailableExtraFields(merged);
-        });
+        setAvailableFields(prev =>
+          normalizeAvailableExtraFields([...prev, ...activeFields]),
+        );
         // Cache settings in sessionStorage for store to read
         sessionStorage.setItem('banana-settings', JSON.stringify(s));
       } catch { /* ignore */ }
@@ -299,7 +303,7 @@ export const DetailEditor: React.FC = () => {
     const newIdx = availableFields.indexOf(over.id as string);
     if (oldIdx === -1 || newIdx === -1) return;
     const nextPool = arrayMove(availableFields, oldIdx, newIdx);
-    setAvailableFields(saveAvailableExtraFields(nextPool));
+    setAvailableFields(nextPool);
     // 激活字段按新池顺序重排
     const activeSet = new Set(extraFieldNames);
     const nextActive = nextPool.filter(f => activeSet.has(f));
@@ -842,7 +846,7 @@ export const DetailEditor: React.FC = () => {
                                 }}
                                 onRemove={() => {
                                   const nextPool = availableFields.filter(f => f !== name);
-                                  setAvailableFields(saveAvailableExtraFields(nextPool));
+                                  setAvailableFields(nextPool);
                                 }}
                               />
                             );
@@ -863,7 +867,7 @@ export const DetailEditor: React.FC = () => {
                             const trimmed = newFieldName.trim();
                             if (!availableFields.includes(trimmed) && availableFields.length < 10) {
                               const nextPool = [...availableFields, trimmed];
-                              setAvailableFields(saveAvailableExtraFields(nextPool));
+                              setAvailableFields(nextPool);
                               // 新增字段默认勾选
                               const nextActive = [...extraFieldNames, trimmed];
                               setExtraFieldNames(nextActive);
@@ -881,7 +885,7 @@ export const DetailEditor: React.FC = () => {
                           const trimmed = newFieldName.trim();
                           if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
                             const nextPool = [...availableFields, trimmed];
-                            setAvailableFields(saveAvailableExtraFields(nextPool));
+                            setAvailableFields(nextPool);
                             const nextActive = [...extraFieldNames, trimmed];
                             setExtraFieldNames(nextActive);
                             saveSettingsDebounced({ description_extra_fields: nextActive });

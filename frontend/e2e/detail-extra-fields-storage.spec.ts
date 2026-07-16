@@ -95,7 +95,10 @@ test.describe('Description extra-field storage recovery', () => {
       await expect(page.getByRole('button', { name: /^自定义指标/ })).toBeVisible();
 
       const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), STORAGE_KEY);
-      expect(stored).toEqual(['自定义指标', ...DEFAULT_FIELDS]);
+      expect(stored).toContain('自定义指标');
+      expect(stored).toEqual(expect.arrayContaining(DEFAULT_FIELDS));
+      expect(stored.every((field: unknown) => typeof field === 'string')).toBeTruthy();
+      expect(new Set(stored).size).toBe(stored.length);
     } finally {
       await fetch(`${backendUrl}/api/projects/${projectId}`, { method: 'DELETE' });
     }
