@@ -20,8 +20,8 @@ const generatedFfmpegDir = path.join(desktopDir, 'ffmpeg');
 const ffmpegCacheDir = path.join(desktopDir, '.cache', 'ffmpeg');
 
 const windowsFfmpegArchive = {
-  url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-27-13-21/ffmpeg-n7.1.5-1-g7d0e842004-win64-gpl-7.1.zip',
-  sha256: 'd08d3c08dc2b84b3cb59ea110ac8b188684768fc77a5f0f288e13d0258ef1660',
+  url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-15-14-01/ffmpeg-n7.1.5-2-g998de74adf-win64-gpl-7.1.zip',
+  sha256: '44f55984ccb9771e0281517d7d16af88096ee1d8dcf5760900ec31a677f7beb7',
 };
 
 function copyDir(src, dest) {
