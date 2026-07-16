@@ -19,7 +19,7 @@ test('data storage page follows the installation-directory page and skips upgrad
   assert.match(installerScript, /!macro customPageAfterChangeDir[\s\S]*Page custom DataStoragePageCreate DataStoragePageLeave/);
   assert.match(installerScript, /Function DataStoragePageCreate[\s\S]*\$\{If\} \$\{isUpdated\}[\s\S]*Abort/);
   assert.match(installerScript, /Function ValidateDataStorageRoot[\s\S]*CreateDirectory[\s\S]*GetTempFileName[\s\S]*Delete/);
-  assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 2[\s\S]*\$R0 == "\\\\\\\\"/);
+  assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 2[\s\S]*\$R0 == "\\\\"/);
 });
 
 test('first install writes the selected path as UTF-16LE and supports silent install', () => {

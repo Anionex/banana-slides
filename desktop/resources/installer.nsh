@@ -75,7 +75,7 @@ Function ValidateDataStorageRoot
 
   GetFullPathName $DataStorageRoot "$DataStorageRoot"
   StrCpy $R0 $DataStorageRoot 2
-  ${If} $R0 == "\\\\"
+  ${If} $R0 == "\\"
     Push "0"
     Return
   ${EndIf}
