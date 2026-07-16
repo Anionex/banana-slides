@@ -1441,7 +1441,7 @@ export const SlidePreview: React.FC = () => {
         setElevenLabsVoicesLoading(true);
         try {
           const voicesRes = await getElevenLabsVoices();
-          setElevenLabsVoices(voicesRes.data?.voices ?? []);
+          setElevenLabsVoices(voicesRes?.data?.voices ?? []);
         } catch (error) {
           console.error('Failed to load ElevenLabs voices:', error);
         } finally {

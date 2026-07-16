@@ -10,7 +10,7 @@ test.describe('Video export narration config', () => {
     const projectId = 'mock-video-export-config'
     let exportPayload: any = null
 
-    await page.route(url => new URL(url).pathname.startsWith('/api/'), async (route) => {
+    await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
       const url = new URL(route.request().url())
 
       if (url.pathname === `/api/projects/${projectId}/export/video`) {
@@ -116,7 +116,7 @@ test.describe('Video export narration config', () => {
     let settingsRequests = 0
     let failSettings = false
 
-    await page.route(url => new URL(url).pathname.startsWith('/api/'), async (route) => {
+    await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
       const url = new URL(route.request().url())
 
       if (url.pathname === `/api/projects/${projectId}`) {
