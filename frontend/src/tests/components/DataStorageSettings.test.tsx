@@ -138,6 +138,19 @@ describe('DataStorageSettings', () => {
     expect(screen.getByRole('button', { name: /Save and restart|保存并重启/ })).toBeEnabled();
   });
 
+  it('shows a string Electron IPC error and allows retrying', async () => {
+    electronApi.applyDataStorageDirectory.mockRejectedValue('String IPC failure');
+    const user = userEvent.setup();
+    render(<DataStorageSettings />);
+    await screen.findByDisplayValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop');
+
+    await user.click(screen.getByRole('button', { name: /Browse|浏览/ }));
+    await user.click(screen.getByRole('button', { name: /Save and restart|保存并重启/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('String IPC failure');
+    expect(screen.getByRole('button', { name: /Save and restart|保存并重启/ })).toBeEnabled();
+  });
+
   it('does not restart when inspection normalizes the edited path to the active path', async () => {
     electronApi.chooseDataStorageDirectory.mockResolvedValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop\\.');
     electronApi.inspectDataStorageDirectory.mockResolvedValue({
