@@ -1428,7 +1428,7 @@ export const SlidePreview: React.FC = () => {
     setIsPreparingVideoExport(true);
     try {
       const res = await getSettings();
-      if (res.success === false || !res.data) {
+      if (!res || res.success === false || !res.data) {
         throw new Error('Settings response did not contain usable data');
       }
 
