@@ -1445,7 +1445,7 @@ export const SlidePreview: React.FC = () => {
           const voicesRes = await getElevenLabsVoices();
           const voices = voicesRes?.data?.voices ?? [];
           setElevenLabsVoices(voices);
-          if (voices.length > 0 && !elevenLabsVoiceId) {
+          if (voices.length > 0 && !voices.some(voice => voice.id === elevenLabsVoiceId)) {
             setElevenLabsVoiceId(voices[0].id);
           }
         } catch (error: any) {

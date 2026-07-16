@@ -198,6 +198,7 @@ test.describe('Video export narration config', () => {
 
     await page.addInitScript(() => {
       window.localStorage.setItem('elevenLabsEnabled', 'true')
+      window.localStorage.setItem('elevenLabsVoiceId', 'stale-voice-id')
     })
     await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
       const url = new URL(route.request().url())
