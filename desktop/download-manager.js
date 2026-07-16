@@ -37,7 +37,7 @@ async function verifySavedFile(filePath) {
   }
 }
 
-async function resolveLocalExportPath(downloadUrl, userDataPath) {
+async function resolveLocalExportPath(downloadUrl, dataRoot) {
   try {
     const parsedUrl = new URL(downloadUrl);
     if (!['127.0.0.1', 'localhost', '[::1]'].includes(parsedUrl.hostname)) {
@@ -64,7 +64,7 @@ async function resolveLocalExportPath(downloadUrl, userDataPath) {
       return null;
     }
 
-    const uploadsRoot = path.resolve(userDataPath, 'uploads');
+    const uploadsRoot = path.resolve(dataRoot, 'uploads');
     const sourcePath = path.resolve(uploadsRoot, projectId, 'exports', filename);
     if (!sourcePath.startsWith(`${uploadsRoot}${path.sep}`)) {
       return null;

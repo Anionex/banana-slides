@@ -125,18 +125,18 @@ test('does not touch window listeners after the Electron window is destroyed', a
 });
 
 test('copies an existing desktop export directly to the selected path', async (t) => {
-  const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'banana-user-data-'));
-  t.after(() => fs.rmSync(userDataPath, { recursive: true, force: true }));
-  const exportDir = path.join(userDataPath, 'uploads', 'project-1', 'exports');
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'banana-data-root-'));
+  t.after(() => fs.rmSync(dataRoot, { recursive: true, force: true }));
+  const exportDir = path.join(dataRoot, 'uploads', 'project-1', 'exports');
   fs.mkdirSync(exportDir, { recursive: true });
   const sourcePath = path.join(exportDir, 'presentation.pptx');
-  const savePath = path.join(userDataPath, 'selected', 'renamed.pptx');
+  const savePath = path.join(dataRoot, 'selected', 'renamed.pptx');
   fs.mkdirSync(path.dirname(savePath), { recursive: true });
   fs.writeFileSync(sourcePath, 'real export bytes');
 
   const resolvedPath = await resolveLocalExportPath(
     'http://127.0.0.1:15000/files/project-1/exports/presentation.pptx?cache=1',
-    userDataPath,
+    dataRoot,
   );
   const result = await copyLocalExportToPath(resolvedPath, savePath);
 
@@ -173,4 +173,5 @@ test('rechecks the desktop window after resolving an export asynchronously', () 
     mainSource,
     /const localExportPath = await resolveLocalExportPath\([^;]+;\s+if \(currentWindow\.isDestroyed\(\)\) return \{ success: false \};\s+const result =/,
   );
+  assert.match(mainSource, /resolveLocalExportPath\(downloadUrl, activeDataRoot\)/);
 });
