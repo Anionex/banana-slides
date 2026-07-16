@@ -44,7 +44,13 @@ async function setupMockRoutes(page: Page) {
   await page.route('**/api/settings', (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({ success: true, data: {} }),
+    body: JSON.stringify({
+      success: true,
+      data: {
+        description_extra_fields: 'legacy-string-format',
+        image_prompt_extra_fields: { field: '旧版对象结构' },
+      },
+    }),
   }));
 }
 

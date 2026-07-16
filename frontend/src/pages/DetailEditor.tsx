@@ -267,9 +267,13 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+        const activeFields = Array.isArray(s.description_extra_fields)
+          ? s.description_extra_fields
+          : [...DEFAULT_AVAILABLE_EXTRA_FIELDS];
         setExtraFieldNames(activeFields);
-        if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
+        if (Array.isArray(s.image_prompt_extra_fields)) {
+          setImagePromptFields(s.image_prompt_extra_fields);
+        }
         // 合并活跃字段到可选池
         setAvailableFields(prev =>
           normalizeAvailableExtraFields([...activeFields, ...prev]),
