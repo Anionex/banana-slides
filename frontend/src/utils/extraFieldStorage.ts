@@ -7,7 +7,7 @@ export const DEFAULT_AVAILABLE_EXTRA_FIELDS = [
   '演讲者备注',
 ] as const;
 
-const MAX_AVAILABLE_EXTRA_FIELDS = 10;
+export const MAX_AVAILABLE_EXTRA_FIELDS = 10;
 
 type ExtraFieldStorage = Pick<Storage, 'getItem' | 'setItem'>;
 

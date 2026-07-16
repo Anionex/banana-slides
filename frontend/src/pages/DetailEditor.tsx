@@ -17,6 +17,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   DEFAULT_AVAILABLE_EXTRA_FIELDS,
   loadAvailableExtraFields,
+  MAX_AVAILABLE_EXTRA_FIELDS,
   normalizeAvailableExtraFields,
   saveAvailableExtraFields,
 } from '@/utils/extraFieldStorage';
@@ -865,7 +866,7 @@ export const DetailEditor: React.FC = () => {
                           if (e.key === 'Enter' && newFieldName.trim()) {
                             e.preventDefault();
                             const trimmed = newFieldName.trim();
-                            if (!availableFields.includes(trimmed) && availableFields.length < 10) {
+                            if (!availableFields.includes(trimmed) && availableFields.length < MAX_AVAILABLE_EXTRA_FIELDS) {
                               const nextPool = [...availableFields, trimmed];
                               setAvailableFields(nextPool);
                               // 新增字段默认勾选
@@ -880,10 +881,10 @@ export const DetailEditor: React.FC = () => {
                       <button
                         type="button"
                         className="p-1 rounded-md text-gray-400 hover:text-banana-500 hover:bg-gray-100 dark:hover:bg-background-hover transition-colors disabled:opacity-40"
-                        disabled={!newFieldName.trim() || availableFields.includes(newFieldName.trim()) || availableFields.length >= 10}
+                        disabled={!newFieldName.trim() || availableFields.includes(newFieldName.trim()) || availableFields.length >= MAX_AVAILABLE_EXTRA_FIELDS}
                         onClick={() => {
                           const trimmed = newFieldName.trim();
-                          if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
+                          if (trimmed && !availableFields.includes(trimmed) && availableFields.length < MAX_AVAILABLE_EXTRA_FIELDS) {
                             const nextPool = [...availableFields, trimmed];
                             setAvailableFields(nextPool);
                             const nextActive = [...extraFieldNames, trimmed];
