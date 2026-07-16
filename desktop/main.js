@@ -499,7 +499,8 @@ function setupIPC() {
 async function selectRecoveryDataRoot(startupError) {
   let error = startupError;
   while (true) {
-    const choice = await dialog.showMessageBox({
+    const parentWindow = splashWindow || mainWindow;
+    const choice = await dialog.showMessageBox(parentWindow, {
       type: 'error',
       title: '无法访问数据存储位置',
       message: 'Banana Slides 无法访问已配置的数据存储位置。',
@@ -511,7 +512,7 @@ async function selectRecoveryDataRoot(startupError) {
     });
     if (choice.response !== 0) return null;
 
-    const selection = await dialog.showOpenDialog({
+    const selection = await dialog.showOpenDialog(parentWindow, {
       title: '选择数据存储位置',
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -522,7 +523,7 @@ async function selectRecoveryDataRoot(startupError) {
     try {
       const inspection = await inspectDataRoot(selection.filePaths[0]);
       if (!inspection.hasDatabase) {
-        const confirmation = await dialog.showMessageBox({
+        const confirmation = await dialog.showMessageBox(parentWindow, {
           type: 'warning',
           title: '确认使用新的数据位置',
           message: '所选目录中没有 Banana Slides 数据库。',
