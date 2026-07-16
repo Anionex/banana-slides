@@ -253,6 +253,7 @@ test('packaged smoke tests set Electron userData explicitly before app readiness
     /setTimeout\(async \(\) =>[\s\S]*mainWindow\.hide\(\)[\s\S]*await pythonManager\.stopBackend\(\)[\s\S]*app\.relaunch\(\)[\s\S]*app\.exit\(0\)/,
   );
   assert.match(mainSource, /let skipErrorDialog = false;[\s\S]*if \(!skipErrorDialog\)[\s\S]*skipErrorDialog = true;[\s\S]*continue;/);
+  assert.match(mainSource, /splashWindow && !splashWindow\.isDestroyed\(\) \? splashWindow : null/);
   assert.match(macSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
   assert.match(linuxSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
 });

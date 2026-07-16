@@ -510,7 +510,7 @@ async function selectRecoveryDataRoot(startupError) {
   let error = startupError;
   let skipErrorDialog = false;
   while (true) {
-    const parentWindow = splashWindow || mainWindow;
+    const parentWindow = splashWindow && !splashWindow.isDestroyed() ? splashWindow : null;
     if (!skipErrorDialog) {
       const choice = await dialog.showMessageBox(parentWindow, {
         type: 'error',
