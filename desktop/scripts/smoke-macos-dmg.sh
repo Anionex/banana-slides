@@ -120,6 +120,7 @@ app_exe="$installed_app/Contents/MacOS/Banana Slides"
 [[ -x "$app_exe" ]] || fail "App executable missing"
 
 export BANANA_DESKTOP_SMOKE=1
+export BANANA_DESKTOP_SMOKE_USER_DATA_DIR="$user_data_dir"
 export BANANA_DESKTOP_SMOKE_RESULT="$result_path"
 export BANANA_DESKTOP_SMOKE_SCREENSHOT="$screenshot_path"
 export BANANA_DESKTOP_SMOKE_QUIT_DELAY_MS=60000

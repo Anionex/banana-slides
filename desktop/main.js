@@ -48,6 +48,14 @@ function getSmokeQuitDelayMs() {
   return Number.isFinite(delay) && delay >= 0 ? delay : 10000;
 }
 
+function configureSmokeUserDataPath() {
+  const smokeUserDataPath = process.env.BANANA_DESKTOP_SMOKE_USER_DATA_DIR;
+  if (!isSmokeMode() || !smokeUserDataPath) return;
+  const resolvedPath = path.resolve(smokeUserDataPath);
+  fs.mkdirSync(resolvedPath, { recursive: true });
+  app.setPath('userData', resolvedPath);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -579,6 +587,7 @@ async function bootstrap() {
   }
 }
 
+configureSmokeUserDataPath();
 app.whenReady().then(bootstrap);
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.banana.slides');

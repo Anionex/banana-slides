@@ -17,6 +17,8 @@ const {
   writeStorageConfig,
 } = require('./storage-config');
 
+const desktopRoot = __dirname;
+
 function makeTempDir(t, prefix) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
@@ -166,4 +168,16 @@ test('does not silently fall back when configured storage is unavailable', async
   await assert.rejects(initializeDataRoot(userData), {
     code: 'DATA_ROOT_UNAVAILABLE',
   });
+});
+
+test('packaged smoke tests set Electron userData explicitly before app readiness', () => {
+  const mainSource = fs.readFileSync(path.join(desktopRoot, 'main.js'), 'utf8');
+  const macSmoke = fs.readFileSync(path.join(desktopRoot, 'scripts', 'smoke-macos-dmg.sh'), 'utf8');
+  const linuxSmoke = fs.readFileSync(path.join(desktopRoot, 'scripts', 'smoke-linux-appimage.sh'), 'utf8');
+
+  assert.match(mainSource, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR/);
+  assert.match(mainSource, /app\.setPath\('userData', resolvedPath\)/);
+  assert.match(mainSource, /configureSmokeUserDataPath\(\);\s*app\.whenReady\(\)/);
+  assert.match(macSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
+  assert.match(linuxSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
 });

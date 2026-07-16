@@ -65,6 +65,7 @@ chmod +x "$appimage_path"
 export APPIMAGE_EXTRACT_AND_RUN=1
 export XDG_CONFIG_HOME="$xdg_config_home"
 export BANANA_DESKTOP_SMOKE=1
+export BANANA_DESKTOP_SMOKE_USER_DATA_DIR="$user_data_dir"
 export BANANA_DESKTOP_SMOKE_RESULT="$result_path"
 export BANANA_DESKTOP_SMOKE_SCREENSHOT="$screenshot_path"
 export BANANA_DESKTOP_SMOKE_QUIT_DELAY_MS=60000
