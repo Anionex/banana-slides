@@ -122,7 +122,10 @@ export const DataStorageSettings: React.FC = () => {
     setError('');
     try {
       const result = await api.applyDataStorageDirectory(inspection.dataRoot, allowInitialize);
-      if (!result.success) setError(t('dataStorage.applyFailed'));
+      if (!result.success) {
+        setError(t('dataStorage.applyFailed'));
+        setSaving(false);
+      }
     } catch (applyError) {
       setError(errorMessage(applyError, t('dataStorage.applyFailed')));
       setSaving(false);

@@ -111,6 +111,20 @@ describe('DataStorageSettings', () => {
     });
   });
 
+  it('re-enables editing when applying the selected directory fails', async () => {
+    electronApi.applyDataStorageDirectory.mockResolvedValue({ success: false, restarting: false });
+    const user = userEvent.setup();
+    render(<DataStorageSettings />);
+    await screen.findByDisplayValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop');
+
+    await user.click(screen.getByRole('button', { name: /Browse|浏览/ }));
+    await user.click(screen.getByRole('button', { name: /Save and restart|保存并重启/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Could not save|保存数据存储位置失败/);
+    expect(screen.getByRole('button', { name: /Save and restart|保存并重启/ })).toBeEnabled();
+    expect(screen.getByLabelText(/Storage path|存储路径/)).toBeEnabled();
+  });
+
   it('does not restart when inspection normalizes the edited path to the active path', async () => {
     electronApi.chooseDataStorageDirectory.mockResolvedValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop\\.');
     electronApi.inspectDataStorageDirectory.mockResolvedValue({
