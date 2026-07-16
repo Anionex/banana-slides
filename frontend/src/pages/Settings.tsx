@@ -6,6 +6,7 @@ import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
 import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
+import { DataStorageSettings } from '@/components/settings/DataStorageSettings';
 
 // 组件内翻译
 const settingsI18n = {
@@ -2141,6 +2142,8 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {isDesktop && <DataStorageSettings />}
 
             <Settings />
           </div>
