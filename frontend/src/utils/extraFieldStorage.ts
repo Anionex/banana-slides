@@ -34,10 +34,14 @@ export function normalizeAvailableExtraFields(value: unknown): string[] {
   }
 
   const defaultFields = new Set<string>(DEFAULT_AVAILABLE_EXTRA_FIELDS);
+  const customFieldLimit = Math.max(
+    0,
+    MAX_AVAILABLE_EXTRA_FIELDS - DEFAULT_AVAILABLE_EXTRA_FIELDS.length,
+  );
   const customFields = new Set(
     uniqueFields
       .filter((field) => !defaultFields.has(field))
-      .slice(0, MAX_AVAILABLE_EXTRA_FIELDS - DEFAULT_AVAILABLE_EXTRA_FIELDS.length),
+      .slice(0, customFieldLimit),
   );
 
   return uniqueFields.filter(
