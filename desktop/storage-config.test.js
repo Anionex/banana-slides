@@ -35,6 +35,19 @@ test('uses Electron userData as the data root when no config exists', async (t) 
   assert.equal(await readStorageConfig(userData), null);
 });
 
+test('creates a missing default Electron userData directory on first launch', async (t) => {
+  const parent = makeTempDir(t, 'banana-parent-');
+  const userData = path.join(parent, 'new-user-data');
+
+  const info = await initializeDataRoot(userData);
+
+  assert.equal(info.dataRoot, userData);
+  assert.equal(info.isDefault, true);
+  assert.equal(info.writable, true);
+  assert.equal(fs.existsSync(userData), true);
+  assert.equal(await readStorageConfig(userData), null);
+});
+
 test('atomically saves and reads a Unicode data root', async (t) => {
   const userData = makeTempDir(t, 'banana-user-data-');
   const dataRoot = path.join(makeTempDir(t, 'banana-parent-'), '幻灯片 Data');

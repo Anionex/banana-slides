@@ -173,9 +173,12 @@ async function prepareDataRoot(dataRoot, allowInitialize = false) {
 async function initializeDataRoot(userDataPath) {
   const config = await consumeInstallerDataRoot(userDataPath);
   const dataRoot = config?.dataRoot || normalizeDataRoot(userDataPath);
-  const inspection = await inspectDataRoot(dataRoot);
+  let inspection = await inspectDataRoot(dataRoot);
   if (!inspection.exists) {
-    throw storageError('DATA_ROOT_UNAVAILABLE', `Data storage location does not exist: ${dataRoot}`);
+    if (config) {
+      throw storageError('DATA_ROOT_UNAVAILABLE', `Data storage location does not exist: ${dataRoot}`);
+    }
+    inspection = await createAndInspectDataRoot(dataRoot);
   }
   return {
     ...inspection,
