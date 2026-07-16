@@ -84,7 +84,10 @@ export function saveAvailableExtraFields(
   if (!storage) return normalized;
 
   try {
-    storage.setItem(AVAILABLE_EXTRA_FIELDS_KEY, JSON.stringify(normalized));
+    const serialized = JSON.stringify(normalized);
+    if (storage.getItem(AVAILABLE_EXTRA_FIELDS_KEY) !== serialized) {
+      storage.setItem(AVAILABLE_EXTRA_FIELDS_KEY, serialized);
+    }
   } catch {
     // The in-memory selection remains usable when browser storage is blocked.
   }

@@ -72,4 +72,17 @@ describe('extra field storage', () => {
       ...DEFAULT_AVAILABLE_EXTRA_FIELDS,
     ]);
   });
+
+  test('skips a synchronous write when the normalized value is unchanged', () => {
+    const fields = [...DEFAULT_AVAILABLE_EXTRA_FIELDS, '自定义'];
+    const serialized = JSON.stringify(fields);
+    let writes = 0;
+    const storage = {
+      getItem: () => serialized,
+      setItem: () => { writes += 1; },
+    };
+
+    expect(saveAvailableExtraFields(fields, storage)).toEqual(fields);
+    expect(writes).toBe(0);
+  });
 });
