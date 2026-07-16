@@ -66,6 +66,33 @@ for (const encoding of ['utf8', 'utf16le']) {
   });
 }
 
+test('starts from the saved installer config when the handoff file is temporarily locked', async (t) => {
+  const userData = makeTempDir(t, 'banana-user-data-');
+  const dataRoot = path.join(makeTempDir(t, 'banana-parent-'), 'installed locked');
+  const installerPath = path.join(userData, INSTALLER_FILENAME);
+  fs.writeFileSync(installerPath, dataRoot, 'utf8');
+
+  const originalRm = fs.promises.rm;
+  fs.promises.rm = async (target, options) => {
+    if (target === installerPath) {
+      const error = new Error('file is temporarily locked');
+      error.code = 'EPERM';
+      throw error;
+    }
+    return originalRm(target, options);
+  };
+  t.after(() => {
+    fs.promises.rm = originalRm;
+  });
+
+  const config = await consumeInstallerDataRoot(userData);
+
+  assert.equal(config.dataRoot, dataRoot);
+  assert.equal(fs.existsSync(installerPath), true);
+  assert.deepEqual(await readStorageConfig(userData), { version: 1, dataRoot });
+  assert.equal((await consumeInstallerDataRoot(userData)).dataRoot, dataRoot);
+});
+
 test('an existing config takes precedence over an installer handoff', async (t) => {
   const userData = makeTempDir(t, 'banana-user-data-');
   const configuredRoot = path.join(makeTempDir(t, 'banana-parent-'), 'configured');

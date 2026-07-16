@@ -92,7 +92,9 @@ async function consumeInstallerDataRoot(userDataPath) {
 
   const dataRoot = normalizeDataRoot(decodeInstallerPath(buffer));
   const saved = await writeStorageConfig(userDataPath, dataRoot);
-  await fs.promises.rm(installerPath, { force: true });
+  // The persisted config is authoritative; a temporary Windows file lock must
+  // not prevent startup after the handoff has already succeeded.
+  await fs.promises.rm(installerPath, { force: true }).catch(() => {});
   return saved;
 }
 
