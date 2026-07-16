@@ -4,11 +4,17 @@ param(
 
   [string]$OutDir = "$env:TEMP\banana-desktop-smoke",
 
+  [string]$DataRoot = "",
+
   [int]$TimeoutSeconds = 90
 )
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+if (!$DataRoot) {
+  $DataRoot = Join-Path $OutDir "custom-data-root"
+}
+$DataRoot = [System.IO.Path]::GetFullPath($DataRoot)
 $logPath = Join-Path $OutDir "smoke-windows.log"
 $resultPath = Join-Path $OutDir "smoke-result.json"
 $screenshotPath = Join-Path $OutDir "smoke-screenshot.png"
@@ -29,6 +35,7 @@ function Fail {
 Remove-Item -Force -ErrorAction SilentlyContinue $logPath, $resultPath, $screenshotPath
 Write-Step "Windows desktop smoke started"
 Write-Step "InstallerPath=$InstallerPath"
+Write-Step "DataRoot=$DataRoot"
 
 if (!(Test-Path $InstallerPath)) {
   Fail "Installer not found"
@@ -46,7 +53,8 @@ Write-Step "InstallerSignature=$($signature.Status)"
 
 function Run-SilentInstaller {
   Write-Step "Running silent installer"
-  $install = Start-Process -FilePath $InstallerPath -ArgumentList "/S" -PassThru
+  $installerArguments = "/S /DATA_ROOT=`"$DataRoot`""
+  $install = Start-Process -FilePath $InstallerPath -ArgumentList $installerArguments -PassThru
   if (!$install.WaitForExit($TimeoutSeconds * 1000)) {
     try { Stop-Process -Id $install.Id -Force } catch {}
     Write-Step "Installer timed out"
@@ -66,6 +74,19 @@ for ($attempt = 1; $attempt -le 3; $attempt++) {
 if ($installerExitCode -ne 0) {
   Write-Step "Installer did not report success; checking whether the app was installed anyway"
 }
+
+$bootstrapPath = Join-Path $env:APPDATA "banana-slides-desktop\installer-data-root.txt"
+if (!(Test-Path $bootstrapPath)) {
+  Fail "Installer data-root bootstrap file was not created: $bootstrapPath"
+}
+$bootstrapDataRoot = (Get-Content -Raw -Encoding Unicode -Path $bootstrapPath).Trim([char]0xFEFF).Trim()
+if (![System.StringComparer]::OrdinalIgnoreCase.Equals(
+  [System.IO.Path]::GetFullPath($bootstrapDataRoot).TrimEnd('\'),
+  $DataRoot.TrimEnd('\')
+)) {
+  Fail "Installer data root mismatch. Expected '$DataRoot', got '$bootstrapDataRoot'"
+}
+Write-Step "InstallerDataRootBootstrap=$bootstrapDataRoot"
 
 function Get-CandidateRoots {
   @(
@@ -161,6 +182,34 @@ Write-Step "SmokeResult=$($result.ok) BackendPort=$($result.backendPort) WindowV
 if (!$result.ok) { Fail "Smoke result reported failure" }
 if (!$result.backendPort) { Fail "Backend port missing from smoke result" }
 if (!$result.windowVisible) { Fail "Window was not visible" }
+if (!($result.PSObject.Properties.Name -contains "dataRoot")) {
+  Fail "Smoke result dataRoot is missing"
+}
+$actualDataRoot = [System.IO.Path]::GetFullPath([string]$result.dataRoot).TrimEnd('\')
+if (![System.StringComparer]::OrdinalIgnoreCase.Equals($actualDataRoot, $DataRoot.TrimEnd('\'))) {
+  Fail "Smoke result dataRoot mismatch. Expected '$DataRoot', got '$actualDataRoot'"
+}
+
+if (Test-Path $bootstrapPath) {
+  Fail "Installer bootstrap was not consumed after app startup: $bootstrapPath"
+}
+$storageConfigPath = Join-Path $env:APPDATA "banana-slides-desktop\storage-config.json"
+if (!(Test-Path $storageConfigPath -PathType Leaf)) {
+  Fail "Storage config was not created after consuming installer bootstrap: $storageConfigPath"
+}
+$storageConfig = Get-Content -Raw -Encoding UTF8 -Path $storageConfigPath | ConvertFrom-Json
+$configuredDataRoot = [System.IO.Path]::GetFullPath([string]$storageConfig.dataRoot).TrimEnd('\')
+if (![System.StringComparer]::OrdinalIgnoreCase.Equals($configuredDataRoot, $DataRoot.TrimEnd('\'))) {
+  Fail "Storage config dataRoot mismatch. Expected '$DataRoot', got '$configuredDataRoot'"
+}
+
+$databasePath = Join-Path $DataRoot "data\database.db"
+$uploadsPath = Join-Path $DataRoot "uploads"
+$exportsPath = Join-Path $DataRoot "exports"
+if (!(Test-Path $databasePath -PathType Leaf)) { Fail "Database was not created in custom data root: $databasePath" }
+if (!(Test-Path $uploadsPath -PathType Container)) { Fail "Uploads directory was not created in custom data root: $uploadsPath" }
+if (!(Test-Path $exportsPath -PathType Container)) { Fail "Exports directory was not created in custom data root: $exportsPath" }
+Write-Step "CustomDataDirectories=PASS"
 if (!(Test-Path $screenshotPath)) { Fail "Screenshot missing" }
 if ((Get-Item $screenshotPath).Length -lt 10000) { Fail "Screenshot is unexpectedly small" }
 

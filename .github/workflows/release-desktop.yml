@@ -156,6 +156,31 @@ jobs:
             ${{ runner.temp }}/banana-desktop-smoke-mac/**
             ${{ runner.temp }}/banana-desktop-markdown-image-mac/**
 
+      - name: Install Linux smoke dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth
+
+      - name: Smoke test Linux AppImage
+        if: matrix.platform == 'linux'
+        run: |
+          chmod +x desktop/scripts/smoke-linux-appimage.sh
+          appimage="$(find desktop/dist -maxdepth 1 -name '*.AppImage' | head -1)"
+          if [ -z "$appimage" ]; then
+            echo "No Linux AppImage was produced" >&2
+            exit 1
+          fi
+          desktop/scripts/smoke-linux-appimage.sh "$appimage" "$RUNNER_TEMP/banana-desktop-smoke-linux"
+
+      - name: Upload Linux smoke artifacts
+        if: always() && matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banana-slides-desktop-linux-smoke
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/banana-desktop-smoke-linux/**
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:

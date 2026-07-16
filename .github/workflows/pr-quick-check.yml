@@ -50,7 +50,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Desktop unit and icon contract tests
-        run: node --test desktop/download-manager.test.js desktop/icon-policy.test.js desktop/scripts/check-icon-contract.test.js
+        run: cd desktop && npm test
 
       - name: Install frontend dependencies
         run: cd frontend && npm ci
