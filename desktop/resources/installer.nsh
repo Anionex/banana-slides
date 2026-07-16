@@ -47,21 +47,12 @@ LangString DataStorageInvalid 2052 "无法创建所选文件夹或该文件夹�
       SetErrorLevel 2
       Quit
     ${EndIf}
-  ${EndIf}
-!macroend
-
-!macro customInstall
-  ${IfNot} ${isUpdated}
-    CreateDirectory "$APPDATA\Banana Slides"
-    ClearErrors
-    FileOpen $R0 "$APPDATA\Banana Slides\installer-data-root.txt" w
-    ${If} ${Errors}
+    Call WriteDataStorageBootstrap
+    Pop $R0
+    ${If} $R0 != "1"
       SetErrorLevel 2
-      Abort "$(DataStorageInvalid)"
+      Quit
     ${EndIf}
-    FileWriteWord $R0 0xFEFF
-    FileWriteUTF16LE $R0 "$DataStorageRoot"
-    FileClose $R0
   ${EndIf}
 !macroend
 
@@ -73,9 +64,18 @@ Function ValidateDataStorageRoot
     Return
   ${EndIf}
 
-  GetFullPathName $DataStorageRoot "$DataStorageRoot"
   StrCpy $R0 $DataStorageRoot 2
   ${If} $R0 == "\\"
+    Push "0"
+    Return
+  ${EndIf}
+  StrCpy $R0 $DataStorageRoot 1 1
+  ${If} $R0 != ":"
+    Push "0"
+    Return
+  ${EndIf}
+  StrCpy $R0 $DataStorageRoot 1 2
+  ${If} $R0 != "\"
     Push "0"
     Return
   ${EndIf}
@@ -85,6 +85,18 @@ Function ValidateDataStorageRoot
     Push "0"
     Return
   ${EndIf}
+
+  ClearErrors
+  GetFullPathName $R1 "$DataStorageRoot"
+  ${If} ${Errors}
+    Push "0"
+    Return
+  ${EndIf}
+  ${If} $R1 == ""
+    Push "0"
+    Return
+  ${EndIf}
+  StrCpy $DataStorageRoot $R1
 
   ClearErrors
   GetTempFileName $R0 "$DataStorageRoot"
@@ -98,6 +110,23 @@ Function ValidateDataStorageRoot
     Return
   ${EndIf}
 
+  Push "1"
+FunctionEnd
+
+Function WriteDataStorageBootstrap
+  CreateDirectory "$APPDATA\Banana Slides"
+  ClearErrors
+  FileOpen $R0 "$APPDATA\Banana Slides\installer-data-root.txt" w
+  ${If} ${Errors}
+    Push "0"
+    Return
+  ${EndIf}
+  FileWriteUTF16LE /BOM $R0 "$DataStorageRoot"
+  FileClose $R0
+  ${If} ${Errors}
+    Push "0"
+    Return
+  ${EndIf}
   Push "1"
 FunctionEnd
 
@@ -140,6 +169,12 @@ FunctionEnd
 Function DataStoragePageLeave
   ${NSD_GetText} $DataStoragePathInput $DataStorageRoot
   Call ValidateDataStorageRoot
+  Pop $R0
+  ${If} $R0 != "1"
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(DataStorageInvalid)"
+    Abort
+  ${EndIf}
+  Call WriteDataStorageBootstrap
   Pop $R0
   ${If} $R0 != "1"
     MessageBox MB_OK|MB_ICONEXCLAMATION "$(DataStorageInvalid)"

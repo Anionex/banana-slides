@@ -21,16 +21,18 @@ test('electron-builder includes the custom bilingual NSIS installer', () => {
 test('data storage page follows the installation-directory page and skips upgrades', () => {
   assert.match(installerScript, /!macro customPageAfterChangeDir[\s\S]*Page custom DataStoragePageCreate DataStoragePageLeave/);
   assert.match(installerScript, /Function DataStoragePageCreate[\s\S]*\$\{If\} \$\{isUpdated\}[\s\S]*Abort/);
-  assert.match(installerScript, /Function ValidateDataStorageRoot[\s\S]*CreateDirectory[\s\S]*GetTempFileName[\s\S]*Delete/);
+  assert.match(installerScript, /Function ValidateDataStorageRoot[\s\S]*CreateDirectory[\s\S]*GetFullPathName[\s\S]*GetTempFileName[\s\S]*Delete/);
   assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 2[\s\S]*\$R0 == "\\\\"/);
+  assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 1 1[\s\S]*\$R0 != ":"/);
 });
 
-test('first install writes the selected path as UTF-16LE and supports silent install', () => {
+test('first install persists the selected path before install and supports silent install', () => {
   assert.match(installerScript, /\$\{GetOptions\} \$R0 "\/DATA_ROOT=" \$R1/);
-  assert.match(installerScript, /!macro customInstall[\s\S]*\$\{IfNot\} \$\{isUpdated\}/);
-  assert.match(installerScript, /installer-data-root\.txt/);
-  assert.match(installerScript, /FileWriteWord \$R0 0xFEFF\s*\n\s*FileWriteUTF16LE \$R0 "\$DataStorageRoot"/);
-  assert.doesNotMatch(installerScript, /customUnInstall|customRemoveFiles/);
+  assert.match(installerScript, /\$\{IfNot\} \$\{isUpdated\}[\s\S]*\$\{AndIf\} \$\{Silent\}[\s\S]*Call WriteDataStorageBootstrap/);
+  assert.match(installerScript, /Function DataStoragePageLeave[\s\S]*Call WriteDataStorageBootstrap/);
+  assert.match(installerScript, /Function WriteDataStorageBootstrap[\s\S]*installer-data-root\.txt/);
+  assert.match(installerScript, /FileWriteUTF16LE \/BOM \$R0 "\$DataStorageRoot"/);
+  assert.doesNotMatch(installerScript, /customInstall|customUnInstall|customRemoveFiles/);
   assert.match(smokeScript, /\/S \/DATA_ROOT=/);
   assert.match(smokeScript, /data\\database\.db/);
   assert.match(smokeScript, /custom data root/i);
