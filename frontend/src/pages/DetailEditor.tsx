@@ -271,7 +271,7 @@ export const DetailEditor: React.FC = () => {
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
         setAvailableFields(prev =>
-          normalizeAvailableExtraFields([...prev, ...activeFields]),
+          normalizeAvailableExtraFields([...activeFields, ...prev]),
         );
         // Cache settings in sessionStorage for store to read
         sessionStorage.setItem('banana-settings', JSON.stringify(s));

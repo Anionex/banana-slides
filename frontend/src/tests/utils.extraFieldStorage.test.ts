@@ -3,6 +3,7 @@ import {
   AVAILABLE_EXTRA_FIELDS_KEY,
   DEFAULT_AVAILABLE_EXTRA_FIELDS,
   loadAvailableExtraFields,
+  normalizeAvailableExtraFields,
   saveAvailableExtraFields,
 } from '@/utils/extraFieldStorage';
 
@@ -45,6 +46,17 @@ describe('extra field storage', () => {
       '视觉元素',
       '排版布局',
       '演讲者备注',
+    ]);
+  });
+
+  test('keeps higher-priority custom fields when the ten-field limit is reached', () => {
+    const activeFields = ['活跃字段'];
+    const cachedFields = Array.from({ length: 6 }, (_, index) => `缓存字段${index + 1}`);
+
+    expect(normalizeAvailableExtraFields([...activeFields, ...cachedFields])).toEqual([
+      '活跃字段',
+      ...cachedFields.slice(0, 5),
+      ...DEFAULT_AVAILABLE_EXTRA_FIELDS,
     ]);
   });
 
