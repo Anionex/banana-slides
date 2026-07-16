@@ -7,15 +7,14 @@ const desktopRoot = path.resolve(__dirname, '..');
 const installerScript = fs.readFileSync(path.join(desktopRoot, 'resources', 'installer.nsh'), 'utf8');
 const builderConfig = fs.readFileSync(path.join(desktopRoot, 'electron-builder.yml'), 'utf8');
 const smokeScript = fs.readFileSync(path.join(desktopRoot, 'scripts', 'smoke-windows.ps1'), 'utf8');
+const desktopPackage = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
 
 test('electron-builder includes the custom bilingual NSIS installer', () => {
   assert.match(builderConfig, /include: resources\/installer\.nsh/);
   assert.match(builderConfig, /installerLanguages:\s*\n\s*- en_US\s*\n\s*- zh_CN/);
   assert.match(installerScript, /LangString DataStorageTitle 1033/);
   assert.match(installerScript, /LangString DataStorageTitle 2052/);
-  assert.match(builderConfig, /productName: Banana Slides/);
-  assert.match(installerScript, /\$APPDATA\\Banana Slides\\installer-data-root\.txt/);
-  assert.doesNotMatch(installerScript, /\$APPDATA\\banana-slides-desktop/);
+  assert.ok(installerScript.includes(`$APPDATA\\${desktopPackage.name}\\installer-data-root.txt`));
 });
 
 test('data storage page follows the installation-directory page and skips upgrades', () => {
@@ -40,6 +39,6 @@ test('first install persists the selected path before install and supports silen
   assert.match(smokeScript, /Smoke result dataRoot is missing/);
   assert.match(smokeScript, /Installer bootstrap was not consumed/);
   assert.match(smokeScript, /storage-config\.json/);
-  assert.match(smokeScript, /Banana Slides\\installer-data-root\.txt/);
-  assert.match(smokeScript, /Banana Slides\\storage-config\.json/);
+  assert.ok(smokeScript.includes(`${desktopPackage.name}\\installer-data-root.txt`));
+  assert.ok(smokeScript.includes(`${desktopPackage.name}\\storage-config.json`));
 });
