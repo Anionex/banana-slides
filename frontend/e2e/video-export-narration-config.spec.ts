@@ -192,8 +192,9 @@ test.describe('Video export narration config', () => {
     await expect(page.getByRole('button', { name: '导出为讲解视频' })).toBeEnabled()
   })
 
-  test('shows a user-facing error when ElevenLabs voices cannot load', async ({ page }) => {
+  test('shows an ElevenLabs error and initializes the first voice on retry', async ({ page }) => {
     const projectId = 'mock-video-voices-failure'
+    let voiceRequests = 0
 
     await page.addInitScript(() => {
       window.localStorage.setItem('elevenLabsEnabled', 'true')
@@ -236,6 +237,17 @@ test.describe('Video export narration config', () => {
         })
       }
       if (url.pathname === '/api/settings/elevenlabs-voices') {
+        voiceRequests += 1
+        if (voiceRequests > 1) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: { voices: [{ id: 'zh-voice-1', name: '测试中文音色', languages: ['zh'] }] },
+            }),
+          })
+        }
         return route.fulfill({
           status: 503,
           contentType: 'application/json',
@@ -263,6 +275,14 @@ test.describe('Video export narration config', () => {
 
     await expect(page.getByText('音色服务暂不可用，请稍后重试')).toBeVisible()
     await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeVisible()
+
+    await page.getByRole('button', { name: '取消' }).click()
+    await page.locator('button:has-text("导出")').first().click()
+    await page.getByRole('button', { name: '导出为讲解视频' }).click()
+
+    const selects = page.locator('select')
+    expect(await selects.count()).toBe(4)
+    await expect(selects.nth(3)).toHaveValue('zh-voice-1')
   })
 
   test('real backend loads settings before opening the video export panel', async ({ page }) => {

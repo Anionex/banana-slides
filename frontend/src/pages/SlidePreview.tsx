@@ -1443,7 +1443,11 @@ export const SlidePreview: React.FC = () => {
         setElevenLabsVoicesLoading(true);
         try {
           const voicesRes = await getElevenLabsVoices();
-          setElevenLabsVoices(voicesRes?.data?.voices ?? []);
+          const voices = voicesRes?.data?.voices ?? [];
+          setElevenLabsVoices(voices);
+          if (voices.length > 0 && !elevenLabsVoiceId) {
+            setElevenLabsVoiceId(voices[0].id);
+          }
         } catch (error: any) {
           show({
             message: error?.response?.data?.error?.message
