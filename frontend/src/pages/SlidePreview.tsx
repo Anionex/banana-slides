@@ -29,6 +29,8 @@ const previewI18n = {
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportVideo: "导出为讲解视频",
+      videoSettingsLoading: "正在加载视频设置...",
+      videoSettingsLoadFailed: "无法加载视频导出设置，请重试后再导出",
       pptxExportTitle: "PPTX 导出设置",
       pptxExportSubtitle: "在导出前确认本次 PPTX 的播放设置。",
       pptxTransitionToggle: "启用页面切换动画",
@@ -160,6 +162,8 @@ const previewI18n = {
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportVideo: "Export as Narration Video",
+      videoSettingsLoading: "Loading video settings...",
+      videoSettingsLoadFailed: "Could not load video export settings. Please retry before exporting.",
       pptxExportTitle: "PPTX Export Settings",
       pptxExportSubtitle: "Confirm playback settings before exporting this PPTX.",
       pptxTransitionToggle: "Enable slide transitions",
@@ -427,6 +431,7 @@ export const SlidePreview: React.FC = () => {
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   const [showPptxExportDialog, setShowPptxExportDialog] = useState(false);
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
+  const [isPreparingVideoExport, setIsPreparingVideoExport] = useState(false);
   const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
   const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
   const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
@@ -1417,6 +1422,44 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
+  const handleOpenVideoExport = async () => {
+    if (isPreparingVideoExport) return;
+
+    setIsPreparingVideoExport(true);
+    try {
+      const res = await getSettings();
+      if (res.success === false || !res.data) {
+        throw new Error('Settings response did not contain usable data');
+      }
+
+      const hasKey = (res.data.elevenlabs_api_key_length ?? 0) > 0;
+      setElevenLabsApiKeyConfigured(hasKey);
+      setOutputLanguage((res.data.output_language as string | undefined) || 'zh');
+      if (!hasKey) setElevenLabsEnabled(false);
+
+      if (hasKey && elevenLabsEnabled && elevenLabsVoices.length === 0) {
+        setElevenLabsVoicesLoading(true);
+        try {
+          const voicesRes = await getElevenLabsVoices();
+          setElevenLabsVoices(voicesRes.data?.voices ?? []);
+        } catch (error) {
+          console.error('Failed to load ElevenLabs voices:', error);
+        } finally {
+          setElevenLabsVoicesLoading(false);
+        }
+      }
+
+      setVideoIncludeNoImage(false);
+      setShowExportMenu(false);
+      setShowVideoExportDialog(true);
+    } catch (error) {
+      console.error('Failed to load video export settings:', error);
+      show({ message: t('preview.videoSettingsLoadFailed'), type: 'error' });
+    } finally {
+      setIsPreparingVideoExport(false);
+    }
+  };
+
   const handleRefresh = useCallback(async () => {
     const targetProjectId = projectId || currentProject?.id;
     if (!targetProjectId) {
@@ -1872,34 +1915,14 @@ export const SlidePreview: React.FC = () => {
                   {t('preview.exportImages')}
                 </button>
                 <button
-                  onClick={async () => {
-                    setShowExportMenu(false);
-                    try {
-                      const res = await getSettings();
-                      const hasKey = (res.data?.elevenlabs_api_key_length ?? 0) > 0;
-                      setElevenLabsApiKeyConfigured(hasKey);
-                      const lang = (res.data?.output_language as string | undefined) || 'zh';
-                      setOutputLanguage(lang);
-                      if (!hasKey) setElevenLabsEnabled(false);
-                      if (hasKey && elevenLabsEnabled && elevenLabsVoices.length === 0) {
-                        setElevenLabsVoicesLoading(true);
-                        try {
-                          const voicesRes = await getElevenLabsVoices();
-                          setElevenLabsVoices(voicesRes.data?.voices ?? []);
-                        } catch (error) {
-                          console.error('Failed to load ElevenLabs voices:', error);
-                        }
-                        setElevenLabsVoicesLoading(false);
-                      }
-                  } catch (error) {
-                    console.error('Failed to load settings before video export:', error);
-                  }
-                  setVideoIncludeNoImage(false);
-                  setShowVideoExportDialog(true);
-                }}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  onClick={handleOpenVideoExport}
+                  disabled={isPreparingVideoExport}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:cursor-wait disabled:opacity-70"
                 >
-                  {t('preview.exportVideo')}
+                  <span className="flex items-center gap-2">
+                    {isPreparingVideoExport && <Loader2 size={14} className="animate-spin" />}
+                    {isPreparingVideoExport ? t('preview.videoSettingsLoading') : t('preview.exportVideo')}
+                  </span>
                 </button>
               </div>
             )}

@@ -1,4 +1,9 @@
 import { test, expect } from '@playwright/test'
+import { seedProjectWithImages } from './helpers/seed-project'
+
+const FRONTEND_URL = process.env.BASE_URL || 'http://127.0.0.1:3011'
+const frontendUrl = new URL(FRONTEND_URL)
+const BACKEND_URL = process.env.BACKEND_URL || `${frontendUrl.protocol}//${frontendUrl.hostname}:${Number(frontendUrl.port || 3011) + 2000}`
 
 test.describe('Video export narration config', () => {
   test('sends narration strategy from the final export panel', async ({ page }) => {
@@ -87,15 +92,14 @@ test.describe('Video export narration config', () => {
     await page.locator('select').nth(0).selectOption('confident corporate executive')
     await page.locator('select').nth(1).selectOption('potential investors and venture capitalists')
     await page.locator('select').nth(2).selectOption('inspiring, passionate, and persuasive')
-    await page.locator('input[type="text"]').fill('our company 2025 annual financial report and 2026 strategic plan')
     await page.locator('button:has-text("高级配置")').click()
+    await page.locator('input[type="text"]').fill('our company 2025 annual financial report and 2026 strategic plan')
     await page.locator('input[type="number"]').nth(0).fill('80')
     await page.locator('input[type="number"]').nth(1).fill('140')
-    await page.locator('input[type="checkbox"]').nth(0).uncheck()
     await page.locator('button:has-text("开始导出")').click()
 
     await expect.poll(() => exportPayload).not.toBeNull()
-    expect(exportPayload.generate_narration).toBe(false)
+    expect(exportPayload.generate_narration).toBe(true)
     expect(exportPayload.presentation_topic).toBe('our company 2025 annual financial report and 2026 strategic plan')
     expect(exportPayload.narration_config).toMatchObject({
       speaker_persona: 'confident corporate executive',
@@ -105,5 +109,102 @@ test.describe('Video export narration config', () => {
       min_words: 80,
       max_words: 140,
     })
+  })
+
+  test('shows preparation state and blocks the dialog when settings cannot load', async ({ page }) => {
+    const projectId = 'mock-video-settings-failure'
+    let settingsRequests = 0
+    let failSettings = false
+
+    await page.route(url => new URL(url).pathname.startsWith('/api/'), async (route) => {
+      const url = new URL(route.request().url())
+
+      if (url.pathname === `/api/projects/${projectId}`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              project_id: projectId,
+              id: projectId,
+              status: 'IMAGES_GENERATED',
+              template_style: 'default',
+              pages: [{
+                id: 'p1',
+                page_id: 'p1',
+                order_index: 0,
+                generated_image_path: '/files/mock/1.png',
+                outline_content: { title: 'Settings failure regression' },
+                status: 'COMPLETED',
+              }],
+            },
+          }),
+        })
+      }
+
+      if (url.pathname === '/api/settings') {
+        settingsRequests += 1
+        if (!failSettings) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true, data: {} }),
+          })
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500))
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: false, error: { message: 'settings unavailable' } }),
+        })
+      }
+
+      if (url.pathname === '/api/output-language') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { language: 'zh' } }) })
+      }
+      if (url.pathname === '/api/user-templates') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { templates: [] } }) })
+      }
+
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) })
+    })
+
+    await page.route('**/files/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.alloc(100) })
+    })
+
+    await page.goto(`/project/${projectId}/preview`)
+    await expect(page.getByText('Settings failure regression')).toBeVisible()
+    await page.waitForLoadState('networkidle')
+    expect(settingsRequests).toBeGreaterThan(0)
+    failSettings = true
+
+    await page.locator('button:has-text("导出")').first().click()
+    await page.getByRole('button', { name: '导出为讲解视频' }).click()
+
+    const loadingButton = page.getByRole('button', { name: '正在加载视频设置...' })
+    await expect(loadingButton).toBeVisible()
+    await expect(loadingButton).toBeDisabled()
+    await expect(page.getByText('无法加载视频导出设置，请重试后再导出')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeHidden()
+    await expect(page.getByRole('button', { name: '导出为讲解视频' })).toBeEnabled()
+  })
+
+  test('real backend loads settings before opening the video export panel', async ({ page }) => {
+    const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
+
+    try {
+      await page.goto(`/project/${projectId}/preview`)
+      await expect(page.getByText('Slide 1')).toBeVisible()
+
+      await page.locator('button:has-text("导出")').first().click()
+      await page.getByRole('button', { name: '导出为讲解视频' }).click()
+
+      await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeVisible()
+    } finally {
+      await fetch(`${BACKEND_URL}/api/projects/${projectId}`, { method: 'DELETE' })
+    }
   })
 })

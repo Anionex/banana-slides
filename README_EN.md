@@ -150,6 +150,7 @@ No longer limited by complex menus; issue modification commands directly using *
 - **Multi-format Support**: One-click export to standard **PPTX** or **PDF** files.
 - **Playback Settings**: Enable slide transitions before exporting PPTX. Supports classic effects such as Fade, Push, Pan, Wipe, Split, Blinds, Checkerboard, and Clock, with the option to select multiple for random application.
 - **Export File Management**: The preview page lists files already exported on the server, allowing you to directly download or delete unnecessary files. Export task history is isolated by project to avoid accidental deletion of other project records. If a backend task becomes unavailable after refreshing, the task panel will clearly display a failure and prompt for a re-export.
+- **Video Export Settings Preflight**: The narration-video entry shows a loading state before opening its panel. If the saved output language or ElevenLabs configuration cannot be loaded, Banana Slides asks you to retry instead of continuing with uncertain defaults.
 - **Clearer Selective Page Export**: The selective page export now indicates missing image status based on the current selection range. Unselected draft pages will not cause the export entry for completed pages to be grayed out. Explainer videos will only include pages without visuals if the placeholder frame option is explicitly checked.
 - **Perfect Adaptation**: Default 16:9 aspect ratio. No secondary layout adjustments required; ready for direct presentation.
 
