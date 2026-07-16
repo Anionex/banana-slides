@@ -14,6 +14,11 @@ import {
   arrayMove, SortableContext, useSortable, rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import {
+  DEFAULT_AVAILABLE_EXTRA_FIELDS,
+  loadAvailableExtraFields,
+  saveAvailableExtraFields,
+} from '@/utils/extraFieldStorage';
 
 // 组件内翻译
 const detailI18n = {
@@ -230,15 +235,12 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>([...DEFAULT_AVAILABLE_EXTRA_FIELDS]);
   const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
-  const [availableFields, setAvailableFields] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
-    } catch { return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']; }
-  });
+  const [availableFields, setAvailableFields] = useState<string[]>(() =>
+    loadAvailableExtraFields(),
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [newFieldName, setNewFieldName] = useState('');
@@ -265,8 +267,7 @@ export const DetailEditor: React.FC = () => {
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
           const merged = [...new Set([...prev, ...activeFields])];
-          localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
-          return merged;
+          return saveAvailableExtraFields(merged);
         });
         // Cache settings in sessionStorage for store to read
         sessionStorage.setItem('banana-settings', JSON.stringify(s));
@@ -298,8 +299,7 @@ export const DetailEditor: React.FC = () => {
     const newIdx = availableFields.indexOf(over.id as string);
     if (oldIdx === -1 || newIdx === -1) return;
     const nextPool = arrayMove(availableFields, oldIdx, newIdx);
-    setAvailableFields(nextPool);
-    localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+    setAvailableFields(saveAvailableExtraFields(nextPool));
     // 激活字段按新池顺序重排
     const activeSet = new Set(extraFieldNames);
     const nextActive = nextPool.filter(f => activeSet.has(f));
@@ -842,8 +842,7 @@ export const DetailEditor: React.FC = () => {
                                 }}
                                 onRemove={() => {
                                   const nextPool = availableFields.filter(f => f !== name);
-                                  setAvailableFields(nextPool);
-                                  localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                                  setAvailableFields(saveAvailableExtraFields(nextPool));
                                 }}
                               />
                             );
@@ -864,8 +863,7 @@ export const DetailEditor: React.FC = () => {
                             const trimmed = newFieldName.trim();
                             if (!availableFields.includes(trimmed) && availableFields.length < 10) {
                               const nextPool = [...availableFields, trimmed];
-                              setAvailableFields(nextPool);
-                              localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                              setAvailableFields(saveAvailableExtraFields(nextPool));
                               // 新增字段默认勾选
                               const nextActive = [...extraFieldNames, trimmed];
                               setExtraFieldNames(nextActive);
@@ -883,8 +881,7 @@ export const DetailEditor: React.FC = () => {
                           const trimmed = newFieldName.trim();
                           if (trimmed && !availableFields.includes(trimmed) && availableFields.length < 10) {
                             const nextPool = [...availableFields, trimmed];
-                            setAvailableFields(nextPool);
-                            localStorage.setItem('banana-available-extra-fields', JSON.stringify(nextPool));
+                            setAvailableFields(saveAvailableExtraFields(nextPool));
                             const nextActive = [...extraFieldNames, trimmed];
                             setExtraFieldNames(nextActive);
                             saveSettingsDebounced({ description_extra_fields: nextActive });
