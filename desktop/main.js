@@ -443,6 +443,9 @@ function setupIPC() {
     await writeStorageConfig(app.getPath('userData'), inspection.dataRoot);
     setTimeout(async () => {
       isQuitting = true;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
       backendStopRequested = true;
       try {
         await pythonManager.stopBackend();
@@ -505,19 +508,23 @@ function setupIPC() {
 
 async function selectRecoveryDataRoot(startupError) {
   let error = startupError;
+  let skipErrorDialog = false;
   while (true) {
     const parentWindow = splashWindow || mainWindow;
-    const choice = await dialog.showMessageBox(parentWindow, {
-      type: 'error',
-      title: '无法访问数据存储位置',
-      message: 'Banana Slides 无法访问已配置的数据存储位置。',
-      detail: error.message,
-      buttons: ['选择其他位置', '退出'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true,
-    });
-    if (choice.response !== 0) return null;
+    if (!skipErrorDialog) {
+      const choice = await dialog.showMessageBox(parentWindow, {
+        type: 'error',
+        title: '无法访问数据存储位置',
+        message: 'Banana Slides 无法访问已配置的数据存储位置。',
+        detail: error.message,
+        buttons: ['选择其他位置', '退出'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice.response !== 0) return null;
+    }
+    skipErrorDialog = false;
 
     const selection = await dialog.showOpenDialog(parentWindow, {
       title: '选择数据存储位置',
@@ -541,7 +548,7 @@ async function selectRecoveryDataRoot(startupError) {
           noLink: true,
         });
         if (confirmation.response !== 0) {
-          error = new Error('请选择包含原有 data/database.db 的目录，或确认使用新的空数据目录。');
+          skipErrorDialog = true;
           continue;
         }
       }

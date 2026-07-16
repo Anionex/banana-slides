@@ -146,6 +146,29 @@ test('creates and write-tests a data directory only after initialization is conf
   assert.equal(second.isEmpty, false);
 });
 
+test('cleans up the write probe when writing reports a late failure', async (t) => {
+  const dataRoot = makeTempDir(t, 'banana-data-root-');
+  const originalWriteFile = fs.promises.writeFile;
+  fs.promises.writeFile = async (target, ...args) => {
+    const result = await originalWriteFile(target, ...args);
+    if (path.basename(target).startsWith('.banana-slides-write-test-')) {
+      const error = new Error('simulated late write failure');
+      error.code = 'EIO';
+      throw error;
+    }
+    return result;
+  };
+  t.after(() => {
+    fs.promises.writeFile = originalWriteFile;
+  });
+
+  await assert.rejects(inspectDataRoot(dataRoot), { code: 'DATA_ROOT_UNAVAILABLE' });
+  assert.deepEqual(
+    fs.readdirSync(dataRoot).filter((name) => name.startsWith('.banana-slides-write-test-')),
+    [],
+  );
+});
+
 test('preparation rejects an unconfirmed missing location before creating it', async (t) => {
   const parent = makeTempDir(t, 'banana-parent-');
   const dataRoot = path.join(parent, 'not confirmed');
@@ -214,8 +237,9 @@ test('packaged smoke tests set Electron userData explicitly before app readiness
   assert.match(mainSource, /configureSmokeUserDataPath\(\);\s*app\.whenReady\(\)/);
   assert.match(
     mainSource,
-    /setTimeout\(async \(\) =>[\s\S]*await pythonManager\.stopBackend\(\)[\s\S]*app\.relaunch\(\)[\s\S]*app\.exit\(0\)/,
+    /setTimeout\(async \(\) =>[\s\S]*mainWindow\.hide\(\)[\s\S]*await pythonManager\.stopBackend\(\)[\s\S]*app\.relaunch\(\)[\s\S]*app\.exit\(0\)/,
   );
+  assert.match(mainSource, /let skipErrorDialog = false;[\s\S]*if \(!skipErrorDialog\)[\s\S]*skipErrorDialog = true;[\s\S]*continue;/);
   assert.match(macSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
   assert.match(linuxSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
 });

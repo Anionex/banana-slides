@@ -121,8 +121,11 @@ async function inspectDataRoot(dataRoot) {
     if (!stat.isDirectory()) throw new Error('The selected location is not a directory.');
     await fs.promises.access(normalized, fs.constants.R_OK | fs.constants.W_OK);
     const probePath = path.join(normalized, `.banana-slides-write-test-${process.pid}-${crypto.randomUUID()}`);
-    await fs.promises.writeFile(probePath, 'ok', { flag: 'wx' });
-    await fs.promises.rm(probePath, { force: true });
+    try {
+      await fs.promises.writeFile(probePath, 'ok', { flag: 'wx' });
+    } finally {
+      await fs.promises.rm(probePath, { force: true });
+    }
     const entries = await fs.promises.readdir(normalized);
     const databasePath = path.join(normalized, 'data', 'database.db');
     let hasDatabase = false;
