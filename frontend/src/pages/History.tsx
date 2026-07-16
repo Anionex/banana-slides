@@ -73,7 +73,33 @@ const historyI18n = {
 };
 
 const DEFAULT_PAGE_SIZE = 5;
+const PAGE_SIZE_OPTIONS: number[] = [5, 10, 20];
 const PAGE_SIZE_KEY = 'history_page_size';
+
+const getStoredHistoryPageSize = (savedValue: string | null): number => {
+  if (savedValue === null) return DEFAULT_PAGE_SIZE;
+
+  const parsedValue = Number(savedValue);
+  return PAGE_SIZE_OPTIONS.includes(parsedValue)
+    ? parsedValue
+    : DEFAULT_PAGE_SIZE;
+};
+
+const readHistoryPageSize = (): number => {
+  try {
+    return getStoredHistoryPageSize(localStorage.getItem(PAGE_SIZE_KEY));
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+};
+
+const saveHistoryPageSize = (pageSize: number): void => {
+  try {
+    localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  } catch {
+    // Browsing history remains usable when storage is blocked or full.
+  }
+};
 
 export const History: React.FC = () => {
   const navigate = useNavigate();
@@ -85,10 +111,7 @@ export const History: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [totalProjects, setTotalProjects] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => {
-    const saved = localStorage.getItem(PAGE_SIZE_KEY);
-    return saved ? Number(saved) : DEFAULT_PAGE_SIZE;
-  });
+  const [pageSize, setPageSize] = useState(readHistoryPageSize);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
@@ -99,6 +122,18 @@ export const History: React.FC = () => {
   const { confirm, ConfirmDialog } = useConfirm();
 
   const totalPages = Math.ceil(totalProjects / pageSize);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PAGE_SIZE_KEY);
+      const normalizedPageSize = getStoredHistoryPageSize(saved);
+      if (saved !== null && saved !== String(normalizedPageSize)) {
+        saveHistoryPageSize(normalizedPageSize);
+      }
+    } catch {
+      // Storage availability is optional; the in-memory default still works.
+    }
+  }, []);
 
   const loadProjects = useCallback(async (page: number) => {
     setIsLoading(true);
@@ -130,7 +165,7 @@ export const History: React.FC = () => {
   }, []);
 
   const handlePageSizeChange = useCallback((size: number) => {
-    localStorage.setItem(PAGE_SIZE_KEY, String(size));
+    saveHistoryPageSize(size);
     setPageSize(size);
     setCurrentPage(1);
     setSelectedProjects(new Set());
@@ -521,6 +556,7 @@ export const History: React.FC = () => {
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
                 pageSize={pageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
                 onPageSizeChange={handlePageSizeChange}
                 pageSizeLabel={t('history.perPage')}
               />

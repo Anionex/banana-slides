@@ -83,13 +83,16 @@ async function setupMockRoutes(
 // ───────────────── Mock tests ─────────────────
 
 test.describe('History pagination — mock', () => {
-  test('should not show pagination when projects fit on one page', async ({
+  test('should keep the page-size selector when projects fit on one page', async ({
     page,
   }) => {
-    await setupMockRoutes(page, 3) // 3 < PAGE_SIZE, no pagination
+    await setupMockRoutes(page, 3)
     await page.goto('/history')
     await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
-    await expect(page.locator('nav[aria-label="Pagination"]')).not.toBeVisible()
+    const pagination = page.locator('nav[aria-label="Pagination"]')
+    await expect(pagination.locator('select')).toHaveValue('5')
+    await expect(pagination.locator('button[aria-label="Previous page"]')).toBeDisabled()
+    await expect(pagination.locator('button[aria-label="Next page"]')).toBeDisabled()
   })
 
   test('should show pagination when projects exceed one page', async ({
@@ -187,6 +190,60 @@ test.describe('History pagination — mock', () => {
     expect(secondReq).toContain('limit=5')
     expect(secondReq).toContain('offset=5')
   })
+
+  test('should recover an invalid saved page size before loading projects', async ({
+    page,
+  }) => {
+    const requests: string[] = []
+    await setupMockRoutes(page, 12)
+
+    page.on('request', (req) => {
+      if (req.method() === 'GET' && req.url().includes('/api/projects')) {
+        requests.push(req.url())
+      }
+    })
+
+    await page.addInitScript(() => {
+      localStorage.setItem('history_page_size', 'not-a-number')
+    })
+    await page.goto('/history')
+
+    await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
+    const pagination = page.locator('nav[aria-label="Pagination"]')
+    await expect(pagination.locator('select')).toHaveValue('5')
+    await expect(pagination.locator('button:text-is("NaN")')).toHaveCount(0)
+
+    const firstRequest = requests.find((requestUrl) => requestUrl.includes('limit='))
+    expect(firstRequest).toContain('limit=5')
+    expect(firstRequest).toContain('offset=0')
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('history_page_size'))).toBe('5')
+  })
+
+  test('should remain usable when page-size storage access is blocked', async ({
+    page,
+  }) => {
+    await setupMockRoutes(page, 12)
+    await page.addInitScript(() => {
+      const originalGetItem = Storage.prototype.getItem
+      const originalSetItem = Storage.prototype.setItem
+      Storage.prototype.getItem = function (key: string) {
+        if (key === 'history_page_size') throw new DOMException('Storage blocked', 'SecurityError')
+        return originalGetItem.call(this, key)
+      }
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === 'history_page_size') throw new DOMException('Storage blocked', 'SecurityError')
+        return originalSetItem.call(this, key, value)
+      }
+    })
+
+    await page.goto('/history')
+    await expect(page.getByRole('heading', { name: 'P-01', exact: true })).toBeVisible()
+
+    const pagination = page.locator('nav[aria-label="Pagination"]')
+    await expect(pagination.locator('select')).toHaveValue('5')
+    await pagination.locator('select').selectOption('10')
+    await expect(pagination.locator('select')).toHaveValue('10')
+  })
 })
 
 // ───────────────── Integration test ─────────────────
@@ -194,7 +251,7 @@ test.describe('History pagination — mock', () => {
 test.describe('History pagination — integration', () => {
   const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
   const frontendPort = parseInt(new URL(frontendUrl).port || '3011')
-  const BACKEND_URL = `http://localhost:${frontendPort + 2000}`
+  const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${frontendPort + 2000}`
 
   async function createSimpleProject(index: number): Promise<string> {
     const resp = await fetch(`${BACKEND_URL}/api/projects`, {
@@ -240,6 +297,26 @@ test.describe('History pagination — integration', () => {
       ).toHaveText('2')
     } finally {
       await Promise.all(projectIds.map(id => deleteProject(id)))
+    }
+  })
+
+  test('invalid saved page size recovers with real backend data', async ({ page }) => {
+    const projectId = await createSimpleProject(99)
+    expect(projectId).toBeTruthy()
+
+    try {
+      await page.addInitScript(() => {
+        localStorage.setItem('history_page_size', 'Infinity')
+      })
+      await page.goto('/history')
+
+      await expect(page.locator('text=/历史项目|Project History/')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByRole('heading', { name: 'PagTest-99', exact: true })).toBeVisible()
+      const pagination = page.locator('nav[aria-label="Pagination"]')
+      await expect(pagination.locator('select')).toHaveValue('5')
+      await expect.poll(() => page.evaluate(() => localStorage.getItem('history_page_size'))).toBe('5')
+    } finally {
+      await deleteProject(projectId)
     }
   })
 })

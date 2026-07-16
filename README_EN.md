@@ -119,6 +119,7 @@ More available at <a href="https://github.com/Anionex/banana-slides/issues/2" > 
 ### 1. Flexible and Diverse Creative Paths
 
 Supports three starting modes—**Idea**, **Outline**, and **Page Description**—to suit different creative habits.
+- **More reliable project-history pagination**: The projects-per-page preference persists, and invalid browser values automatically reset to 5 instead of breaking the list or pagination controls.
 - **One-sentence generation**: Enter a topic, and the AI automatically generates a well-structured outline and page-by-page content descriptions.
 - **Natural language editing**: Supports modifying the outline or description via "Vibe" style natural language commands (e.g., "Change the third page to a case study"), with real-time AI response and adjustment.
 - **Outline/Description mode**: Supports both one-click batch generation and manual adjustment of details.
