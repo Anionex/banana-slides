@@ -191,7 +191,16 @@ test.describe('Video export narration config', () => {
     const loadingButton = page.getByRole('button', { name: '正在加载视频设置...' })
     await expect(loadingButton).toBeVisible()
     await expect(loadingButton).toBeDisabled()
+    await page.locator('button:has-text("导出")').first().click()
     releaseSettingsFailure()
+
+    await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeHidden()
+    await expect(page.getByText('无法加载视频导出设置，请重试后再导出')).toBeHidden()
+
+    await page.locator('button:has-text("导出")').first().click()
+    const retryButton = page.getByRole('button', { name: '导出为讲解视频' })
+    await expect(retryButton).toBeEnabled()
+    await retryButton.click()
     await expect(page.getByText('无法加载视频导出设置，请重试后再导出')).toBeVisible()
     await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeHidden()
     await expect(page.getByRole('button', { name: '导出为讲解视频' })).toBeEnabled()

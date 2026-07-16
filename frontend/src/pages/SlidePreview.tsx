@@ -430,6 +430,11 @@ export const SlidePreview: React.FC = () => {
   const [editOutlinePoints, setEditOutlinePoints] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const showExportMenuRef = useRef(false);
+  const setExportMenuOpen = (open: boolean) => {
+    showExportMenuRef.current = open;
+    setShowExportMenu(open);
+  };
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   const [showPptxExportDialog, setShowPptxExportDialog] = useState(false);
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
@@ -1285,7 +1290,7 @@ export const SlidePreview: React.FC = () => {
       pptxTransitionEffects?: PptxTransitionEffect[];
     },
   ) => {
-    setShowExportMenu(false);
+    setExportMenuOpen(false);
     if (!projectId) return;
 
     const pageIds = getSelectedPageIdsForExport();
@@ -1430,6 +1435,7 @@ export const SlidePreview: React.FC = () => {
     setIsPreparingVideoExport(true);
     try {
       const res = await getSettings();
+      if (!showExportMenuRef.current) return;
       if (!res || res.success === false || !res.data) {
         throw new Error('Settings response did not contain usable data');
       }
@@ -1443,6 +1449,7 @@ export const SlidePreview: React.FC = () => {
         setElevenLabsVoicesLoading(true);
         try {
           const voicesRes = await getElevenLabsVoices();
+          if (!showExportMenuRef.current) return;
           const voices = voicesRes?.data?.voices ?? [];
           setElevenLabsVoices(voices);
           if (voices.length > 0 && !voices.some(voice => voice.id === elevenLabsVoiceId)) {
@@ -1461,10 +1468,12 @@ export const SlidePreview: React.FC = () => {
         }
       }
 
+      if (!showExportMenuRef.current) return;
       setVideoIncludeNoImage(false);
-      setShowExportMenu(false);
+      setExportMenuOpen(false);
       setShowVideoExportDialog(true);
     } catch (error) {
+      if (!showExportMenuRef.current) return;
       console.error('Failed to load video export settings:', error);
       show({ message: t('preview.videoSettingsLoadFailed'), type: 'error' });
     } finally {
@@ -1830,7 +1839,7 @@ export const SlidePreview: React.FC = () => {
                 aria-label={t('preview.exportTasks')}
                 onClick={() => {
                   setShowExportTasksPanel(!showExportTasksPanel);
-                  setShowExportMenu(false);
+                  setExportMenuOpen(false);
                 }}
                 className="relative"
               >
@@ -1862,7 +1871,7 @@ export const SlidePreview: React.FC = () => {
               size="sm"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => {
-                setShowExportMenu(!showExportMenu);
+                setExportMenuOpen(!showExportMenu);
                 setShowExportTasksPanel(false);
               }}
               disabled={isMultiSelectMode && selectedPageIds.size === 0}
@@ -1889,7 +1898,7 @@ export const SlidePreview: React.FC = () => {
                 )}
                 <button
                   onClick={() => {
-                    setShowExportMenu(false);
+                    setExportMenuOpen(false);
                     setShowPptxExportDialog(true);
                   }}
                   disabled={!exportRangeHasAllImages}
@@ -1900,7 +1909,7 @@ export const SlidePreview: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    setShowExportMenu(false);
+                    setExportMenuOpen(false);
                     setEditablePptxDialogIconTransparent(currentProject?.enable_icon_subject_extraction ?? true);
                     setShowEditablePptxDialog(true);
                   }}
