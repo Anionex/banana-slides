@@ -115,6 +115,10 @@ test.describe('Video export narration config', () => {
     const projectId = 'mock-video-settings-failure'
     let settingsRequests = 0
     let failSettings = false
+    let releaseSettingsFailure!: () => void
+    const settingsFailureGate = new Promise<void>((resolve) => {
+      releaseSettingsFailure = resolve
+    })
 
     await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
       const url = new URL(route.request().url())
@@ -153,7 +157,7 @@ test.describe('Video export narration config', () => {
           })
         }
 
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await settingsFailureGate
         return route.fulfill({
           status: 503,
           contentType: 'application/json',
@@ -187,6 +191,7 @@ test.describe('Video export narration config', () => {
     const loadingButton = page.getByRole('button', { name: '正在加载视频设置...' })
     await expect(loadingButton).toBeVisible()
     await expect(loadingButton).toBeDisabled()
+    releaseSettingsFailure()
     await expect(page.getByText('无法加载视频导出设置，请重试后再导出')).toBeVisible()
     await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeHidden()
     await expect(page.getByRole('button', { name: '导出为讲解视频' })).toBeEnabled()
@@ -282,7 +287,7 @@ test.describe('Video export narration config', () => {
     await page.getByRole('button', { name: '导出为讲解视频' }).click()
 
     const selects = page.locator('select')
-    expect(await selects.count()).toBe(4)
+    await expect(selects).toHaveCount(4)
     await expect(selects.nth(3)).toHaveValue('zh-voice-1')
   })
 
