@@ -23,14 +23,21 @@ export function normalizeAvailableExtraFields(value: unknown): string[] {
   if (!Array.isArray(value)) return [...DEFAULT_AVAILABLE_EXTRA_FIELDS];
 
   const uniqueFields: string[] = [];
+  const seenFields = new Set<string>();
   for (const entry of value) {
     if (typeof entry !== 'string') continue;
     const field = entry.trim();
-    if (field && !uniqueFields.includes(field)) uniqueFields.push(field);
+    if (field && !seenFields.has(field)) {
+      seenFields.add(field);
+      uniqueFields.push(field);
+    }
   }
 
   for (const field of DEFAULT_AVAILABLE_EXTRA_FIELDS) {
-    if (!uniqueFields.includes(field)) uniqueFields.push(field);
+    if (!seenFields.has(field)) {
+      seenFields.add(field);
+      uniqueFields.push(field);
+    }
   }
 
   const defaultFields = new Set<string>(DEFAULT_AVAILABLE_EXTRA_FIELDS);
