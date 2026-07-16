@@ -24,6 +24,7 @@ test('data storage page follows the installation-directory page and skips upgrad
   assert.match(installerScript, /Function ValidateDataStorageRoot[\s\S]*CreateDirectory[\s\S]*GetFullPathName[\s\S]*GetTempFileName[\s\S]*Delete/);
   assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 2[\s\S]*\$R0 == "\\\\"/);
   assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 1 1[\s\S]*\$R0 != ":"/);
+  assert.match(installerScript, /StrCpy \$R0 \$DataStorageRoot 1 2[\s\S]*\$R0 != "\\"[\s\S]*\$R0 != "\/"/);
 });
 
 test('first install persists the selected path before install and supports silent install', () => {

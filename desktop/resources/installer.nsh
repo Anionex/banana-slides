@@ -76,6 +76,7 @@ Function ValidateDataStorageRoot
   ${EndIf}
   StrCpy $R0 $DataStorageRoot 1 2
   ${If} $R0 != "\"
+  ${AndIf} $R0 != "/"
     Push "0"
     Return
   ${EndIf}
