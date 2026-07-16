@@ -50,6 +50,13 @@ test('atomically saves and reads a Unicode data root', async (t) => {
   );
 });
 
+test('normalizes trailing separators without changing filesystem roots', () => {
+  assert.equal(normalizeDataRoot('/tmp/banana-slides///'), '/tmp/banana-slides');
+  assert.equal(normalizeDataRoot('/', 'linux'), '/');
+  assert.equal(normalizeDataRoot('C:\\Banana Slides Data\\', 'win32'), 'C:\\Banana Slides Data');
+  assert.equal(normalizeDataRoot('C:\\', 'win32'), 'C:\\');
+});
+
 for (const encoding of ['utf8', 'utf16le']) {
   test(`consumes a ${encoding} installer path only once`, async (t) => {
     const userData = makeTempDir(t, 'banana-user-data-');

@@ -17,10 +17,11 @@ function normalizeDataRoot(dataRoot, platform = process.platform) {
     throw storageError('INVALID_DATA_ROOT', 'Data storage location is required.');
   }
   const pathApi = platform === 'win32' ? path.win32 : path;
-  const normalized = pathApi.normalize(dataRoot.trim());
-  if (!pathApi.isAbsolute(normalized)) {
+  const trimmed = dataRoot.trim();
+  if (!pathApi.isAbsolute(trimmed)) {
     throw storageError('INVALID_DATA_ROOT', 'Data storage location must be an absolute path.');
   }
+  const normalized = pathApi.resolve(trimmed);
   if (platform === 'win32' && normalized.startsWith('\\\\')) {
     throw storageError('NETWORK_DATA_ROOT_UNSUPPORTED', 'Windows UNC data storage locations are not supported.');
   }

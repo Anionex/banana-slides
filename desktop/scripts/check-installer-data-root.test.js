@@ -13,6 +13,9 @@ test('electron-builder includes the custom bilingual NSIS installer', () => {
   assert.match(builderConfig, /installerLanguages:\s*\n\s*- en_US\s*\n\s*- zh_CN/);
   assert.match(installerScript, /LangString DataStorageTitle 1033/);
   assert.match(installerScript, /LangString DataStorageTitle 2052/);
+  assert.match(builderConfig, /productName: Banana Slides/);
+  assert.match(installerScript, /\$APPDATA\\Banana Slides\\installer-data-root\.txt/);
+  assert.doesNotMatch(installerScript, /\$APPDATA\\banana-slides-desktop/);
 });
 
 test('data storage page follows the installation-directory page and skips upgrades', () => {
@@ -34,4 +37,6 @@ test('first install writes the selected path as UTF-16LE and supports silent ins
   assert.match(smokeScript, /Smoke result dataRoot is missing/);
   assert.match(smokeScript, /Installer bootstrap was not consumed/);
   assert.match(smokeScript, /storage-config\.json/);
+  assert.match(smokeScript, /Banana Slides\\installer-data-root\.txt/);
+  assert.match(smokeScript, /Banana Slides\\storage-config\.json/);
 });

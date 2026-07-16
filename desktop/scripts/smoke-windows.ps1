@@ -75,7 +75,7 @@ if ($installerExitCode -ne 0) {
   Write-Step "Installer did not report success; checking whether the app was installed anyway"
 }
 
-$bootstrapPath = Join-Path $env:APPDATA "banana-slides-desktop\installer-data-root.txt"
+$bootstrapPath = Join-Path $env:APPDATA "Banana Slides\installer-data-root.txt"
 if (!(Test-Path $bootstrapPath)) {
   Fail "Installer data-root bootstrap file was not created: $bootstrapPath"
 }
@@ -193,7 +193,7 @@ if (![System.StringComparer]::OrdinalIgnoreCase.Equals($actualDataRoot, $DataRoo
 if (Test-Path $bootstrapPath) {
   Fail "Installer bootstrap was not consumed after app startup: $bootstrapPath"
 }
-$storageConfigPath = Join-Path $env:APPDATA "banana-slides-desktop\storage-config.json"
+$storageConfigPath = Join-Path $env:APPDATA "Banana Slides\storage-config.json"
 if (!(Test-Path $storageConfigPath -PathType Leaf)) {
   Fail "Storage config was not created after consuming installer bootstrap: $storageConfigPath"
 }
