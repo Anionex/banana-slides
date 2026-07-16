@@ -1456,6 +1456,7 @@ export const SlidePreview: React.FC = () => {
             setElevenLabsVoiceId(voices[0].id);
           }
         } catch (error: any) {
+          if (!showExportMenuRef.current) return;
           show({
             message: error?.response?.data?.error?.message
               || error?.response?.data?.message
