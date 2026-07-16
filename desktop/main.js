@@ -441,10 +441,17 @@ function setupIPC() {
     }
     const inspection = await prepareDataRoot(dataRoot, allowInitialize);
     await writeStorageConfig(app.getPath('userData'), inspection.dataRoot);
-    setTimeout(() => {
-      app.relaunch();
+    setTimeout(async () => {
       isQuitting = true;
-      app.quit();
+      backendStopRequested = true;
+      try {
+        await pythonManager.stopBackend();
+      } catch (error) {
+        log.error('[main] Failed to stop backend during data storage restart:', error);
+      }
+      backendStopped = true;
+      app.relaunch();
+      app.exit(0);
     }, 100);
     return { success: true, restarting: true };
   });

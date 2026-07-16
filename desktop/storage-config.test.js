@@ -178,6 +178,10 @@ test('packaged smoke tests set Electron userData explicitly before app readiness
   assert.match(mainSource, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR/);
   assert.match(mainSource, /app\.setPath\('userData', resolvedPath\)/);
   assert.match(mainSource, /configureSmokeUserDataPath\(\);\s*app\.whenReady\(\)/);
+  assert.match(
+    mainSource,
+    /setTimeout\(async \(\) =>[\s\S]*await pythonManager\.stopBackend\(\)[\s\S]*app\.relaunch\(\)[\s\S]*app\.exit\(0\)/,
+  );
   assert.match(macSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
   assert.match(linuxSmoke, /BANANA_DESKTOP_SMOKE_USER_DATA_DIR="\$user_data_dir"/);
 });

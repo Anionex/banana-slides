@@ -59,7 +59,11 @@ const dataStorageI18n = {
 };
 
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? `${fallback}: ${error.message}` : fallback;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return `${fallback}: ${message}`;
+  }
+  return fallback;
 }
 
 export const DataStorageSettings: React.FC = () => {
