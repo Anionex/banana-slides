@@ -31,6 +31,7 @@ const previewI18n = {
       exportVideo: "导出为讲解视频",
       videoSettingsLoading: "正在加载视频设置...",
       videoSettingsLoadFailed: "无法加载视频导出设置，请重试后再导出",
+      videoVoicesLoadFailed: "无法加载 ElevenLabs 音色列表，请稍后重试",
       pptxExportTitle: "PPTX 导出设置",
       pptxExportSubtitle: "在导出前确认本次 PPTX 的播放设置。",
       pptxTransitionToggle: "启用页面切换动画",
@@ -164,6 +165,7 @@ const previewI18n = {
       exportVideo: "Export as Narration Video",
       videoSettingsLoading: "Loading video settings...",
       videoSettingsLoadFailed: "Could not load video export settings. Please retry before exporting.",
+      videoVoicesLoadFailed: "Could not load the ElevenLabs voice list. Please try again later.",
       pptxExportTitle: "PPTX Export Settings",
       pptxExportSubtitle: "Confirm playback settings before exporting this PPTX.",
       pptxTransitionToggle: "Enable slide transitions",
@@ -1442,8 +1444,14 @@ export const SlidePreview: React.FC = () => {
         try {
           const voicesRes = await getElevenLabsVoices();
           setElevenLabsVoices(voicesRes?.data?.voices ?? []);
-        } catch (error) {
-          console.error('Failed to load ElevenLabs voices:', error);
+        } catch (error: any) {
+          show({
+            message: error?.response?.data?.error?.message
+              || error?.response?.data?.message
+              || error?.message
+              || t('preview.videoVoicesLoadFailed'),
+            type: 'error',
+          });
         } finally {
           setElevenLabsVoicesLoading(false);
         }

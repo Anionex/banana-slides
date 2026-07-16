@@ -192,6 +192,79 @@ test.describe('Video export narration config', () => {
     await expect(page.getByRole('button', { name: '导出为讲解视频' })).toBeEnabled()
   })
 
+  test('shows a user-facing error when ElevenLabs voices cannot load', async ({ page }) => {
+    const projectId = 'mock-video-voices-failure'
+
+    await page.addInitScript(() => {
+      window.localStorage.setItem('elevenLabsEnabled', 'true')
+    })
+    await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
+      const url = new URL(route.request().url())
+
+      if (url.pathname === `/api/projects/${projectId}`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              project_id: projectId,
+              id: projectId,
+              status: 'IMAGES_GENERATED',
+              template_style: 'default',
+              pages: [{
+                id: 'p1',
+                page_id: 'p1',
+                order_index: 0,
+                generated_image_path: '/files/mock/1.png',
+                outline_content: { title: 'Voice failure regression' },
+                status: 'COMPLETED',
+              }],
+            },
+          }),
+        })
+      }
+
+      if (url.pathname === '/api/settings') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: { elevenlabs_api_key_length: 8, output_language: 'zh' },
+          }),
+        })
+      }
+      if (url.pathname === '/api/settings/elevenlabs-voices') {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: false, message: '音色服务暂不可用，请稍后重试' }),
+        })
+      }
+      if (url.pathname === '/api/output-language') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { language: 'zh' } }) })
+      }
+      if (url.pathname === '/api/user-templates') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { templates: [] } }) })
+      }
+
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) })
+    })
+    await page.route('**/files/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.alloc(100) })
+    })
+
+    await page.goto(`/project/${projectId}/preview`)
+    await expect(page.getByText('Voice failure regression')).toBeVisible()
+
+    await page.locator('button:has-text("导出")').first().click()
+    await page.getByRole('button', { name: '导出为讲解视频' }).click()
+
+    await expect(page.getByText('音色服务暂不可用，请稍后重试')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '讲解视频导出设置' })).toBeVisible()
+  })
+
   test('real backend loads settings before opening the video export panel', async ({ page }) => {
     const { projectId } = await seedProjectWithImages(BACKEND_URL, 1)
 
