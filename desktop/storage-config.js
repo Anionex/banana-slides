@@ -117,8 +117,11 @@ async function inspectDataRoot(dataRoot) {
     throw storageError('DATA_ROOT_UNAVAILABLE', `Unable to access ${normalized}: ${error.message}`, error);
   }
 
+  if (!stat.isDirectory()) {
+    throw storageError('DATA_ROOT_UNAVAILABLE', `The selected location is not a directory: ${normalized}`);
+  }
+
   try {
-    if (!stat.isDirectory()) throw new Error('The selected location is not a directory.');
     await fs.promises.access(normalized, fs.constants.R_OK | fs.constants.W_OK);
     const probePath = path.join(normalized, `.banana-slides-write-test-${process.pid}-${crypto.randomUUID()}`);
     try {

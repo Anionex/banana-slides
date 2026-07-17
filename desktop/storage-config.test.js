@@ -246,7 +246,10 @@ test('rejects relative and non-directory paths with stable error codes', async (
   const parent = makeTempDir(t, 'banana-parent-');
   const filePath = path.join(parent, 'not-a-directory');
   fs.writeFileSync(filePath, 'content');
-  await assert.rejects(inspectDataRoot(filePath), { code: 'DATA_ROOT_UNAVAILABLE' });
+  await assert.rejects(inspectDataRoot(filePath), {
+    code: 'DATA_ROOT_UNAVAILABLE',
+    message: `The selected location is not a directory: ${filePath}`,
+  });
 });
 
 test('does not silently fall back when configured storage is unavailable', async (t) => {
