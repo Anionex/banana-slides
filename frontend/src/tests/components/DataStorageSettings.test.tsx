@@ -61,7 +61,7 @@ describe('DataStorageSettings', () => {
 
     const loadingSection = screen.getByRole('status', { name: /Loading data storage location|正在加载数据存储位置/ });
     expect(loadingSection).toHaveAttribute('aria-busy', 'true');
-    expect(loadingSection).toHaveClass('min-h-[312px]');
+    expect(loadingSection).toHaveClass('min-h-[220px]');
 
     resolveInfo({
       dataRoot: 'C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop',
@@ -93,6 +93,9 @@ describe('DataStorageSettings', () => {
     expect(await screen.findByDisplayValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop')).toBeInTheDocument();
     expect(screen.getByText(/does not move or delete existing data automatically|不会自动移动或删除已有数据/)).toBeInTheDocument();
     expect(screen.getByText(/data, uploads, and exports|data、uploads、exports/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Browse|浏览/ })).toHaveClass('shrink-0', 'whitespace-nowrap', 'text-sm');
+    expect(screen.getByRole('button', { name: /Open current folder|打开当前目录/ })).toHaveClass('whitespace-nowrap', 'text-sm');
+    expect(screen.getByRole('button', { name: /Save and restart|保存并重启/ })).toHaveClass('whitespace-nowrap', 'text-sm');
   });
 
   it('browses, validates an existing data directory, and applies it without initialization', async () => {

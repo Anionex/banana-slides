@@ -107,23 +107,19 @@ export const DataStorageSettings: React.FC = () => {
   if (configurable === null) {
     return (
       <section
-        className="min-h-[312px] rounded-2xl border border-gray-200 bg-white/70 p-5 dark:border-border-primary dark:bg-background-secondary/70"
+        className="min-h-[220px]"
         role="status"
         aria-label={t('dataStorage.loading')}
         aria-busy="true"
       >
-        <div className="mb-4 flex items-start gap-3">
-          <Skeleton className="h-[38px] w-[38px] shrink-0 rounded-xl" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-6 w-44 rounded-md" />
-            <Skeleton className="h-4 max-w-md rounded-md" />
-          </div>
+        <div className="mb-1 flex items-center gap-2">
+          <Skeleton className="h-5 w-5 shrink-0 rounded-md" />
+          <Skeleton className="h-6 w-40 rounded-md" />
         </div>
-        <Skeleton className="h-10 w-full rounded-xl" />
-        <Skeleton className="mt-4 h-20 w-full rounded-xl" />
-        <div className="mt-4 flex justify-end gap-3">
-          <Skeleton className="h-10 w-36 rounded-xl" />
-          <Skeleton className="h-10 w-36 rounded-xl" />
+        <Skeleton className="mb-4 h-4 max-w-md rounded-md" />
+        <div className="rounded-lg border border-gray-200 p-4 dark:border-border-primary">
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="mt-4 h-16 w-full rounded-md" />
         </div>
       </section>
     );
@@ -204,44 +200,63 @@ export const DataStorageSettings: React.FC = () => {
   };
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white/70 p-5 dark:border-border-primary dark:bg-background-secondary/70" aria-labelledby="data-storage-title">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="rounded-xl bg-banana-100 p-2 text-banana-800 dark:bg-banana-500/15 dark:text-banana-300">
-          <HardDrive size={22} />
+    <section aria-labelledby="data-storage-title">
+      <h2 id="data-storage-title" className="mb-1 flex items-center text-xl font-semibold text-gray-900 dark:text-foreground-primary">
+        <HardDrive size={20} />
+        <span className="ml-2">{t('dataStorage.title')}</span>
+      </h2>
+      <p className="mb-4 text-sm text-gray-500 dark:text-foreground-tertiary">{t('dataStorage.description')}</p>
+
+      <div className="rounded-lg border border-gray-200 p-4 dark:border-border-primary">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <Input
+              label={t('dataStorage.pathLabel')}
+              value={path}
+              onChange={(event) => setPath(event.target.value)}
+              disabled={loading || saving}
+              aria-label={t('dataStorage.pathLabel')}
+              className="text-sm"
+            />
+          </div>
+          <Button
+            variant="secondary"
+            icon={<FolderOpen size={17} />}
+            onClick={chooseDirectory}
+            disabled={loading || saving}
+            className="shrink-0 whitespace-nowrap px-4 text-sm"
+          >
+            {t('dataStorage.browse')}
+          </Button>
         </div>
-        <div>
-          <h2 id="data-storage-title" className="text-xl font-semibold text-gray-900 dark:text-foreground-primary">{t('dataStorage.title')}</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('dataStorage.description')}</p>
+
+        <div className="mt-4 space-y-2 border-l-4 border-amber-300 pl-4 text-sm leading-6 text-gray-700 dark:border-amber-700 dark:text-foreground-secondary">
+          <p>{t('dataStorage.manualMigration')}</p>
+          <p>{t('dataStorage.restartHint')}</p>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <Input
-          label={t('dataStorage.pathLabel')}
-          value={path}
-          onChange={(event) => setPath(event.target.value)}
-          disabled={loading || saving}
-          aria-label={t('dataStorage.pathLabel')}
-        />
-        <Button variant="secondary" icon={<FolderOpen size={17} />} onClick={chooseDirectory} disabled={loading || saving}>
-          {t('dataStorage.browse')}
-        </Button>
-      </div>
+        {error && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-        <p className="font-medium">{t('dataStorage.manualMigration')}</p>
-        <p className="mt-2 opacity-90">{t('dataStorage.restartHint')}</p>
-      </div>
-
-      {error && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
-
-      <div className="mt-4 flex flex-wrap justify-end gap-3">
-        <Button variant="secondary" icon={<FolderOpen size={17} />} onClick={openCurrentDirectory} disabled={loading || saving || !currentPath}>
-          {t('dataStorage.openCurrent')}
-        </Button>
-        <Button icon={<RefreshCw size={17} />} onClick={inspectAndApply} loading={saving} disabled={loading}>
-          {saving ? t('dataStorage.saving') : t('dataStorage.saveRestart')}
-        </Button>
+        <div className="mt-4 flex flex-wrap justify-end gap-3">
+          <Button
+            variant="secondary"
+            icon={<FolderOpen size={17} />}
+            onClick={openCurrentDirectory}
+            disabled={loading || saving || !currentPath}
+            className="whitespace-nowrap px-4 text-sm"
+          >
+            {t('dataStorage.openCurrent')}
+          </Button>
+          <Button
+            icon={<RefreshCw size={17} />}
+            onClick={inspectAndApply}
+            loading={saving}
+            disabled={loading}
+            className="whitespace-nowrap px-4 text-sm"
+          >
+            {saving ? t('dataStorage.saving') : t('dataStorage.saveRestart')}
+          </Button>
+        </div>
       </div>
 
       <Modal

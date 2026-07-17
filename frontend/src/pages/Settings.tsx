@@ -1867,6 +1867,8 @@ export const Settings: React.FC = () => {
           </button>
           {advancedOpen && (
             <div className="pb-4 space-y-8">
+              {isDesktop && <DataStorageSettings />}
+
               {/* OpenAI OAuth 连接区块 */}
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
@@ -2142,8 +2144,6 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {isDesktop && <DataStorageSettings />}
 
             <Settings />
           </div>

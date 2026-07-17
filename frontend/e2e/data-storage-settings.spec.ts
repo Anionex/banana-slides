@@ -50,12 +50,16 @@ test.beforeEach(async ({ page }) => {
 test('desktop settings requires explicit confirmation before using an empty custom data location', async ({ page }) => {
   await page.goto('/#/settings');
 
+  await expect(page.getByRole('heading', { name: /数据存储位置|Data storage location/ })).toBeHidden();
+  await page.getByRole('button', { name: /高级设置|Advanced Settings/ }).click();
   await expect(page.getByRole('heading', { name: /数据存储位置|Data storage location/ })).toBeVisible();
   const storagePath = page.getByLabel(/存储路径|Storage path/);
   await expect(storagePath).toHaveValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop');
   await expect(page.getByText(/不会自动移动或删除已有数据|does not move or delete existing data automatically/)).toBeVisible();
 
-  await page.getByRole('button', { name: /浏览|Browse/ }).click();
+  const browse = page.getByRole('button', { name: /浏览|Browse/ });
+  await expect(browse).toHaveCSS('white-space', 'nowrap');
+  await browse.click();
   await expect(storagePath).toHaveValue('D:\\Banana Slides Data');
   await page.getByRole('button', { name: /保存并重启|Save and restart/ }).click();
 
