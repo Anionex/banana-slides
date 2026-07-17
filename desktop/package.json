@@ -13,7 +13,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "cross-env NODE_ENV=development electron .",
-    "test": "node --test update-policy.test.js download-manager.test.js markdown-image-script.test.js icon-policy.test.js scripts/check-icon-contract.test.js",
+    "test": "node --test update-policy.test.js download-manager.test.js storage-config.test.js markdown-image-script.test.js icon-policy.test.js scripts/check-icon-contract.test.js scripts/check-installer-data-root.test.js",
     "check:icons": "node scripts/check-icon-contract.js",
     "test:download-session": "electron scripts/test-download-session.js",
     "prepare": "node scripts/prepare-artifacts.js",

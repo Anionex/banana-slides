@@ -15,6 +15,12 @@ const {
   getTrayIconPath,
   shouldSetDockIcon,
 } = require('./icon-policy');
+const {
+  initializeDataRoot,
+  inspectDataRoot,
+  prepareDataRoot,
+  writeStorageConfig,
+} = require('./storage-config');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -22,6 +28,8 @@ let tray = null;
 let isQuitting = false;
 let backendStopped = false;
 let backendStopRequested = false;
+let activeDataRoot = null;
+let activeDataRootIsDefault = true;
 const runtimeIconState = {
   dockOverrideApplied: false,
   trayTemplateImage: false,
@@ -38,6 +46,14 @@ function isSmokeMode() {
 function getSmokeQuitDelayMs() {
   const delay = Number(process.env.BANANA_DESKTOP_SMOKE_QUIT_DELAY_MS || 10000);
   return Number.isFinite(delay) && delay >= 0 ? delay : 10000;
+}
+
+function configureSmokeUserDataPath() {
+  const smokeUserDataPath = process.env.BANANA_DESKTOP_SMOKE_USER_DATA_DIR;
+  if (!isSmokeMode() || !smokeUserDataPath) return;
+  const resolvedPath = path.resolve(smokeUserDataPath);
+  fs.mkdirSync(resolvedPath, { recursive: true });
+  app.setPath('userData', resolvedPath);
 }
 
 function sleep(ms) {
@@ -69,6 +85,7 @@ async function writeSmokeResult(extra = {}) {
     windowVisible: mainWindow?.isVisible() || false,
     windowTitle: mainWindow?.getTitle() || '',
     url: mainWindow?.webContents?.getURL() || '',
+    dataRoot: activeDataRoot,
     iconPolicy: runtimeIconState,
     timestamp: new Date().toISOString(),
     ...extra,
@@ -394,6 +411,54 @@ function setupIPC() {
     return mainWindow?.webContents?.getZoomLevel() ?? 0;
   });
 
+  ipcMain.handle('get-data-storage-info', async () => {
+    const inspection = await inspectDataRoot(activeDataRoot);
+    return {
+      dataRoot: inspection.dataRoot,
+      isDefault: activeDataRootIsDefault,
+      hasDatabase: inspection.hasDatabase,
+      configurable: !isDev(),
+    };
+  });
+  ipcMain.handle('choose-data-storage-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择数据存储位置',
+      defaultPath: activeDataRoot,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('inspect-data-storage-directory', (_, dataRoot) => inspectDataRoot(dataRoot));
+  ipcMain.handle('open-data-storage-directory', async () => {
+    const error = await shell.openPath(activeDataRoot);
+    return error ? { success: false, error } : { success: true };
+  });
+  ipcMain.handle('apply-data-storage-directory', async (_, dataRoot, allowInitialize = false) => {
+    if (isDev()) {
+      const error = new Error('DATA_STORAGE_UNAVAILABLE_IN_DEV: Data storage location is managed by the external development backend.');
+      error.code = 'DATA_STORAGE_UNAVAILABLE_IN_DEV';
+      throw error;
+    }
+    const inspection = await prepareDataRoot(dataRoot, allowInitialize);
+    await writeStorageConfig(app.getPath('userData'), inspection.dataRoot);
+    setTimeout(async () => {
+      isQuitting = true;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
+      backendStopRequested = true;
+      try {
+        await pythonManager.stopBackend();
+      } catch (error) {
+        log.error('[main] Failed to stop backend during data storage restart:', error);
+      }
+      backendStopped = true;
+      app.relaunch();
+      app.exit(0);
+    }, 100);
+    return { success: true, restarting: true };
+  });
+
   // 原生下载对话框：前端传入绝对 URL + 建议文件名
   ipcMain.handle('download-file', async (_, { url, filename }) => {
     const currentWindow = mainWindow;
@@ -406,7 +471,7 @@ function setupIPC() {
     });
     if (canceled || !savePath) return { success: false, canceled: true };
     if (currentWindow.isDestroyed()) return { success: false };
-    const localExportPath = await resolveLocalExportPath(downloadUrl, app.getPath('userData'));
+    const localExportPath = await resolveLocalExportPath(downloadUrl, activeDataRoot);
     if (currentWindow.isDestroyed()) return { success: false };
     const result = localExportPath
       ? await copyLocalExportToPath(localExportPath, savePath)
@@ -441,6 +506,61 @@ function setupIPC() {
   });
 }
 
+async function selectRecoveryDataRoot(startupError) {
+  let error = startupError;
+  let skipErrorDialog = false;
+  while (true) {
+    const parentWindow = splashWindow && !splashWindow.isDestroyed() ? splashWindow : null;
+    if (!skipErrorDialog) {
+      const choice = await dialog.showMessageBox(parentWindow, {
+        type: 'error',
+        title: '无法访问数据存储位置',
+        message: 'Banana Slides 无法访问已配置的数据存储位置。',
+        detail: error.message,
+        buttons: ['选择其他位置', '退出'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice.response !== 0) return null;
+    }
+    skipErrorDialog = false;
+
+    const selection = await dialog.showOpenDialog(parentWindow, {
+      title: '选择数据存储位置',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (selection.canceled || !selection.filePaths[0]) {
+      error = new Error('尚未选择可用的数据存储位置。');
+      continue;
+    }
+    try {
+      const inspection = await inspectDataRoot(selection.filePaths[0]);
+      if (!inspection.hasDatabase) {
+        const confirmation = await dialog.showMessageBox(parentWindow, {
+          type: 'warning',
+          title: '确认使用新的数据位置',
+          message: '所选目录中没有 Banana Slides 数据库。',
+          detail: '继续后将把此位置作为新的空数据目录使用。应用不会移动或删除原目录中的任何数据。',
+          buttons: ['使用此位置', '重新选择'],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true,
+        });
+        if (confirmation.response !== 0) {
+          skipErrorDialog = true;
+          continue;
+        }
+      }
+      const prepared = await prepareDataRoot(inspection.dataRoot, !inspection.hasDatabase);
+      await writeStorageConfig(app.getPath('userData'), prepared.dataRoot);
+      return { ...prepared, isDefault: false };
+    } catch (nextError) {
+      error = nextError;
+    }
+  }
+}
+
 async function bootstrap() {
   createSplashWindow();
   createMainWindow();
@@ -449,7 +569,22 @@ async function bootstrap() {
   setupIPC();
 
   try {
-    const port = await pythonManager.startBackend(app.getPath('userData'));
+    let storageInfo;
+    try {
+      storageInfo = await initializeDataRoot(app.getPath('userData'));
+    } catch (error) {
+      log.error('[main] Configured data storage location is unavailable:', error);
+      storageInfo = await selectRecoveryDataRoot(error);
+      if (!storageInfo) {
+        isQuitting = true;
+        app.quit();
+        return;
+      }
+    }
+    activeDataRoot = storageInfo.dataRoot;
+    activeDataRootIsDefault = storageInfo.isDefault;
+
+    const port = await pythonManager.startBackend(activeDataRoot);
     await pythonManager.waitForBackend(port);
 
     if (isDev()) {
@@ -467,6 +602,7 @@ async function bootstrap() {
   }
 }
 
+configureSmokeUserDataPath();
 app.whenReady().then(bootstrap);
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.banana.slides');

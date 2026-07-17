@@ -13,9 +13,19 @@ install_dir="$out_dir/Applications"
 result_path="$out_dir/smoke-result.json"
 screenshot_path="$out_dir/smoke-screenshot.png"
 log_path="$out_dir/smoke-macos.log"
+user_data_dir="$out_dir/user-data"
+custom_data_root="$out_dir/custom-data-root"
+storage_config_path="$user_data_dir/storage-config.json"
 
 rm -rf "$out_dir"
-mkdir -p "$mount_dir" "$install_dir"
+mkdir -p "$mount_dir" "$install_dir" "$user_data_dir" "$custom_data_root"
+
+node -e '
+  const fs = require("fs");
+  const configPath = process.argv[1];
+  const dataRoot = process.argv[2];
+  fs.writeFileSync(configPath, `${JSON.stringify({ version: 1, dataRoot }, null, 2)}\n`);
+' "$storage_config_path" "$custom_data_root"
 
 log() {
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$log_path"
@@ -60,6 +70,8 @@ trap cleanup EXIT
 
 log "macOS DMG smoke started"
 log "DMG=$dmg_path"
+log "UserData=$user_data_dir"
+log "CustomDataRoot=$custom_data_root"
 
 [[ -f "$dmg_path" ]] || fail "DMG not found"
 [[ "$(stat -f%z "$dmg_path")" -gt 100000000 ]] || fail "DMG is unexpectedly small"
@@ -108,12 +120,13 @@ app_exe="$installed_app/Contents/MacOS/Banana Slides"
 [[ -x "$app_exe" ]] || fail "App executable missing"
 
 export BANANA_DESKTOP_SMOKE=1
+export BANANA_DESKTOP_SMOKE_USER_DATA_DIR="$user_data_dir"
 export BANANA_DESKTOP_SMOKE_RESULT="$result_path"
 export BANANA_DESKTOP_SMOKE_SCREENSHOT="$screenshot_path"
 export BANANA_DESKTOP_SMOKE_QUIT_DELAY_MS=60000
 
 log "Launching app executable"
-"$app_exe" >> "$out_dir/app-stdout.log" 2>> "$out_dir/app-stderr.log" &
+"$app_exe" --user-data-dir="$user_data_dir" >> "$out_dir/app-stdout.log" 2>> "$out_dir/app-stderr.log" &
 app_pid=$!
 
 deadline=$((SECONDS + 120))
@@ -138,9 +151,17 @@ node -e '
   if (!result.backendPort) throw new Error("Missing backendPort");
   if (!result.windowVisible) throw new Error("Window was not visible");
   if (!result.url || !result.url.includes("index.html")) throw new Error(`Unexpected URL: ${result.url}`);
+  if (!result.dataRoot) throw new Error("Missing dataRoot");
+  if (require("path").resolve(result.dataRoot) !== require("path").resolve(process.argv[2])) {
+    throw new Error(`Unexpected dataRoot: ${result.dataRoot}`);
+  }
   if (result.iconPolicy?.dockOverrideApplied !== false) throw new Error("Packaged macOS must not override the bundle Dock icon");
   if (result.iconPolicy?.trayTemplateImage !== true) throw new Error("macOS Tray icon was not marked as a template image");
-' "$result_path"
+' "$result_path" "$custom_data_root"
+
+[[ -f "$custom_data_root/data/database.db" ]] || fail "Database was not created in custom data root"
+[[ -d "$custom_data_root/uploads" ]] || fail "Uploads directory was not created in custom data root"
+[[ -d "$custom_data_root/exports" ]] || fail "Exports directory was not created in custom data root"
 
 [[ -f "$screenshot_path" ]] || fail "Screenshot missing"
 [[ "$(stat -f%z "$screenshot_path")" -gt 10000 ]] || fail "Screenshot is unexpectedly small"

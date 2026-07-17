@@ -6,6 +6,7 @@ import { useT } from '@/hooks/useT';
 import { appVersion } from '@/utils/appVersion';
 import { isDesktop } from '@/utils';
 import { startOpenAIOAuthMonitor } from '@/utils/openaiOAuthMonitor';
+import { DataStorageSettings } from '@/components/settings/DataStorageSettings';
 
 // 组件内翻译
 const settingsI18n = {
@@ -1866,6 +1867,8 @@ export const Settings: React.FC = () => {
           </button>
           {advancedOpen && (
             <div className="pb-4 space-y-8">
+              {isDesktop && <DataStorageSettings />}
+
               {/* OpenAI OAuth 连接区块 */}
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground-primary mb-1 flex items-center">
