@@ -124,7 +124,7 @@ async function inspectDataRoot(dataRoot) {
     try {
       await fs.promises.writeFile(probePath, 'ok', { flag: 'wx' });
     } finally {
-      await fs.promises.rm(probePath, { force: true });
+      await fs.promises.rm(probePath, { force: true }).catch(() => {});
     }
     const entries = await fs.promises.readdir(normalized);
     const databasePath = path.join(normalized, 'data', 'database.db');

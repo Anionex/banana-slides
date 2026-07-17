@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FolderOpen, HardDrive, RefreshCw } from 'lucide-react';
-import { Button, Input, Modal } from '@/components/shared';
+import { Button, Input, Modal, Skeleton } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import {
   getDataStorageElectronApi,
@@ -17,6 +17,7 @@ const dataStorageI18n = {
       openCurrent: '打开当前目录',
       saveRestart: '保存并重启',
       saving: '正在保存',
+      loading: '正在加载数据存储位置',
       loadFailed: '无法读取当前数据存储位置',
       inspectFailed: '无法使用所选目录',
       openFailed: '无法打开当前数据目录',
@@ -41,6 +42,7 @@ const dataStorageI18n = {
       openCurrent: 'Open current folder',
       saveRestart: 'Save and restart',
       saving: 'Saving',
+      loading: 'Loading data storage location',
       loadFailed: 'Could not load the current data storage location',
       inspectFailed: 'The selected folder cannot be used',
       openFailed: 'Could not open the current data folder',
@@ -100,7 +102,32 @@ export const DataStorageSettings: React.FC = () => {
     return () => { active = false; };
   }, [api, loadFailedMessage]);
 
-  if (!api || configurable === false || configurable === null) return null;
+  if (!api || configurable === false) return null;
+
+  if (configurable === null) {
+    return (
+      <section
+        className="min-h-[312px] rounded-2xl border border-gray-200 bg-white/70 p-5 dark:border-border-primary dark:bg-background-secondary/70"
+        role="status"
+        aria-label={t('dataStorage.loading')}
+        aria-busy="true"
+      >
+        <div className="mb-4 flex items-start gap-3">
+          <Skeleton className="h-[38px] w-[38px] shrink-0 rounded-xl" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-6 w-44 rounded-md" />
+            <Skeleton className="h-4 max-w-md rounded-md" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="mt-4 h-20 w-full rounded-xl" />
+        <div className="mt-4 flex justify-end gap-3">
+          <Skeleton className="h-10 w-36 rounded-xl" />
+          <Skeleton className="h-10 w-36 rounded-xl" />
+        </div>
+      </section>
+    );
+  }
 
   const chooseDirectory = async () => {
     setError('');

@@ -46,6 +46,34 @@ describe('DataStorageSettings', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('reserves the storage section while desktop capabilities are loading', async () => {
+    let resolveInfo!: (value: {
+      dataRoot: string;
+      isDefault: boolean;
+      hasDatabase: boolean;
+      configurable: boolean;
+    }) => void;
+    electronApi.getDataStorageInfo.mockReturnValue(new Promise((resolve) => {
+      resolveInfo = resolve;
+    }));
+
+    render(<DataStorageSettings />);
+
+    const loadingSection = screen.getByRole('status', { name: /Loading data storage location|正在加载数据存储位置/ });
+    expect(loadingSection).toHaveAttribute('aria-busy', 'true');
+    expect(loadingSection).toHaveClass('min-h-[312px]');
+
+    resolveInfo({
+      dataRoot: 'C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop',
+      isDefault: true,
+      hasDatabase: true,
+      configurable: true,
+    });
+
+    expect(await screen.findByDisplayValue('C:\\Users\\Test\\AppData\\Roaming\\banana-slides-desktop')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('is hidden when the desktop shell cannot configure an external backend data path', async () => {
     electronApi.getDataStorageInfo.mockResolvedValue({
       dataRoot: '/external/backend/data',

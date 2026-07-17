@@ -182,6 +182,27 @@ test('cleans up the write probe when writing reports a late failure', async (t) 
   );
 });
 
+test('does not reject a writable directory when write-probe cleanup is temporarily locked', async (t) => {
+  const dataRoot = makeTempDir(t, 'banana-data-root-');
+  const originalRm = fs.promises.rm;
+  fs.promises.rm = async (target, options) => {
+    if (path.basename(target).startsWith('.banana-slides-write-test-')) {
+      await originalRm(target, options);
+      const error = new Error('simulated antivirus file lock');
+      error.code = 'EPERM';
+      throw error;
+    }
+    return originalRm(target, options);
+  };
+  t.after(() => {
+    fs.promises.rm = originalRm;
+  });
+
+  const inspection = await inspectDataRoot(dataRoot);
+  assert.equal(inspection.writable, true);
+  assert.equal(inspection.isEmpty, true);
+});
+
 test('preparation rejects an unconfirmed missing location before creating it', async (t) => {
   const parent = makeTempDir(t, 'banana-parent-');
   const dataRoot = path.join(parent, 'not confirmed');
