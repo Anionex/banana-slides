@@ -50,6 +50,7 @@ const outlineI18n = {
         importInvalidFileType: "只能导入 .md、.markdown 或 .txt 文件",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
         saveFailed: "保存失败，当前修改尚未保存，请重试",
+        missingProjectType: "项目类型缺失，无法确定保存位置，请刷新页面后重试",
       }
     }
   },
@@ -97,6 +98,7 @@ const outlineI18n = {
         importInvalidFileType: "Only .md, .markdown, or .txt files can be imported",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
         saveFailed: "Save failed. Your current changes have not been saved. Please retry.",
+        missingProjectType: "The project type is missing, so the save destination is unknown. Refresh the page and retry.",
       }
     }
   }
@@ -162,6 +164,7 @@ export const OutlineEditor: React.FC = () => {
   const location = useLocation();
   const t = useT(outlineI18n);
   const saveFailedMessage = t('outline.messages.saveFailed');
+  const missingProjectTypeMessage = t('outline.messages.missingProjectType');
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
@@ -277,7 +280,11 @@ export const OutlineEditor: React.FC = () => {
   }, [currentProject?.id]);
 
   const saveInputText = useCallback(async (text: string, creationType: string | undefined): Promise<boolean> => {
-    if (!projectId || !creationType) return false;
+    if (!projectId) return false;
+    if (!creationType) {
+      show({ message: missingProjectTypeMessage, type: 'error' });
+      return false;
+    }
 
     const activeSave = inputSavePromiseRef.current;
     if (activeSave?.projectId === projectId && activeSave.text === text) return activeSave.promise;
@@ -335,11 +342,11 @@ export const OutlineEditor: React.FC = () => {
         inputSavePromiseRef.current = null;
       }
     }
-  }, [projectId, saveFailedMessage, show]);
+  }, [missingProjectTypeMessage, projectId, saveFailedMessage, show]);
 
   // Debounced auto-save: save 1s after user stops typing
   useEffect(() => {
-    if (!isInputDirty) return;
+    if (!isInputDirty || !currentProject?.creation_type) return;
     const timer = setTimeout(() => {
       saveInputText(inputText, currentProject?.creation_type);
     }, 1000);
@@ -361,7 +368,7 @@ export const OutlineEditor: React.FC = () => {
   }, [outlineRequirements, isRequirementsDirty, projectId]);
 
   const handleSaveInputText = useCallback(() => {
-    if (!isInputDirty) return;
+    if (!isInputDirty || !currentProject?.creation_type) return;
     saveInputText(inputText, currentProject?.creation_type);
   }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
 

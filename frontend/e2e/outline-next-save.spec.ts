@@ -23,7 +23,11 @@ const project = {
   updated_at: '2026-01-01T00:00:00Z',
 }
 
-async function setupProjectRoutes(page: Page, saveRoute: (route: Route) => Promise<void>) {
+async function setupProjectRoutes(
+  page: Page,
+  saveRoute: (route: Route) => Promise<void>,
+  projectPayload: Record<string, unknown> = project,
+) {
   await page.addInitScript(() => localStorage.setItem('hasSeenHelpModal', 'true'))
 
   await page.route(`**/api/projects/${PROJECT_ID}`, async (route) => {
@@ -32,7 +36,7 @@ async function setupProjectRoutes(page: Page, saveRoute: (route: Route) => Promi
       return
     }
 
-    await route.fulfill({ json: { success: true, data: project } })
+    await route.fulfill({ json: { success: true, data: projectPayload } })
   })
   await page.route(`**/api/reference-files/project/${PROJECT_ID}`, route =>
     route.fulfill({ json: { success: true, data: { files: [] } } })
@@ -89,6 +93,24 @@ test.describe('Outline Next save guard', () => {
 
     await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
     expect(savedPayload).toEqual({ idea_prompt: 'Updated idea that must be saved' })
+  })
+
+  test('explains why navigation is blocked when the project type is missing', async ({ page }) => {
+    let saveAttempts = 0
+    await setupProjectRoutes(
+      page,
+      async (route) => {
+        saveAttempts += 1
+        await route.fulfill({ json: { success: true, data: project } })
+      },
+      { ...project, creation_type: undefined },
+    )
+
+    await changeSourceAndContinue(page)
+
+    await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/outline$`))
+    await expect(page.getByText(/项目类型缺失|project type is missing/i)).toBeVisible()
+    expect(saveAttempts).toBe(0)
   })
 
   test('integration: saves the changed source through the real backend before navigating', async ({ page, request }) => {
