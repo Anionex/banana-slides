@@ -327,7 +327,7 @@ export const OutlineEditor: React.FC = () => {
         console.error('保存输入文本失败:', e);
         const activeProject = useProjectStore.getState().currentProject;
         const activeProjectId = activeProject?.id || activeProject?.project_id;
-        if (activeProjectId === projectId) {
+        if (activeProjectId === projectId && inputTextRef.current === text) {
           show({ message: saveFailedMessage, type: 'error' });
         }
         return false;
