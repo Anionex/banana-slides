@@ -227,6 +227,10 @@ export const OutlineEditor: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    inputTextRef.current = inputText;
+  }, [inputText]);
+
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [activeMaterialTarget, setActiveMaterialTarget] = useState<'input' | 'requirements'>('input');
 
