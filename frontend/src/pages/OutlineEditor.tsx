@@ -369,8 +369,8 @@ export const OutlineEditor: React.FC = () => {
 
   const handleSaveInputText = useCallback(() => {
     if (!isInputDirty || !currentProject?.creation_type) return;
-    saveInputText(inputText, currentProject?.creation_type);
-  }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
+    saveInputText(inputTextRef.current, currentProject?.creation_type);
+  }, [isInputDirty, saveInputText, currentProject?.creation_type]);
 
   const handleInputChange = useCallback((text: string) => {
     setInputText(text);
