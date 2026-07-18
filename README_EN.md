@@ -123,6 +123,7 @@ Supports three starting modes—**Ideas**, **Outlines**, and **Page Descriptions
 - **One-Sentence Generation**: Enter a topic, and AI automatically generates a well-structured outline and page-by-page content descriptions.
 - **Natural Language Editing**: Supports modifying outlines or descriptions via Vibe prompts (e.g., "Change page three to a case study"), with AI responding and adjusting in real-time.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual adjustment of details.
+- **Safer Editor Navigation**: The Outline Editor saves changed source input before **Next**. If saving fails, it stays on the page and shows a clear error instead of making unsaved changes look successful.
 - **More Reliable Markdown Import**: The import popup provides a preview of recognized pages before execution and appends pages all at once according to the file order, avoiding formatting issues or uncertain ordering after multi-page imports.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
