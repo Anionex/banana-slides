@@ -54,6 +54,7 @@ The panel shows **Export Failed** only after the backend explicitly reports fail
 - `EXPORT_STYLE_RATE_LIMIT`: retry later or export fewer pages at once.
 - `EXPORT_STYLE_TIMEOUT` / `EXPORT_STYLE_NETWORK`: check the network, proxy, and provider status, then retry.
 - `EXPORT_STYLE_INVALID_RESPONSE` / `EXPORT_STYLE_INCOMPLETE_RESPONSE`: retry or switch to a more reliable vision model.
+- `EXPORT_CONFIGURATION_MISSING`: configure and verify the image caption provider, model, and API key before retrying.
 
 <Note>
   For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).

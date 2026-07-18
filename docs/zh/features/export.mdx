@@ -54,6 +54,7 @@ description: "导出为 PPTX、PDF 或图片"
 - `EXPORT_STYLE_RATE_LIMIT`：上游服务限流，稍后重试或减少一次导出的页数。
 - `EXPORT_STYLE_TIMEOUT` / `EXPORT_STYLE_NETWORK`：样式提取请求超时或连接中断，请检查网络、代理和服务状态后重试。
 - `EXPORT_STYLE_INVALID_RESPONSE` / `EXPORT_STYLE_INCOMPLETE_RESPONSE`：模型返回内容无法解析或缺少元素，可重试或切换更稳定的视觉模型。
+- `EXPORT_CONFIGURATION_MISSING`：缺少 image caption provider、模型或 API Key，请补全并验证设置后重试。
 
 <Note>
   配置 `BAIDU_API_KEY` 可获得最佳提取效果，详见[配置说明](/zh/configuration#百度-api-key)。

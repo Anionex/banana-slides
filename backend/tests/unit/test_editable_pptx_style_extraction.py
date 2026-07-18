@@ -364,6 +364,19 @@ def test_unexpected_export_error_preserves_stage_and_classifies_rate_limit():
     assert error.details["retryable"] is True
 
 
+def test_unexpected_export_error_classifies_missing_provider_configuration():
+    error = ExportService._build_unexpected_export_error(
+        "GOOGLE_API_KEY (from database settings or environment) is required",
+        "准备",
+    )
+
+    assert error.error_code == "EXPORT_CONFIGURATION_MISSING"
+    assert error.error_type == "service"
+    assert error.details["reason"] == "configuration_missing"
+    assert error.details["retryable"] is False
+    assert "image caption provider" in error.help_text
+
+
 def test_text_render_error_is_structured_and_redacts_credentials():
     error = ExportService._build_text_render_error(
         "font lookup failed with api_key=secret-value",

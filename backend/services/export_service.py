@@ -296,6 +296,18 @@ class ExportService:
                 False,
             ),
             (
+                'configuration_missing',
+                (
+                    'api key is required', 'api_key is required',
+                    'google_api_key (from database settings or environment) is required',
+                    'openai_api_key (from database settings or environment) is required',
+                    'not configured', 'missing api key', '未配置', '缺少 api key',
+                ),
+                'CONFIGURATION_MISSING',
+                '缺少图片识别服务配置',
+                False,
+            ),
+            (
                 'authentication',
                 (
                     '401', '403', 'unauthorized', 'forbidden', 'authentication',
@@ -437,6 +449,11 @@ class ExportService:
                 '当前用于图片样式提取的 caption/image_caption 模型不支持图片输入。'
                 '请在设置中改成支持视觉输入的模型，或检查 OpenAI 格式下的 image caption provider / model 配置。'
             )
+        elif reason == 'configuration_missing':
+            help_text = (
+                '图片识别服务缺少必要配置。请在设置中检查 image caption provider、模型和 API Key，'
+                '保存并验证配置后重新导出。'
+            )
         elif reason == 'authentication':
             help_text = (
                 '图片识别服务的认证信息无效或已过期。请在设置中检查 image caption provider，'
@@ -484,10 +501,15 @@ class ExportService:
             'retryable': classification['retryable'],
             'technical_message': ExportService._safe_technical_message(message),
         }
-        help_text = (
-            '请根据失败阶段检查对应服务后重试。如果只想先拿到可编辑结果，'
-            '可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
-        )
+        if classification['reason'] == 'configuration_missing':
+            help_text = (
+                '请在设置中补全 image caption provider、模型和 API Key，保存并验证配置后重新导出。'
+            )
+        else:
+            help_text = (
+                '请根据失败阶段检查对应服务后重试。如果只想先拿到可编辑结果，'
+                '可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+            )
         return ExportError(
             message=f"可编辑导出在“{stage or '导出'}”阶段失败：{summary}",
             error_type='service' if is_external else 'unknown',
