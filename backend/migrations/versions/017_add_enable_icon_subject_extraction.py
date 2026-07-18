@@ -7,12 +7,20 @@ Create Date: 2026-05-03 00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 revision = '017_icon_subject_ext'
 down_revision = '017_add_elevenlabs_to_settings'
 branch_labels = None
 depends_on = None
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [col['name'] for col in inspector.get_columns(table_name)]
+    return column_name in columns
 
 
 def upgrade() -> None:
@@ -23,16 +31,18 @@ def upgrade() -> None:
     transparent-background PNGs. Falls back to the original rectangle crop
     on failure.
     """
-    op.add_column(
-        'projects',
-        sa.Column(
-            'enable_icon_subject_extraction',
-            sa.Boolean(),
-            nullable=True,
-            server_default=sa.true(),
-        ),
-    )
+    if not _column_exists('projects', 'enable_icon_subject_extraction'):
+        op.add_column(
+            'projects',
+            sa.Column(
+                'enable_icon_subject_extraction',
+                sa.Boolean(),
+                nullable=True,
+                server_default=sa.true(),
+            ),
+        )
 
 
 def downgrade() -> None:
-    op.drop_column('projects', 'enable_icon_subject_extraction')
+    if _column_exists('projects', 'enable_icon_subject_extraction'):
+        op.drop_column('projects', 'enable_icon_subject_extraction')

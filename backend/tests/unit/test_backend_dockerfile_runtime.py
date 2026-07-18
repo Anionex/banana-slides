@@ -29,3 +29,10 @@ def test_lazyllm_runtime_provider_dependencies_are_packaged():
     assert any(dep.startswith("volcengine-python-sdk") for dep in dependencies)
     assert any(dep.startswith("zhipuai>=") for dep in dependencies)
     assert any(dep.startswith("dashscope>=") for dep in dependencies)
+
+
+def test_desktop_backend_collects_dynamic_lazyllm_suppliers():
+    spec = Path(__file__).resolve().parents[2] / "banana-slides.spec"
+    content = spec.read_text(encoding="utf-8")
+
+    assert "collect_submodules('lazyllm.module.llms.onlinemodule.supplier')" in content

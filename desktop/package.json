@@ -1,0 +1,41 @@
+{
+  "name": "banana-slides-desktop",
+  "version": "0.9.0",
+  "description": "Banana Slides Desktop App",
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Anionex/banana-slides.git",
+    "directory": "desktop"
+  },
+  "author": "Anionex",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "test": "node --test update-policy.test.js download-manager.test.js storage-config.test.js markdown-image-script.test.js icon-policy.test.js scripts/check-icon-contract.test.js scripts/check-installer-data-root.test.js",
+    "check:icons": "node scripts/check-icon-contract.js",
+    "test:download-session": "electron scripts/test-download-session.js",
+    "prepare": "node scripts/prepare-artifacts.js",
+    "build:meta": "node scripts/sync-build-meta.js",
+    "prebuild:win": "npm run prepare && npm run check:icons && npm run build:meta",
+    "prebuild:mac": "npm run prepare && npm run check:icons && npm run build:meta",
+    "prebuild:linux": "npm run prepare && npm run check:icons && npm run build:meta",
+    "prebuild:all": "npm run prepare && npm run check:icons && npm run build:meta",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac"
+  },
+  "dependencies": {
+    "electron-log": "^5.1.0",
+    "semver": "^7.6.0"
+  },
+  "devDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.6"
+  }
+}

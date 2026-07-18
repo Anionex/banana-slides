@@ -49,6 +49,7 @@ get_default_voice = _tts_mod.get_default_voice
 check_ffmpeg_available = _tts_mod.check_ffmpeg_available
 check_ffmpeg_ass_filter_available = _tts_mod.check_ffmpeg_ass_filter_available
 get_audio_duration = _tts_mod.get_audio_duration
+_derive_ffprobe_path = _tts_mod._derive_ffprobe_path
 KEN_BURNS_EFFECTS = _tts_mod.KEN_BURNS_EFFECTS
 KEN_BURNS_MAX_ZOOM = _tts_mod.KEN_BURNS_MAX_ZOOM
 composite_video = _tts_mod.composite_video
@@ -162,6 +163,25 @@ class TestCheckFfmpegAssFilterAvailable:
 class TestGetAudioDuration:
     """测试音频时长获取"""
 
+    @pytest.mark.parametrize(
+        ('ffmpeg_path', 'expected'),
+        [
+            ('ffmpeg', 'ffprobe'),
+            ('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe'),
+            ('/Applications/FFmpeg Tools/ffmpeg', '/Applications/FFmpeg Tools/ffprobe'),
+            (
+                r'D:\Program Files\Banana Slides\resources\ffmpeg\ffmpeg.exe',
+                r'D:\Program Files\Banana Slides\resources\ffmpeg\ffprobe.exe',
+            ),
+        ],
+    )
+    def test_ffprobe_is_resolved_as_sibling_without_rewriting_parent_folders(
+        self,
+        ffmpeg_path,
+        expected,
+    ):
+        assert _derive_ffprobe_path(ffmpeg_path) == expected
+
     @patch.object(_tts_mod.subprocess, 'run')
     def test_parse_duration(self, mock_run):
         mock_run.return_value = MagicMock(
@@ -170,6 +190,16 @@ class TestGetAudioDuration:
         )
         duration = get_audio_duration('/fake/audio.mp3')
         assert abs(duration - 12.345) < 0.001
+
+    @patch.object(_tts_mod.subprocess, 'run')
+    def test_packaged_windows_ffprobe_command_uses_existing_sibling_location(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout='3.5\n')
+        ffmpeg_path = r'D:\Program Files\Banana Slides\resources\ffmpeg\ffmpeg.exe'
+
+        assert get_audio_duration(r'D:\temp\narration.mp3', ffmpeg_path) == 3.5
+
+        command = mock_run.call_args.args[0]
+        assert command[0] == r'D:\Program Files\Banana Slides\resources\ffmpeg\ffprobe.exe'
 
 
 

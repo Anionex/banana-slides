@@ -16,6 +16,7 @@ const previewI18n = {
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
+      switchedToMulti: "已切换为多模板模式", switchFailed: "切换模板模式失败: {{error}}",
       exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功",
       saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
       loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
@@ -28,6 +29,9 @@ const previewI18n = {
       exportPptx: "导出为 PPTX", exportPdf: "导出为 PDF",
       exportEditablePptx: "导出可编辑 PPTX（Beta）", exportImages: "导出为图片",
       exportVideo: "导出为讲解视频",
+      videoSettingsLoading: "正在加载视频设置...",
+      videoSettingsLoadFailed: "无法加载视频导出设置，请重试后再导出",
+      videoVoicesLoadFailed: "无法加载 ElevenLabs 音色列表，请稍后重试",
       pptxExportTitle: "PPTX 导出设置",
       pptxExportSubtitle: "在导出前确认本次 PPTX 的播放设置。",
       pptxTransitionToggle: "启用页面切换动画",
@@ -86,6 +90,7 @@ const previewI18n = {
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
       projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
+      switchToMulti: "转为多模板", switchToSingle: "转为单模板", templateSetup: "模板配置",
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
@@ -115,6 +120,13 @@ const previewI18n = {
       confirmRegenerateAll: "将重新生成所有页面（历史记录将会保存），确定继续吗？",
       confirmRegenerateTitle: "确认重新生成",
       generationFailed: "生成失败",
+      qualityControl: "质量控制",
+      qualityControlDesc: "生成后先质检，通过才保存版本",
+      qualityControlTooltip: "打开后，系统会先生成图片，但不会马上保存。它会自动检查图片里有没有看不清的字、奇怪的文字、明显粗糙的画面，或和你的要求差太多。发现问题会重新生成，最多试 3 次；通过检查后才会保存成新版本。如果一直不通过，会提示你调整描述。",
+      qualityControlOn: "已开启",
+      qualityControlOff: "已关闭",
+      qualityControlSaved: "质量控制设置已保存",
+      qualityControlSaveFailed: "质量控制设置保存失败",
       disabledExportTip: "本次导出范围还有 {{count}} 页未生成图片，请先生成图片或调整选择范围",
       messages: {
         exportSuccess: "导出成功", exportFailed: "导出失败",
@@ -137,6 +149,7 @@ const previewI18n = {
       versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
+      switchedToMulti: "Switched to multi-template mode", switchFailed: "Failed to switch template mode: {{error}}",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
       exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully",
       saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
@@ -150,6 +163,9 @@ const previewI18n = {
       exportPptx: "Export as PPTX", exportPdf: "Export as PDF",
       exportEditablePptx: "Export Editable PPTX (Beta)", exportImages: "Export as Images",
       exportVideo: "Export as Narration Video",
+      videoSettingsLoading: "Loading video settings...",
+      videoSettingsLoadFailed: "Could not load video export settings. Please retry before exporting.",
+      videoVoicesLoadFailed: "Could not load the ElevenLabs voice list. Please try again later.",
       pptxExportTitle: "PPTX Export Settings",
       pptxExportSubtitle: "Confirm playback settings before exporting this PPTX.",
       pptxTransitionToggle: "Enable slide transitions",
@@ -207,6 +223,7 @@ const previewI18n = {
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
+      switchToMulti: "Switch to multi", switchToSingle: "Switch to single", templateSetup: "Template setup",
       projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
@@ -237,6 +254,13 @@ const previewI18n = {
       confirmRegenerateAll: "Will regenerate all pages (history will be saved). Continue?",
       confirmRegenerateTitle: "Confirm Regenerate",
       generationFailed: "Generation failed",
+      qualityControl: "Quality Control",
+      qualityControlDesc: "Review after generation; save only passing versions",
+      qualityControlTooltip: "When this is on, Banana Slides generates the image first but does not save it right away. It checks for unreadable text, strange text, rough-looking visuals, or a result that is far from your request. If something looks wrong, it tries again up to 3 times. Only a checked image is saved as a new version. If it still fails, you will be asked to adjust your description.",
+      qualityControlOn: "On",
+      qualityControlOff: "Off",
+      qualityControlSaved: "Quality control setting saved",
+      qualityControlSaveFailed: "Failed to save quality control setting",
       disabledExportTip: "{{count}} page(s) in this export range have no images yet. Generate images first or adjust the selection",
       messages: {
         exportSuccess: "Export successful", exportFailed: "Export failed",
@@ -273,18 +297,23 @@ import {
   FileText,
   Loader2,
   Info,
+  Layers,
+  RectangleHorizontal,
+  LayoutTemplate,
 } from 'lucide-react';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { Button, IconButton, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { SwitchToSingleModeDialog } from '@/components/template/SwitchToSingleModeDialog';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
 import { listUserTemplates, type UserTemplate } from '@/api/endpoints';
 import { materialUrlToFile } from '@/components/shared/MaterialSelector';
+import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
-import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings, getElevenLabsVoices } from '@/api/endpoints';
+import { getPageImageVersions, setCurrentImageVersion, updateProject, uploadTemplate, exportPPTX as apiExportPPTX, exportPDF as apiExportPDF, exportImages as apiExportImages, exportEditablePPTX as apiExportEditablePPTX, exportVideo as apiExportVideo, getSettings, getElevenLabsVoices, updateSettings } from '@/api/endpoints';
 import type { ImageVersion, DescriptionContent, ExportExtractorMethod, ExportInpaintMethod, Page, NarrationConfig } from '@/types';
 import { normalizeErrorMessage } from '@/utils';
 
@@ -377,6 +406,10 @@ export const SlidePreview: React.FC = () => {
     taskProgress,
     pageGeneratingTasks,
     warningMessage,
+    templateAssets,
+    loadTemplateAssets,
+    switchTemplateMode,
+    switchTemplateModeWithUpload,
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
@@ -397,9 +430,15 @@ export const SlidePreview: React.FC = () => {
   const [editOutlinePoints, setEditOutlinePoints] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const showExportMenuRef = useRef(false);
+  const setExportMenuOpen = (open: boolean) => {
+    showExportMenuRef.current = open;
+    setShowExportMenu(open);
+  };
   const [showExportTasksPanel, setShowExportTasksPanel] = useState(false);
   const [showPptxExportDialog, setShowPptxExportDialog] = useState(false);
   const [showVideoExportDialog, setShowVideoExportDialog] = useState(false);
+  const [isPreparingVideoExport, setIsPreparingVideoExport] = useState(false);
   const [showEditablePptxDialog, setShowEditablePptxDialog] = useState(false);
   const [editablePptxDialogIconTransparent, setEditablePptxDialogIconTransparent] = useState(true);
   const [pptxTransitionsEnabled, setPptxTransitionsEnabled] = useState(false);
@@ -417,6 +456,8 @@ export const SlidePreview: React.FC = () => {
   const [elevenLabsVoices, setElevenLabsVoices] = useState<{ id: string; name: string; languages?: string[]; accent?: string | null }[]>([]);
   const [elevenLabsVoicesLoading, setElevenLabsVoicesLoading] = useState(false);
   const [outputLanguage, setOutputLanguage] = useState<string>('zh');
+  const [imageQualityControlEnabled, setImageQualityControlEnabled] = useState(false);
+  const [isSavingImageQualityControl, setIsSavingImageQualityControl] = useState(false);
   useEffect(() => { localStorage.setItem('elevenLabsEnabled', String(elevenLabsEnabled)); }, [elevenLabsEnabled]);
   useEffect(() => { if (elevenLabsVoiceId) localStorage.setItem('elevenLabsVoiceId', elevenLabsVoiceId); }, [elevenLabsVoiceId]);
   useEffect(() => { localStorage.setItem('videoSpeed', String(videoSpeed)); }, [videoSpeed]);
@@ -447,6 +488,7 @@ export const SlidePreview: React.FC = () => {
   const isEditingRequirements = useRef(false); // 跟踪用户是否正在编辑额外要求
   const [templateStyle, setTemplateStyle] = useState<string>('');
   const [isSavingTemplateStyle, setIsSavingTemplateStyle] = useState(false);
+  const [isSwitchSingleOpen, setIsSwitchSingleOpen] = useState(false);
   const isEditingTemplateStyle = useRef(false); // 跟踪用户是否正在编辑风格描述
   const lastProjectId = useRef<string | null>(null); // 跟踪上一次的项目ID
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
@@ -500,12 +542,56 @@ export const SlidePreview: React.FC = () => {
 
   // 预览图矩形选择状态（编辑弹窗内）
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const hasTouchedImageQualityControlRef = useRef(false);
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadImageQualityControl = async () => {
+      try {
+        const response = await getSettings();
+        if (response.data && isMounted && !hasTouchedImageQualityControlRef.current) {
+          setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
+        }
+      } catch (error) {
+        console.error('Failed to load image quality control setting:', error);
+      }
+    };
+    loadImageQualityControl();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleToggleImageQualityControl = useCallback(async () => {
+    hasTouchedImageQualityControlRef.current = true;
+    const nextValue = !imageQualityControlEnabled;
+    setImageQualityControlEnabled(nextValue);
+    setIsSavingImageQualityControl(true);
+    try {
+      const response = await updateSettings({ enable_image_quality_control: nextValue });
+      if (response.data) {
+        setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
+        sessionStorage.setItem('banana-settings', JSON.stringify(response.data));
+      }
+      show({ message: t('preview.qualityControlSaved'), type: 'success' });
+    } catch (error: any) {
+      setImageQualityControlEnabled(!nextValue);
+      show({
+        message: `${t('preview.qualityControlSaveFailed')}: ${error?.response?.data?.error?.message || error?.message || t('slidePreview.unknownError')}`,
+        type: 'error',
+      });
+    } finally {
+      setIsSavingImageQualityControl(false);
+    }
+  }, [imageQualityControlEnabled, show, t]);
 
 
   // Memoize pages with generated images to avoid re-computing in multiple places
@@ -549,6 +635,13 @@ export const SlidePreview: React.FC = () => {
     };
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
+
+  // 多模板模式：加载项目模板库（供转单模板弹层使用）
+  useEffect(() => {
+    if (projectId && currentProject?.template_mode === 'multi') {
+      loadTemplateAssets(projectId);
+    }
+  }, [projectId, currentProject?.template_mode, loadTemplateAssets]);
 
   // 监听警告消息
   const lastWarningRef = React.useRef<string | null>(null);
@@ -1197,7 +1290,7 @@ export const SlidePreview: React.FC = () => {
       pptxTransitionEffects?: PptxTransitionEffect[];
     },
   ) => {
-    setShowExportMenu(false);
+    setExportMenuOpen(false);
     if (!projectId) return;
 
     const pageIds = getSelectedPageIdsForExport();
@@ -1225,7 +1318,7 @@ export const SlidePreview: React.FC = () => {
             downloadUrl,
             pageIds: pageIds,
           });
-          window.open(downloadUrl, '_blank');
+          triggerDownload(downloadUrl);
         }
       } else if (type === 'editable-pptx') {
         // Async export - create processing task and start polling
@@ -1336,6 +1429,59 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
+  const handleOpenVideoExport = async () => {
+    if (isPreparingVideoExport) return;
+
+    setIsPreparingVideoExport(true);
+    try {
+      const res = await getSettings();
+      if (!showExportMenuRef.current) return;
+      if (!res || res.success === false || !res.data) {
+        throw new Error('Settings response did not contain usable data');
+      }
+
+      const hasKey = (res.data.elevenlabs_api_key_length ?? 0) > 0;
+      setElevenLabsApiKeyConfigured(hasKey);
+      setOutputLanguage((res.data.output_language as string | undefined) || 'zh');
+      if (!hasKey) setElevenLabsEnabled(false);
+
+      if (hasKey && elevenLabsEnabled && elevenLabsVoices.length === 0) {
+        setElevenLabsVoicesLoading(true);
+        try {
+          const voicesRes = await getElevenLabsVoices();
+          if (!showExportMenuRef.current) return;
+          const voices = voicesRes?.data?.voices ?? [];
+          setElevenLabsVoices(voices);
+          if (voices.length > 0 && !voices.some(voice => voice.id === elevenLabsVoiceId)) {
+            setElevenLabsVoiceId(voices[0].id);
+          }
+        } catch (error: any) {
+          if (!showExportMenuRef.current) return;
+          show({
+            message: error?.response?.data?.error?.message
+              || error?.response?.data?.message
+              || error?.message
+              || t('preview.videoVoicesLoadFailed'),
+            type: 'error',
+          });
+        } finally {
+          setElevenLabsVoicesLoading(false);
+        }
+      }
+
+      if (!showExportMenuRef.current) return;
+      setVideoIncludeNoImage(false);
+      setExportMenuOpen(false);
+      setShowVideoExportDialog(true);
+    } catch (error) {
+      if (!showExportMenuRef.current) return;
+      console.error('Failed to load video export settings:', error);
+      show({ message: t('preview.videoSettingsLoadFailed'), type: 'error' });
+    } finally {
+      setIsPreparingVideoExport(false);
+    }
+  };
+
   const handleRefresh = useCallback(async () => {
     const targetProjectId = projectId || currentProject?.id;
     if (!targetProjectId) {
@@ -1398,6 +1544,34 @@ export const SlidePreview: React.FC = () => {
       setIsSavingTemplateStyle(false);
     }
   }, [currentProject, projectId, templateStyle, syncProject, show]);
+
+  // 模板模式切换
+  const handleSwitchToMulti = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      await switchTemplateMode(projectId, { mode: 'multi' });
+      await syncProject(projectId);
+      show({ message: t('slidePreview.switchedToMulti'), type: 'success' });
+    } catch (error: any) {
+      show({ message: t('slidePreview.switchFailed', { error: error.message || '' }), type: 'error' });
+    }
+  }, [projectId, switchTemplateMode, syncProject, show, t]);
+
+  const handleSwitchToSingleExisting = useCallback(async (assetId: string, unifiedStyleText?: string) => {
+    if (!projectId) return;
+    await switchTemplateMode(projectId, {
+      mode: 'single',
+      unified_asset_id: assetId,
+      unified_style_text: unifiedStyleText ?? null,
+    });
+    await syncProject(projectId);
+  }, [projectId, switchTemplateMode, syncProject]);
+
+  const handleSwitchToSingleUpload = useCallback(async (file: File, unifiedStyleText?: string) => {
+    if (!projectId) return;
+    await switchTemplateModeWithUpload(projectId, file, unifiedStyleText);
+    await syncProject(projectId);
+  }, [projectId, switchTemplateModeWithUpload, syncProject]);
 
   const handleSaveExportSettings = useCallback(async () => {
     if (!currentProject || !projectId) return;
@@ -1593,6 +1767,32 @@ export const SlidePreview: React.FC = () => {
             >
               <span className="hidden xl:inline">{t('preview.projectSettings')}</span>
             </Button>
+            {currentProject?.template_mode === 'multi' ? (
+              <>
+                <IconButton
+                  icon={<LayoutTemplate size={18} />}
+                  label={t('preview.templateSetup')}
+                  tooltipSide="bottom"
+                  onClick={() => navigate(`/project/${projectId}/template-setup`)}
+                  className="hidden lg:inline-flex"
+                />
+                <IconButton
+                  icon={<RectangleHorizontal size={18} />}
+                  label={t('preview.switchToSingle')}
+                  tooltipSide="bottom"
+                  onClick={() => setIsSwitchSingleOpen(true)}
+                  className="hidden lg:inline-flex"
+                />
+              </>
+            ) : (
+              <IconButton
+                icon={<Layers size={18} />}
+                label={t('preview.switchToMulti')}
+                tooltipSide="bottom"
+                onClick={handleSwitchToMulti}
+                className="hidden lg:inline-flex"
+              />
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -1640,7 +1840,7 @@ export const SlidePreview: React.FC = () => {
                 aria-label={t('preview.exportTasks')}
                 onClick={() => {
                   setShowExportTasksPanel(!showExportTasksPanel);
-                  setShowExportMenu(false);
+                  setExportMenuOpen(false);
                 }}
                 className="relative"
               >
@@ -1672,7 +1872,7 @@ export const SlidePreview: React.FC = () => {
               size="sm"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => {
-                setShowExportMenu(!showExportMenu);
+                setExportMenuOpen(!showExportMenu);
                 setShowExportTasksPanel(false);
               }}
               disabled={isMultiSelectMode && selectedPageIds.size === 0}
@@ -1699,7 +1899,7 @@ export const SlidePreview: React.FC = () => {
                 )}
                 <button
                   onClick={() => {
-                    setShowExportMenu(false);
+                    setExportMenuOpen(false);
                     setShowPptxExportDialog(true);
                   }}
                   disabled={!exportRangeHasAllImages}
@@ -1710,7 +1910,7 @@ export const SlidePreview: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    setShowExportMenu(false);
+                    setExportMenuOpen(false);
                     setEditablePptxDialogIconTransparent(currentProject?.enable_icon_subject_extraction ?? true);
                     setShowEditablePptxDialog(true);
                   }}
@@ -1737,34 +1937,14 @@ export const SlidePreview: React.FC = () => {
                   {t('preview.exportImages')}
                 </button>
                 <button
-                  onClick={async () => {
-                    setShowExportMenu(false);
-                    try {
-                      const res = await getSettings();
-                      const hasKey = (res.data?.elevenlabs_api_key_length ?? 0) > 0;
-                      setElevenLabsApiKeyConfigured(hasKey);
-                      const lang = (res.data?.output_language as string | undefined) || 'zh';
-                      setOutputLanguage(lang);
-                      if (!hasKey) setElevenLabsEnabled(false);
-                      if (hasKey && elevenLabsEnabled && elevenLabsVoices.length === 0) {
-                        setElevenLabsVoicesLoading(true);
-                        try {
-                          const voicesRes = await getElevenLabsVoices();
-                          setElevenLabsVoices(voicesRes.data?.voices ?? []);
-                        } catch (error) {
-                          console.error('Failed to load ElevenLabs voices:', error);
-                        }
-                        setElevenLabsVoicesLoading(false);
-                      }
-                  } catch (error) {
-                    console.error('Failed to load settings before video export:', error);
-                  }
-                  setVideoIncludeNoImage(false);
-                  setShowVideoExportDialog(true);
-                }}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm"
+                  onClick={handleOpenVideoExport}
+                  disabled={isPreparingVideoExport}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-background-hover transition-colors text-sm disabled:cursor-wait disabled:opacity-70"
                 >
-                  {t('preview.exportVideo')}
+                  <span className="flex items-center gap-2">
+                    {isPreparingVideoExport && <Loader2 size={14} className="animate-spin" />}
+                    {isPreparingVideoExport ? t('preview.videoSettingsLoading') : t('preview.exportVideo')}
+                  </span>
                 </button>
               </div>
             )}
@@ -2446,6 +2626,37 @@ export const SlidePreview: React.FC = () => {
 
                   {/* 操作 */}
                   <div className="flex items-center gap-1.5 md:gap-2 w-full sm:w-auto justify-center">
+                    <div className="group/qc relative flex items-center gap-2 px-1.5 py-1">
+                      <span className="hidden md:inline text-xs font-medium text-gray-700 dark:text-foreground-secondary whitespace-nowrap">
+                        {t('preview.qualityControl')}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={imageQualityControlEnabled}
+                        aria-label={t('preview.qualityControl')}
+                        onClick={handleToggleImageQualityControl}
+                        disabled={isSavingImageQualityControl}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-banana-500 focus:ring-offset-2 disabled:opacity-60 ${
+                          imageQualityControlEnabled ? 'bg-banana-500' : 'bg-gray-300 dark:bg-background-hover'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            imageQualityControlEnabled ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span
+                        data-testid="quality-control-tooltip"
+                        className="absolute left-1/2 bottom-full z-50 mb-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-xs leading-relaxed text-gray-700 opacity-0 shadow-lg transition-opacity pointer-events-none group-hover/qc:opacity-100 group-focus-within/qc:opacity-100 dark:border-border-primary dark:bg-background-elevated dark:text-foreground-secondary"
+                      >
+                        <span className="mb-1 block font-medium text-gray-900 dark:text-foreground-primary">
+                          {imageQualityControlEnabled ? t('preview.qualityControlOn') : t('preview.qualityControlOff')}
+                        </span>
+                        {t('preview.qualityControlTooltip')}
+                      </span>
+                    </div>
                     {/* 手机端：模板更换按钮 */}
                     <Button
                       variant="ghost"
@@ -2970,6 +3181,15 @@ export const SlidePreview: React.FC = () => {
           />
         </>
       )}
+
+      {/* 多→单模板切换弹层 */}
+      <SwitchToSingleModeDialog
+        isOpen={isSwitchSingleOpen}
+        onClose={() => setIsSwitchSingleOpen(false)}
+        assets={templateAssets}
+        onConfirmExisting={handleSwitchToSingleExisting}
+        onConfirmUpload={handleSwitchToSingleUpload}
+      />
 
       {/* 1K分辨率警告对话框 */}
       <Modal

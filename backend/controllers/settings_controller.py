@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
@@ -23,11 +24,35 @@ from services.task_manager import task_manager
 from services.update_check_service import check_for_update
 
 logger = logging.getLogger(__name__)
-ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "lazyllm", "codex"} | LAZYLLM_VENDORS
+ALLOWED_PROVIDER_FORMATS = {"openai", "gemini", "volcengine", "lazyllm", "codex"} | LAZYLLM_VENDORS
 
 settings_bp = Blueprint(
     "settings", __name__, url_prefix="/api/settings"
 )
+
+
+PROVIDER_API_CONFIG_KEYS = {
+    "gemini": ("GOOGLE_API_KEY", "GOOGLE_API_BASE"),
+    "openai": ("OPENAI_API_KEY", "OPENAI_API_BASE"),
+    "volcengine": ("VOLCENGINE_API_KEY", "VOLCENGINE_API_BASE"),
+}
+
+
+def _provider_api_config_keys(provider_format):
+    """Return provider-specific config keys for the global API key/base override."""
+    return PROVIDER_API_CONFIG_KEYS.get((provider_format or "").lower())
+
+
+def _provider_api_env_defaults():
+    """Return provider API config values from .env-backed Config defaults."""
+    return {
+        "GOOGLE_API_KEY": Config.GOOGLE_API_KEY,
+        "OPENAI_API_KEY": Config.OPENAI_API_KEY,
+        "VOLCENGINE_API_KEY": Config.VOLCENGINE_API_KEY,
+        "GOOGLE_API_BASE": Config.GOOGLE_API_BASE,
+        "OPENAI_API_BASE": Config.OPENAI_API_BASE,
+        "VOLCENGINE_API_BASE": Config.VOLCENGINE_API_BASE,
+    }
 
 
 @contextmanager
@@ -49,18 +74,23 @@ def temporary_settings_override(settings_override: dict):
     original_values = {}
 
     try:
-        # 应用覆盖设置
-        if settings_override.get("api_key"):
-            original_values["GOOGLE_API_KEY"] = current_app.config.get("GOOGLE_API_KEY")
-            original_values["OPENAI_API_KEY"] = current_app.config.get("OPENAI_API_KEY")
-            current_app.config["GOOGLE_API_KEY"] = settings_override["api_key"]
-            current_app.config["OPENAI_API_KEY"] = settings_override["api_key"]
+        active_format = (
+            settings_override.get("ai_provider_format")
+            or current_app.config.get("AI_PROVIDER_FORMAT")
+            or Config.AI_PROVIDER_FORMAT
+        )
+        provider_keys = _provider_api_config_keys(active_format)
 
-        if settings_override.get("api_base_url"):
-            original_values["GOOGLE_API_BASE"] = current_app.config.get("GOOGLE_API_BASE")
-            original_values["OPENAI_API_BASE"] = current_app.config.get("OPENAI_API_BASE")
-            current_app.config["GOOGLE_API_BASE"] = settings_override["api_base_url"]
-            current_app.config["OPENAI_API_BASE"] = settings_override["api_base_url"]
+        # 应用覆盖设置
+        if settings_override.get("api_key") and provider_keys:
+            key_config, _ = provider_keys
+            original_values[key_config] = current_app.config.get(key_config)
+            current_app.config[key_config] = settings_override["api_key"]
+
+        if settings_override.get("api_base_url") and provider_keys:
+            _, base_config = provider_keys
+            original_values[base_config] = current_app.config.get(base_config)
+            current_app.config[base_config] = settings_override["api_base_url"]
 
         if settings_override.get("ai_provider_format"):
             original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
@@ -322,6 +352,9 @@ def update_settings():
                 return bad_request("Image thinking budget must be between 1 and 8192")
             settings.image_thinking_budget = budget
 
+        if "enable_image_quality_control" in data:
+            settings.enable_image_quality_control = bool(data["enable_image_quality_control"])
+
         # Update Baidu OCR configuration
         if "baidu_api_key" in data:
             settings.baidu_api_key = data["baidu_api_key"] or None
@@ -416,6 +449,7 @@ def reset_settings():
         settings.text_thinking_budget = 1024
         settings.enable_image_reasoning = False
         settings.image_thinking_budget = 1024
+        settings.enable_image_quality_control = False
         settings.description_generation_mode = None
         settings.description_extra_fields = None
         settings.image_prompt_extra_fields = None
@@ -527,6 +561,7 @@ def get_active_config():
         "image_model": current_app.config.get("IMAGE_MODEL"),
         "output_language": current_app.config.get("OUTPUT_LANGUAGE"),
         "image_caption_model": current_app.config.get("IMAGE_CAPTION_MODEL"),
+        "enable_image_quality_control": current_app.config.get("ENABLE_IMAGE_QUALITY_CONTROL", False),
     })
 
 
@@ -645,41 +680,25 @@ def _sync_settings_to_config(settings: Settings):
         logger.info(f"AI provider format changed: {old_format} -> {new_format}")
     current_app.config["AI_PROVIDER_FORMAT"] = new_format
     
-    # Sync API configuration (sync to both GOOGLE_* and OPENAI_* to ensure DB settings override env vars)
-    if settings.api_base_url is not None:
-        old_base = current_app.config.get("GOOGLE_API_BASE")
-        if old_base != settings.api_base_url:
-            ai_config_changed = True
-            logger.info(f"API base URL changed: {old_base} -> {settings.api_base_url}")
-        current_app.config["GOOGLE_API_BASE"] = settings.api_base_url
-        current_app.config["OPENAI_API_BASE"] = settings.api_base_url
-    else:
-        # Restore .env defaults (pop would permanently lose .env values)
-        env_base_google = Config.GOOGLE_API_BASE
-        env_base_openai = Config.OPENAI_API_BASE
-        if current_app.config.get("GOOGLE_API_BASE") != env_base_google or current_app.config.get("OPENAI_API_BASE") != env_base_openai:
-            ai_config_changed = True
-            logger.info("API base URL cleared, falling back to .env defaults")
-        current_app.config["GOOGLE_API_BASE"] = env_base_google
-        current_app.config["OPENAI_API_BASE"] = env_base_openai
+    env_api_defaults = _provider_api_env_defaults()
+    provider_keys = _provider_api_config_keys(new_format)
 
-    if settings.api_key is not None:
-        old_key = current_app.config.get("GOOGLE_API_KEY")
-        # Compare actual values to detect any change (but don't log the keys for security)
-        if old_key != settings.api_key:
+    target_api_config = dict(env_api_defaults)
+    if provider_keys:
+        key_config, base_config = provider_keys
+        if settings.api_key is not None:
+            target_api_config[key_config] = settings.api_key
+        if settings.api_base_url is not None:
+            target_api_config[base_config] = settings.api_base_url
+
+    for config_key, target_value in target_api_config.items():
+        if current_app.config.get(config_key) != target_value:
             ai_config_changed = True
-            logger.info("API key updated")
-        current_app.config["GOOGLE_API_KEY"] = settings.api_key
-        current_app.config["OPENAI_API_KEY"] = settings.api_key
-    else:
-        # Restore .env defaults (pop would permanently lose .env values)
-        env_key_google = Config.GOOGLE_API_KEY
-        env_key_openai = Config.OPENAI_API_KEY
-        if current_app.config.get("GOOGLE_API_KEY") != env_key_google or current_app.config.get("OPENAI_API_KEY") != env_key_openai:
-            ai_config_changed = True
-            logger.info("API key cleared, falling back to .env defaults")
-        current_app.config["GOOGLE_API_KEY"] = env_key_google
-        current_app.config["OPENAI_API_KEY"] = env_key_openai
+            if config_key.endswith("_API_KEY"):
+                logger.info(f"{config_key} updated")
+            else:
+                logger.info(f"{config_key} changed: {current_app.config.get(config_key)} -> {target_value}")
+        current_app.config[config_key] = target_value
     
     # Check model changes
     new_text_model = settings.text_model or Config.TEXT_MODEL
@@ -734,6 +753,7 @@ def _sync_settings_to_config(settings: Settings):
     current_app.config["TEXT_THINKING_BUDGET"] = settings.text_thinking_budget
     current_app.config["ENABLE_IMAGE_REASONING"] = settings.enable_image_reasoning
     current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
+    current_app.config["ENABLE_IMAGE_QUALITY_CONTROL"] = getattr(settings, "enable_image_quality_control", False)
     
     # Sync Baidu OCR settings (fall back to Config default when NULL)
     current_app.config["BAIDU_API_KEY"] = settings.baidu_api_key or Config.BAIDU_API_KEY
@@ -804,10 +824,23 @@ def _sync_settings_to_config(settings: Settings):
 
 
 def _get_test_image_path() -> Path:
-    test_image = Path(PROJECT_ROOT) / "assets" / "test_img.png"
-    if not test_image.exists():
-        raise FileNotFoundError("未找到 test_img.png，请确认已放在项目根目录 assets 下")
-    return test_image
+    candidates = [Path(PROJECT_ROOT) / "assets" / "test_img.png"]
+
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        pyinstaller_root = getattr(sys, "_MEIPASS", None)
+        if pyinstaller_root:
+            candidates.append(Path(pyinstaller_root) / "assets" / "test_img.png")
+        candidates.extend([
+            exe_dir / "assets" / "test_img.png",
+            exe_dir / "_internal" / "assets" / "test_img.png",
+        ])
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError("未找到 test_img.png，请确认打包资源或项目根目录 assets 下存在该文件")
 
 
 def _get_baidu_credentials():

@@ -1,0 +1,192 @@
+---
+title: "桌面版"
+description: "安装桌面应用、本地打包和发布验证"
+---
+
+桌面版使用 Electron 承载前端，并通过 PyInstaller 打包后的内置后端提供 API。它适合本地使用场景：不需要手动启动浏览器端前后端服务，也不依赖 Docker 容器运行。
+
+<Note>
+  桌面版仍然需要配置可用的模型服务密钥。首次启动后进入「设置」填写 provider、模型和 API Key；配置会写入本机应用数据目录。
+</Note>
+
+## 安装已发布版本
+
+从 [GitHub Releases](https://github.com/Anionex/banana-slides/releases) 下载与系统匹配的安装包。
+
+| 系统 | 产物 | 安装方式 |
+|------|------|----------|
+| Windows | `BananaSlides-<version>-Setup.exe` | 双击 NSIS 安装包，按向导安装 |
+| macOS | `BananaSlides-<version>.dmg` | 打开 DMG，将 Banana Slides 拖入 Applications |
+| Linux | `BananaSlides-<version>.AppImage` / `BananaSlides-<version>.deb` | AppImage 赋予执行权限后运行，或用系统包管理器安装 deb |
+
+桌面版会把数据库、上传文件、素材和导出文件放在用户可写的数据存储目录，而不是安装包资源目录。升级应用前仍建议备份重要项目数据。
+
+## 数据存储位置
+
+Windows 首次安装时，安装向导会分别显示“程序安装位置”和“数据存储位置”。程序安装位置只保存应用本身；数据存储位置保存项目数据库、生成图片、上传素材和导出缓存。macOS 和 Linux 首次启动时使用系统默认应用数据目录。
+
+所有桌面平台都可以在完整的「系统设置」页面查看和修改数据存储位置。新路径通过校验后，点击“保存并重启”才会生效。浏览器版和项目内的“全局设置”弹窗不显示此选项。
+
+<Warning>
+  Banana Slides 只负责校验和切换路径，不会自动复制或删除数据。选择不包含现有数据库的目录时，应用会明确提示该位置将作为全新数据目录使用。
+</Warning>
+
+### 手动迁移到其他磁盘
+
+1. 在「设置 → 数据存储位置」点击“打开当前目录”，记下旧路径。
+2. 从系统托盘菜单选择“退出”。只关闭窗口会将应用隐藏到托盘，后端仍可能写入数据库。
+3. 将旧目录中的 `data/`、`uploads/`、`exports/` 完整复制到新目录；先复制，不要直接剪切或删除旧数据。
+4. 重新打开 Banana Slides，在系统设置中填写或选择新目录，然后点击“保存并重启”。
+5. 确认历史项目、图片和素材均可正常打开后，再自行删除旧目录中的副本。
+
+数据存储位置不包含 Chromium 缓存、应用日志及少量启动配置，因此修改后系统默认应用数据目录仍会保留少量文件。v1 仅支持本地文件系统目录，不支持 Windows UNC 或其他网络共享路径。如果自定义磁盘在启动时不可访问，应用会要求选择其他目录或退出，不会静默切回默认目录。
+
+桌面安装包没有源码部署中的项目根目录 `.env`。请在应用内「设置」页面填写 API Provider、Base URL、模型和 API Key；这些配置会持久化到应用数据目录的本地数据库。模型配置中的 Provider 优先于上方「默认 API 配置」；下拉框选择「默认配置」时会使用上方配置。如果服务测试显示了意外的 Provider（例如配置 Gemini 却提示 MiniMax），请将对应模型的 Provider 改为「默认配置」，保存后再测试。
+
+连接 OpenAI/Codex 账号时，桌面版会在系统浏览器打开 OAuth 登录页。浏览器回调页显示 `Connected` 后，应用会自动轮询本地后端并更新为「已连接」，不需要手动刷新。应用重新获得焦点时也会立即补查。Web 回调失败或 popup 提前关闭时会结束「连接中」状态；任一模式等待超过两分钟也会结束并给出提示。Web 部署仍使用 popup 的 `postMessage` 回调，浏览器拦截弹窗时会直接提示用户允许弹窗。
+
+桌面端导出会打开系统保存对话框。选择目标位置后，应用会等待文件实际写入并校验文件非空，再判定下载成功；若下载被中断、超时或目标文件没有写入，会显示包含目标路径的错误提示。预览页「导出任务」面板中的任务文件和历史导出文件也会经过同一套桌面保存流程。
+
+## 本地运行与打包前置条件
+
+本地打包需要同时准备前端、后端和 Electron 依赖：
+
+- Node.js 20+
+- Python 3.11
+- uv
+- PyInstaller
+- Electron 依赖（在 `desktop/` 下安装）
+- macOS / Linux 默认使用 `desktop` npm 依赖提供的平台 FFmpeg/FFprobe；也可以通过 `FFMPEG_BIN` / `FFPROBE_BIN` 指定可信本地二进制，或使用 `PATH` 中的兜底命令
+- Windows 默认下载固定版本的静态 FFmpeg 并校验 SHA256；也可以通过 `FFMPEG_BIN` / `FFPROBE_BIN` 指定可信本地二进制
+
+<Note>
+  `desktop/electron-builder.yml` 当前配置 Windows x64 NSIS 安装包、macOS arm64 DMG，以及 Linux x64 AppImage/deb。跨平台打包建议优先使用对应系统或 GitHub Actions runner。
+</Note>
+
+## 本地打包
+
+从仓库根目录开始执行：
+
+```bash
+cd frontend
+npm ci
+npm run build
+
+cd ../backend
+uv sync
+uv pip install pyinstaller
+uv run pyinstaller banana-slides.spec --noconfirm
+
+cd ../desktop
+npm ci
+npm run build:mac
+```
+
+Windows 打包在 Windows 环境中执行最后一步：
+
+```powershell
+cd desktop
+npm ci
+npm run build:win
+```
+
+Linux 打包：
+
+```bash
+cd desktop
+npm ci
+npm run build:linux
+```
+
+`npm run build:*` 会先运行 `desktop/scripts/prepare-artifacts.js` 和 `desktop/scripts/sync-build-meta.js`：
+
+- 将 `frontend/dist/` 复制到 `desktop/frontend/`
+- 将 `backend/dist/banana-backend/` 复制到 `desktop/backend/`
+- 复制或生成 FFmpeg、macOS 图标等资源
+- 生成 `desktop/build-meta.json`，供更新检测判断当前构建是否新于 GitHub Release
+
+打包输出位于 `desktop/dist/`。
+
+## Release flow
+
+桌面版 release 由 `.github/workflows/release-desktop.yml` 驱动。推送 `v*` tag 后会触发：
+
+1. 从 tag 同步 `desktop/package.json` 版本号。
+2. 构建前端静态文件。
+3. 使用 uv 安装后端依赖，并用 PyInstaller 打包 `backend/banana-slides.spec`。
+4. 安装 Electron 依赖。
+5. 在 Windows、macOS、Linux runner 上分别运行 `npm run build:win`、`npm run build:mac`、`npm run build:linux`。
+6. 将 `desktop/dist/*` 上传到 GitHub draft Release。
+
+发布 draft Release 前需要人工检查产物命名、版本号、平台覆盖和 release notes。自动更新检测读取 `Anionex/banana-slides` 的最新 GitHub Release，并结合 `build-meta.json` 中的提交时间判断是否提示更新。
+
+## 签名与分发限制
+
+当前配置可以生成安装包，但不等于已完成正式签名分发。
+
+- Windows：未签名安装包可能触发 SmartScreen 或“未知发布者”提示。正式分发前应使用代码签名证书签名安装包和可执行文件。
+- macOS：未完成 Apple Developer ID 签名和 notarization 的 DMG / App 可能被 Gatekeeper 阻止。正式分发前应接入签名、notarization 和 stapling。
+- 自动更新：当前实现是检查 GitHub Releases 并提示下载新版本，不是静默增量更新。
+- 架构限制：当前 macOS 配置为 arm64，Windows 配置为 x64；如需 Intel Mac 或 Windows arm64，需要补充 electron-builder target。
+
+<Warning>
+  不要为了跳过系统安全提示而关闭用户机器的全局安全策略。验收未签名包时，只按 Windows/macOS 对单个应用提供的手动允许流程处理。
+</Warning>
+
+## Windows EXE 验证
+
+Windows 验证至少覆盖：
+
+1. 使用 GitHub Actions Windows runner 或本机 Windows 环境生成 `BananaSlides-<version>-Setup.exe`。
+2. 安装包可打开，安装路径可选择，桌面/开始菜单快捷方式按配置创建。
+3. 启动应用后能看到桌面窗口和启动页，内置后端正常启动。
+4. 在应用内打开「设置」，保存一组模型配置后刷新仍能回显。
+5. 创建一个项目，执行一次预览页导出或下载动作，确认桌面下载路径可用。
+6. 退出应用后确认后端进程随桌面应用关闭。
+
+如使用 CI 作为 Windows 打包验证，需要在 PR 或 release 记录中附上成功的 workflow run 链接和产物名称。
+
+## macOS DMG 验证
+
+macOS 验证至少覆盖：
+
+1. 在 macOS runner 或本机执行 `npm run build:mac`，生成 `BananaSlides-<version>.dmg`。
+2. 挂载 DMG 后应用图标和名称正确，可拖入 Applications。
+3. 从 Applications 启动应用；若系统提示未验证开发者，仅按单应用允许流程继续。
+4. 桌面窗口加载完成后，内置后端 `/health` 正常，前端请求使用桌面端实际后端端口。
+5. 图片 URL、长任务轮询或 SSE、导出/下载路径至少验证一个真实工作流。
+6. 在「设置」发起一次 OpenAI OAuth，确认系统浏览器回调成功后应用无需刷新即可显示已连接。
+7. 关闭窗口并退出应用后，确认无残留的打包后端进程。
+
+## 常见问题
+
+### 启动后提示后端不可用
+
+先确认安装包内包含 `desktop/backend/` 资源，以及系统没有安全软件阻止内置后端进程启动。开发或打包验证时也要确认 PyInstaller 已生成 `backend/dist/banana-backend/`。
+
+### 配置 Gemini 却提示其他 Provider
+
+文本、图像生成和图片识别模型都可以设置自己的 Provider，并优先于默认 API。返回「设置 → 模型配置」，将出现意外 Provider 的模型改为「默认配置」，保存后重新运行服务测试。桌面版不需要也不会在安装目录中创建 `.env`。
+
+### 浏览器显示 OpenAI 已连接，但应用仍在等待
+
+桌面版会每秒查询一次本地 OAuth 状态，并在应用重新获得焦点时立即补查，正常情况下无需刷新。若等待超过两分钟，应用会结束连接状态并提示重试；也可以展开「登录后连接失败？」并粘贴浏览器地址栏中的完整回调 URL。请同时确认内置后端仍在运行，且没有安全软件阻止本机请求。
+
+### 桌面端选择保存位置后没有文件
+
+桌面端会在文件真正写入目标位置后才返回成功。如果下载被中断、超时或写入后文件缺失/为空，应用会显示「文件没有保存成功」以及本次选择的目标路径；请按提示重新保存。也可以打开预览页「导出任务」面板，点击对应任务或历史文件的「下载」重新选择位置。
+
+### 打包时提示找不到 frontend 或 backend 资源
+
+先分别完成 `frontend/dist/` 和 `backend/dist/banana-backend/` 构建，再进入 `desktop/` 运行 `npm run build:*`。
+
+### macOS 打包时找不到 FFmpeg
+
+安装 FFmpeg，或设置：
+
+```bash
+export FFMPEG_BIN=/absolute/path/to/ffmpeg
+export FFPROBE_BIN=/absolute/path/to/ffprobe
+```
+
+然后重新运行 `npm run build:mac`。

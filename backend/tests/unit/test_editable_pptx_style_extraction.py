@@ -1,8 +1,10 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import services.export_service as export_service_module
 from services.export_service import ExportError, ExportService
+from services.image_editability.extractors import MinerUElementExtractor
 from services.image_editability.text_attribute_extractors import TextStyleResult
 
 
@@ -308,3 +310,24 @@ def test_hybrid_style_extraction_fails_after_global_result_retries_are_exhausted
         assert extractor.calls == 3
         assert exc.error_type == "style_extraction"
         assert "全局识别未返回完整结果" in exc.message
+
+
+def test_mineru_extractor_finds_results_under_configured_upload_folder(tmp_path):
+    """Editable export must look for MinerU artifacts in the desktop UPLOAD_FOLDER root."""
+    desktop_uploads = tmp_path / "banana-slides-desktop" / "uploads"
+    extract_id = "f58159a1"
+    result_dir = desktop_uploads / "mineru_files" / extract_id
+    result_dir.mkdir(parents=True)
+
+    image_path = tmp_path / "slide.png"
+    image_path.write_bytes(b"fake image")
+
+    parser_service = MagicMock()
+    parser_service.parse_file.return_value = (None, "markdown", extract_id, None, 0)
+    extractor = MinerUElementExtractor(parser_service, desktop_uploads)
+
+    with patch("services.export_service.ExportService.create_pdf_from_images", return_value=None):
+        found_dir, error = extractor._parse_image(str(image_path), depth=0)
+
+    assert error is None
+    assert Path(found_dir) == result_dir.resolve()

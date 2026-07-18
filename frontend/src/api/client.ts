@@ -1,18 +1,97 @@
 import axios from 'axios';
+import { isDesktop } from '@/utils';
 
-// 开发环境：通过 Vite proxy 转发
-// 生产环境：通过 nginx proxy 转发
-const API_BASE_URL = '';
+const DESKTOP_BACKEND_PORT_STORAGE_KEY = '__desktop_backend_port__';
+
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port > 0 && port <= 65535;
+}
+
+function parsePort(value: unknown): number {
+  return Number.parseInt(String(value ?? ''), 10);
+}
+
+function resolveDesktopBackendPort(): number {
+  const rawPort = (window as any).electronAPI?.getBackendPort?.();
+  const port = parsePort(rawPort);
+  if (isValidPort(port)) {
+    sessionStorage.setItem(DESKTOP_BACKEND_PORT_STORAGE_KEY, String(port));
+    return port;
+  }
+
+  const cachedPort = parsePort(sessionStorage.getItem(DESKTOP_BACKEND_PORT_STORAGE_KEY));
+  if (isValidPort(cachedPort)) {
+    return cachedPort;
+  }
+
+  console.warn('Desktop backend port is unavailable');
+  return 0;
+}
+
+const isClientSideUrl = (url: string) => /^\/?(data|blob):/i.test(url);
+const normalizeClientSideUrl = (url: string) => url.replace(/^\/(?=(data|blob):)/i, '');
+
+// 桌面模式：从 URL query param 同步读取后端端口，避免异步竞态
+if (isDesktop) {
+  (window as any).__BACKEND_PORT__ = resolveDesktopBackendPort();
+}
+
+export function getBaseURL(): string {
+  if (!isDesktop) return '';
+  const port = (window as any).__BACKEND_PORT__;
+  if (!isValidPort(port)) {
+    console.warn('Desktop backend port is unavailable');
+    return 'http://127.0.0.1:0';
+  }
+  return `http://127.0.0.1:${port}`;
+}
+
+// 统一下载入口：desktop 走原生保存对话框，web 走 window.open
+export function triggerDownload(relativeOrAbsoluteUrl: string, filename?: string): void {
+  if (!relativeOrAbsoluteUrl || typeof relativeOrAbsoluteUrl !== 'string') {
+    console.warn('Invalid download URL:', relativeOrAbsoluteUrl);
+    return;
+  }
+
+  if (isDesktop) {
+    if (isClientSideUrl(relativeOrAbsoluteUrl)) {
+      const url = normalizeClientSideUrl(relativeOrAbsoluteUrl);
+      (window as any).electronAPI.downloadFile(url, filename || 'download');
+      return;
+    }
+
+    const normalizedPath = relativeOrAbsoluteUrl.startsWith('/')
+      ? relativeOrAbsoluteUrl
+      : `/${relativeOrAbsoluteUrl}`;
+    const url = /^https?:\/\//i.test(relativeOrAbsoluteUrl)
+      ? relativeOrAbsoluteUrl
+      : `${getBaseURL()}${normalizedPath}`;
+    let fallbackFilename = 'download';
+    try {
+      fallbackFilename = new URL(url).pathname.split('/').pop() || 'download';
+    } catch {
+      fallbackFilename = relativeOrAbsoluteUrl.split('?')[0].split('/').filter(Boolean).pop() || 'download';
+    }
+    (window as any).electronAPI.downloadFile(url, filename || fallbackFilename);
+  } else {
+    window.open(relativeOrAbsoluteUrl, '_blank');
+  }
+}
 
 // 创建 axios 实例
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   timeout: 300000, // 5分钟超时（AI生成可能很慢）
 });
 
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    const hasAbsoluteBaseURL = typeof config.baseURL === 'string' && /^https?:\/\//i.test(config.baseURL);
+    const hasAbsoluteRequestURL = typeof config.url === 'string' && /^https?:\/\//i.test(config.url);
+    if (!hasAbsoluteBaseURL && !hasAbsoluteRequestURL) {
+      config.baseURL = getBaseURL();
+    }
+
     // Attach access code header for backend enforcement
     const accessCode = localStorage.getItem('banana-access-code');
     if (accessCode && config.headers) {
@@ -63,12 +142,20 @@ apiClient.interceptors.response.use(
 // 使用相对路径，通过代理转发到后端
 export const getImageUrl = (path?: string, timestamp?: string | number): string => {
   if (!path) return '';
+  if (isClientSideUrl(path)) {
+    return normalizeClientSideUrl(path);
+  }
+
   // 如果已经是完整URL，直接返回
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
   // 使用相对路径（确保以 / 开头）
   let url = path.startsWith('/') ? path : '/' + path;
+
+  if (isDesktop) {
+    url = `${getBaseURL()}${url}`;
+  }
   
   // 添加时间戳参数避免浏览器缓存（仅在提供时间戳时添加）
   if (timestamp) {
@@ -82,4 +169,3 @@ export const getImageUrl = (path?: string, timestamp?: string | number): string 
 };
 
 export default apiClient;
-

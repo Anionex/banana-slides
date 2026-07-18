@@ -122,7 +122,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal,
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject, addPage } from '@/api/endpoints';
+import { refineOutline, updateProject, addPages } from '@/api/endpoints';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
@@ -241,10 +241,14 @@ export const OutlineEditor: React.FC = () => {
   useEffect(() => {
     if (!fileMenuOpen && !settingsOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const element = target instanceof Element ? target : target.parentElement;
+      if (element?.closest('[role="dialog"]')) return;
+      if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
         setFileMenuOpen(false);
       }
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      if (settingsRef.current && !settingsRef.current.contains(target)) {
         setSettingsOpen(false);
       }
     };
@@ -472,14 +476,14 @@ export const OutlineEditor: React.FC = () => {
         throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
-        addPage(projectId, {
+      await addPages(projectId, parsed.map(({ title, points, text: desc, part, extra_fields }, i) => (
+        {
           outline_content: { title, points },
           description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
-        })
-      ));
+        }
+      )));
       await syncProject(projectId);
       show({ message: t('outline.messages.importSuccess'), type: 'success' });
     } catch (error) {

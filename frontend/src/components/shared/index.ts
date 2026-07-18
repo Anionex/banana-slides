@@ -1,4 +1,5 @@
 export { Button } from './Button';
+export { IconButton } from './IconButton';
 export { Input } from './Input';
 export { Textarea } from './Textarea';
 export { Card } from './Card';
@@ -30,3 +31,5 @@ export { ExportTasksPanel } from './ExportTasksPanel';
 export { AccessCodeGuard } from './AccessCodeGuard';
 export { TextStyleSelector } from './TextStyleSelector';
 export { Pagination } from './Pagination';
+export { DesktopTitleBar } from './DesktopTitleBar';
+export { UpdateChecker } from './UpdateChecker';

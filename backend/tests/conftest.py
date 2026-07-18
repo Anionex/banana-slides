@@ -33,7 +33,9 @@ def app():
     temp_db = os.path.join(temp_dir, 'test.db')
     
     # 设置测试数据库路径
-    os.environ['DATABASE_URL'] = f'sqlite:///{temp_db}'
+    os.environ['DATABASE_PATH'] = temp_db
+    os.environ.pop('DATABASE_URL', None)
+    os.environ.pop('ACCESS_CODE', None)
     
     # 现在导入app
     from app import create_app
@@ -81,13 +83,21 @@ def client(app):
 
 @pytest.fixture(scope='function')
 def db_session(app):
-    """创建数据库会话"""
+    """创建数据库会话。
+
+    清理时只删除行、不 drop_all：app fixture 是 session 级，表只建一次，
+    若在此处 drop_all 会把表删掉，导致后续依赖 client fixture 的测试
+    报 "no such table"。
+    """
     with app.app_context():
         from models import db
         db.create_all()
         yield db.session
+        db.session.rollback()
+        for table in reversed(db.metadata.sorted_tables):
+            db.session.execute(table.delete())
+        db.session.commit()
         db.session.remove()
-        db.drop_all()
 
 
 @pytest.fixture
