@@ -300,12 +300,12 @@ export const OutlineEditor: React.FC = () => {
       }
 
       try {
-        const field = creationType === 'outline'
+        const field: 'outline_text' | 'description_text' | 'idea_prompt' = creationType === 'outline'
           ? 'outline_text'
           : creationType === 'descriptions'
             ? 'description_text'
             : 'idea_prompt';
-        const response = await updateProject(projectId, { [field]: text } as any);
+        const response = await updateProject(projectId, { [field]: text });
         useProjectStore.setState((state) => {
           const activeProjectId = state.currentProject?.id || state.currentProject?.project_id;
           if (!state.currentProject || activeProjectId !== projectId) return state;
