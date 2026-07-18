@@ -6,7 +6,9 @@ import os
 import io
 import shutil
 import time
+import uuid
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, request, current_app
@@ -383,6 +385,7 @@ def export_editable_pptx(project_id):
         {
             "filename": "optional_custom_name.pptx",
             "page_ids": ["id1", "id2"],  // 可选，要导出的页面ID列表（不提供则导出所有）
+            "client_task_id": "uuid",     // 可选，用于安全重试创建请求
             "max_depth": 1,      // 可选，递归深度（默认1=不递归，2=递归一层）
             "max_workers": 4     // 可选，并发数（默认4）
         }
@@ -410,6 +413,33 @@ def export_editable_pptx(project_id):
         
         # Get parameters from request body
         data = request.get_json() or {}
+
+        client_task_id = data.get('client_task_id')
+        if client_task_id is not None:
+            try:
+                client_task_id = str(uuid.UUID(str(client_task_id)))
+            except (ValueError, TypeError, AttributeError):
+                return bad_request("client_task_id must be a valid UUID")
+
+            existing_task = db.session.get(Task, client_task_id)
+            if existing_task:
+                if (
+                    existing_task.project_id != project_id
+                    or existing_task.task_type != 'EXPORT_EDITABLE_PPTX'
+                ):
+                    return error_response(
+                        'EXPORT_TASK_ID_CONFLICT',
+                        'client_task_id is already used by another task',
+                        409,
+                    )
+                return success_response(
+                    data={
+                        "task_id": existing_task.id,
+                        "method": "recursive_analysis",
+                        "reused": True,
+                    },
+                    message="Existing export task returned",
+                )
         
         # Get page_ids from request body and fetch filtered pages
         selected_page_ids = parse_page_ids_from_body(data)
@@ -443,53 +473,82 @@ def export_editable_pptx(project_id):
             return bad_request("max_workers must be an integer between 1 and 16")
         
         # Create task record
-        task = Task(
-            project_id=project_id,
-            task_type='EXPORT_EDITABLE_PPTX',
-            status='PENDING'
-        )
+        task_kwargs = {
+            'project_id': project_id,
+            'task_type': 'EXPORT_EDITABLE_PPTX',
+            'status': 'PENDING',
+        }
+        if client_task_id:
+            task_kwargs['id'] = client_task_id
+        task = Task(**task_kwargs)
         db.session.add(task)
         db.session.commit()
         
         logger.info(f"Created export task {task.id} for project {project_id} (recursive analysis: depth={max_depth}, workers={max_workers})")
         
-        # Get services
-        from services.file_service import FileService
-        from services.task_manager import task_manager, export_editable_pptx_with_recursive_analysis_task
-        
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        
-        # Get Flask app instance for background task
-        app = current_app._get_current_object()
-        
-        # 读取项目的导出设置
-        export_extractor_method = project.export_extractor_method or 'hybrid'
-        export_inpaint_method = project.export_inpaint_method or 'hybrid'
-        enable_icon_subject_extraction = (
-            True if project.enable_icon_subject_extraction is None
-            else bool(project.enable_icon_subject_extraction)
-        )
-        logger.info(
-            f"Export settings: extractor={export_extractor_method}, "
-            f"inpaint={export_inpaint_method}, "
-            f"icon_subject_extraction={enable_icon_subject_extraction}"
-        )
+        try:
+            # Get services
+            from services.file_service import FileService
+            from services.task_manager import task_manager, export_editable_pptx_with_recursive_analysis_task
 
-        # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
-        task_manager.submit_task(
-            task.id,
-            export_editable_pptx_with_recursive_analysis_task,
-            project_id=project_id,
-            filename=filename,
-            file_service=file_service,
-            page_ids=selected_page_ids if selected_page_ids else None,
-            max_depth=max_depth,
-            max_workers=max_workers,
-            export_extractor_method=export_extractor_method,
-            export_inpaint_method=export_inpaint_method,
-            enable_icon_subject_extraction=enable_icon_subject_extraction,
-            app=app
-        )
+            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+            # Get Flask app instance for background task
+            app = current_app._get_current_object()
+
+            # 读取项目的导出设置
+            export_extractor_method = project.export_extractor_method or 'hybrid'
+            export_inpaint_method = project.export_inpaint_method or 'hybrid'
+            enable_icon_subject_extraction = (
+                True if project.enable_icon_subject_extraction is None
+                else bool(project.enable_icon_subject_extraction)
+            )
+            logger.info(
+                f"Export settings: extractor={export_extractor_method}, "
+                f"inpaint={export_inpaint_method}, "
+                f"icon_subject_extraction={enable_icon_subject_extraction}"
+            )
+
+            # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
+            task_manager.submit_task(
+                task.id,
+                export_editable_pptx_with_recursive_analysis_task,
+                project_id=project_id,
+                filename=filename,
+                file_service=file_service,
+                page_ids=selected_page_ids if selected_page_ids else None,
+                max_depth=max_depth,
+                max_workers=max_workers,
+                export_extractor_method=export_extractor_method,
+                export_inpaint_method=export_inpaint_method,
+                enable_icon_subject_extraction=enable_icon_subject_extraction,
+                app=app
+            )
+        except Exception as submission_error:
+            logger.exception("Failed to submit editable export task %s", task.id)
+            failure_message = "可编辑导出任务未能进入后台队列"
+            task.status = 'FAILED'
+            task.error_message = failure_message
+            task.completed_at = datetime.utcnow()
+            task.set_progress({
+                'total': 100,
+                'completed': 0,
+                'failed': 1,
+                'current_step': '任务提交失败',
+                'percent': 0,
+                'backend_status': 'FAILED',
+                'error_code': 'EXPORT_TASK_SUBMISSION_FAILED',
+                'error_type': 'internal',
+                'error_stage': 'queue_submission',
+                'error_details': {
+                    'stage': 'queue_submission',
+                    'retryable': True,
+                    'technical_message': ExportService._safe_technical_message(submission_error),
+                },
+                'help_text': '后台任务队列暂时不可用，请稍后重新导出。',
+            })
+            db.session.commit()
+            return error_response('EXPORT_TASK_SUBMISSION_FAILED', failure_message, 503)
         
         logger.info(f"Submitted recursive export task {task.id} to task manager")
         

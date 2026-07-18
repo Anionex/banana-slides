@@ -23,14 +23,17 @@ class AnthropicTextProvider(TextProvider):
             api_base: API base URL (e.g., https://api.anthropic.com)
             model: Model name to use
         """
+        config = get_config()
         self.client = Anthropic(
             api_key=api_key,
             base_url=api_base,
-            timeout=get_config().OPENAI_TIMEOUT,
-            max_retries=get_config().OPENAI_MAX_RETRIES
+            timeout=config.OPENAI_TIMEOUT,
+            max_retries=config.OPENAI_MAX_RETRIES
         )
         self.model = model
-        self.max_tokens = get_config().ANTHROPIC_MAX_TOKENS
+        self.max_tokens = config.ANTHROPIC_MAX_TOKENS
+        self.request_timeout_seconds = config.OPENAI_TIMEOUT
+        self.max_attempts = config.OPENAI_MAX_RETRIES + 1
 
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """

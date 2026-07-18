@@ -1809,6 +1809,40 @@ def export_editable_pptx_with_recursive_analysis_task(
 
         logger.info(f"开始递归分析导出任务 {task_id} for project {project_id}")
 
+        current_stage = "准备"
+
+        def persist_export_failure(failure: ExportError):
+            """Persist a terminal backend failure without discarding the last real progress."""
+            failed_task = Task.query.get(task_id)
+            if not failed_task:
+                return
+
+            previous_progress = failed_task.get_progress()
+            previous_messages = previous_progress.get('messages') or []
+            display_stage = {
+                'style_extraction': '样式提取',
+                'export': '导出',
+            }.get(failure.stage, failure.stage)
+            failed_task.status = 'FAILED'
+            failed_task.error_message = failure.message
+            failed_task.completed_at = datetime.utcnow()
+            failed_task.set_progress({
+                **previous_progress,
+                "total": previous_progress.get('total', 100),
+                "completed": previous_progress.get('completed', previous_progress.get('percent', 0)),
+                "failed": 1,
+                "current_step": f"{display_stage}失败",
+                "percent": previous_progress.get('percent', 0),
+                "messages": [*previous_messages, f"[{display_stage}] {failure.message}"][-10:],
+                "backend_status": "FAILED",
+                "error_code": failure.error_code,
+                "error_type": failure.error_type,
+                "error_stage": failure.stage,
+                "error_details": failure.details,
+                "help_text": failure.help_text,
+            })
+            db.session.commit()
+
         try:
             # Get project
             project = Project.query.get(project_id)
@@ -1859,8 +1893,9 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             def progress_callback(step: str, message: str, percent: int):
                 """更新任务进度到数据库"""
-                nonlocal progress_messages
+                nonlocal progress_messages, current_stage
                 try:
+                    current_stage = step
                     # 添加新消息到日志
                     new_message = f"[{step}] {message}"
                     progress_messages.append(new_message)
@@ -1979,41 +2014,16 @@ def export_editable_pptx_with_recursive_analysis_task(
             logger.error(f"✗ 任务 {task_id} 导出失败: {e.message}")
             logger.error(f"错误类型: {e.error_type}, 详情: {e.details}")
 
-            # 标记任务失败，包含详细错误信息
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                # 构建详细的错误消息
-                error_message = f"{e.message}"
-                if e.help_text:
-                    error_message += f"\n\n💡 {e.help_text}"
-                task.error_message = error_message
-                task.completed_at = datetime.utcnow()
-                # 在 progress 中保存详细错误信息
-                task.set_progress({
-                    "total": 100,
-                    "completed": 0,
-                    "failed": 1,
-                    "current_step": "导出失败",
-                    "percent": 0,
-                    "error_type": e.error_type,
-                    "error_details": e.details,
-                    "help_text": e.help_text
-                })
-                db.session.commit()
+            persist_export_failure(e)
 
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
             logger.error(f"✗ 任务 {task_id} 失败: {error_detail}")
 
-            # 标记任务失败
-            task = Task.query.get(task_id)
-            if task:
-                task.status = 'FAILED'
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                db.session.commit()
+            persist_export_failure(
+                ExportService._build_unexpected_export_error(str(e), current_stage)
+            )
 
 
 def export_video_task(

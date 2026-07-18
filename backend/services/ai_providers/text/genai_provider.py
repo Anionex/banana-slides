@@ -58,6 +58,9 @@ class GenAITextProvider(TextProvider):
             location=location,
         )
         self.model = model
+        config = get_config()
+        self.request_timeout_seconds = config.GENAI_TIMEOUT
+        self.max_attempts = config.GENAI_MAX_RETRIES + 1
     
     @retry(
         stop=stop_after_attempt(get_config().GENAI_MAX_RETRIES + 1),

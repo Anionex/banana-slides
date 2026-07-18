@@ -155,6 +155,8 @@ def test_hybrid_style_extraction_fails_fast_when_provider_has_no_image_input(tmp
         assert False, "expected ExportError"
     except ExportError as exc:
         assert exc.error_type == "style_extraction"
+        assert exc.error_code == "EXPORT_STYLE_MODEL_UNSUPPORTED"
+        assert exc.details["reason"] == "unsupported_model"
         assert "不支持图片输入" in exc.message
         assert "image caption" in exc.help_text
 
@@ -204,7 +206,8 @@ def test_hybrid_style_extraction_retries_non_dict_global_results(tmp_path):
     except ExportError as exc:
         assert extractor.calls == 3
         assert exc.error_type == "style_extraction"
-        assert "Expected dict or None" in exc.message
+        assert exc.error_code == "EXPORT_STYLE_INVALID_RESPONSE"
+        assert "Expected dict or None" in exc.details["technical_message"]
 
 
 def test_hybrid_style_extraction_reports_only_missing_global_results(tmp_path):
@@ -256,7 +259,9 @@ def test_hybrid_style_extraction_keeps_last_error_when_no_global_results(tmp_pat
     except ExportError as exc:
         assert extractor.calls == 3
         assert exc.error_type == "style_extraction"
-        assert "upstream timeout" in exc.message
+        assert exc.error_code == "EXPORT_STYLE_TIMEOUT"
+        assert exc.details["reason"] == "timeout"
+        assert "upstream timeout" in exc.details["technical_message"]
 
 
 def test_hybrid_style_extraction_merges_partial_global_results_across_retries(tmp_path):
@@ -309,7 +314,70 @@ def test_hybrid_style_extraction_fails_after_global_result_retries_are_exhausted
     except ExportError as exc:
         assert extractor.calls == 3
         assert exc.error_type == "style_extraction"
-        assert "全局识别未返回完整结果" in exc.message
+        assert exc.error_code == "EXPORT_STYLE_INCOMPLETE_RESPONSE"
+        assert "全局识别未返回完整结果" in exc.details["technical_message"]
+
+
+def test_style_extraction_error_includes_safe_provider_context():
+    provider = type(
+        "CodexTextProvider",
+        (),
+        {"model": "gpt-5.4", "request_timeout_seconds": 120, "max_attempts": 5},
+    )()
+    ai_service = type(
+        "AIServiceStub",
+        (),
+        {"caption_model": "gpt-5.4", "caption_provider": provider},
+    )()
+    extractor = type("ExtractorStub", (), {"ai_service": ai_service})()
+
+    error = ExportService._build_style_extraction_error(
+        "upstream timed out with access_token=secret-value, Authorization: Bearer sk-super-secret-token",
+        page_idx=2,
+        text_attribute_extractor=extractor,
+        operation="global_page_style",
+    )
+
+    assert error.error_code == "EXPORT_STYLE_TIMEOUT"
+    assert error.stage == "style_extraction"
+    assert error.details["page"] == 3
+    assert error.details["operation"] == "global_page_style"
+    assert error.details["model"] == "gpt-5.4"
+    assert error.details["provider"] == "CodexTextProvider"
+    assert error.details["request_timeout_seconds"] == 120
+    assert error.details["max_attempts"] == 5
+    assert "secret-value" not in error.details["technical_message"]
+    assert "sk-super-secret-token" not in error.details["technical_message"]
+    assert "Bearer ***" not in error.details["technical_message"]
+
+
+def test_unexpected_export_error_preserves_stage_and_classifies_rate_limit():
+    error = ExportService._build_unexpected_export_error(
+        "HTTP 429 Too Many Requests",
+        "背景修复",
+    )
+
+    assert error.error_code == "EXPORT_RATE_LIMIT"
+    assert error.error_type == "service"
+    assert error.stage == "背景修复"
+    assert error.details["reason"] == "rate_limit"
+    assert error.details["retryable"] is True
+
+
+def test_text_render_error_is_structured_and_redacts_credentials():
+    error = ExportService._build_text_render_error(
+        "font lookup failed with api_key=secret-value",
+        text="hello",
+        bbox=[1, 2, 3, 4],
+        element_kind="文本元素",
+    )
+
+    assert error.error_code == "EXPORT_TEXT_RENDER_FAILED"
+    assert error.stage == "text_render"
+    assert error.details["element_kind"] == "文本元素"
+    assert error.details["bbox"] == [1, 2, 3, 4]
+    assert error.details["retryable"] is False
+    assert "secret-value" not in error.details["technical_message"]
 
 
 def test_mineru_extractor_finds_results_under_configured_upload_folder(tmp_path):

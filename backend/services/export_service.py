@@ -37,7 +37,15 @@ class ExportError(Exception):
     当 fail_fast=True 时，任何导出错误都会抛出此异常，
     包含详细的错误信息和帮助提示。
     """
-    def __init__(self, message: str, error_type: str = 'unknown', details: Dict[str, Any] = None, help_text: str = None):
+    def __init__(
+        self,
+        message: str,
+        error_type: str = 'unknown',
+        details: Dict[str, Any] = None,
+        help_text: str = None,
+        error_code: str = 'EXPORT_FAILED',
+        stage: str = None,
+    ):
         """
         Args:
             message: 错误消息
@@ -50,6 +58,8 @@ class ExportError(Exception):
         self.error_type = error_type
         self.details = details or {}
         self.help_text = help_text or self._get_default_help_text(error_type)
+        self.error_code = error_code
+        self.stage = stage or self.details.get('stage') or 'export'
 
     def _get_default_help_text(self, error_type: str) -> str:
         """根据错误类型返回默认帮助提示"""
@@ -68,6 +78,8 @@ class ExportError(Exception):
         return {
             'message': self.message,
             'error_type': self.error_type,
+            'error_code': self.error_code,
+            'stage': self.stage,
             'details': self.details,
             'help_text': self.help_text
         }
@@ -268,14 +280,150 @@ class ExportService:
     # 使用方式: from services.image_editability import InpaintProviderFactory
 
     @staticmethod
+    def _classify_external_failure(message: str) -> Dict[str, Any]:
+        """Classify an upstream failure without collapsing every case into a timeout."""
+        lowered = str(message or '').lower()
+
+        classifications = (
+            (
+                'unsupported_model',
+                (
+                    '不支持图片输入', 'does not support image', 'support image input',
+                    'unsupported image', 'image_url is only supported',
+                ),
+                'MODEL_UNSUPPORTED',
+                '图片识别模型不支持图片输入',
+                False,
+            ),
+            (
+                'authentication',
+                (
+                    '401', '403', 'unauthorized', 'forbidden', 'authentication',
+                    'invalid api key', 'invalid_api_key', 'api key not valid',
+                    'token expired', '登录已过期',
+                ),
+                'AUTHENTICATION',
+                '图片识别服务认证失败或登录已过期',
+                False,
+            ),
+            (
+                'rate_limit',
+                ('429', 'rate limit', 'too many requests', 'qps request limit', '请求过于频繁'),
+                'RATE_LIMIT',
+                '图片识别服务触发限流',
+                True,
+            ),
+            (
+                'timeout',
+                ('timeout', 'timed out', 'deadline exceeded', 'gateway timeout'),
+                'TIMEOUT',
+                '图片识别服务请求超时',
+                True,
+            ),
+            (
+                'network',
+                (
+                    'ssl', 'connection aborted', 'connection reset', 'connection error',
+                    'network error', 'unexpected_eof', 'eof occurred', 'chunkedencoding',
+                    'remote end closed', 'max retries exceeded', 'connection refused',
+                ),
+                'NETWORK',
+                '连接图片识别服务时网络中断',
+                True,
+            ),
+            (
+                'invalid_response',
+                (
+                    'json', '无法解析', 'invalid control character', 'empty response',
+                    '空响应', 'expected dict',
+                ),
+                'INVALID_RESPONSE',
+                '图片识别模型返回了无法解析的内容',
+                True,
+            ),
+            (
+                'incomplete_response',
+                ('未返回完整结果', 'missing result', 'incomplete'),
+                'INCOMPLETE_RESPONSE',
+                '图片识别模型返回结果不完整',
+                True,
+            ),
+            (
+                'upstream_service',
+                ('500', '502', '503', '504', 'service unavailable', 'bad gateway'),
+                'UPSTREAM_SERVICE',
+                '图片识别服务暂时不可用',
+                True,
+            ),
+        )
+
+        for reason, needles, code_suffix, summary, retryable in classifications:
+            if any(needle in lowered for needle in needles):
+                return {
+                    'reason': reason,
+                    'code_suffix': code_suffix,
+                    'summary': summary,
+                    'retryable': retryable,
+                }
+
+        return {
+            'reason': 'unknown',
+            'code_suffix': 'FAILED',
+            'summary': '图片识别服务调用失败',
+            'retryable': False,
+        }
+
+    @staticmethod
+    def _safe_technical_message(message: str) -> str:
+        """Keep a short diagnostic hint while removing common credential shapes."""
+        text = str(message or '').strip()
+        text = re.sub(
+            r'(?i)(authorization|api[_ -]?key|access[_ -]?token|refresh[_ -]?token)'
+            r'(\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+',
+            r'\1\2***',
+            text,
+        )
+        text = re.sub(r'(?i)\bbearer\s+[a-z0-9._~+/=-]+', 'Bearer ***', text)
+        text = re.sub(r'\b(?:sk|AIza|ya29\.)[-_A-Za-z0-9.]{12,}\b', '***', text)
+        return text[:500]
+
+    @staticmethod
+    def _style_extractor_context(text_attribute_extractor: Any) -> Dict[str, Any]:
+        ai_service = getattr(text_attribute_extractor, 'ai_service', None)
+        provider = getattr(ai_service, 'caption_provider', None)
+        model = getattr(ai_service, 'caption_model', None) or getattr(provider, 'model', None)
+        context: Dict[str, Any] = {}
+        if provider is not None:
+            context['provider'] = provider.__class__.__name__
+        if model:
+            context['model'] = str(model)
+        timeout_seconds = getattr(provider, 'request_timeout_seconds', None)
+        max_attempts = getattr(provider, 'max_attempts', None)
+        if timeout_seconds is not None:
+            context['request_timeout_seconds'] = timeout_seconds
+        if max_attempts is not None:
+            context['max_attempts'] = max_attempts
+        return context
+
+    @staticmethod
     def _build_style_extraction_error(
         message: str,
         *,
         element_id: Optional[str] = None,
         text_content: Optional[str] = None,
-        page_idx: Optional[int] = None
+        page_idx: Optional[int] = None,
+        text_attribute_extractor: Any = None,
+        operation: str = 'style_extraction',
     ) -> ExportError:
-        details: Dict[str, Any] = {}
+        classification = ExportService._classify_external_failure(message)
+        details: Dict[str, Any] = {
+            'stage': 'style_extraction',
+            'operation': operation,
+            'reason': classification['reason'],
+            'retryable': classification['retryable'],
+            'technical_message': ExportService._safe_technical_message(message),
+            **ExportService._style_extractor_context(text_attribute_extractor),
+        }
         if element_id:
             details['element_id'] = element_id
         if text_content:
@@ -283,24 +431,32 @@ class ExportService:
         if page_idx is not None:
             details['page'] = page_idx + 1
 
-        lowered = message.lower()
-        if '不支持图片输入' in message or 'support image input' in lowered:
+        reason = classification['reason']
+        if reason == 'unsupported_model':
             help_text = (
                 '当前用于图片样式提取的 caption/image_caption 模型不支持图片输入。'
                 '请在设置中改成支持视觉输入的模型，或检查 OpenAI 格式下的 image caption provider / model 配置。'
             )
-        elif (
-            'ssl' in lowered
-            or 'unexpected_eof_while_reading' in lowered
-            or 'eof occurred in violation of protocol' in lowered
-            or 'max retries exceeded' in lowered
-            or 'connection aborted' in lowered
-            or 'connection reset' in lowered
-        ) and ('codex' in lowered or 'chatgpt' in lowered):
+        elif reason == 'authentication':
             help_text = (
-                '连接 Codex 服务时网络中断，导致文本样式提取失败。'
-                '请稍后重试；如果反复出现，可重新登录 Codex/OpenAI 后再试。'
+                '图片识别服务的认证信息无效或已过期。请在设置中检查 image caption provider，'
+                '如果使用 Codex，请重新登录 OpenAI 账号。'
+            )
+        elif reason == 'rate_limit':
+            help_text = (
+                '图片识别服务当前请求过于频繁。系统已完成自动重试；请稍后再次导出，'
+                '或减少一次导出的页数。'
+            )
+        elif reason in {'timeout', 'network', 'upstream_service'}:
+            help_text = (
+                '图片识别服务在文本样式提取阶段暂时没有稳定响应。请稍后重试；'
+                '如果反复出现，请检查网络、代理及 image caption provider 状态。'
                 '若只想先拿到可编辑结果，也可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+            )
+        elif reason in {'invalid_response', 'incomplete_response'}:
+            help_text = (
+                '图片识别模型返回的结构化结果不完整或无法解析。请重试，或切换更稳定的视觉模型；'
+                '也可以开启「返回半成品」以跳过失败的样式。'
             )
         else:
             help_text = (
@@ -309,10 +465,60 @@ class ExportService:
             )
 
         return ExportError(
-            message=f"文本样式提取失败: {message}",
+            message=f"文本样式提取失败：{classification['summary']}",
             error_type='style_extraction',
             details=details,
             help_text=help_text,
+            error_code=f"EXPORT_STYLE_{classification['code_suffix']}",
+            stage='style_extraction',
+        )
+
+    @staticmethod
+    def _build_unexpected_export_error(message: str, stage: str) -> ExportError:
+        classification = ExportService._classify_external_failure(message)
+        is_external = classification['reason'] != 'unknown'
+        summary = classification['summary'] if is_external else '导出过程发生内部错误'
+        details = {
+            'stage': stage or 'export',
+            'reason': classification['reason'],
+            'retryable': classification['retryable'],
+            'technical_message': ExportService._safe_technical_message(message),
+        }
+        help_text = (
+            '请根据失败阶段检查对应服务后重试。如果只想先拿到可编辑结果，'
+            '可以在「项目设置 -> 导出设置」中开启「返回半成品」。'
+        )
+        return ExportError(
+            message=f"可编辑导出在“{stage or '导出'}”阶段失败：{summary}",
+            error_type='service' if is_external else 'unknown',
+            details=details,
+            help_text=help_text,
+            error_code=f"EXPORT_{classification['code_suffix']}" if is_external else 'EXPORT_INTERNAL_ERROR',
+            stage=stage or 'export',
+        )
+
+    @staticmethod
+    def _build_text_render_error(
+        message: str,
+        *,
+        text: str,
+        bbox: List[int],
+        element_kind: str,
+    ) -> ExportError:
+        return ExportError(
+            message=f"内容写入失败：无法添加{element_kind}",
+            error_type='text_render',
+            details={
+                'stage': 'text_render',
+                'element_kind': element_kind,
+                'text': text[:50],
+                'bbox': bbox,
+                'retryable': False,
+                'technical_message': ExportService._safe_technical_message(message),
+            },
+            help_text='请检查失败元素中的特殊字符、公式或字体；也可以开启「返回半成品」跳过该元素。',
+            error_code='EXPORT_TEXT_RENDER_FAILED',
+            stage='text_render',
         )
     
     @staticmethod
@@ -1185,7 +1391,9 @@ class ExportService:
                         raise ExportService._build_style_extraction_error(
                             error_msg,
                             element_id=element_id,
-                            text_content=text_content
+                            text_content=text_content,
+                            text_attribute_extractor=text_attribute_extractor,
+                            operation='local_element_style',
                         )
                     return element_id, None, error_msg
             except ExportError:
@@ -1196,7 +1404,9 @@ class ExportService:
                     raise ExportService._build_style_extraction_error(
                         str(e),
                         element_id=element_id,
-                        text_content=text_content
+                        text_content=text_content,
+                        text_attribute_extractor=text_attribute_extractor,
+                        operation='local_element_style',
                     )
                 return element_id, None, str(e)
         
@@ -1228,7 +1438,12 @@ class ExportService:
                     missing_element_ids = expected_element_ids - set(page_results.keys())
                     if page_error:
                         if fail_fast:
-                            raise ExportService._build_style_extraction_error(page_error, page_idx=page_idx)
+                            raise ExportService._build_style_extraction_error(
+                                page_error,
+                                page_idx=page_idx,
+                                text_attribute_extractor=text_attribute_extractor,
+                                operation='global_page_style',
+                            )
                         failed_extractions.extend(
                             (element_id, f"全局识别失败: {page_error}")
                             for element_id in expected_element_ids
@@ -1236,14 +1451,24 @@ class ExportService:
                     elif missing_element_ids:
                         reason = "全局识别未返回完整结果"
                         if fail_fast:
-                            raise ExportService._build_style_extraction_error(reason, page_idx=page_idx)
+                            raise ExportService._build_style_extraction_error(
+                                reason,
+                                page_idx=page_idx,
+                                text_attribute_extractor=text_attribute_extractor,
+                                operation='global_page_style',
+                            )
                         failed_extractions.extend((element_id, reason) for element_id in missing_element_ids)
                 except Exception as e:
                     logger.error(f"全局识别任务失败: {e}")
                     if fail_fast:
                         if isinstance(e, ExportError):
                             raise
-                        raise ExportService._build_style_extraction_error(str(e), page_idx=page_idx) from e
+                        raise ExportService._build_style_extraction_error(
+                            str(e),
+                            page_idx=page_idx,
+                            text_attribute_extractor=text_attribute_extractor,
+                            operation='global_page_style',
+                        ) from e
                     expected_element_ids = [
                         element['element_id'] for element in page_text_elements[page_idx]['elements']
                     ]
@@ -1671,10 +1896,11 @@ class ExportService:
                         except Exception as e:
                             logger.warning(f"添加文本元素失败: {e}")
                             if fail_fast:
-                                raise ExportError(
-                                    message=f"添加文本元素失败: {str(e)}",
-                                    error_type='text_render',
-                                    details={'text': text[:50], 'bbox': bbox_list}
+                                raise ExportService._build_text_render_error(
+                                    str(e),
+                                    text=text,
+                                    bbox=bbox_list,
+                                    element_kind='文本元素',
                                 )
                             if warnings:
                                 warnings.add_text_render_failed(text, str(e))
@@ -1698,10 +1924,11 @@ class ExportService:
                         except Exception as e:
                             logger.warning(f"添加单元格失败: {e}")
                             if fail_fast:
-                                raise ExportError(
-                                    message=f"添加表格单元格失败: {str(e)}",
-                                    error_type='text_render',
-                                    details={'text': text[:50], 'bbox': bbox_list}
+                                raise ExportService._build_text_render_error(
+                                    str(e),
+                                    text=text,
+                                    bbox=bbox_list,
+                                    element_kind='表格单元格',
                                 )
                             if warnings:
                                 warnings.add_text_render_failed(text, str(e))

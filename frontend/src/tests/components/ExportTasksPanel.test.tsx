@@ -6,6 +6,7 @@ import { useExportTasksStore } from '@/store/useExportTasksStore';
 
 const mockListExports = vi.fn();
 const mockTriggerDownload = vi.fn();
+const originalRestoreActiveTasks = useExportTasksStore.getState().restoreActiveTasks;
 
 vi.mock('@/api/endpoints', () => ({
   listExports: (...args: unknown[]) => mockListExports(...args),
@@ -16,15 +17,19 @@ vi.mock('@/api/client', () => ({
   triggerDownload: (...args: unknown[]) => mockTriggerDownload(...args),
 }));
 
-describe('ExportTasksPanel desktop download routing', () => {
+describe('ExportTasksPanel', () => {
   beforeEach(() => {
     mockListExports.mockReset();
     mockTriggerDownload.mockReset();
-    useExportTasksStore.setState({ tasks: [] });
+    useExportTasksStore.setState({
+      tasks: [],
+      restoreActiveTasks: originalRestoreActiveTasks,
+    });
   });
 
   it('routes task and exported-file downloads through the shared desktop-aware helper', async () => {
     useExportTasksStore.setState({
+      restoreActiveTasks: vi.fn(),
       tasks: [{
         id: 'export-1',
         taskId: 'task-1',
@@ -70,5 +75,77 @@ describe('ExportTasksPanel desktop download routing', () => {
         'saved-result.pptx',
       );
     });
+  });
+
+  it('explains that an interrupted status check is not a backend export failure', async () => {
+    useExportTasksStore.setState({
+      restoreActiveTasks: vi.fn(),
+      tasks: [{
+        id: 'export-monitoring',
+        taskId: 'task-monitoring',
+        projectId: 'project-1',
+        type: 'editable-pptx',
+        status: 'RUNNING',
+        progress: { total: 100, completed: 50, percent: 50 },
+        monitoring: {
+          state: 'paused',
+          code: 'EXPORT_STATUS_GATEWAY_TIMEOUT',
+          message: '状态查询经过网关时超时 (HTTP 504)。后台任务状态未知。',
+          consecutiveErrors: 3,
+          lastErrorAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+      }],
+    });
+    mockListExports.mockResolvedValue({ data: { files: [] } });
+
+    render(<ExportTasksPanel projectId="project-1" />);
+
+    expect(await screen.findByText(/这不代表后台导出失败|does not mean the backend export failed/)).toBeInTheDocument();
+    expect(screen.getByText(/HTTP 504/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /重新查询|Check Again/ })).toBeInTheDocument();
+    expect(screen.queryByText(/^导出失败$|^Export Failed$/)).not.toBeInTheDocument();
+  });
+
+  it('shows the backend-confirmed failure stage, provider, model, and retry policy', async () => {
+    useExportTasksStore.setState({
+      tasks: [{
+        id: 'export-failed',
+        taskId: 'task-failed',
+        projectId: 'project-1',
+        type: 'editable-pptx',
+        status: 'FAILED',
+        errorMessage: '文本样式提取失败：图片识别服务请求超时',
+        progress: {
+          total: 100,
+          completed: 50,
+          percent: 50,
+          backend_status: 'FAILED',
+          error_code: 'EXPORT_STYLE_TIMEOUT',
+          error_stage: 'style_extraction',
+          error_details: {
+            reason: 'timeout',
+            provider: 'CodexTextProvider',
+            model: 'gpt-5.4',
+            request_timeout_seconds: 120,
+            max_attempts: 5,
+            technical_message: 'Read timed out after retries',
+          },
+          help_text: '请稍后重试。',
+        },
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      }],
+    });
+    mockListExports.mockResolvedValue({ data: { files: [] } });
+
+    render(<ExportTasksPanel projectId="project-1" />);
+
+    expect(await screen.findByText('文本样式提取失败：图片识别服务请求超时')).toBeInTheDocument();
+    expect(screen.getByText('EXPORT_STYLE_TIMEOUT')).toBeInTheDocument();
+    expect(screen.getByText('CodexTextProvider')).toBeInTheDocument();
+    expect(screen.getByText('gpt-5.4')).toBeInTheDocument();
+    expect(screen.getByText(/120.*5/)).toBeInTheDocument();
+    expect(screen.getByText(/技术原因|Technical reason/)).toBeInTheDocument();
   });
 });

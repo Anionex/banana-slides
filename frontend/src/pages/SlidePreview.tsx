@@ -14,6 +14,7 @@ const previewI18n = {
       pageGenerating: "该页面正在生成中，请稍候...", generationStarted: "已开始生成图片，请稍候...",
       versionSwitched: "已切换到该版本", outlineSaved: "大纲和描述已保存",
       materialsAdded: "已添加 {{count}} 个素材", exportStarted: "导出任务已开始，可在导出任务面板查看进度",
+      exportStartResponseLost: "创建导出任务的响应中断，正在用任务编号确认后台状态；这不代表导出失败",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
       switchedToMulti: "已切换为多模板模式", switchFailed: "切换模板模式失败: {{error}}",
@@ -148,6 +149,7 @@ const previewI18n = {
       pageGenerating: "This page is generating, please wait...", generationStarted: "Image generation started, please wait...",
       versionSwitched: "Switched to this version", outlineSaved: "Outline and description saved",
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
+      exportStartResponseLost: "The create-task response was interrupted. Checking the backend with the reserved task ID; this does not mean the export failed",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
       switchedToMulti: "Switched to multi-template mode", switchFailed: "Failed to switch template mode: {{error}}",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
@@ -1295,6 +1297,7 @@ export const SlidePreview: React.FC = () => {
 
     const pageIds = getSelectedPageIdsForExport();
     const exportTaskId = `export-${Date.now()}`;
+    const backendTaskId = type === 'editable-pptx' ? crypto.randomUUID() : undefined;
 
     try {
       if (type === 'pptx' || type === 'pdf' || type === 'images') {
@@ -1324,7 +1327,7 @@ export const SlidePreview: React.FC = () => {
         // Async export - create processing task and start polling
         addTask({
           id: exportTaskId,
-          taskId: '', // Will be updated below
+          taskId: backendTaskId!,
           projectId,
           type: 'editable-pptx',
           status: 'PROCESSING',
@@ -1333,7 +1336,7 @@ export const SlidePreview: React.FC = () => {
         
         show({ message: t('slidePreview.exportStarted'), type: 'success' });
         
-        const response = await apiExportEditablePPTX(projectId, undefined, pageIds);
+        const response = await apiExportEditablePPTX(projectId, undefined, pageIds, backendTaskId);
         const taskId = response.data?.task_id;
         
         if (taskId) {
@@ -1414,6 +1417,35 @@ export const SlidePreview: React.FC = () => {
       }
 
       const normalizedErrorMessage = normalizeErrorMessage(errorMessage);
+
+      const responseStatus = error?.response?.status;
+      const editableStartMayHaveSucceeded = type === 'editable-pptx'
+        && backendTaskId
+        && (
+          !error?.response
+          || [408, 429, 500, 502, 503, 504].includes(responseStatus)
+        );
+
+      if (editableStartMayHaveSucceeded) {
+        addTask({
+          id: exportTaskId,
+          taskId: backendTaskId,
+          projectId,
+          type: 'editable-pptx',
+          status: 'PROCESSING',
+          pageIds,
+          monitoring: {
+            state: 'retrying',
+            code: 'EXPORT_CREATE_RESPONSE_INTERRUPTED',
+            message: t('slidePreview.exportStartResponseLost'),
+            consecutiveErrors: 1,
+            lastErrorAt: new Date().toISOString(),
+          },
+        });
+        show({ message: t('slidePreview.exportStartResponseLost'), type: 'warning' });
+        pollExportTask(exportTaskId, projectId, backendTaskId);
+        return;
+      }
 
       // Update task as failed
       addTask({

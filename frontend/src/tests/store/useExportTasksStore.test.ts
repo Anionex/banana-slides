@@ -10,13 +10,12 @@ vi.mock('@/api/endpoints', () => ({
 describe('useExportTasksStore', () => {
   beforeEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
+    vi.mocked(api.getTaskStatus).mockReset()
     activePolls.clear()
     act(() => {
       useExportTasksStore.setState({ tasks: [] })
     })
     window.localStorage.clear()
-    vi.clearAllMocks()
   })
 
   afterEach(() => {
@@ -147,7 +146,7 @@ describe('useExportTasksStore', () => {
     ])
   })
 
-  it('marks a restored active task as failed when the backend no longer returns task data', async () => {
+  it('pauses monitoring without marking the backend task failed when task data is unusable', async () => {
     vi.useFakeTimers()
     vi.mocked(api.getTaskStatus).mockResolvedValue({
       success: true,
@@ -178,9 +177,10 @@ describe('useExportTasksStore', () => {
     }
 
     const task = useExportTasksStore.getState().tasks.find(item => item.id === 'stale-export')
-    expect(task?.status).toBe('FAILED')
-    expect(task?.errorMessage).toMatch(/导出任务已不可用|no longer available/)
-    expect(task?.completedAt).toBeTruthy()
+    expect(task?.status).toBe('RUNNING')
+    expect(task?.monitoring?.state).toBe('paused')
+    expect(task?.monitoring?.code).toBe('EXPORT_STATUS_INVALID_RESPONSE')
+    expect(task?.completedAt).toBeUndefined()
     expect(api.getTaskStatus).toHaveBeenCalledTimes(4)
   })
 
@@ -249,7 +249,9 @@ describe('useExportTasksStore', () => {
     })
 
     expect(useExportTasksStore.getState().tasks[0].status).toBe('PROCESSING')
-    expect(useExportTasksStore.getState().tasks[0].progress?.help_text).toMatch(/继续查询|Continuing/)
+    expect(useExportTasksStore.getState().tasks[0].monitoring?.state).toBe('retrying')
+    expect(useExportTasksStore.getState().tasks[0].monitoring?.code).toBe('EXPORT_STATUS_SERVICE_UNAVAILABLE')
+    expect(useExportTasksStore.getState().tasks[0].monitoring?.message).toMatch(/后台任务未被判定失败|not marked failed/)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
@@ -261,7 +263,62 @@ describe('useExportTasksStore', () => {
     expect(task.downloadUrl).toBe('/files/project-a/exports/demo.pptx')
   })
 
-  it('does not retry active export tasks after programming errors', async () => {
+  it('waits for a reserved task id to appear after the create response is interrupted', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.getTaskStatus)
+      .mockRejectedValueOnce({
+        message: 'Request failed with status code 404',
+        response: { status: 404 },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          status: 'COMPLETED',
+          progress: {
+            download_url: '/files/project-a/exports/recovered-create.pptx',
+            filename: 'recovered-create.pptx',
+          },
+        },
+      } as any)
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'uncertain-create',
+        taskId: 'reserved-task-id',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'PROCESSING',
+        monitoring: {
+          state: 'retrying',
+          code: 'EXPORT_CREATE_RESPONSE_INTERRUPTED',
+          message: '创建响应中断',
+          consecutiveErrors: 1,
+          lastErrorAt: new Date().toISOString(),
+        },
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('uncertain-create', 'project-a', 'reserved-task-id')
+    })
+
+    let task = useExportTasksStore.getState().tasks[0]
+    expect(task.status).toBe('PROCESSING')
+    expect(task.monitoring?.state).toBe('retrying')
+    expect(task.monitoring?.code).toBe('EXPORT_CREATE_CONFIRMATION_PENDING')
+    expect(task.monitoring?.message).toMatch(/HTTP 404/)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    task = useExportTasksStore.getState().tasks[0]
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(2)
+    expect(task.status).toBe('COMPLETED')
+    expect(task.monitoring).toBeUndefined()
+    expect(task.downloadUrl).toBe('/files/project-a/exports/recovered-create.pptx')
+  })
+
+  it('pauses monitoring after programming errors without claiming the export failed', async () => {
     vi.useFakeTimers()
     vi.mocked(api.getTaskStatus).mockRejectedValueOnce(new TypeError('Cannot read properties of undefined'))
 
@@ -281,14 +338,101 @@ describe('useExportTasksStore', () => {
 
     const task = useExportTasksStore.getState().tasks[0]
     expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
-    expect(task.status).toBe('FAILED')
-    expect(task.errorMessage).toMatch(/Cannot read properties/)
+    expect(task.status).toBe('PROCESSING')
+    expect(task.monitoring?.state).toBe('paused')
+    expect(task.monitoring?.code).toBe('EXPORT_STATUS_CHECK_FAILED')
+    expect(task.monitoring?.message).toMatch(/Cannot read properties/)
+    expect(task.completedAt).toBeUndefined()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10000)
     })
 
     expect(api.getTaskStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps retrying transient status failures beyond the former six-error limit', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.getTaskStatus).mockRejectedValue({
+      message: 'timeout of 300000ms exceeded',
+      code: 'ECONNABORTED',
+      request: {},
+    })
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'long-running-editable',
+        taskId: 'task-long',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'RUNNING',
+        progress: { total: 100, completed: 50, percent: 50 },
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('long-running-editable', 'project-a', 'task-long')
+    })
+
+    for (let i = 0; i < 7; i++) {
+      await act(async () => {
+        await vi.runOnlyPendingTimersAsync()
+      })
+    }
+
+    const task = useExportTasksStore.getState().tasks[0]
+    expect(api.getTaskStatus).toHaveBeenCalledTimes(8)
+    expect(task.status).toBe('RUNNING')
+    expect(task.progress?.percent).toBe(50)
+    expect(task.monitoring?.state).toBe('retrying')
+    expect(task.monitoring?.code).toBe('EXPORT_STATUS_CLIENT_TIMEOUT')
+    expect(task.monitoring?.consecutiveErrors).toBe(8)
+    expect(task.completedAt).toBeUndefined()
+  })
+
+  it('shows structured backend failure details without rewriting them as a generic timeout', async () => {
+    vi.mocked(api.getTaskStatus).mockResolvedValue({
+      data: {
+        status: 'FAILED',
+        error_message: '文本样式提取失败：图片识别服务请求超时',
+        progress: {
+          total: 100,
+          completed: 50,
+          percent: 50,
+          backend_status: 'FAILED',
+          error_code: 'EXPORT_STYLE_TIMEOUT',
+          error_stage: 'style_extraction',
+          error_details: {
+            reason: 'timeout',
+            provider: 'CodexTextProvider',
+            model: 'gpt-5.4',
+            request_timeout_seconds: 120,
+            max_attempts: 5,
+          },
+        },
+      },
+    } as any)
+
+    act(() => {
+      useExportTasksStore.getState().addTask({
+        id: 'backend-failed-editable',
+        taskId: 'task-failed',
+        projectId: 'project-a',
+        type: 'editable-pptx',
+        status: 'RUNNING',
+      })
+    })
+
+    await act(async () => {
+      await useExportTasksStore.getState().pollTask('backend-failed-editable', 'project-a', 'task-failed')
+    })
+
+    const task = useExportTasksStore.getState().tasks[0]
+    expect(task.status).toBe('FAILED')
+    expect(task.errorMessage).toBe('文本样式提取失败：图片识别服务请求超时')
+    expect(task.progress?.error_code).toBe('EXPORT_STYLE_TIMEOUT')
+    expect(task.progress?.error_details?.provider).toBe('CodexTextProvider')
+    expect(task.completedAt).toBeTruthy()
   })
 
   it('does not poll tasks that are already completed', async () => {

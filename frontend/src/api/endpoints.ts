@@ -688,6 +688,7 @@ const buildExportQuery = (params: Record<string, string | string[] | boolean | u
  * 导出为PPTX
  * @param projectId 项目ID
  * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
+ * @param clientTaskId 可选的幂等任务ID，用于创建请求响应丢失后的恢复
  */
 export const exportPPTX = async (
   projectId: string,
@@ -747,13 +748,15 @@ export const exportImages = async (
 export const exportEditablePPTX = async (
   projectId: string,
   filename?: string,
-  pageIds?: string[]
+  pageIds?: string[],
+  clientTaskId?: string,
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
   >(`/api/projects/${projectId}/export/editable-pptx`, {
     filename,
-    page_ids: pageIds
+    page_ids: pageIds,
+    client_task_id: clientTaskId,
   });
   return response.data;
 };

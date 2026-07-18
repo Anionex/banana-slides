@@ -25,7 +25,7 @@ Regular PPTX export now opens a settings panel before generating the file. You c
 
 The export tasks panel on the Slide Preview page lists export files already stored on the server for the current project. You can download PPTX, PDF, image archives, or narration videos again, or delete files you no longer need to free disk space. Deletion asks for confirmation first; after it succeeds, the file is removed from server storage and from the panel list.
 
-Export task history is scoped by project. Clicking **Clear** in one project removes only that project's completed or failed tasks and leaves export history from other projects untouched. After a refresh, if a restored export task is no longer available on the backend, the panel marks it as failed and asks you to export again instead of leaving it stuck as in progress.
+Export task history is scoped by project. Clicking **Clear** in one project removes only that project's completed or failed tasks and leaves export history from other projects untouched. After a refresh, if the backend does not return a usable status for a restored task, the panel explicitly reports that the backend task status is unknown and offers **Check Again** instead of misreporting a status-check problem as an export failure.
 
 ## Narration Strategy
 
@@ -44,6 +44,16 @@ Defaults to 16:9. You can change the ratio when creating a project or in **Proje
 ## Editable PPTX (Beta)
 
 The extraction process preserves font size, color, bold styling, text positioning, and table content. However, due to OCR accuracy limits and current model capabilities, complex layouts may have discrepancies from the original slide appearance.
+
+Editable exports continue running in the backend while the preview page periodically checks task status. If a status check hits a network interruption, gateway timeout, or rate limit, the task panel shows **Status checks interrupted** and reconnects automatically. This means only that the frontend cannot see the latest status; it **does not mark the backend export as failed**. If automatic checks stop, click **Check Again** in the panel. If the create-task response is interrupted, the frontend uses a reserved task ID to confirm backend status instead of creating a duplicate export.
+
+The panel shows **Export Failed** only after the backend explicitly reports failure. Diagnostics can include the failed stage, error code, image-recognition provider and model, per-request timeout, retry count, a redacted technical reason, and the last real progress value. Common actions include:
+
+- `EXPORT_STYLE_MODEL_UNSUPPORTED`: switch the image caption configuration to a vision-capable model.
+- `EXPORT_STYLE_AUTHENTICATION`: check the API key, OAuth session, and service permissions, or reconnect the account.
+- `EXPORT_STYLE_RATE_LIMIT`: retry later or export fewer pages at once.
+- `EXPORT_STYLE_TIMEOUT` / `EXPORT_STYLE_NETWORK`: check the network, proxy, and provider status, then retry.
+- `EXPORT_STYLE_INVALID_RESPONSE` / `EXPORT_STYLE_INCOMPLETE_RESPONSE`: retry or switch to a more reliable vision model.
 
 <Note>
   For best extraction results, configure `BAIDU_API_KEY` in your environment. See [Configuration](/configuration#baidu-api-key).

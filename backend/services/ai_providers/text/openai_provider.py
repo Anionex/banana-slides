@@ -23,13 +23,16 @@ class OpenAITextProvider(TextProvider):
             api_base: API base URL (e.g., https://api.inferera.com/v1)
             model: Model name to use
         """
+        config = get_config()
         self.client = OpenAI(
             api_key=api_key,
             base_url=api_base,
-            timeout=get_config().OPENAI_TIMEOUT,  # set timeout from config
-            max_retries=get_config().OPENAI_MAX_RETRIES  # set max retries from config
+            timeout=config.OPENAI_TIMEOUT,  # set timeout from config
+            max_retries=config.OPENAI_MAX_RETRIES  # set max retries from config
         )
         self.model = model
+        self.request_timeout_seconds = config.OPENAI_TIMEOUT
+        self.max_attempts = config.OPENAI_MAX_RETRIES + 1
     
     def generate_text(self, prompt: str, thinking_budget: int = 0) -> str:
         """
