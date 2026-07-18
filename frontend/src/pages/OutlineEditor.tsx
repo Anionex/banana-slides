@@ -49,7 +49,8 @@ const outlineI18n = {
         importReadFailed: "读取文件失败，请重试",
         importInvalidFileType: "只能导入 .md、.markdown 或 .txt 文件",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
-        saveFailed: "保存失败",
+        saveFailed: "保存失败，当前修改尚未保存，请重试",
+        missingProjectType: "项目类型缺失，无法确定保存位置，请刷新页面后重试",
       }
     }
   },
@@ -96,7 +97,8 @@ const outlineI18n = {
         importReadFailed: "Failed to read file, please try again",
         importInvalidFileType: "Only .md, .markdown, or .txt files can be imported",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
-        saveFailed: "Save failed",
+        saveFailed: "Save failed. Your current changes have not been saved. Please retry.",
+        missingProjectType: "The project type is missing, so the save destination is unknown. Refresh the page and retry.",
       }
     }
   }
@@ -161,6 +163,8 @@ export const OutlineEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const t = useT(outlineI18n);
+  const saveFailedMessage = t('outline.messages.saveFailed');
+  const missingProjectTypeMessage = t('outline.messages.missingProjectType');
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
@@ -216,12 +220,19 @@ export const OutlineEditor: React.FC = () => {
   }, []);
 
   const [inputText, setInputText] = useState('');
+  const inputTextRef = useRef('');
   const [isInputDirty, setIsInputDirty] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+  const inputSavePromiseRef = useRef<{ projectId: string; text: string; promise: Promise<boolean> } | null>(null);
   const [outlineRequirements, setOutlineRequirements] = useState('');
   const [isRequirementsDirty, setIsRequirementsDirty] = useState(false);
   const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    inputTextRef.current = inputText;
+  }, [inputText]);
 
   const [isMaterialSelectorOpen, setIsMaterialSelectorOpen] = useState(false);
   const [activeMaterialTarget, setActiveMaterialTarget] = useState<'input' | 'requirements'>('input');
@@ -259,33 +270,83 @@ export const OutlineEditor: React.FC = () => {
   // 项目切换时：强制加载文本
   useEffect(() => {
     if (currentProject) {
-      setInputText(getInputText(currentProject));
+      const projectInputText = getInputText(currentProject);
+      setInputText(projectInputText);
+      inputTextRef.current = projectInputText;
       setIsInputDirty(false);
       setOutlineRequirements(currentProject.outline_requirements || '');
       setIsRequirementsDirty(false);
     }
   }, [currentProject?.id]);
 
-  const saveInputText = useCallback(async (text: string, creationType: string | undefined) => {
-    if (!projectId || !creationType) return;
-    try {
-      const field = creationType === 'outline'
-        ? 'outline_text'
-        : creationType === 'descriptions'
-          ? 'description_text'
-          : 'idea_prompt';
-      await updateProject(projectId, { [field]: text } as any);
-      await syncProject(projectId);
-      setIsInputDirty(false);
-    } catch (e) {
-      console.error('保存输入文本失败:', e);
-      show({ message: t('outline.messages.saveFailed'), type: 'error' });
+  const saveInputText = useCallback(async (text: string, creationType: string | undefined): Promise<boolean> => {
+    if (!projectId) return false;
+    if (!creationType) {
+      show({ message: missingProjectTypeMessage, type: 'error' });
+      return false;
     }
-  }, [projectId, show, syncProject]);
+
+    const activeSave = inputSavePromiseRef.current;
+    if (activeSave?.projectId === projectId && activeSave.text === text) return activeSave.promise;
+
+    const previousSave = activeSave?.projectId === projectId ? activeSave.promise : undefined;
+    const savePromise = (async () => {
+      if (previousSave) {
+        try {
+          await previousSave;
+        } catch (error) {
+          console.error('前一次保存异常，继续尝试保存最新内容:', error);
+        }
+      }
+
+      try {
+        const field: 'outline_text' | 'description_text' | 'idea_prompt' = creationType === 'outline'
+          ? 'outline_text'
+          : creationType === 'descriptions'
+            ? 'description_text'
+            : 'idea_prompt';
+        const response = await updateProject(projectId, { [field]: text });
+        useProjectStore.setState((state) => {
+          const activeProjectId = state.currentProject?.id || state.currentProject?.project_id;
+          if (!state.currentProject || activeProjectId !== projectId) return state;
+          return {
+            currentProject: {
+              ...state.currentProject,
+              [field]: text,
+              updated_at: response.data?.updated_at || state.currentProject.updated_at,
+            },
+          };
+        });
+        const savedProject = useProjectStore.getState().currentProject;
+        const savedProjectId = savedProject?.id || savedProject?.project_id;
+        if (savedProjectId === projectId && inputTextRef.current === text) {
+          setIsInputDirty(false);
+        }
+        return true;
+      } catch (e) {
+        console.error('保存输入文本失败:', e);
+        const activeProject = useProjectStore.getState().currentProject;
+        const activeProjectId = activeProject?.id || activeProject?.project_id;
+        if (activeProjectId === projectId && inputTextRef.current === text) {
+          show({ message: saveFailedMessage, type: 'error' });
+        }
+        return false;
+      }
+    })();
+
+    inputSavePromiseRef.current = { projectId, text, promise: savePromise };
+    try {
+      return await savePromise;
+    } finally {
+      if (inputSavePromiseRef.current?.promise === savePromise) {
+        inputSavePromiseRef.current = null;
+      }
+    }
+  }, [missingProjectTypeMessage, projectId, saveFailedMessage, show]);
 
   // Debounced auto-save: save 1s after user stops typing
   useEffect(() => {
-    if (!isInputDirty) return;
+    if (!isInputDirty || !currentProject?.creation_type) return;
     const timer = setTimeout(() => {
       saveInputText(inputText, currentProject?.creation_type);
     }, 1000);
@@ -307,14 +368,33 @@ export const OutlineEditor: React.FC = () => {
   }, [outlineRequirements, isRequirementsDirty, projectId]);
 
   const handleSaveInputText = useCallback(() => {
-    if (!isInputDirty) return;
-    saveInputText(inputText, currentProject?.creation_type);
-  }, [inputText, isInputDirty, saveInputText, currentProject?.creation_type]);
+    if (!isInputDirty || !currentProject?.creation_type) return;
+    saveInputText(inputTextRef.current, currentProject?.creation_type);
+  }, [isInputDirty, saveInputText, currentProject?.creation_type]);
 
   const handleInputChange = useCallback((text: string) => {
     setInputText(text);
+    inputTextRef.current = text;
     setIsInputDirty(true);
   }, []);
+
+  const handleNext = useCallback(async () => {
+    if (!projectId || !currentProject || isAdvancing) return;
+
+    setIsAdvancing(true);
+    try {
+      if (isInputDirty) {
+        const saved = await saveInputText(inputTextRef.current, currentProject.creation_type);
+        if (!saved) return;
+      }
+      const activeProject = useProjectStore.getState().currentProject;
+      const activeProjectId = activeProject?.id || activeProject?.project_id;
+      if (activeProjectId !== projectId) return;
+      navigate(`/project/${projectId}/detail`);
+    } finally {
+      setIsAdvancing(false);
+    }
+  }, [currentProject, isAdvancing, isInputDirty, navigate, projectId, saveInputText]);
 
   const insertAtCursor = useCallback((markdown: string) => {
     // Prefer the desktop ref (visible at md+), fall back to mobile
@@ -556,21 +636,8 @@ export const OutlineEditor: React.FC = () => {
               variant="primary"
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={async () => {
-                if (isInputDirty && projectId && currentProject) {
-                  const field = currentProject.creation_type === 'outline'
-                    ? 'outline_text'
-                    : currentProject.creation_type === 'descriptions'
-                      ? 'description_text'
-                      : 'idea_prompt';
-                  try {
-                    await updateProject(projectId, { [field]: inputText } as any);
-                  } catch (e) {
-                    console.error('自动保存失败:', e);
-                  }
-                }
-                navigate(`/project/${projectId}/detail`);
-              }}
+              onClick={handleNext}
+              loading={isAdvancing}
               className="text-xs md:text-sm"
             >
               <span className="hidden sm:inline">{t('common.next')}</span>
