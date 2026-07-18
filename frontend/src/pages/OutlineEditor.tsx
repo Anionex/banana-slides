@@ -359,14 +359,14 @@ export const OutlineEditor: React.FC = () => {
     setIsAdvancing(true);
     try {
       if (isInputDirty) {
-        const saved = await saveInputText(inputText, currentProject.creation_type);
+        const saved = await saveInputText(inputTextRef.current, currentProject.creation_type);
         if (!saved) return;
       }
       navigate(`/project/${projectId}/detail`);
     } finally {
       setIsAdvancing(false);
     }
-  }, [currentProject, inputText, isAdvancing, isInputDirty, navigate, projectId, saveInputText]);
+  }, [currentProject, isAdvancing, isInputDirty, navigate, projectId, saveInputText]);
 
   const insertAtCursor = useCallback((markdown: string) => {
     // Prefer the desktop ref (visible at md+), fall back to mobile
