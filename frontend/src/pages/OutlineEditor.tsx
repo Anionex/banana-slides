@@ -220,7 +220,7 @@ export const OutlineEditor: React.FC = () => {
   const inputTextRef = useRef('');
   const [isInputDirty, setIsInputDirty] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
-  const inputSavePromiseRef = useRef<{ text: string; promise: Promise<boolean> } | null>(null);
+  const inputSavePromiseRef = useRef<{ projectId: string; text: string; promise: Promise<boolean> } | null>(null);
   const [outlineRequirements, setOutlineRequirements] = useState('');
   const [isRequirementsDirty, setIsRequirementsDirty] = useState(false);
   const reqTextareaRef = useRef<MarkdownTextareaRef>(null);
@@ -280,9 +280,9 @@ export const OutlineEditor: React.FC = () => {
     if (!projectId || !creationType) return false;
 
     const activeSave = inputSavePromiseRef.current;
-    if (activeSave?.text === text) return activeSave.promise;
+    if (activeSave?.projectId === projectId && activeSave.text === text) return activeSave.promise;
 
-    const previousSave = activeSave?.promise;
+    const previousSave = activeSave?.projectId === projectId ? activeSave.promise : undefined;
     const savePromise = (async () => {
       if (previousSave) {
         try {
@@ -298,18 +298,36 @@ export const OutlineEditor: React.FC = () => {
           : creationType === 'descriptions'
             ? 'description_text'
             : 'idea_prompt';
-        await updateProject(projectId, { [field]: text } as any);
-        await syncProject(projectId);
-        if (inputTextRef.current === text) setIsInputDirty(false);
+        const response = await updateProject(projectId, { [field]: text } as any);
+        useProjectStore.setState((state) => {
+          const activeProjectId = state.currentProject?.id || state.currentProject?.project_id;
+          if (!state.currentProject || activeProjectId !== projectId) return state;
+          return {
+            currentProject: {
+              ...state.currentProject,
+              [field]: text,
+              updated_at: response.data?.updated_at || state.currentProject.updated_at,
+            },
+          };
+        });
+        const savedProject = useProjectStore.getState().currentProject;
+        const savedProjectId = savedProject?.id || savedProject?.project_id;
+        if (savedProjectId === projectId && inputTextRef.current === text) {
+          setIsInputDirty(false);
+        }
         return true;
       } catch (e) {
         console.error('保存输入文本失败:', e);
-        show({ message: saveFailedMessage, type: 'error' });
+        const activeProject = useProjectStore.getState().currentProject;
+        const activeProjectId = activeProject?.id || activeProject?.project_id;
+        if (activeProjectId === projectId) {
+          show({ message: saveFailedMessage, type: 'error' });
+        }
         return false;
       }
     })();
 
-    inputSavePromiseRef.current = { text, promise: savePromise };
+    inputSavePromiseRef.current = { projectId, text, promise: savePromise };
     try {
       return await savePromise;
     } finally {
@@ -317,7 +335,7 @@ export const OutlineEditor: React.FC = () => {
         inputSavePromiseRef.current = null;
       }
     }
-  }, [projectId, saveFailedMessage, show, syncProject]);
+  }, [projectId, saveFailedMessage, show]);
 
   // Debounced auto-save: save 1s after user stops typing
   useEffect(() => {
@@ -362,6 +380,9 @@ export const OutlineEditor: React.FC = () => {
         const saved = await saveInputText(inputTextRef.current, currentProject.creation_type);
         if (!saved) return;
       }
+      const activeProject = useProjectStore.getState().currentProject;
+      const activeProjectId = activeProject?.id || activeProject?.project_id;
+      if (activeProjectId !== projectId) return;
       navigate(`/project/${projectId}/detail`);
     } finally {
       setIsAdvancing(false);
