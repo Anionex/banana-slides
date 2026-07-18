@@ -48,10 +48,14 @@ async function changeSourceAndContinue(page: Page) {
 }
 
 test.describe('Outline Next save guard', () => {
-  test('stays in the outline editor and explains the unsaved change when saving fails', async ({ page }) => {
+  test('stays on failure, explains the unsaved change, and allows a successful retry', async ({ page }) => {
     let saveAttempts = 0
     await setupProjectRoutes(page, async (route) => {
       saveAttempts += 1
+      if (saveAttempts > 1) {
+        await route.fulfill({ json: { success: true, data: project } })
+        return
+      }
       await route.fulfill({
         status: 500,
         json: { success: false, error: { message: 'Temporary save failure' } },
@@ -63,6 +67,10 @@ test.describe('Outline Next save guard', () => {
     await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/outline$`))
     await expect(page.getByText(/当前修改尚未保存|current changes have not been saved/i)).toBeVisible()
     expect(saveAttempts).toBe(1)
+
+    await page.getByRole('button', { name: /下一步|Next/ }).click()
+    await expect(page).toHaveURL(new RegExp(`/project/${PROJECT_ID}/detail$`))
+    expect(saveAttempts).toBe(2)
   })
 
   test('navigates only after the changed source input is saved successfully', async ({ page }) => {

@@ -161,6 +161,7 @@ export const OutlineEditor: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const t = useT(outlineI18n);
+  const saveFailedMessage = t('outline.messages.saveFailed');
   const { projectId } = useParams<{ projectId: string }>();
   const fromHistory = (location.state as any)?.from === 'history';
   const {
@@ -272,14 +273,20 @@ export const OutlineEditor: React.FC = () => {
   }, [currentProject?.id]);
 
   const saveInputText = useCallback(async (text: string, creationType: string | undefined): Promise<boolean> => {
-    if (!projectId) return false;
+    if (!projectId || !creationType) return false;
 
     const activeSave = inputSavePromiseRef.current;
     if (activeSave?.text === text) return activeSave.promise;
 
     const previousSave = activeSave?.promise;
     const savePromise = (async () => {
-      if (previousSave) await previousSave;
+      if (previousSave) {
+        try {
+          await previousSave;
+        } catch (error) {
+          console.error('前一次保存异常，继续尝试保存最新内容:', error);
+        }
+      }
 
       try {
         const field = creationType === 'outline'
@@ -293,7 +300,7 @@ export const OutlineEditor: React.FC = () => {
         return true;
       } catch (e) {
         console.error('保存输入文本失败:', e);
-        show({ message: t('outline.messages.saveFailed'), type: 'error' });
+        show({ message: saveFailedMessage, type: 'error' });
         return false;
       }
     })();
@@ -306,7 +313,7 @@ export const OutlineEditor: React.FC = () => {
         inputSavePromiseRef.current = null;
       }
     }
-  }, [projectId, show, syncProject]);
+  }, [projectId, saveFailedMessage, show, syncProject]);
 
   // Debounced auto-save: save 1s after user stops typing
   useEffect(() => {
