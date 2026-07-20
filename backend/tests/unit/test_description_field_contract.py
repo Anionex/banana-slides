@@ -380,6 +380,66 @@ def test_refine_descriptions_flattens_dict_items(client, monkeypatch):
     assert '{' not in result[0]['text']
 
 
+def test_parse_extra_fields_matches_field_at_text_start():
+    """字段行位于文本开头时也要被识别，否则会残留在正文里渲染上屏。"""
+    from services.ai_service import AIService
+
+    text, fields = AIService._parse_extra_fields(
+        '配图与素材：折线图\n版式与重点：左文右图',
+        ['配图与素材', '版式与重点'],
+    )
+
+    assert fields == {'配图与素材': '折线图', '版式与重点': '左文右图'}
+    assert text == ''
+
+
+def test_refine_descriptions_flattens_dict_with_field_first(client, monkeypatch):
+    """字典首个键就是字段名时，不能漏解析。"""
+    from services.ai_service import AIService
+
+    service = AIService.__new__(AIService)
+    monkeypatch.setattr(
+        AIService, 'generate_json',
+        lambda self, prompt, **kwargs: [
+            {'配图与素材': '折线图', '版式与重点': '左文右图'},
+        ],
+    )
+    monkeypatch.setattr(
+        AIService, '_get_extra_field_names',
+        staticmethod(lambda: list(Settings.DEFAULT_EXTRA_FIELDS)),
+    )
+
+    with client.application.app_context():
+        result = service.refine_descriptions([], '调整', _Ctx())
+
+    assert result[0]['extra_fields'] == {'配图与素材': '折线图', '版式与重点': '左文右图'}
+    assert result[0]['text'] == ''
+
+
+def test_refine_descriptions_flattens_list_values(client, monkeypatch):
+    """值为数组时要摊平成多行，不能输出 Python 列表字面量。"""
+    from services.ai_service import AIService
+
+    service = AIService.__new__(AIService)
+    monkeypatch.setattr(
+        AIService, 'generate_json',
+        lambda self, prompt, **kwargs: [
+            {'页面文字': ['- 要点一', '- 要点二'], '版式与重点': '左文右图'},
+        ],
+    )
+    monkeypatch.setattr(
+        AIService, '_get_extra_field_names',
+        staticmethod(lambda: list(Settings.DEFAULT_EXTRA_FIELDS)),
+    )
+
+    with client.application.app_context():
+        result = service.refine_descriptions([], '调整', _Ctx())
+
+    assert result[0]['extra_fields'] == {'版式与重点': '左文右图'}
+    assert '要点一' in result[0]['text'] and '要点二' in result[0]['text']
+    assert '[' not in result[0]['text']
+
+
 def test_refinement_prompt_tolerates_null_text(ctx):
     """description_content 里 text 为 null 时不应炸掉 prompt 构造。"""
     prompt = prompts.get_descriptions_refinement_prompt(

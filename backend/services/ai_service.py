@@ -693,6 +693,8 @@ class AIService:
 
         遍历 field_names，按出现顺序依次提取每个字段的内容。
         两个相邻字段之间的文本属于前一个字段。
+        字段行可以位于文本开头或任意行首——开头的字段若不被识别，
+        会残留在正文里被逐字渲染到幻灯片上。
         """
         if not field_names:
             return text, {}
@@ -701,7 +703,7 @@ class AIService:
         # 找到所有字段在文本中的起始位置
         positions = []
         for name in field_names:
-            match = re.search(rf'\n{re.escape(name)}[：:]\s*', text)
+            match = re.search(rf'(?:^|\n){re.escape(name)}[：:]\s*', text)
             if match:
                 positions.append((match.start(), match.end(), name))
 
@@ -1279,10 +1281,16 @@ class AIService:
         field_names = self._get_parseable_field_names()
         results = []
         for desc in descriptions:
-            # 模型偶尔会返回对象而非字符串；直接 str() 会把 Python dict 字面量
-            # 渲染到幻灯片上，先按「字段：值」逐行摊平再解析
+            # 模型偶尔会返回对象而非字符串；直接 str() 会把 Python dict/list
+            # 字面量渲染到幻灯片上，先按「字段：值」逐行摊平再解析
             if isinstance(desc, dict):
-                desc_text = '\n'.join(f'{k}：{v}' for k, v in desc.items() if v)
+                lines = []
+                for k, v in desc.items():
+                    if not v:
+                        continue
+                    value = '\n'.join(str(i) for i in v) if isinstance(v, list) else str(v)
+                    lines.append(f'{k}：{value}')
+                desc_text = '\n'.join(lines)
             else:
                 desc_text = str(desc)
             text, extra_fields = self._parse_extra_fields(desc_text, field_names)
