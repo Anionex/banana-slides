@@ -357,26 +357,25 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
     [pageId, onUpdate]
   );
 
+  // Derive the next value from the refs rather than inside a state updater —
+  // updaters must stay pure (StrictMode calls them twice).
   const updateDescription = useCallback(
     (updater: (prev: string) => string) => {
-      setDescription((prev) => {
-        const next = updater(prev);
-        descriptionValueRef.current = next;
-        commitDescription(next, extraFieldsRef.current);
-        return next;
-      });
+      const next = updater(descriptionValueRef.current);
+      descriptionValueRef.current = next;
+      setDescription(next);
+      commitDescription(next, extraFieldsRef.current);
     },
     [commitDescription]
   );
 
   const updateExtraField = useCallback(
     (name: string, updater: (prev: string) => string) => {
-      setExtraFields((prev) => {
-        const next = { ...prev, [name]: updater(prev[name] || '') };
-        extraFieldsRef.current = next;
-        commitDescription(descriptionValueRef.current, next);
-        return next;
-      });
+      const previous = extraFieldsRef.current;
+      const next = { ...previous, [name]: updater(previous[name] || '') };
+      extraFieldsRef.current = next;
+      setExtraFields(next);
+      commitDescription(descriptionValueRef.current, next);
     },
     [commitDescription]
   );
