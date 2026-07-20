@@ -133,8 +133,10 @@ test.describe('image quality control setting', () => {
     await mockPreviewProject(page);
 
     await page.goto(`/project/${projectId}/preview`);
-    await expect(page.locator('aside').getByRole('switch', { name: /质量控制|Quality Control/ })).toHaveCount(0);
-    const qualitySwitch = page.locator('main').getByRole('switch', { name: /质量控制|Quality Control/ });
+    // Desktop layout: the switch is a project-level generation setting, so it sits
+    // in the sidebar next to batch generate rather than in the per-page toolbar.
+    await expect(page.getByTestId('preview-floating-toolbar').getByRole('switch')).toHaveCount(0);
+    const qualitySwitch = page.locator('aside').getByRole('switch', { name: /质量控制|Quality Control/ });
     const qualityTooltip = page.getByTestId('quality-control-tooltip');
     await expect(qualityTooltip).toContainText(/看不清的字|unreadable text/);
     await expect(qualityTooltip).toHaveCSS('opacity', '0');
