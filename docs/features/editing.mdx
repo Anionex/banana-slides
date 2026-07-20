@@ -24,23 +24,27 @@ You can also manually drag and drop pages to reorder them, or edit chapter assig
 
 ## Page Properties Panel
 
-Click **Page Properties** in the top bar of the Slide Preview page to open a panel on the right with the current page's properties. Every field is editable in place and saves automatically about a second after you stop typing, with a **Saving / Saved** indicator at the top of the panel:
+A grip sits permanently on the right edge of the Slide Preview page — click it to open the current page's properties panel. Every field is editable in place and saves automatically about a second after you stop typing, with a **Saving / Saved** indicator at the top of the panel, so there is no dialog to keep opening and closing:
 
 | Field | Notes |
 |-------|-------|
 | Title | The page title, mirrored in the thumbnail list on the left |
 | Section | The chapter this page belongs to — leave it empty to keep the page ungrouped |
-| Key points | One point per line; blank lines are ignored |
-| Description | Drives image generation — click **Regenerate** afterward to redraw the slide |
-| Narration script | Read aloud when exporting a narration video; leave it empty and the export flow generates one |
+| Description | What the image is generated from — the same content you edit in the Description Editor. Supports Markdown, pasted images, and inserting images from the material library |
+| Description extra fields | Visual Elements, Visual Focus, Layout, Speaker Notes, and so on; the list follows **Description Settings → Extra Fields** in the Description Editor. Fields marked **Not used in image generation** stay out of the image prompt |
+| Narration script | Collapsed at the very bottom of the panel. Read aloud when exporting a narration video; leave it empty and the export flow generates one |
 
-The panel also shows the page's status, its position in the deck, the number of image versions, and the creation and update timestamps. In multi-template mode it shows the template image or style description this page uses, with a shortcut straight to **Template Setup**.
+In multi-template mode a **Template** block appears as well, where you can swap this page's template image, write a **Template prompt** for it, or jump straight to **Template Setup** for bulk changes. The panel also shows the page's status, its position in the deck, the number of image versions, and the creation and update timestamps.
 
-Drag the panel's left edge to resize it (300–640px), or double-click the edge to restore the default width. You can also focus the edge and nudge it with ←/→, or jump to either limit with Home/End. Both the width and the open/closed state are remembered, so the preview page looks the same the next time you open it. On narrow screens the panel becomes an overlay — tap the scrim to close it.
+Drag the panel's left edge to resize it (300–640px), or double-click the edge to restore the default width. You can also focus the edge and nudge it with ←/→, or jump to either limit with Home/End. Both the width and the open/collapsed state are remembered, so the preview page looks the same the next time you open it. On narrow screens the panel becomes an overlay — tap the scrim to close it.
 
 <Note>
   Editing a description only updates the text; it does not redraw the image. Click **Regenerate** to make your changes take effect.
 </Note>
+
+<Tip>
+  A page's **key points** belong to the outline stage, so they only appear in the Outline Editor. On the preview page it is the description that drives image generation.
+</Tip>
 
 ## Region-Based Editing
 

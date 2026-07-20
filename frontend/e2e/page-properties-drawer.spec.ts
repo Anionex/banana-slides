@@ -31,7 +31,7 @@ function mockProject(overrides: Record<string, unknown> = {}) {
         order_index: 0,
         status: 'COMPLETED',
         part: '开场',
-        outline_content: { title: '第一页标题', points: ['要点一', '要点二'] },
+        outline_content: { title: '第一页标题', points: ['大纲阶段的要点'] },
         description_content: { text: '第一页的描述' },
         narration_text: '第一页的旁白',
         created_at: '2026-07-01T10:00:00.000Z',
@@ -101,6 +101,17 @@ async function openDrawerByDefault(page: Page, width?: number) {
 }
 
 const drawer = (page: Page) => page.getByTestId('page-properties-drawer')
+/** The description/extra fields are MarkdownTextarea (contentEditable), not <textarea>. */
+const descriptionBox = (page: Page) =>
+  page.getByTestId('drawer-description-field').locator('[contenteditable="true"]')
+const extraFieldBox = (page: Page, name: string) =>
+  page.getByTestId(`drawer-extra-field-${name}`).locator('[contenteditable="true"]')
+async function clearAndType(editor: ReturnType<typeof descriptionBox>, text: string) {
+  await editor.focus()
+  await editor.press('ControlOrMeta+a')
+  if (text) await editor.page().keyboard.insertText(text)
+  else await editor.press('Backspace')
+}
 const drawerWidth = (page: Page) =>
   drawer(page).evaluate((el) => Math.round(el.getBoundingClientRect().width))
 
@@ -128,15 +139,15 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect(drawer(page)).toBeVisible()
     await expect(page.getByTestId('drawer-title-input')).toHaveValue('第一页标题')
 
-    // Collapse it — the aside stays mounted but shrinks to zero width.
-    await page.getByTestId('toggle-page-properties').click()
+    // Collapse it from the panel header — the aside stays mounted at zero width.
+    await page.getByRole('button', { name: '收起属性面板' }).click()
     await expect.poll(() => drawerWidth(page)).toBe(0)
     expect(await page.evaluate(() => localStorage.getItem('previewDrawer.open'))).toBe('false')
 
     await page.reload()
     await expect.poll(() => drawerWidth(page)).toBe(0)
 
-    // And re-opening sticks too.
+    // And re-opening from the edge grip sticks too.
     await page.getByTestId('toggle-page-properties').click()
     await expect.poll(() => drawerWidth(page)).toBeGreaterThan(0)
     await page.reload()
@@ -150,15 +161,78 @@ test.describe('Page properties drawer - UI (mock)', () => {
 
     await expect(page.getByTestId('drawer-title-input')).toHaveValue('第一页标题')
     await expect(page.getByTestId('drawer-part-input')).toHaveValue('开场')
-    await expect(page.getByTestId('drawer-points-input')).toHaveValue('要点一\n要点二')
-    await expect(page.getByTestId('drawer-description-input')).toHaveValue('第一页的描述')
+    await expect(descriptionBox(page)).toHaveText('第一页的描述')
+    // Key points belong to the outline stage — the drawer must not surface them.
+    await expect(drawer(page)).not.toContainText('大纲阶段的要点')
+
+    // Narration is collapsed by default, with a dot hinting it has content.
+    await expect(page.getByTestId('drawer-narration-input')).toHaveCount(0)
+    await expect(page.getByTestId('drawer-narration-dot')).toBeVisible()
+    await page.getByTestId('drawer-narration-toggle').click()
     await expect(page.getByTestId('drawer-narration-input')).toHaveValue('第一页的旁白')
 
     await page.getByRole('button', { name: '下一页' }).click()
 
     await expect(page.getByTestId('drawer-title-input')).toHaveValue('第二页标题')
     await expect(page.getByTestId('drawer-part-input')).toHaveValue('')
-    await expect(page.getByTestId('drawer-narration-input')).toHaveValue('')
+    await expect(descriptionBox(page)).toHaveText('')
+  })
+
+  test('keeps outline points intact when the title is edited', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    let outlinePayload: any = null
+    await page.route('**/pages/page-1/outline', async (route) => {
+      outlinePayload = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: {} }),
+      })
+    })
+
+    await page.getByTestId('drawer-title-input').fill('只改标题')
+    await expect.poll(() => outlinePayload, { timeout: 8000 }).not.toBeNull()
+    expect(outlinePayload.outline_content).toEqual({
+      title: '只改标题',
+      points: ['大纲阶段的要点'],
+    })
+  })
+
+  test('picks up edits made outside the drawer without clobbering typing', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await expect(page.getByTestId('drawer-title-input')).toHaveValue('第一页标题')
+
+    // The edit modal writes the same fields through the store; an open drawer
+    // has to follow along instead of showing stale text.
+    await page.getByRole('button', { name: '编辑' }).click()
+    // Scope to the dialog: the modal and the drawer share input placeholders.
+    const modal = page.getByRole('dialog')
+    await modal.getByRole('button', { name: /页面大纲/ }).click() // section starts collapsed
+    await modal.locator('input[placeholder="输入页面标题"]').fill('弹窗改的标题')
+    await modal.getByRole('button', { name: '仅保存大纲/描述' }).click()
+    await expect(modal).toBeHidden()
+
+    await expect(page.getByTestId('drawer-title-input')).toHaveValue('弹窗改的标题')
+  })
+
+  test('does not let a background sync overwrite in-progress typing', async ({ page }) => {
+    await mockPreview(page)
+    await openDrawerByDefault(page)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    // Every project GET keeps returning the ORIGINAL title, mimicking a
+    // syncProject() landing before the debounced save has flushed.
+    await page.getByTestId('drawer-title-input').click()
+    await page.getByTestId('drawer-title-input').fill('用户正在输入的标题')
+
+    // Stays put while focused and while the save is still queued.
+    await page.waitForTimeout(2500)
+    await expect(page.getByTestId('drawer-title-input')).toHaveValue('用户正在输入的标题')
   })
 
   test('resizes by dragging the handle and persists the width', async ({ page }) => {
@@ -263,18 +337,15 @@ test.describe('Page properties drawer - UI (mock)', () => {
     })
 
     await page.getByTestId('drawer-title-input').fill('改过的标题')
-    await page.getByTestId('drawer-points-input').fill('新要点一\n\n新要点二')
     await page.getByTestId('drawer-part-input').fill('新章节')
-    await page.getByTestId('drawer-description-input').fill('新描述')
+    await clearAndType(descriptionBox(page), '新描述')
+    await page.getByTestId('drawer-narration-toggle').click()
     await page.getByTestId('drawer-narration-input').fill('新旁白')
 
     await expect.poll(() => calls.length, { timeout: 8000 }).toBeGreaterThanOrEqual(4)
 
     const outline = calls.find((c) => c.url.endsWith('/outline'))!
-    expect(outline.body.outline_content).toEqual({
-      title: '改过的标题',
-      points: ['新要点一', '新要点二'], // blank lines dropped
-    })
+    expect(outline.body.outline_content.title).toBe('改过的标题')
     expect(calls.find((c) => c.url.endsWith('/description'))!.body.description_content.text).toBe(
       '新描述'
     )
@@ -324,13 +395,88 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await mockPreview(page)
     await openDrawerByDefault(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
-    await expect(drawer(page)).not.toContainText('模板')
+    await expect(page.getByTestId('drawer-change-template')).toHaveCount(0)
+    await expect(page.getByTestId('drawer-template-style-input')).toHaveCount(0)
 
     await page.unrouteAll({ behavior: 'ignoreErrors' })
     await mockPreview(page, mockProject({ template_mode: 'multi' }))
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
     await expect(drawer(page)).toContainText('跟随项目模板')
-    await expect(drawer(page)).toContainText('前往模板配置')
+    await expect(page.getByTestId('drawer-change-template')).toBeVisible()
+    await expect(page.getByTestId('drawer-template-style-input')).toBeVisible()
+  })
+
+  test('picks a template for the page straight from the drawer', async ({ page }) => {
+    await mockPreview(page, mockProject({ template_mode: 'multi' }))
+    await openDrawerByDefault(page)
+
+    await page.route('**/template-assets', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            assets: [
+              {
+                id: 'asset-1',
+                image_url: '/files/a.jpg',
+                thumb_url: null,
+                analysis_status: 'COMPLETED',
+                analysis_json: null,
+                analysis_notes: null,
+                analysis_error: null,
+                user_label: '深色封面',
+                user_edited_analysis: false,
+                source: 'upload',
+                sort_order: 0,
+              },
+            ],
+          },
+        }),
+      })
+    )
+
+    let patch: any = null
+    await page.route('**/pages/page-1/template', async (route) => {
+      patch = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { page: { page_id: 'page-1', template_asset_id: 'asset-1' } },
+        }),
+      })
+    })
+
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await page.getByTestId('drawer-change-template').click()
+    await page.getByRole('dialog').getByText('深色封面').click()
+
+    await expect.poll(() => patch, { timeout: 8000 }).not.toBeNull()
+    expect(patch).toEqual({ template_asset_id: 'asset-1', selection_source: 'manual' })
+  })
+
+  test('saves the per-page template prompt as you type', async ({ page }) => {
+    await mockPreview(page, mockProject({ template_mode: 'multi' }))
+    await openDrawerByDefault(page)
+
+    let patch: any = null
+    await page.route('**/pages/page-1/template', async (route) => {
+      patch = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { page: { page_id: 'page-1' } } }),
+      })
+    })
+
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await page.getByTestId('drawer-template-style-input').fill('左图右文，深色底')
+
+    await expect.poll(() => patch, { timeout: 8000 }).not.toBeNull()
+    expect(patch).toEqual({ template_style_text: '左图右文，深色底', selection_source: 'manual' })
   })
 })
 
@@ -348,8 +494,9 @@ test.describe('Page properties drawer - integration', () => {
 
     await page.getByTestId('drawer-title-input').fill('集成标题')
     await page.getByTestId('drawer-part-input').fill('第一章')
-    await page.getByTestId('drawer-points-input').fill('要点 A\n要点 B')
-    await page.getByTestId('drawer-description-input').fill('集成描述内容')
+    await clearAndType(descriptionBox(page), '集成描述内容')
+    await clearAndType(extraFieldBox(page, '视觉元素'), '一张折线图')
+    await page.getByTestId('drawer-narration-toggle').click()
     await page.getByTestId('drawer-narration-input').fill('集成旁白讲稿')
 
     await expect(page.getByTestId('drawer-save-state')).toContainText('已保存', { timeout: 10000 })
@@ -357,17 +504,19 @@ test.describe('Page properties drawer - integration', () => {
     // Persisted server-side, not just optimistically in the store.
     const resp = await request.get(`/api/projects/${projectId}`)
     const firstPage = (await resp.json()).data.pages[0]
-    expect(firstPage.outline_content).toEqual({ title: '集成标题', points: ['要点 A', '要点 B'] })
+    expect(firstPage.outline_content.title).toBe('集成标题')
     expect(firstPage.part).toBe('第一章')
     expect(firstPage.description_content.text).toBe('集成描述内容')
+    expect(firstPage.description_content.extra_fields).toEqual({ 视觉元素: '一张折线图' })
     expect(firstPage.narration_text).toBe('集成旁白讲稿')
 
     // And the drawer rehydrates from the server after a reload.
     await page.reload()
     await expect(page.getByTestId('drawer-title-input')).toHaveValue('集成标题')
     await expect(page.getByTestId('drawer-part-input')).toHaveValue('第一章')
-    await expect(page.getByTestId('drawer-points-input')).toHaveValue('要点 A\n要点 B')
-    await expect(page.getByTestId('drawer-description-input')).toHaveValue('集成描述内容')
+    await expect(descriptionBox(page)).toHaveText('集成描述内容')
+    await expect(extraFieldBox(page, '视觉元素')).toHaveText('一张折线图')
+    await page.getByTestId('drawer-narration-toggle').click()
     await expect(page.getByTestId('drawer-narration-input')).toHaveValue('集成旁白讲稿')
   })
 
@@ -383,9 +532,10 @@ test.describe('Page properties drawer - integration', () => {
 
     // No awaits in between: all four land inside the same 1s debounce window,
     // which used to keep only the last one.
+    await page.getByTestId('drawer-narration-toggle').click()
     await page.getByTestId('drawer-title-input').fill('并发标题')
     await page.getByTestId('drawer-part-input').fill('并发章节')
-    await page.getByTestId('drawer-description-input').fill('并发描述')
+    await clearAndType(descriptionBox(page), '并发描述')
     await page.getByTestId('drawer-narration-input').fill('并发旁白')
 
     await expect(page.getByTestId('drawer-save-state')).toContainText('已保存', { timeout: 10000 })

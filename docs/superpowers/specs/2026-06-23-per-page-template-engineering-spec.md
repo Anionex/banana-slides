@@ -351,7 +351,7 @@ def pdf_to_page_images(pdf_path: str, output_dir: str, dpi: int = 150,
 
 输入裁剪(决策 5 实现要点):
 - 每页:`{ page_id, order_index, title, summary[≤100字], content_density: 'low'|'medium'|'high' }`
-  - `content_density` 在 controller 层派生,不入库:按 `len(page.description)` 估算——<200 字 low、200-600 medium、>600 high(阈值后续可调)
+  - `content_density` 在 controller 层派生,不入库:按 `len(page.description)` 估算——`<200` 字 low、200-600 medium、`>600` high(阈值后续可调)
 - 每模板:`{ asset_id, user_label, layout_structure, content_capacity, visual_density, style_keywords[≤5], notes[≤200字] }`
 - 输出 schema 严格遵循 PRD §8.2(数组,每元素含 `page_id / template_asset_id / status / confidence / reason`)
 - prompt 显式禁止"未在候选模板里出现的 asset_id"

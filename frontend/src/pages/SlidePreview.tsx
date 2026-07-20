@@ -91,7 +91,6 @@ const previewI18n = {
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
       projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
-      pageProperties: "页面属性", hidePageProperties: "收起页面属性",
       switchToMulti: "转为多模板", switchToSingle: "转为单模板", templateSetup: "模板配置", templateMenu: "模板",
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
@@ -228,7 +227,6 @@ const previewI18n = {
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
       switchToMulti: "Switch to multi", switchToSingle: "Switch to single", templateSetup: "Template setup", templateMenu: "Template",
       projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
-      pageProperties: "Page Properties", hidePageProperties: "Hide page properties",
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
@@ -304,7 +302,6 @@ import {
   LayoutTemplate,
   Presentation,
   AlertTriangle,
-  PanelRight,
 } from 'lucide-react';
 import logoUrl from '@/assets/logo.png';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
@@ -418,6 +415,8 @@ export const SlidePreview: React.FC = () => {
     loadTemplateAssets,
     switchTemplateMode,
     switchTemplateModeWithUpload,
+    updatePageTemplate,
+    uploadTemplateAsset,
   } = useProjectStore();
   
   const { addTask, pollTask: pollExportTask, tasks: exportTasks, restoreActiveTasks } = useExportTasksStore();
@@ -483,6 +482,8 @@ export const SlidePreview: React.FC = () => {
     () => localStorage.getItem('previewDrawer.open') === 'true'
   );
   const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
+  const [descriptionExtraFields, setDescriptionExtraFields] = useState<string[]>([]);
+  const [imagePromptExtraFields, setImagePromptExtraFields] = useState<string[] | undefined>(undefined);
   // 只在用户真正切换时落盘，避免首屏窗口宽度把默认值固化下来
   const setPropertiesOpen = useCallback((open: boolean) => {
     setIsPropertiesOpen(open);
@@ -492,6 +493,18 @@ export const SlidePreview: React.FC = () => {
     setPropertiesWidth(width);
     localStorage.setItem('previewDrawer.width', String(width));
   }, []);
+  // 抽屉里改页级模板：选图和模板提示词都走 PATCH，不经过页面字段的防抖队列
+  const handleUpdatePageTemplate = useCallback(
+    (pageId: string, patch: { template_asset_id?: string | null; template_style_text?: string | null }) =>
+      projectId
+        ? updatePageTemplate(projectId, pageId, { ...patch, selection_source: 'manual' })
+        : Promise.resolve(),
+    [projectId, updatePageTemplate]
+  );
+  const handleUploadTemplateAsset = useCallback(
+    (file: File) => uploadTemplateAsset(projectId!, file),
+    [projectId, uploadTemplateAsset]
+  );
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -579,9 +592,15 @@ export const SlidePreview: React.FC = () => {
     const loadImageQualityControl = async () => {
       try {
         const response = await getSettings();
-        if (response.data && isMounted && !hasTouchedImageQualityControlRef.current) {
+        if (!response.data || !isMounted) return;
+        if (!hasTouchedImageQualityControlRef.current) {
           setImageQualityControlEnabled(Boolean(response.data.enable_image_quality_control));
         }
+        // 属性抽屉的描述额外字段与详细编辑器共用同一份配置
+        const extra = response.data.description_extra_fields;
+        if (Array.isArray(extra)) setDescriptionExtraFields(extra);
+        const imageFields = response.data.image_prompt_extra_fields;
+        if (Array.isArray(imageFields)) setImagePromptExtraFields(imageFields);
       } catch (error) {
         console.error('Failed to load image quality control setting:', error);
       }
@@ -1914,21 +1933,6 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden lg:inline">{t('preview.refresh')}</span>
             </Button>
           
-          {/* 页面属性抽屉开关 */}
-          <Button
-            variant="ghost"
-            size="sm"
-            data-testid="toggle-page-properties"
-            aria-pressed={isPropertiesOpen}
-            title={isPropertiesOpen ? t('preview.hidePageProperties') : t('preview.pageProperties')}
-            aria-label={isPropertiesOpen ? t('preview.hidePageProperties') : t('preview.pageProperties')}
-            icon={<PanelRight size={16} className="md:w-[18px] md:h-[18px]" />}
-            onClick={() => setPropertiesOpen(!isPropertiesOpen)}
-            className={isPropertiesOpen ? 'text-banana-600 dark:text-banana-300' : ''}
-          >
-            <span className="hidden xl:inline">{t('preview.pageProperties')}</span>
-          </Button>
-
           {/* 导出任务按钮 — 始终显示，面板内部决定是否有内容 */}
           <div className="relative">
               <Button
@@ -2872,18 +2876,25 @@ export const SlidePreview: React.FC = () => {
         {/* 右侧：页面属性抽屉（可拖拽调宽，桌面端就地推挤布局，窄屏浮层显示） */}
         <PagePropertiesDrawer
           page={selectedPage}
+          projectId={projectId}
           pageIndex={selectedIndex}
           pageCount={currentProject.pages.length}
           versionCount={imageVersions.length}
           templateMode={currentProject.template_mode}
           templateAssets={templateAssets}
+          extraFieldNames={descriptionExtraFields}
+          imagePromptFields={imagePromptExtraFields}
           isOpen={isPropertiesOpen}
           isSaving={isSavingPages}
           width={propertiesWidth}
           onWidthChange={handlePropertiesWidthChange}
+          onOpen={() => setPropertiesOpen(true)}
           onClose={() => setPropertiesOpen(false)}
           onUpdate={updatePageLocal}
+          onUpdatePageTemplate={handleUpdatePageTemplate}
+          onUploadTemplateAsset={handleUploadTemplateAsset}
           onOpenTemplateSetup={() => navigate(`/project/${projectId}/template-setup`)}
+          showToast={show}
         />
       </div>
 
