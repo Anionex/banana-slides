@@ -372,9 +372,10 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
         style={{ width: isOpen ? width : 0 }}
         className={cn(
           'z-40 flex min-h-0 flex-shrink-0 flex-col overflow-hidden border-gray-200 bg-white dark:border-border-primary dark:bg-background-secondary',
-          'fixed inset-y-0 right-0 max-w-[88vw] shadow-2xl md:relative md:max-w-none md:shadow-none md:border-l',
+          'fixed inset-y-0 right-0 max-w-[88vw] shadow-2xl md:relative md:max-w-none md:shadow-none',
           !isDragging && 'transition-[width] duration-300 ease-out',
-          !isOpen && 'pointer-events-none border-l-0'
+          // 收起时不能留下 1px 边框，否则预览区右侧会有一条竖线
+          isOpen ? 'md:border-l' : 'pointer-events-none'
         )}
       >
         {/* Resize handle (desktop only) */}
