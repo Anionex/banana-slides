@@ -355,6 +355,39 @@ test.describe('Page properties drawer - UI (mock)', () => {
     expect(calls.find((c) => c.url.endsWith('/pages/page-1'))!.body).toEqual({ part: '新章节' })
   })
 
+  test('survives legacy rows whose extra fields are not strings', async ({ page }) => {
+    // description_content is a JSON blob and the legacy layout_suggestion
+    // fallback has no writer left in the backend, so old rows can hold values
+    // that were never strings. Editing used to throw `value.trim is not a
+    // function` out of buildDescriptionContent and blank the drawer.
+    const legacy = mockProject()
+    legacy.pages[0].description_content = {
+      text: '旧数据描述',
+      extra_fields: { 视觉元素: 42 as unknown as string, 视觉焦点: null as unknown as string },
+    }
+    await mockPreview(page, legacy)
+    await openDrawerByDefault(page)
+
+    let body: any = null
+    await page.route('**/pages/page-1/description', async (route) => {
+      body = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: {} }),
+      })
+    })
+
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await clearAndType(descriptionBox(page), '编辑后的描述')
+
+    await expect.poll(() => body, { timeout: 8000 }).not.toBeNull()
+    expect(body.description_content.text).toBe('编辑后的描述')
+    // Coerced, not crashed: the number survives as text, the null is dropped.
+    expect(body.description_content.extra_fields).toEqual({ 视觉元素: '42' })
+    await expect(drawer(page)).toBeVisible()
+  })
+
   test('shows the saving indicator then settles on saved', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)

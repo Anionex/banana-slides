@@ -230,10 +230,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // API调用成功后，同步项目状态以更新updated_at
       // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
       // 用户可能在防抖窗口内切走了项目，此时同步会把当前项目覆盖成旧项目
+      // 队列可能混着多个项目的改动（防抖窗口内切了项目），所以要看整个队列里
+      // 有没有当前项目的写回，而不是只看第一条
       const { syncProject, pageGeneratingTasks, currentProject } = get();
-      const savedProjectId = entries[0][1].projectId;
-      if (currentProject?.id === savedProjectId && Object.keys(pageGeneratingTasks).length === 0) {
-        await syncProject(savedProjectId);
+      const touchedCurrentProject =
+        !!currentProject && entries.some(([, update]) => update.projectId === currentProject.id);
+      if (touchedCurrentProject && Object.keys(pageGeneratingTasks).length === 0) {
+        await syncProject(currentProject!.id);
       }
     } catch (error: any) {
       console.error('保存页面失败:', error);

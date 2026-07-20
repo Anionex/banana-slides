@@ -134,11 +134,21 @@ export const getDescriptionText = (description?: DescriptionContent | null): str
   return '';
 };
 
-/** Extra fields, with the same legacy layout_suggestion fallback DescriptionCard uses. */
+/**
+ * Extra fields, with the same legacy layout_suggestion fallback DescriptionCard
+ * uses. description_content is a JSON blob and layout_suggestion has no writer
+ * left in the backend, so old rows can carry values that were never strings —
+ * coerce here, at the one entry point, so neither the editors nor the save path
+ * has to guard again.
+ */
 export const getExtraFields = (description?: DescriptionContent | null): Record<string, string> => {
+  const toText = (value: unknown) => (typeof value === 'string' ? value : String(value ?? ''));
+  const normalize = (fields: Record<string, unknown>): Record<string, string> =>
+    Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toText(value)]));
+
   if (!description) return {};
-  if (description.extra_fields) return description.extra_fields;
-  if (description.layout_suggestion) return { 排版建议: description.layout_suggestion };
+  if (description.extra_fields) return normalize(description.extra_fields);
+  if (description.layout_suggestion) return { 排版建议: toText(description.layout_suggestion) };
   return {};
 };
 
