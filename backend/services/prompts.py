@@ -746,11 +746,12 @@ Each element should be a string containing the page description in the following
 - [要点2]
 ...
 
-其他页面素材（如果有排版、风格、素材等细节）
+配图与素材：[本页要展示的图表/图示/素材图片引用，无则省略整行]
+版式与重点：[版式结构与视觉重点，无则省略整行]
 
 Example output format:
 [
-    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"\\n- 奠定了AI的理论基础\\n\\n其他页面素材：\\n排版：标题居中，大字号\\n风格：科技感蓝色背景",
+    "页面标题：人工智能的诞生\\n页面文字：\\n- 1950 年，图灵提出"图灵测试"\\n- 奠定了AI的理论基础\\n\\n版式与重点：标题居中，大字号",
     "页面标题：AI 的发展历程\\n页面文字：\\n- 1950年代：符号主义...",
     ...
 ]
@@ -759,7 +760,7 @@ Important rules:
 - Split the description text according to the outline structure
 - Each page description should match the corresponding page in the outline
 - Preserve all important content from the original text, including layout details (排版细节), style requirements (风格要求), material specifications (素材说明), and any other design requirements
-- If the user described layout, style, or materials for a page, include them in the "其他页面素材" section
+- If the user described materials or images for a page, put them in the "配图与素材" line; if the user described layout, composition, or emphasis, put them in the "版式与重点" line
 - Keep the format consistent with the example above
 - If a page in the outline doesn't have a clear description in the text, create a reasonable description based on the outline
 
@@ -791,7 +792,16 @@ def get_descriptions_refinement_prompt(current_descriptions: List[Dict], user_re
         title = desc.get('title', '未命名')
         content = desc.get('description_content', '')
         if isinstance(content, dict):
+            # 额外字段一并带上，否则精修会在不知情的情况下把它们改没
+            extra_fields = content.get('extra_fields') or {}
             content = content.get('text', '')
+            if isinstance(extra_fields, dict):
+                field_lines = [
+                    f"{name}：{value}" for name, value in extra_fields.items()
+                    if value is not None and str(value).strip() != ""
+                ]
+                if field_lines:
+                    content = '\n'.join([content, *field_lines]) if content else '\n'.join(field_lines)
 
         if content:
             has_any_description = True
@@ -825,9 +835,13 @@ You are a helpful assistant that modifies PPT page descriptions based on user re
 - [要点1]
 - [要点2]
 ...
-其他页面素材（如果有请加上，包括markdown图片链接等）
+配图与素材：[本页要展示的图表/图示/素材图片引用，无则省略整行]
+版式与重点：[版式结构与视觉重点，无则省略整行]
 
-提示：如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)，而不是作为普通文本。
+注意：
+- "页面文字"会被逐字渲染到页面上，不要把设计意图写进去；设计意图写入上面对应字段。
+- 原描述中已有的字段行请保留并按用户要求调整，不要凭空删除。
+- 如果参考文件中包含以 /files/ 开头的本地文件URL图片（例如 /files/mineru/xxx/image.png），请将这些图片以markdown格式输出，例如：![图片描述](/files/mineru/xxx/image.png)，而不是作为普通文本。
 
 请返回一个 JSON 数组，每个元素是一个字符串，对应每个页面的修改后描述（按页面顺序）。
 
