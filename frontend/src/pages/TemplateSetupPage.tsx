@@ -526,7 +526,7 @@ export const TemplateSetupPage: React.FC = () => {
                     <div
                       key={asset.id}
                       className={cn(
-                        'group rounded-card border bg-white transition-all duration-200 dark:bg-background-secondary',
+                        'rounded-card border bg-white transition-all duration-200 dark:bg-background-secondary',
                         expanded && 'sm:col-span-2',
                         asset.analysis_status === 'failed'
                           ? 'border-red-300 dark:border-red-700'
