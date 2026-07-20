@@ -2771,8 +2771,8 @@ export const SlidePreview: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* 预览区：lg+ 预留底部空间给悬浮工具栏 */}
-              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8 lg:pb-24">
+              {/* 预览区：lg+ 时幻灯片与悬浮工具栏作为一组垂直居中 */}
+              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
                   <div className="relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation" style={{ aspectRatio: aspectRatioStyle }}>
                     {selectedPage?.generated_image_path ? (
@@ -2808,13 +2808,12 @@ export const SlidePreview: React.FC = () => {
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
 
-              {/* 悬浮工具栏（lg+）：只放当前页相关操作，锚定画布视口底部居中 */}
+              {/* 悬浮工具栏（lg+）：只放当前页相关操作，紧随幻灯片下方，
+                  和图片同属一列一起居中，免得大屏上被甩到离图很远的视口底部 */}
               <div
                 data-testid="preview-floating-toolbar"
-                className="hidden lg:flex absolute bottom-6 left-1/2 -translate-x-1/2 z-30 items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg [&_button]:whitespace-nowrap"
+                className="hidden lg:flex mt-4 mx-auto w-max items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg [&_button]:whitespace-nowrap"
               >
                 <Button
                   variant="ghost"
@@ -2872,6 +2871,8 @@ export const SlidePreview: React.FC = () => {
                 >
                   {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.regenerate')}
                 </Button>
+                </div>
+                </div>
               </div>
 
               {/* 控制栏（lg 以下）：窄屏保持 docked 布局 */}
