@@ -144,7 +144,10 @@ import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtil
 // };
 // const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
 
-const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
+// 与后端 Settings.DEFAULT_EXTRA_FIELDS / DEFAULT_IMAGE_PROMPT_FIELDS 保持一致
+const DEFAULT_EXTRA_FIELDS = ['配图与素材', '版式与重点', '演讲者备注'];
+const DEFAULT_IMAGE_PROMPT_FIELDS = ['配图与素材', '版式与重点'];
+const PRESET_EXTRA_FIELDS = new Set(DEFAULT_EXTRA_FIELDS);
 
 // 可拖拽排序的额外字段胶囊
 const SortableFieldPill: React.FC<{
@@ -231,14 +234,14 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
-  const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(DEFAULT_EXTRA_FIELDS);
+  const [imagePromptFields, setImagePromptFields] = useState<string[]>(DEFAULT_IMAGE_PROMPT_FIELDS);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
-    } catch { return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']; }
+      return stored ? JSON.parse(stored) : DEFAULT_EXTRA_FIELDS;
+    } catch { return DEFAULT_EXTRA_FIELDS; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -260,7 +263,7 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+        const activeFields = s.description_extra_fields || DEFAULT_EXTRA_FIELDS;
         setExtraFieldNames(activeFields);
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
@@ -824,7 +827,7 @@ export const DetailEditor: React.FC = () => {
                                     ? extraFieldNames.filter(f => f !== name)
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
-                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] });
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : DEFAULT_EXTRA_FIELDS });
                                 }}
                                 inImagePrompt={imagePromptFields.includes(name)}
                                 imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
