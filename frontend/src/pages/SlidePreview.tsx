@@ -91,6 +91,7 @@ const previewI18n = {
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
       projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
+      pageProperties: "页面属性", hidePageProperties: "收起页面属性",
       switchToMulti: "转为多模板", switchToSingle: "转为单模板", templateSetup: "模板配置", templateMenu: "模板",
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
@@ -227,6 +228,7 @@ const previewI18n = {
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
       switchToMulti: "Switch to multi", switchToSingle: "Switch to single", templateSetup: "Template setup", templateMenu: "Template",
       projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
+      pageProperties: "Page Properties", hidePageProperties: "Hide page properties",
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
       noPages: "No pages yet", noPagesHint: "Please go back to editor to add content first", backToEdit: "Back to Editor",
@@ -302,6 +304,7 @@ import {
   LayoutTemplate,
   Presentation,
   AlertTriangle,
+  PanelRight,
 } from 'lucide-react';
 import logoUrl from '@/assets/logo.png';
 import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
@@ -313,6 +316,7 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import { triggerDownload } from '@/api/client';
 import type { Material } from '@/api/endpoints';
 import { SlideCard } from '@/components/preview/SlideCard';
+import { PagePropertiesDrawer, readStoredDrawerWidth } from '@/components/preview/PagePropertiesDrawer';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useExportTasksStore, type ExportTaskType } from '@/store/useExportTasksStore';
 import { getImageUrl } from '@/api/client';
@@ -406,6 +410,7 @@ export const SlidePreview: React.FC = () => {
     deletePageById,
     updatePageLocal,
     isGlobalLoading,
+    isSavingPages,
     taskProgress,
     pageGeneratingTasks,
     warningMessage,
@@ -473,6 +478,22 @@ export const SlidePreview: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
+  // 页面属性抽屉：宽度与展开状态都记忆在本地，窄屏默认收起
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(() => {
+    const stored = localStorage.getItem('previewDrawer.open');
+    if (stored !== null) return stored === 'true';
+    return window.innerWidth >= 1024;
+  });
+  const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
+  // 只在用户真正切换时落盘，避免首屏窗口宽度把默认值固化下来
+  const setPropertiesOpen = useCallback((open: boolean) => {
+    setIsPropertiesOpen(open);
+    localStorage.setItem('previewDrawer.open', String(open));
+  }, []);
+  const handlePropertiesWidthChange = useCallback((width: number) => {
+    setPropertiesWidth(width);
+    localStorage.setItem('previewDrawer.width', String(width));
+  }, []);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -1895,6 +1916,19 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden lg:inline">{t('preview.refresh')}</span>
             </Button>
           
+          {/* 页面属性抽屉开关 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="toggle-page-properties"
+            aria-pressed={isPropertiesOpen}
+            title={isPropertiesOpen ? t('preview.hidePageProperties') : t('preview.pageProperties')}
+            aria-label={isPropertiesOpen ? t('preview.hidePageProperties') : t('preview.pageProperties')}
+            icon={<PanelRight size={16} className="md:w-[18px] md:h-[18px]" />}
+            onClick={() => setPropertiesOpen(!isPropertiesOpen)}
+            className={isPropertiesOpen ? 'text-banana-600 dark:text-banana-300' : ''}
+          />
+
           {/* 导出任务按钮 — 始终显示，面板内部决定是否有内容 */}
           <div className="relative">
               <Button
@@ -2654,7 +2688,8 @@ export const SlidePreview: React.FC = () => {
 
               {/* 控制栏 */}
               <div className="bg-white dark:bg-background-secondary border-t border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-5xl mx-auto">
+                {/* flex-wrap + nowrap 按钮：抽屉拉宽后整块换行，而不是把按钮文字折断 */}
+                <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 max-w-5xl mx-auto [&_button]:whitespace-nowrap">
                   {/* 导航 */}
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
                     <Button
@@ -2833,6 +2868,23 @@ export const SlidePreview: React.FC = () => {
             </>
           )}
         </main>
+
+        {/* 右侧：页面属性抽屉（可拖拽调宽，桌面端就地推挤布局，窄屏浮层显示） */}
+        <PagePropertiesDrawer
+          page={selectedPage}
+          pageIndex={selectedIndex}
+          pageCount={currentProject.pages.length}
+          versionCount={imageVersions.length}
+          templateMode={currentProject.template_mode}
+          templateAssets={templateAssets}
+          isOpen={isPropertiesOpen}
+          isSaving={isSavingPages}
+          width={propertiesWidth}
+          onWidthChange={handlePropertiesWidthChange}
+          onClose={() => setPropertiesOpen(false)}
+          onUpdate={updatePageLocal}
+          onOpenTemplateSetup={() => navigate(`/project/${projectId}/template-setup`)}
+        />
       </div>
 
       {/* 编辑对话框 */}
