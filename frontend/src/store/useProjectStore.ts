@@ -101,6 +101,8 @@ interface ProjectState {
   // 状态
   currentProject: Project | null;
   isGlobalLoading: boolean;
+  // 有页面改动正在防抖队列中或写回后端（用于「保存中/已保存」提示）
+  isSavingPages: boolean;
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
@@ -176,10 +178,8 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
-  // 防抖的API更新函数（在store内部定义，以便访问syncProject）
-const debouncedUpdatePage = debounce(
-  async (projectId: string, pageId: string, data: any) => {
-      try {
+  // 把一页的字段分发到各自的后端端点
+  const savePageFields = async (projectId: string, pageId: string, data: any) => {
     const promises: Promise<any>[] = [];
 
     // 如果更新的是 description_content，使用专门的端点
@@ -190,6 +190,12 @@ const debouncedUpdatePage = debounce(
     // 如果更新的是 outline_content，使用专门的端点
     if (data.outline_content) {
       promises.push(api.updatePageOutline(projectId, pageId, data.outline_content));
+    }
+
+    // 如果更新的是 narration_text，使用专门的端点
+    // （通用端点只接受 part，narration 走这里才能真正落库）
+    if ('narration_text' in data) {
+      promises.push(api.updatePageNarration(projectId, pageId, data.narration_text ?? ''));
     }
 
     // 如果更新的是 part 字段，使用通用端点
@@ -204,26 +210,57 @@ const debouncedUpdatePage = debounce(
       // 并行执行所有更新请求
       await Promise.all(promises);
     }
-        
-        // API调用成功后，同步项目状态以更新updated_at
-        // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
-        const { syncProject, pageGeneratingTasks } = get();
-        if (Object.keys(pageGeneratingTasks).length === 0) {
-          await syncProject(projectId);
-        }
-      } catch (error: any) {
-        console.error('保存页面失败:', error);
-        // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
-        // 如果需要，可以通过事件系统或toast通知用户
+  };
+
+  // 待写回后端的页面改动：pageId -> 合并后的字段。
+  // 防抖计时器是全局共享的，所以这里必须累积而不是覆盖参数，
+  // 否则 1s 内连续编辑多个字段（或切页后继续编辑）会丢掉先前的改动。
+  const pendingPageUpdates = new Map<string, { projectId: string; data: any }>();
+
+  const flushPageUpdates = async () => {
+    const entries = Array.from(pendingPageUpdates.entries());
+    pendingPageUpdates.clear();
+    if (entries.length === 0) return;
+
+    try {
+      await Promise.all(
+        entries.map(([pageId, { projectId, data }]) => savePageFields(projectId, pageId, data))
+      );
+
+      // API调用成功后，同步项目状态以更新updated_at
+      // 图片生成期间 poll 已在 2s 同步，跳过以避免并发竞态
+      const { syncProject, pageGeneratingTasks } = get();
+      if (Object.keys(pageGeneratingTasks).length === 0) {
+        await syncProject(entries[0][1].projectId);
+      }
+    } catch (error: any) {
+      console.error('保存页面失败:', error);
+      // 可以在这里添加错误提示，但为了避免频繁提示，暂时只记录日志
+      // 如果需要，可以通过事件系统或toast通知用户
+    } finally {
+      // 队列可能在本次 flush 期间又被写入，只有排空时才算保存结束
+      if (pendingPageUpdates.size === 0) set({ isSavingPages: false });
     }
-  },
-  1000
-);
+  };
+
+  const debouncedFlushPageUpdates = debounce(flushPageUpdates, 1000);
+
+  const debouncedUpdatePage = (projectId: string, pageId: string, data: any) => {
+    const existing = pendingPageUpdates.get(pageId);
+    pendingPageUpdates.set(pageId, {
+      projectId,
+      data: { ...(existing?.data ?? {}), ...data },
+    });
+    // 逐字输入时避免重复 set 触发无谓的重渲染
+    if (!get().isSavingPages) set({ isSavingPages: true });
+    debouncedFlushPageUpdates();
+  };
 
   return {
   // 初始状态
   currentProject: null,
   isGlobalLoading: false,
+  isSavingPages: false,
   activeTaskId: null,
   taskProgress: null,
   error: null,
