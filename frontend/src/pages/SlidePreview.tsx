@@ -99,6 +99,8 @@ const previewI18n = {
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
+      inlineEditRegionHint: "可点「区域选图」在图上框出要改的部分",
+      inlineEditRegionPicked: "已框选一块区域，将作为参考图一起提交",
       pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）",
       enterTitle: "输入页面标题", pointsPerLine: "要点（每行一个）",
       enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容",
@@ -234,6 +236,8 @@ const previewI18n = {
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
+      inlineEditRegionHint: "Use Region Select to box the part you want changed",
+      inlineEditRegionPicked: "Region selected — it goes along as a reference image",
       pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)",
       enterTitle: "Enter page title", pointsPerLine: "Key Points (one per line)",
       enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description",
@@ -590,6 +594,12 @@ export const SlidePreview: React.FC = () => {
     () => localStorage.getItem('previewDrawer.open') === 'true'
   );
   const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
+  // 就地编辑态（lg+）：幻灯片上移让位给指令区，在大图上直接框选。
+  // 窄屏放不下上下分栏，仍走原来的编辑弹窗。
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
+  // 正在编辑的是哪一页。切页的那一次渲染里 selectedIndex 已经指向新页，
+  // 但草稿还是旧页的，靠它把两者区分开
+  const editingPageIdRef = useRef<string | undefined>(undefined);
   const [descriptionExtraFields, setDescriptionExtraFields] = useState<string[]>([]);
   const [imagePromptExtraFields, setImagePromptExtraFields] = useState<string[] | undefined>(undefined);
   // 只在用户真正切换时落盘，避免首屏窗口宽度把默认值固化下来
@@ -1135,8 +1145,43 @@ export const SlidePreview: React.FC = () => {
     setSelectionRect(null);
     setIsSelectingRegion(false);
 
-    setIsEditModalOpen(true);
+    // lg+ 走就地编辑，窄屏没有上下分栏的空间，仍用弹窗
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      editingPageIdRef.current = pageId;
+      setIsInlineEditing(true);
+    } else {
+      setIsEditModalOpen(true);
+    }
   };
+
+  const exitInlineEditing = useCallback(() => {
+    setIsInlineEditing(false);
+    setIsRegionSelectionMode(false);
+    setSelectionStart(null);
+    setSelectionRect(null);
+    setIsSelectingRegion(false);
+  }, []);
+
+  // 缩到 lg 以下时就地编辑的上下分栏已经放不下，退回预览态而不是让布局塌掉
+  useEffect(() => {
+    if (!isInlineEditing) return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => {
+      if (!mq.matches) exitInlineEditing();
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [isInlineEditing, exitInlineEditing]);
+
+  // Esc 退出就地编辑（弹窗有自己的 Esc 处理）
+  useEffect(() => {
+    if (!isInlineEditing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitInlineEditing();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isInlineEditing, exitInlineEditing]);
 
   // 保存大纲和描述修改
   const handleSaveOutlineAndDescription = useCallback(() => {
@@ -1185,8 +1230,12 @@ export const SlidePreview: React.FC = () => {
     const page = currentProject.pages[selectedIndex];
     if (!page.id) return;
 
-    // 先保存大纲和描述的修改
-    handleSaveOutlineAndDescription();
+    // 弹窗里带着大纲/描述输入框，提交时要一并保存；就地编辑态没有这两个字段，
+    // 保存只会把进入编辑态时的快照原样写回，白白盖掉期间从别处（属性面板、
+    // 后台同步）落下来的新值
+    if (!isInlineEditing) {
+      handleSaveOutlineAndDescription();
+    }
 
     // 调用后端编辑接口
     await editPageImage(
@@ -1214,8 +1263,9 @@ export const SlidePreview: React.FC = () => {
       },
     }));
 
-    setIsEditModalOpen(false);
-  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription]);
+    if (isInlineEditing) exitInlineEditing();
+    else setIsEditModalOpen(false);
+  }, [currentProject, selectedIndex, editPrompt, selectedContextImages, editPageImage, handleSaveOutlineAndDescription, isInlineEditing, exitInlineEditing]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1232,17 +1282,17 @@ export const SlidePreview: React.FC = () => {
     }));
   };
 
-  // Manage object URLs for uploaded files to prevent memory leaks
-  const uploadedFileUrls = useRef<string[]>([]);
+  // Object URLs for the picked reference images. Held in state, not a ref, so
+  // that creating them schedules the render that shows them. As a ref this
+  // happened to work only because the draft-cache effect below also depends on
+  // uploadedFiles and its setState re-rendered the subtree a beat later —
+  // fine until someone changes that effect. Cleanup revokes the previous batch.
+  const [uploadedPreviews, setUploadedPreviews] = useState<string[]>([]);
   useEffect(() => {
-    uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
-    uploadedFileUrls.current = selectedContextImages.uploadedFiles.map(file => URL.createObjectURL(file));
+    const urls = selectedContextImages.uploadedFiles.map((file) => URL.createObjectURL(file));
+    setUploadedPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [selectedContextImages.uploadedFiles]);
-  useEffect(() => {
-    return () => {
-      uploadedFileUrls.current.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, []);
 
   const handleSelectMaterials = async (materials: Material[]) => {
     try {
@@ -1264,12 +1314,17 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  // 编辑弹窗打开时，实时把输入与图片选择写入缓存（前端会话内）
+  // 编辑中（弹窗或就地编辑态）实时把输入与图片选择写入缓存（前端会话内），
+  // 这样切页退出编辑后再回来还能接着改
   useEffect(() => {
-    if (!isEditModalOpen || !currentProject) return;
+    if ((!isEditModalOpen && !isInlineEditing) || !currentProject) return;
     const page = currentProject.pages[selectedIndex];
     const pageId = page?.id;
     if (!pageId) return;
+    // 就地编辑态下切页时，这个 effect 会先于退出逻辑跑一次，此时 selectedIndex
+    // 已经是新页而草稿还是旧页的——写下去就等于把上一页的指令挂到新页名下，
+    // 新页再点「编辑」就会看到别人的草稿
+    if (isInlineEditing && editingPageIdRef.current && editingPageIdRef.current !== pageId) return;
 
     setEditContextByPage((prev) => ({
       ...prev,
@@ -1282,9 +1337,46 @@ export const SlidePreview: React.FC = () => {
         },
       },
     }));
-  }, [isEditModalOpen, currentProject, selectedIndex, editPrompt, selectedContextImages]);
+  }, [isEditModalOpen, isInlineEditing, currentProject, selectedIndex, editPrompt, selectedContextImages]);
 
-  // ========== 预览图矩形选择相关逻辑（编辑弹窗内） ==========
+  // 编辑态下从缩略图切页：选区框、裁剪出来的参考图、指令都是上一页的，留着会把
+  // 旧页的裁剪图喂给新页。退出编辑态即可——上面的 effect 已经把内容按页缓存好了，
+  // 用户在新页点「编辑」还能接着改。
+  useEffect(() => {
+    if (!isInlineEditing) {
+      editingPageIdRef.current = undefined;
+      return;
+    }
+    const pageId = currentProject?.pages[selectedIndex]?.id;
+    if (editingPageIdRef.current && editingPageIdRef.current !== pageId) {
+      exitInlineEditing();
+    }
+  }, [isInlineEditing, selectedIndex, currentProject, exitInlineEditing]);
+
+  // ========== 预览图矩形选择相关逻辑 ==========
+  // 图片内容在 <img> 盒子里的实际位置：object-fit 会让两者不一致——contain 时四周留白、
+  // cover 时超出部分被裁掉。选区坐标是相对盒子量的，必须先换算到内容坐标再映射回原图，
+  // 否则项目改了比例、而图还是按旧比例生成时，裁出来的区域会整体偏移。
+  const getRenderedImageRect = (img: HTMLImageElement) => {
+    const box = img.getBoundingClientRect();
+    const { naturalWidth: natW, naturalHeight: natH } = img;
+    if (!natW || !natH || !box.width || !box.height) return null;
+    const scale =
+      getComputedStyle(img).objectFit === 'contain'
+        ? Math.min(box.width / natW, box.height / natH)
+        : Math.max(box.width / natW, box.height / natH);
+    const renderedW = natW * scale;
+    const renderedH = natH * scale;
+    return {
+      scale,
+      // cover 时为负，表示内容左/上被裁掉了多少
+      offsetX: (box.width - renderedW) / 2,
+      offsetY: (box.height - renderedH) / 2,
+      renderedW,
+      renderedH,
+    };
+  };
+
   const handleSelectionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isRegionSelectionMode || !imageRef.current) return;
     const rect = imageRef.current.getBoundingClientRect();
@@ -1332,21 +1424,16 @@ export const SlidePreview: React.FC = () => {
         return;
       }
 
-      // 将选区从展示尺寸映射到原始图片尺寸
-      const naturalWidth = img.naturalWidth;
-      const naturalHeight = img.naturalHeight;
-      const displayWidth = img.clientWidth;
-      const displayHeight = img.clientHeight;
+      // 将选区从展示尺寸映射到原始图片尺寸（先扣掉 object-fit 造成的留白/裁切）
+      const rendered = getRenderedImageRect(img);
+      if (!rendered) return;
 
-      if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) return;
-
-      const scaleX = naturalWidth / displayWidth;
-      const scaleY = naturalHeight / displayHeight;
-
-      const sx = left * scaleX;
-      const sy = top * scaleY;
-      const sWidth = width * scaleX;
-      const sHeight = height * scaleY;
+      // contain 时选区可能落在留白上、cover 时可能落在被裁掉的部分上，都要夹回原图范围内
+      const sx = Math.max(0, (left - rendered.offsetX) / rendered.scale);
+      const sy = Math.max(0, (top - rendered.offsetY) / rendered.scale);
+      const sWidth = Math.min(width / rendered.scale, img.naturalWidth - sx);
+      const sHeight = Math.min(height / rendered.scale, img.naturalHeight - sy);
+      if (sWidth <= 0 || sHeight <= 0) return;
 
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(sWidth));
@@ -2771,12 +2858,33 @@ export const SlidePreview: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* 预览区：lg+ 时幻灯片与悬浮工具栏作为一组垂直居中 */}
-              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
+              {/* 预览区：lg+ 时幻灯片与悬浮工具栏作为一组垂直居中；
+                  就地编辑态改为顶部对齐并给幻灯片限高，把下半屏让给指令区 */}
+              <div
+                className={`flex-1 overflow-y-auto min-h-0 flex justify-center p-4 md:p-8 ${
+                  isInlineEditing ? 'items-start' : 'items-center'
+                }`}
+              >
                 <div className="max-w-5xl w-full">
-                  <div className="relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation" style={{ aspectRatio: aspectRatioStyle }}>
+                  <div
+                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation ${
+                      isInlineEditing ? 'mx-auto ring-2 ring-banana-400' : ''
+                    } ${isRegionSelectionMode ? 'cursor-crosshair' : ''}`}
+                    // 编辑态用高度驱动、由比例反推宽度：直接给 aspect-ratio 的盒子加 max-height
+                    // 只会压扁高度而不动宽度，比例就失真了。maxWidth 兜住超宽比例的情况。
+                    style={
+                      isInlineEditing
+                        ? { aspectRatio: aspectRatioStyle, height: '46vh', maxWidth: '100%' }
+                        : { aspectRatio: aspectRatioStyle }
+                    }
+                    onMouseDown={isInlineEditing ? handleSelectionMouseDown : undefined}
+                    onMouseMove={isInlineEditing ? handleSelectionMouseMove : undefined}
+                    onMouseUp={isInlineEditing ? handleSelectionMouseUp : undefined}
+                    onMouseLeave={isInlineEditing ? handleSelectionMouseUp : undefined}
+                  >
                     {selectedPage?.generated_image_path ? (
                       <img
+                        ref={isInlineEditing ? imageRef : undefined}
                         src={imageUrl}
                         alt={`Slide ${selectedIndex + 1}`}
                         className="w-full h-full object-cover select-none"
@@ -2807,10 +2915,127 @@ export const SlidePreview: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    {/* 就地编辑态：框选提示与选区框直接画在大图上 */}
+                    {isInlineEditing && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsRegionSelectionMode((on) => !on);
+                            if (isRegionSelectionMode) setSelectionRect(null);
+                          }}
+                          className={`absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow transition-colors ${
+                            isRegionSelectionMode
+                              ? 'bg-banana-500 text-black'
+                              : 'bg-white/90 text-gray-700 hover:bg-white dark:bg-background-elevated/90 dark:text-foreground-secondary'
+                          }`}
+                        >
+                          <Sparkles size={13} />
+                          {isRegionSelectionMode ? t('preview.endRegionSelect') : t('preview.regionSelect')}
+                        </button>
+                        {selectionRect && (
+                          <div
+                            data-testid="inline-edit-selection"
+                            className="absolute border-2 border-banana-500 bg-banana-500/20 pointer-events-none"
+                            style={{
+                              left: selectionRect.left,
+                              top: selectionRect.top,
+                              width: selectionRect.width,
+                              height: selectionRect.height,
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
                   </div>
 
+              {/* 就地编辑态（lg+）：指令区接在幻灯片下方，替换掉悬浮工具栏的位置 */}
+              {isInlineEditing && (
+                <div
+                  data-testid="inline-edit-panel"
+                  className="hidden lg:flex mt-4 flex-col gap-3 rounded-xl border border-banana-300 dark:border-banana-500/40 bg-white dark:bg-background-secondary p-4 shadow-lg"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-gray-800 dark:text-foreground-primary">
+                      {t('preview.editPage')}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-foreground-tertiary">
+                      {selectionRect
+                        ? t('preview.inlineEditRegionPicked')
+                        : t('preview.inlineEditRegionHint')}
+                    </span>
+                  </div>
+                  <Textarea
+                    label={t('preview.editPromptLabel')}
+                    placeholder={t('preview.editPromptPlaceholder')}
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    rows={2}
+                  />
+                  {selectedContextImages.uploadedFiles.length > 0 && (
+                    <div
+                      data-testid="inline-edit-attachments"
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      {selectedContextImages.uploadedFiles.map((file, idx) => (
+                        <div key={`${file.name}-${idx}`} className="group relative">
+                          <img
+                            src={uploadedPreviews[idx] || ''}
+                            alt={`${t('preview.uploadImages')} ${idx + 1}`}
+                            data-testid="inline-edit-attachment-thumb"
+                            className="h-14 w-14 rounded-lg border border-gray-200 object-cover dark:border-border-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeUploadedFile(idx)}
+                            aria-label={t('common.delete')}
+                            className="no-min-touch-target absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<ImagePlus size={15} />}
+                        onClick={() => setIsMaterialModalOpen(true)}
+                        className="text-xs"
+                      >
+                        {t('preview.selectFromMaterials')}
+                      </Button>
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-gray-700 transition-colors hover:bg-gray-100 dark:text-foreground-secondary dark:hover:bg-background-hover">
+                        <Upload size={15} />
+                        {t('preview.uploadImages')}
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={exitInlineEditing} className="text-sm">
+                        {t('common.cancel')}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleSubmitEdit}
+                        disabled={!editPrompt.trim() || isCurrentPageGenerating}
+                        className="text-sm"
+                      >
+                        {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.generateImage')}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 悬浮工具栏（lg+）：只放当前页相关操作，紧随幻灯片下方，
-                  和图片同属一列一起居中，免得大屏上被甩到离图很远的视口底部 */}
+                  和图片同属一列一起居中，免得大屏上被甩到离图很远的视口底部；
+                  就地编辑态下让位给上面的指令区 */}
+              {!isInlineEditing && (
               <div
                 data-testid="preview-floating-toolbar"
                 className="hidden lg:flex mt-4 mx-auto w-max items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg [&_button]:whitespace-nowrap"
@@ -2871,7 +3096,8 @@ export const SlidePreview: React.FC = () => {
                 >
                   {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.regenerate')}
                 </Button>
-                </div>
+              </div>
+              )}
                 </div>
               </div>
 
@@ -3243,7 +3469,7 @@ export const SlidePreview: React.FC = () => {
                 {selectedContextImages.uploadedFiles.map((_, idx) => (
                   <div key={idx} className="relative group">
                     <img
-                      src={uploadedFileUrls.current[idx] || ''}
+                      src={uploadedPreviews[idx] || ''}
                       alt={`Uploaded ${idx + 1}`}
                       className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-border-primary"
                     />

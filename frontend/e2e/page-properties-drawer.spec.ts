@@ -202,22 +202,33 @@ test.describe('Page properties drawer - UI (mock)', () => {
   })
 
   test('picks up edits made outside the drawer without clobbering typing', async ({ page }) => {
-    await mockPreview(page)
+    // Anything that writes these fields through the store — a syncProject after
+    // AI regeneration, another tab, the outline editor — has to show up in an
+    // open drawer rather than leaving stale text behind. Drive it through a
+    // sync, since desktop "编辑" now edits in place and no longer carries
+    // outline/description fields of its own.
+    const project = mockProject()
+    let served = project
+    await mockPreview(page, project)
+    await page.route(`**/api/projects/${MOCK_PROJECT_ID}`, (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: served }),
+      })
+    })
     await openDrawerByDefault(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
     await expect(page.getByTestId('drawer-title-input')).toHaveValue('第一页标题')
 
-    // The edit modal writes the same fields through the store; an open drawer
-    // has to follow along instead of showing stale text.
-    await page.getByRole('button', { name: '编辑' }).click()
-    // Scope to the dialog: the modal and the drawer share input placeholders.
-    const modal = page.getByRole('dialog')
-    await modal.getByRole('button', { name: /页面大纲/ }).click() // section starts collapsed
-    await modal.locator('input[placeholder="输入页面标题"]').fill('弹窗改的标题')
-    await modal.getByRole('button', { name: '仅保存大纲/描述' }).click()
-    await expect(modal).toBeHidden()
+    const updated = mockProject()
+    updated.pages[0].outline_content = { title: '别处改的标题', points: ['大纲阶段的要点'] }
+    served = updated
 
-    await expect(page.getByTestId('drawer-title-input')).toHaveValue('弹窗改的标题')
+    await page.getByRole('button', { name: '刷新' }).click()
+
+    await expect(page.getByTestId('drawer-title-input')).toHaveValue('别处改的标题')
   })
 
   test('does not let a background sync overwrite in-progress typing', async ({ page }) => {
