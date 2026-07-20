@@ -37,7 +37,13 @@ project_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 
 
 def _get_required_project_content(data, creation_type):
-    """Return normalized content for the selected creation mode."""
+    """Return normalized content for the selected creation mode.
+
+    'blank' projects start with no source text at all — the user builds the
+    outline by hand or imports it — so there is nothing to validate.
+    """
+    if creation_type == 'blank':
+        return None, None, None
     field_name = {
         'idea': 'idea_prompt',
         'outline': 'outline_text',
@@ -250,7 +256,7 @@ def create_project():
         
         creation_type = data.get('creation_type')
         
-        if creation_type not in ['idea', 'outline', 'descriptions']:
+        if creation_type not in ['idea', 'outline', 'descriptions', 'blank']:
             return bad_request("Invalid creation_type")
 
         _, content, content_error = _get_required_project_content(data, creation_type)

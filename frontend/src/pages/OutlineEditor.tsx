@@ -344,6 +344,9 @@ export const OutlineEditor: React.FC = () => {
     insertAtCursor: insertAtReqCursor,
   });
 
+  // 空白项目没有 AI 生成的来源文本，来源输入区和"自动生成大纲"都不适用
+  const isBlankProject = currentProject?.creation_type === 'blank';
+
   const inputLabel = useMemo(() => {
     const type = currentProject?.creation_type || 'idea';
     const key = type === 'descriptions' ? 'description' : type;
@@ -558,7 +561,7 @@ export const OutlineEditor: React.FC = () => {
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={async () => {
-                if (isInputDirty && projectId && currentProject) {
+                if (isInputDirty && projectId && currentProject && !isBlankProject) {
                   const field = currentProject.creation_type === 'outline'
                     ? 'outline_text'
                     : currentProject.creation_type === 'descriptions'
@@ -604,7 +607,7 @@ export const OutlineEditor: React.FC = () => {
             >
               {t('outline.addPage')}
             </Button>
-            {currentProject.pages.length === 0 && !isOutlineStreaming ? (
+            {isBlankProject ? null : currentProject.pages.length === 0 && !isOutlineStreaming ? (
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
@@ -715,9 +718,9 @@ export const OutlineEditor: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col md:flex-row gap-3 md:gap-6 p-3 md:p-6 overflow-y-auto min-h-0 relative">
-        {/* 左侧：可编辑文本区域（可收起） */}
+        {/* 左侧：可编辑文本区域（可收起）—— 空白项目无来源文本，不显示 */}
         <div
-          className="flex-shrink-0 transition-[width] duration-300 ease-in-out hidden md:block"
+          className={`flex-shrink-0 transition-[width] duration-300 ease-in-out ${isBlankProject ? 'hidden' : 'hidden md:block'}`}
           style={{ width: isPanelOpen ? undefined : 0 }}
         >
           <div
@@ -767,7 +770,7 @@ export const OutlineEditor: React.FC = () => {
         </div>
 
         {/* 收起时的把手 - 绝对定位贴左边缘 */}
-        {!isPanelOpen && (
+        {!isPanelOpen && !isBlankProject && (
           <button
             type="button"
             onClick={() => setIsPanelOpen(true)}
@@ -777,8 +780,8 @@ export const OutlineEditor: React.FC = () => {
           </button>
         )}
 
-        {/* 移动端：始终显示卡片 */}
-        <div className="md:hidden w-full flex-shrink-0">
+        {/* 移动端：始终显示卡片（空白项目无来源文本，不显示） */}
+        <div className={`${isBlankProject ? 'hidden' : 'md:hidden'} w-full flex-shrink-0`}>
           <div className="bg-white dark:bg-background-secondary rounded-card shadow-md border border-gray-100 dark:border-border-primary overflow-hidden">
             <div className="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-border-secondary">
               {currentProject.creation_type === 'idea'

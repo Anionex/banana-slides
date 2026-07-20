@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, X } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw, FilePlus, ArrowRight, X } from 'lucide-react';
 import { Button, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, MaterialSelector, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard, TextStyleSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
@@ -74,6 +74,8 @@ const homeI18n = {
         selectFile: '选择参考文件',
         parsing: '解析中...',
         createProject: '创建新项目',
+        startBlank: '或从空白项目开始',
+        startBlankHint: '不生成大纲，自己添加或导入页面',
       },
       renovation: {
         uploadHint: '点击或拖拽上传 PDF / PPTX 文件',
@@ -155,6 +157,8 @@ const homeI18n = {
         selectFile: 'Select reference file',
         parsing: 'Parsing...',
         createProject: 'Create New Project',
+        startBlank: 'Or start from a blank project',
+        startBlankHint: 'Skip outline generation — add or import pages yourself',
       },
       renovation: {
         uploadHint: 'Click or drag to upload PDF / PPTX file',
@@ -721,6 +725,38 @@ export const Home: React.FC = () => {
     }
   };
 
+  // 创建空白项目：不生成大纲，直接进入大纲页手动添加/导入页面
+  const handleCreateBlank = async () => {
+    setIsSubmitting(true);
+    try {
+      const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
+      await initializeProject('blank', '', selectedTemplate || undefined, styleDesc, undefined, aspectRatio);
+
+      const projectId = localStorage.getItem('currentProjectId');
+      if (!projectId) {
+        show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
+        return;
+      }
+
+      if (multiTemplateMode) {
+        try {
+          await switchTemplateMode(projectId, { mode: 'multi' });
+        } catch (error) {
+          console.error('Failed to switch to multi-template mode:', error);
+          show({ message: t('home.messages.multiModeSwitchFailed'), type: 'error' });
+        }
+      }
+
+      navigate(`/project/${projectId}/outline`);
+    } catch (error: any) {
+      console.error('创建空白项目失败:', error);
+      const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
+      show({ message: msg, type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50/30 to-pink-50/50 dark:from-background-primary dark:via-background-primary dark:to-background-primary relative overflow-hidden">
       {/* 背景装饰元素 - 仅在亮色模式显示 */}
@@ -1131,6 +1167,21 @@ export const Home: React.FC = () => {
               }
             />
             )}
+          </div>
+
+          {/* 空白项目入口：跳过 AI 生成，直接进入大纲页手动添加/导入 */}
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={handleCreateBlank}
+              disabled={isSubmitting || isGlobalLoading}
+              title={t('home.actions.startBlankHint')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm text-gray-500 dark:text-foreground-tertiary hover:text-banana-600 dark:hover:text-banana hover:bg-banana-50 dark:hover:bg-background-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+            >
+              <FilePlus size={14} className="flex-shrink-0" />
+              <span>{t('home.actions.startBlank')}</span>
+              <ArrowRight size={14} className="flex-shrink-0" />
+            </button>
           </div>
 
           {/* 隐藏的文件输入 */}

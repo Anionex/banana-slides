@@ -121,7 +121,7 @@ interface ProjectState {
   setError: (error: string | null) => void;
   
   // 项目操作
-  initializeProject: (type: 'idea' | 'outline' | 'description', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
+  initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
   syncProject: (projectId?: string) => Promise<void>;
   
   // 页面操作
@@ -245,7 +245,10 @@ const debouncedUpdatePage = debounce(
       const request: any = {};
       const normalizedContent = typeof content === 'string' ? content.trim() : '';
 
-      if (type === 'idea') {
+      if (type === 'blank') {
+        // 空白项目没有任何文本内容，必须显式声明类型
+        request.creation_type = 'blank';
+      } else if (type === 'idea') {
         request.idea_prompt = normalizedContent;
       } else if (type === 'outline') {
         request.outline_text = normalizedContent;

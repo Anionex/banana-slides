@@ -22,12 +22,14 @@ export const verifyAccessCode = async (code: string): Promise<ApiResponse<{ vali
  * 创建项目
  */
 export const createProject = async (data: CreateProjectRequest): Promise<ApiResponse<Project>> => {
-  // 根据输入类型确定 creation_type
-  let creation_type = 'idea';
-  if (data.description_text) {
-    creation_type = 'descriptions';
-  } else if (data.outline_text) {
-    creation_type = 'outline';
+  // 优先使用显式传入的 creation_type（空白项目没有任何文本内容，无法推断）
+  let creation_type: string = data.creation_type ?? 'idea';
+  if (!data.creation_type) {
+    if (data.description_text) {
+      creation_type = 'descriptions';
+    } else if (data.outline_text) {
+      creation_type = 'outline';
+    }
   }
 
   const response = await apiClient.post<ApiResponse<Project>>('/api/projects', {
