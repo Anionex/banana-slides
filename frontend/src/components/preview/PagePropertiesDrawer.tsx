@@ -264,6 +264,19 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
   const [showSaved, setShowSaved] = useState(false);
   const wasSavingRef = useRef(false);
 
+  // A closed drawer must not leave inputs in the DOM, but unmounting them the
+  // instant it closes would blank the panel mid-collapse — so trail the
+  // width transition by one beat.
+  const [renderBody, setRenderBody] = useState(isOpen);
+  useEffect(() => {
+    if (isOpen) {
+      setRenderBody(true);
+      return;
+    }
+    const timer = setTimeout(() => setRenderBody(false), 300);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
   const pageId = page?.id;
   // Drafts are re-seeded only when the selected page changes, so a background
   // syncProject() can never overwrite what the user is currently typing.
@@ -378,6 +391,8 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
           isOpen ? 'md:border-l' : 'pointer-events-none'
         )}
       >
+        {renderBody && (
+        <>
         {/* Resize handle (desktop only) */}
         <div
           data-testid="drawer-resize-handle"
@@ -612,6 +627,8 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
               </div>
             </Section>
           </div>
+        )}
+        </>
         )}
       </aside>
     </>

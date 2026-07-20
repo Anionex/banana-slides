@@ -105,6 +105,21 @@ const drawerWidth = (page: Page) =>
   drawer(page).evaluate((el) => Math.round(el.getBoundingClientRect().width))
 
 test.describe('Page properties drawer - UI (mock)', () => {
+  test('stays closed until asked for, leaving no inputs behind', async ({ page }) => {
+    await mockPreview(page)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await expect(page.getByTestId('toggle-page-properties')).toBeVisible()
+
+    // Collapsed to zero width, and its fields are out of the DOM entirely so
+    // they cannot collide with other selectors on the preview page.
+    expect(await drawerWidth(page)).toBe(0)
+    await expect(page.getByTestId('drawer-title-input')).toHaveCount(0)
+    await expect(page.getByTestId('drawer-resize-handle')).toHaveCount(0)
+
+    await page.getByTestId('toggle-page-properties').click()
+    await expect(page.getByTestId('drawer-title-input')).toBeVisible()
+  })
+
   test('toggles open/closed and remembers the choice across reloads', async ({ page }) => {
     await mockPreview(page)
     await openDrawerByDefault(page)

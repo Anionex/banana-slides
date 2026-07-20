@@ -478,12 +478,10 @@ export const SlidePreview: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageVersions, setImageVersions] = useState<ImageVersion[]>([]);
-  // 页面属性抽屉：宽度与展开状态都记忆在本地，窄屏默认收起
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(() => {
-    const stored = localStorage.getItem('previewDrawer.open');
-    if (stored !== null) return stored === 'true';
-    return window.innerWidth >= 1024;
-  });
+  // 页面属性抽屉：默认收起，展开状态与宽度都记忆在本地
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(
+    () => localStorage.getItem('previewDrawer.open') === 'true'
+  );
   const [propertiesWidth, setPropertiesWidth] = useState(readStoredDrawerWidth);
   // 只在用户真正切换时落盘，避免首屏窗口宽度把默认值固化下来
   const setPropertiesOpen = useCallback((open: boolean) => {
@@ -1927,7 +1925,9 @@ export const SlidePreview: React.FC = () => {
             icon={<PanelRight size={16} className="md:w-[18px] md:h-[18px]" />}
             onClick={() => setPropertiesOpen(!isPropertiesOpen)}
             className={isPropertiesOpen ? 'text-banana-600 dark:text-banana-300' : ''}
-          />
+          >
+            <span className="hidden xl:inline">{t('preview.pageProperties')}</span>
+          </Button>
 
           {/* 导出任务按钮 — 始终显示，面板内部决定是否有内容 */}
           <div className="relative">
