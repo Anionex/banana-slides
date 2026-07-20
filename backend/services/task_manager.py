@@ -45,7 +45,11 @@ def _append_extra_fields(
     desc_content: Optional[dict],
     allowed_fields: Optional[set] = None,
 ) -> str:
-    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。"""
+    """将 extra_fields 拼接到描述文本末尾，供图片生成 prompt 使用。
+
+    存量数据里的旧字段名（视觉元素/视觉焦点/排版布局等）经 LEGACY_FIELD_EQUIV 等价到
+    新字段名后再判断，避免字段改名后旧项目重新生图时这些内容突然不进 prompt。
+    """
     safe_desc = (desc_text or "").strip()
     if not desc_content or not isinstance(desc_content, dict):
         return safe_desc
@@ -57,7 +61,9 @@ def _append_extra_fields(
     if safe_desc:
         parts.append(safe_desc)
     for name, value in extra_fields.items():
-        if value is not None and str(value).strip() != "" and name in allowed:
+        if value is None or str(value).strip() == "":
+            continue
+        if name in allowed or Settings.LEGACY_FIELD_EQUIV.get(name) in allowed:
             parts.append(f"{name}：{value}")
     return '\n'.join(parts)
 

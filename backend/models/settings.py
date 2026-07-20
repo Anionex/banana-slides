@@ -41,7 +41,7 @@ class Settings(db.Model):
     # 描述生成模式: streaming / parallel (NULL=默认 streaming)
     description_generation_mode = db.Column(db.String(20), nullable=True)
 
-    # 描述额外字段配置: JSON 数组如 ["排版布局", "视觉素材"] (NULL=默认 DEFAULT_EXTRA_FIELDS)
+    # 描述额外字段配置: JSON 数组如 ["配图与素材", "版式与重点"] (NULL=默认 DEFAULT_EXTRA_FIELDS)
     description_extra_fields = db.Column(db.Text, nullable=True)
     image_prompt_extra_fields = db.Column(db.Text, nullable=True)  # JSON array: 哪些额外字段传入文生图 prompt
 
@@ -84,8 +84,17 @@ class Settings(db.Model):
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
 
-    DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
-    DEFAULT_IMAGE_PROMPT_FIELDS = ['视觉元素', '视觉焦点', '排版布局']  # 演讲者备注默认不传入图片生成
+    # 字段契约：页面文字（逐字上屏）/ 配图与素材（放什么）/ 版式与重点（怎么排）/ 演讲者备注（怎么讲）
+    DEFAULT_EXTRA_FIELDS = ['配图与素材', '版式与重点', '演讲者备注']
+    DEFAULT_IMAGE_PROMPT_FIELDS = ['配图与素材', '版式与重点']  # 演讲者备注默认不传入图片生成
+
+    # 旧字段名 → 新字段名。存量数据不迁移，靠此映射保持行为不回退
+    LEGACY_FIELD_EQUIV = {
+        '视觉元素': '配图与素材',
+        '视觉焦点': '版式与重点',
+        '排版布局': '版式与重点',
+        '排版建议': '版式与重点',
+    }
 
     def get_description_extra_fields(self):
         """Return parsed extra fields list."""

@@ -734,7 +734,7 @@ class AIService:
             return settings.get_description_extra_fields()
         except Exception:
             logger.warning("Failed to get extra field names from settings", exc_info=True)
-            return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
+            return ['配图与素材', '版式与重点', '演讲者备注']
 
     def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
                                  page_outline: Dict, page_index: int, language='zh',
