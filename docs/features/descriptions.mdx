@@ -3,7 +3,35 @@ title: "Write Descriptions"
 description: "Generate or write detailed visual descriptions for each slide"
 ---
 
-The Description Editor is the third step. Each page's "description" tells the AI what to draw — layout, color palette, charts, text content. The more specific, the better the result.
+The Description Editor is the third step. Each page's description is made up of a few fields with clearly separated jobs, which together tell the AI what the slide should look like. The more specific, the better the result.
+
+## How the Fields Divide the Work
+
+Each field answers a different question. Don't repeat content across them — overlapping instructions fight each other and drag the output quality down.
+
+| Field | Answers | How it's used |
+|-------|---------|---------------|
+| **Page Text** | What this page **says** | **Rendered onto the slide verbatim** — what you write is what shows up |
+| **Visuals & Assets** | What this page **shows** | Executed as written: charts/illustrations to draw, or asset images to reference |
+| **Layout & Emphasis** | How this page is **arranged** | Design guidance only — never appears as text on the slide |
+| **Speaker Notes** | How to **deliver** it | Not on screen, and not used for image generation |
+
+<Warning>
+  Anything in "Page Text" is printed onto the slide word for word. Design intent (like "center the title" or "use blue") belongs in "Layout & Emphasis" — put it in Page Text and it gets rendered as body copy.
+</Warning>
+
+**How to write each field:**
+
+- **Visuals & Assets**: Spell out the chart type and what it should convey, e.g. `Line chart: revenue growth 2020-2025, highlight the 2023 inflection point`. Reference asset images with Markdown, e.g. `![caption](/files/xxx/image.png)`. Keep it to 3 items or fewer.
+- **Layout & Emphasis**: First sentence for the layout structure (e.g. `title on top, two columns below`, `text left, image right`, `horizontal timeline`, `full-bleed image with text overlay`), second sentence for the visual emphasis (what the audience should see first). Two sentences at most.
+
+## Custom Fields
+
+**Description Settings** in the action bar lets you add or remove fields, drag them into a different order, and define your own (e.g. "Brand Guidelines"). The icon on a field pill indicates whether that field feeds into image generation — "Speaker Notes" doesn't by default.
+
+<Note>
+  The older "Visual Elements", "Visual Focus", and "Layout" fields in existing projects still display and feed into generation as before, with no manual migration needed. Newly generated descriptions use the new fields above.
+</Note>
 
 ## Batch Generate All Descriptions
 
