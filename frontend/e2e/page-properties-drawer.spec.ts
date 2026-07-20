@@ -478,6 +478,60 @@ test.describe('Page properties drawer - UI (mock)', () => {
     await expect.poll(() => patch, { timeout: 8000 }).not.toBeNull()
     expect(patch).toEqual({ template_style_text: '左图右文，深色底', selection_source: 'manual' })
   })
+
+  test('flushes a template prompt typed just before switching pages', async ({ page }) => {
+    await mockPreview(page, mockProject({ template_mode: 'multi' }))
+    await openDrawerByDefault(page)
+
+    const patches: { pageId: string; body: any }[] = []
+    await page.route('**/pages/*/template', async (route) => {
+      const pageId = route.request().url().match(/pages\/([^/]+)\/template/)![1]
+      patches.push({ pageId, body: route.request().postDataJSON() })
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { page: { page_id: pageId } } }),
+      })
+    })
+
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    // Type, then switch pages well inside the 800ms debounce window. The prompt
+    // used to be dropped by the clearTimeout on unmount/page switch.
+    await page.getByTestId('drawer-template-style-input').fill('切页前写的提示词')
+    await page.getByRole('button', { name: '下一页' }).click()
+
+    await expect.poll(() => patches.length, { timeout: 8000 }).toBeGreaterThan(0)
+    // It must land on page-1 — the page it was typed on — not on page-2.
+    expect(patches[0].pageId).toBe('page-1')
+    expect(patches[0].body.template_style_text).toBe('切页前写的提示词')
+  })
+
+  test('still debounces while typing instead of firing per keystroke', async ({ page }) => {
+    await mockPreview(page, mockProject({ template_mode: 'multi' }))
+    await openDrawerByDefault(page)
+
+    let calls = 0
+    await page.route('**/pages/page-1/template', async (route) => {
+      calls += 1
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { page: { page_id: 'page-1' } } }),
+      })
+    })
+
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    const input = page.getByTestId('drawer-template-style-input')
+    await input.click()
+    // Six keystrokes inside one debounce window must collapse into one request.
+    // Guards the flush-on-page-switch fix above: reaching the flush callback
+    // through an effect dependency would re-arm it every render and turn the
+    // debounce into per-keystroke saves.
+    await page.keyboard.type('深色底', { delay: 40 })
+    await page.keyboard.type('，左图', { delay: 40 })
+
+    await expect.poll(() => calls, { timeout: 8000 }).toBe(1)
+  })
 })
 
 test.describe('Page properties drawer - integration', () => {

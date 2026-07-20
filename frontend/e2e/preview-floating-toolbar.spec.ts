@@ -51,7 +51,28 @@ function mockProject() {
   }
 }
 
-async function mockPreview(page: Page, onSettingsPut?: (payload: Record<string, unknown>) => void) {
+const TWO_VERSIONS = [
+  {
+    version_id: 'v2',
+    version_number: 2,
+    is_current: true,
+    image_path: 'a.jpg',
+    created_at: '2026-07-01T12:00:00',
+  },
+  {
+    version_id: 'v1',
+    version_number: 1,
+    is_current: false,
+    image_path: 'b.jpg',
+    created_at: '2026-07-01T11:00:00',
+  },
+]
+
+async function mockPreview(
+  page: Page,
+  onSettingsPut?: (payload: Record<string, unknown>) => void,
+  versions: unknown[] = []
+) {
   await page.route('**/api/access-code/check', (route) =>
     route.fulfill({
       status: 200,
@@ -94,7 +115,7 @@ async function mockPreview(page: Page, onSettingsPut?: (payload: Record<string, 
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: { versions: [] } }),
+      body: JSON.stringify({ success: true, data: { versions } }),
     })
   )
 }
@@ -143,6 +164,23 @@ test.describe('Floating toolbar - desktop (mock)', () => {
 
     await floatingToolbar(page).getByRole('button', { name: /^编辑$|^Edit$/ }).click()
     await expect(page.getByRole('heading', { name: /编辑页面|Edit Page/ })).toBeVisible()
+  })
+
+  test('pill opens the version history menu when the page has several versions', async ({ page }) => {
+    await mockPreview(page, undefined, TWO_VERSIONS)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    const pill = floatingToolbar(page)
+    const historyButton = pill.getByRole('button', { name: /历史版本|History/ })
+    await expect(historyButton).toBeVisible()
+    await expect(historyButton).toContainText('2')
+
+    await historyButton.click()
+    // The menu pops upward out of the pill, so both entries must be on screen.
+    const currentEntry = page.getByRole('button', { name: /版本 2|Version 2/ })
+    await expect(currentEntry).toBeInViewport()
+    await expect(currentEntry).toContainText(/当前|Current/)
+    await expect(page.getByRole('button', { name: /版本 1|Version 1/ })).toBeInViewport()
   })
 
   test('sidebar quality-control switch saves the setting', async ({ page }) => {

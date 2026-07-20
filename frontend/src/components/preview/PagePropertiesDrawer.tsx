@@ -287,11 +287,18 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
   const serverTemplateStyle = page?.template_style_text ?? '';
 
   // Async image uploads write back while unfocused, so the current drafts have
-  // to be readable outside of React state closures.
+  // to be readable outside of React state closures. Sync from an effect rather
+  // than during render — the update handlers below also write these refs
+  // straight after deriving the next value, so a same-tick chain of uploads
+  // still accumulates without waiting for the commit.
   const extraFieldsRef = useRef(extraFields);
-  extraFieldsRef.current = extraFields;
   const descriptionValueRef = useRef(description);
-  descriptionValueRef.current = description;
+  useEffect(() => {
+    extraFieldsRef.current = extraFields;
+  }, [extraFields]);
+  useEffect(() => {
+    descriptionValueRef.current = description;
+  }, [description]);
 
   // The drawer is not the only way to change a page — the edit modal and AI
   // regeneration write to the same fields — so drafts have to follow the store.
@@ -425,25 +432,53 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
       : '';
 
   const styleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (styleTimerRef.current) clearTimeout(styleTimerRef.current);
-    },
-    []
-  );
+  const pendingStyleRef = useRef<{ pageId: string; value: string } | null>(null);
+
+  // The flush below runs from an effect that must only re-fire on a page
+  // switch, but `t` and `showToast` are fresh references on every render — so
+  // reach the writer through a ref instead of an effect dependency, otherwise
+  // the effect would re-run each render and cancel the debounce it is meant to
+  // protect.
+  const writeTemplateStyleRef = useRef<(pageId: string, value: string) => void>(() => {});
+  useEffect(() => {
+    writeTemplateStyleRef.current = (targetPageId, value) => {
+      if (!onUpdatePageTemplate) return;
+      onUpdatePageTemplate(targetPageId, { template_style_text: value.trim() || null })
+        .catch(() => showToast({ message: t('props.templateSaveFailed'), type: 'error' }))
+        .finally(() => setIsSavingTemplate(false));
+    };
+  });
+
+  const flushTemplateStyle = useCallback(() => {
+    if (styleTimerRef.current) {
+      clearTimeout(styleTimerRef.current);
+      styleTimerRef.current = null;
+    }
+    const pending = pendingStyleRef.current;
+    if (!pending) return;
+    pendingStyleRef.current = null;
+    writeTemplateStyleRef.current(pending.pageId, pending.value);
+  }, []);
+
+  // Switching pages or unmounting used to just clearTimeout, silently dropping
+  // a prompt edited within the last 800ms. Send it instead — the pending entry
+  // carries its own pageId, so it still lands on the page it was typed on.
+  useEffect(() => () => flushTemplateStyle(), [pageId, flushTemplateStyle]);
 
   const saveTemplateStyle = useCallback(
     (value: string) => {
       if (!pageId || !onUpdatePageTemplate) return;
       if (styleTimerRef.current) clearTimeout(styleTimerRef.current);
       setIsSavingTemplate(true);
+      pendingStyleRef.current = { pageId, value };
       styleTimerRef.current = setTimeout(() => {
-        onUpdatePageTemplate(pageId, { template_style_text: value.trim() || null })
-          .catch(() => showToast({ message: t('props.templateSaveFailed'), type: 'error' }))
-          .finally(() => setIsSavingTemplate(false));
+        styleTimerRef.current = null;
+        const pending = pendingStyleRef.current;
+        pendingStyleRef.current = null;
+        if (pending) writeTemplateStyleRef.current(pending.pageId, pending.value);
       }, 800);
     },
-    [pageId, onUpdatePageTemplate, showToast, t]
+    [pageId, onUpdatePageTemplate]
   );
 
   const handlePickTemplate = useCallback(
