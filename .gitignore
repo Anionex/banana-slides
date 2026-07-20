@@ -80,3 +80,17 @@ build/
 
 # 本地 ML 模型（RMBG 等）
 /models/
+
+# macOS 元数据
+.DS_Store
+# Claude Code 本地配置与截图
+.claude/
+# 本地录制的宣传片 / 截屏素材（体积大，不入库）
+videos/
+# Playwright 运行产物与一次性抓取脚本
+test-results/
+frontend/cap-real.mjs
+# 本地设计稿草案（未定稿，不入库）
+/banana-slides-landing.html
+/design-mockup.html
+/design-system-proposal.html
