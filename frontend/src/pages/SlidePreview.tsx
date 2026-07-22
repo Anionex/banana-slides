@@ -2110,15 +2110,6 @@ export const SlidePreview: React.FC = () => {
               <span className="hidden xl:inline">{t('nav.materialGenerate')}</span>
             </Button>
             <Button
-              variant="secondary"
-              size="sm"
-              icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => navigate(`/project/${projectId}/detail`)}
-              className="hidden sm:inline-flex"
-            >
-              <span className="hidden md:inline">{t('common.previous')}</span>
-            </Button>
-            <Button
               variant="ghost"
               size="sm"
               icon={<RefreshCw size={16} className={`md:w-[18px] md:h-[18px] ${isRefreshing ? 'animate-spin' : ''}`} />}
