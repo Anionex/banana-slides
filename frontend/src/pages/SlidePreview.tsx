@@ -700,7 +700,6 @@ export const SlidePreview: React.FC = () => {
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef<HTMLDivElement>(null);
-  const editPromptRef = useRef<HTMLTextAreaElement>(null);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1186,11 +1185,6 @@ export const SlidePreview: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isInlineEditing, exitInlineEditing]);
-
-  // 进入就地编辑就把光标放进指令框，直接可打字（命令栏常驻，autoFocus 不触发，用 effect）
-  useEffect(() => {
-    if (isInlineEditing) editPromptRef.current?.focus({ preventScroll: true });
-  }, [isInlineEditing]);
 
   // 加参考图菜单：点菜单外任意处收起。用 pointerdown 而非全屏遮罩——遮罩会吃掉
   // 那一次点击（比如点向输入框却只是关了菜单），pointerdown 只收菜单、点击照常落地。
@@ -3103,7 +3097,6 @@ export const SlidePreview: React.FC = () => {
                     </div>
                     {/* 指令输入：单行、随内容长高，Cmd/Ctrl+Enter 提交 */}
                     <textarea
-                      ref={editPromptRef}
                       data-testid="inline-edit-prompt"
                       rows={1}
                       value={editPrompt}
