@@ -183,6 +183,18 @@ test.describe('Floating toolbar - desktop (mock)', () => {
     await expect(currentEntry).toBeInViewport()
     await expect(currentEntry).toContainText(/当前|Current/)
     await expect(page.getByRole('button', { name: /版本 1|Version 1/ })).toBeInViewport()
+
+    // Anchored to its trigger (centered on it), not right-aligned — otherwise a
+    // w-64 menu on a mid-pill button spills leftward off the pill.
+    const menuBox = (await pill.getByTestId('version-history-menu').boundingBox())!
+    const btnBox = (await historyButton.boundingBox())!
+    const menuCenter = menuBox.x + menuBox.width / 2
+    const btnCenter = btnBox.x + btnBox.width / 2
+    expect(Math.abs(menuCenter - btnCenter)).toBeLessThan(2)
+    // and it stays fully on screen
+    const vw = page.viewportSize()!.width
+    expect(menuBox.x).toBeGreaterThanOrEqual(0)
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(vw)
   })
 
   test('sidebar quality-control switch saves the setting', async ({ page }) => {

@@ -460,14 +460,22 @@ const VersionHistoryMenu: React.FC<{
   onSwitchVersion: (versionId: string) => void;
   t: PreviewT;
   buttonClassName?: string;
-}> = ({ versions, open, onToggleOpen, onSwitchVersion, t, buttonClassName = 'text-xs md:text-sm' }) => (
+  // 菜单锚定方式：右对齐动作区（默认，窄屏 docked 栏）或居中锚定按钮（居中的悬浮胶囊，
+  // 否则 right-0 + w-64 会把菜单甩到按钮左侧、溢出胶囊）
+  menuAlign?: 'right' | 'center';
+}> = ({ versions, open, onToggleOpen, onSwitchVersion, t, buttonClassName = 'text-xs md:text-sm', menuAlign = 'right' }) => (
   <div className="relative">
     <Button variant="ghost" size="sm" onClick={onToggleOpen} className={buttonClassName}>
       <span className="hidden md:inline">{t('preview.historyVersions')} ({versions.length})</span>
       <span className="md:hidden">{t('preview.versions')}</span>
     </Button>
     {open && (
-      <div className="absolute right-0 bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto">
+      <div
+        data-testid="version-history-menu"
+        className={`absolute bottom-full mb-2 w-56 md:w-64 bg-white dark:bg-background-secondary rounded-lg shadow-lg border border-gray-200 dark:border-border-primary py-2 z-20 max-h-96 overflow-y-auto ${
+          menuAlign === 'center' ? 'left-1/2 -translate-x-1/2' : 'right-0'
+        }`}
+      >
         {versions.map((version) => (
           <button
             key={version.version_id}
@@ -2999,6 +3007,7 @@ export const SlidePreview: React.FC = () => {
                       onSwitchVersion={handleSwitchVersion}
                       t={t}
                       buttonClassName="rounded-full text-sm"
+                      menuAlign="center"
                     />
                   )}
                   <Button
