@@ -46,15 +46,18 @@ Drag the panel's left edge to resize it (300–640px), or double-click the edge 
   A page's **key points** belong to the outline stage, so they only appear in the Outline Editor. On the preview page it is the description that drives image generation.
 </Tip>
 
-## Region-Based Editing
+## In-place editing and Region Select
 
-Select a specific area of a slide in the preview and describe what you want changed. The AI regenerates only that region while keeping the rest intact.
+On the preview page, click **Edit** and the current slide slides up while an instruction panel opens beneath it, so you edit while watching the full-size slide instead of a dialog covering it (narrow screens still fall back to a dialog):
 
-Steps:
-1. Go to the Slide Preview page and click **Region Select**
-2. Drag to select the area you want to modify on the slide
-3. Describe the change in the input box
-4. Click **Generate Image** — AI redraws only the selected region
+1. Describe the change in **Enter edit instructions** (e.g., change the background to blue, enlarge the title)
+2. Optional: click **Region Select** at the top-left of the image, then drag directly on the full-size slide — the boxed area is cropped and submitted as a reference image so the AI focuses on the part you care about
+3. Optional: pick more reference images from Materials or upload them
+4. Click **Generate Image** — the AI redraws the page using the page description, your instruction, and the reference images
+
+<Note>
+The Region Select box is submitted as a **reference image** to tell the AI which part matters — it does not regenerate only inside the box while keeping the outside pixel-for-pixel. For precise erase or local replacement of an element, use the local-edit and smart-erase tools under **Material Generation** at the top.
+</Note>
 
 ## Description Detail Level
 
