@@ -226,10 +226,10 @@ test.describe('In-place edit - desktop (mock)', () => {
 
     const imageBox = await dragRegion(page)
 
-    // The status line must render real copy — a mistyped namespace shows the
-    // raw key ("preview.regionCropSuccess") instead of text.
+    // The command bar never shows raw i18n keys, and capturing a region toasts
+    // real copy (a mistyped namespace would surface "slidePreview.regionCrop…").
     await expect(panel(page)).not.toContainText(/preview\.|slidePreview\./)
-    await expect(panel(page)).toContainText(/已框选|Region selected/)
+    await expect(page.getByText(/添加为参考图|added as a reference/i)).toBeVisible()
 
     const selection = page.getByTestId('inline-edit-selection')
     await expect(selection).toBeVisible()
@@ -261,6 +261,8 @@ test.describe('In-place edit - desktop (mock)', () => {
     await expect(page.getByTestId('inline-edit-attachments')).toHaveCount(0)
 
     const fixtures = path.join(FRONTEND_DIR, 'e2e', 'fixtures')
+    // The upload input lives in the "+" attach menu, so open it first.
+    await panel(page).getByRole('button', { name: /添加参考图|Add reference/ }).click()
     await panel(page)
       .locator('input[type="file"]')
       .setInputFiles([path.join(fixtures, 'slide_1.jpg'), path.join(fixtures, 'slide_2.jpg')])

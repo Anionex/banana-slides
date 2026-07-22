@@ -22,7 +22,7 @@ const previewI18n = {
       saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
       loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
       versionSwitchFailed: "切换失败: {{error}}", unknownError: "未知错误",
-      regionCropSuccess: "已将选中区域添加为参考图片，可在下方\"上传图片\"中查看与删除",
+      regionCropSuccess: "已将选中区域添加为参考图，可在参考图缩略图上移除",
       regionCropFailed: "无法从当前图片裁剪区域（浏览器安全限制）。可以尝试手动上传参考图片。"
     },
     preview: {
@@ -99,8 +99,8 @@ const previewI18n = {
       prevPage: "上一页", nextPage: "下一页", historyVersions: "历史版本",
       versions: "版本", version: "版本", current: "当前", editPage: "编辑页面",
       regionSelect: "区域选图", endRegionSelect: "结束区域选图",
-      inlineEditRegionHint: "可点「区域选图」在图上框出要改的部分",
-      inlineEditRegionPicked: "已框选一块区域，将作为参考图一起提交",
+      inlineEditPromptPlaceholder: "描述想怎么改，或先在图上框选要改的部分…",
+      addReference: "添加参考图",
       pageOutline: "页面大纲（可编辑）", pageDescription: "页面描述（可编辑）",
       enterTitle: "输入页面标题", pointsPerLine: "要点（每行一个）",
       enterPointsPerLine: "每行输入一个要点", enterDescription: "输入页面的详细描述内容",
@@ -159,7 +159,7 @@ const previewI18n = {
       saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
       loadMaterialFailed: "Failed to load material: {{error}}", templateChangeFailed: "Failed to change template: {{error}}",
       versionSwitchFailed: "Switch failed: {{error}}", unknownError: "Unknown error",
-      regionCropSuccess: "Selected region added as reference image. You can view and delete it in \"Upload Images\" below.",
+      regionCropSuccess: "Selected region added as a reference image; remove it from its thumbnail if needed.",
       regionCropFailed: "Cannot crop from current image (browser security restriction). Try uploading a reference image manually."
     },
     preview: {
@@ -236,8 +236,8 @@ const previewI18n = {
       prevPage: "Previous", nextPage: "Next", historyVersions: "History Versions",
       versions: "Versions", version: "Version", current: "Current", editPage: "Edit Page",
       regionSelect: "Region Select", endRegionSelect: "End Region Select",
-      inlineEditRegionHint: "Use Region Select to box the part you want changed",
-      inlineEditRegionPicked: "Region selected — it goes along as a reference image",
+      inlineEditPromptPlaceholder: "Describe the change, or box a region on the image first…",
+      addReference: "Add reference image",
       pageOutline: "Page Outline (Editable)", pageDescription: "Page Description (Editable)",
       enterTitle: "Enter page title", pointsPerLine: "Key Points (one per line)",
       enterPointsPerLine: "Enter one key point per line", enterDescription: "Enter detailed page description",
@@ -698,6 +698,7 @@ export const SlidePreview: React.FC = () => {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const hasTouchedImageQualityControlRef = useRef(false);
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1157,6 +1158,7 @@ export const SlidePreview: React.FC = () => {
   const exitInlineEditing = useCallback(() => {
     setIsInlineEditing(false);
     setIsRegionSelectionMode(false);
+    setShowAttachMenu(false);
     setSelectionStart(null);
     setSelectionRect(null);
     setIsSelectingRegion(false);
@@ -2940,33 +2942,14 @@ export const SlidePreview: React.FC = () => {
                     )}
                   </div>
 
-              {/* 就地编辑态（lg+）：指令区接在幻灯片下方，替换掉悬浮工具栏的位置 */}
+              {/* 就地编辑态（lg+）：单一悬浮命令栏，替换掉悬浮工具栏的位置。
+                  参考图缩略图悬在栏上方，区域选图仍是图片左上角的悬浮 chip */}
               {isInlineEditing && (
-                <div
-                  data-testid="inline-edit-panel"
-                  className="hidden lg:flex mt-4 flex-col gap-3 rounded-xl border border-banana-300 dark:border-banana-500/40 bg-white dark:bg-background-secondary p-4 shadow-lg"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-gray-800 dark:text-foreground-primary">
-                      {t('preview.editPage')}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-foreground-tertiary">
-                      {selectionRect
-                        ? t('preview.inlineEditRegionPicked')
-                        : t('preview.inlineEditRegionHint')}
-                    </span>
-                  </div>
-                  <Textarea
-                    label={t('preview.editPromptLabel')}
-                    placeholder={t('preview.editPromptPlaceholder')}
-                    value={editPrompt}
-                    onChange={(e) => setEditPrompt(e.target.value)}
-                    rows={2}
-                  />
+                <div className="hidden lg:flex mt-4 flex-col items-center gap-2">
                   {selectedContextImages.uploadedFiles.length > 0 && (
                     <div
                       data-testid="inline-edit-attachments"
-                      className="flex flex-wrap items-center gap-2"
+                      className="flex flex-wrap items-center justify-center gap-2"
                     >
                       {selectedContextImages.uploadedFiles.map((file, idx) => (
                         <div key={`${file.name}-${idx}`} className="group relative">
@@ -2974,51 +2957,106 @@ export const SlidePreview: React.FC = () => {
                             src={uploadedPreviews[idx] || ''}
                             alt={`${t('preview.uploadImages')} ${idx + 1}`}
                             data-testid="inline-edit-attachment-thumb"
-                            className="h-14 w-14 rounded-lg border border-gray-200 object-cover dark:border-border-primary"
+                            className="h-12 w-12 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-border-primary"
                           />
                           <button
                             type="button"
                             onClick={() => removeUploadedFile(idx)}
                             aria-label={t('common.delete')}
-                            className="no-min-touch-target absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                            className="no-min-touch-target absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white shadow transition-transform hover:scale-110 dark:bg-background-elevated"
                           >
-                            <X size={12} />
+                            <X size={11} />
                           </button>
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={<ImagePlus size={15} />}
-                        onClick={() => setIsMaterialModalOpen(true)}
-                        className="text-xs"
+                  <div
+                    data-testid="inline-edit-panel"
+                    className="relative flex w-full max-w-2xl items-center gap-1 rounded-3xl border border-gray-200 bg-white/95 px-2 py-1.5 shadow-lg backdrop-blur dark:border-border-primary dark:bg-background-secondary/95"
+                  >
+                    {/* 加参考图：单个 + 图标开菜单（素材库 / 上传） */}
+                    <div className="relative flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowAttachMenu((v) => !v)}
+                        aria-label={t('preview.addReference')}
+                        title={t('preview.addReference')}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:bg-background-hover"
                       >
-                        {t('preview.selectFromMaterials')}
-                      </Button>
-                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-gray-700 transition-colors hover:bg-gray-100 dark:text-foreground-secondary dark:hover:bg-background-hover">
-                        <Upload size={15} />
-                        {t('preview.uploadImages')}
-                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
-                      </label>
+                        <ImagePlus size={18} />
+                      </button>
+                      {showAttachMenu && (
+                        <>
+                          <button
+                            type="button"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            className="fixed inset-0 z-10 cursor-default"
+                            onClick={() => setShowAttachMenu(false)}
+                          />
+                          <div className="absolute bottom-full left-0 z-20 mb-2 w-40 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-border-primary dark:bg-background-secondary">
+                            <button
+                              type="button"
+                              onClick={() => { setShowAttachMenu(false); setIsMaterialModalOpen(true); }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover"
+                            >
+                              <ImagePlus size={15} />
+                              {t('preview.selectFromMaterials')}
+                            </button>
+                            <label className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover">
+                              <Upload size={15} />
+                              {t('preview.uploadImages')}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => { setShowAttachMenu(false); handleFileUpload(e); }}
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={exitInlineEditing} className="text-sm">
-                        {t('common.cancel')}
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handleSubmitEdit}
-                        disabled={!editPrompt.trim() || isCurrentPageGenerating}
-                        className="text-sm"
-                      >
-                        {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.generateImage')}
-                      </Button>
-                    </div>
+                    {/* 指令输入：单行、随内容长高，Cmd/Ctrl+Enter 提交 */}
+                    <textarea
+                      data-testid="inline-edit-prompt"
+                      rows={1}
+                      value={editPrompt}
+                      placeholder={t('preview.inlineEditPromptPlaceholder')}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      onInput={(e) => {
+                        const el = e.currentTarget;
+                        el.style.height = 'auto';
+                        el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && editPrompt.trim() && !isCurrentPageGenerating) {
+                          e.preventDefault();
+                          handleSubmitEdit();
+                        }
+                      }}
+                      className="max-h-32 min-w-0 flex-1 resize-none self-center bg-transparent px-1.5 py-1.5 text-sm leading-6 text-gray-900 outline-none placeholder:text-gray-400 dark:text-foreground-primary dark:placeholder:text-foreground-tertiary"
+                    />
+                    <button
+                      type="button"
+                      onClick={exitInlineEditing}
+                      aria-label={t('common.cancel')}
+                      title={t('common.cancel')}
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-background-hover"
+                    >
+                      <X size={17} />
+                    </button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSubmitEdit}
+                      disabled={!editPrompt.trim() || isCurrentPageGenerating}
+                      className="flex-shrink-0 rounded-full text-sm"
+                    >
+                      {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.generateImage')}
+                    </Button>
                   </div>
                 </div>
               )}
