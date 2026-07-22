@@ -699,6 +699,7 @@ export const SlidePreview: React.FC = () => {
   const hasTouchedImageQualityControlRef = useRef(false);
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1184,6 +1185,19 @@ export const SlidePreview: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isInlineEditing, exitInlineEditing]);
+
+  // 加参考图菜单：点菜单外任意处收起。用 pointerdown 而非全屏遮罩——遮罩会吃掉
+  // 那一次点击（比如点向输入框却只是关了菜单），pointerdown 只收菜单、点击照常落地。
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const onDown = (e: PointerEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setShowAttachMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [showAttachMenu]);
 
   // 保存大纲和描述修改
   const handleSaveOutlineAndDescription = useCallback(() => {
@@ -2933,10 +2947,85 @@ export const SlidePreview: React.FC = () => {
                     )}
                   </div>
 
-              {/* 就地编辑态（lg+）：单一悬浮命令栏，从悬浮工具栏的位置平滑展开。
-                  参考图缩略图悬在栏上方，区域选图仍是图片左上角的悬浮 chip */}
-              {isInlineEditing && (
-                <div className="hidden lg:flex mt-4 flex-col items-center gap-2 animate-slide-in-up">
+              {/* 预览态胶囊与编辑态命令栏叠在同一个居中 dock：靠可见性 + 透明度 + scale
+                  交叉过渡（Apple 风缓动 cubic-bezier(0.32,0.72,0,1)，同锚点、进退对称），
+                  而不是「一个瞬间消失、另一个从下方淡入」。 */}
+              <div className="hidden lg:grid mt-4">
+                {/* 预览态：悬浮工具栏 */}
+                <div
+                  data-testid="preview-floating-toolbar"
+                  className={`[grid-area:1/1] self-center justify-self-center flex items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg origin-center will-change-transform transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 [&_button]:whitespace-nowrap ${
+                    isInlineEditing
+                      ? 'invisible scale-[0.97] opacity-0 pointer-events-none'
+                      : 'visible scale-100 opacity-100'
+                  }`}
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<ChevronLeft size={18} />}
+                    onClick={() => setSelectedIndex(Math.max(0, selectedIndex - 1))}
+                    disabled={selectedIndex === 0}
+                    className="rounded-full px-2"
+                    title={t('preview.prevPage')}
+                    aria-label={t('preview.prevPage')}
+                  />
+                  <span className="px-1.5 text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap tabular-nums">
+                    {selectedIndex + 1} / {currentProject.pages.length}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<ChevronRight size={18} />}
+                    onClick={() =>
+                      setSelectedIndex(
+                        Math.min(currentProject.pages.length - 1, selectedIndex + 1)
+                      )
+                    }
+                    disabled={selectedIndex === currentProject.pages.length - 1}
+                    className="rounded-full px-2"
+                    title={t('preview.nextPage')}
+                    aria-label={t('preview.nextPage')}
+                  />
+                  <div className="mx-1 h-5 w-px bg-gray-200 dark:bg-border-primary" />
+                  {imageVersions.length > 1 && (
+                    <VersionHistoryMenu
+                      versions={imageVersions}
+                      open={showVersionMenu}
+                      onToggleOpen={() => setShowVersionMenu(!showVersionMenu)}
+                      onSwitchVersion={handleSwitchVersion}
+                      t={t}
+                      buttonClassName="rounded-full text-sm"
+                    />
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleEditPage}
+                    disabled={!selectedPage}
+                    className="rounded-full text-sm"
+                  >
+                    {t('common.edit')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRegeneratePage}
+                    disabled={isCurrentPageGenerating}
+                    className="rounded-full text-sm"
+                  >
+                    {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.regenerate')}
+                  </Button>
+                </div>
+
+                {/* 编辑态：单一命令栏 + 上方参考图缩略图 */}
+                <div
+                  className={`[grid-area:1/1] self-center w-full flex flex-col items-center gap-2 origin-center will-change-transform transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 ${
+                    isInlineEditing
+                      ? 'visible scale-100 opacity-100'
+                      : 'invisible scale-[0.97] opacity-0 pointer-events-none'
+                  }`}
+                >
                   {selectedContextImages.uploadedFiles.length > 0 && (
                     <div
                       data-testid="inline-edit-attachments"
@@ -2954,7 +3043,7 @@ export const SlidePreview: React.FC = () => {
                             type="button"
                             onClick={() => removeUploadedFile(idx)}
                             aria-label={t('common.delete')}
-                            className="no-min-touch-target absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white shadow transition-transform hover:scale-110 dark:bg-background-elevated"
+                            className="no-min-touch-target absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white shadow transition-transform hover:scale-110 active:scale-95 dark:bg-background-elevated"
                           >
                             <X size={11} />
                           </button>
@@ -2967,47 +3056,38 @@ export const SlidePreview: React.FC = () => {
                     className="relative flex w-full max-w-2xl items-center gap-1 rounded-3xl border border-gray-200 bg-white/95 px-2 py-1.5 shadow-lg backdrop-blur dark:border-border-primary dark:bg-background-secondary/95"
                   >
                     {/* 加参考图：单个 + 图标开菜单（素材库 / 上传） */}
-                    <div className="relative flex-shrink-0">
+                    <div className="relative flex-shrink-0" ref={attachMenuRef}>
                       <button
                         type="button"
                         onClick={() => setShowAttachMenu((v) => !v)}
                         aria-label={t('preview.addReference')}
                         title={t('preview.addReference')}
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 dark:text-foreground-tertiary dark:hover:bg-background-hover"
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 active:scale-90 dark:text-foreground-tertiary dark:hover:bg-background-hover"
                       >
                         <ImagePlus size={18} />
                       </button>
                       {showAttachMenu && (
-                        <>
+                        <div className="absolute bottom-full left-0 z-20 mb-2 w-40 origin-bottom-left overflow-hidden rounded-xl border border-gray-200 bg-white/95 py-1 shadow-lg backdrop-blur animate-[popIn_140ms_cubic-bezier(0.32,0.72,0,1)] dark:border-border-primary dark:bg-background-secondary/95">
                           <button
                             type="button"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                            className="fixed inset-0 z-10 cursor-default"
-                            onClick={() => setShowAttachMenu(false)}
-                          />
-                          <div className="absolute bottom-full left-0 z-20 mb-2 w-40 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-border-primary dark:bg-background-secondary">
-                            <button
-                              type="button"
-                              onClick={() => { setShowAttachMenu(false); setIsMaterialModalOpen(true); }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover"
-                            >
-                              <ImagePlus size={15} />
-                              {t('preview.selectFromMaterials')}
-                            </button>
-                            <label className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover">
-                              <Upload size={15} />
-                              {t('preview.uploadImages')}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => { setShowAttachMenu(false); handleFileUpload(e); }}
-                              />
-                            </label>
-                          </div>
-                        </>
+                            onClick={() => { setShowAttachMenu(false); setIsMaterialModalOpen(true); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover"
+                          >
+                            <ImagePlus size={15} />
+                            {t('preview.selectFromMaterials')}
+                          </button>
+                          <label className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover">
+                            <Upload size={15} />
+                            {t('preview.uploadImages')}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => { setShowAttachMenu(false); handleFileUpload(e); }}
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
                     {/* 指令输入：单行、随内容长高，Cmd/Ctrl+Enter 提交 */}
@@ -3017,6 +3097,7 @@ export const SlidePreview: React.FC = () => {
                       value={editPrompt}
                       placeholder={t('preview.inlineEditPromptPlaceholder')}
                       onChange={(e) => setEditPrompt(e.target.value)}
+                      onFocus={() => setShowAttachMenu(false)}
                       onInput={(e) => {
                         const el = e.currentTarget;
                         el.style.height = 'auto';
@@ -3035,7 +3116,7 @@ export const SlidePreview: React.FC = () => {
                       onClick={exitInlineEditing}
                       aria-label={t('common.cancel')}
                       title={t('common.cancel')}
-                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-background-hover"
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 active:scale-90 dark:hover:bg-background-hover"
                     >
                       <X size={17} />
                     </button>
@@ -3050,74 +3131,7 @@ export const SlidePreview: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-              )}
-
-              {/* 悬浮工具栏（lg+）：只放当前页相关操作，紧随幻灯片下方，
-                  和图片同属一列一起居中，免得大屏上被甩到离图很远的视口底部；
-                  就地编辑态下让位给上面的指令区 */}
-              {!isInlineEditing && (
-              <div
-                data-testid="preview-floating-toolbar"
-                className="hidden lg:flex mt-4 mx-auto w-max items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg [&_button]:whitespace-nowrap"
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={<ChevronLeft size={18} />}
-                  onClick={() => setSelectedIndex(Math.max(0, selectedIndex - 1))}
-                  disabled={selectedIndex === 0}
-                  className="rounded-full px-2"
-                  title={t('preview.prevPage')}
-                  aria-label={t('preview.prevPage')}
-                />
-                <span className="px-1.5 text-sm text-gray-600 dark:text-foreground-tertiary whitespace-nowrap tabular-nums">
-                  {selectedIndex + 1} / {currentProject.pages.length}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={<ChevronRight size={18} />}
-                  onClick={() =>
-                    setSelectedIndex(
-                      Math.min(currentProject.pages.length - 1, selectedIndex + 1)
-                    )
-                  }
-                  disabled={selectedIndex === currentProject.pages.length - 1}
-                  className="rounded-full px-2"
-                  title={t('preview.nextPage')}
-                  aria-label={t('preview.nextPage')}
-                />
-                <div className="mx-1 h-5 w-px bg-gray-200 dark:bg-border-primary" />
-                {imageVersions.length > 1 && (
-                  <VersionHistoryMenu
-                    versions={imageVersions}
-                    open={showVersionMenu}
-                    onToggleOpen={() => setShowVersionMenu(!showVersionMenu)}
-                    onSwitchVersion={handleSwitchVersion}
-                    t={t}
-                    buttonClassName="rounded-full text-sm"
-                  />
-                )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleEditPage}
-                  disabled={!selectedPage}
-                  className="rounded-full text-sm"
-                >
-                  {t('common.edit')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRegeneratePage}
-                  disabled={isCurrentPageGenerating}
-                  className="rounded-full text-sm"
-                >
-                  {isCurrentPageGenerating ? t('preview.regenerating') : t('preview.regenerate')}
-                </Button>
               </div>
-              )}
                 </div>
               </div>
 

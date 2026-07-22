@@ -1,11 +1,11 @@
 /**
  * E2E tests for the in-place edit mode on the Slide Preview page.
  *
- * Desktop (lg+): "编辑" no longer opens a modal. The slide moves up and shrinks,
- * the floating toolbar gives way to an instruction panel, and the user boxes a
- * region directly on the full-size canvas image. The properties drawer is left
- * however the user had it. Narrow screens (< lg) keep the old modal — there is
- * no room to split the viewport vertically at 375px.
+ * Desktop (lg+): "编辑" no longer opens a modal. The slide stays in place at full
+ * size, the floating toolbar crossfades into a command bar in the same slot, and
+ * the user boxes a region directly on the canvas image. The properties drawer is
+ * left however the user had it. Narrow screens (< lg) keep the old modal — there
+ * is no room to split the viewport vertically at 375px.
  *
  * 1. Mock UI tests: enter/exit, drawer left untouched, region crop on the
  *    canvas image, page-switch behaviour, breakpoint routing.
@@ -149,7 +149,7 @@ test.describe('In-place edit - desktop (mock)', () => {
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
 
     await expect(panel(page)).toBeVisible()
-    await expect(pill(page)).toHaveCount(0)
+    await expect(pill(page)).toBeHidden()
     // no modal, and no outline/description fields — those stay in the drawer
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(panel(page).getByText('页面大纲（可编辑）')).toHaveCount(0)
@@ -196,7 +196,7 @@ test.describe('In-place edit - desktop (mock)', () => {
     expect(await drawerWidth()).toBe(widthBefore)
 
     await panel(page).getByRole('button', { name: /^取消$/ }).click()
-    await expect(panel(page)).toHaveCount(0)
+    await expect(panel(page)).toBeHidden()
     expect(await drawerWidth()).toBe(widthBefore)
   })
 
@@ -217,7 +217,7 @@ test.describe('In-place edit - desktop (mock)', () => {
     await expect(panel(page)).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await expect(panel(page)).toHaveCount(0)
+    await expect(panel(page)).toBeHidden()
     await expect(pill(page)).toBeVisible()
   })
 
@@ -289,6 +289,23 @@ test.describe('In-place edit - desktop (mock)', () => {
       .toBeGreaterThan(0)
   })
 
+  test('clicking the input while the attach menu is open focuses it and closes the menu', async ({ page }) => {
+    await mockPreview(page)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+    await pill(page).getByRole('button', { name: /^编辑$/ }).click()
+
+    await panel(page).getByRole('button', { name: /添加参考图|Add reference/ }).click()
+    const menuItem = page.getByText(/从素材库选择|Select from Materials/)
+    await expect(menuItem).toBeVisible()
+
+    // The menu used to be dismissed by a full-screen backdrop that swallowed
+    // this very click, so the input never focused. Now the click both closes
+    // the menu (outside pointerdown) and lands on the input.
+    await promptBox(page).click()
+    await expect(promptBox(page)).toBeFocused()
+    await expect(menuItem).toBeHidden()
+  })
+
   test('leaves edit mode when the page changes, keeping the draft per page', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
@@ -300,7 +317,7 @@ test.describe('In-place edit - desktop (mock)', () => {
 
     // switching slides would otherwise carry page 1's crop and prompt onto page 2
     await page.locator('aside').getByText('第二页标题').click()
-    await expect(panel(page)).toHaveCount(0)
+    await expect(panel(page)).toBeHidden()
     await expect(pill(page)).toBeVisible()
     await expect(page.getByTestId('inline-edit-selection')).toHaveCount(0)
 
@@ -351,7 +368,7 @@ test.describe('In-place edit - desktop (mock)', () => {
     await expect.poll(() => contentType, { timeout: 8000 }).toContain('multipart/form-data')
     expect(bodyLength).toBeGreaterThan(200)
     // submitting returns to preview
-    await expect(panel(page)).toHaveCount(0)
+    await expect(panel(page)).toBeHidden()
   })
 })
 
@@ -365,7 +382,7 @@ test.describe('In-place edit - narrow screens (mock)', () => {
     await page.getByTestId('preview-docked-toolbar').getByRole('button', { name: /^编辑$/ }).click()
 
     await expect(page.getByRole('heading', { name: /编辑页面/ })).toBeVisible()
-    await expect(panel(page)).toHaveCount(0)
+    await expect(panel(page)).toBeHidden()
   })
 })
 
@@ -378,7 +395,7 @@ test.describe('In-place edit - breakpoint changes (mock)', () => {
 
     // the split layout has no room below lg, so it should not survive the resize
     await page.setViewportSize({ width: 900, height: 720 })
-    await expect(panel(page)).toHaveCount(0)
+    await expect(panel(page)).toBeHidden()
     await expect(page.getByTestId('preview-docked-toolbar')).toBeVisible()
   })
 })
