@@ -2851,25 +2851,16 @@ export const SlidePreview: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* 预览区：lg+ 时幻灯片与悬浮工具栏作为一组垂直居中；
-                  就地编辑态改为顶部对齐并给幻灯片限高，把下半屏让给指令区 */}
-              <div
-                className={`flex-1 overflow-y-auto min-h-0 flex justify-center p-4 md:p-8 ${
-                  isInlineEditing ? 'items-start' : 'items-center'
-                }`}
-              >
+              {/* 预览区：幻灯片与下方的悬浮工具栏/命令栏作为一组垂直居中。
+                  就地编辑态下幻灯片原地不动、不缩放，只加一圈高亮表示正在编辑；
+                  指令区从胶囊位置平滑展开，不再把幻灯片顶上去。 */}
+              <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4 md:p-8">
                 <div className="max-w-5xl w-full">
                   <div
-                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation ${
-                      isInlineEditing ? 'mx-auto ring-2 ring-banana-400' : ''
+                    className={`relative bg-white dark:bg-background-secondary rounded-lg shadow-xl overflow-hidden touch-manipulation transition-shadow ${
+                      isInlineEditing ? 'ring-2 ring-banana-400' : ''
                     } ${isRegionSelectionMode ? 'cursor-crosshair' : ''}`}
-                    // 编辑态用高度驱动、由比例反推宽度：直接给 aspect-ratio 的盒子加 max-height
-                    // 只会压扁高度而不动宽度，比例就失真了。maxWidth 兜住超宽比例的情况。
-                    style={
-                      isInlineEditing
-                        ? { aspectRatio: aspectRatioStyle, height: '46vh', maxWidth: '100%' }
-                        : { aspectRatio: aspectRatioStyle }
-                    }
+                    style={{ aspectRatio: aspectRatioStyle }}
                     onMouseDown={isInlineEditing ? handleSelectionMouseDown : undefined}
                     onMouseMove={isInlineEditing ? handleSelectionMouseMove : undefined}
                     onMouseUp={isInlineEditing ? handleSelectionMouseUp : undefined}
@@ -2942,10 +2933,10 @@ export const SlidePreview: React.FC = () => {
                     )}
                   </div>
 
-              {/* 就地编辑态（lg+）：单一悬浮命令栏，替换掉悬浮工具栏的位置。
+              {/* 就地编辑态（lg+）：单一悬浮命令栏，从悬浮工具栏的位置平滑展开。
                   参考图缩略图悬在栏上方，区域选图仍是图片左上角的悬浮 chip */}
               {isInlineEditing && (
-                <div className="hidden lg:flex mt-4 flex-col items-center gap-2">
+                <div className="hidden lg:flex mt-4 flex-col items-center gap-2 animate-slide-in-up">
                   {selectedContextImages.uploadedFiles.length > 0 && (
                     <div
                       data-testid="inline-edit-attachments"

@@ -156,19 +156,22 @@ test.describe('In-place edit - desktop (mock)', () => {
     await expect(panel(page).getByText('仅保存大纲/描述')).toHaveCount(0)
   })
 
-  test('shrinks the slide to make room and keeps its aspect ratio', async ({ page }) => {
+  test('keeps the slide in place at full size when the command bar opens', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
 
     const before = (await canvasImage(page).boundingBox())!
     await pill(page).getByRole('button', { name: /^编辑$/ }).click()
     await expect(panel(page)).toBeVisible()
+    // let the command bar's slide-in animation settle before measuring
+    await page.waitForTimeout(400)
     const after = (await canvasImage(page).boundingBox())!
 
-    expect(after.height).toBeLessThan(before.height)
-    // 46vh of a 720px viewport, and still 16:9 rather than squashed
-    expect(Math.round(after.height)).toBeCloseTo(331, -1)
-    expect(after.width / after.height).toBeCloseTo(16 / 9, 1)
+    // The slim command bar replaces the pill in place, so the slide no longer
+    // shrinks to 46vh to make room — it keeps its full size (a couple of px of
+    // vertical re-centering under the taller bar is fine, the 240px jump isn't).
+    expect(after.height).toBeCloseTo(before.height, 0)
+    expect(Math.abs(after.y - before.y)).toBeLessThan(24)
   })
 
   test('leaves the properties drawer exactly as the user had it', async ({ page }) => {
