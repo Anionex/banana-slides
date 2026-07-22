@@ -3,26 +3,26 @@ title: "Per-Page Templates"
 description: "Apply one consistent style to a whole deck, or pick a template for each page individually"
 ---
 
-Templates make every generated page match the visual style you want. Banana Slides supports two modes: **single template** (one style for the whole deck) and **multi template** (each page can differ).
+Templates make every generated page match the visual style you want. Banana Slides supports two modes: **unified template** (one style for the whole deck) and **per-page templates** (each page can differ).
 
 ## The two modes
 
 | Mode | Meaning | Best for |
 |------|---------|----------|
-| Single template | All pages use the same template | Consistent reports and lecture decks |
-| Multi template | Each page can bind a different template | Polished decks where cover, data, and closing pages each have their own style |
+| Unified template | All pages use the same template | Consistent reports and lecture decks |
+| Per-page templates | Each page can bind a different template | Polished decks where cover, data, and closing pages each have their own style |
 
 <Note>
-  **Underlying data semantics**: regardless of mode, every page records its own template. Single-template mode simply means "all pages currently happen to use the same template" — it is a UI hint, not a separate data shape. That's why you can switch back and forth at any time without losing structure.
+  **Underlying data semantics**: regardless of mode, every page records its own template. Unified-template mode simply means "all pages currently happen to use the same template" — it is a UI hint, not a separate data shape. That's why you can switch back and forth at any time without losing structure.
 </Note>
 
-## Single template: pick once at creation
+## Unified template: pick once at creation
 
-When creating a project on the home page, choose **Single template** and select or upload one template in the template area. After creation, that template is applied to every page automatically and you go straight to the outline editor — no extra configuration needed.
+When creating a project on the home page, choose **Unified template** and select or upload one template in the template area. After creation, that template is applied to every page automatically and you go straight to the outline editor — no extra configuration needed.
 
-## Multi template: the project template library
+## Per-page templates: the project template library
 
-After creating a project with **Multi template**, you first edit the outline and descriptions; clicking **Next** after the descriptions step opens the **Template Setup** page (also reachable any time afterward from the **Template Setup** entry at the top of the preview page). This is where you manage the project's **template library**:
+After creating a project with **Per-page templates**, you first edit the outline and descriptions; clicking **Next** after the descriptions step opens the **Template Setup** page (also reachable any time afterward from the **Template Setup** entry at the top of the preview page). This is where you manage the project's **template library**:
 
 ### Upload templates
 
@@ -52,13 +52,13 @@ On each page card you can manually **select a template** at any time to override
 
 You can switch between the two modes in both directions at any stage, and already-generated images are never wiped by the switch.
 
-**Multi → single**: click **Switch to single**. Because all pages must converge on one template, a dialog asks you to **pick one from the existing library** (or upload a new one) as the unifying template; once confirmed, every page references it.
+**Per-page → unified**: click **Switch to unified**. Because all pages must converge on one template, a dialog asks you to **pick one from the existing library** (or upload a new one) as the unifying template; once confirmed, every page references it.
 
 <Warning>
-  Switching to single overwrites each page's original template binding with the chosen one. Already-generated images are kept, but regenerating a page will use the new unifying template.
+  Switching to unified overwrites each page's original template binding with the chosen one. Already-generated images are kept, but regenerating a page will use the new unifying template.
 </Warning>
 
-**Single → multi**: click **Switch to multi**; the project enters multi-template mode and the library unlocks. Every page first inherits the currently selected template, after which you can adjust them page by page.
+**Unified → per-page**: click **Switch to per-page**; the project enters per-page template mode and the library unlocks. Every page first inherits the currently selected template, after which you can adjust them page by page.
 
 ## Effect of deleting a template
 

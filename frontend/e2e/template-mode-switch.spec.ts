@@ -46,7 +46,7 @@ test('multi -> single unifies all pages, keeps generated images, persists', asyn
 
   // Open the switch-to-single dialog from the header's template menu.
   await page.getByTestId('template-menu').click()
-  await page.getByRole('button', { name: /转为单模板|Switch to single/ }).click()
+  await page.getByRole('button', { name: /转为统一模板|Switch to unified/ }).click()
 
   // Dialog lists templates; pick "Tpl A" then confirm.
   await page.getByAltText('Tpl A').click()
@@ -71,7 +71,7 @@ test('multi -> single unifies all pages, keeps generated images, persists', asyn
   await page.reload()
   await page.waitForLoadState('networkidle')
   await page.getByTestId('template-menu').click()
-  await expect(page.getByRole('button', { name: /转为多模板|Switch to multi/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /转为每页独立模板|Switch to per-page/ })).toBeVisible()
 })
 
 test('single -> multi flips mode and reveals template-setup entry', async ({ page }) => {
@@ -81,7 +81,7 @@ test('single -> multi flips mode and reveals template-setup entry', async ({ pag
   await page.waitForLoadState('networkidle')
 
   await page.getByTestId('template-menu').click()
-  await page.getByRole('button', { name: /转为多模板|Switch to multi/ }).click()
+  await page.getByRole('button', { name: /转为每页独立模板|Switch to per-page/ }).click()
 
   await expect.poll(async () => {
     const proj = await getProject(BACKEND_URL, projectId)

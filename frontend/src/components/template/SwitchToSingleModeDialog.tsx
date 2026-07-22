@@ -10,7 +10,7 @@ import type { TemplateAsset } from '@/types';
 const i18n = {
   zh: {
     ssm: {
-      title: '转为单模板',
+      title: '转为统一模板',
       desc: '所有页面将统一使用同一张模板。请选择一张现有模板，或上传一张新模板。',
       styleLabel: '统一风格描述（可选）',
       stylePlaceholder: '为所有页面追加统一的风格说明…',
@@ -25,7 +25,7 @@ const i18n = {
   },
   en: {
     ssm: {
-      title: 'Switch to single template',
+      title: 'Switch to unified template',
       desc: 'All pages will use the same template. Pick an existing one, or upload a new template.',
       styleLabel: 'Unified style description (optional)',
       stylePlaceholder: 'Append a unified style note for all pages…',

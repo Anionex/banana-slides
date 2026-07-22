@@ -17,7 +17,7 @@ const previewI18n = {
       exportStartResponseLost: "创建导出任务的响应中断，正在用任务编号确认后台状态；这不代表导出失败",
       cannotRefresh: "无法刷新：缺少项目ID", refreshSuccess: "刷新成功",
       extraRequirementsSaved: "额外要求已保存", styleDescSaved: "风格描述已保存",
-      switchedToMulti: "已切换为多模板模式", switchFailed: "切换模板模式失败: {{error}}",
+      switchedToMulti: "已切换为每页独立模板", switchFailed: "切换模板模式失败: {{error}}",
       exportSettingsSaved: "导出设置已保存", aspectRatioSaved: "画面比例已保存", loadTemplateFailed: "加载模板失败", templateChanged: "模板更换成功",
       saveFailed: "保存失败: {{error}}", refreshFailed: "刷新失败，请稍后重试",
       loadMaterialFailed: "加载素材失败: {{error}}", templateChangeFailed: "更换模板失败: {{error}}",
@@ -91,7 +91,7 @@ const previewI18n = {
       regenerate: "重新生成", regenerating: "生成中...",
       editMode: "编辑模式", viewMode: "查看模式", page: "第 {{num}} 页",
       projectSettings: "项目设置", changeTemplate: "更换模板", refresh: "刷新",
-      switchToMulti: "转为多模板", switchToSingle: "转为单模板", templateSetup: "模板配置", templateMenu: "模板",
+      switchToMulti: "转为每页独立模板", switchToSingle: "转为统一模板", templateSetup: "模板配置", templateMenu: "模板",
       batchGenerate: "批量生成图片 ({{count}})", generateSelected: "生成选中页面 ({{count}})",
       multiSelect: "多选", cancelMultiSelect: "取消多选", pagesUnit: "页",
       noPages: "还没有页面", noPagesHint: "请先返回编辑页面添加内容", backToEdit: "返回编辑",
@@ -153,7 +153,7 @@ const previewI18n = {
       materialsAdded: "Added {{count}} material(s)", exportStarted: "Export task started, check progress in export tasks panel",
       exportStartResponseLost: "The create-task response was interrupted. Checking the backend with the reserved task ID; this does not mean the export failed",
       cannotRefresh: "Cannot refresh: Missing project ID", refreshSuccess: "Refresh successful",
-      switchedToMulti: "Switched to multi-template mode", switchFailed: "Failed to switch template mode: {{error}}",
+      switchedToMulti: "Switched to per-page templates", switchFailed: "Failed to switch template mode: {{error}}",
       extraRequirementsSaved: "Extra requirements saved", styleDescSaved: "Style description saved",
       exportSettingsSaved: "Export settings saved", aspectRatioSaved: "Aspect ratio saved", loadTemplateFailed: "Failed to load template", templateChanged: "Template changed successfully",
       saveFailed: "Save failed: {{error}}", refreshFailed: "Refresh failed, please try again later",
@@ -227,7 +227,7 @@ const previewI18n = {
       exportSelectedPages: "Will export {{count}} selected page(s)",
       regenerate: "Regenerate", regenerating: "Generating...",
       editMode: "Edit Mode", viewMode: "View Mode", page: "Page {{num}}",
-      switchToMulti: "Switch to multi", switchToSingle: "Switch to single", templateSetup: "Template setup", templateMenu: "Template",
+      switchToMulti: "Switch to per-page", switchToSingle: "Switch to unified", templateSetup: "Template setup", templateMenu: "Template",
       projectSettings: "Project Settings", changeTemplate: "Change Template", refresh: "Refresh",
       batchGenerate: "Batch Generate Images ({{count}})", generateSelected: "Generate Selected ({{count}})",
       multiSelect: "Multi-select", cancelMultiSelect: "Cancel Multi-select", pagesUnit: " pages",
@@ -796,7 +796,7 @@ export const SlidePreview: React.FC = () => {
     loadTemplates();
   }, [projectId, currentProject, syncProject]);
 
-  // 多模板模式：加载项目模板库（供转单模板弹层使用）
+  // 每页独立模板：加载项目模板库（供转统一模板弹层使用）
   useEffect(() => {
     if (projectId && currentProject?.template_mode === 'multi') {
       loadTemplateAssets(projectId);
@@ -3670,7 +3670,7 @@ export const SlidePreview: React.FC = () => {
         </>
       )}
 
-      {/* 多→单模板切换弹层 */}
+      {/* 每页独立→统一模板切换弹层 */}
       <SwitchToSingleModeDialog
         isOpen={isSwitchSingleOpen}
         onClose={() => setIsSwitchSingleOpen(false)}

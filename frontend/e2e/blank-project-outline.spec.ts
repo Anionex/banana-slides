@@ -122,7 +122,7 @@ test.describe('多模板模式 + 空白项目', () => {
       });
     });
 
-    await page.getByText(/多模板模式|Multi-template mode/).first().click();
+    await page.getByText(/每页独立模板|Per-page templates/).first().click();
     await page
       .getByRole('button', { name: /或从空白项目开始|Or start from a blank project/ })
       .first()

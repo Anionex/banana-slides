@@ -34,7 +34,7 @@ const i18n = {
       title: '模板配置',
       back: '返回',
       next: '前往预览',
-      toSingle: '转为单模板',
+      toSingle: '转为统一模板',
       autoMatchAll: '一键自动匹配',
       matching: '匹配中…',
       library: '项目模板库',
@@ -89,7 +89,7 @@ const i18n = {
       title: 'Template Setup',
       back: 'Back',
       next: 'Go to Preview',
-      toSingle: 'Switch to single',
+      toSingle: 'Switch to unified',
       autoMatchAll: 'Auto-match all',
       matching: 'Matching…',
       library: 'Project template library',
@@ -230,7 +230,7 @@ export const TemplateSetupPage: React.FC = () => {
     };
   }, [projectId, currentProject?.id, hasAnalyzingAssets, loadTemplateAssets]);
 
-  // 路由守卫：单模板模式直接跳预览（决策 6）
+  // 路由守卫：统一模板模式直接跳预览（决策 6）
   useEffect(() => {
     if (currentProject && currentProject.id === projectId && currentProject.template_mode === 'single') {
       navigate(`/project/${projectId}/preview`, { replace: true });
