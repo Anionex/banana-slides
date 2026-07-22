@@ -110,8 +110,8 @@ test('mock: multi-mode toggle flips the new project to multi after Next', async 
   await page.goto(BASE_URL)
   await page.getByRole('textbox').first().fill('一份关于多模板创建的演示')
 
-  // Enable multi-template mode.
-  await page.getByText(/多模板模式|Multi-template mode/).click()
+  // Enable per-page template mode.
+  await page.getByText(/每页独立模板|Per-page templates/).click()
 
   await page.getByRole('button', { name: /下一步|Next/ }).click()
 

@@ -158,12 +158,14 @@ test.describe('Floating toolbar - desktop (mock)', () => {
     await expect(pill).toContainText('1 / 2')
   })
 
-  test('pill edit button opens the page edit dialog', async ({ page }) => {
+  test('pill edit button starts in-place editing rather than a dialog', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
 
     await floatingToolbar(page).getByRole('button', { name: /^编辑$|^Edit$/ }).click()
-    await expect(page.getByRole('heading', { name: /编辑页面|Edit Page/ })).toBeVisible()
+    // Desktop edits in place now; see preview-inline-edit.spec.ts for the rest.
+    await expect(page.getByTestId('inline-edit-panel')).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   })
 
   test('pill opens the version history menu when the page has several versions', async ({ page }) => {

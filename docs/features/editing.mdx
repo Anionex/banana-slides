@@ -34,7 +34,7 @@ A grip sits permanently on the right edge of the Slide Preview page — click it
 | Description extra fields | Visual Elements, Visual Focus, Layout, Speaker Notes, and so on; the list follows **Description Settings → Extra Fields** in the Description Editor. Fields marked **Not used in image generation** stay out of the image prompt |
 | Narration script | Collapsed at the very bottom of the panel. Read aloud when exporting a narration video; leave it empty and the export flow generates one |
 
-In multi-template mode a **Template** block appears as well, where you can swap this page's template image, write a **Template prompt** for it, or jump straight to **Template Setup** for bulk changes. The panel also shows the page's status, its position in the deck, the number of image versions, and the creation and update timestamps.
+In per-page template mode a **Template** block appears as well, where you can swap this page's template image, write a **Template prompt** for it, or jump straight to **Template Setup** for bulk changes. The panel also shows the page's status, its position in the deck, the number of image versions, and the creation and update timestamps.
 
 Drag the panel's left edge to resize it (300–640px), or double-click the edge to restore the default width. You can also focus the edge and nudge it with ←/→, or jump to either limit with Home/End. Both the width and the open/collapsed state are remembered, so the preview page looks the same the next time you open it. On narrow screens the panel becomes an overlay — tap the scrim to close it.
 
@@ -46,15 +46,18 @@ Drag the panel's left edge to resize it (300–640px), or double-click the edge 
   A page's **key points** belong to the outline stage, so they only appear in the Outline Editor. On the preview page it is the description that drives image generation.
 </Tip>
 
-## Region-Based Editing
+## In-place editing and Region Select
 
-Select a specific area of a slide in the preview and describe what you want changed. The AI regenerates only that region while keeping the rest intact.
+On the preview page, click **Edit** and a command bar smoothly expands beneath the current slide — the slide stays put at full size instead of being covered by a dialog, so you edit while watching it (narrow screens still fall back to a dialog):
 
-Steps:
-1. Go to the Slide Preview page and click **Region Select**
-2. Drag to select the area you want to modify on the slide
-3. Describe the change in the input box
-4. Click **Generate Image** — AI redraws only the selected region
+1. Describe the change in **Enter edit instructions** (e.g., change the background to blue, enlarge the title)
+2. Optional: click **Region Select** at the top-left of the image, then drag directly on the full-size slide — the boxed area is cropped and submitted as a reference image so the AI focuses on the part you care about
+3. Optional: pick more reference images from Materials or upload them
+4. Click **Generate Image** — the AI redraws the page using the page description, your instruction, and the reference images
+
+<Note>
+The Region Select box is submitted as a **reference image** to tell the AI which part matters — it does not regenerate only inside the box while keeping the outside pixel-for-pixel. For precise erase or local replacement of an element, use the local-edit and smart-erase tools under **Material Generation** at the top.
+</Note>
 
 ## Description Detail Level
 
