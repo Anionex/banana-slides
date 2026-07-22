@@ -523,6 +523,40 @@ class TestProjectOutlineStream:
         ]
         assert pages[-1] == {'__stream_complete__': True}
 
+    def test_outline_stream_ignores_deck_title_before_cover(self):
+        """SSE 流式解析：封面前的 deck 级 H1 文档标题不得污染封面 part；
+        封面之后合法的 # Part 分节仍需生效。"""
+        from services.ai_service import AIService, ProjectContext
+
+        class FakeTextProvider:
+            def generate_text_stream(self, prompt, thinking_budget=0):
+                yield (
+                    '# 决策汇报：AI 推理架构的战略选择\n'
+                    '## 决策汇报：AI 推理架构的战略选择\n'
+                    '- 副标题与汇报人信息\n'
+                    '# 第一部分：经济性分析\n'
+                    '## 现有支出呈指数级增长\n'
+                    '- 成本失控风险，亟需替代方案\n'
+                    '<!-- END -->'
+                )
+
+        service = AIService(text_provider=FakeTextProvider(), image_provider=None, caption_provider=None)
+        context = ProjectContext({
+            'creation_type': 'outline',
+            'outline_text': 'x',
+        })
+
+        pages = list(service.generate_outline_stream(context, language='zh'))
+        content = pages[:-1]
+
+        assert len(content) == 2
+        # 封面页：deck 标题被忽略，不产生 part
+        assert content[0]['title'] == '决策汇报：AI 推理架构的战略选择'
+        assert 'part' not in content[0]
+        # 封面之后的合法分节仍然生效
+        assert content[1].get('part') == '第一部分：经济性分析'
+        assert pages[-1] == {'__stream_complete__': True}
+
     def test_description_stream_parser_binds_description_to_same_page(self):
         """描述 SSE 新格式应把同一页的大纲和页面描述绑定在同一个结果里"""
         from services.ai_service import AIService, ProjectContext

@@ -38,6 +38,21 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+# Matches H1 headings that carry explicit part/section semantics, e.g.
+# "Part 1: ...", "Section A", "第一章", "第2部分", "第三节". Used to tell a real
+# opening chapter apart from a deck-level document title that has no such marker.
+_PART_HEADER_RE = re.compile(
+    r'^\s*(part|section|chapter|module|unit)\b'
+    r'|第\s*[0-9零一二三四五六七八九十百千]+\s*[章部节篇]',
+    re.IGNORECASE,
+)
+
+
+def _is_part_header(heading: str) -> bool:
+    """Whether an H1 line reads as a part/section header rather than a deck title."""
+    return bool(_PART_HEADER_RE.search(heading or ''))
+
+
 def _describe_json_response_text(text: str) -> str:
     """Return a compact, non-secret hint about an AI response that failed JSON parsing."""
     stripped = str(text or "").strip()
@@ -383,6 +398,7 @@ class AIService:
         pages = []
         current_part = None
         current_page = None
+        seen_page = False
 
         for line in markdown.split('\n'):
             stripped = line.strip()
@@ -390,9 +406,16 @@ class AIService:
                 continue
 
             if stripped.startswith('# ') and not stripped.startswith('## '):
-                # Part header
-                current_part = stripped[2:].strip()
+                heading = stripped[2:].strip()
+                # A bare H1 before the first page is the deck-level document title,
+                # not a part — ignore it so it doesn't pollute the cover's part. But
+                # keep a real opening chapter (e.g. "第一章") when a deck starts
+                # directly with a section and has no separate cover.
+                if not seen_page and not _is_part_header(heading):
+                    continue
+                current_part = heading
             elif stripped.startswith('## '):
+                seen_page = True
                 # New page — flush previous
                 if current_page:
                     pages.append(current_page)
@@ -446,6 +469,7 @@ class AIService:
         current_mode = 'points'
         current_field = None
         stream_complete = False
+        seen_page = False
 
         def _new_page(title: str) -> Dict:
             page = {
@@ -475,7 +499,7 @@ class AIService:
             return result
 
         def _process_line(line: str, stripped: str):
-            nonlocal current_part, current_page, current_mode, current_field, stream_complete
+            nonlocal current_part, current_page, current_mode, current_field, stream_complete, seen_page
 
             if stripped == '<!-- END -->':
                 stream_complete = True
@@ -499,10 +523,18 @@ class AIService:
                 return None
 
             if stripped.startswith('# ') and not stripped.startswith('## '):
-                current_part = stripped[2:].strip()
+                heading = stripped[2:].strip()
+                # A bare H1 before the first page is the deck-level document title,
+                # not a part — ignore it so it doesn't pollute the cover's part. But
+                # keep a real opening chapter (e.g. "第一章") when a deck starts
+                # directly with a section and has no separate cover.
+                if not seen_page and not _is_part_header(heading):
+                    return None
+                current_part = heading
                 return None
 
             if stripped.startswith('## '):
+                seen_page = True
                 finished = _finalize_page(current_page)
                 current_page = _new_page(stripped[3:].strip())
                 current_mode = 'points'
