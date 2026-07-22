@@ -306,6 +306,29 @@ test.describe('In-place edit - desktop (mock)', () => {
     await expect(menuItem).toBeHidden()
   })
 
+  test('a leftover reference does not push the toolbar down after cancelling', async ({ page }) => {
+    await mockPreview(page)
+    await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)
+
+    const pillYBefore = (await pill(page).boundingBox())!.y
+
+    // Attach a reference, then cancel. The command bar stays mounted (crossfade),
+    // so its attachments row must not keep reserving grid-track height once we
+    // leave edit — otherwise the still-visible pill gets shoved down.
+    await pill(page).getByRole('button', { name: /^编辑$/ }).click()
+    await page.getByRole('button', { name: /区域选图/ }).click()
+    await dragRegion(page)
+    await expect(page.getByTestId('inline-edit-attachment-thumb')).toHaveCount(1)
+    await panel(page).getByRole('button', { name: /^取消$/ }).click()
+
+    await expect(pill(page)).toBeVisible()
+    await page.waitForTimeout(500) // let the crossfade settle before measuring
+    // the leftover crop is kept as a per-page draft but must not render in preview
+    await expect(page.getByTestId('inline-edit-attachments')).toHaveCount(0)
+    const pillYAfter = (await pill(page).boundingBox())!.y
+    expect(Math.abs(pillYAfter - pillYBefore)).toBeLessThan(6)
+  })
+
   test('leaves edit mode when the page changes, keeping the draft per page', async ({ page }) => {
     await mockPreview(page)
     await page.goto(`/project/${MOCK_PROJECT_ID}/preview`)

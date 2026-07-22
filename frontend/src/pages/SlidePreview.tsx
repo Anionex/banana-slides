@@ -700,6 +700,7 @@ export const SlidePreview: React.FC = () => {
   const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef<HTMLDivElement>(null);
+  const editPromptRef = useRef<HTMLTextAreaElement>(null);
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1185,6 +1186,11 @@ export const SlidePreview: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isInlineEditing, exitInlineEditing]);
+
+  // 进入就地编辑就把光标放进指令框，直接可打字（命令栏常驻，autoFocus 不触发，用 effect）
+  useEffect(() => {
+    if (isInlineEditing) editPromptRef.current?.focus({ preventScroll: true });
+  }, [isInlineEditing]);
 
   // 加参考图菜单：点菜单外任意处收起。用 pointerdown 而非全屏遮罩——遮罩会吃掉
   // 那一次点击（比如点向输入框却只是关了菜单），pointerdown 只收菜单、点击照常落地。
@@ -2957,7 +2963,7 @@ export const SlidePreview: React.FC = () => {
                 {/* 预览态：悬浮工具栏 */}
                 <div
                   data-testid="preview-floating-toolbar"
-                  className={`[grid-area:1/1] self-center justify-self-center flex items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg origin-center will-change-transform transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 [&_button]:whitespace-nowrap ${
+                  className={`[grid-area:1/1] self-center justify-self-center flex items-center gap-1 rounded-full border border-gray-200 dark:border-border-primary bg-white/95 dark:bg-background-secondary/95 backdrop-blur px-2 py-1.5 shadow-lg origin-center transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 [&_button]:whitespace-nowrap ${
                     isInlineEditing
                       ? 'invisible scale-[0.97] opacity-0 pointer-events-none'
                       : 'visible scale-100 opacity-100'
@@ -3023,13 +3029,15 @@ export const SlidePreview: React.FC = () => {
 
                 {/* 编辑态：单一命令栏 + 上方参考图缩略图 */}
                 <div
-                  className={`[grid-area:1/1] self-center w-full flex flex-col items-center gap-2 origin-center will-change-transform transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 ${
+                  className={`[grid-area:1/1] self-center w-full flex flex-col items-center gap-2 origin-center transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity motion-reduce:duration-200 ${
                     isInlineEditing
                       ? 'visible scale-100 opacity-100'
                       : 'invisible scale-[0.97] opacity-0 pointer-events-none'
                   }`}
                 >
-                  {selectedContextImages.uploadedFiles.length > 0 && (
+                  {/* 只在编辑态渲染附件行：命令栏虽 visibility:hidden 但仍占据 grid 轨道，
+                      退出编辑后残留的参考图会把上面可见的胶囊往下顶出一段空隙 */}
+                  {isInlineEditing && selectedContextImages.uploadedFiles.length > 0 && (
                     <div
                       data-testid="inline-edit-attachments"
                       className="flex flex-wrap items-center justify-center gap-2"
@@ -3070,7 +3078,7 @@ export const SlidePreview: React.FC = () => {
                         <ImagePlus size={18} />
                       </button>
                       {showAttachMenu && (
-                        <div className="absolute bottom-full left-0 z-20 mb-2 w-40 origin-bottom-left overflow-hidden rounded-xl border border-gray-200 bg-white/95 py-1 shadow-lg backdrop-blur animate-[popIn_140ms_cubic-bezier(0.32,0.72,0,1)] dark:border-border-primary dark:bg-background-secondary/95">
+                        <div className="absolute bottom-full left-0 z-20 mb-2 w-40 origin-bottom-left overflow-hidden rounded-xl border border-gray-200 bg-white/95 py-1 shadow-lg backdrop-blur animate-[popIn_140ms_cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none dark:border-border-primary dark:bg-background-secondary/95">
                           <button
                             type="button"
                             onClick={() => { setShowAttachMenu(false); setIsMaterialSelectorOpen(true); }}
@@ -3095,6 +3103,7 @@ export const SlidePreview: React.FC = () => {
                     </div>
                     {/* 指令输入：单行、随内容长高，Cmd/Ctrl+Enter 提交 */}
                     <textarea
+                      ref={editPromptRef}
                       data-testid="inline-edit-prompt"
                       rows={1}
                       value={editPrompt}
