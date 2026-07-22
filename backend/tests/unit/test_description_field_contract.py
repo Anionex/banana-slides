@@ -158,6 +158,47 @@ def test_takeaway_rule_requires_coherent_storyline(ctx):
 
 
 @pytest.mark.parametrize('build', [
+    lambda c: get_outline_generation_prompt(c),
+    lambda c: get_outline_generation_prompt_markdown(c),
+    lambda c: get_outline_refinement_prompt([], '加一页总结', c),
+])
+def test_cover_and_toc_are_exempt_from_part_grouping(ctx, build):
+    """封面/目录属于整个 deck，不应被套上章节（part）标签。"""
+    prompt = build(ctx)
+
+    assert 'table of contents' in prompt or '目录' in prompt
+    assert 'never to a part' in prompt or '不嵌入任何' in prompt
+
+
+def test_outline_json_format_example_keeps_cover_outside_part():
+    """JSON 大纲格式的示例本身不能把封面嵌进 part 分组，否则示例会教反规则。"""
+    assert '"part": "Part 1: Introduction"' in prompts._OUTLINE_JSON_FORMAT
+    # "Welcome"（封面）必须出现在第一个 part 分组的花括号之前
+    welcome_pos = prompts._OUTLINE_JSON_FORMAT.index('"Welcome"')
+    part1_pos = prompts._OUTLINE_JSON_FORMAT.index('"part": "Part 1: Introduction"')
+    assert welcome_pos < part1_pos
+
+
+@pytest.mark.parametrize('build', [
+    lambda c: get_description_to_outline_prompt(c),
+    lambda c: get_description_to_outline_prompt_markdown(c),
+])
+def test_description_derived_outlines_exempt_cover_from_part(ctx, build):
+    prompt = build(ctx)
+    assert 'never to a part' in prompt
+
+
+@pytest.mark.parametrize('build', [
+    lambda c: get_outline_parsing_prompt(c),
+    lambda c: get_outline_parsing_prompt_markdown(c),
+])
+def test_outline_parsing_prompts_do_not_inject_part_exemption(ctx, build):
+    """解析用户自带大纲必须保真，不能注入封面免 part 的结构性规则。"""
+    prompt = build(ctx)
+    assert 'never to a part' not in prompt
+
+
+@pytest.mark.parametrize('build', [
     lambda c: get_description_to_outline_prompt(c),
     lambda c: get_description_to_outline_prompt_markdown(c),
 ])
@@ -195,6 +236,75 @@ def test_legacy_equiv_covers_all_retired_names():
         '排版布局': '版式与重点',
         '排版建议': '版式与重点',
     }
+
+
+# --- 论断质量：禁止伪论断、要点须为证据 ---
+
+@pytest.mark.parametrize('build', [
+    lambda c: get_outline_generation_prompt(c),
+    lambda c: get_outline_generation_prompt_markdown(c),
+])
+def test_takeaway_rule_bans_topic_announcing_sentences(ctx, build):
+    """伪论断（形如句子但只宣布结论存在、不给出结论）必须被明确点名禁止。"""
+    prompt = build(ctx)
+    # 负例被点名：'The break-even analysis reveals when to switch'
+    assert 'reveals when to switch' in prompt
+
+
+def test_takeaway_rule_requires_evidence_not_restatement(ctx):
+    """后续要点须为证据（数据/案例/机制），不得复述论断。"""
+    prompt = get_outline_generation_prompt(ctx)
+    assert 'EVIDENCE' in prompt
+    assert 'not a reworded restatement' in prompt
+
+
+def test_outline_markdown_prompt_bans_deck_level_title(ctx):
+    """markdown 版必须禁止输出 deck 级文档标题，避免污染封面 part。"""
+    prompt = get_outline_generation_prompt_markdown(ctx)
+    assert 'deck-level document title' in prompt
+
+
+# --- 解析器：封面前的 deck 级 H1 不得被当成 part ---
+
+def test_parse_outline_ignores_deck_title_before_cover():
+    """整份 deck 的 H1 标题出现在封面前，不应污染封面页的 part；
+    而封面之后合法的 # Part 分节仍需生效。"""
+    from services.ai_service import AIService
+
+    md = (
+        "# 决策汇报：AI 推理架构的战略选择\n"
+        "## 决策汇报：AI 推理架构的战略选择\n"
+        "- 封面副标题与汇报人信息\n"
+        "# 第一部分：经济性分析\n"
+        "## 现有 AI 调用支出呈现指数级增长态势\n"
+        "- 成本失控风险，亟需替代方案\n"
+    )
+    pages = AIService.parse_markdown_outline(md)
+
+    assert len(pages) == 2
+    # 封面页不被 deck 标题污染
+    assert 'part' not in pages[0]
+    assert pages[0]['title'] == '决策汇报：AI 推理架构的战略选择'
+    # 封面之后的合法 part 仍然生效
+    assert pages[1].get('part') == '第一部分：经济性分析'
+
+
+def test_parse_outline_keeps_opening_chapter_without_cover():
+    """无独立封面、直接以章节开头时，首个 H1 是真实 part，不能被误删。"""
+    from services.ai_service import AIService
+
+    md = (
+        "# 第一章\n"
+        "## 第一页\n"
+        "- 要点1\n"
+        "## 第二页\n"
+        "- 要点2\n"
+    )
+    pages = AIService.parse_markdown_outline(md)
+
+    assert len(pages) == 2
+    assert pages[0].get('part') == '第一章'
+    assert pages[1].get('part') == '第一章'
 
 
 @pytest.mark.parametrize('legacy_name', ['视觉元素', '视觉焦点', '排版布局', '排版建议'])

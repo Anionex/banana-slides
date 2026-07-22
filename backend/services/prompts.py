@@ -73,12 +73,13 @@ _OUTLINE_JSON_FORMAT = """\
 1. Simple format (for short PPTs without major sections):
 [{"title": "title1", "points": ["point1", "point2"]}, {"title": "title2", "points": ["point1", "point2"]}]
 
-2. Part-based format (for longer PPTs with major sections):
+2. Part-based format (for longer PPTs with major sections). The cover (and TOC, if any) are \
+flat top-level entries — they belong to the deck as a whole, never inside a "part" group:
 [
+    {"title": "Welcome", "points": ["point1", "point2"]},
     {
     "part": "Part 1: Introduction",
     "pages": [
-        {"title": "Welcome", "points": ["point1", "point2"]},
         {"title": "Overview", "points": ["point1", "point2"]}
     ]
     },
@@ -96,10 +97,17 @@ _OUTLINE_TAKEAWAY_RULE = """\
 Takeaway rule:
 - For content pages, the FIRST point must be the page's takeaway: one complete assertion \
 sentence stating the conclusion the audience should remember (e.g. "Compute limits, not \
-lack of ideas, caused every AI winter"), never a topic phrase (e.g. "AI winter review"). \
-Follow it with 1-2 points listing the key supporting content to cover.
+lack of ideas, caused every AI winter"), never a topic phrase (e.g. "AI winter review").
+- State the conclusion ITSELF; do not merely announce that a conclusion exists. Write \
+"Self-hosting breaks even within 12-18 months once daily requests pass the threshold", NOT \
+"The break-even analysis reveals when to switch" — the latter looks like a sentence but only \
+names the topic while hiding the actual answer.
+- Follow the takeaway with 1-2 points giving the EVIDENCE behind it — concrete data, examples, \
+or mechanisms — not a reworded restatement of the takeaway itself.
 - For functional pages (cover, table of contents, section divider, thank-you/Q&A), points \
 only describe what the page contains — do not force assertions.
+- The cover and table of contents page belong to the deck as a whole, never to a part: do \
+not nest them under a `# Part` heading, and do not give them a "part" value.
 - Read in order, the takeaways should form a coherent storyline of the whole deck."""
 
 
@@ -359,6 +367,10 @@ Page takeaway sentence.
 
 2. Part-based format, for longer PPTs with clear major sections:
 
+## Cover slide title
+One sentence describing what the cover contains (title, subtitle, presenter). The cover always \
+comes before the first `# Part` heading and carries no part.
+
 # Part 1: Section name
 
 ## Slide title
@@ -375,11 +387,14 @@ Page takeaway sentence.
 Constraints:
 - Title should not contain page number.
 - Choose the format that best fits the content. Use parts when the PPT has clear major sections.
+- The cover and table of contents page belong to the deck as a whole, never to a part: place \
+them before the first `# Part` heading so they carry no part.
 - Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
 - Keep content at the outline level: focus on intent, topic, and logic, not polished final wording.
 - Takeaway assertions must be complete, polished sentences — the one exception to outline-level brevity.
 - Read in order, the page takeaways should form a coherent storyline.
-- A takeaway states a conclusion (e.g. "Compute limits, not lack of ideas, caused every AI winter"), never a topic phrase (e.g. "AI winter review").
+- A takeaway states a conclusion (e.g. "Compute limits, not lack of ideas, caused every AI winter"), never a topic phrase (e.g. "AI winter review"), and never a sentence that only announces a conclusion exists without stating it (e.g. "The break-even analysis reveals when to switch").
+- Do not output a deck-level document title. Use H1 (`#`) only for part headers in the part-based format; the cover is a regular `##` page.
 - Each outline page will eventually be converted into an actual slide. Therefore, if a slide should not appear in the final deck, do not output that page from the beginning.
 
 The user's request: {idea_prompt}.
@@ -478,7 +493,7 @@ Important rules:
 - If the text has clear sections/parts, use the part-based format
 - Preserve the logical structure and organization from the original text
 - The points should be concise summaries of the main content for each page
-- If a page argues something, phrase its FIRST point as that page's takeaway assertion (found in or implied by the user's text); functional pages (cover, TOC, section divider) are exempt
+- If a page argues something, phrase its FIRST point as that page's takeaway assertion (found in or implied by the user's text); functional pages (cover, TOC, section divider) are exempt; the cover and TOC belong to the deck as a whole, never to a part — do not nest them under a `# Part` heading or `"part"` value
 
 Now extract the outline structure from the description text above. Return only the JSON, don't include any other text.
 {get_language_instruction(language)}
@@ -522,7 +537,7 @@ Output rules:
 {description_format}
 - Preserve layout, style, material, and content details in the page description
 - Keep the outline points at the same level as normal idea-generated outlines: focus on slide intent, narrative role, topic, logic, transition, or design purpose
-- If a page argues something, phrase its FIRST outline point as that page's takeaway assertion (found in or implied by the user's text); functional pages (cover, TOC, section divider) are exempt
+- If a page argues something, phrase its FIRST outline point as that page's takeaway assertion (found in or implied by the user's text); functional pages (cover, TOC, section divider) are exempt; the cover and TOC belong to the deck as a whole, never to a part — do not nest them under a `# Part` heading or `"part"` value
 - Do not put final slide copy, exact page text, long evidence lists, or detailed visual/layout instructions in the outline points
 - Put concrete page text, data, examples, layout, style, and material details only in the page description section
 - Use `<!-- PAGE_END -->` after each page
@@ -584,12 +599,13 @@ You are a helpful assistant that modifies PPT outlines based on user requirement
 1. 简单格式（适用于没有主要章节的短 PPT）：
 [{{"title": "title1", "points": ["point1", "point2"]}}, {{"title": "title2", "points": ["point1", "point2"]}}]
 
-2. 基于章节的格式（适用于有明确主要章节的长 PPT）：
+2. 基于章节的格式（适用于有明确主要章节的长 PPT）。封面（及目录，如有）是顶层独立条目，
+属于整个 deck，不嵌入任何 "part" 分组：
 [
+    {{"title": "欢迎", "points": ["point1", "point2"]}},
     {{
     "part": "第一部分：引言",
     "pages": [
-        {{"title": "欢迎", "points": ["point1", "point2"]}},
         {{"title": "概述", "points": ["point1", "point2"]}}
     ]
     }},
