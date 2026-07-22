@@ -2885,6 +2885,9 @@ export const SlidePreview: React.FC = () => {
                         ref={isInlineEditing ? imageRef : undefined}
                         src={imageUrl}
                         alt={`Slide ${selectedIndex + 1}`}
+                        // 桌面版 getImageUrl 指向 127.0.0.1:<port>，跨源；区域裁剪要把这张图
+                        // 画进 canvas，缺 crossOrigin 会污染 canvas 导致裁剪失败（同弹窗那张图）
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover select-none"
                         draggable={false}
                       />
@@ -3070,7 +3073,7 @@ export const SlidePreview: React.FC = () => {
                         <div className="absolute bottom-full left-0 z-20 mb-2 w-40 origin-bottom-left overflow-hidden rounded-xl border border-gray-200 bg-white/95 py-1 shadow-lg backdrop-blur animate-[popIn_140ms_cubic-bezier(0.32,0.72,0,1)] dark:border-border-primary dark:bg-background-secondary/95">
                           <button
                             type="button"
-                            onClick={() => { setShowAttachMenu(false); setIsMaterialModalOpen(true); }}
+                            onClick={() => { setShowAttachMenu(false); setIsMaterialSelectorOpen(true); }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-foreground-secondary dark:hover:bg-background-hover"
                           >
                             <ImagePlus size={15} />
