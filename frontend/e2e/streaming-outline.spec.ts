@@ -24,8 +24,6 @@ async function createProjectAndNavigate(page: import('@playwright/test').Page, i
 
 test.describe('Streaming Outline - Mock Tests', () => {
   test('should render cards incrementally as SSE pages arrive', async ({ page }) => {
-    const projectId = await createProjectAndNavigate(page, 'Test streaming outline');
-
     // Mock the SSE streaming endpoint
     let requestReceived = false;
     await page.route(`**/api/projects/*/generate/outline/stream`, async (route) => {
@@ -63,9 +61,7 @@ test.describe('Streaming Outline - Mock Tests', () => {
       });
     });
 
-    // Click the generate button
-    const generateBtn = page.getByRole('button', { name: /自动生成|Auto Generate/i });
-    await generateBtn.click();
+    await createProjectAndNavigate(page, 'Test streaming outline');
 
     // Wait for cards to appear
     await expect(page.getByText('Introduction')).toBeVisible({ timeout: 10000 });
@@ -83,8 +79,6 @@ test.describe('Streaming Outline - Mock Tests', () => {
   });
 
   test('should show error message on SSE error event', async ({ page }) => {
-    const projectId = await createProjectAndNavigate(page, 'Test error handling');
-
     await page.route(`**/api/projects/*/generate/outline/stream`, async (route) => {
       const sseBody = `event: error\ndata: ${JSON.stringify({ message: 'AI service unavailable' })}\n\n`;
       await route.fulfill({
@@ -94,8 +88,7 @@ test.describe('Streaming Outline - Mock Tests', () => {
       });
     });
 
-    const generateBtn = page.getByRole('button', { name: /自动生成|Auto Generate/i });
-    await generateBtn.click();
+    await createProjectAndNavigate(page, 'Test error handling');
 
     // The error should be displayed somewhere in the UI
     // Wait a moment for the error to propagate
@@ -106,9 +99,7 @@ test.describe('Streaming Outline - Mock Tests', () => {
     await expect(page.getByText('Introduction')).not.toBeVisible();
   });
 
-  test('should disable generate button during streaming and re-enable on completion', async ({ page }) => {
-    const projectId = await createProjectAndNavigate(page, 'Test button state');
-
+  test('should show generated pages and the regenerate action on completion', async ({ page }) => {
     await page.route(`**/api/projects/*/generate/outline/stream`, async (route) => {
       const pageEvent = `event: page\ndata: ${JSON.stringify({ index: 0, title: 'Page 1', points: ['Point'] })}\n\n`;
       const doneEvent = `event: done\ndata: ${JSON.stringify({ total: 1, pages: [{id: 'p1', order_index: 0, outline_content: {title: 'Page 1', points: ['Point']}}] })}\n\n`;
@@ -119,17 +110,70 @@ test.describe('Streaming Outline - Mock Tests', () => {
       });
     });
 
-    const generateBtn = page.getByRole('button', { name: /自动生成|Auto Generate/i });
-    await generateBtn.click();
-
-    // Assert button shows disabled "Generating..." state
-    await expect(page.getByRole('button', { name: /生成中|Generating/i })).toBeDisabled();
+    await createProjectAndNavigate(page, 'Test button state');
 
     // Wait for page to render
     await expect(page.getByText('Page 1')).toBeVisible();
 
     // Assert button re-enables with "Regenerate" text
     await expect(page.getByRole('button', { name: /重新生成|Regenerate/i })).toBeEnabled();
+  });
+
+  test('keeps a delayed stream out of a project opened after generation starts', async ({ page }) => {
+    const sourceResponse = await page.request.post(`${BASE_URL}/api/projects`, {
+      data: { creation_type: 'idea', idea_prompt: 'Source project' },
+    });
+    const sourceProjectId = (await sourceResponse.json()).data?.project_id;
+    expect(sourceProjectId).toBeTruthy();
+
+    const targetResponse = await page.request.post(`${BASE_URL}/api/projects`, {
+      data: { creation_type: 'blank' },
+    });
+    const targetProjectId = (await targetResponse.json()).data?.project_id;
+    expect(targetProjectId).toBeTruthy();
+
+    const streamedPages = [
+      { index: 0, title: 'Source only: Introduction', points: ['Source point'] },
+      { index: 1, title: 'Source only: Details', points: ['More source content'] },
+      { index: 2, title: 'Source only: Conclusion', points: ['Source summary'] },
+    ];
+    await page.route(`**/api/projects/${sourceProjectId}/generate/outline/stream`, async (route) => {
+      const body = streamedPages.map((streamedPage) =>
+        `event: page\ndata: ${JSON.stringify(streamedPage)}\n\n`
+      ).join('') + `event: done\ndata: ${JSON.stringify({
+        total: streamedPages.length,
+        complete: true,
+        pages: streamedPages.map((streamedPage) => ({
+          id: `source-page-${streamedPage.index}`,
+          order_index: streamedPage.index,
+          outline_content: { title: streamedPage.title, points: streamedPage.points },
+          status: 'DRAFT',
+        })),
+      })}\n\n`;
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body,
+      });
+    });
+
+    await page.goto(`${BASE_URL}/project/${sourceProjectId}/outline`);
+    await expect(page.getByText('Source only: Introduction')).toBeVisible();
+
+    // Navigate before the staggered render loop has consumed the remaining source pages.
+    await page.goto(`${BASE_URL}/project/${targetProjectId}/outline`);
+    await expect(page.getByText('Source only: Introduction')).not.toBeVisible();
+    await page.waitForTimeout(700);
+    await expect(page.getByText('Source only: Details')).not.toBeVisible();
+    await expect(page.getByText('Source only: Conclusion')).not.toBeVisible();
+
+    // The projects themselves use the live backend; only the delayed AI stream is deterministic.
+    const persistedTarget = await page.request.get(`${BASE_URL}/api/projects/${targetProjectId}`);
+    expect(persistedTarget.ok()).toBeTruthy();
+    expect((await persistedTarget.json()).data.pages).toHaveLength(0);
+
+    await page.reload();
+    await expect(page.getByText('Source only: Introduction')).not.toBeVisible();
   });
 });
 
