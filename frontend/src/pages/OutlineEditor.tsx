@@ -174,8 +174,12 @@ export const OutlineEditor: React.FC = () => {
     addNewPage,
     generateOutlineStream,
     isGlobalLoading,
-    isOutlineStreaming,
+    outlineStreamingProjectIds,
   } = useProjectStore();
+
+  const isOutlineStreaming = Boolean(
+    currentProject?.id && outlineStreamingProjectIds.includes(currentProject.id)
+  );
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAiRefining, setIsAiRefining] = useState(false);
@@ -394,7 +398,7 @@ export const OutlineEditor: React.FC = () => {
         const result = await generateOutlineStream(lockPageCount);
         const { currentProject: updatedProject } = useProjectStore.getState();
         const pageCount = updatedProject?.pages.length ?? 0;
-        if (result && (!result.complete || pageCount === 0)) {
+        if (result?.active && (!result.complete || pageCount === 0)) {
           show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
         }
       } catch (error: any) {
@@ -432,7 +436,7 @@ export const OutlineEditor: React.FC = () => {
         const result = await generateOutlineStream();
         const { currentProject: updatedProject } = useProjectStore.getState();
         const pageCount = updatedProject?.pages.length ?? 0;
-        if (result && (!result.complete || pageCount === 0)) {
+        if (result?.active && (!result.complete || pageCount === 0)) {
           show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
         }
       } catch (error: any) {

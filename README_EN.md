@@ -122,6 +122,7 @@ See more at <a href="https://github.com/Anionex/banana-slides/issues/2" > Use Ca
 Supports three starting modes: **Idea**, **Outline**, and **Page Description**, catering to different creative habits.
 - **One-Sentence Generation**: Enter a topic, and AI automatically generates a well-structured outline and page-by-page content descriptions.
 - **Natural Language Editing**: Supports modifying outlines or descriptions via Vibe commands (e.g., "change page three to a case study"), with AI responding and adjusting in real-time.
+- **Project-isolated streaming outlines**: Switch projects while generation runs; each result is written back only to the project that started it.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual detail adjustments.
 - **Reliable Markdown Import**: The import pop-up previews the number of recognizable pages before execution and appends pages all at once according to the file order, avoiding formatting errors or uncertain sequencing after multi-page imports.
 

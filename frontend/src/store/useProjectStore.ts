@@ -112,6 +112,8 @@ interface ProjectState {
   warningMessage: string | null;
   // 流式大纲生成中
   isOutlineStreaming: boolean;
+  // 正在流式生成大纲的项目。任务仍可在后台完成，但只能更新自己的项目。
+  outlineStreamingProjectIds: string[];
   // 流式描述生成中
   isDescriptionStreaming: boolean;
   // 项目模板库（per-page template）
@@ -140,7 +142,7 @@ interface ProjectState {
 
   // 生成操作
   generateOutline: () => Promise<void>;
-  generateOutlineStream: () => Promise<{ complete: boolean } | undefined>;
+  generateOutlineStream: (lockPageCount?: boolean) => Promise<{ complete: boolean; active: boolean } | undefined>;
   generateFromDescription: () => Promise<void>;
   generateDescriptions: (detailLevel?: string) => Promise<void>;
   generatePageDescription: (pageId: string, detailLevel?: string) => Promise<void>;
@@ -272,6 +274,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
+  outlineStreamingProjectIds: [],
   isDescriptionStreaming: false,
   templateAssets: [],
 
@@ -673,14 +676,34 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // 流式生成大纲（SSE，逐页渲染）
   generateOutlineStream: async (lockPageCount?: boolean) => {
     const { currentProject } = get();
-    if (!currentProject) return;
+    const projectId = currentProject?.id;
+    if (!currentProject || !projectId) return;
 
-    set({ isOutlineStreaming: true, error: null });
+    if (get().outlineStreamingProjectIds.includes(projectId)) return;
+
+    const finishStream = () => {
+      set((state) => {
+        const outlineStreamingProjectIds = state.outlineStreamingProjectIds.filter((id) => id !== projectId);
+        return {
+          outlineStreamingProjectIds,
+          isOutlineStreaming: outlineStreamingProjectIds.length > 0,
+        };
+      });
+    };
+    const isViewingTargetProject = () => get().currentProject?.id === projectId;
+
+    set((state) => ({
+      outlineStreamingProjectIds: [...state.outlineStreamingProjectIds, projectId],
+      isOutlineStreaming: true,
+      error: null,
+    }));
 
     // Clear existing pages for fresh streaming display
-    set({
-      currentProject: { ...currentProject, pages: [] },
-    });
+    set((state) => ({
+      currentProject: state.currentProject?.id === projectId
+        ? { ...state.currentProject, pages: [] }
+        : state.currentProject,
+    }));
 
     // Concurrent queue: pages are pushed by SSE callbacks, drained by a timer loop
     const pageQueue: any[] = [];
@@ -694,7 +717,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         if (pageQueue.length > 0) {
           const page = pageQueue.shift()!;
           const { currentProject: proj } = get();
-          if (proj) {
+          if (proj?.id === projectId) {
             const tempPage: any = {
               id: `streaming-${page.index}`,
               order_index: page.index,
@@ -721,12 +744,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     });
 
     try {
-      await api.generateOutlineStream(currentProject.id!, {
+      await api.generateOutlineStream(projectId, {
         onPage: (page) => { pageQueue.push(page); },
         onDone: (data) => { doneData = data; },
         onError: (message) => {
           console.error('[流式大纲] 错误:', message);
-          set({ error: normalizeErrorMessage(message), isOutlineStreaming: false });
+          if (isViewingTargetProject()) {
+            set({ error: normalizeErrorMessage(message) });
+          }
           streamDone = true;
         },
       }, undefined /* language */, lockPageCount);
@@ -737,24 +762,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // Replace temp pages with real persisted pages
       if (doneData) {
         const { currentProject: proj } = get();
-        if (proj) {
+        if (proj?.id === projectId) {
           const normalized = normalizeProject({ ...proj, pages: doneData.pages });
-          set({ currentProject: normalized, isOutlineStreaming: false });
+          set({ currentProject: normalized });
         }
         devLog('[流式大纲] 完成:', doneData.total, '个页面');
-        return { complete: doneData.complete ?? false };
+        return { complete: doneData.complete ?? false, active: isViewingTargetProject() };
       } else {
-        set({ isOutlineStreaming: false });
-        return { complete: false };
+        return { complete: false, active: isViewingTargetProject() };
       }
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
-      set({
-        error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')),
-        isOutlineStreaming: false,
-      });
+      if (isViewingTargetProject()) {
+        set({ error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')) });
+      }
       throw error;
+    } finally {
+      finishStream();
     }
   },
 
