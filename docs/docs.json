@@ -36,6 +36,13 @@
             ]
           },
           {
+            "group": "技巧",
+            "pages": [
+              "zh/tips/index",
+              "zh/tips/consistent-style"
+            ]
+          },
+          {
             "group": "开发者",
             "pages": ["zh/cli"]
           },
@@ -72,6 +79,13 @@
               "features/materials",
               "features/export",
               "features/import-export"
+            ]
+          },
+          {
+            "group": "Tips",
+            "pages": [
+              "tips/index",
+              "tips/consistent-style"
             ]
           },
           {
