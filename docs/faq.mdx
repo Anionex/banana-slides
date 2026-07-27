@@ -44,6 +44,10 @@ docker logs --tail 200 banana-slides-backend
   docker exec -it banana-slides-backend bash -c "apt-get update && apt-get install -y libreoffice-impress"
   ```
 
+## PPT Renovation says the MinerU token is expired, invalid, or unauthorized
+
+The PDF parsing service cannot use the current MinerU credential. Update the token in **Settings → MinerU Configuration**, then run the **MinerU PDF Parsing** service test. After it passes, create the renovation project again. For deployment, configure `MINERU_TOKEN` as described in [Configuration](/configuration#mineru-pdf-parsing).
+
 ## How do I change the aspect ratio?
 
 Select a ratio on the home page before creating, or change it in **Project Settings** on the preview page. Images must be regenerated after changing the ratio.

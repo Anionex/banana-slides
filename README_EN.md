@@ -50,6 +50,7 @@
 
 ## 🔥 Latest Updates
 
+- **[2026-07-27]**: PPT Renovation now turns expired, invalid, or unauthorized MinerU token errors into a direct recovery path: update the token in **Settings → MinerU Configuration**, run the service test, and create the project again instead of seeing only a low-level parsing error.
 - **[2026-07-15]**: Custom Outline/Description Requirement Presets now automatically repair corrupted browser caches, retaining valid presets to prevent abnormal caches from blocking the editing page.
 - **[2026-07-11]**: Release Candidate 2 (RC2) for 0.9.0 released. It includes all capabilities of RC1 and fixes inconsistent MinerU directories for editable PPTX on Windows desktop and incorrect FFprobe paths for explanation videos; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
 - **[2026-06-23]**: Page-by-Page Templates launched — Supports both Unified Template and Independent Page Template modes. You can upload images or PDFs to build a project template library. AI automatically parses template styles and intelligently matches them to each page with one click, or you can manually bind them page-by-page. Bidirectional switching between modes is available at any time ([Documentation](https://docs.bananaslides.online/zh/features/templates))

@@ -45,6 +45,10 @@ docker logs --tail 200 banana-slides-backend
   docker exec -it banana-slides-backend bash -c "apt-get update && apt-get install -y libreoffice-impress"
   ```
 
+## PPT 翻新提示 MinerU Token 已失效、无效或无权限
+
+这表示 PDF 解析服务无法使用当前 MinerU 凭据。到「**设置 → MinerU 配置**」更新 Token，随后运行「**MinerU 解析 PDF**」服务测试；测试通过后重新创建翻新项目。部署时也可按[配置说明](/zh/configuration#minerupdf-解析)设置 `MINERU_TOKEN`。
+
 ## 如何更改画面比例？
 
 在首页创建项目前选择比例，或在幻灯片预览页的「**项目设置**」中修改。修改后需要重新生成图片才会生效。
