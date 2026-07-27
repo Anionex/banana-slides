@@ -1,6 +1,6 @@
 /**
- * Backend-backed UI regression: a failed renovation task must turn a MinerU
- * credential response into a recovery action rather than raw API text.
+ * UI regression: a failed renovation task must turn a MinerU credential
+ * response into a recovery action rather than raw API text.
  */
 import { test, expect } from '@playwright/test';
 
