@@ -514,9 +514,9 @@ Python 3.10+ + Flask 3.0 + uv + SQLite
 
 ## 交流群
 
-欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
+欢迎在群中提出新功能建议或反馈～
 
-<img width="312" alt="image" src="https://github.com/user-attachments/assets/aa7756f3-18d5-456f-9f2e-6a541fb1c444" />
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/80f329d1-e418-40d1-825a-63460d8755d6" />
 
 
 
