@@ -456,8 +456,12 @@ const getAllProviderSources = (isZh: boolean) => [
 ];
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
-const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
+const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'atlascloud', 'volcengine']);
 const FIXED_BASE_URL_PROVIDERS = new Set(['volcengine']);
+const ATLASCLOUD_TEXT_DEFAULTS = {
+  baseUrl: 'https://api.atlascloud.ai/v1',
+  model: 'deepseek-ai/deepseek-v4-pro',
+};
 const VOLCENGINE_RECOMMENDED_MODELS = {
   text: 'doubao-seed-2-1-pro-260628',
   caption: 'doubao-seed-2-1-pro-260628',
@@ -1188,6 +1192,22 @@ export const Settings: React.FC = () => {
         }
       }
 
+      if (key === 'text_model_source') {
+        if (value === 'atlascloud') {
+          next.text_api_base_url = ATLASCLOUD_TEXT_DEFAULTS.baseUrl;
+          if (!prev.text_model) {
+            next.text_model = ATLASCLOUD_TEXT_DEFAULTS.model;
+          }
+        } else if (prev.text_model_source === 'atlascloud') {
+          if (prev.text_api_base_url === ATLASCLOUD_TEXT_DEFAULTS.baseUrl) {
+            next.text_api_base_url = '';
+          }
+          if (prev.text_model === ATLASCLOUD_TEXT_DEFAULTS.model) {
+            next.text_model = '';
+          }
+        }
+      }
+
       return next;
     });
   };
@@ -1500,6 +1520,9 @@ export const Settings: React.FC = () => {
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
     const isFixedApiBaseProvider = FIXED_BASE_URL_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
+    const providerSources = item.sourceKey === 'text_model_source'
+      ? [{ value: 'atlascloud', label: 'Atlas Cloud' }, ...allProviderSources]
+      : allProviderSources;
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
 
@@ -1528,7 +1551,7 @@ export const Settings: React.FC = () => {
             className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
           >
             <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
-            {allProviderSources.map((option) => (
+            {providerSources.map((option) => (
               <option
                 key={option.value}
                 value={option.value}

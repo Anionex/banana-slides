@@ -64,6 +64,10 @@ class Config:
     OPENAI_TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '480.0'))  # 8 分钟：留出 gpt-image-2 生图(~225s)+传输的余量
     OPENAI_MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # 减少重试次数，避免过多重试导致累积超时
 
+    # Atlas Cloud OpenAI-compatible text API
+    ATLASCLOUD_API_KEY = os.getenv('ATLASCLOUD_API_KEY', '')
+    ATLASCLOUD_API_BASE = os.getenv('ATLASCLOUD_API_BASE', 'https://api.atlascloud.ai/v1')
+
     # 火山方舟 Agent Plans（OpenAI-compatible）
     VOLCENGINE_API_KEY = os.getenv('VOLCENGINE_API_KEY', '') or os.getenv('ARK_API_KEY', '')
     VOLCENGINE_API_BASE = os.getenv('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3')
