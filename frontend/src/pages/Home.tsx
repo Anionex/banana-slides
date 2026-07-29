@@ -15,7 +15,7 @@ import type { Material } from '@/types';
 import { useT } from '@/hooks/useT';
 import logoUrl from '@/assets/logo.png';
 import { ASPECT_RATIO_OPTIONS } from '@/config/aspectRatio';
-import { isDesktop } from '@/utils';
+import { isDesktop, normalizeRenovationErrorMessage } from '@/utils';
 
 type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
@@ -718,7 +718,10 @@ export const Home: React.FC = () => {
       navigate(`/project/${projectId}/outline`);
     } catch (error: any) {
       console.error('创建项目失败:', error);
-      const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
+      const rawMessage = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
+      const msg = activeTab === 'ppt_renovation'
+        ? normalizeRenovationErrorMessage(rawMessage)
+        : rawMessage;
       show({ message: msg, type: 'error' });
     } finally {
       setIsSubmitting(false);

@@ -214,6 +214,37 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
   return rawMessage;
 }
 
+/**
+ * PPT 翻新依赖 MinerU 解析 PDF。只在该工作流中将凭据类失败转成明确的修复动作，
+ * 避免把其他 provider 的认证错误错误归因为 MinerU。
+ */
+export function normalizeRenovationErrorMessage(errorMessage: string | null | undefined): string {
+  const normalized = normalizeErrorMessage(errorMessage);
+  const rawMessage = typeof errorMessage === 'string' ? errorMessage : String(errorMessage || '');
+  const message = rawMessage.toLowerCase();
+  const lang = localStorage.getItem('i18nextLng') || navigator.language || 'zh';
+  const isZh = lang.startsWith('zh');
+  const looksLikeMineruFailure = message.includes('mineru')
+    || message.includes('extract-results')
+    || message.includes('file-urls/batch');
+  const looksLikeCredentialFailure = message.includes('401')
+    || message.includes('403')
+    || message.includes('unauthorized')
+    || message.includes('forbidden')
+    || message.includes('token expired')
+    || message.includes('invalid token')
+    || message.includes('token invalid')
+    || message.includes('token has expired');
+
+  if (looksLikeMineruFailure && looksLikeCredentialFailure) {
+    return isZh
+      ? 'PPT 翻新无法解析 PDF：MinerU Token 已失效、无效或没有权限。请到「设置 → MinerU 配置」更新 Token，先运行“MinerU 解析 PDF”服务测试，再重新创建翻新项目。'
+      : 'PPT Renovation could not parse the PDF because the MinerU token is expired, invalid, or unauthorized. Update it in Settings → MinerU Configuration, run the “MinerU PDF Parsing” service test, then create the renovation project again.';
+  }
+
+  return normalized;
+}
+
 export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
 export const DESKTOP_TITLEBAR_HEIGHT = 50;
 export const DESKTOP_UPDATE_BANNER_HEIGHT = 40;

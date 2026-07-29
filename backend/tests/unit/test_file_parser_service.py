@@ -12,9 +12,29 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 from PIL import Image
 
 from services.file_parser_service import FileParserService, _resolve_upload_folder
+
+
+@pytest.mark.parametrize('status_code', [401, 403])
+def test_poll_result_returns_mineru_credential_errors_without_retrying(status_code):
+    service = FileParserService(mineru_token='expired-token')
+    response = MagicMock(status_code=status_code)
+    error = requests.exceptions.HTTPError(f'{status_code} Client Error')
+    error.response = response
+
+    with patch('requests.get', return_value=MagicMock(raise_for_status=MagicMock(side_effect=error))) as get:
+        markdown, extract_id, error_message = service._poll_result('batch-credential-error')
+
+    assert markdown is None
+    assert extract_id is None
+    assert error_message is not None
+    assert f'HTTP {status_code}' in error_message
+    assert 'MinerU task status request unauthorized' in error_message
+    assert 'extract-results/batch/batch-credential-error' in error_message
+    get.assert_called_once()
 
 
 def _create_temp_image() -> str:
