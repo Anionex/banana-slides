@@ -88,7 +88,6 @@ jobs:
           AUTO_CLEANUP=false ./scripts/test_docker_environment.sh
 
       - name: Setup Node.js
-        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
@@ -96,15 +95,20 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Playwright
-        if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
         run: |
           cd frontend
           npm ci
           npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
+      - name: Run modal accessibility E2E tests
+        run: cd frontend && npx playwright test modal-keyboard-accessibility.spec.ts --workers=1 --reporter=list
+        env:
+          CI: true
+        timeout-minutes: 5
+
+      - name: Run AI full-flow E2E tests
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: cd frontend && npx playwright test ui-full-flow.spec.ts modal-keyboard-accessibility.spec.ts --workers=1
+        run: cd frontend && npx playwright test ui-full-flow.spec.ts --workers=1
         env:
           CI: true
         timeout-minutes: 25

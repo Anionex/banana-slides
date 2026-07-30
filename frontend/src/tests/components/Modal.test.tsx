@@ -113,11 +113,22 @@ describe('Modal keyboard accessibility', () => {
     render(<StackedModalHarness />);
 
     const opener = screen.getByRole('button', { name: 'Open second dialog' });
+    const firstRoot = opener.closest<HTMLElement>('[data-modal-root]')!;
     await act(async () => user.click(opener));
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Second dialog' })).toHaveFocus());
+    const secondDialog = screen.getByRole('dialog', { name: 'Second dialog' });
+    const secondRoot = secondDialog.closest<HTMLElement>('[data-modal-root]')!;
+    await waitFor(() => expect(secondDialog).toHaveFocus());
+    expect(firstRoot).toHaveAttribute('aria-hidden', 'true');
+    expect(firstRoot).toHaveAttribute('inert');
+    expect(secondRoot).not.toHaveAttribute('aria-hidden');
+    expect(secondRoot).not.toHaveAttribute('inert');
 
     await act(async () => user.keyboard('{Escape}'));
-    expect(opener).toHaveFocus();
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(firstRoot).not.toHaveAttribute('aria-hidden');
+    expect(firstRoot).not.toHaveAttribute('inert');
+    expect(secondRoot).toHaveAttribute('aria-hidden', 'true');
+    expect(secondRoot).toHaveAttribute('inert');
 
     screen.getByRole('button', { name: 'First dialog last action' }).focus();
     await act(async () => user.tab());
@@ -135,10 +146,10 @@ describe('Modal keyboard accessibility', () => {
       </>
     );
 
-    const first = screen.getByRole('dialog', { name: '弹窗一' });
-    const second = screen.getByRole('dialog', { name: '弹窗二' });
+    const first = screen.getByText('弹窗一').closest('[role="dialog"]')!;
+    const second = screen.getByText('弹窗二').closest('[role="dialog"]')!;
     expect(first.getAttribute('aria-labelledby')).not.toBe(second.getAttribute('aria-labelledby'));
-    expect(screen.getAllByRole('button', { name: '关闭' })).toHaveLength(3);
+    expect(document.querySelectorAll('button[aria-label="关闭"]')).toHaveLength(3);
     expect(screen.getByRole('dialog', { name: '功能指南' })).toBeInTheDocument();
   });
 

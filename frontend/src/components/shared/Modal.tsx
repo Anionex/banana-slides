@@ -6,6 +6,56 @@ import { cn } from '@/utils';
 
 let openModalCount = 0;
 let bodyOverflowBeforeFirstModal = '';
+const openModalRoots: HTMLElement[] = [];
+const concealedBodyChildren = new Map<HTMLElement, { ariaHidden: string | null; inert: boolean }>();
+
+function concealElement(element: HTMLElement) {
+  if (!concealedBodyChildren.has(element)) {
+    concealedBodyChildren.set(element, {
+      ariaHidden: element.getAttribute('aria-hidden'),
+      inert: element.hasAttribute('inert'),
+    });
+  }
+  element.setAttribute('aria-hidden', 'true');
+  element.setAttribute('inert', '');
+}
+
+function restoreElement(element: HTMLElement) {
+  const previous = concealedBodyChildren.get(element);
+  if (!previous) return;
+
+  if (previous.ariaHidden === null) element.removeAttribute('aria-hidden');
+  else element.setAttribute('aria-hidden', previous.ariaHidden);
+  if (!previous.inert) element.removeAttribute('inert');
+  concealedBodyChildren.delete(element);
+}
+
+function syncModalAccessibility() {
+  for (let index = openModalRoots.length - 1; index >= 0; index -= 1) {
+    if (!openModalRoots[index].isConnected) openModalRoots.splice(index, 1);
+  }
+
+  const topmostRoot = openModalRoots[openModalRoots.length - 1];
+  if (!topmostRoot) {
+    Array.from(concealedBodyChildren.keys()).forEach(restoreElement);
+    document.querySelectorAll<HTMLElement>('[data-modal-root="false"]').forEach((root) => {
+      root.setAttribute('aria-hidden', 'true');
+      root.setAttribute('inert', '');
+    });
+    return;
+  }
+
+  Array.from(document.body.children).forEach((child) => {
+    if (!(child instanceof HTMLElement)) return;
+    if (child === topmostRoot) {
+      restoreElement(child);
+      child.removeAttribute('aria-hidden');
+      child.removeAttribute('inert');
+    } else {
+      concealElement(child);
+    }
+  });
+}
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -100,16 +150,34 @@ export const Modal: React.FC<ModalProps> = ({
 
     return () => {
       const previouslyFocused = previouslyFocusedRef.current;
-      if (previouslyFocused?.isConnected) {
-        previouslyFocused.focus();
-      }
       previouslyFocusedRef.current = null;
+      queueMicrotask(() => {
+        if (previouslyFocused?.isConnected) {
+          previouslyFocused.focus();
+        }
+      });
     };
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !isVisible) return;
     dialogRef.current?.focus();
+  }, [isOpen, isVisible]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !isVisible) return;
+
+    const existingIndex = openModalRoots.indexOf(root);
+    if (existingIndex !== -1) openModalRoots.splice(existingIndex, 1);
+    if (isOpen) openModalRoots.push(root);
+    syncModalAccessibility();
+
+    return () => {
+      const index = openModalRoots.indexOf(root);
+      if (index !== -1) openModalRoots.splice(index, 1);
+      syncModalAccessibility();
+    };
   }, [isOpen, isVisible]);
 
   useEffect(() => {
