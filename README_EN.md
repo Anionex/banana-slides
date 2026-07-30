@@ -124,7 +124,7 @@ Supports three starting modesâ€”**Idea**, **Outline**, and **Page Description**â
 - **Natural Language Editing**: Supports modifying the outline or descriptions using natural language via "Vibe" (e.g., "Change page three to a case study"); the AI responds and adjusts in real-time.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual adjustment of details.
 - **More Reliable Markdown Import**: The import popup provides a preview of recognized pages before execution and appends pages all at once based on the file order, avoiding formatting issues or uncertain page sequences after multi-page imports.
-- **Fully Keyboard-Accessible Dialogs**: Focus moves into each dialog when it opens, `Tab` / `Shift+Tab` stay inside it, and `Esc` returns focus to the original trigger. Close buttons also expose a screen-reader label in the current language.
+- **Keyboard-Accessible Shared Dialogs**: Import, material-management, help, and confirmation screens built on the shared dialog component take focus when opened, keep `Tab` / `Shift+Tab` inside, and return focus to the original trigger on `Esc`. Close buttons also expose a screen-reader label in the current language.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
