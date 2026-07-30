@@ -1,7 +1,32 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { cn } from '@/utils';
+
+let openModalCount = 0;
+let bodyOverflowBeforeFirstModal = '';
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => {
+      const style = window.getComputedStyle(element);
+      return !element.hidden
+        && element.getAttribute('aria-hidden') !== 'true'
+        && style.display !== 'none'
+        && style.visibility !== 'hidden';
+    }
+  );
+}
 
 interface ModalProps {
   isOpen: boolean;
@@ -22,8 +47,13 @@ export const Modal: React.FC<ModalProps> = ({
   showCloseButton = true,
   headerActions,
 }) => {
+  const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (isOpen) {
@@ -33,25 +63,94 @@ export const Modal: React.FC<ModalProps> = ({
           setIsAnimating(true);
         });
       });
-      document.body.style.overflow = 'hidden';
     } else {
       setIsAnimating(false);
       const timer = setTimeout(() => {
         setIsVisible(false);
       }, 250);
-      document.body.style.overflow = '';
       return () => clearTimeout(timer);
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (openModalCount === 0) {
+      bodyOverflowBeforeFirstModal = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    openModalCount += 1;
 
     return () => {
-      document.body.style.overflow = '';
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) {
+        document.body.style.overflow = bodyOverflowBeforeFirstModal;
+      }
     };
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    return () => {
+      const previouslyFocused = previouslyFocusedRef.current;
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus();
+      }
+      previouslyFocusedRef.current = null;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !isVisible) return;
+    dialogRef.current?.focus();
+  }, [isOpen, isVisible]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      const root = rootRef.current;
+      const dialog = dialogRef.current;
+      const visibleModalRoots = document.querySelectorAll('[data-modal-root="true"]');
+      const topmostModalRoot = visibleModalRoots[visibleModalRoots.length - 1];
+
+      if (!root || !dialog || topmostModalRoot !== root) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = getFocusableElements(dialog);
+      if (focusableElements.length === 0) {
+        e.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (!dialog.contains(activeElement) || activeElement === dialog) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -75,7 +174,11 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
+    <div
+      ref={rootRef}
+      data-modal-root="true"
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
+    >
       {/* 遮罩 */}
       <div
         className={cn(
@@ -94,9 +197,12 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={handleBackdropClick}
       >
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? 'modal-title' : undefined}
+          aria-labelledby={title ? titleId : undefined}
+          aria-label={title ? undefined : t('common.dialog')}
+          tabIndex={-1}
           className={cn(
             'relative w-full flex flex-col',
             size === 'full' ? 'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]' : 'max-h-[85vh]',
@@ -131,7 +237,7 @@ export const Modal: React.FC<ModalProps> = ({
           {title && (
             <div className="relative flex-shrink-0 px-7 pt-7 pb-5">
               <h2
-                id="modal-title"
+                id={titleId}
                 className={cn(
                   'text-xl font-semibold text-gray-900 dark:text-white tracking-tight',
                   showCloseButton || headerActions ? 'pr-24' : ''
@@ -169,7 +275,7 @@ export const Modal: React.FC<ModalProps> = ({
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-banana-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#1a1a24]',
                 title ? 'top-5 right-5' : 'top-4 right-4'
               )}
-              aria-label="关闭"
+              aria-label={t('common.close')}
             >
               <X
                 size={18}
