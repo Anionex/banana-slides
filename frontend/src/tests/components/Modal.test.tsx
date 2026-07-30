@@ -19,6 +19,27 @@ function ModalHarness() {
   );
 }
 
+function StackedModalHarness() {
+  const [isSecondOpen, setIsSecondOpen] = useState(false);
+
+  return (
+    <>
+      <button>Background action</button>
+      <Modal isOpen onClose={vi.fn()} title="First dialog">
+        <button onClick={() => setIsSecondOpen(true)}>Open second dialog</button>
+        <button>First dialog last action</button>
+      </Modal>
+      <Modal
+        isOpen={isSecondOpen}
+        onClose={() => setIsSecondOpen(false)}
+        title="Second dialog"
+      >
+        <button>Second action</button>
+      </Modal>
+    </>
+  );
+}
+
 describe('Modal keyboard accessibility', () => {
   beforeEach(async () => {
     vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
@@ -87,13 +108,30 @@ describe('Modal keyboard accessibility', () => {
     expect(closeFirst).not.toHaveBeenCalled();
   });
 
+  it('reactivates the underlying focus trap while the closing dialog animates out', async () => {
+    const user = userEvent.setup();
+    render(<StackedModalHarness />);
+
+    const opener = screen.getByRole('button', { name: 'Open second dialog' });
+    await act(async () => user.click(opener));
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Second dialog' })).toHaveFocus());
+
+    await act(async () => user.keyboard('{Escape}'));
+    expect(opener).toHaveFocus();
+
+    screen.getByRole('button', { name: 'First dialog last action' }).focus();
+    await act(async () => user.tab());
+    const firstDialog = screen.getByRole('dialog', { name: 'First dialog' });
+    expect(within(firstDialog).getByRole('button', { name: 'Close' })).toHaveFocus();
+  });
+
   it('uses localized accessible names and unique title associations', async () => {
     await i18n.changeLanguage('zh');
     render(
       <>
         <Modal isOpen onClose={vi.fn()} title="弹窗一">内容一</Modal>
         <Modal isOpen onClose={vi.fn()} title="弹窗二">内容二</Modal>
-        <Modal isOpen onClose={vi.fn()}>无标题内容</Modal>
+        <Modal isOpen onClose={vi.fn()} ariaLabel="功能指南">无标题内容</Modal>
       </>
     );
 
@@ -101,7 +139,7 @@ describe('Modal keyboard accessibility', () => {
     const second = screen.getByRole('dialog', { name: '弹窗二' });
     expect(first.getAttribute('aria-labelledby')).not.toBe(second.getAttribute('aria-labelledby'));
     expect(screen.getAllByRole('button', { name: '关闭' })).toHaveLength(3);
-    expect(screen.getByRole('dialog', { name: '对话框' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '功能指南' })).toBeInTheDocument();
   });
 
   it('keeps background scrolling locked until the last stacked dialog closes', () => {

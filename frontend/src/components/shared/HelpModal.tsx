@@ -391,7 +391,13 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   const page = PAGES[pageIdx];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="" size="lg">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title=""
+      ariaLabel={t(page.titleKey)}
+      size="lg"
+    >
       <div className="space-y-6">
         {/* header */}
         <div className="text-center pb-4 border-b border-gray-100 dark:border-border-primary">

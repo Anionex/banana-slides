@@ -104,7 +104,7 @@ jobs:
 
       - name: Run E2E tests
         if: env.GOOGLE_API_KEY != '' && env.GOOGLE_API_KEY != 'mock-api-key-for-testing'
-        run: cd frontend && npx playwright test ui-full-flow.spec.ts --workers=1
+        run: cd frontend && npx playwright test ui-full-flow.spec.ts modal-keyboard-accessibility.spec.ts --workers=1
         env:
           CI: true
         timeout-minutes: 25

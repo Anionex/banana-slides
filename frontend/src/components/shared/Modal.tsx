@@ -32,6 +32,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  ariaLabel?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'full';
   showCloseButton?: boolean;
@@ -42,6 +43,7 @@ export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   title,
+  ariaLabel,
   children,
   size = 'md',
   showCloseButton = true,
@@ -176,7 +178,7 @@ export const Modal: React.FC<ModalProps> = ({
   return createPortal(
     <div
       ref={rootRef}
-      data-modal-root="true"
+      data-modal-root={isOpen ? 'true' : 'false'}
       className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
     >
       {/* 遮罩 */}
@@ -201,7 +203,7 @@ export const Modal: React.FC<ModalProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? titleId : undefined}
-          aria-label={title ? undefined : t('common.dialog')}
+          aria-label={title ? undefined : ariaLabel || t('common.dialog')}
           tabIndex={-1}
           className={cn(
             'relative w-full flex flex-col',
