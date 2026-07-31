@@ -108,7 +108,7 @@ const settingsI18n = {
         elevenLabsApiKeyDesc: "留空则保持当前设置不变，API Key 可在 ElevenLabs 控制台获取",
         applyLink: "，请点击此处申请",
         textModelSource: "文本模型提供商格式", textModelSourceDesc: "选择文本生成使用的提供商格式", textModelSourcePlaceholder: "-- 请选择 --",
-        imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --",
+        imageModelSource: "图片模型提供商格式", imageModelSourceDesc: "选择图片生成使用的提供商格式", imageModelSourcePlaceholder: "-- 请选择 --", imageSourceUnavailable: "当前厂商不支持图片生成，请选择其他提供商",
         imageCaptionModelSource: "图片识别模型提供商格式", imageCaptionModelSourceDesc: "选择图片识别使用的提供商格式", imageCaptionModelSourcePlaceholder: "-- 请选择 --",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "输入 {{vendor}} API Key",
         vendorApiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
@@ -298,7 +298,7 @@ const settingsI18n = {
         elevenLabsApiKeyDesc: "Leave empty to keep current setting. Get your API key from the ElevenLabs dashboard",
         applyLink: ", click here to apply",
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
-        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --",
+        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --", imageSourceUnavailable: "this vendor has no image-generation capability, pick another provider",
         imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "Enter {{vendor}} API Key",
         vendorApiKeyDesc: "Leave empty to keep current setting, enter new value to update",
@@ -475,6 +475,14 @@ const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 const IMAGE_CAPABLE_LAZYLLM_SOURCES = new Set([
   'qwen', 'doubao', 'siliconflow', 'aiping', 'glm', 'minimax',
 ]);
+
+// Whether a source value can appear in the image-model source dropdown:
+// real OpenAI provider plus LazyLLM vendors that register a text2image
+// supplier. Non-LazyLLM sources (gemini/volcengine/codex) always pass.
+const isImageModelSourceSelectable = (value: string) =>
+  value === 'openai'
+  || !LAZYLLM_VENDOR_SET.has(value)
+  || IMAGE_CAPABLE_LAZYLLM_SOURCES.has(value);
 
 // 初始表单数据
 const initialFormData = {
@@ -1540,8 +1548,7 @@ export const Settings: React.FC = () => {
             {allProviderSources
               .filter(option =>
                 item.sourceKey !== 'image_model_source'
-                || !LAZYLLM_VENDOR_SET.has(option.value)
-                || IMAGE_CAPABLE_LAZYLLM_SOURCES.has(option.value)
+                || isImageModelSourceSelectable(option.value)
               )
               .map((option) => (
               <option
@@ -1551,7 +1558,26 @@ export const Settings: React.FC = () => {
               >
                 {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
               </option>
-              ))}
+              )
+              )
+              .concat(
+                // A previously saved image source may no longer be selectable
+                // (vendor without image capability). Keep it visible so users
+                // can see the current value instead of a silently-empty
+                // dropdown that would round-trip the stale value on save.
+                item.sourceKey === 'image_model_source'
+                && formData.image_model_source
+                && (
+                  !allProviderSources.some(o => o.value === formData.image_model_source)
+                  || !isImageModelSourceSelectable(formData.image_model_source)
+                )
+                  ? [(
+                    <option key={formData.image_model_source} value={formData.image_model_source}>
+                      {formData.image_model_source} ({t('settings.fields.imageSourceUnavailable')})
+                    </option>
+                  )]
+                  : []
+              )}
           </select>
           <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.fields.modelProviderDesc')}

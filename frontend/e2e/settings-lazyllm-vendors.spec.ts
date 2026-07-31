@@ -94,6 +94,8 @@ test.describe('Settings: LazyLLM vendor sources', () => {
     expect(imageText).toContain('Qwen (通义千问)')
     expect(imageText).toContain('* Doubao (豆包)')
     expect(imageText).toContain('AIPing (爱拼)')
+    // Real OpenAI provider stays selectable for image generation.
+    expect(imageText).toContain('OpenAI')
     for (const label of ['PPIO (派欧云)', 'DeepSeek', 'Kimi', 'SenseNova (商汤)']) {
       expect(imageText).not.toContain(label)
     }
@@ -102,6 +104,28 @@ test.describe('Settings: LazyLLM vendor sources', () => {
     await expect(captionSelect.locator('option[value="ppio"]')).toHaveCount(1)
     const captionText = (await captionSelect.locator('option').allTextContents()).join('\n')
     expect(captionText).toContain('PPIO (派欧云)')
+  })
+
+  test('stale image source without image capability stays visible with a hint', async ({ page }) => {
+    const staleSettings = {
+      ...mockSettings,
+      data: { ...mockSettings.data, image_model_source: 'deepseek' },
+    }
+    await page.route('**/api/settings', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(staleSettings) })
+    )
+    await page.goto('/settings')
+
+    // deepseek has no image-generation supplier, but the saved value must not
+    // silently disappear: keep it selectable with an unavailable hint.
+    const imageSelect = page.locator('select').nth(2)
+    await expect(imageSelect).toHaveValue('deepseek')
+    const imageText = (await imageSelect.locator('option').allTextContents()).join('\n')
+    expect(imageText).toContain('deepseek')
+    expect(imageText).toContain('不支持图片生成')
+    // Capable options remain listed next to the stale value.
+    expect(imageText).toContain('Qwen (通义千问)')
+    expect(imageText).toContain('OpenAI')
   })
 
   test('selecting PPIO keeps the source value and shows API key input', async ({ page }) => {

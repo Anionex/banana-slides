@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 import sys
+import importlib.util
 import setuptools
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
@@ -90,11 +91,15 @@ hiddenimports += collect_submodules('openai')
 # (doubao) and PyJWT (sensenova). Without them the packaged backend re-fails
 # with "Unsupported source: ..." / ModuleNotFoundError at runtime.
 hiddenimports += collect_submodules('lazyllm.module.llms.onlinemodule.supplier')
-for _lazyllm_sdk in ('dashscope', 'zhipuai', 'volcenginesdkarkruntime', 'jwt'):
-    try:
-        hiddenimports += collect_submodules(_lazyllm_sdk)
-    except Exception as _exc:  # SDK optional per vendor
-        print(f"WARNING: Could not collect LazyLLM vendor SDK {_lazyllm_sdk}: {_exc}")
+_LAZYLLM_VENDOR_SDKS = ('dashscope', 'zhipuai', 'volcenginesdkarkruntime', 'jwt')
+for _lazyllm_sdk in _LAZYLLM_VENDOR_SDKS:
+    if importlib.util.find_spec(_lazyllm_sdk) is None:
+        sys.exit(
+            f"ERROR: LazyLLM vendor SDK '{_lazyllm_sdk}' is missing; packaged "
+            "backend would fail at runtime for the corresponding vendor "
+            "(qwen/glm/doubao/sensenova). Install it and rebuild."
+        )
+    hiddenimports += collect_submodules(_lazyllm_sdk)
 hiddenimports += collect_submodules('anthropic')
 hiddenimports += collect_submodules('flask_migrate')
 hiddenimports += collect_submodules('flask_sqlalchemy')
