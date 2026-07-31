@@ -81,11 +81,16 @@ GLM_API_KEY=your-key          # 智谱 GLM
 SILICONFLOW_API_KEY=your-key  # 硅基流动
 SENSENOVA_API_KEY=your-key    # 商汤日日新
 MINIMAX_API_KEY=your-key      # MiniMax
+KIMI_API_KEY=your-key         # 月之暗面 Kimi
+PPIO_API_KEY=your-key         # PPIO 派欧云
+AIPING_API_KEY=your-key       # AIPing 爱拼
 ```
 
 Banana Slides 会在运行时依赖中显式打包 LazyLLM 国内在线厂商 SDK：
 `volcengine-python-sdk[ark]`（豆包/火山）、`dashscope`（通义千问/万相）、`zhipuai`（智谱 GLM）。
 LazyLLM 源码提供了 `lazyllm install online-advanced`，但当前 PyPI wheel 不一定把该组发布为标准 extra；Docker 和预构建镜像因此以显式依赖为准。
+
+桌面版（PyInstaller 打包）会显式收集并注册 LazyLLM 的全部在线厂商（qwen、doubao、deepseek、glm、kimi、minimax、sensenova、siliconflow、ppio、aiping、openai）。LazyLLM 通过 `pkgutil.iter_modules` 动态发现供应商，在打包环境中该机制可能失效导致 `Unsupported source: xxx`；Banana Slides 已在启动时显式导入全部供应商模块，并会把配置的厂商名解析为 LazyLLM 实际注册名，无需额外配置。
 
 ## AIHubMix（推荐中转）
 

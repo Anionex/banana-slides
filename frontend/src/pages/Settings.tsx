@@ -443,6 +443,8 @@ const LAZYLLM_SOURCES = [
   { value: 'minimax', label: 'MiniMax' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'kimi', label: 'Kimi' },
+  { value: 'ppio', label: 'PPIO (派欧云)' },
+  { value: 'aiping', label: 'AIPing (爱拼)' },
 ];
 
 // 所有可用的提供商选项（Gemini/OpenAI/Codex + LazyLLM 厂商）

@@ -34,7 +34,7 @@ __all__ = [
 ]
 
 # LazyLLM vendor names (used to distinguish from gemini/openai formats)
-LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi'}
+LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi', 'ppio', 'aiping'}
 
 
 def _get_openai_oauth_token() -> Optional[str]:
