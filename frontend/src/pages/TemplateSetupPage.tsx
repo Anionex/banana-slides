@@ -19,7 +19,7 @@ import logoUrl from '@/assets/logo.png';
 import { useT } from '@/hooks/useT';
 import { cn } from '@/utils';
 import { getImageUrl } from '@/api/client';
-import { Button, IconButton, Loading, useToast, useConfirm } from '@/components/shared';
+import { Button, IconButton, ProjectLoadState, useToast, useConfirm } from '@/components/shared';
 import { useProjectStore } from '@/store/useProjectStore';
 import { TemplatePickerModal } from '@/components/template/TemplatePickerModal';
 import { TemplateAnalysisEditor } from '@/components/template/TemplateAnalysisEditor';
@@ -237,8 +237,8 @@ export const TemplateSetupPage: React.FC = () => {
     }
   }, [currentProject?.template_mode, currentProject?.id, projectId, navigate]);
 
-  if (!currentProject) {
-    return <Loading fullscreen message={t('ts.loading')} />;
+  if (!currentProject || currentProject.id !== projectId) {
+    return <ProjectLoadState projectId={projectId} loadingMessage={t('ts.loading')} />;
   }
 
   const pages = currentProject.pages;

@@ -3,6 +3,15 @@ title: "FAQ"
 description: "Frequently asked questions"
 ---
 
+## What should I do if a project stays on “Loading project”?
+
+Project editor routes now stop the loading animation after a failed request and show the specific backend error. You can:
+
+1. Click **Retry** to load the same project in place after a temporary backend or network interruption.
+2. Click **Back to Home** if the project was deleted or you do not want to continue troubleshooting. When the project no longer exists, the app also clears the stale current-project record from the browser.
+
+This recovery screen is available in the Outline Editor, Description Editor, Per-page Template Setup, and Slide Preview routes.
+
 ## Generated text is garbled or blurry
 
 - Check if you're on 1K low-resolution mode. Switch to 2K or 4K in **Project Settings → Global Settings** — the difference in text clarity is significant. Note: some OpenAI-format proxy services don't support higher resolutions; use Gemini format instead.

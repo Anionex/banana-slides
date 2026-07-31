@@ -125,6 +125,7 @@ Supports three starting modesâ€”**Idea**, **Outline**, and **Page Description**â
 - **Project-isolated streaming outlines**: Switch projects while generation runs; each result is written back only to the project that started it.
 - **Outline/Description Mode**: Supports both one-click batch generation and manual adjustment of details.
 - **More Reliable Markdown Import**: The import popup provides a preview of recognized pages before execution and appends pages all at once based on the file order, avoiding formatting issues or uncertain page sequences after multi-page imports.
+- **Recoverable Project Loading**: If the Outline, Description, Per-page Template, or Preview page cannot load a project because it is missing, the network is down, or the backend is unavailable, the endless spinner is replaced by the actual error with actions to retry in place or safely return home.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 

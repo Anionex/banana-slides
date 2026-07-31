@@ -16,6 +16,7 @@ const storeI18n = {
       createFailed: '创建项目失败',
       createNoId: '项目创建失败：未返回项目ID',
       syncFailed: '同步项目失败',
+      syncInvalidResponse: '项目加载失败：后端响应缺少项目数据',
       projectNotFound: '项目不存在，可能已被删除',
       requestFailed: '请求失败',
       requestFailedStatus: '请求失败: {{status}}',
@@ -48,6 +49,7 @@ const storeI18n = {
       createFailed: 'Failed to create project',
       createNoId: 'Project creation failed: no project ID returned',
       syncFailed: 'Failed to sync project',
+      syncInvalidResponse: 'Failed to load project: backend response is missing project data',
       projectNotFound: 'Project not found, it may have been deleted',
       requestFailed: 'Request failed',
       requestFailedStatus: 'Request failed: {{status}}',
@@ -106,6 +108,11 @@ interface ProjectState {
   activeTaskId: string | null;
   taskProgress: { total: number; completed: number } | null;
   error: string | null;
+  projectLoad: {
+    projectId: string | null;
+    status: 'idle' | 'loading' | 'success' | 'error';
+    error: string | null;
+  };
   // 每个页面的生成任务ID映射 (pageId -> taskId)
   pageGeneratingTasks: Record<string, string>;
   // 警告消息
@@ -126,7 +133,7 @@ interface ProjectState {
   
   // 项目操作
   initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
-  syncProject: (projectId?: string) => Promise<void>;
+  syncProject: (projectId?: string, options?: { initialLoad?: boolean }) => Promise<void>;
   
   // 页面操作
   updatePageLocal: (pageId: string, data: any) => void;
@@ -180,6 +187,8 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => {
+  let latestProjectSyncRequest = 0;
+
   // 把一页的字段分发到各自的后端端点
   const savePageFields = async (projectId: string, pageId: string, data: any) => {
     const promises: Promise<any>[] = [];
@@ -271,6 +280,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   activeTaskId: null,
   taskProgress: null,
   error: null,
+  projectLoad: { projectId: null, status: 'idle', error: null },
   pageGeneratingTasks: {},
   warningMessage: null,
   isOutlineStreaming: false,
@@ -359,8 +369,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   },
 
   // 同步项目数据
-  syncProject: async (projectId?: string) => {
+  syncProject: async (projectId?: string, options?: { initialLoad?: boolean }) => {
     const { currentProject } = get();
+    const isImplicitRestore = !projectId;
 
     // 如果没有提供 projectId，尝试从 currentProject 或 localStorage 获取
     let targetProjectId = projectId;
@@ -377,20 +388,46 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       return;
     }
 
+    const activeLoad = get().projectLoad;
+    if (!currentProject
+      && activeLoad.projectId === targetProjectId
+      && activeLoad.status === 'loading') {
+      return;
+    }
+
+    const isInitialLoad = options?.initialLoad === true || currentProject?.id !== targetProjectId;
+    const requestId = ++latestProjectSyncRequest;
+    if (isInitialLoad) {
+      set({
+        currentProject: null,
+        projectLoad: { projectId: targetProjectId, status: 'loading', error: null },
+      });
+    }
+
     try {
       const response = await api.getProject(targetProjectId);
+      if (requestId !== latestProjectSyncRequest) return;
       if (response.data) {
         const project = normalizeProject(response.data);
+        if (!project.id) {
+          throw new Error(t('store.syncInvalidResponse'));
+        }
         devLog('[syncProject] 同步项目数据:', {
           projectId: project.id,
           pagesCount: project.pages?.length || 0,
           status: project.status
         });
-        set({ currentProject: project });
+        set({
+          currentProject: project,
+          projectLoad: { projectId: targetProjectId, status: 'success', error: null },
+        });
         // 确保 localStorage 中保存了项目ID
         localStorage.setItem('currentProjectId', project.id!);
+      } else {
+        throw new Error(t('store.syncInvalidResponse'));
       }
     } catch (error: any) {
+      if (requestId !== latestProjectSyncRequest) return;
       // 提取更详细的错误信息
       let errorMessage = t('store.syncFailed');
       let shouldClearStorage = false;
@@ -400,7 +437,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const errorData = error.response.data;
         if (error.response.status === 404) {
           // 404错误：项目不存在，清除localStorage
-          errorMessage = errorData?.error?.message || t('store.projectNotFound');
+          errorMessage = t('store.projectNotFound');
           shouldClearStorage = true;
         } else if (errorData?.error?.message) {
           // 从后端错误格式中提取消息
@@ -425,9 +462,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       if (shouldClearStorage) {
         console.warn('[syncProject] 项目不存在，清除localStorage');
         localStorage.removeItem('currentProjectId');
-        set({ currentProject: null });
+      }
+
+      const normalizedError = normalizeErrorMessage(errorMessage);
+      if (isInitialLoad) {
+        set({
+          currentProject: null,
+          projectLoad: { projectId: targetProjectId, status: 'error', error: normalizedError },
+          ...(isImplicitRestore && !shouldClearStorage ? { error: normalizedError } : {}),
+        });
       } else {
-        set({ error: normalizeErrorMessage(errorMessage) });
+        set({ error: normalizedError });
       }
     }
   },

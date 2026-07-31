@@ -21,7 +21,9 @@ function App() {
   // 恢复项目状态
   useEffect(() => {
     const savedProjectId = localStorage.getItem('currentProjectId');
-    if (savedProjectId && !currentProject) {
+    const isProjectRoute = window.location.pathname.startsWith('/project/')
+      || window.location.hash.startsWith('#/project/');
+    if (savedProjectId && !currentProject && !isProjectRoute) {
       syncProject();
     }
   }, [currentProject, syncProject]);
