@@ -131,7 +131,7 @@ interface ProjectState {
   
   // 项目操作
   initializeProject: (type: 'idea' | 'outline' | 'description' | 'blank', content: string, templateImage?: File, templateStyle?: string, referenceFileIds?: string[], aspectRatio?: string) => Promise<void>;
-  syncProject: (projectId?: string) => Promise<void>;
+  syncProject: (projectId?: string, options?: { initialLoad?: boolean }) => Promise<void>;
   
   // 页面操作
   updatePageLocal: (pageId: string, data: any) => void;
@@ -366,7 +366,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   },
 
   // 同步项目数据
-  syncProject: async (projectId?: string) => {
+  syncProject: async (projectId?: string, options?: { initialLoad?: boolean }) => {
     const { currentProject } = get();
     const isImplicitRestore = !projectId;
 
@@ -392,7 +392,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       return;
     }
 
-    const isInitialLoad = currentProject?.id !== targetProjectId;
+    const isInitialLoad = options?.initialLoad === true || currentProject?.id !== targetProjectId;
     const requestId = ++latestProjectSyncRequest;
     if (isInitialLoad) {
       set({

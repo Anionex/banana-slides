@@ -154,12 +154,9 @@ export const History: React.FC = () => {
     }
 
     try {
-      // 设置当前项目
-      setCurrentProject(project);
-      localStorage.setItem('currentProjectId', projectId);
-      
-      // 同步项目数据
-      await syncProject(projectId);
+      // 历史卡片只是列表快照；打开前必须按首次加载重新验证，避免删除或
+      // 请求失败后仍带着陈旧快照进入编辑器。
+      await syncProject(projectId, { initialLoad: true });
       
       // 根据项目状态跳转到不同页面
       const route = getProjectRoute(project);

@@ -116,6 +116,27 @@ describe('useProjectStore project loading', () => {
     expect(useProjectStore.getState().currentProject?.id).toBe('project-retry');
   });
 
+  it('treats a history-card refresh as an initial load even when the project is cached', async () => {
+    useProjectStore.setState({
+      currentProject: { id: 'project-cached', pages: [] } as any,
+      projectLoad: { projectId: 'project-cached', status: 'success', error: null },
+    });
+    vi.mocked(getProject).mockRejectedValue({
+      response: { status: 404, data: { error: { message: 'Project not found' } } },
+    });
+
+    await act(async () => {
+      await useProjectStore.getState().syncProject('project-cached', { initialLoad: true });
+    });
+
+    expect(useProjectStore.getState().currentProject).toBeNull();
+    expect(useProjectStore.getState().projectLoad).toMatchObject({
+      projectId: 'project-cached',
+      status: 'error',
+      error: expect.stringMatching(/项目不存在|Project not found/),
+    });
+  });
+
   it('deduplicates the same initial load when React effects run twice', async () => {
     const request = deferred<any>();
     vi.mocked(getProject).mockReturnValue(request.promise);

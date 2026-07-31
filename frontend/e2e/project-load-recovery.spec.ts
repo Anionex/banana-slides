@@ -81,6 +81,41 @@ test('retries in place and renders the project after a transient failure', async
   expect(attempts).toBe(2);
 });
 
+test('does not open a stale history snapshot when project validation fails', async ({ page }) => {
+  await page.route(
+    (url) => url.pathname.startsWith('/api/'),
+    async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/access-code/check') {
+        await route.fulfill({ json: { success: true, data: { enabled: false } } });
+        return;
+      }
+      if (url.pathname === '/api/projects' && route.request().method() === 'GET') {
+        await route.fulfill({
+          json: { success: true, data: { projects: [project], total: 1 } },
+        });
+        return;
+      }
+      if (url.pathname === `/api/projects/${PROJECT_ID}`) {
+        await route.fulfill({
+          status: 404,
+          json: { success: false, error: { message: 'Project not found' } },
+        });
+        return;
+      }
+      await route.fulfill({ json: { success: true, data: {} } });
+    },
+  );
+
+  await page.goto('/history');
+  await page.getByText('待生成描述', { exact: true }).click();
+
+  await expect(page).toHaveURL(`/project/${PROJECT_ID}/outline`);
+  await expect(page.getByRole('heading', { name: '无法打开项目' })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText(/Project not found|项目不存在/);
+  await expect(page.getByText('Recovered project')).not.toBeVisible();
+});
+
 test('shows an actual backend 404 and lets the user return home', async ({ page }) => {
   const missingProjectId = `missing-project-${Date.now()}`;
   await page.goto(`/project/${missingProjectId}/outline`);
