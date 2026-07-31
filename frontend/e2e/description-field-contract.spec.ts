@@ -84,7 +84,8 @@ test.describe('字段契约 - Mock', () => {
     }
     // 退役字段不应出现在默认胶囊里
     for (const legacy of LEGACY_FIELDS) {
-      await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}$`) })).toHaveCount(0);
+      // 胶囊文案带 tooltip 后缀（如「视觉元素该字段会影响…」），用前缀匹配才能命中
+      await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}`) })).toHaveCount(0);
     }
   });
 
@@ -142,13 +143,14 @@ test.describe('字段契约 - 集成', () => {
       await expect(page.locator('button').filter({ hasText: '配图与素材' }).first()).toBeVisible({ timeout: 5000 });
       await expect(page.locator('button').filter({ hasText: '版式与重点' }).first()).toBeVisible();
       for (const legacy of LEGACY_FIELDS) {
-        await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}$`) })).toHaveCount(0);
+        await expect(page.locator('button').filter({ hasText: new RegExp(`^${legacy}`) })).toHaveCount(0);
       }
     } finally {
       // 恢复原设置，避免影响同文件其他用例
       await page.request.put(`${BASE_URL}/api/settings`, {
         data: {
-          description_extra_fields: before?.description_extra_fields || NEW_FIELDS,
+          // GET 返回映射后的新名；空数组（显式清空）时回退默认，避免控制器 400
+          description_extra_fields: before?.description_extra_fields?.length ? before.description_extra_fields : NEW_FIELDS,
           image_prompt_extra_fields: before?.image_prompt_extra_fields ?? ['配图与素材', '版式与重点'],
         },
       });
