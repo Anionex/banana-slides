@@ -9,6 +9,12 @@ import sys
 
 import pytest
 
+try:
+    import lazyllm  # noqa: F401
+    LAZYLLM_AVAILABLE = True
+except ImportError:
+    LAZYLLM_AVAILABLE = False
+
 from services.ai_providers.lazyllm_env import (
     LAZYLLM_SUPPLIER_MODULES,
     ensure_lazyllm_suppliers,
@@ -17,6 +23,14 @@ from services.ai_providers.lazyllm_env import (
 
 
 pytestmark = pytest.mark.unit
+
+pytestmark = [
+    pytestmark,
+    pytest.mark.skipif(
+        not LAZYLLM_AVAILABLE,
+        reason="Requires lazyllm installed",
+    ),
+]
 
 # Vendors expected in the chat registry of LazyLLM 0.7.x.
 CHAT_VENDORS = (
@@ -32,11 +46,17 @@ def _registered_chat_keys():
 
 def test_ensure_suppliers_registers_every_vendor():
     imported = ensure_lazyllm_suppliers()
-    assert set(imported) == set(LAZYLLM_SUPPLIER_MODULES)
+    # The explicit list must all register; future lazyllm versions may add
+    # more vendors through their own discovery, so only require a superset.
+    assert set(LAZYLLM_SUPPLIER_MODULES) <= set(imported), (
+        f'missing suppliers: {set(LAZYLLM_SUPPLIER_MODULES) - set(imported)}'
+    )
 
     keys = _registered_chat_keys()
     for vendor in CHAT_VENDORS:
-        assert f'{vendor}chat' in keys, f'{vendor} missing from chat registry: {keys}'
+        assert vendor in keys or f'{vendor}chat' in keys, (
+            f'{vendor} missing from chat registry: {keys}'
+        )
 
 
 def test_known_chat_sources_resolve():
@@ -55,6 +75,15 @@ def test_unknown_source_raises_descriptive_error():
     ensure_lazyllm_suppliers()
     with pytest.raises(ValueError, match='not registered for chat'):
         resolve_lazyllm_source('no-such-vendor')
+
+
+def test_empty_registry_raises_diagnostic_error(monkeypatch):
+    """An empty real registry (frozen build lost suppliers) must fail loudly
+    with a diagnostic message instead of silently re-entering the original
+    'Unsupported source' path (issue #539)."""
+    monkeypatch.setattr('lazyllm.online.chat', {})
+    with pytest.raises(ValueError, match='no suppliers were registered'):
+        resolve_lazyllm_source('qwen')
 
 
 def test_resolve_suffix_fallback_with_plain_dict(monkeypatch):
@@ -88,8 +117,8 @@ keys_after = sorted(lazyllm.online.chat.keys())
 expected = sorted([v + 'chat' for v in {vendors!r}])
 assert 'qwenchat' not in empty_before, \\
     f'iter_modules patch had no effect: {{empty_before}}'
-assert set(imported) == set({vendors!r}), f'imported mismatch: {{imported}}'
-assert keys_after == expected, f'registry incomplete: {{keys_after}}'
+assert set({vendors!r}) <= set(imported), f'imported mismatch: {{imported}}'
+assert set(expected) <= set(keys_after), f'registry incomplete: {{keys_after}}'
 print('FROZEN_SIM_OK')
 '''.format(vendors=list(LAZYLLM_SUPPLIER_MODULES))
     result = subprocess.run(

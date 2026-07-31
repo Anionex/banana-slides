@@ -307,12 +307,19 @@ GLM_API_KEY=your-glm-api-key                  # Zhipu GLM
 SILICONFLOW_API_KEY=your-siliconflow-api-key  # SiliconFlow
 SENSENOVA_API_KEY=your-sensenova-api-key      # SenseTime SenseNova
 MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
+KIMI_API_KEY=your-kimi-api-key                # Moonshot Kimi
+PPIO_API_KEY=your-ppio-api-key                # PPIO
+AIPING_API_KEY=your-aiping-api-key            # AIPing
 ...
 ```
 
 > Banana Slides explicitly packages the LazyLLM online provider SDKs used by domestic vendors:
 > `volcengine-python-sdk[ark]` for Doubao, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
 > LazyLLM also exposes `lazyllm install online-advanced`, but the PyPI wheel may not publish that group as a standard install extra, so Docker/prebuilt images rely on these explicit dependencies instead.
+>
+> Desktop (PyInstaller) builds register every LazyLLM online vendor explicitly
+> (qwen, doubao, deepseek, glm, kimi, minimax, sensenova, siliconflow, ppio,
+> aiping, openai) so packaged backends never hit `Unsupported source: ...`.
   
 </details>
 

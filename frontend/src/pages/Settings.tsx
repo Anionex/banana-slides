@@ -469,6 +469,13 @@ const VOLCENGINE_RECOMMENDED_MODELS = {
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
 
+// LazyLLM 0.7.x vendors that actually register an image-generation (text2image)
+// supplier; image-model source options are filtered to this set so a selection
+// cannot point at a vendor without image capability.
+const IMAGE_CAPABLE_LAZYLLM_SOURCES = new Set([
+  'qwen', 'doubao', 'siliconflow', 'aiping', 'glm', 'minimax',
+]);
+
 // 初始表单数据
 const initialFormData = {
   ai_provider_format: 'gemini' as string,
@@ -1530,7 +1537,13 @@ export const Settings: React.FC = () => {
             className="w-full h-10 px-4 rounded-lg border border-gray-200 dark:border-border-primary bg-white dark:bg-background-secondary focus:outline-none focus:ring-2 focus:ring-banana-500 focus:border-transparent"
           >
             <option value="">{t('settings.fields.modelProviderPlaceholder')}</option>
-            {allProviderSources.map((option) => (
+            {allProviderSources
+              .filter(option =>
+                item.sourceKey !== 'image_model_source'
+                || !LAZYLLM_VENDOR_SET.has(option.value)
+                || IMAGE_CAPABLE_LAZYLLM_SOURCES.has(option.value)
+              )
+              .map((option) => (
               <option
                 key={option.value}
                 value={option.value}
@@ -1538,7 +1551,7 @@ export const Settings: React.FC = () => {
               >
                 {option.label}{option.value === 'codex' && !settings?.openai_oauth_connected ? ` (${t('settings.openaiOAuth.disconnected')})` : ''}
               </option>
-            ))}
+              ))}
           </select>
           <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">
             {t('settings.fields.modelProviderDesc')}

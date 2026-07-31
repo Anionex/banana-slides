@@ -84,8 +84,17 @@ hiddenimports = [
 hiddenimports += collect_submodules('google')
 hiddenimports += collect_submodules('openai')
 # LazyLLM discovers vendor adapters dynamically at runtime. PyInstaller cannot
-# see those imports, so desktop builds must collect the supplier package.
+# see those imports, so desktop builds must collect the supplier package plus
+# the vendor SDKs that lazyllm.thirdparty loads lazily via importlib
+# (PackageWrapper) - dashscope (qwen), zhipuai (glm), volcenginesdkarkruntime
+# (doubao) and PyJWT (sensenova). Without them the packaged backend re-fails
+# with "Unsupported source: ..." / ModuleNotFoundError at runtime.
 hiddenimports += collect_submodules('lazyllm.module.llms.onlinemodule.supplier')
+for _lazyllm_sdk in ('dashscope', 'zhipuai', 'volcenginesdkarkruntime', 'jwt'):
+    try:
+        hiddenimports += collect_submodules(_lazyllm_sdk)
+    except Exception as _exc:  # SDK optional per vendor
+        print(f"WARNING: Could not collect LazyLLM vendor SDK {_lazyllm_sdk}: {_exc}")
 hiddenimports += collect_submodules('anthropic')
 hiddenimports += collect_submodules('flask_migrate')
 hiddenimports += collect_submodules('flask_sqlalchemy')

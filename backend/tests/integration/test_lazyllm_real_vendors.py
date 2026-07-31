@@ -71,3 +71,26 @@ class TestLazyLLMRealVendors:
             assert out and out.strip(), 'Qwen VLM returned an empty response'
         finally:
             os.remove(path)
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.getenv('DOUBAO_API_KEY'),
+        reason="Requires DOUBAO_API_KEY for real API testing",
+    )
+    def test_doubao_image_generation(self):
+        """Image generation through the text2image registry."""
+        from PIL import Image
+        from services.ai_providers.image.lazyllm_provider import LazyLLMImageProvider
+
+        provider = LazyLLMImageProvider(
+            source='doubao',
+            model='doubao-seedream-4-0-250828',
+        )
+        result = provider.generate_image(
+            prompt='A simple red circle on white background',
+            aspect_ratio='1:1',
+            resolution='1K',
+        )
+        assert result is not None, 'Doubao image generation returned None'
+        assert isinstance(result, Image.Image), 'Result is not a PIL Image'
+        assert result.size[0] > 0 and result.size[1] > 0, 'Image has invalid dimensions'

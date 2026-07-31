@@ -42,12 +42,19 @@ def ensure_lazyllm_suppliers() -> list:
         return []
 
     imported = []
+    failed = []
     for name in LAZYLLM_SUPPLIER_MODULES:
         try:
             importlib.import_module(f'{supplier_pkg.__name__}.{name}')
             imported.append(name)
         except Exception as exc:  # noqa: BLE001 - keep other suppliers usable
+            failed.append(name)
             logger.warning('Failed to import LazyLLM supplier %s: %s', name, exc)
+    if failed:
+        logger.error(
+            'LazyLLM suppliers failed to register (config selecting them will '
+            'fail at runtime): %s', ', '.join(failed),
+        )
     return imported
 
 
@@ -79,15 +86,20 @@ def resolve_lazyllm_source(source: str, registry_name: str = 'chat') -> str:
     suffix = registry_name.lower()
     if any(key == f'{source}{suffix}' for key in registry.keys()):
         return source
-    # Tolerate registries that are empty or not dict-like (unit-test mocks,
-    # partially broken installs): keep the configured source and let LazyLLM
-    # produce its own error instead of crashing during provider construction.
-    try:
-        registered = list(registry.keys())
-    except TypeError:
-        registered = None
-    if not registered:
+    # Non-dict registries are test doubles (unit tests swap sys.modules for
+    # MagicMock) - trust the configured source and let the fake behave.
+    if not isinstance(registry, dict):
         return source
+    # An empty real registry means supplier registration failed (e.g. the
+    # PyInstaller-frozen build missed the supplier modules) - fail loudly here
+    # instead of letting LazyLLM surface its opaque "Unsupported source"
+    # assertion later.  Only non-dict stand-ins (unit-test mocks) are tolerated.
+    if isinstance(registry, dict) and not registry:
+        raise ValueError(
+            f'LazyLLM registry {registry_name!r} is empty: no suppliers were '
+            'registered. In packaged desktop builds the LazyLLM supplier '
+            'modules may be missing (see logs for failed suppliers).'
+        )
     raise ValueError(
         f"LazyLLM source {source!r} is not registered for {registry_name}. "
         f'Available sources: {sorted(registry.keys())}'

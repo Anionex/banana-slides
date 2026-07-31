@@ -80,22 +80,61 @@ test.describe('Settings: LazyLLM vendor sources', () => {
     await expect(textSelect).toHaveValue('gemini')
   })
 
+  test('image-model source omits vendors without image capability', async ({ page }) => {
+    await page.route('**/api/settings', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings) })
+    )
+    await page.goto('/settings')
+
+    // Third select is the image-model source (text/caption keep every vendor).
+    const imageSelect = page.locator('select').nth(2)
+    await expect(imageSelect.locator('option[value="qwen"]')).toHaveCount(1)
+    const imageOptions = await imageSelect.locator('option').allTextContents()
+    const imageText = imageOptions.join('\n')
+    expect(imageText).toContain('Qwen (通义千问)')
+    expect(imageText).toContain('* Doubao (豆包)')
+    expect(imageText).toContain('AIPing (爱拼)')
+    for (const label of ['PPIO (派欧云)', 'DeepSeek', 'Kimi', 'SenseNova (商汤)']) {
+      expect(imageText).not.toContain(label)
+    }
+
+    const captionSelect = page.locator('select').nth(3)
+    await expect(captionSelect.locator('option[value="ppio"]')).toHaveCount(1)
+    const captionText = (await captionSelect.locator('option').allTextContents()).join('\n')
+    expect(captionText).toContain('PPIO (派欧云)')
+  })
+
   test('selecting PPIO keeps the source value and shows API key input', async ({ page }) => {
     await page.route('**/api/settings', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockSettings) })
     )
     await page.goto('/settings')
 
-    const textSelect = page.locator('select').first()
+    const textSelect = page.locator('select').nth(1)
     await textSelect.selectOption('ppio')
     await expect(textSelect).toHaveValue('ppio')
+    await expect(page.getByPlaceholder('输入 PPIO (派欧云) API Key')).toBeVisible()
   })
 
-  test('real backend: settings page shows PPIO and AIPing options', async ({ page }) => {
+  test('real backend: save and reload keeps a lazyllm vendor selection', async ({ page }) => {
     // No route mocking: hits the real backend through the dev-server proxy.
     await page.goto('/settings')
     const formatSelect = page.locator('select').first()
     await expect(formatSelect.locator('option[value="ppio"]')).toHaveCount(1)
-    await expect(formatSelect.locator('option[value="aiping"]')).toHaveCount(1)
+
+    const textSelect = page.locator('select').nth(1)
+    const previousValue = await textSelect.inputValue()
+    await textSelect.selectOption('ppio')
+    await expect(textSelect).toHaveValue('ppio')
+    await page.getByRole('button', { name: '保存设置' }).click()
+    await expect(page.getByText('设置保存成功')).toBeVisible()
+
+    await page.reload()
+    await expect(page.locator('select').nth(1)).toHaveValue('ppio')
+
+    // Restore the previous value so the shared dev database stays unchanged.
+    await page.locator('select').nth(1).selectOption(previousValue || 'deepseek')
+    await page.getByRole('button', { name: '保存设置' }).click()
+    await expect(page.getByText('设置保存成功')).toBeVisible()
   })
 })
