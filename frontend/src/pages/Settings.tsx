@@ -298,7 +298,7 @@ const settingsI18n = {
         elevenLabsApiKeyDesc: "Leave empty to keep current setting. Get your API key from the ElevenLabs dashboard",
         applyLink: ", click here to apply",
         textModelSource: "Text Model Provider Format", textModelSourceDesc: "Select the provider format for text generation", textModelSourcePlaceholder: "-- Select --",
-        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --", imageSourceUnavailable: "this vendor has no image-generation capability, pick another provider",
+        imageModelSource: "Image Model Provider Format", imageModelSourceDesc: "Select the provider format for image generation", imageModelSourcePlaceholder: "-- Select --", imageSourceUnavailable: "This vendor has no image-generation capability; pick another provider",
         imageCaptionModelSource: "Image Caption Model Provider Format", imageCaptionModelSourceDesc: "Select the provider format for image captioning", imageCaptionModelSourcePlaceholder: "-- Select --",
         vendorApiKey: "{{vendor}} API Key", vendorApiKeyPlaceholder: "Enter {{vendor}} API Key",
         vendorApiKeyDesc: "Leave empty to keep current setting, enter new value to update",
@@ -1573,7 +1573,7 @@ export const Settings: React.FC = () => {
                 )
                   ? [(
                     <option key={formData.image_model_source} value={formData.image_model_source}>
-                      {formData.image_model_source} ({t('settings.fields.imageSourceUnavailable')})
+                      {LAZYLLM_SOURCES.find(s => s.value === formData.image_model_source)?.label || formData.image_model_source} ({t('settings.fields.imageSourceUnavailable')})
                     </option>
                   )]
                   : []

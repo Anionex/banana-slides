@@ -121,7 +121,7 @@ test.describe('Settings: LazyLLM vendor sources', () => {
     const imageSelect = page.locator('select').nth(2)
     await expect(imageSelect).toHaveValue('deepseek')
     const imageText = (await imageSelect.locator('option').allTextContents()).join('\n')
-    expect(imageText).toContain('deepseek')
+    expect(imageText).toContain('DeepSeek')
     expect(imageText).toContain('不支持图片生成')
     // Capable options remain listed next to the stale value.
     expect(imageText).toContain('Qwen (通义千问)')
@@ -156,8 +156,9 @@ test.describe('Settings: LazyLLM vendor sources', () => {
     await page.reload()
     await expect(page.locator('select').nth(1)).toHaveValue('ppio')
 
-    // Restore the previous value so the shared dev database stays unchanged.
-    await page.locator('select').nth(1).selectOption(previousValue || 'deepseek')
+    // Restore the previous value (including empty) so the shared dev database
+    // stays unchanged.
+    await page.locator('select').nth(1).selectOption(previousValue || '')
     await page.getByRole('button', { name: '保存设置' }).click()
     await expect(page.getByText('设置保存成功')).toBeVisible()
   })

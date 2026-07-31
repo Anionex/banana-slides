@@ -11,6 +11,14 @@ ALLOWED_LAZYLLM_VENDORS = frozenset({
     'sensenova', 'minimax', 'openai', 'kimi', 'ppio', 'aiping',
 })
 
+# Vendors that register a text2image supplier in LazyLLM 0.7.x (verified
+# against the runtime registry: aiping/doubao/glm/minimax/qwen/siliconflow).
+# The other vendors only register chat suppliers; image generation falls back
+# to a capable vendor instead of failing at runtime.
+TEXT2IMAGE_CAPABLE_LAZYLLM_VENDORS = frozenset({
+    'qwen', 'doubao', 'siliconflow', 'aiping', 'glm', 'minimax',
+})
+
 # LazyLLM auto-discovers these in
 # ``lazyllm.module.llms.onlinemodule.supplier`` via ``pkgutil.iter_modules``,
 # which can silently return nothing in PyInstaller-frozen builds. Keep the
