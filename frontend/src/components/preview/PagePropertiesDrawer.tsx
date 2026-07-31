@@ -21,7 +21,7 @@ import { StatusBadge, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplatePickerModal } from '@/components/template/TemplatePickerModal';
 import { getImageUrl } from '@/api/client';
-import { resolveExtraFieldName } from '@/utils/projectUtils';
+import { isInImagePrompt } from '@/utils/projectUtils';
 import type { DescriptionContent, Material, Page, TemplateAsset } from '@/types';
 
 const drawerI18n = {
@@ -747,9 +747,7 @@ export const PagePropertiesDrawer: React.FC<PagePropertiesDrawerProps> = ({
                   </div>
 
                   {allFieldNames.map((name) => {
-                    // 与后端 _append_extra_fields 同语义：原名或等价新名命中即进入生图
-                    const notInImagePrompt = imagePromptFields
-                      && !(imagePromptFields.includes(name) || imagePromptFields.includes(resolveExtraFieldName(name)));
+                    const notInImagePrompt = imagePromptFields && !isInImagePrompt(name, imagePromptFields);
                     return (
                       <div key={name} data-testid={`drawer-extra-field-${name}`}>
                         <MarkdownTextarea

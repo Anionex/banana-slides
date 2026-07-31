@@ -16,6 +16,11 @@ export const EXTRA_FIELD_LEGACY_EQUIV: Record<string, string> = {
 export const resolveExtraFieldName = (name: string): string =>
   EXTRA_FIELD_LEGACY_EQUIV[name] ?? name;
 
+/** 与后端 _append_extra_fields 同语义：原名或等价新名任一命中即视为进生图 */
+export const isInImagePrompt = (name: string, imagePromptFields?: string[]): boolean =>
+  !!imagePromptFields
+  && (imagePromptFields.includes(name) || imagePromptFields.includes(resolveExtraFieldName(name)));
+
 const utilsI18n = {
   zh: {
     projectUtils: {

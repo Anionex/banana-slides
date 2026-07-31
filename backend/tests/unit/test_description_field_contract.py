@@ -395,6 +395,32 @@ def test_legacy_image_prompt_settings_fields_auto_map(client):
         assert settings.get_image_prompt_extra_fields() == ['配图与素材', '版式与重点']
 
 
+def test_legacy_image_prompt_settings_keeps_speaker_notes(client):
+    """显式配置演讲者备注进生图时，映射后仍保留（不因映射回退默认集合）。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '演讲者备注'], ensure_ascii=False)
+        db.session.commit()
+
+        assert settings.get_image_prompt_extra_fields() == ['配图与素材', '演讲者备注']
+
+
+def test_to_dict_never_emits_legacy_field_names(client):
+    """to_dict 是前端消费的契约面：存量旧名设置序列化后只出现新名。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(['视觉元素', '视觉焦点', '排版布局', '演讲者备注'], ensure_ascii=False)
+        settings.image_prompt_extra_fields = json.dumps(['视觉元素', '视觉焦点'], ensure_ascii=False)
+        db.session.commit()
+
+        d = settings.to_dict()
+        assert d['description_extra_fields'] == ['配图与素材', '版式与重点', '演讲者备注']
+        assert d['image_prompt_extra_fields'] == ['配图与素材', '版式与重点']
+        for legacy in ('视觉元素', '视觉焦点', '排版布局'):
+            assert legacy not in d['description_extra_fields']
+            assert legacy not in d['image_prompt_extra_fields']
+
+
 def test_new_page_fields_match_legacy_image_prompt_settings(client):
     """新 key 页面内容在存量旧名 image_prompt 设置下仍进入文生图 prompt（H1 回归）。"""
     with client.application.app_context():

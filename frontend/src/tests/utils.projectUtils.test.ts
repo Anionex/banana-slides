@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseMarkdownPages, resolveExtraFieldName } from '@/utils/projectUtils';
+import { parseMarkdownPages, resolveExtraFieldName, isInImagePrompt } from '@/utils/projectUtils';
 
 describe('resolveExtraFieldName', () => {
   test('maps legacy names to the new contract', () => {
@@ -12,6 +12,32 @@ describe('resolveExtraFieldName', () => {
   test('keeps new and custom names unchanged', () => {
     expect(resolveExtraFieldName('配图与素材')).toBe('配图与素材');
     expect(resolveExtraFieldName('品牌规范')).toBe('品牌规范');
+  });
+});
+
+describe('isInImagePrompt', () => {
+  test('matches new name directly', () => {
+    expect(isInImagePrompt('配图与素材', ['配图与素材', '版式与重点'])).toBe(true);
+    expect(isInImagePrompt('演讲者备注', ['配图与素材', '版式与重点'])).toBe(false);
+  });
+
+  test('matches legacy page key via its equivalent new name', () => {
+    expect(isInImagePrompt('视觉元素', ['配图与素材', '版式与重点'])).toBe(true);
+    expect(isInImagePrompt('视觉焦点', ['配图与素材', '版式与重点'])).toBe(true);
+  });
+
+  test('matches legacy page key against legacy settings list', () => {
+    expect(isInImagePrompt('视觉元素', ['视觉元素', '视觉焦点'])).toBe(true);
+  });
+
+  test('keeps custom fields unaffected', () => {
+    expect(isInImagePrompt('品牌规范', ['配图与素材', '品牌规范'])).toBe(true);
+    expect(isInImagePrompt('品牌规范', ['配图与素材'])).toBe(false);
+  });
+
+  test('undefined or empty list means no marker source', () => {
+    expect(isInImagePrompt('配图与素材', undefined)).toBe(false);
+    expect(isInImagePrompt('配图与素材', [])).toBe(false);
   });
 });
 
