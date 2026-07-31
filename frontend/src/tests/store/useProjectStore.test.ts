@@ -361,7 +361,7 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     act(() => { result.current.setCurrentProject(projectB as any) })
     let pendingB!: Promise<{ complete: boolean; active: boolean } | undefined>
     act(() => { pendingB = result.current.generateOutlineStream() })
-    expect(result.current.outlineStreamingProjectIds).toEqual(['proj-a', 'proj-b'])
+    expect([...result.current.outlineStreamingProjectIds].sort()).toEqual(['proj-a', 'proj-b'])
     expect(result.current.isOutlineStreaming).toBe(true)
 
     // A 先完成：只清理 A，B 仍在流式
