@@ -308,7 +308,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import logoUrl from '@/assets/logo.png';
-import { Button, Loading, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
+import { Button, Loading, ProjectLoadState, Modal, Textarea, useToast, useConfirm, MaterialSelector, ProjectSettingsModal, ExportTasksPanel, TextStyleSelector } from '@/components/shared';
 import { SwitchToSingleModeDialog } from '@/components/template/SwitchToSingleModeDialog';
 import { MaterialGeneratorModal } from '@/components/shared/MaterialGeneratorModal';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
@@ -1952,8 +1952,8 @@ export const SlidePreview: React.FC = () => {
     }
   };
 
-  if (!currentProject) {
-    return <Loading fullscreen message={t('preview.messages.loadingProject')} />;
+  if (!currentProject || currentProject.id !== projectId) {
+    return <ProjectLoadState projectId={projectId} loadingMessage={t('preview.messages.loadingProject')} />;
   }
 
   if (isGlobalLoading) {

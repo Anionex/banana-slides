@@ -119,7 +119,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
+import { Button, Loading, ProjectLoadState, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -504,8 +504,8 @@ export const OutlineEditor: React.FC = () => {
   ), []);
 
 
-  if (!currentProject) {
-    return <Loading fullscreen message={t('outline.messages.loadingProject')} />;
+  if (!currentProject || currentProject.id !== projectId) {
+    return <ProjectLoadState projectId={projectId} loadingMessage={t('outline.messages.loadingProject')} />;
   }
 
   if (isGlobalLoading && !isOutlineStreaming) {

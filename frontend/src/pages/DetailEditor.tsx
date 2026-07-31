@@ -130,7 +130,7 @@ const detailI18n = {
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
+import { Button, ProjectLoadState, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
@@ -609,8 +609,8 @@ export const DetailEditor: React.FC = () => {
     parseMarkdownPages(markdown).length
   ), []);
 
-  if (!currentProject) {
-    return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
+  if (!currentProject || currentProject.id !== projectId) {
+    return <ProjectLoadState projectId={projectId} loadingMessage={t('detail.messages.loadingProject')} />;
   }
 
   const hasAllDescriptions = currentProject.pages.every(
