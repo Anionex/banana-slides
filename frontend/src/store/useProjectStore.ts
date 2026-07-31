@@ -774,9 +774,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     } catch (error: any) {
       console.error('[流式大纲] 错误:', error);
       streamDone = true;
-      if (isViewingTargetProject()) {
-        set({ error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')) });
+      if (!isViewingTargetProject()) {
+        // 已切换离开发起生成的项目：过期失败不再抛出，避免在后来打开的项目中弹提示
+        return { complete: false, active: false };
       }
+      set({ error: normalizeErrorMessage(error.message || t('store.generateOutlineFailed')) });
       throw error;
     } finally {
       finishStream();

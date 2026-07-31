@@ -20,6 +20,22 @@ async function createProjectAndNavigate(page: import('@playwright/test').Page, i
   return projectId;
 }
 
+/**
+ * Helper: create a project via API without navigating (for cross-project scenarios)
+ */
+async function createProject(page: import('@playwright/test').Page, creationType: string, ideaPrompt?: string) {
+  const resp = await page.request.post(`${BASE_URL}/api/projects`, {
+    data: {
+      creation_type: creationType,
+      ...(ideaPrompt ? { idea_prompt: ideaPrompt } : {}),
+    },
+  });
+  const body = await resp.json();
+  const projectId = body.data?.project_id;
+  expect(projectId).toBeTruthy();
+  return projectId as string;
+}
+
 // ===== Mock Tests =====
 
 test.describe('Streaming Outline - Mock Tests', () => {
@@ -120,17 +136,8 @@ test.describe('Streaming Outline - Mock Tests', () => {
   });
 
   test('keeps a delayed stream out of a project opened after generation starts', async ({ page }) => {
-    const sourceResponse = await page.request.post(`${BASE_URL}/api/projects`, {
-      data: { creation_type: 'idea', idea_prompt: 'Source project' },
-    });
-    const sourceProjectId = (await sourceResponse.json()).data?.project_id;
-    expect(sourceProjectId).toBeTruthy();
-
-    const targetResponse = await page.request.post(`${BASE_URL}/api/projects`, {
-      data: { creation_type: 'blank' },
-    });
-    const targetProjectId = (await targetResponse.json()).data?.project_id;
-    expect(targetProjectId).toBeTruthy();
+    const sourceProjectId = await createProject(page, 'idea', 'Source project');
+    const targetProjectId = await createProject(page, 'blank');
 
     const streamedPages = [
       { index: 0, title: 'Source only: Introduction', points: ['Source point'] },
@@ -174,6 +181,68 @@ test.describe('Streaming Outline - Mock Tests', () => {
 
     await page.reload();
     await expect(page.getByText('Source only: Introduction')).not.toBeVisible();
+  });
+
+  test('suppresses a stale stream failure after switching to another project', async ({ page }) => {
+    const sourceId = await createProject(page, 'idea', 'Stale failure source');
+    const targetId = await createProject(page, 'blank');
+
+    let streamRequested = false;
+    let streamAborted = false;
+    await page.route(`**/api/projects/${sourceId}/generate/outline/stream`, async (route) => {
+      streamRequested = true;
+      // Hold the request open long enough to switch projects, then fail the read side.
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      streamAborted = true;
+      await route.abort('failed');
+    });
+
+    await page.goto(`${BASE_URL}/project/${sourceId}/outline`);
+    await expect.poll(() => streamRequested, { timeout: 15000 }).toBe(true);
+
+    // SPA-switch to the target project while the source stream is still pending.
+    // The same route element stays mounted, so a stale failure would surface here.
+    await page.evaluate((projectId) => {
+      const current = window.history.state ?? { idx: 0 };
+      window.history.pushState(
+        { ...current, idx: (current.idx ?? 0) + 1, key: `k-${Date.now()}` },
+        '',
+        `/project/${projectId}/outline`
+      );
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, targetId);
+
+    await expect(page).toHaveURL(new RegExp(`/project/${targetId}/outline`));
+
+    // Anchor the assertion right after the stale stream fails: an error toast from
+    // the source project would auto-dismiss after 5s, so a plain not.toBeVisible()
+    // later could miss it. Assert immediately and once more after settling.
+    await expect.poll(() => streamAborted, { timeout: 15000 }).toBe(true);
+    await expect(page.getByText(/Failed to fetch|生成大纲失败|网络错误|大纲生成可能不完整/i)).not.toBeVisible({ timeout: 2000 });
+    await page.waitForTimeout(1500);
+    await expect(page.getByText(/Failed to fetch|生成大纲失败|网络错误|大纲生成可能不完整/i)).not.toBeVisible({ timeout: 0 });
+
+    // Target project must still be intact and empty.
+    const persistedTarget = await page.request.get(`${BASE_URL}/api/projects/${targetId}`);
+    expect(persistedTarget.ok()).toBeTruthy();
+    expect((await persistedTarget.json()).data.pages).toHaveLength(0);
+  });
+
+  test('shows an error toast when the current project stream fails', async ({ page }) => {
+    const sourceId = await createProject(page, 'idea', 'Active failure source');
+
+    let streamRequested = false;
+    await page.route(`**/api/projects/${sourceId}/generate/outline/stream`, async (route) => {
+      streamRequested = true;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.abort('failed');
+    });
+
+    await page.goto(`${BASE_URL}/project/${sourceId}/outline`);
+    await expect.poll(() => streamRequested, { timeout: 15000 }).toBe(true);
+
+    // Both the global error toast and the editor toast may carry the message.
+    await expect(page.getByText(/Failed to fetch|生成大纲失败|网络错误/i).first()).toBeVisible({ timeout: 10000 });
   });
 });
 
