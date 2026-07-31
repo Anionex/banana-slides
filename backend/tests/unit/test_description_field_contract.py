@@ -350,6 +350,41 @@ def test_unknown_custom_field_still_filtered():
     assert result == '页面正文'
 
 
+def test_legacy_settings_fields_auto_map_to_new_trio(client):
+    """存量设置里的老四字段读取时自动等价到新三字段，去重保序。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(
+            ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'], ensure_ascii=False
+        )
+        db.session.commit()
+
+        assert settings.get_description_extra_fields() == ['配图与素材', '版式与重点', '演讲者备注']
+
+
+def test_legacy_settings_mapping_keeps_custom_fields_and_order(client):
+    """映射只作用于已知旧字段名；自定义字段原样保留，顺序不变。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(
+            ['品牌规范', '视觉元素', '演讲者备注', '排版布局'], ensure_ascii=False
+        )
+        db.session.commit()
+
+        assert settings.get_description_extra_fields() == ['品牌规范', '配图与素材', '演讲者备注', '版式与重点']
+
+
+def test_legacy_settings_mapping_does_not_persist_to_db(client):
+    """读时映射不落库：数据库里仍是原样，仅返回值为新契约字段。"""
+    with client.application.app_context():
+        settings = Settings.get_settings()
+        settings.description_extra_fields = json.dumps(['视觉元素', '排版布局'], ensure_ascii=False)
+        db.session.commit()
+
+        assert settings.get_description_extra_fields() == ['配图与素材', '版式与重点']
+        assert json.loads(settings.description_extra_fields) == ['视觉元素', '排版布局']
+
+
 def test_settings_default_getters_return_new_fields(client):
     with client.application.app_context():
         settings = Settings.get_settings()

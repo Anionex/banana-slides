@@ -102,10 +102,27 @@ class Settings(db.Model):
             try:
                 fields = json.loads(self.description_extra_fields)
                 if isinstance(fields, list):
-                    return fields
+                    # 存量设置里的旧字段名自动等价到新契约字段（视觉元素→配图与素材、
+                    # 视觉焦点/排版布局→版式与重点），去重保序；自定义字段原样保留。
+                    # 只做读时映射不落库，用户下次保存设置时自然持久化为新字段名。
+                    return self._normalize_extra_fields(fields)
             except (json.JSONDecodeError, TypeError):
                 pass
         return list(self.DEFAULT_EXTRA_FIELDS)
+
+    @staticmethod
+    def _normalize_extra_fields(fields):
+        """Map legacy field names to the current contract, preserving order and dropping duplicates."""
+        seen = set()
+        normalized = []
+        for name in fields:
+            if not isinstance(name, str):
+                continue
+            mapped = Settings.LEGACY_FIELD_EQUIV.get(name, name)
+            if mapped not in seen:
+                seen.add(mapped)
+                normalized.append(mapped)
+        return normalized
 
     def get_image_prompt_extra_fields(self):
         """Return parsed list of extra fields to include in image prompts."""
