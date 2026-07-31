@@ -135,6 +135,37 @@ test.describe('Streaming Outline - Mock Tests', () => {
     await expect(page.getByRole('button', { name: /重新生成|Regenerate/i })).toBeEnabled();
   });
 
+  test('disables the generate button while streaming and re-enables on completion', async ({ page }) => {
+    const sourceId = await createProject(page, 'idea', 'Button state source');
+
+    let streamRequested = false;
+    let releaseStream!: () => void;
+    await page.route(`**/api/projects/${sourceId}/generate/outline/stream`, async (route) => {
+      streamRequested = true;
+      // Hold the stream so the disabled state is observable before completion.
+      await new Promise<void>((resolve) => { releaseStream = resolve; });
+      const pageEvent = `event: page\ndata: ${JSON.stringify({ index: 0, title: 'Page 1', points: ['Point'] })}\n\n`;
+      const doneEvent = `event: done\ndata: ${JSON.stringify({ total: 1, complete: true, pages: [{ id: 'p1', order_index: 0, outline_content: { title: 'Page 1', points: ['Point'] } }] })}\n\n`;
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: pageEvent + doneEvent,
+      });
+    });
+
+    await page.goto(`${BASE_URL}/project/${sourceId}/outline`);
+    await expect.poll(() => streamRequested, { timeout: 15000 }).toBe(true);
+
+    // Assert button shows disabled "Generating..." state while the stream is pending.
+    await expect(page.getByRole('button', { name: /生成中|Generating/i })).toBeDisabled();
+
+    releaseStream();
+
+    // Wait for the page to render, then assert the button re-enables with "Regenerate".
+    await expect(page.getByText('Page 1')).toBeVisible();
+    await expect(page.getByRole('button', { name: /重新生成|Regenerate/i })).toBeEnabled();
+  });
+
   test('keeps a delayed stream out of a project opened after generation starts', async ({ page }) => {
     const sourceProjectId = await createProject(page, 'idea', 'Source project');
     const targetProjectId = await createProject(page, 'blank');
@@ -167,10 +198,21 @@ test.describe('Streaming Outline - Mock Tests', () => {
     await page.goto(`${BASE_URL}/project/${sourceProjectId}/outline`);
     await expect(page.getByText('Source only: Introduction')).toBeVisible();
 
-    // Navigate before the staggered render loop has consumed the remaining source pages.
-    await page.goto(`${BASE_URL}/project/${targetProjectId}/outline`);
-    await expect(page.getByText('Source only: Introduction')).not.toBeVisible();
+    // SPA-switch while the staggered render loop is still consuming the remaining source pages.
+    // A full reload would destroy the source JS context and hide the leak; the same route
+    // element stays mounted here, so any page/write-back leak would land in the target.
+    await page.evaluate((projectId) => {
+      const current = window.history.state ?? { idx: 0 };
+      window.history.pushState(
+        { ...current, idx: (current.idx ?? 0) + 1, key: `k-${Date.now()}` },
+        '',
+        `/project/${projectId}/outline`
+      );
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, targetProjectId);
+    await expect(page).toHaveURL(new RegExp(`/project/${targetProjectId}/outline`));
     await page.waitForTimeout(700);
+    await expect(page.getByText('Source only: Introduction')).not.toBeVisible();
     await expect(page.getByText('Source only: Details')).not.toBeVisible();
     await expect(page.getByText('Source only: Conclusion')).not.toBeVisible();
 
