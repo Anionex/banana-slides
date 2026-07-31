@@ -228,6 +228,75 @@ test.describe('Streaming Outline - Mock Tests', () => {
     expect((await persistedTarget.json()).data.pages).toHaveLength(0);
   });
 
+  test('keeps a mid-stream switch from writing source pages into the later project', async ({ page }) => {
+    const sourceId = await createProject(page, 'idea', 'Mid-stream switch source');
+    const targetId = await createProject(page, 'blank');
+
+    const streamedPages = [
+      { index: 0, title: 'Mid-stream only: Introduction', points: ['Source point'] },
+      { index: 1, title: 'Mid-stream only: Details', points: ['More source content'] },
+      { index: 2, title: 'Mid-stream only: Conclusion', points: ['Source summary'] },
+    ];
+
+    let streamRequested = false;
+    let releaseStream!: () => void;
+    await page.route(`**/api/projects/${sourceId}/generate/outline/stream`, async (route) => {
+      streamRequested = true;
+      // Hold the stream until the test has switched to the target project.
+      await new Promise<void>((resolve) => { releaseStream = resolve; });
+      const body = streamedPages.map((streamedPage) =>
+        `event: page\ndata: ${JSON.stringify(streamedPage)}\n\n`
+      ).join('') + `event: done\ndata: ${JSON.stringify({
+        total: streamedPages.length,
+        complete: true,
+        pages: streamedPages.map((streamedPage) => ({
+          id: `mid-stream-page-${streamedPage.index}`,
+          order_index: streamedPage.index,
+          outline_content: { title: streamedPage.title, points: streamedPage.points },
+          status: 'DRAFT',
+        })),
+      })}\n\n`;
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body,
+      });
+    });
+
+    await page.goto(`${BASE_URL}/project/${sourceId}/outline`);
+    await expect.poll(() => streamRequested, { timeout: 15000 }).toBe(true);
+
+    // SPA-switch to the target project while the source stream is still pending
+    // (same route element stays mounted; a full reload would hide the leak).
+    await page.evaluate((projectId) => {
+      const current = window.history.state ?? { idx: 0 };
+      window.history.pushState(
+        { ...current, idx: (current.idx ?? 0) + 1, key: `k-${Date.now()}` },
+        '',
+        `/project/${projectId}/outline`
+      );
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, targetId);
+    await expect(page).toHaveURL(new RegExp(`/project/${targetId}/outline`));
+
+    // Deliver the source pages + done only now, while the target is being viewed.
+    releaseStream();
+
+    // Let the staggered render loop and the write-back fully settle.
+    await page.waitForTimeout(1500);
+    await expect(page.getByText('Mid-stream only: Introduction')).not.toBeVisible();
+    await expect(page.getByText('Mid-stream only: Details')).not.toBeVisible();
+    await expect(page.getByText('Mid-stream only: Conclusion')).not.toBeVisible();
+
+    // The target must not have been written to (in-memory view or persisted data).
+    const persistedTarget = await page.request.get(`${BASE_URL}/api/projects/${targetId}`);
+    expect(persistedTarget.ok()).toBeTruthy();
+    expect((await persistedTarget.json()).data.pages).toHaveLength(0);
+
+    await page.reload();
+    await expect(page.getByText('Mid-stream only: Introduction')).not.toBeVisible();
+  });
+
   test('shows an error toast when the current project stream fails', async ({ page }) => {
     const sourceId = await createProject(page, 'idea', 'Active failure source');
 

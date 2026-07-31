@@ -281,6 +281,41 @@ describe('useProjectStore 流式大纲项目隔离', () => {
     expect(result.current.currentProject?.id).toBe('proj-b')
   })
 
+  it('流进行中切到其他项目时，页面与完成回调不写入当前项目', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    let emitPage!: (page: any) => void
+    let emitDone!: (data: any) => void
+    let resolveStream!: () => void
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      ((projectId: string, callbacks: any) => new Promise<void>((resolve) => {
+        emitPage = callbacks.onPage
+        emitDone = callbacks.onDone
+        resolveStream = resolve
+      })) as any
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+    let pending!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pending = result.current.generateOutlineStream() })
+
+    // 流未结束时切到另一个项目
+    act(() => { result.current.setCurrentProject(projectB as any) })
+
+    await act(async () => {
+      // 页面事件与完成事件现在才到达，且当前项目是 B
+      emitPage({ index: 0, title: 'Source page', points: ['p'] })
+      emitDone({ total: 1, complete: true, pages: [{ id: 'real-1', order_index: 0, outline_content: { title: 'Source page', points: ['p'] } }] })
+      resolveStream()
+      await expect(pending).resolves.toEqual({ complete: true, active: false })
+    })
+
+    // B 的页面保持不变，错误状态保持为空
+    expect(result.current.currentProject?.id).toBe('proj-b')
+    expect(result.current.currentProject?.pages).toHaveLength(0)
+    expect(result.current.error).toBeNull()
+    expect(result.current.isOutlineStreaming).toBe(false)
+  })
+
   it('停留在发起项目时，流式失败仍设置错误并抛出', async () => {
     const { result } = renderHook(() => useProjectStore())
     let rejectStream!: (err: Error) => void
