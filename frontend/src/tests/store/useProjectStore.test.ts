@@ -23,9 +23,10 @@ vi.mock('@/api/endpoints', () => ({
   exportPDF: vi.fn(),
   uploadTemplateAsset: vi.fn(),
   deleteTemplateAsset: vi.fn(),
+  generateOutlineStream: vi.fn(),
 }))
 
-import { deleteTemplateAsset, uploadTemplateAsset } from '@/api/endpoints'
+import { deleteTemplateAsset, uploadTemplateAsset, generateOutlineStream } from '@/api/endpoints'
 
 describe('useProjectStore', () => {
   beforeEach(() => {
@@ -237,5 +238,181 @@ describe('useProjectStore', () => {
       
       expect(result.current.currentProject).toBeNull()
     })
+  })
+})
+
+describe('useProjectStore 流式大纲项目隔离', () => {
+  const projectA = { id: 'proj-a', status: 'DRAFT', pages: [], created_at: '2026-01-01T00:00:00' }
+  const projectB = { id: 'proj-b', status: 'DRAFT', pages: [], created_at: '2026-01-01T00:00:00' }
+
+  beforeEach(() => {
+    vi.mocked(generateOutlineStream).mockReset()
+    useProjectStore.setState({
+      currentProject: null,
+      error: null,
+      isOutlineStreaming: false,
+      outlineStreamingProjectIds: [],
+    })
+  })
+
+  it('离开项目后，该项目的流式失败不设置错误、不抛出并返回 active=false', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    let rejectStream!: (err: Error) => void
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      () => new Promise<void>((_, reject) => { rejectStream = reject })
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+
+    let pending!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pending = result.current.generateOutlineStream() })
+
+    // 流未结束时切到另一个项目
+    act(() => { result.current.setCurrentProject(projectB as any) })
+
+    await act(async () => {
+      rejectStream(new Error('Failed to fetch'))
+      await expect(pending).resolves.toEqual({ complete: false, active: false })
+    })
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.isOutlineStreaming).toBe(false)
+    expect(result.current.outlineStreamingProjectIds).toEqual([])
+    expect(result.current.currentProject?.id).toBe('proj-b')
+  })
+
+  it('流进行中切到其他项目时，页面与完成回调不写入当前项目', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    let emitPage!: (page: any) => void
+    let emitDone!: (data: any) => void
+    let resolveStream!: () => void
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      ((projectId: string, callbacks: any) => new Promise<void>((resolve) => {
+        emitPage = callbacks.onPage
+        emitDone = callbacks.onDone
+        resolveStream = resolve
+      })) as any
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+    let pending!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pending = result.current.generateOutlineStream() })
+
+    // 流未结束时切到另一个项目
+    act(() => { result.current.setCurrentProject(projectB as any) })
+
+    await act(async () => {
+      // 页面事件与完成事件现在才到达，且当前项目是 B
+      emitPage({ index: 0, title: 'Source page', points: ['p'] })
+      emitDone({ total: 1, complete: true, pages: [{ id: 'real-1', order_index: 0, outline_content: { title: 'Source page', points: ['p'] } }] })
+      resolveStream()
+      await expect(pending).resolves.toEqual({ complete: true, active: false })
+    })
+
+    // B 的页面保持不变，错误状态保持为空
+    expect(result.current.currentProject?.id).toBe('proj-b')
+    expect(result.current.currentProject?.pages).toHaveLength(0)
+    expect(result.current.error).toBeNull()
+    expect(result.current.isOutlineStreaming).toBe(false)
+  })
+
+  it('SSE error 事件在切走项目后到达时不设置错误、不抛出', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    let emitError!: (message: string) => void
+    let resolveStream!: () => void
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      ((projectId: string, callbacks: any) => new Promise<void>((resolve) => {
+        emitError = callbacks.onError
+        resolveStream = resolve
+      })) as any
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+    let pending!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pending = result.current.generateOutlineStream() })
+
+    // 流未结束时切到另一个项目
+    act(() => { result.current.setCurrentProject(projectB as any) })
+
+    await act(async () => {
+      emitError('AI service unavailable')
+      resolveStream()
+      await expect(pending).resolves.toEqual({ complete: false, active: false })
+    })
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.currentProject?.id).toBe('proj-b')
+    expect(result.current.currentProject?.pages).toHaveLength(0)
+  })
+
+  it('两个项目可同时流式生成，A 结束后 B 仍保持 streaming', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    const resolvers: Array<() => void> = []
+    vi.mocked(generateOutlineStream).mockImplementation(
+      () => new Promise<void>((resolve) => { resolvers.push(resolve) })
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+    let pendingA!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pendingA = result.current.generateOutlineStream() })
+    expect(result.current.outlineStreamingProjectIds).toEqual(['proj-a'])
+    expect(result.current.isOutlineStreaming).toBe(true)
+
+    act(() => { result.current.setCurrentProject(projectB as any) })
+    let pendingB!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pendingB = result.current.generateOutlineStream() })
+    expect([...result.current.outlineStreamingProjectIds].sort()).toEqual(['proj-a', 'proj-b'])
+    expect(result.current.isOutlineStreaming).toBe(true)
+
+    // A 先完成：只清理 A，B 仍在流式
+    await act(async () => { resolvers[0](); await pendingA })
+    expect(result.current.outlineStreamingProjectIds).toEqual(['proj-b'])
+    expect(result.current.isOutlineStreaming).toBe(true)
+
+    // B 完成：全部清理
+    await act(async () => { resolvers[1](); await pendingB })
+    expect(result.current.outlineStreamingProjectIds).toEqual([])
+    expect(result.current.isOutlineStreaming).toBe(false)
+  })
+
+  it('停留在发起项目时，流式失败仍设置错误并抛出', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    let rejectStream!: (err: Error) => void
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      () => new Promise<void>((_, reject) => { rejectStream = reject })
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+
+    let pending!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { pending = result.current.generateOutlineStream() })
+
+    await act(async () => {
+      rejectStream(new Error('boom'))
+      await expect(pending).rejects.toThrow('boom')
+    })
+
+    expect(result.current.error).toBe('boom')
+    expect(result.current.isOutlineStreaming).toBe(false)
+  })
+
+  it('同项目已有流式任务时，重复调用直接返回', async () => {
+    const { result } = renderHook(() => useProjectStore())
+    let resolveStream!: () => void
+    vi.mocked(generateOutlineStream).mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveStream = resolve })
+    )
+
+    act(() => { result.current.setCurrentProject(projectA as any) })
+    let first!: Promise<{ complete: boolean; active: boolean } | undefined>
+    act(() => { first = result.current.generateOutlineStream() })
+    const second = await act(async () => result.current.generateOutlineStream())
+    expect(second).toBeUndefined()
+    expect(vi.mocked(generateOutlineStream)).toHaveBeenCalledTimes(1)
+
+    // 收尾后状态复位
+    resolveStream()
+    await act(async () => { await first })
+    expect(result.current.isOutlineStreaming).toBe(false)
   })
 })
