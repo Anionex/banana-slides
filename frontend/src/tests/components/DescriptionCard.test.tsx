@@ -137,6 +137,24 @@ describe('DescriptionCard', () => {
       expect(screen.getByText('descriptionCard.notInImagePrompt')).toBeInTheDocument()
     })
 
+    it('does not mark legacy fields whose equivalent is in the image prompt', () => {
+      // 存量页面旧 key + 新名设置：后端按等价名拼进生图 prompt，UI 不应误标
+      render(<DescriptionCard {...withFields({ '视觉元素': '折线图', '视觉焦点': '左文右图' })}
+        extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']}
+        imagePromptFields={['配图与素材', '版式与重点']} />)
+
+      expect(screen.queryByText('descriptionCard.notInImagePrompt')).not.toBeInTheDocument()
+    })
+
+    it('does not mark legacy fields when image prompt settings use legacy names', () => {
+      // 旧名设置 + 旧 key 页面：改动前行为同样不标记
+      render(<DescriptionCard {...withFields({ '视觉元素': '折线图' })}
+        extraFieldNames={['视觉元素', '视觉焦点', '排版布局', '演讲者备注']}
+        imagePromptFields={['视觉元素', '视觉焦点']} />)
+
+      expect(screen.queryByText('descriptionCard.notInImagePrompt')).not.toBeInTheDocument()
+    })
+
     it('keeps legacy fields editable in the edit dialog', () => {
       render(<DescriptionCard {...withFields({ '排版布局': '居中大标题' })}
         extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)

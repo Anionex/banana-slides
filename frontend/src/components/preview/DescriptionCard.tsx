@@ -5,6 +5,7 @@ import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import { Card, ContextualStatusBadge, Button, Modal, Skeleton, Markdown, MaterialSelector } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { useDescriptionGeneratingState } from '@/hooks/useGeneratingState';
+import { resolveExtraFieldName } from '@/utils/projectUtils';
 import type { Page, DescriptionContent, Material } from '@/types';
 
 // DescriptionCard 组件自包含翻译
@@ -208,7 +209,9 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
                   '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout, '排版建议': Layout,
                 };
                 const FieldIcon = FIELD_ICONS[name] || Tag;
-                const notInImagePrompt = imagePromptFields && !imagePromptFields.includes(name);
+                // 与后端 _append_extra_fields 同语义：原名或等价新名命中即进入生图
+                const notInImagePrompt = imagePromptFields
+                  && !(imagePromptFields.includes(name) || imagePromptFields.includes(resolveExtraFieldName(name)));
                 return (
                   <div key={name} className="mt-3 pt-3 border-t border-gray-100 dark:border-border-primary">
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-foreground-tertiary mb-1">

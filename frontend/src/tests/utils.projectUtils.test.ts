@@ -1,5 +1,19 @@
 import { describe, expect, test } from 'vitest';
-import { parseMarkdownPages } from '@/utils/projectUtils';
+import { parseMarkdownPages, resolveExtraFieldName } from '@/utils/projectUtils';
+
+describe('resolveExtraFieldName', () => {
+  test('maps legacy names to the new contract', () => {
+    expect(resolveExtraFieldName('视觉元素')).toBe('配图与素材');
+    expect(resolveExtraFieldName('视觉焦点')).toBe('版式与重点');
+    expect(resolveExtraFieldName('排版布局')).toBe('版式与重点');
+    expect(resolveExtraFieldName('排版建议')).toBe('版式与重点');
+  });
+
+  test('keeps new and custom names unchanged', () => {
+    expect(resolveExtraFieldName('配图与素材')).toBe('配图与素材');
+    expect(resolveExtraFieldName('品牌规范')).toBe('品牌规范');
+  });
+});
 
 describe('parseMarkdownPages', () => {
   test('imports sentence-style outline and required page text markers', () => {

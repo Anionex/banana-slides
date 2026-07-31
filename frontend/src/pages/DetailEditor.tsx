@@ -134,7 +134,7 @@ import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal,
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
-import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
+import { exportProjectToMarkdown, parseMarkdownPages, resolveExtraFieldName } from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
 // const DETAIL_LEVEL_LINES: Record<string, number[]> = {
@@ -243,7 +243,7 @@ export const DetailEditor: React.FC = () => {
       if (stored) {
         const parsed = JSON.parse(stored);
         // 缓存结构损坏时回落到默认值，否则后续 map/indexOf 会崩
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return [...new Set(parsed.map(resolveExtraFieldName))];
       }
       return DEFAULT_EXTRA_FIELDS;
     } catch { return DEFAULT_EXTRA_FIELDS; }
@@ -273,7 +273,9 @@ export const DetailEditor: React.FC = () => {
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
         setAvailableFields(prev => {
-          const merged = [...new Set([...prev, ...activeFields])];
+          // 旧版本缓存可能残留旧字段名胶囊，统一等价到新名并去重
+          const normalized = [...new Set(prev.map(resolveExtraFieldName))];
+          const merged = [...new Set([...normalized, ...activeFields])];
           localStorage.setItem('banana-available-extra-fields', JSON.stringify(merged));
           return merged;
         });
@@ -834,8 +836,8 @@ export const DetailEditor: React.FC = () => {
                                   setExtraFieldNames(next);
                                   saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : DEFAULT_EXTRA_FIELDS });
                                 }}
-                                inImagePrompt={imagePromptFields.includes(name)}
-                                imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
+                                inImagePrompt={imagePromptFields.includes(name) || imagePromptFields.includes(resolveExtraFieldName(name))}
+                                imagePromptTooltip={imagePromptFields.includes(name) || imagePromptFields.includes(resolveExtraFieldName(name)) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
                                 onToggleImagePrompt={() => {
                                   const next = imagePromptFields.includes(name)
                                     ? imagePromptFields.filter(f => f !== name)

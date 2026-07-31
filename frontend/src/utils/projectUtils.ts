@@ -4,6 +4,18 @@ import { downloadFile } from './index';
 import { getT } from './i18nHelper';
 import i18n from '@/i18n';
 
+// 与后端 Settings.LEGACY_FIELD_EQUIV 保持一致：存量旧字段名等价到新契约字段
+export const EXTRA_FIELD_LEGACY_EQUIV: Record<string, string> = {
+  '视觉元素': '配图与素材',
+  '视觉焦点': '版式与重点',
+  '排版布局': '版式与重点',
+  '排版建议': '版式与重点',
+};
+
+/** 解析字段的等价新名；自定义字段原样返回 */
+export const resolveExtraFieldName = (name: string): string =>
+  EXTRA_FIELD_LEGACY_EQUIV[name] ?? name;
+
 const utilsI18n = {
   zh: {
     projectUtils: {
