@@ -103,8 +103,9 @@ class Settings(db.Model):
                 fields = json.loads(self.description_extra_fields)
                 if isinstance(fields, list):
                     # 存量设置里的旧字段名自动等价到新契约字段（视觉元素→配图与素材、
-                    # 视觉焦点/排版布局→版式与重点），去重保序；自定义字段原样保留。
-                    # 只做读时映射不落库，用户下次保存设置时自然持久化为新字段名。
+                    # 视觉焦点/排版布局/排版建议→版式与重点），去重保序；自定义字段原样
+                    # 保留，非字符串条目丢弃。只做读时映射不落库，用户下次保存设置时
+                    # 自然持久化为新字段名。
                     return self._normalize_extra_fields(fields)
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -130,7 +131,9 @@ class Settings(db.Model):
             try:
                 fields = json.loads(self.image_prompt_extra_fields)
                 if isinstance(fields, list):
-                    return fields
+                    # 与描述字段同样的读时映射：存量旧名设置映射为新名，避免新名页面
+                    # extra_fields 匹配不到旧 allowlist 而被文生图 prompt 静默丢弃。
+                    return self._normalize_extra_fields(fields)
             except (json.JSONDecodeError, TypeError):
                 pass
         return list(self.DEFAULT_IMAGE_PROMPT_FIELDS)
