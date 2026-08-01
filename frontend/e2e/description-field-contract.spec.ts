@@ -89,7 +89,7 @@ test.describe('字段契约 - Mock', () => {
     }
   });
 
-  test('存量页面的旧字段名照常展示', async ({ page }) => {
+  test('存量页面的旧字段内容以新契约字段名展示', async ({ page }) => {
     const projectId = await createProjectWithPages(page, '旧字段兼容', ['第一页']);
     const pages = await getPages(page, projectId);
 
@@ -101,10 +101,14 @@ test.describe('字段契约 - Mock', () => {
     await page.goto(`${BASE_URL}/project/${projectId}/detail`);
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('text=视觉元素')).toBeVisible({ timeout: 5000 });
+    // 展示层映射为新名：视觉元素→配图与素材、排版布局→版式与重点，内容不丢
+    await expect(page.locator('text=配图与素材')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=版式与重点')).toBeVisible();
     await expect(page.locator('text=关键指标卡片')).toBeVisible();
-    await expect(page.locator('text=排版布局')).toBeVisible();
     await expect(page.locator('text=左文右图')).toBeVisible();
+    for (const legacy of LEGACY_FIELDS) {
+      await expect(page.locator('text=' + legacy)).toHaveCount(0);
+    }
   });
 });
 
@@ -132,9 +136,11 @@ test.describe('字段契约 - 集成', () => {
       await page.goto(`${BASE_URL}/project/${projectId}/detail`);
       await page.waitForLoadState('networkidle');
 
-      // 旧 key 页面内容照常展示，且不出现「不影响图片生成」误标（视觉元素/视觉焦点经映射仍进生图）
-      await expect(page.locator('text=视觉元素')).toBeVisible({ timeout: 5000 });
+      // 旧 key 页面内容以新契约名展示，且不出现「不影响图片生成」误标（经映射仍进生图）
+      await expect(page.locator('text=配图与素材')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=版式与重点')).toBeVisible();
       await expect(page.locator('text=折线图')).toBeVisible();
+      await expect(page.locator('text=左文右图')).toBeVisible();
       await expect(page.locator('svg.lucide-image-off')).toHaveCount(0);
 
       // 设置面板胶囊显示映射后的新名，无旧名胶囊

@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { parseMarkdownPages, resolveExtraFieldName, isInImagePrompt } from '@/utils/projectUtils';
+import {
+  parseMarkdownPages,
+  resolveExtraFieldName,
+  isInImagePrompt,
+  buildExtraFieldEntries,
+} from '@/utils/projectUtils';
 
 describe('resolveExtraFieldName', () => {
   test('maps legacy names to the new contract', () => {
@@ -38,6 +43,67 @@ describe('isInImagePrompt', () => {
   test('undefined or empty list means no marker source', () => {
     expect(isInImagePrompt('配图与素材', undefined)).toBe(false);
     expect(isInImagePrompt('配图与素材', [])).toBe(false);
+  });
+});
+
+describe('buildExtraFieldEntries', () => {
+  test('maps legacy keys to new display names, keeping the raw key for data', () => {
+    const entries = buildExtraFieldEntries(
+      ['配图与素材', '版式与重点', '演讲者备注', '视觉元素', '视觉焦点'],
+      { '视觉元素': '折线图', '视觉焦点': '左文右图' },
+    );
+
+    expect(entries).toEqual([
+      { raw: '视觉元素', display: '配图与素材', value: '折线图' },
+      { raw: '视觉焦点', display: '版式与重点', value: '左文右图' },
+      { raw: '演讲者备注', display: '演讲者备注', value: '' },
+    ]);
+  });
+
+  test('merges colliding legacy keys into one entry with joined content', () => {
+    const entries = buildExtraFieldEntries(
+      ['配图与素材', '版式与重点', '演讲者备注', '视觉元素', '视觉焦点', '排版布局'],
+      { '视觉元素': '折线图', '视觉焦点': '企业级增速', '排版布局': '左文右图' },
+    );
+
+    expect(entries).toEqual([
+      { raw: '视觉元素', display: '配图与素材', value: '折线图' },
+      { raw: '视觉焦点', display: '版式与重点', value: '企业级增速\n左文右图' },
+      { raw: '演讲者备注', display: '演讲者备注', value: '' },
+    ]);
+  });
+
+  test('prefers the new-name raw key when both old and new keys hold content', () => {
+    const entries = buildExtraFieldEntries(
+      ['配图与素材', '视觉元素'],
+      { '配图与素材': '新内容', '视觉元素': '旧内容' },
+    );
+
+    expect(entries).toEqual([{ raw: '配图与素材', display: '配图与素材', value: '新内容\n旧内容' }]);
+  });
+
+  test('coerces non-string legacy values and drops nulls without crashing', () => {
+    const entries = buildExtraFieldEntries(
+      ['视觉元素', '视觉焦点'],
+      { '视觉元素': 42 as unknown as string, '视觉焦点': null as unknown as string },
+    );
+
+    expect(entries).toEqual([
+      { raw: '视觉元素', display: '配图与素材', value: '42' },
+      { raw: '视觉焦点', display: '版式与重点', value: '' },
+    ]);
+  });
+
+  test('keeps custom fields untouched and empty entries editable', () => {
+    const entries = buildExtraFieldEntries(
+      ['配图与素材', '品牌规范'],
+      { '品牌规范': '蓝金配色' },
+    );
+
+    expect(entries).toEqual([
+      { raw: '配图与素材', display: '配图与素材', value: '' },
+      { raw: '品牌规范', display: '品牌规范', value: '蓝金配色' },
+    ]);
   });
 });
 

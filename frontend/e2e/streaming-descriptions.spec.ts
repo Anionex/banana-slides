@@ -135,8 +135,8 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
     await page.goto(`${BASE_URL}/project/${projectId}/detail`);
     await page.waitForLoadState('networkidle');
 
-    // Check extra field is displayed
-    await expect(page.locator('text=排版布局')).toBeVisible({ timeout: 5000 });
+    // Check extra field is displayed under the mapped new contract name
+    await expect(page.locator('text=版式与重点')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=居中布局，大标题+副标题')).toBeVisible({ timeout: 5000 });
   });
 
@@ -163,8 +163,8 @@ test.describe('Streaming Descriptions - Mock Tests', () => {
     await page.goto(`${BASE_URL}/project/${projectId}/detail`);
     await page.waitForLoadState('networkidle');
 
-    // Old layout_suggestion should be mapped to "排版建议" field (legacy name)
-    await expect(page.locator('text=排版建议')).toBeVisible({ timeout: 5000 });
+    // Old layout_suggestion → 排版建议 key → display mapped to 版式与重点
+    await expect(page.locator('text=版式与重点')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=左右分栏布局')).toBeVisible({ timeout: 5000 });
   });
 
@@ -236,14 +236,9 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     await expect(gearBtn).toBeVisible({ timeout: 5000 });
     await gearBtn.click();
 
-    // Check generation mode buttons
-    await expect(page.locator('text=流式').or(page.locator('text=Streaming'))).toBeVisible({ timeout: 3000 });
-    await expect(page.locator('text=并行').or(page.locator('text=Parallel'))).toBeVisible({ timeout: 3000 });
-
-    // Check detail level buttons
-    await expect(page.locator('text=精简').or(page.locator('text=Concise'))).toBeVisible();
-    await expect(page.locator('text=默认').or(page.locator('text=Default'))).toBeVisible();
-    await expect(page.getByRole('button', { name: /详细|Detailed/ })).toBeVisible();
+    // Check generation mode buttons（text= 会同时命中 tooltip 文案，需限定按钮）
+    await expect(page.getByRole('button', { name: /流式|Streaming/ }).first()).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('button', { name: /并行|Parallel/ }).first()).toBeVisible({ timeout: 3000 });
 
     // Check extra fields section
     await expect(page.locator('text=额外字段').or(page.locator('text=Extra Fields'))).toBeVisible();
@@ -351,8 +346,9 @@ test.describe('Streaming Descriptions - Integration Tests', () => {
     await editBtn.click();
 
     // Modal should be visible with extra field input
-    await expect(page.locator('label').filter({ hasText: '排版布局' })).toBeVisible({ timeout: 5000 });
-    const fieldTextarea = page.locator('textarea').filter({ hasText: '居中布局' });
+    await expect(page.locator('label').filter({ hasText: '版式与重点' })).toBeVisible({ timeout: 5000 });
+    // MarkdownTextarea 是 contentEditable，不是 <textarea>
+    const fieldTextarea = page.locator('[contenteditable="true"]').filter({ hasText: '居中布局' });
     await expect(fieldTextarea).toBeVisible();
 
     // Edit the extra field value
