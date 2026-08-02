@@ -1,0 +1,145 @@
+---
+title: "Configuration"
+description: "Environment variables and provider setup"
+---
+
+## AI Provider
+
+Set `AI_PROVIDER_FORMAT` in `.env` to choose your provider:
+
+| Format | Description |
+|--------|-------------|
+| `gemini` | Google Gemini API (default) |
+| `openai` | OpenAI-compatible API |
+| `volcengine` | Volcengine ModelArk AgentPlans (OpenAI-compatible) |
+| `vertex` | Google Cloud Vertex AI |
+| `lazyllm` | Multi-vendor Chinese model routing |
+
+## Gemini (Default)
+
+```env
+AI_PROVIDER_FORMAT=gemini
+GOOGLE_API_KEY=your-api-key
+GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+```
+
+<Warning>
+  The free tier of Gemini API only supports text generation, not image generation.
+</Warning>
+
+## OpenAI-Compatible
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+## Volcengine AgentPlans
+
+Volcengine ModelArk AgentPlans can be used through an OpenAI-compatible endpoint. Select "Volcengine AgentPlans" in Settings, or configure `.env`:
+
+```env
+AI_PROVIDER_FORMAT=volcengine
+VOLCENGINE_API_KEY=your-volcengine-api-key
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+```
+
+The generic API Key field in Settings can still override the API key, while the Base URL is managed automatically.
+
+## Vertex AI
+
+```env
+AI_PROVIDER_FORMAT=vertex
+VERTEX_PROJECT_ID=your-gcp-project-id
+VERTEX_LOCATION=global
+GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+```
+
+<Tip>
+  `gemini-3-*` series models require `VERTEX_LOCATION=global`.
+</Tip>
+
+## LazyLLM (Multi-Vendor)
+
+Routes requests to different Chinese AI vendors for text, image, and caption tasks:
+
+```env
+AI_PROVIDER_FORMAT=lazyllm
+TEXT_MODEL_SOURCE=deepseek
+IMAGE_MODEL_SOURCE=doubao
+IMAGE_CAPTION_MODEL_SOURCE=qwen
+```
+
+Set API keys for the vendors you use:
+
+```env
+DOUBAO_API_KEY=your-key       # Volcengine
+DEEPSEEK_API_KEY=your-key     # DeepSeek
+QWEN_API_KEY=your-key         # Alibaba Qwen
+GLM_API_KEY=your-key          # Zhipu GLM
+SILICONFLOW_API_KEY=your-key  # SiliconFlow
+SENSENOVA_API_KEY=your-key    # SenseNova
+MINIMAX_API_KEY=your-key      # MiniMax
+```
+
+Banana Slides explicitly packages the LazyLLM online provider SDKs for domestic vendors:
+`volcengine-python-sdk[ark]` for Doubao/Volcengine, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
+LazyLLM source provides `lazyllm install online-advanced`, but the current PyPI wheel may not publish that group as a standard extra; Docker and prebuilt images therefore rely on these explicit dependencies.
+
+## AIHubMix (Recommended Proxy)
+
+[AIHubMix](https://api.inferera.com/?aff=17EC) is a recommended API proxy that supports both Gemini and OpenAI API formats, with stable high-concurrency performance for text-to-image generation. [Apply for an AIHubMix API key here](https://api.inferera.com/?aff=17EC).
+
+To get an API key, open AIHubMix and sign in or create an account. Go to **Console** and first choose **Account → Top Up** in the left sidebar to add credits. After topping up, choose **Develop → API Keys**, click **Add key**, then copy the generated key into the Settings page or `.env`.
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-aihubmix-key
+OPENAI_API_BASE=https://api.inferera.com/v1
+```
+
+## MinerU (PDF Parsing)
+
+[MinerU](https://mineru.net) provides high-quality PDF parsing for reference file uploads. [Apply for a MinerU token here](https://mineru.net/apiManage/token).
+
+```env
+MINERU_API_BASE=https://mineru.net
+MINERU_TOKEN=your-mineru-token
+```
+
+## Baidu API Key
+
+For enhanced editable PPTX export with OCR-based text extraction, apply for an [IAM API Key](https://console.bce.baidu.com/iam/#/iam/apikey/list) from Baidu Cloud (generous free tier available):
+
+```env
+BAIDU_API_KEY=your-baidu-api-key
+```
+
+## ElevenLabs (Narration Video TTS)
+
+By default, narration videos use [edge-tts](https://github.com/rany2/edge-tts) (Microsoft Edge voices, free, no API key required). You can switch to [ElevenLabs](https://elevenlabs.io) for higher-quality, more natural-sounding voices.
+
+**How to get an API key:**
+
+1. Sign up at [elevenlabs.io](https://elevenlabs.io) — a free tier is available (10,000 characters/month).
+2. Go to **Profile → API Keys** (or visit [elevenlabs.io/app/settings/api-keys](https://elevenlabs.io/app/settings/api-keys)).
+3. Click **Create API Key**, copy the key.
+
+**Configure via Settings UI (recommended):**
+
+Open **Settings → ElevenLabs Text-to-Speech**, enable the toggle, and paste your API key. No restart required.
+
+**Configure via `.env`:**
+
+```env
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+```
+
+<Note>
+  The free tier provides 10,000 characters per month. Each page of narration typically uses 200–500 characters. A 10-page presentation costs roughly 2,000–5,000 characters per export.
+</Note>
+
+## Runtime Settings Override
+
+All of the above can also be configured via the web UI's Settings page. Settings configured there are stored in the database and override `.env` values. Use "Reset to Default" in Settings to revert to `.env` values.

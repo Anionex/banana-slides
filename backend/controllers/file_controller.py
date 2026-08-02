@@ -41,9 +41,47 @@ def serve_file(project_id, file_type, filename):
         if not os.path.exists(file_path):
             return not_found('File')
         
-        # Serve file
-        return send_from_directory(file_dir, filename)
+        # Exports should be downloaded rather than opened in browser for better UX and
+        # to keep E2E download assertions stable.
+        as_attachment = file_type == 'exports'
+        return send_from_directory(file_dir, filename, as_attachment=as_attachment)
     
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@file_bp.route('/<project_id>/template-assets/<asset_id>/<filename>', methods=['GET'])
+def serve_template_asset(project_id, asset_id, filename):
+    """
+    GET /files/{project_id}/template-assets/{asset_id}/{filename}
+
+    Serve per-project template asset files (original.* and thumb.jpg).
+    """
+    try:
+        safe_filename = secure_filename(filename)
+        if not safe_filename:
+            return not_found('File')
+
+        root = Path(current_app.config['UPLOAD_FOLDER']).resolve()
+        file_dir = (root / project_id / 'template-assets' / asset_id).resolve()
+
+        try:
+            file_dir.relative_to(root)
+        except ValueError:
+            return error_response('INVALID_PATH', 'Invalid file path', 403)
+        if not file_dir.exists() or not file_dir.is_dir():
+            return not_found('File')
+
+        file_path = (file_dir / safe_filename).resolve()
+        try:
+            file_path.relative_to(file_dir)
+        except ValueError:
+            return error_response('INVALID_PATH', 'Invalid file path', 403)
+        if not file_path.exists() or not file_path.is_file():
+            return not_found('File')
+
+        return send_from_directory(str(file_dir), safe_filename)
+
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
 
@@ -159,4 +197,3 @@ def serve_mineru_file(extract_id, filepath):
         return not_found('File')
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
-

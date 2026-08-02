@@ -1,0 +1,556 @@
+import { test, expect } from '@playwright/test';
+
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3009';
+const DESKTOP_BACKEND_PORT = Number(new URL(process.env.BACKEND_URL || 'http://127.0.0.1:5011').port);
+
+async function getBaseSettings(): Promise<Record<string, unknown>> {
+  const resp = await fetch(`${BASE_URL}/api/settings`);
+  const json = await resp.json();
+  return json.data;
+}
+
+async function expandAdvancedSettings(page: import('@playwright/test').Page) {
+  const advancedBtn = page.locator('button', { hasText: /高级设置|Advanced/ });
+  await advancedBtn.waitFor({ state: 'visible', timeout: 10000 });
+  await advancedBtn.click();
+  await page.waitForTimeout(500);
+}
+
+test.describe('OpenAI OAuth Settings Section', () => {
+  test.describe('Mock tests — UI logic', () => {
+    test('should show OAuth section with login button when not connected', async ({ page }) => {
+      const base = await getBaseSettings();
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.waitForSelector('text=Login with OpenAI');
+
+      const loginBtn = page.locator('button', { hasText: 'Login with OpenAI' });
+      await expect(loginBtn).toBeVisible();
+
+      const disconnectBtn = page.locator('button', { hasText: /断开连接|Disconnect/ });
+      await expect(disconnectBtn).not.toBeVisible();
+    });
+
+    test('settings still render when sessionStorage persistence is unavailable', async ({ page }) => {
+      const base = await getBaseSettings();
+      await page.addInitScript(() => {
+        const originalSetItem = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === 'banana-settings') {
+            throw new DOMException('Storage disabled', 'SecurityError');
+          }
+          return originalSetItem.call(this, key, value);
+        };
+      });
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+
+      await expect(page.getByRole('button', { name: 'Login with OpenAI' })).toBeVisible();
+    });
+
+    test('should show connected state with account ID and disconnect button', async ({ page }) => {
+      const base = await getBaseSettings();
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: true, openai_oauth_account_id: 'user@example.com' } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.waitForSelector('text=/Connected|已连接/');
+
+      await expect(page.locator('text=user@example.com')).toBeVisible();
+
+      const disconnectBtn = page.locator('button', { hasText: /Disconnect|断开连接/ });
+      await expect(disconnectBtn).toBeVisible();
+
+      const loginBtn = page.locator('button', { hasText: 'Login with OpenAI' });
+      await expect(loginBtn).not.toBeVisible();
+    });
+
+    test('should call authorize endpoint when login button clicked', async ({ page }) => {
+      const base = await getBaseSettings();
+      let authorizeCalled = false;
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        authorizeCalled = true;
+        await route.fulfill({
+          json: { success: true, data: { auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test' } },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.waitForSelector('text=Login with OpenAI');
+
+      await page.evaluate(() => {
+        (window as any).__openedUrl = null;
+        window.open = (url: any) => {
+          (window as any).__openedUrl = url;
+          return { closed: true } as Window;
+        };
+      });
+
+      await page.click('button:has-text("Login with OpenAI")');
+      await page.waitForTimeout(500);
+
+      expect(authorizeCalled).toBe(true);
+
+      const openedUrl = await page.evaluate(() => (window as any).__openedUrl);
+      expect(openedUrl).toContain('auth.openai.com');
+    });
+
+    test('desktop external-browser login updates automatically without window.opener', async ({ page }) => {
+      const base = await getBaseSettings();
+      let statusChecks = 0;
+
+      await page.addInitScript((backendPort) => {
+        Object.defineProperty(window, 'electronAPI', {
+          configurable: true,
+          value: {
+            isElectron: true,
+            getBackendPort: () => backendPort,
+            getPlatform: () => 'darwin',
+            minimizeWindow: () => undefined,
+            maximizeWindow: () => undefined,
+            closeWindow: () => undefined,
+            zoomIn: () => undefined,
+            zoomOut: () => undefined,
+            zoomReset: () => undefined,
+          },
+        });
+        window.open = () => null;
+      }, DESKTOP_BACKEND_PORT);
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test' } },
+        });
+      });
+      await page.route('**/api/settings/openai-oauth/status', async (route) => {
+        statusChecks += 1;
+        const connected = statusChecks >= 2;
+        await route.fulfill({
+          json: {
+            success: true,
+            data: { connected, account_id: connected ? 'desktop@example.com' : null },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/#/settings`);
+      await expandAdvancedSettings(page);
+      await page.getByRole('button', { name: 'Login with OpenAI' }).click();
+
+      await expect(page.getByRole('button', { name: /连接中|Connecting/ })).toBeVisible();
+      await expect(page.getByText('desktop@example.com')).toBeVisible({ timeout: 5000 });
+      expect(statusChecks).toBeGreaterThanOrEqual(2);
+    });
+
+    test('web popup still completes through postMessage', async ({ page }) => {
+      const base = await getBaseSettings();
+      let callbackSent = false;
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test' } },
+        });
+      });
+      await page.route('**/api/settings/openai-oauth/status', async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: { connected: callbackSent, account_id: callbackSent ? 'web@example.com' : null },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.evaluate(() => {
+        window.open = () => ({ closed: false }) as Window;
+      });
+      await page.getByRole('button', { name: 'Login with OpenAI' }).click();
+
+      callbackSent = true;
+      await page.evaluate(() => {
+        window.dispatchEvent(new MessageEvent('message', {
+          origin: 'http://localhost:1455',
+          data: { type: 'openai-oauth-callback', success: true },
+        }));
+      });
+
+      await expect(page.getByText('web@example.com')).toBeVisible({ timeout: 5000 });
+    });
+
+    test('web popup callback failure ends the connecting state', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test' } },
+        });
+      });
+      await page.route('**/api/settings/openai-oauth/status', async (route) => {
+        await route.fulfill({ json: { success: true, data: { connected: false, account_id: null } } });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.evaluate(() => {
+        window.open = () => ({ closed: false }) as Window;
+      });
+      await page.getByRole('button', { name: 'Login with OpenAI' }).click();
+      await page.evaluate(() => {
+        window.dispatchEvent(new MessageEvent('message', {
+          origin: 'http://localhost:1455',
+          data: { type: 'openai-oauth-callback', success: false, message: 'Access denied' },
+        }));
+      });
+
+      await expect(page.getByText('Access denied')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Login with OpenAI' })).toBeEnabled();
+    });
+
+    test('blocked web popup does not stay in the connecting state', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test' } },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.evaluate(() => {
+        window.open = () => null;
+      });
+      await page.getByRole('button', { name: 'Login with OpenAI' }).click();
+
+      await expect(page.getByText(/登录窗口被浏览器拦截|login window was blocked/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Login with OpenAI' })).toBeEnabled();
+    });
+
+    test('immediately closed web popup is treated as blocked', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test' } },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.evaluate(() => {
+        window.open = () => ({ closed: true }) as Window;
+      });
+      await page.getByRole('button', { name: 'Login with OpenAI' }).click();
+
+      await expect(page.getByText(/登录窗口被浏览器拦截|login window was blocked/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Login with OpenAI' })).toBeEnabled();
+    });
+
+    test('should auto-open manual callback when localhost callback port is unavailable', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/openai-oauth/authorize', async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: {
+              auth_url: 'https://auth.openai.com/oauth/authorize?client_id=test',
+              callback_server_available: false,
+            },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.waitForSelector('text=Login with OpenAI');
+
+      await page.evaluate(() => {
+        (window as any).__openedUrl = null;
+        window.open = (url: any) => {
+          (window as any).__openedUrl = url;
+          return { closed: true } as Window;
+        };
+      });
+
+      await page.click('button:has-text("Login with OpenAI")');
+
+      await expect(page.getByText('检测到本机 1455 端口被占用，请登录后复制弹窗地址栏中的完整地址并粘贴到下方。')).toBeVisible();
+      await expect(page.getByPlaceholder('粘贴回调地址...')).toBeVisible();
+
+      const openedUrl = await page.evaluate(() => (window as any).__openedUrl);
+      expect(openedUrl).toContain('auth.openai.com');
+    });
+
+    test('should call disconnect endpoint and update UI', async ({ page }) => {
+      const base = await getBaseSettings();
+      let disconnectCalled = false;
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: true, openai_oauth_account_id: 'user@example.com' } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/openai-oauth/disconnect', async (route) => {
+        disconnectCalled = true;
+        await route.fulfill({
+          json: { success: true, data: { message: 'Disconnected' } },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.waitForSelector('text=/Connected|已连接/');
+
+      const disconnectBtn = page.locator('button', { hasText: /Disconnect|断开连接/ });
+      await disconnectBtn.click();
+      await page.waitForTimeout(500);
+
+      expect(disconnectCalled).toBe(true);
+
+      await expect(page.locator('button', { hasText: 'Login with OpenAI' })).toBeVisible();
+    });
+
+    test('should submit manual callback URL and update connected state', async ({ page }) => {
+      const base = await getBaseSettings();
+      let manualCallbackPayload: Record<string, unknown> | null = null;
+      let statusCalls = 0;
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: false, openai_oauth_account_id: null } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/openai-oauth/manual-callback', async (route) => {
+        manualCallbackPayload = route.request().postDataJSON();
+        await route.fulfill({
+          json: { success: true, data: { message: 'Connected', account_id: 'user@example.com' } },
+        });
+      });
+
+      await page.route('**/api/settings/openai-oauth/status', async (route) => {
+        statusCalls += 1;
+        await route.fulfill({
+          json: { success: true, data: { connected: true, account_id: 'user@example.com' } },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await page.getByRole('button', { name: /登录后连接失败|Connection failed after login/ }).click();
+
+      const callbackUrl = 'http://localhost:1455/auth/callback?code=auth-code&state=state-123';
+      await page.getByPlaceholder(/粘贴回调地址|Paste callback URL/).fill(callbackUrl);
+      await page.getByRole('button', { name: /提交|Submit/ }).click();
+
+      await expect(page.locator('text=user@example.com')).toBeVisible();
+      expect(manualCallbackPayload).toEqual({ callback_url: callbackUrl });
+      expect(statusCalls).toBe(0);
+    });
+
+    test('should mark OAuth disconnected after Codex settings test returns unauthorized', async ({ page }) => {
+      const base = await getBaseSettings();
+
+      await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            json: { success: true, data: { ...base, openai_oauth_connected: true, openai_oauth_account_id: 'user@example.com' } },
+          });
+        } else {
+          await route.continue();
+        }
+      });
+
+      await page.route('**/api/settings/tests/text-model', async (route) => {
+        await route.fulfill({
+          json: { success: true, data: { task_id: 'codex-expired-task', status: 'PENDING' } },
+        });
+      });
+
+      await page.route('**/api/settings/tests/codex-expired-task/status', async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: {
+              status: 'FAILED',
+              error: 'Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。',
+              openai_oauth_disconnected: true,
+            },
+          },
+        });
+      });
+
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+      await expect(page.locator('text=user@example.com')).toBeVisible();
+
+      const textModelTestBtn = page.locator('button', { hasText: /开始测试|Start Test/ }).nth(1);
+      await textModelTestBtn.click();
+
+      await expect(page.locator('button', { hasText: 'Login with OpenAI' })).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=user@example.com')).not.toBeVisible();
+      await expect(page.getByText('Codex 登录已过期或无效，已断开 OpenAI 账号连接。请重新登录 OpenAI 后再测试。', { exact: true })).toBeVisible();
+    });
+  });
+
+  test.describe('Integration tests — real backend', () => {
+    test('OAuth status endpoint returns valid response', async ({ request }) => {
+      const resp = await request.get(`${BASE_URL}/api/settings/openai-oauth/status`);
+      expect(resp.ok()).toBeTruthy();
+      const data = await resp.json();
+      expect(data.success).toBe(true);
+      expect(typeof data.data.connected).toBe('boolean');
+      if (data.data.connected) {
+        expect(data.data.account_id).toBeTruthy();
+      } else {
+        expect(data.data.account_id).toBeNull();
+      }
+    });
+
+    test('OAuth authorize endpoint returns valid auth URL', async ({ request }) => {
+      const resp = await request.get(`${BASE_URL}/api/settings/openai-oauth/authorize`);
+      expect(resp.ok()).toBeTruthy();
+      const data = await resp.json();
+      expect(data.success).toBe(true);
+      expect(data.data.auth_url).toContain('https://auth.openai.com/oauth/authorize');
+      expect(data.data.auth_url).toContain('client_id=app_EMoamEEZ73f0CkXaXp7hrann');
+      expect(data.data.auth_url).toContain('code_challenge=');
+      expect(data.data.auth_url).toContain('code_challenge_method=S256');
+      expect(data.data.auth_url).toContain('originator=codex_cli_rs');
+      expect(data.data.auth_url).toContain('localhost%3A1455');
+      expect(typeof data.data.callback_server_available).toBe('boolean');
+    });
+
+    test('OAuth disconnect endpoint works even when not connected', async ({ request }) => {
+      const resp = await request.post(`${BASE_URL}/api/settings/openai-oauth/disconnect`);
+      expect(resp.ok()).toBeTruthy();
+      const data = await resp.json();
+      expect(data.success).toBe(true);
+    });
+
+    test('Settings API includes OAuth fields', async ({ request }) => {
+      const resp = await request.get(`${BASE_URL}/api/settings`);
+      expect(resp.ok()).toBeTruthy();
+      const data = await resp.json();
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveProperty('openai_oauth_connected');
+      expect(typeof data.data.openai_oauth_connected).toBe('boolean');
+    });
+
+    test('OAuth section renders correctly with real backend', async ({ page }) => {
+      await page.goto(`${BASE_URL}/settings`);
+      await expandAdvancedSettings(page);
+
+      const loginBtn = page.locator('button', { hasText: 'Login with OpenAI' });
+      const disconnectBtn = page.locator('button', { hasText: /Disconnect|断开连接/ });
+      const hasLogin = await loginBtn.isVisible().catch(() => false);
+      const hasDisconnect = await disconnectBtn.isVisible().catch(() => false);
+      expect(hasLogin || hasDisconnect).toBeTruthy();
+    });
+  });
+});

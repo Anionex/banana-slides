@@ -23,7 +23,7 @@ from threading import Lock
 from typing import Optional
 from flask import current_app, has_app_context
 from .ai_service import AIService
-from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
+from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ _lock = Lock()
 # Provider cache to avoid re-initialization when models don't change
 _text_provider_cache: dict = {}
 _image_provider_cache: dict = {}
+_caption_provider_cache: dict = {}
 _cache_lock = Lock()
 
 
@@ -75,6 +76,15 @@ def _get_cached_image_provider(model: str) -> ImageProvider:
         return _image_provider_cache[model]
 
 
+def _get_cached_caption_provider(model: str) -> TextProvider:
+    """Get or create a cached caption provider instance"""
+    with _cache_lock:
+        if model not in _caption_provider_cache:
+            logger.info(f"Creating new CaptionProvider for model: {model}")
+            _caption_provider_cache[model] = get_caption_provider(model=model)
+        return _caption_provider_cache[model]
+
+
 def get_ai_service(force_new: bool = False) -> AIService:
     """
     Get the singleton AIService instance with optimized provider caching
@@ -113,21 +123,25 @@ def get_ai_service(force_new: bool = False) -> AIService:
                 if has_app_context() and current_app and hasattr(current_app, "config"):
                     text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
                     image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
+                    caption_model = current_app.config.get("IMAGE_CAPTION_MODEL", config.IMAGE_CAPTION_MODEL)
                 else:
                     text_model = config.TEXT_MODEL
                     image_model = config.IMAGE_MODEL
-                
+                    caption_model = config.IMAGE_CAPTION_MODEL
+
                 # Get cached providers
                 text_provider = _get_cached_text_provider(text_model)
                 image_provider = _get_cached_image_provider(image_model)
-                
+                caption_provider = _get_cached_caption_provider(caption_model)
+
                 # Create AIService with cached providers
                 _ai_service_instance = AIService(
                     text_provider=text_provider,
-                    image_provider=image_provider
+                    image_provider=image_provider,
+                    caption_provider=caption_provider
                 )
-                
-                logger.info(f"AIService singleton created with models: text={text_model}, image={image_model}")
+
+                logger.info(f"AIService singleton created with models: text={text_model}, image={image_model}, caption={caption_model}")
     
     return _ai_service_instance
 
@@ -154,6 +168,7 @@ def clear_ai_service_cache():
         with _cache_lock:
             _text_provider_cache.clear()
             _image_provider_cache.clear()
+            _caption_provider_cache.clear()
             logger.info("Provider cache cleared")
 
 
@@ -168,5 +183,6 @@ def get_provider_cache_info() -> dict:
         return {
             "text_providers": list(_text_provider_cache.keys()),
             "image_providers": list(_image_provider_cache.keys()),
-            "total_cached": len(_text_provider_cache) + len(_image_provider_cache)
+            "caption_providers": list(_caption_provider_cache.keys()),
+            "total_cached": len(_text_provider_cache) + len(_image_provider_cache) + len(_caption_provider_cache)
         }

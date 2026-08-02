@@ -28,8 +28,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 test.describe('UI-driven E2E test: From user interface to PPT export', () => {
-  // Increase timeout to 20 minutes
-  test.setTimeout(20 * 60 * 1000)
+  // Increase timeout to 25 minutes (image generation may need retries on API disconnects)
+  test.setTimeout(25 * 60 * 1000)
   
   test('User Full Flow: Create and export PPT in browser', async ({ page }) => {
     console.log('\n========================================')
@@ -40,8 +40,13 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 1: Visit homepage
     // ====================================
     console.log('📱 Step 1: Opening homepage...')
-    await page.goto('http://localhost:3000')
-    
+
+    // Prevent HelpModal from appearing (it opens with a 500ms delay on first visit)
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.goto('http://localhost:3011')
+
     // Verify page loaded
     await expect(page).toHaveTitle(/蕉幻|Banana/i)
     console.log('✓ Homepage loaded successfully\n')
@@ -55,16 +60,17 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // If click fails, the tab might already be selected, which is fine
     })
     
-    // Wait for form to appear
-    await page.waitForSelector('textarea, input[type="text"]', { timeout: 10000 })
+    // Wait for form to appear (MarkdownTextarea uses contentEditable div with role="textbox")
+    await page.waitForSelector('[role="textbox"], textarea, input[type="text"]', { timeout: 10000 })
     console.log('✓ Create form displayed\n')
-    
+
     // ====================================
     // Step 3: Enter idea and click "Next"
     // ====================================
     console.log('✍️  Step 3: Entering idea content...')
-    const ideaInput = page.locator('textarea, input[type="text"]').first()
-    await ideaInput.fill('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
+    const ideaInput = page.locator('[role="textbox"], textarea, input[type="text"]').first()
+    await ideaInput.click()
+    await ideaInput.pressSequentially('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
     
     console.log('🚀 Clicking "Next" button...')
     await page.click('button:has-text("下一步")')
@@ -77,33 +83,65 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 4: Click batch generate outline button on outline editor page
     // ====================================
     console.log('⏳ Step 4: Waiting for outline editor page to load...')
-    await page.waitForSelector('button:has-text("自动生成大纲"), button:has-text("重新生成大纲")', { timeout: 10000 })
-    
-    console.log('📋 Step 4: Clicking batch generate outline button...')
-    const generateOutlineBtn = page.locator('button:has-text("自动生成大纲"), button:has-text("重新生成大纲")')
-    await generateOutlineBtn.first().click()
-    console.log('✓ Clicked batch generate outline button\n')
+    const outlineItems = page.locator('span').filter({ hasText: /^第 \d+ 页$/ })
+    const generatingOutlineBtn = page.locator('button').filter({ hasText: '生成中...' })
+    const generateOutlineBtn = page.locator('button').filter({ hasText: /^(自动生成大纲|重新生成大纲)$/ })
+    const outlineReadyState = page
+      .locator('button').filter({ hasText: /^(自动生成大纲|重新生成大纲)$/ })
+      .or(generatingOutlineBtn)
+      .or(outlineItems.first())
+    await expect(outlineReadyState.first()).toBeVisible({ timeout: 10000 })
+
+    // Fresh projects auto-start outline generation on mount. Give that effect a
+    // short window so the test does not race it by clicking regenerate.
+    await generatingOutlineBtn
+      .or(outlineItems.first())
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(() => undefined)
+
+    let outlineCount = await outlineItems.count()
+    const isOutlineGenerating = await generatingOutlineBtn.isVisible().catch(() => false)
+
+    if (outlineCount > 0) {
+      console.log(`✓ Outline already available from auto-generation, total ${outlineCount} pages\n`)
+    } else if (isOutlineGenerating) {
+      console.log('✓ Outline auto-generation already in progress\n')
+    } else {
+      console.log('📋 Step 4: Clicking batch generate outline button...')
+      await generateOutlineBtn.first().click()
+
+      const regenerateDialog = page.locator('div[role="dialog"]').filter({ hasText: '确认重新生成' })
+      if (await regenerateDialog.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) {
+        console.log('  Regenerate confirmation appeared, confirming...')
+        await regenerateDialog.locator('button').filter({ hasText: '确定' }).click()
+        await regenerateDialog.waitFor({ state: 'hidden', timeout: 5000 })
+      }
+
+      console.log('✓ Clicked batch generate outline button\n')
+    }
     
     // ====================================
     // Step 5: Wait for outline generation to complete (smart wait)
     // ====================================
-    console.log('⏳ Step 5: Waiting for outline generation (may take 1-2 minutes)...')
-    
-    // Smart wait: Use expect().toPass() for retry polling
-    // Look for cards with "第 X 页" text - this is the most reliable indicator
-    await expect(async () => {
-      // Use text pattern matching for "第 X 页" which appears in each outline card
-      const outlineItems = page.locator('text=/第 \\d+ 页/')
-      const count = await outlineItems.count()
-      if (count === 0) {
-        throw new Error('Outline items not yet visible')
-      }
-      expect(count).toBeGreaterThan(0)
-    }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
+    console.log('⏳ Step 5: Waiting for outline generation (may take 3-5 minutes)...')
+
+    // Outline generation uses SSE streaming: the button shows "生成中..." and
+    // pages appear incrementally. Wait for the first card, then for streaming
+    // to finish (button text reverts from "生成中...").
+    const streamingBtn = page.locator('button:has-text("生成中...")')
+    await streamingBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
+      console.log('  Streaming button state not detected, generation may have completed quickly')
+    })
+
+    // Wait for at least one outline card (pages stream in one by one)
+    await expect(page.locator('text=/第 \\d+ 页/').first()).toBeVisible({ timeout: 300000 })
+    console.log('  First outline card appeared')
+
+    // Wait for streaming to finish (button reverts from "生成中...")
+    await expect(streamingBtn).toBeHidden({ timeout: 300000 })
     
     // Verify outline content
-    const outlineItems = page.locator('text=/第 \\d+ 页/')
-    const outlineCount = await outlineItems.count()
+    outlineCount = await outlineItems.count()
     
     expect(outlineCount).toBeGreaterThan(0)
     console.log(`✓ Outline generated successfully, total ${outlineCount} pages\n`)
@@ -141,17 +179,14 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('⏳ Step 8: Waiting for descriptions to generate (may take 2-5 minutes)...')
     
-    // Smart wait: Use expect().toPass() for retry polling
+    // Smart wait: The "生成图片" button is disabled until ALL pages have description_content.
+    // Wait for it to become enabled as the definitive signal that all descriptions are done.
+    const generateImagesBtnForWait = page.locator('button:has-text("生成图片")').first()
     await expect(async () => {
-      const completedIndicators = page.locator('[data-status="descriptions-generated"], .description-complete, button:has-text("重新生成"):not([disabled])')
-      const count = await completedIndicators.count()
-      if (count === 0) {
-        throw new Error('Descriptions not yet generated')
-      }
-      expect(count).toBeGreaterThan(0)
+      await expect(generateImagesBtnForWait).toBeEnabled()
     }).toPass({ timeout: 300000, intervals: [3000, 5000, 10000] })
-    
-    console.log('✓ All descriptions generated\n')
+
+    console.log('✓ All descriptions generated (生成图片 button enabled)\n')
     await page.screenshot({ path: 'test-results/e2e-descriptions-generated.png' })
     
     // ====================================
@@ -202,11 +237,12 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         console.log('  Waiting for generation state...')
       })
       
-      // Wait for regeneration to complete (shorter timeout since it's just one card)
-      await page.waitForSelector(
-        'button:has-text("重新生成"):not([disabled])',
-        { timeout: 120000 }
-      )
+      // Wait for regeneration to complete - ensure no cards are still generating
+      // (can't just check for any "重新生成" button as other cards already have one)
+      await expect(async () => {
+        const generatingButtons = await page.locator('button:has-text("生成中...")').count()
+        expect(generatingButtons).toBe(0)
+      }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
       
       console.log('✓ Single card retry completed successfully\n')
       await page.screenshot({ path: 'test-results/e2e-single-card-retry.png' })
@@ -218,7 +254,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // Step 10: Click "生成图片" to go to image generation page
     // ====================================
     console.log('➡️  Step 10: Clicking "生成图片" to go to image generation page...')
-    
+
     // Ensure no modal backdrop is blocking the UI
     // This is important after the single card retry which may have shown a confirmation dialog
     const modalBackdrop = page.locator('.fixed.inset-0').filter({ hasText: '' }).first()
@@ -257,13 +293,14 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     }
     
     // Extra safety wait to ensure all animations complete
-    await page.waitForTimeout(800)
-    
+    await page.waitForTimeout(1500)
+
     const generateImagesNavBtn = page.locator('button:has-text("生成图片")').first()
-    
+
     // Wait for button to be enabled (it's disabled until all descriptions are generated)
     await generateImagesNavBtn.waitFor({ state: 'visible', timeout: 10000 })
-    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 5000 })
+    // Allow enough time for the single card retry from Step 9 to complete
+    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 30000 })
     
     // Ensure button is in viewport
     await generateImagesNavBtn.scrollIntoViewIfNeeded()
@@ -292,7 +329,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       const match = urlBeforeClick.match(/\/project\/([^/]+)\//)
       if (match) {
         const projectId = match[1]
-        const targetUrl = `http://localhost:3000/project/${projectId}/preview`
+        const targetUrl = `http://localhost:3011/project/${projectId}/preview`
         console.log(`  Navigating to: ${targetUrl}`)
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
       } else {
@@ -310,8 +347,8 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('🎨 Step 11: Selecting template...')
     
-    // Click "更换模板" button to open template selection modal
-    // The button might be hidden on small screens, so try multiple selectors
+    // Open the template menu, then click "更换模板" to open the template selection modal
+    await page.getByTestId('template-menu').click()
     const changeTemplateBtn = page.locator('button:has-text("更换模板"), button[title="更换模板"]').first()
     await changeTemplateBtn.waitFor({ state: 'visible', timeout: 10000 })
     await changeTemplateBtn.scrollIntoViewIfNeeded()
@@ -431,38 +468,101 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       }
       console.log(`  Expected ${pageCount} pages to generate images`)
       
-      // Improved wait strategy: Check both loading state and export button
-      // Use 7 minutes timeout (420000ms) to give buffer beyond 5 minutes
+      // Wait strategy: Image generation is NON-BLOCKING (no global loading overlay).
+      // The frontend uses pageGeneratingTasks to track per-page generation status.
+      // StatusBadge shows "生成中" (orange badge with animate-pulse) during generation.
+      // We wait for export button to be enabled (hasAllImages = all pages have generated_image_path).
+      // Use 15 minutes timeout (900000ms) to cover retries on API disconnects.
       const startTime = Date.now()
-      const maxWaitTime = 420000 // 7 minutes
-      const pollInterval = 2000 // Check every 2 seconds (matching frontend polling)
+      const maxWaitTime = 900000 // 15 minutes total
       
-      // Step 1: Wait for global loading to disappear (task completed)
+      // Helper: Precise selector for "生成中" StatusBadge (orange background)
+      // StatusBadge structure: <span class="bg-orange-100 text-orange-600 animate-pulse ...">生成中</span>
+      // We use CSS class selector which is more reliable than text matching
+      const generatingBadgeSelector = 'span.bg-orange-100.text-orange-600'
+      // Helper: Selector for failed status badges (red background)
+      const failedBadgeSelector = 'span.bg-red-100.text-red-600'
+      // Helper: Selector for completed status badges (green background)
+      const _completedBadgeSelector = 'span.bg-green-100.text-green-600'
+      // Helper: Image selector for generated slide images
+      // Generated images are stored at: /files/{project_id}/pages/{page_id}_v{version}.png
+      // Template images are at: /files/{project_id}/template/template.png (excluded)
+      // We match images in /pages/ directory OR with "Slide" in alt text
+      const slideImageSelector = 'img[src*="/pages/"], img[alt*="Slide"]:not([alt="Template"])'
+      
+      // Step 13a: Wait for generation to START, then COMPLETE
       console.log('  Step 13a: Waiting for image generation task to complete...')
-      await expect(async () => {
-        // Check if fullscreen loading is gone (indicates task completed)
-        const loadingOverlay = page.locator('text="生成图片中..."')
-        const isLoading = await loadingOverlay.isVisible().catch(() => false)
+      
+      // First, wait a bit for the API call to start and status to change
+      await page.waitForTimeout(2000)
+      
+      // Check if generation has started (look for "生成中" badges OR skeleton loaders)
+      let generationStarted = false
+      for (let i = 0; i < 10; i++) { // Try for up to 20 seconds
+        const generatingBadges = page.locator(generatingBadgeSelector)
+        const skeletons = page.locator('.animate-shimmer') // Skeleton uses animate-shimmer
+        const generatingCount = await generatingBadges.count()
+        const skeletonCount = await skeletons.count()
         
-        const elapsed = Math.floor((Date.now() - startTime) / 1000)
-        if (isLoading && elapsed % 10 === 0 && elapsed > 0) {
-          console.log(`  [${elapsed}s] Still generating images...`)
+        if (generatingCount > 0 || skeletonCount > 0) {
+          generationStarted = true
+          console.log(`  ✓ Generation started (${generatingCount} generating badges, ${skeletonCount} skeletons)`)
+          break
         }
         
-        if (isLoading) {
-          throw new Error(`Image generation still in progress (${elapsed}s elapsed)`)
+        // Also check if images are already generated (fast path - previous run cached)
+        const images = page.locator(slideImageSelector)
+        const imageCount = await images.count()
+        if (imageCount >= pageCount) {
+          console.log(`  ✓ Images already generated (${imageCount}/${pageCount})`)
+          generationStarted = true
+          break
+        }
+        
+        await page.waitForTimeout(2000)
+      }
+      
+      if (!generationStarted) {
+        console.log('  ⚠ Could not detect generation start, continuing anyway...')
+      }
+      
+      // Now wait for generation to complete (no more "生成中" badges)
+      await expect(async () => {
+        // Check for "生成中" StatusBadge
+        const generatingBadges = page.locator(generatingBadgeSelector)
+        const generatingCount = await generatingBadges.count()
+        
+        // Also check for failed status - if all pages failed, we should fail early
+        const failedBadges = page.locator(failedBadgeSelector)
+        const failedCount = await failedBadges.count()
+        
+        const elapsed = Math.floor((Date.now() - startTime) / 1000)
+        
+        // Log progress every 30 seconds
+        if (elapsed % 30 === 0 && elapsed > 0) {
+          console.log(`  [${elapsed}s] Still generating... (${generatingCount} in progress, ${failedCount} failed)`)
+        }
+        
+        // If all pages failed, fail early
+        if (failedCount >= pageCount && generatingCount === 0) {
+          throw new Error(`All ${pageCount} pages failed to generate images`)
+        }
+        
+        if (generatingCount > 0) {
+          throw new Error(`Image generation still in progress (${elapsed}s elapsed, ${generatingCount} pages generating)`)
         }
         
         return true
       }).toPass({ 
         timeout: maxWaitTime,
-        intervals: [pollInterval, pollInterval, pollInterval]
+        intervals: [3000, 5000, 5000] // Check every 3-5 seconds
       })
       
       console.log('  ✓ Image generation task completed, waiting for UI to update...')
-      await page.waitForTimeout(2000) // Give UI time to sync state
+      await page.waitForTimeout(3000) // Give UI time to sync state after task completion
       
-      // Step 2: Wait for export button to be enabled (all images generated and synced)
+      // Step 13b: Wait for export button to be enabled (all images synced to UI)
+      // This verifies hasAllImages = true (all pages have generated_image_path)
       console.log('  Step 13b: Waiting for export button to be enabled...')
       await expect(async () => {
         // Try to trigger a refresh by clicking refresh button if available (helps sync state)
@@ -475,29 +575,39 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         const exportBtnCheck = page.locator('button:has-text("导出")')
         const isEnabled = await exportBtnCheck.isEnabled().catch(() => false)
         
-        // Also verify images are visible
-        const images = page.locator('img[src*="generated"], img[src*="image"], img[src*="/files/"]')
+        // Use precise selector for slide images (in aspect-video containers)
+        const images = page.locator(slideImageSelector)
         const imageCount = await images.count()
+        
+        // Also check for failed pages
+        const failedBadges = page.locator(failedBadgeSelector)
+        const failedCount = await failedBadges.count()
         
         const elapsed = Math.floor((Date.now() - startTime) / 1000)
         
-        // Log progress every 5 seconds
-        if (elapsed % 5 === 0 && elapsed > 0) {
-          console.log(`  [${elapsed}s] Export enabled: ${isEnabled}, Images: ${imageCount}/${pageCount}`)
+        // Log progress every 10 seconds
+        if (elapsed % 10 === 0 && elapsed > 0) {
+          console.log(`  [${elapsed}s] Export enabled: ${isEnabled}, Images: ${imageCount}/${pageCount}, Failed: ${failedCount}`)
+        }
+        
+        // If some pages failed but we have enough images, that's also acceptable for partial export
+        // However, for full test we want all images
+        if (failedCount > 0 && imageCount + failedCount >= pageCount) {
+          console.log(`  ⚠ ${failedCount} pages failed, ${imageCount} succeeded`)
         }
         
         if (!isEnabled) {
-          throw new Error(`Export button not yet enabled (${elapsed}s elapsed, ${imageCount}/${pageCount} images)`)
+          throw new Error(`Export button not yet enabled (${elapsed}s elapsed, ${imageCount}/${pageCount} images, ${failedCount} failed)`)
         }
         
         if (imageCount < pageCount) {
-          throw new Error(`Only ${imageCount}/${pageCount} images found (${elapsed}s elapsed)`)
+          throw new Error(`Only ${imageCount}/${pageCount} images found (${elapsed}s elapsed, ${failedCount} failed)`)
         }
         
         console.log(`  [${elapsed}s] ✓ Export button enabled and ${imageCount} images found`)
         return true
       }).toPass({ 
-        timeout: 60000, // 1 minute for state sync (after task completion)
+        timeout: 120000, // 2 minutes for state sync (after task completion)
         intervals: [2000, 3000, 5000] // Check every 2-5 seconds
       })
       
@@ -516,8 +626,39 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('📦 Step 14: Exporting PPT file...')
     
-    // Setup download handler
-    const downloadPromise = page.waitForEvent('download', { timeout: 60000 })
+    const responsePromise = new Promise<{ kind: 'response', payload: { url: string, headers: Record<string, string> } }>((resolve, reject) => {
+      const onResponse = (response: any) => {
+        try {
+          const pathname = new URL(response.url()).pathname
+          const isPptxFileResponse = /\/files\/.*\/exports\/.*\.pptx/.test(pathname)
+          if (
+            response.request().method() === 'GET' &&
+            response.status() === 200 &&
+            isPptxFileResponse
+          ) {
+            page.context().off('response', onResponse)
+            clearTimeout(timeoutId)
+            resolve({
+              kind: 'response' as const,
+              payload: {
+                url: response.url(),
+                headers: response.headers()
+              }
+            })
+          }
+        } catch (error) {
+          // Ignore parse/URL errors and continue waiting
+          void error
+        }
+      }
+
+      const timeoutId = setTimeout(() => {
+        page.context().off('response', onResponse)
+        reject(new Error('Timeout waiting for PPTX export response'))
+      }, 60000)
+
+      page.context().on('response', onResponse)
+    })
     
     // Step 1: Wait for export button to be enabled (it's disabled until all images are generated)
     const exportBtn = page.locator('button:has-text("导出")')
@@ -535,14 +676,50 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     await exportPptxBtn.waitFor({ state: 'visible', timeout: 5000 })
     await exportPptxBtn.click()
     console.log('✓ Clicked "导出为 PPTX" button\n')
+
+    // Step 3: In the PPTX export settings panel, click "开始导出"
+    // The dropdown only opens export options; actual download request is sent after clicking this button.
+    await expect(page.getByText('PPTX 导出设置')).toBeVisible({ timeout: 5000 })
+    await page.getByRole('button', { name: '开始导出' }).click()
+    console.log('✓ Clicked "开始导出" button')
     
-    // Wait for download to complete
+    // Wait for download to complete (prefer download event, fallback to direct response body)
     console.log('⏳ Waiting for PPT file download...')
-    const download = await downloadPromise
+    const downloadResult = await Promise.any([
+      page.context().waitForEvent('download', { timeout: 60000 }).then((download) => ({
+        kind: 'download' as const,
+        payload: download
+      })),
+      responsePromise
+    ]).catch((error) => {
+      throw new Error(`Timeout waiting for PPT export: ${error instanceof Error ? error.message : 'unknown error'}`)
+    })
     
     // Save file
-    const downloadPath = path.join('test-results', 'e2e-test-output.pptx')
-    await download.saveAs(downloadPath)
+    let downloadPath = path.join('test-results', 'e2e-test-output.pptx')
+    if (downloadResult.kind === 'download') {
+      const suggestedFilename = downloadResult.payload.suggestedFilename?.()
+      if (suggestedFilename) {
+        downloadPath = path.join('test-results', path.basename(suggestedFilename))
+      }
+      await downloadResult.payload.saveAs(downloadPath)
+    } else {
+      const requestResponse = await page.request.get(downloadResult.payload.url)
+      if (!requestResponse.ok()) {
+        throw new Error(`Fallback export response request failed: HTTP ${requestResponse.status()}`)
+      }
+      const body = Buffer.from(await requestResponse.body())
+      const contentDisposition = downloadResult.payload.headers['content-disposition'] || requestResponse.headers()['content-disposition'] || ''
+      const filenameMatch = /filename\*?=['"]?(?:UTF-8''([^;"']+)|([^;"']+))/i.exec(contentDisposition)
+      const encodedFilename = filenameMatch?.[1] || filenameMatch?.[2]
+      if (encodedFilename) {
+        const decoded = decodeURIComponent(encodedFilename.replace(/"/g, '').replace(/^UTF-8''/i, ''))
+        if (decoded.trim().toLowerCase().endsWith('.pptx')) {
+          downloadPath = path.join('test-results', path.basename(decoded))
+        }
+      }
+      await fs.promises.writeFile(downloadPath, body)
+    }
     
     // Verify file exists and is not empty
     const fileExists = fs.existsSync(downloadPath)
@@ -594,22 +771,26 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
   test('User flow verification: Only verify UI interactions, do not wait for AI generation', async ({ page }) => {
     console.log('\n🏃 Quick E2E test (verify UI flow, do not wait for generation)\n')
     
-    // Visit homepage
-    await page.goto('http://localhost:3000')
+    // Visit homepage (prevent HelpModal from appearing)
+    await page.addInitScript(() => {
+      localStorage.setItem('hasSeenHelpModal', 'true')
+    })
+    await page.goto('http://localhost:3011')
     console.log('✓ Homepage loaded')
-    
+
     // Ensure "一句话生成" tab is selected (it's selected by default)
     await page.click('button:has-text("一句话生成")').catch(() => {
       // If click fails, the tab might already be selected, which is fine
     })
     console.log('✓ Entered create page')
     
-    // Wait for textarea to be visible
-    await page.waitForSelector('textarea', { timeout: 10000 })
-    
+    // Wait for textarea to be visible (MarkdownTextarea uses contentEditable div with role="textbox")
+    await page.waitForSelector('[role="textbox"], textarea', { timeout: 10000 })
+
     // Enter content
-    const ideaInput = page.locator('textarea').first()
-    await ideaInput.fill('E2E test project')
+    const ideaInput = page.locator('[role="textbox"], textarea').first()
+    await ideaInput.click()
+    await ideaInput.pressSequentially('E2E test project')
     console.log('✓ Entered content')
     
     // Click generate
@@ -641,4 +822,3 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     console.log('\n✅ UI flow verification passed!\n')
   })
 })
-

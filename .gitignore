@@ -13,6 +13,15 @@
 *.avif
 
 !frontend/public/**/*.png
+!frontend/src/assets/**/*.png
+!desktop/resources/icon.png
+!desktop/resources/icon.ico
+!desktop/resources/trayTemplate.png
+!desktop/resources/trayTemplate@2x.png
+!desktop/resources/trayTemplate.svg
+!desktop/resources/installer-icon.ico
+!desktop/resources/installerSidebar.bmp
+!desktop/resources/installerHeader.bmp
 !frontend/public/**/*.jpg
 !frontend/public/**/*.jpeg
 !frontend/public/**/*.gif
@@ -35,12 +44,19 @@
 # 忽略临时文档，但保留项目文档
 *.md
 !README.md
-!docs/**/*.md
+!skills/**/*.md
+# !docs/**/*.md
+!docs/specs/cli-spec.md
+!docs/superpowers/specs/*.md
+!docs/superpowers/plans/*.md
+!docs/desktop-handover.md
 !.github/**/*.md
 *.pyc
 .env
+/desktop/.cache/
+/desktop/resources/ffmpeg/
 
-# GCP 服务账户文件（包含敏感私钥）
+# GCP service-account key (sensitive — never commit)
 gcp-service-account.json
 *.ppt
 *.pptx
@@ -53,3 +69,28 @@ uploads/
 
 # 镜像源配置脚本的备份文件
 *.orig
+# 本地备份目录（保存测试文件等）
+_local_backup/
+!CLA.md 
+!CONTRIBUTING.md
+.venv
+banana_slides.egg-info/
+dist/
+build/
+
+# 本地 ML 模型（RMBG 等）
+/models/
+
+# macOS 元数据
+.DS_Store
+# Claude Code 本地配置与截图
+.claude/
+# 本地录制的宣传片 / 截屏素材（体积大，不入库）
+videos/
+# Playwright 运行产物与一次性抓取脚本
+test-results/
+frontend/cap-real.mjs
+# 本地设计稿草案（未定稿，不入库）
+/banana-slides-landing.html
+/design-mockup.html
+/design-system-proposal.html

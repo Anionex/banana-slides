@@ -3,7 +3,7 @@ Template Controller - handles template-related endpoints
 """
 import logging
 from flask import Blueprint, request, current_app
-from models import db, Project, UserTemplate
+from models import db, Project, UserTemplate, UserStyleTemplate
 from utils import success_response, error_response, not_found, bad_request, allowed_file
 from services import FileService
 from datetime import datetime
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 template_bp = Blueprint('templates', __name__, url_prefix='/api/projects')
 user_template_bp = Blueprint('user_templates', __name__, url_prefix='/api/user-templates')
+user_style_template_bp = Blueprint('user_style_templates', __name__, url_prefix='/api/user-style-templates')
 
 
 @template_bp.route('/<project_id>/template', methods=['POST'])
@@ -55,6 +56,9 @@ def upload_template(project_id):
             'template_image_url': f'/files/{project_id}/template/{file_path.split("/")[-1]}'
         })
     
+    except ValueError as e:
+        db.session.rollback()
+        return bad_request(str(e))
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
@@ -112,7 +116,7 @@ def get_system_templates():
 def upload_user_template():
     """
     POST /api/user-templates - Upload user template image
-    
+
     Content-Type: multipart/form-data
     Form: template_image=@file.png
     Optional: name=Template Name
@@ -121,44 +125,51 @@ def upload_user_template():
         # Check if file is in request
         if 'template_image' not in request.files:
             return bad_request("No file uploaded")
-        
+
         file = request.files['template_image']
-        
+
         if file.filename == '':
             return bad_request("No file selected")
-        
+
         # Validate file extension
         if not allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
             return bad_request("Invalid file type. Allowed types: png, jpg, jpeg, gif, webp")
-        
+
         # Get optional name
         name = request.form.get('name', None)
-        
+
         # Get file size before saving
         file.seek(0, 2)  # Seek to end
         file_size = file.tell()
         file.seek(0)  # Reset to beginning
-        
+
         # Generate template ID first
         import uuid
         template_id = str(uuid.uuid4())
-        
+
         # Save template file first (using the generated ID)
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_path = file_service.save_user_template(file, template_id)
-        
+
+        # Generate thumbnail for faster loading
+        thumb_path = file_service.save_user_template_thumbnail(template_id, file_path)
+
         # Create template record with file_path already set
         template = UserTemplate(
             id=template_id,
             name=name,
             file_path=file_path,
+            thumb_path=thumb_path,
             file_size=file_size
         )
         db.session.add(template)
         db.session.commit()
-        
+
         return success_response(template.to_dict())
     
+    except ValueError as e:
+        db.session.rollback()
+        return bad_request(str(e))
     except Exception as e:
         import traceback
         db.session.rollback()
@@ -201,14 +212,67 @@ def delete_user_template(template_id):
         # Delete template file
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         file_service.delete_user_template(template_id)
-        
+
         # Delete template record
         db.session.delete(template)
         db.session.commit()
-        
+
         return success_response(message="Template deleted successfully")
-    
+
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
 
+
+# ========== User Style Template Endpoints ==========
+
+@user_style_template_bp.route('', methods=['POST'])
+def create_user_style_template():
+    try:
+        data = request.get_json()
+        if not data:
+            return bad_request("Request body is required")
+
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        if not name or not description:
+            return bad_request("Name and description are required")
+
+        import uuid
+        template = UserStyleTemplate(
+            id=str(uuid.uuid4()),
+            name=name,
+            description=description,
+            color=data.get('color'),
+        )
+        db.session.add(template)
+        db.session.commit()
+        return success_response(template.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('', methods=['GET'])
+def list_user_style_templates():
+    try:
+        templates = UserStyleTemplate.query.order_by(UserStyleTemplate.created_at.desc()).all()
+        return success_response({
+            'templates': [t.to_dict() for t in templates]
+        })
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@user_style_template_bp.route('/<template_id>', methods=['DELETE'])
+def delete_user_style_template(template_id):
+    try:
+        template = UserStyleTemplate.query.get(template_id)
+        if not template:
+            return not_found('UserStyleTemplate')
+        db.session.delete(template)
+        db.session.commit()
+        return success_response(message="Style template deleted successfully")
+    except Exception as e:
+        db.session.rollback()
+        return error_response('SERVER_ERROR', str(e), 500)

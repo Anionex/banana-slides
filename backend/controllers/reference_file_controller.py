@@ -16,8 +16,11 @@ import threading
 from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
 from services.file_parser_service import FileParserService
+from services.material_import_service import import_reference_markdown_images_to_materials
 
 logger = logging.getLogger(__name__)
+
+_import_lock = threading.Lock()
 
 reference_file_bp = Blueprint('reference_file', __name__)
 
@@ -65,7 +68,8 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
                 openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
                 openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
                 image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
+                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+                lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
             )
             
             # Parse file
@@ -79,18 +83,43 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
                 reference_file.error_message = error_message
                 logger.error(f"File parsing failed: {error_message}")
             else:
-                reference_file.parse_status = 'completed'
-                reference_file.markdown_content = markdown_content
+                with _import_lock:
+                    reference_file.parse_status = 'completed'
+                    reference_file.markdown_content = markdown_content
+                    reference_file.updated_at = datetime.utcnow()
+                    db.session.commit()
+                    db.session.refresh(reference_file)
+
+                    if reference_file.project_id:
+                        try:
+                            imported_count = import_reference_markdown_images_to_materials(
+                                project_id=reference_file.project_id,
+                                markdown_content=markdown_content,
+                                upload_folder=current_app.config['UPLOAD_FOLDER'],
+                            )
+                            if imported_count:
+                                logger.info(
+                                    "Imported %s parsed image(s) from reference file %s to project %s materials",
+                                    imported_count,
+                                    reference_file.id,
+                                    reference_file.project_id,
+                                )
+                                db.session.commit()
+                        except Exception as img_err:
+                            logger.error("Failed to import images to materials: %s", img_err, exc_info=True)
+                            db.session.rollback()
                 if failed_image_count > 0:
                     logger.warning(f"File parsing completed: {filename}, but {failed_image_count} images failed to generate captions")
                 else:
                     logger.info(f"File parsing completed: {filename}")
-            
+                return
+
             reference_file.updated_at = datetime.utcnow()
             db.session.commit()
             
         except Exception as e:
             logger.error(f"Error in async file parsing: {str(e)}", exc_info=True)
+            db.session.rollback()
             try:
                 reference_file = ReferenceFile.query.get(file_id)
                 if reference_file:
@@ -133,7 +162,7 @@ def upload_reference_file():
                     # Decode if URL encoded
                     try:
                         original_filename = unquote(original_filename)
-                    except:
+                    except Exception:
                         pass
         
         if not original_filename or original_filename == '':
@@ -390,10 +419,32 @@ def associate_file_to_project(file_id):
         if not project:
             return not_found('Project')
         
-        # Update file's project_id
-        reference_file.project_id = project_id
-        reference_file.updated_at = datetime.utcnow()
-        db.session.commit()
+        # Persist the association first, then refresh parsing state to close the
+        # race with the background parser finishing at the same time.
+        with _import_lock:
+            reference_file.project_id = project_id
+            reference_file.updated_at = datetime.utcnow()
+            db.session.commit()
+            db.session.refresh(reference_file)
+
+            if reference_file.parse_status == 'completed' and reference_file.markdown_content:
+                try:
+                    imported_count = import_reference_markdown_images_to_materials(
+                        project_id=project_id,
+                        markdown_content=reference_file.markdown_content,
+                        upload_folder=current_app.config['UPLOAD_FOLDER'],
+                    )
+                    if imported_count:
+                        logger.info(
+                            "Imported %s parsed image(s) while associating reference file %s to project %s",
+                            imported_count,
+                            reference_file.id,
+                            project_id,
+                        )
+                        db.session.commit()
+                except Exception as img_err:
+                    logger.error("Failed to import images to materials during association: %s", img_err, exc_info=True)
+                    db.session.rollback()
         
         logger.info(f"Associated reference file {file_id} to project {project_id}")
         
@@ -432,4 +483,3 @@ def dissociate_file_from_project(file_id):
     except Exception as e:
         logger.error(f"Error dissociating reference file: {str(e)}", exc_info=True)
         return error_response('SERVER_ERROR', str(e), 500)
-

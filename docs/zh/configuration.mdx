@@ -1,0 +1,123 @@
+---
+title: "配置"
+description: "环境变量与服务商设置"
+---
+
+## AI 服务商
+
+在 `.env` 中设置 `AI_PROVIDER_FORMAT` 选择服务商：
+
+| 格式 | 说明 |
+|------|------|
+| `gemini` | Google Gemini API（默认） |
+| `openai` | OpenAI 兼容 API |
+| `volcengine` | 火山方舟 AgentPlans（OpenAI 兼容） |
+| `vertex` | Google Cloud Vertex AI |
+| `lazyllm` | 多厂商国产模型路由 |
+
+## Gemini（默认）
+
+```env
+AI_PROVIDER_FORMAT=gemini
+GOOGLE_API_KEY=your-api-key
+GOOGLE_API_BASE=https://generativelanguage.googleapis.com
+```
+
+<Warning>
+  Gemini API 免费层仅支持文本生成，不支持图片生成。
+</Warning>
+
+## OpenAI 兼容
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+## 火山 AgentPlans
+
+火山方舟 Agent Plan 模型订阅套餐可通过 OpenAI 兼容接口接入。选择设置页里的“火山 AgentPlans”，或在 `.env` 中配置：
+
+```env
+AI_PROVIDER_FORMAT=volcengine
+VOLCENGINE_API_KEY=your-volcengine-api-key
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+```
+
+也可以继续使用设置页的通用 API Key 字段覆盖以上配置，而 API Base URL 将由系统自动管理。
+
+## Vertex AI
+
+```env
+AI_PROVIDER_FORMAT=vertex
+VERTEX_PROJECT_ID=your-gcp-project-id
+VERTEX_LOCATION=global
+GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+```
+
+<Tip>
+  `gemini-3-*` 系列模型需要 `VERTEX_LOCATION=global`。
+</Tip>
+
+## LazyLLM（多厂商路由）
+
+将请求路由到不同国产 AI 厂商：
+
+```env
+AI_PROVIDER_FORMAT=lazyllm
+TEXT_MODEL_SOURCE=deepseek
+IMAGE_MODEL_SOURCE=doubao
+IMAGE_CAPTION_MODEL_SOURCE=qwen
+```
+
+设置对应厂商的 API Key：
+
+```env
+DOUBAO_API_KEY=your-key       # 火山引擎/豆包
+DEEPSEEK_API_KEY=your-key     # DeepSeek
+QWEN_API_KEY=your-key         # 阿里云/通义千问
+GLM_API_KEY=your-key          # 智谱 GLM
+SILICONFLOW_API_KEY=your-key  # 硅基流动
+SENSENOVA_API_KEY=your-key    # 商汤日日新
+MINIMAX_API_KEY=your-key      # MiniMax
+```
+
+Banana Slides 会在运行时依赖中显式打包 LazyLLM 国内在线厂商 SDK：
+`volcengine-python-sdk[ark]`（豆包/火山）、`dashscope`（通义千问/万相）、`zhipuai`（智谱 GLM）。
+LazyLLM 源码提供了 `lazyllm install online-advanced`，但当前 PyPI wheel 不一定把该组发布为标准 extra；Docker 和预构建镜像因此以显式依赖为准。
+
+## AIHubMix（推荐中转）
+
+[AIHubMix](https://api.inferera.com/?aff=17EC) 是推荐的 API 中转服务，同时支持 Gemini 和 OpenAI 两种接口格式，且能稳定进行高并发文生图操作。[点击此处申请 AIHubMix API Key](https://api.inferera.com/?aff=17EC)。
+
+获取 API Key 时，打开 AIHubMix 官网并登录或注册账号，进入 **Console** 控制台，先在左侧 **Account → Top Up** 完成充值；充值后进入 **Develop → API Keys** 页面点击 **Add key** 创建密钥，然后复制到本项目设置页或 `.env`。
+
+```env
+AI_PROVIDER_FORMAT=openai
+OPENAI_API_KEY=your-aihubmix-key
+OPENAI_API_BASE=https://api.inferera.com/v1
+```
+
+## MinerU（PDF 解析）
+
+[MinerU](https://mineru.net) 提供高质量的 PDF 解析服务，用于参考文件上传时的内容提取。[点击此处申请 MinerU Token](https://mineru.net/apiManage/token)。
+
+```env
+MINERU_API_BASE=https://mineru.net
+MINERU_TOKEN=your-mineru-token
+```
+
+## 百度 API Key
+
+配置百度 API Key 以获得更好的可编辑 PPTX 导出效果（有充足免费额度）：
+
+```env
+BAIDU_API_KEY=your-baidu-api-key
+```
+
+从百度智能云[申请 IAM API Key](https://console.bce.baidu.com/iam/#/iam/apikey/list)。
+
+## 运行时设置覆盖
+
+以上所有配置也可通过网页设置页面进行配置。通过设置页面配置的参数会存储在数据库中，优先级高于 `.env`。点击"还原默认设置"可恢复为 `.env` 中的值。

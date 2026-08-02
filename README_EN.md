@@ -1,234 +1,357 @@
+[//]: # "Banana Slides is an AI-native PPT generation app for creating editable presentations from ideas, outlines, documents, images, and custom templates. Features: prompt-to-slide generation, template control, material parsing, conversational editing, PPTX export, project history, and reproducible workflows. Quick Start / Install / Usage / Demo / API / Deploy / Architecture / Test / Screenshot guides are provided for local Docker deployment and online use."
 <div align="center">
 
-<img width="256" src="https://github.com/user-attachments/assets/6f9e4cf9-912d-4faa-9d37-54fb676f547e">
-
-*Vibe your PPT like vibing code.*
-
-**[中文](README.md) | English**
+<p>
+  <img src="https://github.com/user-attachments/assets/81fe6816-44cc-4c61-97c7-f3c099650966" alt="Banana Slides" width="860">
+</p>
+<p>
+  <a href="https://trendshift.io/repositories/22056" target="_blank">
+    <img src="https://trendshift.io/api/badge/repositories/22056" alt="Anionex%2Fbanana-slides | Trendshift" width="265" height="58">
+  </a>
+  <br>
+  <a href="https://hellogithub.com/repository/Anionex/banana-slides" target="_blank">
+    <img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c8a0ee51918e4353af08012b8472b85e&claim_uid=CtDTm2jbUHhVGBr&theme=neutral" alt="Featured｜HelloGitHub" width="265" height="58">
+  </a>
+</p>
+<p>
+  <a href="#-项目缘起"><b>Simplified Chinese</b></a>
+  &nbsp;•&nbsp;
+  <a href="README_EN.md"><b>English</b></a>
+</p>
+<p>
+  <a href="https://github.com/Anionex/banana-slides/stargazers"><img src="https://img.shields.io/github/stars/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Stars"></a>
+  <a href="https://github.com/Anionex/banana-slides/network"><img src="https://img.shields.io/github/forks/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Forks"></a>
+  <a href="https://github.com/Anionex/banana-slides/watchers"><img src="https://img.shields.io/github/watchers/Anionex/banana-slides?style=flat-square&color=FFD700" alt="GitHub Watchers"></a>
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><img src="https://img.shields.io/badge/version-v0.9.0--rc.2-44cc11?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Anionex/banana-slides/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Anionex/banana-slides?color=0055aa&style=flat-square" alt="License"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Docker-Build-4A90D9?logo=docker&logoColor=white&style=flat-square" alt="Docker Build">
+  <a href="https://deepwiki.com/Anionex/banana-slides"><img src="./assets/badge-deepwiki-flat.svg" alt="Ask DeepWiki"></a>
+</p>
 
 <p>
-
-[![GitHub Stars](https://img.shields.io/github/stars/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/network)
-[![GitHub Watchers](https://img.shields.io/github/watchers/Anionex/banana-slides?style=square)](https://github.com/Anionex/banana-slides/watchers)
-
-[![Version](https://img.shields.io/badge/version-v0.1.0-4CAF50.svg)](https://github.com/Anionex/banana-slides)
-![Docker](https://img.shields.io/badge/Docker-Build-2496ED?logo=docker&logoColor=white)
-[![GitHub issues](https://img.shields.io/github/issues-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/Anionex/banana-slides)](https://github.com/Anionex/banana-slides/pulls)
-
-
-</p> 
-
-<b>A native AI PPT generation application based on nano banana pro🍌. It supports generating full PPT presentations from ideas, outlines, or page descriptions.<br></b>
-<b> Automatically extract charts from attachments, upload custom assets, and make modifications via natural language—moving towards a true "Vibe PPT". </b>
-
-<b>🎯 Lowering the barrier to PPT creation, allowing everyone to quickly craft beautiful and professional presentations.</b>
-
-<br>
-
-*If this project is helpful to you, please star🌟 & fork🍴*
-
-<br>
-
+  <b>An AI-native PPT generation application based on nano banana pro 🍌</b><br>
+  <b>Go from ideas to presentations in minutes—no more tedious formatting, edit via conversation, and move towards a true "Vibe PPT"</b>
+</p>
+<p>
+  <a href="https://bananaslides.online/"><b>🚀 Online Demo</b></a>
+  &nbsp;|&nbsp;
+  <a href="https://docs.bananaslides.online/"><b>📖 Documentation</b></a>
+  &nbsp;|&nbsp;
+  <a href="https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2"><b>💻 Desktop RC2</b></a>
+  &nbsp;|&nbsp;
+ <a href="https://github.com/Anionex/banana-slides#-%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95"><b>Deployment</b></a>
+</p>
+<p>
+  If this project is helpful to you, please feel free to <b>Star 🌟</b> & <b>Fork 🍴</b>
 </p>
 
 </div>
 
+## 🔥 Latest News
 
+- **[2026-07-15]**: Custom outline/description requirement presets now automatically repair corrupted browser cache, retaining valid presets and preventing abnormal cache from blocking the editing page.
+- **[2026-07-11]**: Release Candidate 2 of version 0.9.0 is now available, including all features from RC1 and fixing MinerU directory inconsistencies for editable PPTX on Windows desktop, as well as FFprobe path errors for narration videos; [One-click download and install](https://github.com/Anionex/banana-slides/releases/tag/v0.9.0-rc.2)
+- **[2026-06-23]**: Per-page templates launched — supports Unified Template / Independent Per-Page Template modes. Upload images or PDFs to build a project template library; AI automatically analyzes template styles and provides one-click smart matching for each page, or manual binding page-by-page. Supports seamless bi-directional switching between modes ([Documentation](https://docs.bananaslides.online/zh/features/templates))
+- **[2026-04-25]**: Asset Toolbox launched — adds full-image editing, selection editing (overlay/replace), and smart erasing modes to the existing asset generation, featuring a unified entry point for one-stop operation.
+- **[2026-04-25]**: Supports account binding via official OpenAI OAuth. Once bound, Codex can be used directly as the text/image generation provider without manually entering an API Key. Plus accounts can generate 100+ 2K images every five hours ([Tutorial](https://ziy68cvfvu3.feishu.cn/wiki/LDSOwPzkhiNonkkNTF1ct2VBnNc)) (Based on official OpenAI OAuth PKCE authorization flow, non-reverse engineered).
+- **[2026-04-25]**: Supports saving custom text style description templates. Can be named, color-coded, and reused persistently, eliminating the need for repeated manual input.
+- **[2026-04-23]**: Added support for the gpt-image-2 model. Exported editable background effects have also been improved due to model upgrades (Select "Generative Retrieval" in Settings - Export Options - Background Retrieval).
+- **[2026-04-11]**: Added support for [CLI operations and integrated agent skills](https://docs.bananaslides.online/cli).
+- **[2026-03]**: Added several features and optimizations, such as extra fields, multi-aspect ratio settings, etc.
+- **[2026-02-09]**: New Features and Optimizations
+  * New Features
+    * Support for pasting and immediately recognizing images on the homepage, outline, and description cards, with an improved interactive experience.
+    * Manual Outline Section Editing: Supports manually adjusting the section (part) a page belongs to.
+    * Docker Multi-arch: Images now support amd64 / arm64 builds.
+    * Internationalization + Dark Mode: Added Chinese/English switching; supports Light/Dark/System themes; all components adapted for Dark Mode.
+  * Fixes and Experience Optimizations
+    * Fixed export-related 500 errors, reference file association timing, outline/page data misalignment, incorrect task polling projects, infinite polling for description generation, image preview memory leaks, and partial failure handling for batch deletions.
+    * Optimized format example prompts, HTTP error message copy, Modal closing experience, cleanup of old project localStorage, and removal of redundant prompts for first-time project creation.
+    * Various other optimizations and fixes.
 
-## ✨ Project Origin
-Have you ever been stuck in this situation: a report is due tomorrow, but your PPT is still a blank canvas; you have countless brilliant ideas in your head, but all your passion is drained by tedious layout and design work?
+## ✨ Project Origins
 
-We long to quickly create presentations that are both professional and well-designed. While traditional AI PPT generation apps generally meet the "speed" requirement, they still suffer from the following issues:
+Have you ever found yourself in this predicament: your presentation is due tomorrow, but your slides are still blank? You have countless brilliant ideas in your head, but all your enthusiasm is drained by the tedious task of layout and design.
 
-- 1️⃣ Limited to preset templates with no flexibility to adjust styles.
-- 2️⃣ Low degree of freedom, making multi-round revisions difficult.
-- 3️⃣ Homogenized output with a repetitive "AI-generated" look.
-- 4️⃣ Low-quality or irrelevant assets/images.
-- 5️⃣ Disconnected text-image layouts with poor design sensibility.
+We long to quickly create presentations that are both professional and well-designed. While traditional AI PPT generation apps generally meet the need for "speed," they still suffer from the following issues:
 
-These flaws make it difficult for traditional AI PPT generators to simultaneously satisfy the two major needs of PPT production: "speed" and "beauty." Even those claiming to be "Vibe PPT" are often far from being truly "Vibe."
+- 1️⃣ Only able to choose from preset templates, with no flexibility to adjust styles
+- 2️⃣ Low flexibility, making it difficult to perform multiple rounds of revisions
+- 3️⃣ Finished products look similar, suffering from severe homogenization
+- 4️⃣ Low-quality assets that lack relevance or specificity
+- 5️⃣ Fragmented image-text layout with poor design aesthetic
 
-However, the emergence of the nano banana🍌 model changed everything. I tried using 🍌pro for PPT page generation and found that the results were exceptional in terms of quality, aesthetics, and consistency. It can precisely render almost all text requested in the prompt and follow the style of reference images. So, why not build a native "Vibe PPT" application based on 🍌pro?
+These flaws make it difficult for traditional AI PPT generators to simultaneously satisfy our two major needs: "speed" and "aesthetics." Even those claiming to be "Vibe PPTs" are, in my eyes, far from having enough "Vibe."
 
-## 👨‍💻 Use Cases
+However, the emergence of the nano banana🍌 model changed everything. I tried using 🍌pro for PPT page generation and found that the results were excellent in terms of quality, aesthetics, and consistency. It can accurately render almost all text requested in the prompts while following the style of reference images. So, why not build a native "Vibe PPT" application based on 🍌pro?
 
-1. **Beginners**: Quickly generate beautiful PPTs with zero barriers and no design experience required.
-2. **PPT Professionals**: Get design inspiration by referencing AI-generated layouts and text-image combinations.
-3. **Educators**: Quickly convert teaching content into illustrated lesson plans to enhance classroom effectiveness.
-4. **Students**: Rapidly complete presentation assignments, focusing energy on content rather than formatting.
-5. **Business Professionals**: Visualize business proposals and product introductions quickly for various scenarios.
+## 👨‍💻 Applicable Scenarios
 
+1. **Beginners**: Quickly generate beautiful PPTs with zero threshold and no design experience required, reducing the hassle of choosing templates.
+2. **PPT Professionals**: Refer to AI-generated layouts and combinations of graphics and text to quickly gain design inspiration.
+3. **Educators**: Rapidly convert teaching content into illustrated lesson plan PPTs to enhance classroom effectiveness.
+4. **Students**: Quickly complete assignment presentations, focusing energy on content rather than formatting and aesthetics.
+5. **Business Professionals**: Rapidly visualize business proposals and product introductions, with quick adaptation to various scenarios.
 
-## 🎨 Showcase
+<p>
+  <b>🎯Goal: Lower the barrier to PPT creation, enabling everyone to quickly create beautiful and professional presentations</b>
+</p>
 
+## 🎨 Result Examples
 
 <div align="center">
 
 | | |
 |:---:|:---:|
-| <img src="https://github.com/user-attachments/assets/d58ce3f7-bcec-451d-a3b9-ca3c16223644" width="500" alt="Case 3"> | <img src="https://github.com/user-attachments/assets/c64cd952-2cdf-4a92-8c34-0322cbf3de4e" width="500" alt="Case 2"> |
+| <img src="https://github.com/user-attachments/assets/d58ce3f7-bcec-451d-a3b9-ca3c16223644" width="500" alt="案例3"> | <img src="https://github.com/user-attachments/assets/c64cd952-2cdf-4a92-8c34-0322cbf3de4e" width="500" alt="案例2"> |
 | **Software Development Best Practices** | **DeepSeek-V3.2 Technical Showcase** |
-| <img src="https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7" width="500" alt="Case 4"> | <img src="https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1" width="500" alt="Case 1"> |
-| **Smart Production Equipment for Prepared Food** | **The Evolution of Money: From Shells to Banknotes** |
+| <img src="https://github.com/user-attachments/assets/383eb011-a167-4343-99eb-e1d0568830c7" width="500" alt="案例4"> | <img src="https://github.com/user-attachments/assets/1a63afc9-ad05-4755-8480-fc4aa64987f1" width="500" alt="案例1"> |
+| **R&D and Industrialization of Intelligent Production Line Equipment for Prepared Meals** | **The Evolution of Money: A Journey from Shells to Banknotes** |
 
 </div>
 
-More can be found in <a href="https://github.com/Anionex/banana-slides/issues/2" > Use Cases </a>
-
+See more at <a href="https://github.com/Anionex/banana-slides/issues/2" > Use Cases </a>
 
 ## 🎯 Features
 
-### 1. Flexible Creation Paths
-Supports three starting modes: **Idea**, **Outline**, and **Page Description** to fit different creative habits.
-- **One-sentence generation**: Enter a topic, and AI automatically generates a structured outline and page-by-page descriptions.
-- **Natural language editing**: Modify outlines or descriptions via "Vibe" commands (e.g., "Change page 3 to a case study"), with real-time AI response.
-- **Outline/Description mode**: Supports both one-click batch generation and manual detail adjustment.
+### 1. Flexible and Diverse Creative Paths
+
+Supports three starting modes: **Ideas**, **Outlines**, and **Page Descriptions**, catering to different creative workflows.
+- **One-sentence Generation**: Enter a topic, and the AI automatically generates a structured outline and page-by-page content descriptions.
+- **Natural Language Editing**: Supports modifying outlines or descriptions via conversational commands (e.g., "Change the third page to a case study"), with real-time adjustments by the AI.
+- **Outline/Description Mode**: Supports both one-click batch generation and manual detail adjustments.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/7fc1ecc6-433d-4157-b4ca-95fcebac66ba" />
 
+### 2. Powerful Asset Parsing Capabilities
 
-### 2. Powerful Asset Parsing
-- **Multi-format support**: Upload PDF/Docx/MD/Txt files for automatic content parsing.
-- **Intelligent extraction**: Automatically identifies key points, image links, and chart information to provide rich material for generation.
-- **Style reference**: Upload reference images or templates to customize the PPT style.
+- **Multi-format Support**: Upload files such as PDF, Docx, MD, and Txt, and the system will automatically parse the content in the background.
+- **Intelligent Extraction**: Automatically identifies key points, image links, and chart information within the text, providing rich materials for generation.
+- **Automatic Image Ingestion**: Images extracted from documents are automatically added to the project asset library once the reference file is linked to the project, allowing for direct reuse later.
+- **Style Reference**: Supports uploading reference images or templates to customize PPT styles.
 
-<img width="1920" height="1080" alt="File parsing and asset processing" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
+<img width="1920" height="1080" alt="File Parsing and Asset Processing" src="https://github.com/user-attachments/assets/8cda1fd2-2369-4028-b310-ea6604183936" />
 
-### 3. "Vibe" Style Natural Language Modification
-No longer restricted by complex menus; issue modification commands directly through **natural language**.
-- **Local redraw**: Verbally modify specific areas (e.g., "Change this chart to a pie chart").
-- **Full-page optimization**: Generate high-definition, stylistically consistent pages based on nano banana pro🍌.
+### 3. "Vibe" Style Natural Language Editing
+
+No longer limited by complex menus and buttons, issue modification instructions directly via **natural language**.
+- **Inpainting**: Perform verbal modifications on unsatisfactory areas (e.g., "Change this chart to a pie chart").
+- **Full-page Optimization**: Generate high-definition, style-consistent pages based on nano banana pro🍌.
 
 <img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/929ba24a-996c-4f6d-9ec6-818be6b08ea3" />
 
+### 4. Out-of-the-box format export
 
-### 4. Out-of-the-Box Format Export
-- **Multi-format support**: One-click export to standard **PPTX** or **PDF** files.
-- **Perfect fit**: Default 16:9 ratio, no secondary layout adjustment needed—ready for presentation.
+- **Multi-format Support**: One-click export to standard **PPTX** or **PDF** files.
+- **Playback Settings**: Enable slide transition animations before exporting to PPTX, supporting classic effects like Fade.
+- **Perfect Fit**: Default 16:9 aspect ratio. No layout adjustments required—ready for presentation.
 
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/3e54bbba-88be-4f69-90a1-02e875c25420" />
 <img width="1748" height="538" alt="PPT and PDF Export" src="https://github.com/user-attachments/assets/647eb9b1-d0b6-42cb-a898-378ebe06c984" />
 
-### 5. Editable Component PPTX Export (Beta)
-- **Intelligent recursive analysis for component extraction, text extraction, and table extraction to generate manually editable PPTX files.**
+### 5. Fully Editable PPTX Export (Beta)
+
+- **Export images as high-fidelity, clean-background PPT slides with freely editable images and text**
+- See related updates at https://github.com/Anionex/banana-slides/issues/121
 <img width="1000"  alt="image" src="https://github.com/user-attachments/assets/a85d2d48-1966-4800-a4bf-73d17f914062" />
 
+### 6. One-click Export for Explainer Videos
 
-## 🔥 Recent Updates
-- [12-27]: Added support for image-free template mode and high-quality text presets. Now you can control PPT styles via pure text descriptions.
-- [12-25]: [PR #82](https://github.com/Anionex/banana-slides/pull/82) supports editable PPTX export based on layout recognition, local redraw, and recursive analysis. Developers can switch to this branch for early access. ⛱️
-- [12-24]: Main branch added a Beta version of editable PPTX export based on nano-banana-pro background extraction.
+- **Convert slides into explainer videos (MP4) with AI voiceovers and subtitles in one click**
+- AI automatically generates conversational narrations based on page descriptions and content
+- Supports configuring multiple expression styles, languages, and voice tones
 
+<br>
+
+**🌟 Comparison with NotebookLM slide deck features**
+| Feature | NotebookLM | This Project | 
+| --- | --- | --- |
+| Page Limit | 15 pages | **No limit** | 
+| Re-editing | Prompt-based modification | **Selection editing + Verbal editing** |
+| Material Addition | Cannot add after generation | **Freely add after generation** |
+| Export Formats | Supports PDF, (non-editable image) PPTX | **Export to PDF, (Image or Editable) PPTX, Explainer Video** |
+| Watermark | Watermarked in free version | **No watermark, freely add/remove elements** |
+
+> Note: As new features are added, this comparison may become outdated.
 
 ## 🗺️ Roadmap
 
 | Status | Milestone |
 | --- | --- |
-| ✅ Completed | Create PPT from Idea, Outline, and Page Description paths |
-| ✅ Completed | Parse Markdown formatted images in text |
-| ✅ Completed | Add more assets to a single PPT page |
-| ✅ Completed | "Vibe" natural language editing for specific areas on a page |
-| ✅ Completed | Material Module: Material generation, upload, etc. |
+| ✅ Completed | Add more assets to single PPT slides |
+| ✅ Completed | Vibe verbal editing for selected areas on single PPT slides |
+| ✅ Completed | Asset Module: Asset generation, uploading, etc. |
 | ✅ Completed | Support for uploading and parsing multiple file types |
-| ✅ Completed | Support for "Vibe" adjustments to outlines and descriptions |
-| ✅ Completed | Initial editable PPTX file export (mineru) |
-| 🔄 In Progress | Element segmentation and further editing for generated images (segment + inpaint) |
-| 🔄 In Progress | Web search integration |
+| ✅ Completed | Support for Vibe verbal adjustment of outlines and descriptions |
+| ✅ Completed | Preliminary support for exporting editable .pptx files |
+| 🔄 In Progress | Support for exporting editable .pptx with multi-layer, precise cutouts |
+| 🔄 In Progress | Web Search |
 | 🔄 In Progress | Agent Mode |
-| 🧭 Planned | Optimize frontend loading speed |
-| 🧭 Planned | Online presentation mode |
-| 🧭 Planned | Simple animations and page transitions |
-| 🧭 Planned | Multi-language support |
-| 🧭 Planned | User system |
+| ✅ Completed | TTS narration video export (multi-voice in CN/EN/JP, subtitles) |
 
 ## 📦 Usage
 
-### Using Docker Compose 🐳 (Recommended)
-The easiest deployment method to start both frontend and backend services with one command.
+### (New) One-click deployment using application templates
+
+This is the simplest method. No need to install Docker or download the project; you can access the application directly after creation.
+
+
+1. One-click deploy and start this application via Rainyun (High bandwidth, suitable for HD image generation and downloads. Free trial available for new users)
+- [Graphic Tutorial](https://ziy68cvfvu3.feishu.cn/wiki/B5RIwg3OUiCfo9kyadzcR9CInnc?from=from_copylink)
+
+[![One-click deployment via Rainyun](https://rainyun-apps.cn-nb1.rains3.com/materials/deploy-on-rainyun-cn.svg)](https://app.rainyun.com/apps/rca/store/7549/anionex_)
+
+2. Coming soon
+
+### Using Docker Compose 🐳
+
+Quickly start front-end and back-end services using Docker Compose.
 
 <details>
-  <summary>📒 Instructions for Windows Users</summary>
+  <summary>📒 Windows/Mac User Instructions</summary>
 
-If you are using Windows, please install Docker Desktop for Windows first. Check the Docker icon in the system tray to ensure it is running, then follow the same steps.
+If you are using **Windows or macOS**, please first [install **Docker Desktop**](https://docs.docker.com/desktop/setup/install/windows-install/), and ensure that Docker is running (Windows users can check the system tray icon; macOS users can check the menu bar icon), then follow the same steps as described in the documentation.
 
-> **Tip**: If you encounter issues, ensure WSL 2 backend is enabled in Docker Desktop settings (recommended) and that ports 3000 and 5000 are not occupied.
+> **Tip**: If you encounter issues, Windows users should enable the **WSL 2 backend** in the Docker Desktop settings (recommended); also, ensure that ports **3011** and **5011** are not occupied.
 
 </details>
 
-0. **Clone the Repository**
+0. **Clone the repository**
 ```bash
 git clone https://github.com/Anionex/banana-slides
 cd banana-slides
 ```
 
-1. **Configure Environment Variables**
+1. **Configure environment variables**
 
-Create a `.env` file (refer to `.env.example`):
+Create the `.env` file (refer to `.env.example`):
 ```bash
 cp .env.example .env
 ```
 
-Edit the `.env` file and configure necessary variables:
-> **The LLM interface in this project follows the AIHubMix format. It is recommended to use [AIHubMix](https://aihubmix.com/?aff=17EC) to obtain an API key for reduced migration costs.**  
+**(Optional, can also be configured in the user interface after startup, [click here for the tutorial](https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink ))** Edit the `.env` file and configure the necessary environment variables:
+
+<details>
+<summary>Click to expand details</summary>
+  
+> **The Large Language Model (LLM) API in this project follows the AIHubMix platform format. It is recommended to use [AIHubMix (click here to access directly)](https://api.inferera.com/?aff=17EC) to obtain an API key to reduce migration costs.**<br>
+> **Friendly Tip: The API cost for Google nano banana pro models is relatively high; please be mindful of usage costs.**
 ```env
-# AI Provider Format (gemini / openai / vertex)
+
+# AI Provider Configuration Format (gemini / openai / volcengine / vertex)
+
 AI_PROVIDER_FORMAT=gemini
 
-# Gemini Configuration (Used when AI_PROVIDER_FORMAT=gemini)
+# Gemini Format Configuration (Used when AI_PROVIDER_FORMAT=gemini)
+
 GOOGLE_API_KEY=your-api-key-here
 GOOGLE_API_BASE=https://generativelanguage.googleapis.com
-# Proxy example: https://aihubmix.com/gemini
 
-# OpenAI Configuration (Used when AI_PROVIDER_FORMAT=openai)
+# Proxy Example: https://api.inferera.com/gemini
+
+# OpenAI Format Configuration (Used when AI_PROVIDER_FORMAT=openai)
+
 OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
-# Proxy example: https://aihubmix.com/v1
 
-# Vertex AI Configuration (Used when AI_PROVIDER_FORMAT=vertex)
-# Requires GCP service account, GCP free credits can be used
+# Proxy Example: https://api.inferera.com/v1
+
+# Volcengine Ark AgentPlans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
+
+VOLCENGINE_API_KEY=your-volcengine-api-key-here
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+
+# Vertex AI Configuration (AI_PROVIDER_FORMAT=vertex)
+
+# GCP Project and Service Account Key Required
+
 # VERTEX_PROJECT_ID=your-gcp-project-id
+
 # VERTEX_LOCATION=global
+
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
+
+# Lazyllm Format Configuration (Used when AI_PROVIDER_FORMAT=lazyllm)
+
+# Select Providers for Text and Image Generation
+
+TEXT_MODEL_SOURCE=deepseek        # Text generation model provider
+IMAGE_MODEL_SOURCE=doubao         # Image editing model provider
+IMAGE_CAPTION_MODEL_SOURCE=qwen   # Image captioning model provider
+
+# API Keys from Various Providers (Only configure the ones you intend to use)
+
+```env
+DOUBAO_API_KEY=your-doubao-api-key            # Volcengine/Doubao
+DEEPSEEK_API_KEY=your-deepseek-api-key        # DeepSeek
+QWEN_API_KEY=your-qwen-api-key                # Alibaba Cloud/Qwen
+GLM_API_KEY=your-glm-api-key                  # Zhipu GLM
+SILICONFLOW_API_KEY=your-siliconflow-api-key  # SiliconFlow
+SENSENOVA_API_KEY=your-sensenova-api-key      # SenseTime SenseNova
+MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 ...
 ```
 
+> Banana Slides explicitly packages the LazyLLM online provider SDKs used by domestic vendors:
+> `volcengine-python-sdk[ark]` for Doubao, `dashscope` for Qwen/Wanxiang, and `zhipuai` for GLM/Zhipu.
+> LazyLLM also exposes `lazyllm install online-advanced`, but the PyPI wheel may not publish that group as a standard install extra, so Docker/prebuilt images rely on these explicit dependencies instead.
+  
+</details>
+
+**Use the new editable export configuration method to achieve better editable export results**: You need to obtain an API KEY from the [Baidu AI Cloud Platform](https://console.bce.baidu.com/iam/#/iam/apikey/list) (click here to enter) and fill it in the `BAIDU_API_KEY` field in the `.env` file (sufficient free usage quota is available). See instructions in https://github.com/Anionex/banana-slides/issues/121 for details.
+
+
 <details>
-  <summary>📒 Using Vertex AI (GCP Free Tier)</summary>
+  <summary>📒 Vertex AI Configuration Guide (for GCP users)</summary>
 
-If you want to use Google Cloud Vertex AI (GCP new user credits can be used), you need additional configuration:
+Google Cloud Vertex AI allows calling Gemini models via GCP service accounts. New users can use promotional credits. Configuration steps:
 
-1. Create a service account and download the JSON key file in the [GCP Console](https://console.cloud.google.com/).
-2. Rename the key file to `gcp-service-account.json` and place it in the project root.
-3. Edit the `.env` file:
+1. Go to the [GCP Console](https://console.cloud.google.com/), create a service account, and download the JSON format key file.
+2. Save the key file as `gcp-service-account.json` in the project root directory.
+3. Set in `.env`:
    ```env
    AI_PROVIDER_FORMAT=vertex
    VERTEX_PROJECT_ID=your-gcp-project-id
    VERTEX_LOCATION=global
    ```
-4. Edit `docker-compose.yml` and uncomment the following:
-   ```yaml
-   # environment:
-   #   - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
-   # ...
-   # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
-   ```
+4. If deploying via Docker, you also need to uncomment relevant sections in `docker-compose.yml`, mount the key file into the container, and set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
 
-> **Note**: `gemini-3-*` series models require `VERTEX_LOCATION=global`.
+> `gemini-3-*` series models require `VERTEX_LOCATION=global`
 
 </details>
 
-2. **Start Services**
+2. **Start Service**
+
+**⚡ Use Pre-built Image (Recommended)**
+
+The project provides pre-built frontend and backend images on Docker Hub (synced with the latest version of the main branch), allowing you to skip local build steps for rapid deployment:
+
+```bash
+
+# Start with Pre-built Image (No Need to Build from Scratch)
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Image names:
+- `anoinex/banana-slides-frontend:latest`
+- `anoinex/banana-slides-backend:latest`
+
+After starting, you can navigate to **Settings → About → Check for Updates** within the app. The application will determine if an update is available based on the current version SHA; when running from source code, the current Git SHA will also be used for this check.
+
+**Build images from scratch**
 
 ```bash
 docker compose up -d
 ```
 
+
 > [!TIP]
-> If you encounter network issues, you can uncomment mirror sources in the `.env` file and rerun the start command:
+> If you encounter network issues, you can uncomment the mirror source configurations in the `.env` file and then run the startup command again:
 > ```env
-> # Uncomment the following in .env to use Chinese mirrors
+> # Uncomment the following in the .env file to use domestic mirror sources
 > DOCKER_REGISTRY=docker.1ms.run/
 > GHCR_REGISTRY=ghcr.nju.edu.cn/
 > APT_MIRROR=mirrors.aliyun.com
@@ -237,22 +360,27 @@ docker compose up -d
 > ```
 
 
-3. **Access the App**
+3. **Access the Application**
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
+- Frontend: http://localhost:3011
+- Backend API: http://localhost:5011
 
 4. **View Logs**
 
 ```bash
-# View backend logs (real-time, last 50 lines)
-sudo docker compose logs -f --tail 50 backend
+```
 
-# View all service logs
-sudo docker compose logs -f --tail 50
+# View Backend Logs (Last 200 Lines)
 
-# View frontend logs
-sudo docker compose logs -f --tail 50 frontend
+docker logs --tail 200 banana-slides-backend
+
+# View Backend Logs in Real-time (Last 100 lines)
+
+docker logs -f --tail 100 banana-slides-backend
+
+# View Frontend Logs (Last 100 Lines)
+
+docker logs --tail 100 banana-slides-frontend
 ```
 
 5. **Stop Services**
@@ -263,22 +391,42 @@ docker compose down
 
 6. **Update Project**
 
-Pull the latest code and rebuild/restart:
+**Using Pre-built Images (docker-compose.prod.yml)**
+
+You can also go to **Settings → About → Check for Updates** within the application first to see if a new version is available.
 
 ```bash
-git pull
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Using Local Build (docker-compose.yml)**
+
+Note: If you have manually modified the code, this method is not applicable. You need to revert the code to the version at the time of the pull first.
+
+```bash
+git pull 
 docker compose down
 docker compose build --no-cache
 docker compose up -d
 ```
 
-### Deployment from Source
+**Note: Thanks to the excellent developer friend [@ShellMonster](https://github.com/ShellMonster/) for providing a [Deployment Tutorial for Beginners](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md), specifically designed for novices with no server deployment experience. You can [click the link](https://github.com/ShellMonster/banana-slides/blob/docs-deploy-tutorial/docs/NEWBIE_DEPLOYMENT.md) to view it.**
 
-#### Requirements
+### Deploy from source
+
+#### Environment Requirements
+
 - Python 3.10 or higher
 - [uv](https://github.com/astral-sh/uv) - Python package manager
 - Node.js 16+ and npm
-- Valid Google Gemini API Key
+- [FFmpeg](https://ffmpeg.org/) - Required for exporting explanation videos, and must include `libass` / `ass` subtitle filter support
+- A valid Google Gemini API key
+- (Optional) [LibreOffice](https://www.libreoffice.org/) - Required when using the "PPT Refurbish" feature to upload PPTX files, used to convert PPTX to PDF. **It is recommended to convert PPTX to PDF locally before uploading**. Reason: Server-side rendering by LibreOffice may cause layout issues due to missing fonts (e.g., Microsoft YaHei, Calibri, etc.) and cannot fully restore some special effects. LibreOffice is not required when uploading PDF files. For Docker users who still need PPTX upload support within the container, you can run:
+  ```bash
+  docker exec -it banana-slides-backend bash -c "apt-get update && apt-get install -y libreoffice-impress && rm -rf /var/lib/apt/lists/*"
+  ```
+  > Note: LibreOffice installed this way will be lost after the container is rebuilt and must be reinstalled.
 
 #### Backend Installation
 
@@ -295,237 +443,186 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 2. **Install Dependencies**
 
-Run in the project root:
+Run the following command in the project root directory:
 ```bash
+
+# macOS (Homebrew)
+
+brew install ffmpeg-full
+brew unlink ffmpeg 2>/dev/null || true
+brew link --overwrite --force ffmpeg-full
+
+# Ubuntu / Debian
+
+sudo apt-get update
+sudo apt-get install -y ffmpeg libass9
+
+# Then install Python dependencies
+
 uv sync
 ```
+
 This will automatically install all dependencies based on `pyproject.toml`.
 
 3. **Configure Environment Variables**
 
-Copy the template:
+Copy the environment variable template:
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and configure your API key:
-> **The project standardizes on the AIHubMix format. It is recommended to use [AIHubMix](https://aihubmix.com/?aff=17EC) to get an API key.** 
-```env
-# AI Provider Format (gemini / openai / vertex)
-AI_PROVIDER_FORMAT=gemini
+# Then, following the previously described method, open and edit the `.env` file to configure your API key
 
-# ... same as above ...
-
-PORT=5000
-...
-```
+My apologies, but there was no Chinese Markdown content provided in the "Original content" section to translate. If you provide the content, I will be happy to translate it for you following all your requirements.
 
 #### Frontend Installation
 
-1. **Enter Frontend Directory**
+1. **Enter the frontend directory**
 ```bash
 cd frontend
 ```
 
-2. **Install Dependencies**
+2. **Install dependencies**
 ```bash
 npm install
 ```
 
-3. **Configure API Address**
-The frontend connects to the backend at `http://localhost:5000` by default. To change this, edit `src/api/client.ts`.
+3. **Configure the API address**
 
+The frontend will automatically connect to the backend service specified by `BACKEND_PORT` via Vite proxy (default `http://localhost:5011`). To modify this, please set `BACKEND_PORT` in the `.env` file in the project root directory.
 
 #### Start Backend Service
-> (Optional) If you have important local data, backup the database before upgrading:  
+
+> (Optional) If you have important local data, it is recommended to back up the database before upgrading:  
 > `cp backend/instance/database.db backend/instance/database.db.bak`
+> Note: Under default configuration, templates, assets, and outputs are all stored in the uploads/ folder.
 
 ```bash
 cd backend
 uv run alembic upgrade head && uv run python app.py
 ```
 
-The backend will start at `http://localhost:5000`.
+The backend service will start at `http://localhost:5011`.
 
-Visit `http://localhost:5000/health` to verify service status.
+Visit `http://localhost:5011/health` to verify that the service is running correctly.
 
-#### Start Frontend Dev Server
+#### Start Frontend Development Server
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-The frontend will start at `http://localhost:3000`.
+The frontend development server will start at `http://localhost:3011`.
 
-## 🛠️ Tech Stack
+Open your browser to access and use the application.
 
-### Frontend
-- **Framework**: React 18 + TypeScript
-- **Build Tool**: Vite 5
-- **State Management**: Zustand
-- **Routing**: React Router v6
-- **UI Components**: Tailwind CSS
-- **Drag & Drop**: @dnd-kit
-- **Icons**: Lucide React
-- **HTTP Client**: Axios
+## 🛠️ Technical Architecture
 
-### Backend
-- **Language**: Python 3.10+
-- **Framework**: Flask 3.0
-- **Package Management**: uv
-- **Database**: SQLite + Flask-SQLAlchemy
-- **AI Engine**: Google Gemini API
-- **PPT Processing**: python-pptx
-- **Image Processing**: Pillow
-- **Concurrency**: ThreadPoolExecutor
-- **CORS Support**: Flask-CORS
+### Frontend Tech Stack
 
-## 📁 Project Structure
+React 18 + TypeScript + Vite 5 + Zustand
 
-```
-banana-slides/
-├── frontend/                    # React frontend application
-│   ├── src/
-│   │   ├── pages/              # Page components
-│   │   │   ├── Home.tsx        # Homepage (Create project)
-│   │   │   ├── OutlineEditor.tsx    # Outline editor
-│   │   │   ├── DetailEditor.tsx     # Description editor
-│   │   │   ├── SlidePreview.tsx     # Preview page
-│   │   │   └── History.tsx          # History management
-│   │   ├── components/         # UI Components
-│   │   │   ├── outline/        # Outline components
-│   │   │   ├── preview/        # Preview components
-│   │   │   ├── shared/         # Shared components
-│   │   │   ├── layout/         # Layout components
-│   │   │   └── history/        # History components
-│   │   ├── store/              # Zustand state management
-│   │   ├── api/                # API interface
-│   │   ├── types/              # TypeScript types
-│   │   ├── utils/              # Utilities
-│   │   ├── constants/          # Constants
-│   │   └── styles/             # Styles
-│   ├── public/                 # Static assets
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js      # Tailwind CSS config
-│   ├── Dockerfile
-│   └── nginx.conf              # Nginx config
-│
-├── backend/                    # Flask backend application
-│   ├── app.py                  # Entry point
-│   ├── config.py               # Configuration
-│   ├── models/                 # DB Models
-│   ├── services/               # Service layer
-│   │   ├── ai_service.py       # AI generation (Gemini)
-│   │   ├── file_service.py     # File management
-│   │   ├── file_parser_service.py # Parsing service
-│   │   ├── export_service.py   # PPTX/PDF export
-│   │   ├── task_manager.py     # Async tasks
-│   │   ├── prompts.py          # AI prompt templates
-│   ├── controllers/            # API Controllers
-│   ├── utils/                  # Utility functions
-│   ├── instance/               # SQLite DB (auto-generated)
-│   ├── exports/                # Exported files
-│   ├── Dockerfile
-│   └── README.md
-│
-├── tests/                      # Testing
-├── v0_demo/                    # Early demo version
-├── output/                     # Output files
-│
-├── pyproject.toml              # Python config (uv)
-├── uv.lock                     # Dependency lockfile
-├── docker-compose.yml          # Docker Compose config
-├── .env.example                 # Env template
-├── LICENSE                     # License
-└── README.md                   # This file
-```
+### Backend Tech Stack
 
-## Community
-For communication and mutual help, we have established this WeChat group.
+Python 3.10+ + Flask 3.0 + uv + SQLite
 
-Feel free to propose new features or provide feedback. I will also answer questions here from time to time.
+## Communication Group
 
-<img width="300" alt="image" src="https://github.com/user-attachments/assets/b37b6144-5152-4f30-9b90-0c0678374437" />
+Welcome to suggest new features or provide feedback in the group!
 
+<img width="312" alt="image" src="https://github.com/user-attachments/assets/80f329d1-e418-40d1-825a-63460d8755d6" />
 
-**FAQ**
-1.  **Does it support the Gemini API Key free tier?**
-    *   The free tier only supports text generation, not image generation.
-2.  **Getting 503 error or Retry Error during generation**
-    *   Check Docker logs using the command in README to locate the detailed error. Usually, this is caused by incorrect model configuration.
-3.  **Why does the API Key in .env not take effect?**
-    1.  Restart the Docker container to apply changes to `.env`.
-    2.  If set via the web settings page, it overrides the `.env` value. Use "Restore Defaults" to revert to `.env`.
-4.  **Garbled characters in generated text**
-    *   Try higher resolution output (OpenAI format might not support this).
-    *   Ensure the page description includes the specific text to be rendered.
-  
+Feel free to follow the author's social media, where I will share information about this project and AI:
 
-## 🤝 Contribution Guidelines
+<p>
+  <a href="https://x.com/anion_ex"><img src="https://img.shields.io/badge/X-@anion__ex-000000?style=flat-square&logo=x&logoColor=white" alt="X (Twitter)"></a>
+  <a href="https://www.xiaohongshu.com/user/profile/62e8f580000000001902fc9d"><img src="https://img.shields.io/badge/小红书-Anion-FF2442?style=flat-square&logo=xiaohongshu&logoColor=white" alt="Xiaohongshu"></a>
+  <a href="https://space.bilibili.com/477162339"><img src="https://img.shields.io/badge/Bilibili-Anion-00A1D6?style=flat-square&logo=bilibili&logoColor=white" alt="Bilibili"></a>
+</p>
 
-Contributions are welcome via 
-[Issues](https://github.com/Anionex/banana-slides/issues) 
-and 
+## **🔧 Frequently Asked Questions**
+
+See [official documentation](https://docs.bananaslides.online/zh/faq)
+
+You can also ask questions directly on DeepWiki 
+<a href="https://deepwiki.com/Anionex/banana-slides"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+
+## 🤝 Contributing Guide
+
+Welcome to contribute to this project through
+[Issues](https://github.com/Anionex/banana-slides/issues)
+and
 [Pull Requests](https://github.com/Anionex/banana-slides/pulls)!
+
+> **Important:** Please read [CONTRIBUTING.md](CONTRIBUTING.md) before contributing
 
 ## 📄 License
 
-This project is open-sourced under the CC BY-NC-SA 4.0 license.
+This project is open-sourced under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. It can be freely used for non-commercial purposes such as personal study, research, experimentation, education, or non-profit scientific research activities;
 
-It is free for non-commercial use, such as personal learning, research, testing, education, or non-profit scientific activities.
-
-<details> 
-
-<summary> Details </summary>
-The license for this project is Non-Commercial (CC BY-NC-SA). 
-Any commercial use requires a separate commercial license.
-
-**Commercial Use** includes but is not limited to:
-
-1. Internal use within companies or institutions.
-2. External services provided to others.
-3. Any other use for profit.
-
-**Examples of Non-Commercial Use** (No license required):
-
-- Personal learning, research, testing, education, or non-profit scientific activities.
-- Open-source community contributions, personal portfolio displays, and other uses that do not generate economic benefit.
-
-> Note: If you have questions about usage scenarios, please contact the author for authorization.
-
-</details>
+If you have any questions or are interested in collaboration, please contact: davidyang042@gmail.com
 
 
 
 <h2>🚀 Sponsor </h2>
-
+<br>
 <div align="center">
-<a href="https://aihubmix.com/?aff=17EC">
+<a href="https://api.inferera.com/?aff=17EC">
   <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
 </a>
 <p>Thanks to AIHubMix for sponsoring this project</p>
 </div>
 
+
+<div align="center">
+<a href="中文链接">
+    <img src="./assets/huoshan.png" alt="Volcengine" width="150"/ >
+    <p>Thanks to <strong>Volcengine</strong> for sponsoring this project<br>
+      Ark Agent Plan limited-time subscription at 75% off, <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">click the link to buy now</a></p>
+</a>
+</div>
+
+<!-- Note: Use this version for the English README: -->
+<!--
+<div align="center">
+<a href="英文链接">
+    <img src="./assets/byteplus.png" alt="BytePlus" width="150"/ >
+    <p> Thanks to Dola seed for sponsoring this project! Register via <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides">this link</a> to get 500,000 tokens of free inference quota per model. </p>
+</a>
+</div>
+-->
+
+
+<div align="center">
+
+ <br>
+
+<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0"><img width="200" alt="image" src="https://github.com/user-attachments/assets/d6bd255f-ba2c-4ea3-bd90-fef292fc3397" />
+</a>
+
+Thanks to AI Huobao for sponsoring this project
+ 
+</div>
+
 ## Acknowledgments
 
-- Contributors:
+- Project Contributors:
 
 [![Contributors](https://contrib.rocks/image?repo=Anionex/banana-slides)](https://github.com/Anionex/banana-slides/graphs/contributors)
 
 - [Linux.do](https://linux.do/): A new ideal community
-  
-## Donations
 
-Open source is not easy 🙏 If this project is valuable to you, feel free to buy the developer a coffee ☕️
+## Sponsor
+
+Open source isn't easy 🙏 If you find this project valuable, consider buying the developer a coffee ☕️
 
 <img width="240" alt="image" src="https://github.com/user-attachments/assets/fd7a286d-711b-445e-aecf-43e3fe356473" />
 
-Thanks to the following friends for their selfless sponsorship:
-> @雅俗共赏、@曹峥、@以年观日、@John、@azazo1、@刘聪NLP、@🍟、@苍何、@biubiu  
-> If you have questions about the list (e.g., your name is missing), please <a href="mailto:anionex@qq.com">contact the author</a>.
- 
+Thank you to the following friends for their generous sponsorship and support of this project:
+> @雅俗共赏, @曹峥, @以年观日, @John, @胡yun星Ethan, @azazo1, @刘聪NLP, @🍟, @苍何, @万瑾, @biubiu, @law, @方源, @寒松Falcon, @刘星宇&小陀螺AIGC
+> If you have any questions regarding the sponsorship list, you can <a href="mailto:davidyang042@gmail.com">contact the author</a>
+
 ## 📈 Project Statistics
 
 <a href="https://www.star-history.com/#Anionex/banana-slides&type=Timeline&legend=top-left">

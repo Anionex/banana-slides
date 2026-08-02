@@ -1,0 +1,87 @@
+name: Auto Translate README
+
+# 当主分支的 README.md 改动时自动翻译到 README_EN.md
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'README.md'
+  workflow_dispatch:  # 允许手动触发
+
+# 防止多个翻译任务同时运行
+concurrency:
+  group: translate-readme
+  cancel-in-progress: true
+
+# 授予工作流推送权限
+permissions:
+  contents: write
+
+jobs:
+  translate:
+    name: Translate README to English
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # 使用 GitHub Token 推送改动
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync
+
+      - name: Translate README
+        env:
+          # 从仓库 secrets 读取 API 密钥
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
+          AI_PROVIDER_FORMAT: gemini
+          TEXT_MODEL: gemini-3-flash-preview
+        run: |
+          echo "开始增量翻译 README.md（仅翻译修改的部分）..."
+          uv run python scripts/translate_readme_incremental.py
+          echo "翻译完成！"
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet README_EN.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "README_EN.md 无变化，跳过提交"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "README_EN.md 已更新"
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README_EN.md
+          git commit -m "docs: auto translate README to English [skip ci]"
+          git push
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
+            echo "✅ README_EN.md 已自动更新并推送"
+          else
+            echo "ℹ️ README_EN.md 无变化"
+          fi

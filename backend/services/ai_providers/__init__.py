@@ -4,41 +4,51 @@ AI Providers factory module
 Provides factory functions to get the appropriate text/image generation providers
 based on environment configuration.
 
-Configuration Priority (highest to lowest):
-    1. Database settings (via Flask app.config)
+Configuration priority (highest → lowest):
+    1. Database settings (Flask app.config, persisted via Settings page)
     2. Environment variables (.env file)
-    3. Default values
+    3. Hard-coded defaults
 
-Environment Variables:
-    AI_PROVIDER_FORMAT: "gemini" (default), "openai", or "vertex"
-
-    For Gemini format (Google GenAI SDK):
-        GOOGLE_API_KEY: API key
-        GOOGLE_API_BASE: API base URL (e.g., https://aihubmix.com/gemini)
-
-    For OpenAI format:
-        OPENAI_API_KEY: API key
-        OPENAI_API_BASE: API base URL (e.g., https://aihubmix.com/v1)
-
-    For Vertex AI format (Google Cloud):
-        VERTEX_PROJECT_ID: GCP project ID
-        VERTEX_LOCATION: GCP region (default: us-central1)
-        GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
+Supported provider formats:
+    gemini    — Google AI Studio (API key auth)
+    openai    — OpenAI-compatible endpoints
+    volcengine — Volcengine ModelArk Agent Plans (OpenAI-compatible)
+    anthropic — Anthropic (Claude) API
+    vertex    — Google Cloud Vertex AI (service-account auth)
+    lazyllm   — LazyLLM multi-vendor framework
 """
 import os
 import logging
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 
-from .text import TextProvider, GenAITextProvider, OpenAITextProvider
-from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider
+from .text import TextProvider, GenAITextProvider, OpenAITextProvider, AnthropicTextProvider, LazyLLMTextProvider, CodexTextProvider
+from .image import ImageProvider, GenAIImageProvider, OpenAIImageProvider, AnthropicImageProvider, LazyLLMImageProvider, CodexImageProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider',
-    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider',
-    'get_text_provider', 'get_image_provider', 'get_provider_format'
+    'TextProvider', 'GenAITextProvider', 'OpenAITextProvider', 'AnthropicTextProvider', 'LazyLLMTextProvider', 'CodexTextProvider',
+    'ImageProvider', 'GenAIImageProvider', 'OpenAIImageProvider', 'AnthropicImageProvider', 'LazyLLMImageProvider', 'CodexImageProvider',
+    'get_text_provider', 'get_image_provider', 'get_provider_format',
+    'get_caption_provider', 'get_image_caption_provider_config', 'LAZYLLM_VENDORS',
 ]
+
+# LazyLLM vendor names (used to distinguish from gemini/openai formats)
+LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'kimi'}
+
+
+def _get_openai_oauth_token() -> Optional[str]:
+    """Try to get a valid OpenAI OAuth token from the database."""
+    try:
+        from flask import current_app
+        if not current_app:
+            return None
+        from models import Settings
+        settings = Settings.get_settings()
+        return settings.get_openai_oauth_token()
+    except Exception as e:
+        logger.error("从设置中获取 OpenAI OAuth 令牌失败: %s", e)
+        return None
 
 
 def get_provider_format() -> str:
@@ -51,7 +61,8 @@ def get_provider_format() -> str:
         3. Default: 'gemini'
 
     Returns:
-        "gemini", "openai", or "vertex"
+        "gemini", "openai", "vertex", "lazyllm", or a lazyllm vendor name
+        (e.g., "doubao", "qwen", "deepseek")
     """
     # Try to get from Flask app config first (database settings)
     try:
@@ -63,174 +74,335 @@ def get_provider_format() -> str:
     except RuntimeError:
         # Not in Flask application context
         pass
-    
+
     # Fallback to environment variable
     return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
 
 
-def _get_config_value(key: str, default: str = None) -> str:
+def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
+    """Look up a configuration value using the standard priority chain.
+
+    Resolution order:
+        1. Flask ``app.config`` (populated from the database Settings page)
+        2. OS environment variable
+        3. *fallback* argument (may be ``None``)
     """
-    Helper to get config value with priority: app.config > env var > default
-    """
+    # 1) Try Flask app.config
     try:
         from flask import current_app
-        if current_app and hasattr(current_app, 'config'):
-            # Check if key exists in config (even if value is empty string)
-            # This allows database settings to override env vars even with empty values
-            if key in current_app.config:
-                config_value = current_app.config.get(key)
-                # Return the value even if it's empty string (user explicitly set it)
-                if config_value is not None:
-                    logger.debug(f"[CONFIG] Using {key} from app.config")
-                    return str(config_value)
-            else:
-                logger.debug(f"[CONFIG] Key {key} not found in app.config, checking env var")
-    except RuntimeError as e:
-        # Not in Flask application context, fallback to env var
-        logger.debug(f"[CONFIG] Not in Flask context for {key}: {e}")
-    # Fallback to environment variable or default
-    env_value = os.getenv(key)
-    if env_value is not None:
-        logger.debug(f"[CONFIG] Using {key} from environment")
-        return env_value
-    if default is not None:
-        logger.debug(f"[CONFIG] Using {key} default: {default}")
-        return default
-    logger.debug(f"[CONFIG] No value found for {key}, returning None")
-    return None
+        if current_app and hasattr(current_app, 'config') and key in current_app.config:
+            val = current_app.config[key]
+            if val is not None:
+                logger.debug("Setting %s resolved from app.config", key)
+                return str(val)
+    except RuntimeError:
+        pass  # outside Flask request context
+
+    # 2) Try environment
+    env_val = os.getenv(key)
+    if env_val is not None:
+        logger.debug("Setting %s resolved from environment", key)
+        return env_val
+
+    # 3) Fallback
+    if fallback is not None:
+        logger.debug("Setting %s using fallback: %s", key, fallback)
+    return fallback
 
 
-def _get_provider_config() -> Dict[str, Any]:
+def _build_provider_config() -> Dict[str, Any]:
+    """Assemble provider-specific configuration dict.
+
+    Returns a dict always containing ``'format'`` plus format-specific keys:
+        - gemini / openai / volcengine / anthropic → ``api_key``, ``api_base``
+        - vertex          → ``project_id``, ``location``
+        - lazyllm         → ``text_source``, ``image_source``
+
+    Raises ``ValueError`` when required settings are missing.
     """
-    Get provider configuration based on AI_PROVIDER_FORMAT
+    fmt = get_provider_format()
+    cfg: Dict[str, Any] = {'format': fmt}
 
-    Priority for API keys/base URLs:
-        1. Flask app.config (from database settings)
-        2. Environment variables
-        3. Default values
+    if fmt == 'openai':
+        cfg['api_key'] = _resolve_setting('OPENAI_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
+        cfg['api_base'] = _resolve_setting('OPENAI_API_BASE', 'https://api.inferera.com/v1')
 
-    Returns:
-        Dict with keys:
-            - format: "gemini", "openai", or "vertex"
-            - For gemini/openai: api_key, api_base
-            - For vertex: project_id, location
-
-    Raises:
-        ValueError: If required configuration is not set
-    """
-    provider_format = get_provider_format()
-
-    if provider_format == 'vertex':
-        # Vertex AI format
-        project_id = _get_config_value('VERTEX_PROJECT_ID')
-        location = _get_config_value('VERTEX_LOCATION', 'us-central1')
-
-        if not project_id:
+        if not cfg['api_key']:
             raise ValueError(
-                "VERTEX_PROJECT_ID is required when AI_PROVIDER_FORMAT=vertex. "
-                "Also ensure GOOGLE_APPLICATION_CREDENTIALS is set to point to your service account JSON file."
+                "OPENAI_API_KEY or GOOGLE_API_KEY (from database settings or environment) "
+                "is required when AI_PROVIDER_FORMAT=openai."
             )
+        logger.info("Provider config — format: openai, api_base: %s", cfg['api_base'])
 
-        logger.info(f"Provider config - format: vertex, project: {project_id}, location: {location}")
+    elif fmt == 'volcengine':
+        cfg['api_key'] = (
+            _resolve_setting('VOLCENGINE_API_KEY')
+            or _resolve_setting('ARK_API_KEY')
+        )
+        cfg['api_base'] = _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3')
 
-        return {
-            'format': 'vertex',
-            'project_id': project_id,
-            'location': location,
-        }
-
-    elif provider_format == 'openai':
-        api_key = _get_config_value('OPENAI_API_KEY') or _get_config_value('GOOGLE_API_KEY')
-        api_base = _get_config_value('OPENAI_API_BASE', 'https://aihubmix.com/v1')
-
-        if not api_key:
+        if not cfg['api_key']:
             raise ValueError(
-                "OPENAI_API_KEY or GOOGLE_API_KEY (from database settings or environment) is required when AI_PROVIDER_FORMAT=openai."
+                "VOLCENGINE_API_KEY or ARK_API_KEY (from database settings or environment) "
+                "is required when AI_PROVIDER_FORMAT=volcengine."
             )
+        logger.info("Provider config — format: volcengine, api_base: %s", cfg['api_base'])
 
-        logger.info(f"Provider config - format: openai, api_base: {api_base}")
+    elif fmt == 'anthropic':
+        cfg['api_key'] = _resolve_setting('ANTHROPIC_API_KEY') or _resolve_setting('OPENAI_API_KEY')
+        cfg['api_base'] = _resolve_setting('ANTHROPIC_API_BASE', 'https://api.anthropic.com')
+        if not cfg['api_key']:
+            raise ValueError(
+                "ANTHROPIC_API_KEY (from database settings or environment) "
+                "is required when AI_PROVIDER_FORMAT=anthropic."
+            )
+        logger.info("Provider config — format: anthropic, api_base: %s", cfg['api_base'])
 
-        return {
-            'format': 'openai',
-            'api_key': api_key,
-            'api_base': api_base,
-        }
+    elif fmt == 'vertex':
+        cfg['project_id'] = _resolve_setting('VERTEX_PROJECT_ID')
+        cfg['location'] = _resolve_setting('VERTEX_LOCATION', 'us-central1')
+        if not cfg['project_id']:
+            raise ValueError(
+                "VERTEX_PROJECT_ID must be set when AI_PROVIDER_FORMAT=vertex. "
+                "Make sure GOOGLE_APPLICATION_CREDENTIALS points to a valid service-account JSON."
+            )
+        logger.info("Provider config — format: vertex, project: %s, location: %s",
+                     cfg['project_id'], cfg['location'])
+
+    elif fmt == 'codex':
+        oauth_token = _get_openai_oauth_token()
+        if not oauth_token:
+            raise ValueError(
+                "OpenAI OAuth is not connected. Please log in with your OpenAI account in Settings."
+            )
+        cfg['api_key'] = oauth_token
+        cfg['api_base'] = 'https://chatgpt.com/backend-api/codex'
+        logger.info("Provider config — format: codex (OAuth), api_base: %s", cfg['api_base'])
+
+    elif fmt in LAZYLLM_VENDORS or fmt == 'lazyllm':
+        # fmt is a specific vendor (e.g., 'doubao') or generic 'lazyllm' (legacy)
+        vendor = fmt if fmt in LAZYLLM_VENDORS else None
+        cfg['format'] = 'lazyllm'
+        cfg['text_source'] = _resolve_setting('TEXT_MODEL_SOURCE') or vendor or 'deepseek'
+        cfg['image_source'] = _resolve_setting('IMAGE_MODEL_SOURCE') or vendor or 'doubao'
+        logger.info("Provider config — format: lazyllm, vendor: %s, text_source: %s, image_source: %s",
+                     vendor, cfg['text_source'], cfg['image_source'])
 
     else:
-        # Gemini format (default)
-        api_key = _get_config_value('GOOGLE_API_KEY')
-        api_base = _get_config_value('GOOGLE_API_BASE')
+        # gemini (default) or unknown format
+        if fmt != 'gemini':
+            logger.warning("Unknown provider format '%s', falling back to gemini", fmt)
+            cfg['format'] = 'gemini'
+        cfg['api_key'] = _resolve_setting('GOOGLE_API_KEY')
+        cfg['api_base'] = _resolve_setting('GOOGLE_API_BASE')
+        if not cfg['api_key']:
+            raise ValueError("GOOGLE_API_KEY (from database settings or environment) is required")
+        logger.info("Provider config — format: gemini, api_base: %s, api_key: %s",
+                     cfg['api_base'], '***' if cfg['api_key'] else 'None')
 
-        logger.info(f"Provider config - format: gemini, api_base: {api_base}, api_key: {'***' if api_key else 'None'}")
+    return cfg
+
+
+def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
+    """
+    Get provider config for a specific model type, with fallback to global config.
+
+    Each model type (text, image, image_caption) can independently choose its provider
+    via {MODEL_TYPE}_MODEL_SOURCE. The source can be:
+      - 'gemini': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to global
+      - 'openai': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to global
+      - 'volcengine': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to Volcengine/global
+      - 'anthropic': uses {MODEL_TYPE}_API_KEY + {MODEL_TYPE}_API_BASE, fallback to global
+      - A LazyLLM vendor name (qwen, doubao, etc.): uses lazyllm with that vendor
+      - None/empty: falls back to global _build_provider_config()
+
+    Args:
+        model_type: "text", "image", or "image_caption"
+
+    Returns:
+        Dict with provider config (same format as _build_provider_config)
+    """
+    prefix = model_type.upper()  # TEXT, IMAGE, IMAGE_CAPTION
+    source_key = f'{prefix}_MODEL_SOURCE'
+    source = _resolve_setting(source_key)
+
+    if not source:
+        # No per-model override, use global config
+        return _build_provider_config()
+
+    source_lower = source.lower()
+
+    if source_lower == 'gemini':
+        api_key = _resolve_setting(f'{prefix}_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
+        api_base = _resolve_setting(f'{prefix}_API_BASE') or _resolve_setting('GOOGLE_API_BASE')
+        if not api_key:
+            raise ValueError(
+                f"API key is required for {model_type} model with Gemini provider. "
+                f"Set {prefix}_API_KEY or GOOGLE_API_KEY."
+            )
+        logger.info("Per-model config — %s: gemini, api_base: %s", model_type, api_base)
+        return {'format': 'gemini', 'api_key': api_key, 'api_base': api_base}
+
+    elif source_lower == 'openai':
+        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+                   or _resolve_setting('OPENAI_API_KEY')
+                   or _resolve_setting('GOOGLE_API_KEY'))
+        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+                    or _resolve_setting('OPENAI_API_BASE', 'https://api.inferera.com/v1'))
 
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY (from database settings or environment) is required")
+            raise ValueError(
+                f"API key is required for {model_type} model with OpenAI provider. "
+                f"Set {prefix}_API_KEY or OPENAI_API_KEY."
+            )
+        logger.info("Per-model config — %s: openai, api_base: %s", model_type, api_base)
+        return {'format': 'openai', 'api_key': api_key, 'api_base': api_base}
 
-        return {
-            'format': 'gemini',
-            'api_key': api_key,
-            'api_base': api_base,
-        }
+    elif source_lower == 'volcengine':
+        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+                   or _resolve_setting('VOLCENGINE_API_KEY')
+                   or _resolve_setting('ARK_API_KEY'))
+        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+                    or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3'))
+
+        if not api_key:
+            raise ValueError(
+                f"API key is required for {model_type} model with Volcengine AgentPlans provider. "
+                f"Set {prefix}_API_KEY, VOLCENGINE_API_KEY, or ARK_API_KEY."
+            )
+        logger.info("Per-model config — %s: volcengine, api_base: %s", model_type, api_base)
+        return {'format': 'volcengine', 'api_key': api_key, 'api_base': api_base}
+
+    elif source_lower == 'codex':
+        oauth_token = _get_openai_oauth_token()
+        if not oauth_token:
+            raise ValueError(
+                f"OpenAI OAuth is not connected. Please log in with your OpenAI account "
+                f"in Settings to use Codex as the provider for {model_type}."
+            )
+        logger.info("Per-model config — %s: codex (OAuth)", model_type)
+        return {'format': 'codex', 'api_key': oauth_token}
+
+    elif source_lower == 'anthropic':
+        api_key = (_resolve_setting(f'{prefix}_API_KEY')
+                   or _resolve_setting('ANTHROPIC_API_KEY')
+                   or _resolve_setting('OPENAI_API_KEY'))
+        api_base = (_resolve_setting(f'{prefix}_API_BASE')
+                    or _resolve_setting('ANTHROPIC_API_BASE', 'https://api.anthropic.com'))
+        if not api_key:
+            raise ValueError(
+                f"API key is required for {model_type} model with Anthropic provider. "
+                f"Set {prefix}_API_KEY or ANTHROPIC_API_KEY."
+            )
+        logger.info("Per-model config — %s: anthropic, api_base: %s", model_type, api_base)
+        return {'format': 'anthropic', 'api_key': api_key, 'api_base': api_base}
+
+    else:
+        # Assume it's a LazyLLM vendor name
+        logger.info("Per-model config — %s: lazyllm, source: %s", model_type, source_lower)
+        return {'format': 'lazyllm', 'source': source_lower}
+
+
+def get_image_caption_provider_config() -> Dict[str, Any]:
+    """Get provider config specifically for image caption model."""
+    return _get_model_type_provider_config('image_caption')
+
+
+def get_caption_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
+    """Factory: return a TextProvider for image caption (multimodal) tasks."""
+    config = _get_model_type_provider_config('image_caption')
+    fmt = config['format']
+
+    if fmt == 'anthropic':
+        logger.info("Caption provider: Anthropic, model=%s", model)
+        return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+    elif fmt in ('openai', 'volcengine'):
+        logger.info("Caption provider: %s, model=%s", fmt, model)
+        return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+    elif fmt == 'vertex':
+        logger.info("Caption provider: Vertex AI, model=%s", model)
+        return GenAITextProvider(
+            model=model, vertexai=True,
+            project_id=config['project_id'], location=config['location'],
+        )
+    elif fmt == 'lazyllm':
+        source = config.get('source') or config.get('text_source', 'doubao')
+        logger.info("Caption provider: LazyLLM, model=%s, source=%s", model, source)
+        return LazyLLMTextProvider(source=source, model=model)
+    elif fmt == 'codex':
+        logger.info("Caption provider: Codex (OAuth), model=%s", model)
+        return CodexTextProvider(api_key=config['api_key'], model=model)
+    else:
+        logger.info("Caption provider: Gemini, model=%s", model)
+        return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
 def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
-    """
-    Factory function to get text generation provider based on configuration
+    """Factory: return the appropriate text-generation provider."""
+    config = _get_model_type_provider_config('text')
+    fmt = config['format']
 
-    Args:
-        model: Model name to use
-
-    Returns:
-        TextProvider instance (GenAITextProvider or OpenAITextProvider)
-    """
-    config = _get_provider_config()
-    provider_format = config['format']
-
-    if provider_format == 'openai':
-        logger.info(f"Using OpenAI format for text generation, model: {model}")
+    if fmt == 'anthropic':
+        logger.info("Text provider: Anthropic, model=%s", model)
+        return AnthropicTextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+    elif fmt in ('openai', 'volcengine'):
+        logger.info("Text provider: %s, model=%s", fmt, model)
         return OpenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif provider_format == 'vertex':
-        logger.info(f"Using Vertex AI for text generation, model: {model}, project: {config['project_id']}")
+    elif fmt == 'vertex':
+        logger.info("Text provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
         return GenAITextProvider(
-            model=model,
-            vertexai=True,
-            project_id=config['project_id'],
-            location=config['location']
+            model=model, vertexai=True,
+            project_id=config['project_id'], location=config['location'],
         )
+    elif fmt == 'lazyllm':
+        source = config.get('source') or config.get('text_source', 'deepseek')
+        logger.info("Text provider: LazyLLM, model=%s, source=%s", model, source)
+        return LazyLLMTextProvider(source=source, model=model)
+    elif fmt == 'codex':
+        logger.info("Text provider: Codex (OAuth), model=%s", model)
+        return CodexTextProvider(api_key=config['api_key'], model=model)
     else:
-        logger.info(f"Using Gemini format for text generation, model: {model}")
+        # gemini (default)
+        logger.info("Text provider: Gemini, model=%s", model)
         return GenAITextProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
 
 
 def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
+    """Factory: return the appropriate image-generation provider.
+
+    Note: OpenAI format does NOT support 4K resolution — only 1K is available.
+    Use Gemini or Vertex AI for higher resolution output.
+
+    Note: Anthropic format doesn't natively support image generation yet.
+    This is intended for use with third-party Anthropic-compatible endpoints.
     """
-    Factory function to get image generation provider based on configuration
+    config = _get_model_type_provider_config('image')
+    fmt = config['format']
 
-    Args:
-        model: Model name to use
-
-    Returns:
-        ImageProvider instance (GenAIImageProvider or OpenAIImageProvider)
-
-    Note:
-        OpenAI format does NOT support 4K resolution, only 1K is available.
-        If you need higher resolution images, use Gemini or Vertex AI format.
-    """
-    config = _get_provider_config()
-    provider_format = config['format']
-
-    if provider_format == 'openai':
-        logger.info(f"Using OpenAI format for image generation, model: {model}")
-        logger.warning("OpenAI format only supports 1K resolution, 4K is not available")
-        return OpenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
-    elif provider_format == 'vertex':
-        logger.info(f"Using Vertex AI for image generation, model: {model}, project: {config['project_id']}")
+    if fmt == 'anthropic':
+        logger.info("Image provider: Anthropic, model=%s", model)
+        logger.warning("Anthropic format is for compatible endpoints only (official API doesn't support image generation)")
+        return AnthropicImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)
+    elif fmt in ('openai', 'volcengine'):
+        logger.info("Image provider: %s, model=%s", fmt, model)
+        logger.warning("%s format may not support all resolution settings; provider limits apply", fmt)
+        image_api_protocol = _resolve_setting('OPENAI_IMAGE_API_PROTOCOL') or 'auto'
+        return OpenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model, image_api_protocol=image_api_protocol)
+    elif fmt == 'vertex':
+        logger.info("Image provider: Vertex AI, model=%s, project=%s", model, config['project_id'])
         return GenAIImageProvider(
-            model=model,
-            vertexai=True,
-            project_id=config['project_id'],
-            location=config['location']
+            model=model, vertexai=True,
+            project_id=config['project_id'], location=config['location'],
         )
+    elif fmt == 'lazyllm':
+        source = config.get('source') or config.get('image_source', 'doubao')
+        logger.info("Image provider: LazyLLM, model=%s, source=%s", model, source)
+        return LazyLLMImageProvider(source=source, model=model)
+    elif fmt == 'codex':
+        resolution = _resolve_setting('DEFAULT_RESOLUTION', '2K') or '2K'
+        logger.info("Image provider: Codex (OAuth), model=%s, resolution=%s", model, resolution)
+        return CodexImageProvider(api_key=config['api_key'], model=model, resolution=resolution)
     else:
-        logger.info(f"Using Gemini format for image generation, model: {model}")
+        # gemini (default)
+        logger.info("Image provider: Gemini, model=%s", model)
         return GenAIImageProvider(api_key=config['api_key'], api_base=config['api_base'], model=model)

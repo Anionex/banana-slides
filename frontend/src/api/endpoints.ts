@@ -1,6 +1,20 @@
-import { apiClient } from './client';
-import type { Project, Task, ApiResponse, CreateProjectRequest, Page } from '@/types';
+import { apiClient, getBaseURL } from './client';
+import type { Project, Task, ApiResponse, CreateProjectRequest, Page, Material, TemplateAsset } from '@/types';
 import type { Settings } from '../types/index';
+
+export type { Material };
+
+// ===== 访问口令 API =====
+
+export const checkAccessCode = async (): Promise<ApiResponse<{ enabled: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ enabled: boolean }>>('/api/access-code/check');
+  return response.data;
+};
+
+export const verifyAccessCode = async (code: string): Promise<ApiResponse<{ valid: boolean }>> => {
+  const response = await apiClient.post<ApiResponse<{ valid: boolean }>>('/api/access-code/verify', { code });
+  return response.data;
+};
 
 // ===== 项目相关 API =====
 
@@ -8,12 +22,14 @@ import type { Settings } from '../types/index';
  * 创建项目
  */
 export const createProject = async (data: CreateProjectRequest): Promise<ApiResponse<Project>> => {
-  // 根据输入类型确定 creation_type
-  let creation_type = 'idea';
-  if (data.description_text) {
-    creation_type = 'descriptions';
-  } else if (data.outline_text) {
-    creation_type = 'outline';
+  // 优先使用显式传入的 creation_type（空白项目没有任何文本内容，无法推断）
+  let creation_type: string = data.creation_type ?? 'idea';
+  if (!data.creation_type) {
+    if (data.description_text) {
+      creation_type = 'descriptions';
+    } else if (data.outline_text) {
+      creation_type = 'outline';
+    }
   }
 
   const response = await apiClient.post<ApiResponse<Project>>('/api/projects', {
@@ -22,6 +38,7 @@ export const createProject = async (data: CreateProjectRequest): Promise<ApiResp
     outline_text: data.outline_text,
     description_text: data.description_text,
     template_style: data.template_style,
+    image_aspect_ratio: data.image_aspect_ratio,
   });
   return response.data;
 };
@@ -114,6 +131,88 @@ export const generateOutline = async (projectId: string, language?: OutputLangua
   return response.data;
 };
 
+/**
+ * 流式生成大纲（SSE）
+ * 返回 ReadableStream，每个 page 事件包含一个页面对象
+ */
+export interface OutlineStreamPage {
+  index: number;
+  title: string;
+  points: string[];
+  part?: string;
+  description_text?: string;
+  extra_fields?: Record<string, string>;
+}
+
+export interface OutlineStreamCallbacks {
+  onPage: (page: OutlineStreamPage) => void;
+  onDone: (data: { total: number; pages: Page[] }) => void;
+  onError: (message: string) => void;
+}
+
+export const generateOutlineStream = async (
+  projectId: string,
+  callbacks: OutlineStreamCallbacks,
+  language?: OutputLanguage,
+  lockPageCount?: boolean,
+): Promise<void> => {
+  const lang = language || await getStoredOutputLanguage();
+  const accessCode = localStorage.getItem('banana-access-code');
+
+  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/outline/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+    },
+    body: JSON.stringify({ language: lang, lock_page_count: lockPageCount }),
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError(`HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    const { value } = readResult;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE events from buffer
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let eventType = '';
+      let eventData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) eventData = line.slice(6);
+      }
+
+      if (!eventType || !eventData) continue;
+
+      try {
+        const parsed = JSON.parse(eventData);
+        if (eventType === 'page') callbacks.onPage(parsed);
+        else if (eventType === 'done') callbacks.onDone(parsed);
+        else if (eventType === 'error') callbacks.onError(parsed.message);
+      } catch {
+        // Skip malformed events
+      }
+    }
+
+    readResult = await reader.read();
+  }
+};
+
 // ===== 描述生成 =====
 
 /**
@@ -135,17 +234,95 @@ export const generateFromDescription = async (projectId: string, descriptionText
 };
 
 /**
- * 批量生成描述
+ * 批量生成描述（并行模式）
  * @param projectId 项目ID
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
  */
-export const generateDescriptions = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+export const generateDescriptions = async (projectId: string, language?: OutputLanguage, detailLevel?: string): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/descriptions`,
-    { language: lang }
+    { language: lang, detail_level: detailLevel || 'default' }
   );
   return response.data;
+};
+
+/**
+ * 流式生成描述（SSE）
+ */
+export interface DescriptionStreamEvent {
+  page_index: number;
+  page_id: string;
+  text: string;
+  extra_fields?: Record<string, string>;
+}
+
+export interface DescriptionStreamCallbacks {
+  onDescription: (data: DescriptionStreamEvent) => void;
+  onDone: (data: { total: number; pages: Page[] }) => void;
+  onError: (message: string) => void;
+}
+
+export const generateDescriptionsStream = async (
+  projectId: string,
+  callbacks: DescriptionStreamCallbacks,
+  language?: OutputLanguage,
+  detailLevel?: string,
+): Promise<void> => {
+  const lang = language || await getStoredOutputLanguage();
+  const accessCode = localStorage.getItem('banana-access-code');
+
+  const response = await fetch(`${getBaseURL()}/api/projects/${projectId}/generate/descriptions/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
+    },
+    body: JSON.stringify({ language: lang, detail_level: detailLevel || 'default' }),
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError(`HTTP ${response.status}`);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    const { value } = readResult;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let eventType = '';
+      let eventData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7);
+        else if (line.startsWith('data: ')) eventData = line.slice(6);
+      }
+
+      if (!eventType || !eventData) continue;
+
+      try {
+        const parsed = JSON.parse(eventData);
+        if (eventType === 'description') callbacks.onDescription(parsed);
+        else if (eventType === 'done') callbacks.onDone(parsed);
+        else if (eventType === 'error') callbacks.onError(parsed.message);
+      } catch {
+        // Skip malformed events
+      }
+    }
+
+    readResult = await reader.read();
+  }
 };
 
 /**
@@ -155,12 +332,30 @@ export const generatePageDescription = async (
   projectId: string,
   pageId: string,
   forceRegenerate: boolean = false,
-  language?: OutputLanguage
+  language?: OutputLanguage,
+  detailLevel?: string
 ): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/pages/${pageId}/generate/description`,
-    { force_regenerate: forceRegenerate , language: lang}
+    { force_regenerate: forceRegenerate, language: lang, detail_level: detailLevel || 'default' }
+  );
+  return response.data;
+};
+
+/**
+ * 重新生成 PPT 翻新项目的单页（重新解析原 PDF 并提取内容）
+ */
+export const regenerateRenovationPage = async (
+  projectId: string,
+  pageId: string,
+  keepLayout: boolean = false,
+  language?: OutputLanguage
+): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse>(
+    `/api/projects/${projectId}/pages/${pageId}/regenerate-renovation`,
+    { keep_layout: keepLayout, language: lang }
   );
   return response.data;
 };
@@ -221,12 +416,13 @@ export const refineDescriptions = async (
  * 批量生成图片
  * @param projectId 项目ID
  * @param language 输出语言（可选，默认从 sessionStorage 获取）
+ * @param pageIds 可选的页面ID列表，如果不提供则生成所有页面
  */
-export const generateImages = async (projectId: string, language?: OutputLanguage): Promise<ApiResponse> => {
+export const generateImages = async (projectId: string, language?: OutputLanguage, pageIds?: string[]): Promise<ApiResponse> => {
   const lang = language || await getStoredOutputLanguage();
   const response = await apiClient.post<ApiResponse>(
     `/api/projects/${projectId}/generate/images`,
-    { language: lang }
+    { language: lang, page_ids: pageIds }
   );
   return response.data;
 };
@@ -394,6 +590,17 @@ export const addPage = async (projectId: string, data: Partial<Page>): Promise<A
   return response.data;
 };
 
+/**
+ * 批量添加页面
+ */
+export const addPages = async (projectId: string, pages: Partial<Page>[]): Promise<ApiResponse<Page[]>> => {
+  const response = await apiClient.post<ApiResponse<Page[]>>(
+    `/api/projects/${projectId}/pages/batch`,
+    { pages }
+  );
+  return response.data;
+};
+
 // ===== 任务查询 =====
 
 /**
@@ -404,44 +611,229 @@ export const getTaskStatus = async (projectId: string, taskId: string): Promise<
   return response.data;
 };
 
+// ===== 旁白 (Narration) =====
+
+/**
+ * 更新页面旁白文本
+ */
+export const updatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  narrationText: string
+): Promise<ApiResponse<Page>> => {
+  const response = await apiClient.put<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/narration`,
+    { narration_text: narrationText }
+  );
+  return response.data;
+};
+
+/**
+ * AI 生成单页旁白
+ */
+export const generatePageNarration = async (
+  projectId: string,
+  pageId: string,
+  language?: OutputLanguage
+): Promise<ApiResponse<Page>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<Page>>(
+    `/api/projects/${projectId}/pages/${pageId}/generate/narration`,
+    { language: lang }
+  );
+  return response.data;
+};
+
+/**
+ * 批量生成所有页面旁白
+ */
+export const generateAllNarrations = async (
+  projectId: string,
+  language?: OutputLanguage,
+  forceRegenerate?: boolean
+): Promise<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse<{ total: number; generated: number; skipped: number; failed: number; pages: Page[] }>>(
+    `/api/projects/${projectId}/generate/narrations`,
+    { language: lang, force_regenerate: forceRegenerate || false }
+  );
+  return response.data;
+};
+
 // ===== 导出 =====
 
 /**
+ * Helper function to build query string with page_ids
+ */
+const buildPageIdsQuery = (pageIds?: string[]): string => {
+  if (!pageIds || pageIds.length === 0) return '';
+  const params = new URLSearchParams();
+  params.set('page_ids', pageIds.join(','));
+  return `?${params.toString()}`;
+};
+
+const buildExportQuery = (params: Record<string, string | string[] | boolean | undefined>): string => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (Array.isArray(value)) {
+      if (value.length > 0) query.set(key, value.join(','));
+      return;
+    }
+    query.set(key, String(value));
+  });
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : '';
+};
+
+/**
  * 导出为PPTX
+ * @param projectId 项目ID
+ * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
+ * @param clientTaskId 可选的幂等任务ID，用于创建请求响应丢失后的恢复
  */
 export const exportPPTX = async (
-  projectId: string
+  projectId: string,
+  pageIds?: string[],
+  options?: {
+    transitionEnabled?: boolean;
+    transitionEffects?: string[];
+  }
 ): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const url = `/api/projects/${projectId}/export/pptx${buildExportQuery({
+    page_ids: pageIds,
+    transition_enabled: options?.transitionEnabled ? true : undefined,
+    transition_effects: options?.transitionEnabled ? options.transitionEffects : undefined,
+  })}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(`/api/projects/${projectId}/export/pptx`);
+  >(url);
   return response.data;
 };
 
 /**
  * 导出为PDF
+ * @param projectId 项目ID
+ * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
  */
 export const exportPDF = async (
-  projectId: string
+  projectId: string,
+  pageIds?: string[]
 ): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const url = `/api/projects/${projectId}/export/pdf${buildPageIdsQuery(pageIds)}`;
   const response = await apiClient.get<
     ApiResponse<{ download_url: string; download_url_absolute?: string }>
-  >(`/api/projects/${projectId}/export/pdf`);
+  >(url);
   return response.data;
 };
 
 /**
- * 导出为可编辑PPTX（异步）
- * 返回任务ID，需要通过getTaskStatus轮询获取进度和下载链接
+ * 导出为图片（单张直接下载，多张打包ZIP）
+ */
+export const exportImages = async (
+  projectId: string,
+  pageIds?: string[]
+): Promise<ApiResponse<{ download_url: string; download_url_absolute?: string }>> => {
+  const url = `/api/projects/${projectId}/export/images${buildPageIdsQuery(pageIds)}`;
+  const response = await apiClient.get<
+    ApiResponse<{ download_url: string; download_url_absolute?: string }>
+  >(url);
+  return response.data;
+};
+
+/**
+ * 导出为可编辑PPTX（异步任务）
+ * @param projectId 项目ID
+ * @param filename 可选的文件名
+ * @param pageIds 可选的页面ID列表，如果不提供则导出所有页面
  */
 export const exportEditablePPTX = async (
   projectId: string,
-  filename?: string
+  filename?: string,
+  pageIds?: string[],
+  clientTaskId?: string,
 ): Promise<ApiResponse<{ task_id: string }>> => {
   const response = await apiClient.post<
     ApiResponse<{ task_id: string }>
   >(`/api/projects/${projectId}/export/editable-pptx`, {
-    filename
+    filename,
+    page_ids: pageIds,
+    client_task_id: clientTaskId,
+  });
+  return response.data;
+};
+
+/**
+ * 列出项目已导出的文件
+ */
+export const listExports = async (
+  projectId: string,
+): Promise<ApiResponse<{ files: Array<{
+  filename: string;
+  type: string;
+  size: number;
+  modified_at: string;
+  download_url: string;
+}> }>> => {
+  const response = await apiClient.get(`/api/projects/${projectId}/exports`);
+  return response.data;
+};
+
+/**
+ * 删除项目已导出的文件
+ */
+export const deleteExport = async (
+  projectId: string,
+  filename: string,
+): Promise<ApiResponse<{ filename: string }>> => {
+  const response = await apiClient.delete(
+    `/api/projects/${projectId}/exports/${encodeURIComponent(filename)}`
+  );
+  return response.data;
+};
+
+/**
+ * 导出为讲解视频（异步任务）
+ * @param projectId 项目ID
+ * @param options 导出选项
+ */
+export const exportVideo = async (
+  projectId: string,
+  options?: {
+    filename?: string;
+    pageIds?: string[];
+    voice?: string;
+    rate?: string;
+    speed?: number;
+    language?: string;
+    generateNarration?: boolean;
+    enableKenBurns?: boolean;
+    includeNoImagePages?: boolean;
+    presentationTopic?: string;
+    narrationConfig?: {
+      speaker_persona?: string;
+      target_audience?: string;
+      speech_tone?: string;
+      presentation_topic?: string;
+      min_words?: number;
+      max_words?: number;
+    };
+  }
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<
+    ApiResponse<{ task_id: string }>
+  >(`/api/projects/${projectId}/export/video`, {
+    filename: options?.filename,
+    page_ids: options?.pageIds,
+    voice: options?.voice,
+    rate: options?.rate,
+    speed: options?.speed,
+    language: options?.language,
+    generate_narration: options?.generateNarration ?? true,
+    enable_ken_burns: options?.enableKenBurns ?? false,
+    include_no_image_pages: options?.includeNoImagePages ?? false,
+    presentation_topic: options?.presentationTopic,
+    narration_config: options?.narrationConfig,
   });
   return response.data;
 };
@@ -456,10 +848,14 @@ export const generateMaterialImage = async (
   projectId: string,
   prompt: string,
   refImage?: File | null,
-  extraImages?: File[]
+  extraImages?: File[],
+  aspectRatio?: string
 ): Promise<ApiResponse<{ task_id: string; status: string }>> => {
   const formData = new FormData();
   formData.append('prompt', prompt);
+  if (aspectRatio) {
+    formData.append('aspect_ratio', aspectRatio);
+  }
   if (refImage) {
     formData.append('ref_image', refImage);
   }
@@ -477,22 +873,68 @@ export const generateMaterialImage = async (
   return response.data;
 };
 
-/**
- * 素材信息接口
- */
-export interface Material {
-  id: string;
-  project_id?: string | null;
-  filename: string;
-  url: string;
-  relative_path: string;
-  created_at: string;
-  // 可选的附加信息：用于展示友好名称
-  prompt?: string;
-  original_filename?: string;
-  source_filename?: string;
-  name?: string;
+export type MaterialProcessOperation =
+  | 'generate'
+  | 'edit_full'
+  | 'region_edit'
+  | 'erase_region';
+
+export interface MaterialSelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  image_width: number;
+  image_height: number;
 }
+
+export interface ProcessMaterialOptions {
+  operation: MaterialProcessOperation;
+  prompt?: string;
+  sourceImage?: File | null;
+  refImage?: File | null;
+  extraImages?: File[];
+  aspectRatio?: string;
+  selection?: MaterialSelectionRect | null;
+  applyMode?: 'overlay_selection' | 'replace_full';
+}
+
+export const processMaterialImage = async (
+  projectId: string,
+  options: ProcessMaterialOptions
+): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const formData = new FormData();
+  formData.append('operation', options.operation);
+  if (options.prompt) {
+    formData.append('prompt', options.prompt);
+  }
+  if (options.aspectRatio) {
+    formData.append('aspect_ratio', options.aspectRatio);
+  }
+  if (options.applyMode) {
+    formData.append('apply_mode', options.applyMode);
+  }
+  if (options.selection) {
+    formData.append('selection', JSON.stringify(options.selection));
+  }
+  if (options.sourceImage) {
+    formData.append('source_image', options.sourceImage);
+  }
+  if (options.refImage) {
+    formData.append('ref_image', options.refImage);
+  }
+  if (options.extraImages && options.extraImages.length > 0) {
+    options.extraImages.forEach((file) => {
+      formData.append('extra_images', file);
+    });
+  }
+
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>(
+    `/api/projects/${projectId}/materials/process`,
+    formData
+  );
+  return response.data;
+};
 
 /**
  * 获取素材列表
@@ -531,8 +973,9 @@ export const listMaterials = async (
  */
 export const uploadMaterial = async (
   file: File,
-  projectId?: string | null
-): Promise<ApiResponse<Material>> => {
+  projectId?: string | null,
+  generateCaption?: boolean
+): Promise<ApiResponse<Material & { caption?: string }>> => {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -545,7 +988,11 @@ export const uploadMaterial = async (
     url = `/api/projects/${projectId}/materials/upload`;
   }
 
-  const response = await apiClient.post<ApiResponse<Material>>(url, formData);
+  if (generateCaption) {
+    url += (url.includes('?') ? '&' : '?') + 'generate_caption=true';
+  }
+
+  const response = await apiClient.post<ApiResponse<Material & { caption?: string }>>(url, formData);
   return response.data;
 };
 
@@ -555,6 +1002,47 @@ export const uploadMaterial = async (
 export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ id: string }>> => {
   const response = await apiClient.delete<ApiResponse<{ id: string }>>(`/api/materials/${materialId}`);
   return response.data;
+};
+
+/**
+ * Generate caption for an existing material
+ */
+export const getMaterialCaption = async (materialId: string): Promise<ApiResponse<{ caption: string }>> => {
+  const response = await apiClient.get<ApiResponse<{ caption: string }>>(`/api/materials/${materialId}/caption`);
+  return response.data;
+};
+
+/**
+ * Get material by URL and ensure it has a caption
+ */
+export const getMaterialByUrl = async (url: string): Promise<ApiResponse<Material>> => {
+  const response = await apiClient.get<ApiResponse<Material>>(`/api/materials/by-url`, { params: { url } });
+  return response.data;
+};
+
+/**
+ * Download selected materials bundled as a zip archive.
+ */
+export const downloadMaterialsZip = async (
+  materialIds: string[]
+): Promise<ApiResponse<{ download_url: string }>> => {
+  const { data: blob } = await apiClient.post<Blob>(
+    '/api/materials/download',
+    { material_ids: materialIds },
+    { responseType: 'blob' },
+  );
+
+  const href = URL.createObjectURL(blob);
+  const link = Object.assign(document.createElement('a'), {
+    href,
+    download: 'materials.zip',
+  });
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(href);
+
+  return { success: true, data: { download_url: '' } };
 };
 
 /**
@@ -579,6 +1067,7 @@ export interface UserTemplate {
   template_id: string;
   name?: string;
   template_image_url: string;
+  thumb_url?: string;  // Thumbnail URL for faster loading
   created_at?: string;
   updated_at?: string;
 }
@@ -618,6 +1107,38 @@ export const listUserTemplates = async (): Promise<ApiResponse<{ templates: User
  */
 export const deleteUserTemplate = async (templateId: string): Promise<ApiResponse> => {
   const response = await apiClient.delete<ApiResponse>(`/api/user-templates/${templateId}`);
+  return response.data;
+};
+
+// ===== 参考文件相关 API =====
+
+export interface UserStyleTemplate {
+  id: string;
+  name: string;
+  description: string;
+  color?: string;
+  created_at?: string;
+}
+
+export const createUserStyleTemplate = async (
+  data: { name: string; description: string; color?: string }
+): Promise<ApiResponse<UserStyleTemplate>> => {
+  const response = await apiClient.post<ApiResponse<UserStyleTemplate>>(
+    '/api/user-style-templates',
+    data
+  );
+  return response.data;
+};
+
+export const listUserStyleTemplates = async (): Promise<ApiResponse<{ templates: UserStyleTemplate[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ templates: UserStyleTemplate[] }>>(
+    '/api/user-style-templates'
+  );
+  return response.data;
+};
+
+export const deleteUserStyleTemplate = async (id: string): Promise<ApiResponse> => {
+  const response = await apiClient.delete<ApiResponse>(`/api/user-style-templates/${id}`);
   return response.data;
 };
 
@@ -771,7 +1292,7 @@ export const getDefaultOutputLanguage = async (): Promise<ApiResponse<{ language
 export const getStoredOutputLanguage = async (): Promise<OutputLanguage> => {
   try {
     const response = await apiClient.get<ApiResponse<{ language: OutputLanguage }>>('/api/output-language');
-    return response.data.data.language;
+    return response.data.data?.language || 'zh';
   } catch (error) {
     console.warn('Failed to load output language from settings, using default', error);
     return 'zh';
@@ -786,13 +1307,24 @@ export const getSettings = async (): Promise<ApiResponse<Settings>> => {
   return response.data;
 };
 
+export const getElevenLabsVoices = async (): Promise<ApiResponse<{ voices: { id: string; name: string; category: string; languages?: string[]; accent?: string | null }[] }>> => {
+  const response = await apiClient.get('/api/settings/elevenlabs-voices');
+  return response.data;
+};
+
 /**
  * 更新系统设置
  */
 export const updateSettings = async (
-  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'created_at' | 'updated_at'>> & { 
+  data: Partial<Omit<Settings, 'id' | 'api_key_length' | 'mineru_token_length' | 'baidu_api_key_length' | 'elevenlabs_api_key_length' | 'created_at' | 'updated_at'>> & {
     api_key?: string;
     mineru_token?: string;
+    baidu_api_key?: string;
+    elevenlabs_api_key?: string;
+    text_api_key?: string;
+    image_api_key?: string;
+    image_caption_api_key?: string;
+    lazyllm_api_keys?: Record<string, string>;
   }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);
@@ -804,5 +1336,405 @@ export const updateSettings = async (
  */
 export const resetSettings = async (): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.post<ApiResponse<Settings>>('/api/settings/reset');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: get authorization URL
+ */
+export const getOpenAIOAuthUrl = async (): Promise<ApiResponse<{ auth_url: string; callback_server_available?: boolean }>> => {
+  const response = await apiClient.get<ApiResponse<{ auth_url: string; callback_server_available?: boolean }>>('/api/settings/openai-oauth/authorize');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: disconnect
+ */
+export const disconnectOpenAIOAuth = async (): Promise<ApiResponse<{ message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ message: string }>>('/api/settings/openai-oauth/disconnect');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: get connection status
+ */
+export const getOpenAIOAuthStatus = async (): Promise<ApiResponse<{ connected: boolean; account_id: string | null }>> => {
+  const response = await apiClient.get<ApiResponse<{ connected: boolean; account_id: string | null }>>('/api/settings/openai-oauth/status');
+  return response.data;
+};
+
+/**
+ * OpenAI OAuth: list available models
+ */
+export const getOpenAIOAuthModels = async (): Promise<ApiResponse<{ models: string[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ models: string[] }>>('/api/settings/openai-oauth/models');
+  return response.data;
+};
+
+/**
+ * 手动提交 OAuth 回调 URL（端口 1455 不可用时的兜底）
+ */
+export const submitOAuthManualCallback = async (callbackUrl: string): Promise<ApiResponse<{ message: string; account_id: string | null }>> => {
+  const response = await apiClient.post<ApiResponse<{ message: string; account_id: string | null }>>('/api/settings/openai-oauth/manual-callback', { callback_url: callbackUrl });
+  return response.data;
+};
+
+/**
+ * 验证 API key 是否可用
+ */
+export const verifyApiKey = async (): Promise<ApiResponse<{ available: boolean; message: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ available: boolean; message: string }>>('/api/settings/verify');
+  return response.data;
+};
+
+/**
+ * 可选的测试设置类型
+ */
+export interface TestSettingsOverride {
+  api_key?: string;
+  api_base_url?: string;
+  text_model?: string;
+  image_model?: string;
+  image_caption_model?: string;
+  image_caption_model_source?: string;
+  mineru_api_base?: string;
+  mineru_token?: string;
+  baidu_api_key?: string;
+  ai_provider_format?: string;
+  image_resolution?: string;
+  enable_text_reasoning?: boolean;
+  text_thinking_budget?: number;
+  enable_image_reasoning?: boolean;
+  image_thinking_budget?: number;
+}
+
+/**
+ * 测试百度 OCR 服务（异步）
+ * @param settings 可选的设置覆盖（未保存的设置）
+ * @returns 返回任务ID，需要通过 getTestStatus 轮询结果
+ */
+export const testBaiduOcr = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>('/api/settings/tests/baidu-ocr', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试文本生成模型（异步）
+ * @param settings 可选的设置覆盖（未保存的设置）
+ * @returns 返回任务ID，需要通过 getTestStatus 轮询结果
+ */
+export const testTextModel = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>('/api/settings/tests/text-model', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试图片识别模型（异步）
+ * @param settings 可选的设置覆盖（未保存的设置）
+ * @returns 返回任务ID，需要通过 getTestStatus 轮询结果
+ */
+export const testCaptionModel = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>('/api/settings/tests/caption-model', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试百度图像修复（异步）
+ * @param settings 可选的设置覆盖（未保存的设置）
+ * @returns 返回任务ID，需要通过 getTestStatus 轮询结果
+ */
+export const testBaiduInpaint = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>('/api/settings/tests/baidu-inpaint', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试图像生成模型（异步）
+ * @param settings 可选的设置覆盖（未保存的设置）
+ * @returns 返回任务ID，需要通过 getTestStatus 轮询结果
+ */
+export const testImageModel = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>('/api/settings/tests/image-model', settings || {});
+  return response.data;
+};
+
+/**
+ * 测试 MinerU PDF 解析（异步）
+ * @param settings 可选的设置覆盖（未保存的设置）
+ * @returns 返回任务ID，需要通过 getTestStatus 轮询结果
+ */
+export const testMineruPdf = async (settings?: TestSettingsOverride): Promise<ApiResponse<{ task_id: string; status: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string; status: string }>>('/api/settings/tests/mineru-pdf', settings || {});
+  return response.data;
+};
+
+/**
+ * 查询测试任务状态
+ * @param taskId 任务ID
+ * @returns 任务状态信息
+ */
+export const getTestStatus = async (taskId: string): Promise<ApiResponse<{
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  result?: any;
+  error?: string;
+  message?: string;
+  openai_oauth_disconnected?: boolean;
+}>> => {
+  const response = await apiClient.get<ApiResponse<any>>(`/api/settings/tests/${taskId}/status`);
+  return response.data;
+};
+
+export interface UpdateCheckInfo {
+  status: 'up_to_date' | 'update_available' | 'unknown';
+  update_available: boolean;
+  message: string;
+  repository: string;
+  current: {
+    tag?: string;
+    commit_sha?: string;
+    short_sha?: string;
+    is_docker: boolean;
+  };
+  latest: null | {
+    tag: string;
+    sha?: string;
+    last_updated: string;
+    image: string;
+  };
+}
+
+export const checkForUpdates = async (): Promise<ApiResponse<UpdateCheckInfo>> => {
+  const response = await apiClient.get<ApiResponse<UpdateCheckInfo>>('/api/settings/check-update');
+  return response.data;
+};
+
+
+// ===== PPT 翻新相关 API =====
+
+/**
+ * 创建 PPT 翻新项目
+ * 上传 PDF/PPTX 文件，后端异步解析内容并填充大纲+描述
+ */
+export const createPptRenovationProject = async (
+  file: File,
+  options?: {
+    keepLayout?: boolean;
+    templateStyle?: string;
+    language?: string;
+  }
+): Promise<ApiResponse<{ project_id: string; task_id: string; page_count: number }>> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (options?.keepLayout) {
+    formData.append('keep_layout', 'true');
+  }
+  if (options?.templateStyle) {
+    formData.append('template_style', options.templateStyle);
+  }
+  if (options?.language) {
+    formData.append('language', options.language);
+  }
+
+  const response = await apiClient.post<ApiResponse<{ project_id: string; task_id: string; page_count: number }>>(
+    '/api/projects/renovation',
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 从图片提取风格描述（通用，不绑定项目）
+ */
+export const extractStyleFromImage = async (
+  imageFile: File
+): Promise<ApiResponse<{ style_description: string }>> => {
+  const formData = new FormData();
+  formData.append('image', imageFile);
+
+  const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
+    '/api/extract-style',
+    formData
+  );
+  return response.data;
+};
+
+// ===== 每页模板（per-page template）API =====
+
+/**
+ * 列出项目模板库
+ */
+export const listTemplateAssets = async (
+  projectId: string
+): Promise<ApiResponse<{ assets: TemplateAsset[] }>> => {
+  const response = await apiClient.get<ApiResponse<{ assets: TemplateAsset[] }>>(
+    `/api/projects/${projectId}/template-assets`
+  );
+  return response.data;
+};
+
+/**
+ * 上传单张模板图片（异步触发解析）
+ * @param opts.bindToPageId 上传后自动绑定到该页（PRD §10.3）
+ */
+export const uploadTemplateAsset = async (
+  projectId: string,
+  image: File,
+  opts?: { userLabel?: string; bindToPageId?: string }
+): Promise<ApiResponse<{ asset: TemplateAsset; analyze_task_id: string }>> => {
+  const formData = new FormData();
+  formData.append('image', image);
+  if (opts?.userLabel) formData.append('user_label', opts.userLabel);
+  const query = opts?.bindToPageId
+    ? `?bind_to_page=${encodeURIComponent(opts.bindToPageId)}`
+    : '';
+  const response = await apiClient.post<
+    ApiResponse<{ asset: TemplateAsset; analyze_task_id: string }>
+  >(`/api/projects/${projectId}/template-assets${query}`, formData);
+  return response.data;
+};
+
+/**
+ * 上传 PDF 拆页（异步，返回 task_id 供轮询）
+ */
+export const uploadTemplatePdf = async (
+  projectId: string,
+  pdf: File
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const formData = new FormData();
+  formData.append('pdf', pdf);
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/template-assets/upload-pdf`,
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 编辑模板资产（用户标记 / 修正解析）
+ */
+export const updateTemplateAsset = async (
+  projectId: string,
+  assetId: string,
+  patch: {
+    user_label?: string | null;
+    analysis_json?: TemplateAsset['analysis_json'];
+    analysis_notes?: string | null;
+    sort_order?: number;
+  }
+): Promise<ApiResponse<{ asset: TemplateAsset }>> => {
+  const response = await apiClient.patch<ApiResponse<{ asset: TemplateAsset }>>(
+    `/api/projects/${projectId}/template-assets/${assetId}`,
+    patch
+  );
+  return response.data;
+};
+
+/**
+ * 删除模板资产（引用页字段被后端置空）
+ */
+export const deleteTemplateAsset = async (
+  projectId: string,
+  assetId: string
+): Promise<ApiResponse<{ deleted: boolean; cleared_page_ids: string[] }>> => {
+  const response = await apiClient.delete<
+    ApiResponse<{ deleted: boolean; cleared_page_ids: string[] }>
+  >(`/api/projects/${projectId}/template-assets/${assetId}`);
+  return response.data;
+};
+
+/**
+ * 手动重新解析模板资产
+ */
+export const reanalyzeTemplateAsset = async (
+  projectId: string,
+  assetId: string
+): Promise<ApiResponse<{ analyze_task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ analyze_task_id: string }>>(
+    `/api/projects/${projectId}/template-assets/${assetId}/reanalyze`
+  );
+  return response.data;
+};
+
+/**
+ * 单页设置模板（asset / 文字风格 / 清空）
+ */
+export const updatePageTemplate = async (
+  projectId: string,
+  pageId: string,
+  patch: {
+    template_asset_id?: string | null;
+    template_style_text?: string | null;
+    selection_source?: 'manual' | 'auto' | 'batch_apply';
+  }
+): Promise<ApiResponse<{ page: Page }>> => {
+  const response = await apiClient.patch<ApiResponse<{ page: Page }>>(
+    `/api/projects/${projectId}/pages/${pageId}/template`,
+    patch
+  );
+  return response.data;
+};
+
+/**
+ * 切换模板模式（JSON 路径，决策 7）
+ * 单→多：{ mode: 'multi' }
+ * 多→单：{ mode: 'single', unified_asset_id? , unified_style_text? }
+ */
+export const switchTemplateMode = async (
+  projectId: string,
+  payload:
+    | { mode: 'multi' }
+    | { mode: 'single'; unified_asset_id?: string | null; unified_style_text?: string | null }
+): Promise<ApiResponse<{ project: Project }>> => {
+  const response = await apiClient.patch<ApiResponse<{ project: Project }>>(
+    `/api/projects/${projectId}/template-mode`,
+    payload
+  );
+  return response.data;
+};
+
+/**
+ * 多→单 + 新上传统一模板（multipart 路径）
+ */
+export const switchTemplateModeSingleWithUpload = async (
+  projectId: string,
+  image: File,
+  unifiedStyleText?: string
+): Promise<ApiResponse<{ asset: TemplateAsset; project: Project; analyze_task_id: string }>> => {
+  const formData = new FormData();
+  formData.append('image', image);
+  if (unifiedStyleText) formData.append('unified_style_text', unifiedStyleText);
+  const response = await apiClient.post<
+    ApiResponse<{ asset: TemplateAsset; project: Project; analyze_task_id: string }>
+  >(`/api/projects/${projectId}/template-mode/single-with-upload`, formData);
+  return response.data;
+};
+
+/**
+ * 全项目自动匹配（决策 5）
+ */
+export const autoMatchAllTemplates = async (
+  projectId: string,
+  opts?: { overwrite_existing?: boolean; preserve_non_empty?: boolean }
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/template-assets/auto-match`,
+    {
+      overwrite_existing: opts?.overwrite_existing ?? true,
+      preserve_non_empty: opts?.preserve_non_empty ?? false,
+    }
+  );
+  return response.data;
+};
+
+/**
+ * 单页自动匹配（PRD §9）
+ */
+export const autoMatchPageTemplate = async (
+  projectId: string,
+  pageId: string
+): Promise<ApiResponse<{ task_id: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ task_id: string }>>(
+    `/api/projects/${projectId}/pages/${pageId}/template/auto-match`
+  );
   return response.data;
 };

@@ -4,18 +4,78 @@ Path utilities for handling MinerU file paths and prefix matching
 import os
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
 
-def convert_mineru_path_to_local(mineru_path: str, project_root: Optional[Path] = None) -> Optional[Path]:
+def _is_path_within(path: Path, root: Path) -> bool:
+    try:
+        real_root = os.path.realpath(root)
+        return os.path.commonpath([os.path.realpath(path), real_root]) == real_root
+    except ValueError:
+        return False
+
+
+def _default_project_root() -> Path:
+    current_file = Path(__file__).resolve()
+    backend_dir = current_file.parent.parent
+    return backend_dir.parent
+
+
+def _resolve_mineru_root(
+    project_root: Optional[Path] = None,
+    upload_folder: Optional[Union[os.PathLike, str]] = None
+) -> Path:
+    if upload_folder is not None:
+        upload_root = Path(upload_folder)
+    elif project_root is not None:
+        upload_root = project_root / 'uploads'
+    else:
+        upload_root = None
+        try:
+            from flask import current_app, has_app_context
+            if has_app_context() and hasattr(current_app, 'config'):
+                configured_upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                if (
+                    isinstance(configured_upload_folder, (str, os.PathLike))
+                    and str(configured_upload_folder)
+                ):
+                    upload_root = Path(configured_upload_folder)
+        except (RuntimeError, ImportError, TypeError, AttributeError):
+            pass
+
+        if upload_root is None:
+            env_upload_folder = os.getenv('UPLOAD_FOLDER')
+            if env_upload_folder:
+                upload_root = Path(env_upload_folder)
+
+        if upload_root is None:
+            upload_root = _default_project_root() / 'uploads'
+
+    if not upload_root.is_absolute():
+        root = project_root or _default_project_root()
+        upload_root = (root / upload_root).resolve()
+        try:
+            upload_root.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("Relative UPLOAD_FOLDER must stay within the project root") from exc
+
+    return upload_root.resolve() / 'mineru_files'
+
+
+def convert_mineru_path_to_local(
+    mineru_path: str,
+    project_root: Optional[Path] = None,
+    upload_folder: Optional[Union[os.PathLike, str]] = None,
+) -> Optional[Path]:
     """
     将 /files/mineru/{extract_id}/{rel_path} 格式的路径转换为本地文件系统路径
     
     Args:
         mineru_path: MinerU URL 路径，格式为 /files/mineru/{extract_id}/{rel_path}
         project_root: 项目根目录路径（如果为 None，则自动计算）
+        upload_folder: 上传根目录；传入时优先于 project_root/uploads
         
     Returns:
         本地文件系统路径（Path 对象），如果转换失败则返回 None
@@ -25,25 +85,25 @@ def convert_mineru_path_to_local(mineru_path: str, project_root: Optional[Path] 
             return None
         
         # Remove '/files/mineru/' prefix
-        rel_path = mineru_path.replace('/files/mineru/', '')
-        
-        # Get project root if not provided
-        if project_root is None:
-            # Navigate to project root (assuming this file is in backend/utils/)
-            current_file = Path(__file__).resolve()
-            backend_dir = current_file.parent.parent
-            project_root = backend_dir.parent
-        
-        # Construct full path: {project_root}/uploads/mineru_files/{rel_path}
-        local_path = project_root / 'uploads' / 'mineru_files' / rel_path
-        
+        rel_path = mineru_path[len('/files/mineru/'):].lstrip('/\\')
+
+        mineru_root = _resolve_mineru_root(project_root, upload_folder)
+        local_path = Path(os.path.realpath(mineru_root / rel_path))
+        if not _is_path_within(local_path, mineru_root):
+            logger.warning(f"Path traversal attempt blocked for MinerU path: {mineru_path}")
+            return None
+
         return local_path
     except Exception as e:
         logger.warning(f"Failed to convert MinerU path to local: {mineru_path}, error: {str(e)}")
         return None
 
 
-def find_mineru_file_with_prefix(mineru_path: str, project_root: Optional[Path] = None) -> Optional[Path]:
+def find_mineru_file_with_prefix(
+    mineru_path: str,
+    project_root: Optional[Path] = None,
+    upload_folder: Optional[Union[os.PathLike, str]] = None,
+) -> Optional[Path]:
     """
     查找 MinerU 文件，支持前缀匹配
     
@@ -54,22 +114,29 @@ def find_mineru_file_with_prefix(mineru_path: str, project_root: Optional[Path] 
     Args:
         mineru_path: MinerU URL 路径，格式为 /files/mineru/{extract_id}/{rel_path}
         project_root: 项目根目录路径（如果为 None，则自动计算）
+        upload_folder: 上传根目录；传入时优先于 project_root/uploads
         
     Returns:
         找到的文件路径（Path 对象），如果未找到则返回 None
     """
     # First try direct path conversion
-    local_path = convert_mineru_path_to_local(mineru_path, project_root)
+    local_path = convert_mineru_path_to_local(mineru_path, project_root, upload_folder)
     
     if local_path is None:
         return None
+    mineru_root = _resolve_mineru_root(project_root, upload_folder)
     
     # Direct file matching
     if local_path.exists() and local_path.is_file():
+        if not _is_path_within(local_path, mineru_root):
+            return None
         return local_path
     
     # Try prefix match using the generic function
-    return find_file_with_prefix(local_path)
+    matched_path = find_file_with_prefix(local_path)
+    if matched_path and _is_path_within(matched_path, mineru_root):
+        return Path(os.path.realpath(matched_path))
+    return None
 
 
 def find_file_with_prefix(file_path: Path) -> Optional[Path]:
@@ -109,4 +176,3 @@ def find_file_with_prefix(file_path: Path) -> Optional[Path]:
                 logger.warning(f"Failed to list directory {dirpath}: {str(e)}")
     
     return None
-

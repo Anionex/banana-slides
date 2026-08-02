@@ -1,4 +1,5 @@
 export { Button } from './Button';
+export { IconButton } from './IconButton';
 export { Input } from './Input';
 export { Textarea } from './Textarea';
 export { Card } from './Card';
@@ -9,17 +10,26 @@ export { StatusBadge } from './StatusBadge';
 export { ContextualStatusBadge } from './ContextualStatusBadge';
 export { ConfirmDialog, useConfirm } from './ConfirmDialog';
 export { MaterialGeneratorModal } from './MaterialGeneratorModal';
+export { MaterialCenterModal } from './MaterialCenterModal';
 export { ReferenceFileCard } from './ReferenceFileCard';
 export { ReferenceFileSelector } from './ReferenceFileSelector';
 export { FilePreviewModal } from './FilePreviewModal';
 export { ReferenceFileList } from './ReferenceFileList';
 export { MaterialSelector } from './MaterialSelector';
-export { GithubLink } from './GithubLink';
+export { Footer } from './Footer';
+export { GithubBadge } from './GithubBadge';
+export { GithubRepoCard } from './GithubRepoCard';
 export { Markdown } from './Markdown';
 export { AiRefineInput } from './AiRefineInput';
 export { ShimmerOverlay } from './ShimmerOverlay';
 export { ImagePreviewList } from './ImagePreviewList';
+export { ImportMarkdownModal } from './ImportMarkdownModal';
 export { ProjectResourcesList } from './ProjectResourcesList';
+export { HelpModal } from './HelpModal';
 export { ProjectSettingsModal } from './ProjectSettingsModal';
-
-
+export { ExportTasksPanel } from './ExportTasksPanel';
+export { AccessCodeGuard } from './AccessCodeGuard';
+export { TextStyleSelector } from './TextStyleSelector';
+export { Pagination } from './Pagination';
+export { DesktopTitleBar } from './DesktopTitleBar';
+export { UpdateChecker } from './UpdateChecker';
