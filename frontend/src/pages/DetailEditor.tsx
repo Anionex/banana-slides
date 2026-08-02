@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Sparkles, Download, Upload, ChevronDown, Settings2, X, Plus, HelpCircle, ImageIcon, Layers } from 'lucide-react';
+import logoUrl from '@/assets/logo.png';
 import { useT } from '@/hooks/useT';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import PresetCapsules from '@/components/shared/PresetCapsules';
@@ -24,6 +25,7 @@ const detailI18n = {
       generating: "生成中...", page: "第 {{num}} 页", titleLabel: "标题",
       description: "描述", batchGenerate: "批量生成描述", export: "导出描述", exportFull: "导出大纲和描述", import: "导入", importExport: "导入/导出",
       pagesCompleted: "页已完成", noPages: "还没有页面",
+      toMultiTemplate: "转为每页独立模板", toTemplateSetup: "前往模板配置", switchFailed: "切换模板模式失败",
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
@@ -46,12 +48,14 @@ const detailI18n = {
       descRequirements: "描述生成要求",
       descRequirementsPlaceholder: "例如：每页描述控制在100字以内、多使用数据和案例、强调关键指标...",
       importModalTitle: "导入 Markdown",
-      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md`、`.markdown` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
       importPasteLabel: "粘贴内容",
       importPastePlaceholder: "把描述或大纲+描述的 Markdown 粘贴到这里...",
       importUploadLabel: "上传文件",
       importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
-      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importUploadFormatsHint: "支持 `.md`、`.markdown`、`.txt`",
+      importPreviewReady: "将追加 {{count}} 页到当前项目",
+      importPreviewEmpty: "未识别到可导入页面，请确认包含 `## 第 N 页: 标题` 或 `## Page N: Title`",
       importConfirm: "导入到项目",
       importCancel: "取消",
       messages: {
@@ -64,6 +68,7 @@ const detailI18n = {
         exportSuccess: "导出成功", importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         importContentEmpty: "请先粘贴内容或上传文件",
         importReadFailed: "读取文件失败，请重试",
+        importInvalidFileType: "只能导入 .md、.markdown 或 .txt 文件",
         loadingProject: "加载项目中..."
       }
     }
@@ -75,6 +80,7 @@ const detailI18n = {
       generating: "Generating...", page: "Page {{num}}", titleLabel: "Title",
       description: "Description", batchGenerate: "Batch Generate Descriptions", export: "Export Descriptions", exportFull: "Export Outline & Descriptions", import: "Import", importExport: "Import/Export",
       pagesCompleted: "pages completed", noPages: "No pages yet",
+      toMultiTemplate: "Switch to per-page templates", toTemplateSetup: "Go to template setup", switchFailed: "Failed to switch template mode",
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
@@ -97,12 +103,14 @@ const detailI18n = {
       descRequirements: "Generation Requirements",
       descRequirementsPlaceholder: "e.g., Keep each page under 100 words, use data and examples, highlight key metrics...",
       importModalTitle: "Import Markdown",
-      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importModalDesc: "Paste Markdown directly, or upload a `.md`, `.markdown`, or `.txt` file. Imported pages will be appended to the current project.",
       importPasteLabel: "Paste Content",
       importPastePlaceholder: "Paste description or outline+description Markdown here...",
       importUploadLabel: "Upload File",
       importUploadHint: "Click to choose a file, or drag a Markdown file here",
-      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importUploadFormatsHint: "Supports `.md`, `.markdown`, `.txt`",
+      importPreviewReady: "{{count}} page(s) will be appended to this project",
+      importPreviewEmpty: "No importable pages detected. Use `## Page N: Title` or `## 第 N 页: 标题`.",
       importConfirm: "Import into Project",
       importCancel: "Cancel",
       messages: {
@@ -116,6 +124,7 @@ const detailI18n = {
         exportSuccess: "Export successful", importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         importContentEmpty: "Paste some content or upload a file first",
         importReadFailed: "Failed to read file, please try again",
+        importInvalidFileType: "Only .md, .markdown, or .txt files can be imported",
         loadingProject: "Loading project..."
       }
     }
@@ -124,7 +133,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList, MaterialSelector, ImportMarkdownModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions, getTaskStatus, addPage, updateProject, getSettings, updateSettings } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus, addPages, updateProject, getSettings, updateSettings } from '@/api/endpoints';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
 
 // 详细程度图标 — 暂时屏蔽，效果不够理想
@@ -135,7 +144,10 @@ import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtil
 // };
 // const DetailLevelIcon: React.FC<{ level: string }> = ({ level }) => ( ... );
 
-const PRESET_EXTRA_FIELDS = new Set(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
+// 与后端 Settings.DEFAULT_EXTRA_FIELDS / DEFAULT_IMAGE_PROMPT_FIELDS 保持一致
+const DEFAULT_EXTRA_FIELDS = ['配图与素材', '版式与重点', '演讲者备注'];
+const DEFAULT_IMAGE_PROMPT_FIELDS = ['配图与素材', '版式与重点'];
+const PRESET_EXTRA_FIELDS = new Set(DEFAULT_EXTRA_FIELDS);
 
 // 可拖拽排序的额外字段胶囊
 const SortableFieldPill: React.FC<{
@@ -212,6 +224,7 @@ export const DetailEditor: React.FC = () => {
     generateDescriptions,
     generatePageDescription,
     regenerateRenovationPage,
+    switchTemplateMode,
   } = useProjectStore();
   const { show, ToastContainer } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -221,14 +234,19 @@ export const DetailEditor: React.FC = () => {
   const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [detailLevel, setDetailLevel] = useState<string>('default');
   const [generationMode, setGenerationMode] = useState<'streaming' | 'parallel'>('streaming');
-  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局', '演讲者备注']);
-  const [imagePromptFields, setImagePromptFields] = useState<string[]>(['视觉元素', '视觉焦点', '排版布局']);
+  const [extraFieldNames, setExtraFieldNames] = useState<string[]>(DEFAULT_EXTRA_FIELDS);
+  const [imagePromptFields, setImagePromptFields] = useState<string[]>(DEFAULT_IMAGE_PROMPT_FIELDS);
   // 可选字段池（localStorage 持久化，包含所有已知字段名）
   const [availableFields, setAvailableFields] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('banana-available-extra-fields');
-      return stored ? JSON.parse(stored) : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
-    } catch { return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']; }
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // 缓存结构损坏时回落到默认值，否则后续 map/indexOf 会崩
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return DEFAULT_EXTRA_FIELDS;
+    } catch { return DEFAULT_EXTRA_FIELDS; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -250,7 +268,7 @@ export const DetailEditor: React.FC = () => {
         const storedLevel = sessionStorage.getItem('banana-detail-level');
         if (storedLevel) setDetailLevel(storedLevel);
         setGenerationMode(s.description_generation_mode || 'streaming');
-        const activeFields = s.description_extra_fields || ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'];
+        const activeFields = s.description_extra_fields || DEFAULT_EXTRA_FIELDS;
         setExtraFieldNames(activeFields);
         if (s.image_prompt_extra_fields) setImagePromptFields(s.image_prompt_extra_fields);
         // 合并活跃字段到可选池
@@ -311,10 +329,14 @@ export const DetailEditor: React.FC = () => {
   // 点击外部关闭下拉
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const element = target instanceof Element ? target : target.parentElement;
+      if (element?.closest('[role="dialog"]')) return;
+      if (settingsRef.current && !settingsRef.current.contains(target)) {
         setSettingsOpen(false);
       }
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
         setFileMenuOpen(false);
       }
     };
@@ -510,6 +532,16 @@ export const DetailEditor: React.FC = () => {
     handleRegeneratePageRef.current(pageId);
   }, []);
 
+  const handleSwitchToMulti = async () => {
+    if (!projectId) return;
+    try {
+      await switchTemplateMode(projectId, { mode: 'multi' });
+      navigate(`/project/${projectId}/template-setup`);
+    } catch {
+      show({ message: t('detail.switchFailed'), type: 'error' });
+    }
+  };
+
   const handleAiRefineDescriptions = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
     
@@ -554,14 +586,14 @@ export const DetailEditor: React.FC = () => {
         throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
-        addPage(projectId, {
+      await addPages(projectId, parsed.map(({ title, points, text: desc, part, extra_fields }, i) => (
+        {
           outline_content: { title, points },
           description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
-        })
-      ));
+        }
+      )));
       await syncProject(projectId);
       show({ message: t('detail.messages.importSuccess'), type: 'success' });
     } catch (error) {
@@ -572,6 +604,10 @@ export const DetailEditor: React.FC = () => {
       throw error;
     }
   }, [currentProject, projectId, syncProject, show, t]);
+
+  const getImportPreviewCount = useCallback((markdown: string) => (
+    parseMarkdownPages(markdown).length
+  ), []);
 
   if (!currentProject) {
     return <Loading fullscreen message={t('detail.messages.loadingProject')} />;
@@ -606,7 +642,7 @@ export const DetailEditor: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <span className="text-xl md:text-2xl">🍌</span>
+              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
               <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
@@ -637,16 +673,39 @@ export const DetailEditor: React.FC = () => {
             >
               <span className="hidden lg:inline">{t('common.previous')}</span>
             </Button>
+            {currentProject.template_mode !== 'multi' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Layers size={16} className="md:w-[18px] md:h-[18px]" />}
+                onClick={handleSwitchToMulti}
+                disabled={isRenovationProcessing}
+                className="hidden md:inline-flex"
+              >
+                <span className="hidden lg:inline">{t('detail.toMultiTemplate')}</span>
+              </Button>
+            )}
+            {/* multi 模式下一步是模板配置（生成在预览页发生），文案与去向保持一致 */}
             <Button
               variant="primary"
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
-              onClick={() => navigate(`/project/${projectId}/preview`)}
+              onClick={() =>
+                navigate(
+                  currentProject.template_mode === 'multi'
+                    ? `/project/${projectId}/template-setup`
+                    : `/project/${projectId}/preview`
+                )
+              }
               disabled={!hasAllDescriptions || isRenovationProcessing}
               title={!hasAllDescriptions && !isRenovationProcessing ? t('detail.disabledNextTip', { count: missingDescCount }) : undefined}
               className="text-xs md:text-sm"
             >
-              <span className="hidden sm:inline">{t('detail.generateImages')}</span>
+              <span className="hidden sm:inline">
+                {currentProject.template_mode === 'multi'
+                  ? t('detail.toTemplateSetup')
+                  : t('detail.generateImages')}
+              </span>
             </Button>
           </div>
         </div>
@@ -773,7 +832,7 @@ export const DetailEditor: React.FC = () => {
                                     ? extraFieldNames.filter(f => f !== name)
                                     : [...extraFieldNames, name];
                                   setExtraFieldNames(next);
-                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : ['视觉元素', '视觉焦点', '排版布局', '演讲者备注'] });
+                                  saveSettingsDebounced({ description_extra_fields: next.length > 0 ? next : DEFAULT_EXTRA_FIELDS });
                                 }}
                                 inImagePrompt={imagePromptFields.includes(name)}
                                 imagePromptTooltip={imagePromptFields.includes(name) ? t('detail.imagePromptOn') : t('detail.imagePromptOff')}
@@ -1012,10 +1071,14 @@ export const DetailEditor: React.FC = () => {
         uploadLabel={t('detail.importUploadLabel')}
         uploadHint={t('detail.importUploadHint')}
         uploadFormatsHint={t('detail.importUploadFormatsHint')}
+        getPreviewCount={getImportPreviewCount}
+        previewReadyLabel={(count) => t('detail.importPreviewReady', { count })}
+        previewEmptyLabel={t('detail.importPreviewEmpty')}
         importButtonLabel={t('detail.importConfirm')}
         cancelButtonLabel={t('detail.importCancel')}
         emptyError={t('detail.messages.importContentEmpty')}
         readFileError={t('detail.messages.importReadFailed')}
+        invalidFileTypeError={t('detail.messages.importInvalidFileType')}
       />
       <MaterialSelector
         projectId={projectId}

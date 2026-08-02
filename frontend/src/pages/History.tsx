@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home, Trash2, Sun, Moon } from 'lucide-react';
+import { Home, Trash2, Sun, Moon, AlertTriangle, Inbox } from 'lucide-react';
+import logoUrl from '@/assets/logo.png';
 import { Button, Loading, Card, Pagination, useToast, useConfirm } from '@/components/shared';
 import { ProjectCard } from '@/components/history/ProjectCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -376,9 +377,7 @@ export const History: React.FC = () => {
       <nav className="h-14 md:h-16 bg-white dark:bg-background-secondary shadow-sm dark:shadow-background-primary/30 border-b border-gray-100 dark:border-border-primary">
         <div className="max-w-7xl mx-auto px-3 md:px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-banana-500 to-banana-600 rounded-lg flex items-center justify-center text-xl md:text-2xl">
-              🍌
-            </div>
+            <img src={logoUrl} alt="" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-lg" />
             <span className="text-lg md:text-xl font-bold text-gray-900 dark:text-foreground-primary">{t('home.title')}</span>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
@@ -453,7 +452,7 @@ export const History: React.FC = () => {
           </div>
         ) : error ? (
           <Card className="p-8 text-center">
-            <div className="text-6xl mb-4">⚠️</div>
+            <AlertTriangle size={48} className="mx-auto mb-4 text-amber-500" strokeWidth={1.5} />
             <p className="text-gray-600 dark:text-foreground-tertiary mb-4">{error}</p>
             <Button variant="primary" onClick={() => loadProjects(currentPage)}>
               {t('common.retry')}
@@ -461,7 +460,7 @@ export const History: React.FC = () => {
           </Card>
         ) : projects.length === 0 ? (
           <Card className="p-12 text-center">
-            <div className="text-6xl mb-4">📭</div>
+            <Inbox size={48} className="mx-auto mb-4 text-gray-400 dark:text-foreground-tertiary" strokeWidth={1.5} />
             <h3 className="text-xl font-semibold text-gray-700 dark:text-foreground-secondary mb-2">
               {t('history.noProjects')}
             </h3>

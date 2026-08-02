@@ -36,7 +36,7 @@ _LEADING_PAD_SECONDS = 0.8
 _TRAILING_PAD_SECONDS = 1.2
 
 # FFmpeg 连续多久没有任何输出才视为卡死
-_FFMPEG_IDLE_TIMEOUT_SECONDS = 120.0
+_FFMPEG_IDLE_TIMEOUT_SECONDS = 600.0
 
 # 进度输出频率（秒）
 _FFMPEG_PROGRESS_INTERVAL_SECONDS = 1.0
@@ -261,9 +261,18 @@ def check_ffmpeg_ass_filter_available(ffmpeg_path: str = 'ffmpeg') -> bool:
     return re.search(r'^\s*[TSC\.|]+\s+ass\s+', filter_listing, re.MULTILINE) is not None
 
 
+def _derive_ffprobe_path(ffmpeg_path: str) -> str:
+    """Return the sibling ffprobe executable without rewriting parent folders."""
+    return re.sub(
+        r'(?i)(^|[/\\])ffmpeg(?P<extension>\.exe)?$',
+        lambda match: f"{match.group(1)}ffprobe{match.group('extension') or ''}",
+        ffmpeg_path,
+    )
+
+
 def get_audio_duration(audio_path: str, ffmpeg_path: str = 'ffmpeg') -> float:
     """使用 ffprobe 获取音频时长（秒）"""
-    ffprobe_path = ffmpeg_path.replace('ffmpeg', 'ffprobe')
+    ffprobe_path = _derive_ffprobe_path(ffmpeg_path)
     cmd = [
         ffprobe_path, '-v', 'quiet',
         '-show_entries', 'format=duration',

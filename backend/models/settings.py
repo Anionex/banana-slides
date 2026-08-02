@@ -4,6 +4,10 @@ from datetime import datetime, timezone
 from . import db
 
 
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class Settings(db.Model):
     """
     Settings model - stores global application settings
@@ -32,11 +36,12 @@ class Settings(db.Model):
     text_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 文本推理思考负载 (1-8192)
     enable_image_reasoning = db.Column(db.Boolean, nullable=False, default=False)  # 图像生成是否开启推理
     image_thinking_budget = db.Column(db.Integer, nullable=False, default=1024)  # 图像推理思考负载 (1-8192)
+    enable_image_quality_control = db.Column(db.Boolean, nullable=False, default=False)  # 生成图片落库前是否开启视觉质检
     
     # 描述生成模式: streaming / parallel (NULL=默认 streaming)
     description_generation_mode = db.Column(db.String(20), nullable=True)
 
-    # 描述额外字段配置: JSON 数组如 ["排版布局", "视觉素材"] (NULL=默认 DEFAULT_EXTRA_FIELDS)
+    # 描述额外字段配置: JSON 数组如 ["配图与素材", "版式与重点"] (NULL=默认 DEFAULT_EXTRA_FIELDS)
     description_extra_fields = db.Column(db.Text, nullable=True)
     image_prompt_extra_fields = db.Column(db.Text, nullable=True)  # JSON array: 哪些额外字段传入文生图 prompt
 
@@ -79,8 +84,17 @@ class Settings(db.Model):
         v = getattr(self, attr)
         return v if v is not None else defaults.get(attr)
 
-    DEFAULT_EXTRA_FIELDS = ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
-    DEFAULT_IMAGE_PROMPT_FIELDS = ['视觉元素', '视觉焦点', '排版布局']  # 演讲者备注默认不传入图片生成
+    # 字段契约：页面文字（逐字上屏）/ 配图与素材（放什么）/ 版式与重点（怎么排）/ 演讲者备注（怎么讲）
+    DEFAULT_EXTRA_FIELDS = ['配图与素材', '版式与重点', '演讲者备注']
+    DEFAULT_IMAGE_PROMPT_FIELDS = ['配图与素材', '版式与重点']  # 演讲者备注默认不传入图片生成
+
+    # 旧字段名 → 新字段名。存量数据不迁移，靠此映射保持行为不回退
+    LEGACY_FIELD_EQUIV = {
+        '视觉元素': '配图与素材',
+        '视觉焦点': '版式与重点',
+        '排版布局': '版式与重点',
+        '排版建议': '版式与重点',
+    }
 
     def get_description_extra_fields(self):
         """Return parsed extra fields list."""
@@ -107,17 +121,47 @@ class Settings(db.Model):
     def to_dict(self):
         """Convert to dictionary, merging .env defaults for None fields."""
         d = Settings._get_config_defaults()
-        api_key = self._val('api_key', d)
+        effective_provider = self._val('ai_provider_format', d)
+        provider_defaults = Settings._get_api_defaults_for_provider(effective_provider)
+        api_base_url = self.api_base_url if self.api_base_url is not None else provider_defaults['api_base_url']
+        api_key = self.api_key if self.api_key is not None else provider_defaults['api_key']
         mineru_token = self._val('mineru_token', d)
         baidu_api_key = self._val('baidu_api_key', d)
         elevenlabs_api_key = self._val('elevenlabs_api_key', d)
-        text_api_key = self._val('text_api_key', d)
-        image_api_key = self._val('image_api_key', d)
-        image_caption_api_key = self._val('image_caption_api_key', d)
+        text_model_source = self._val('text_model_source', d)
+        image_model_source = self._val('image_model_source', d)
+        image_caption_model_source = self._val('image_caption_model_source', d)
+        text_api_defaults = Settings._get_api_defaults_for_provider(text_model_source, 'TEXT')
+        image_api_defaults = Settings._get_api_defaults_for_provider(image_model_source, 'IMAGE')
+        image_caption_api_defaults = Settings._get_api_defaults_for_provider(
+            image_caption_model_source, 'IMAGE_CAPTION'
+        )
+        text_api_key = self.text_api_key if self.text_api_key is not None else text_api_defaults['api_key']
+        image_api_key = self.image_api_key if self.image_api_key is not None else image_api_defaults['api_key']
+        image_caption_api_key = (
+            self.image_caption_api_key
+            if self.image_caption_api_key is not None
+            else image_caption_api_defaults['api_key']
+        )
+        text_api_base_url = (
+            self.text_api_base_url
+            if self.text_api_base_url is not None
+            else text_api_defaults['api_base_url']
+        )
+        image_api_base_url = (
+            self.image_api_base_url
+            if self.image_api_base_url is not None
+            else image_api_defaults['api_base_url']
+        )
+        image_caption_api_base_url = (
+            self.image_caption_api_base_url
+            if self.image_caption_api_base_url is not None
+            else image_caption_api_defaults['api_base_url']
+        )
         return {
             'id': self.id,
-            'ai_provider_format': self._val('ai_provider_format', d),
-            'api_base_url': self._val('api_base_url', d),
+            'ai_provider_format': effective_provider,
+            'api_base_url': api_base_url,
             'api_key_length': len(api_key) if api_key else 0,
             'image_resolution': self._val('image_resolution', d),
             'image_aspect_ratio': self._val('image_aspect_ratio', d),
@@ -136,25 +180,64 @@ class Settings(db.Model):
             'text_thinking_budget': self.text_thinking_budget,
             'enable_image_reasoning': self.enable_image_reasoning,
             'image_thinking_budget': self.image_thinking_budget,
+            'enable_image_quality_control': self.enable_image_quality_control,
             'baidu_api_key_length': len(baidu_api_key) if baidu_api_key else 0,
-            'text_model_source': self._val('text_model_source', d),
-            'image_model_source': self._val('image_model_source', d),
-            'image_caption_model_source': self._val('image_caption_model_source', d),
+            'text_model_source': text_model_source,
+            'image_model_source': image_model_source,
+            'image_caption_model_source': image_caption_model_source,
             'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(self._val('lazyllm_api_keys', d)),
             'text_api_key_length': len(text_api_key) if text_api_key else 0,
-            'text_api_base_url': self._val('text_api_base_url', d),
+            'text_api_base_url': text_api_base_url,
             'image_api_key_length': len(image_api_key) if image_api_key else 0,
-            'image_api_base_url': self._val('image_api_base_url', d),
+            'image_api_base_url': image_api_base_url,
             'image_caption_api_key_length': len(image_caption_api_key) if image_caption_api_key else 0,
-            'image_caption_api_base_url': self._val('image_caption_api_base_url', d),
+            'image_caption_api_base_url': image_caption_api_base_url,
             'openai_image_api_protocol': self._val('openai_image_api_protocol', d) or 'auto',
             'elevenlabs_enabled': self.elevenlabs_enabled,
             'elevenlabs_api_key_length': len(elevenlabs_api_key) if elevenlabs_api_key else 0,
             'elevenlabs_voice_id': self.elevenlabs_voice_id or '',
-            'openai_oauth_connected': bool(self.openai_oauth_access_token),
-            'openai_oauth_account_id': self.openai_oauth_account_id,
+            'openai_oauth_connected': self.is_openai_oauth_connected(),
+            'openai_oauth_account_id': self.openai_oauth_account_id if self.is_openai_oauth_connected() else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    @staticmethod
+    def _get_api_defaults_for_provider(provider, prefix=None):
+        """Return API defaults for an explicit provider/source selection."""
+        from config import Config
+
+        provider = (provider or '').lower()
+        if not provider:
+            return {
+                'api_base_url': None,
+                'api_key': None,
+            }
+        specific_key = getattr(Config, f'{prefix}_API_KEY', None) if prefix else None
+        specific_base = getattr(Config, f'{prefix}_API_BASE', None) if prefix else None
+        if provider == 'gemini':
+            return {
+                'api_base_url': specific_base or Config.GOOGLE_API_BASE or None,
+                'api_key': specific_key or Config.GOOGLE_API_KEY or None,
+            }
+        if provider == 'openai':
+            return {
+                'api_base_url': specific_base or Config.OPENAI_API_BASE or None,
+                'api_key': specific_key or Config.OPENAI_API_KEY or None,
+            }
+        if provider == 'volcengine':
+            return {
+                'api_base_url': specific_base or Config.VOLCENGINE_API_BASE or None,
+                'api_key': specific_key or Config.VOLCENGINE_API_KEY or None,
+            }
+        if provider == 'lazyllm':
+            return {
+                'api_base_url': None,
+                'api_key': None,
+            }
+        return {
+            'api_base_url': None,
+            'api_key': None,
         }
 
     def _get_lazyllm_api_keys_info(self, raw=None):
@@ -182,12 +265,29 @@ class Settings(db.Model):
         if not self.openai_oauth_access_token:
             return None
         if self.openai_oauth_expires_at:
-            now = datetime.utcnow()
+            now = _utcnow_naive()
             if self.openai_oauth_expires_at < now:
                 if self.openai_oauth_refresh_token:
                     return self._refresh_openai_oauth()
                 return None
         return self.openai_oauth_access_token
+
+    def is_openai_oauth_connected(self):
+        """Return whether stored OpenAI OAuth credentials can still be presented as connected."""
+        if not self.openai_oauth_access_token:
+            return False
+        if self.openai_oauth_expires_at:
+            now = _utcnow_naive()
+            if self.openai_oauth_expires_at < now and not self.openai_oauth_refresh_token:
+                return False
+        return True
+
+    def clear_openai_oauth(self):
+        """Clear stored OpenAI OAuth credentials."""
+        self.openai_oauth_access_token = None
+        self.openai_oauth_refresh_token = None
+        self.openai_oauth_expires_at = None
+        self.openai_oauth_account_id = None
 
     def _refresh_openai_oauth(self):
         """Refresh the OpenAI OAuth token using the refresh token."""
@@ -210,9 +310,18 @@ class Settings(db.Model):
                 self.openai_oauth_refresh_token = data['refresh_token']
             expires_in = data.get('expires_in', 3600)
             from datetime import timedelta
-            self.openai_oauth_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            self.openai_oauth_expires_at = _utcnow_naive() + timedelta(seconds=expires_in)
             db.session.commit()
             return self.openai_oauth_access_token
+        except requests.exceptions.HTTPError as exc:
+            status_code = getattr(getattr(exc, 'response', None), 'status_code', None)
+            if status_code in (400, 401):
+                self.clear_openai_oauth()
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+            return None
         except Exception:
             return None
 
@@ -226,6 +335,9 @@ class Settings(db.Model):
         if provider == 'openai':
             api_base = Config.OPENAI_API_BASE or None
             api_key = Config.OPENAI_API_KEY or None
+        elif provider == 'volcengine':
+            api_base = Config.VOLCENGINE_API_BASE or None
+            api_key = Config.VOLCENGINE_API_KEY or None
         elif provider == 'lazyllm':
             api_base = None
             api_key = None

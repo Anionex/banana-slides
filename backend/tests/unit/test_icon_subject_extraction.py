@@ -168,6 +168,8 @@ class TestRmbgSegmentationProvider:
         assert result is None
 
     def test_extract_subject_downloads_model_when_missing(self, tmp_path):
+        from services.ai_providers.image.rmbg_segmentation_provider import _MODEL_URL
+
         model_path = tmp_path / "subdir" / "model.onnx"
         provider = self._new_provider(model_path)
 
@@ -191,6 +193,7 @@ class TestRmbgSegmentationProvider:
         assert model_path.exists()
         assert not model_path.with_suffix(model_path.suffix + ".part").exists()
         mock_get.assert_called_once()
+        assert mock_get.call_args.args[0] == _MODEL_URL
 
 
 class TestBBoxExpand:

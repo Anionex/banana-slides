@@ -165,6 +165,18 @@ body {
   }
 }
 
+/* 小菜单/浮层的材质化进场：从触发点缩放淡入，而不是硬闪出来 */
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* Markdown 内容样式 - 仅保留基础容器样式，具体样式由 Markdown.tsx 组件内的 Tailwind 类处理 */
 .markdown-content {
   line-height: 1.6;

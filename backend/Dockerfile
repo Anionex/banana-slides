@@ -3,6 +3,10 @@ ARG DOCKER_REGISTRY=
 ARG GHCR_REGISTRY=ghcr.io/
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
+ARG APP_BUILD_DATE=
 
 # 安装 uv（使用中间阶段避免 COPY --from 的变量展开问题）
 FROM ${GHCR_REGISTRY}astral-sh/uv:latest AS uv
@@ -14,6 +18,10 @@ FROM ${DOCKER_REGISTRY:-}python:3.10-slim
 # 重新声明ARG（FROM之后ARG作用域失效，需要重新声明）
 ARG APT_MIRROR=
 ARG PYPI_INDEX_URL=
+ARG APP_VERSION_TAG=
+ARG APP_COMMIT_SHA=
+ARG APP_COMMIT_SHORT_SHA=
+ARG APP_BUILD_DATE=
 
 # 设置工作目录
 WORKDIR /app
@@ -67,6 +75,11 @@ ENV PYTHONPATH=/app
 ENV FLASK_APP=backend/app.py
 # 容器内固定监听 5000；宿主机端口由 docker-compose 的 BACKEND_PORT 控制
 ENV IN_DOCKER=1
+ENV APP_VERSION_TAG=${APP_VERSION_TAG}
+ENV APP_COMMIT_SHA=${APP_COMMIT_SHA}
+ENV APP_COMMIT_SHORT_SHA=${APP_COMMIT_SHORT_SHA}
+ENV APP_BUILD_DATE=${APP_BUILD_DATE}
+ENV DOCKERHUB_REPOSITORY=banana-slides-backend
 
 # 暴露端口
 EXPOSE 5000
@@ -75,6 +88,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD ["sh", "-c", "curl -f http://localhost:5000/health || exit 1"]
 
-# 启动应用
-CMD ["sh", "-c", "uv run --directory backend alembic upgrade head && uv run --directory backend python app.py"]
-
+# 启动应用。直接使用构建阶段同步好的虚拟环境，避免预构建镜像启动时再次联网解析依赖。
+CMD ["sh", "-c", "cd /app/backend && /app/.venv/bin/alembic upgrade head && exec /app/.venv/bin/python app.py"]

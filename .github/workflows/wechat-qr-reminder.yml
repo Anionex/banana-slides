@@ -1,0 +1,94 @@
+name: WeChat QR Reminder
+
+on:
+  schedule:
+    # Every Sunday at 12:30 Asia/Shanghai. GitHub Actions cron uses UTC.
+    - cron: '30 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    name: Create reminder issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update reminder issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const assignee = 'Anionex';
+            const title = '提醒：更换微信群二维码';
+            const now = new Date();
+            const shanghaiDate = new Intl.DateTimeFormat('zh-CN', {
+              timeZone: 'Asia/Shanghai',
+              dateStyle: 'full',
+              timeStyle: 'short',
+            }).format(now);
+
+            const issueBody = [
+              `@${assignee} 该更换微信群二维码了。`,
+              '',
+              `提醒时间：${shanghaiDate}（北京时间）`,
+              '',
+              '这个 issue 由 GitHub Actions 每周日自动创建，用于触发 GitHub 通知。处理完后可以直接关闭。',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            try {
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: 'reminder',
+                color: 'fbca04',
+                description: 'Automated reminder issues',
+              });
+            } catch (error) {
+              if (error.status !== 422) {
+                throw error;
+              }
+            }
+
+            const existingIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              creator: 'github-actions[bot]',
+              labels: 'reminder',
+              per_page: 100,
+            });
+
+            const existingIssue = existingIssues.find((issue) => issue.title === title);
+
+            if (existingIssue) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existingIssue.number,
+                body: issueBody,
+              });
+              await github.rest.issues.addAssignees({
+                owner,
+                repo,
+                issue_number: existingIssue.number,
+                assignees: [assignee],
+              });
+              core.notice(`Updated existing reminder issue #${existingIssue.number}.`);
+              return;
+            }
+
+            const issue = await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body: issueBody,
+              labels: ['reminder'],
+              assignees: [assignee],
+            });
+
+            core.notice(`Created reminder issue #${issue.data.number}.`);

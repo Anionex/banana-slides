@@ -100,6 +100,53 @@ describe('DescriptionCard', () => {
     expect(screen.getByText('Test description content')).toBeInTheDocument()
   })
 
+  describe('字段契约 v2', () => {
+    const withFields = (extra_fields: Record<string, string>) => ({
+      ...defaultProps,
+      page: { ...mockPage, description_content: { text: '正文', extra_fields } } as Page,
+    })
+
+    it('renders the new orthogonal fields', () => {
+      render(<DescriptionCard {...withFields({ '配图与素材': '折线图', '版式与重点': '左文右图' })}
+        extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)
+
+      expect(screen.getByText('配图与素材')).toBeInTheDocument()
+      expect(screen.getByText('折线图')).toBeInTheDocument()
+      expect(screen.getByText('版式与重点')).toBeInTheDocument()
+      expect(screen.getByText('左文右图')).toBeInTheDocument()
+    })
+
+    // 存量数据不迁移：旧字段名必须照常展示，否则用户会以为内容丢了
+    it.each(['视觉元素', '视觉焦点', '排版布局', '排版建议'])(
+      'still renders legacy field %s stored on existing pages',
+      (legacyName) => {
+        render(<DescriptionCard {...withFields({ [legacyName]: '存量内容' })}
+          extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)
+
+        expect(screen.getByText(legacyName)).toBeInTheDocument()
+        expect(screen.getByText('存量内容')).toBeInTheDocument()
+      }
+    )
+
+    it('marks fields excluded from the image prompt', () => {
+      render(<DescriptionCard {...withFields({ '配图与素材': '折线图', '演讲者备注': '口头补充' })}
+        extraFieldNames={['配图与素材', '演讲者备注']}
+        imagePromptFields={['配图与素材', '版式与重点']} />)
+
+      // 演讲者备注不进生图，UI 需要标出来
+      expect(screen.getByText('descriptionCard.notInImagePrompt')).toBeInTheDocument()
+    })
+
+    it('keeps legacy fields editable in the edit dialog', () => {
+      render(<DescriptionCard {...withFields({ '排版布局': '居中大标题' })}
+        extraFieldNames={['配图与素材', '版式与重点', '演讲者备注']} />)
+
+      fireEvent.click(screen.getByText('common.edit'))
+
+      expect(screen.getByDisplayValue('居中大标题')).toBeInTheDocument()
+    })
+  })
+
   it('renders page number', () => {
     render(<DescriptionCard {...defaultProps} />)
     expect(screen.getByText('descriptionCard.page')).toBeInTheDocument()

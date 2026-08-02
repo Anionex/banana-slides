@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ImageIcon, RefreshCw, Upload, Sparkles, X } from 'lucide-react';
+import { ImageIcon, RefreshCw, Upload, Sparkles, X, Check } from 'lucide-react';
 import { Button, useToast, Modal } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { listMaterials, uploadMaterial, listProjects, deleteMaterial, type Material } from '@/api/endpoints';
@@ -395,8 +395,8 @@ export const MaterialSelector: React.FC<MaterialSelectorProps> = ({
                   </button>
                   {isSelected && (
                     <div className="absolute inset-0 bg-banana-500 bg-opacity-20 flex items-center justify-center">
-                      <div className="bg-banana-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                        ✓
+                      <div className="bg-banana-500 text-white rounded-full w-6 h-6 flex items-center justify-center">
+                        <Check size={14} strokeWidth={3} />
                       </div>
                     </div>
                   )}

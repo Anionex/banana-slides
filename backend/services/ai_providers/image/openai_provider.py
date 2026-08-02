@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 _GPT_IMAGE_MODELS = {'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'}
 _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
 _NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
+_MAX_GPT_IMAGE_INPUTS = 16
 
 # Aspect-ratio → size per model family.
 # DALL-E models only support fixed sizes; gpt-image-* uses dynamic calculation.
@@ -108,7 +109,7 @@ class OpenAIImageProvider(ImageProvider):
 
         Args:
             api_key: API key
-            api_base: API base URL (e.g., https://aihubmix.com/v1)
+            api_base: API base URL (e.g., https://api.inferera.com/v1)
             model: Model name to use
             image_api_protocol: 'auto' (detect by model name), 'images' (force images.generate), 'chat' (force chat.completions)
         """
@@ -289,16 +290,64 @@ class OpenAIImageProvider(ImageProvider):
 
         if ref_images and self.model.lower() != 'dall-e-3':
             # dall-e-3 does not support images.edit; all other native models do
-            # Resize ref image to match target size so the API doesn't reject mismatched dimensions
-            w, h = map(int, size.split('x'))
-            ref_img = ref_images[0]
-            if ref_img.size != (w, h):
-                ref_img = ref_img.resize((w, h), Image.LANCZOS)
-            image_bytes = self._pil_to_png_bytes(ref_img)
-            image_file = BytesIO(image_bytes)
-            image_file.name = 'image.png'
-            logger.debug("%s: images.edit, size=%s", self.model, size)
-            kwargs = dict(model=self.model, image=image_file, prompt=prompt, n=1, size=size)
+            model = self.model.lower()
+            if model == 'dall-e-2':
+                # DALL-E 2 accepts only one input image.
+                if len(ref_images) > 1:
+                    logger.warning(
+                        "%s accepts only one reference image; ignoring %d additional image(s)",
+                        self.model,
+                        len(ref_images) - 1,
+                    )
+                selected_ref_images = ref_images[:1]
+            else:
+                # GPT Image accepts multiple inputs. Also preserve all inputs for
+                # OpenAI-compatible custom models when the Images API is forced.
+                if model in _GPT_IMAGE_MODELS and len(ref_images) > _MAX_GPT_IMAGE_INPUTS:
+                    raise ValueError(
+                        f"{self.model} supports at most {_MAX_GPT_IMAGE_INPUTS} "
+                        f"reference images, got {len(ref_images)}"
+                    )
+                selected_ref_images = ref_images
+
+            # Resize reference images to match the target size so providers do not
+            # reject mismatched dimensions.
+            try:
+                size_parts = size.split('x') if isinstance(size, str) else ()
+                w, h = map(int, size_parts)
+                if w <= 0 or h <= 0:
+                    raise ValueError("Image edit dimensions must be positive")
+            except (TypeError, ValueError):
+                logger.warning(
+                    "%s resolved an invalid edit size %r; falling back to 1024x1024",
+                    self.model,
+                    size,
+                )
+                size = '1024x1024'
+                w, h = 1024, 1024
+            image_files = []
+            for index, ref_img in enumerate(selected_ref_images, start=1):
+                prepared_image = ref_img
+                if prepared_image.mode != 'RGBA':
+                    prepared_image = prepared_image.convert('RGBA')
+                if prepared_image.size != (w, h):
+                    prepared_image = prepared_image.resize((w, h), Image.LANCZOS)
+                image_file = BytesIO(self._pil_to_png_bytes(prepared_image))
+                image_file.name = (
+                    'image.png'
+                    if len(selected_ref_images) == 1
+                    else f'image_{index}.png'
+                )
+                image_files.append(image_file)
+
+            image_input = image_files[0] if len(image_files) == 1 else image_files
+            logger.info(
+                "%s: images.edit with %d reference image(s), size=%s",
+                self.model,
+                len(image_files),
+                size,
+            )
+            kwargs = dict(model=self.model, image=image_input, prompt=prompt, n=1, size=size)
             if quality:
                 kwargs['quality'] = quality
             if response_format:

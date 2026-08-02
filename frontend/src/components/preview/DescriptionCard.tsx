@@ -12,10 +12,10 @@ const descriptionCardI18n = {
   zh: {
     descriptionCard: {
       page: "第 {{num}} 页", regenerate: "重新生成",
-      descriptionTitle: "编辑页面描述", description: "描述",
+      descriptionTitle: "编辑页面描述", description: "页面文字",
       noDescription: "还没有生成描述",
       uploadingImage: "正在上传图片...",
-      descriptionPlaceholder: "输入页面描述, 可包含页面文字、素材、排版设计等信息，支持粘贴图片",
+      descriptionPlaceholder: "只写会渲染到页面上的文字（标题、要点、数据等），支持粘贴图片；配图与排版要求请写到下方对应字段",
       coverPage: "封面",
       coverPageTooltip: "第一页为封面页，默认保持简洁风格",
       notInImagePrompt: "不影响图片生成"
@@ -24,10 +24,10 @@ const descriptionCardI18n = {
   en: {
     descriptionCard: {
       page: "Page {{num}}", regenerate: "Regenerate",
-      descriptionTitle: "Edit Descriptions", description: "Description",
+      descriptionTitle: "Edit Descriptions", description: "Page Text",
       noDescription: "No description generated yet",
       uploadingImage: "Uploading image...",
-      descriptionPlaceholder: "Enter page description, can include page text, materials, layout design, etc., support pasting images",
+      descriptionPlaceholder: "Only the text to be rendered on the slide (title, points, data); put visuals and layout requirements in the fields below. Supports pasting images",
       coverPage: "Cover",
       coverPageTooltip: "This is the cover page, default to keep simple style",
       notInImagePrompt: "Not used in image generation"
@@ -202,7 +202,11 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
               {allFieldNames.map(name => {
                 const value = extraFields[name];
                 if (!value) return null;
-                const FIELD_ICONS: Record<string, typeof Tag> = { '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout, '演讲者备注': MessageSquare };
+                // 新字段 + 旧字段名（存量数据不迁移，仍需正常展示）
+                const FIELD_ICONS: Record<string, typeof Tag> = {
+                  '配图与素材': Image, '版式与重点': Layout, '演讲者备注': MessageSquare,
+                  '视觉元素': Image, '视觉焦点': Focus, '排版布局': Layout, '排版建议': Layout,
+                };
                 const FieldIcon = FIELD_ICONS[name] || Tag;
                 const notInImagePrompt = imagePromptFields && !imagePromptFields.includes(name);
                 return (

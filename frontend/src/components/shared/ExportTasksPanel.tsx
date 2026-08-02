@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings, Film, FileSpreadsheet, Image } from 'lucide-react';
+import { Download, X, Trash2, FileText, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, HelpCircle, Settings, Film, FileSpreadsheet, Image, RefreshCw, WifiOff } from 'lucide-react';
 import { useExportTasksStore, type ExportTask, type ExportTaskType } from '@/store/useExportTasksStore';
 import { useT } from '@/hooks/useT';
 import type { Page } from '@/types';
 import { Button } from './Button';
+import { useConfirm } from './ConfirmDialog';
 import { cn } from '@/utils';
 import * as api from '@/api/endpoints';
+import { triggerDownload } from '@/api/client';
 
 // Export 组件自包含翻译
 const exportI18n = {
@@ -20,7 +22,25 @@ const exportI18n = {
       moreItems: "... 还有 {{count}} 条", exportFailed: "导出失败", preparing: "准备中...",
       settingsTip: "可在「项目设置 → 导出设置」中调整配置或开启「返回半成品」选项",
       codexReconnectTip: "如果是 Codex 登录过期或连接中断，也可以前往设置重新登录 OpenAI 账号后再试",
+      monitoringInterrupted: "状态查询暂时中断",
+      backendNotFailed: "这不代表后台导出失败",
+      retryStatus: "重新查询",
+      retryCount: "已自动重连 {{count}} 次",
+      failureStage: "失败阶段",
+      errorCode: "错误代码",
+      provider: "服务通道",
+      model: "模型",
+      retryPolicy: "单次最长 {{seconds}} 秒，最多 {{attempts}} 次",
+      technicalReason: "技术原因",
+      styleExtractionStage: "文本样式提取",
+      queueSubmissionStage: "后台任务提交",
+      textRenderStage: "内容写入",
       exportedFiles: "已导出文件",
+      deleteExportTitle: "删除导出文件",
+      deleteExportMessage: "确定要删除「{{filename}}」吗？此操作会移除服务器上的文件。",
+      deleteExportConfirm: "删除文件",
+      deleteExportFailed: "删除导出文件失败",
+      dismissDeleteError: "关闭删除错误",
     },
     shared: { historyRecords: "历史记录" }
   },
@@ -35,7 +55,25 @@ const exportI18n = {
       moreItems: "... {{count}} more", exportFailed: "Export Failed", preparing: "Preparing...",
       settingsTip: "Adjust settings in \"Project Settings → Export Settings\" or enable \"Allow Partial Results\"",
       codexReconnectTip: "If Codex login expired or the connection was interrupted, reconnect your OpenAI account in Settings and try again.",
+      monitoringInterrupted: "Status checks interrupted",
+      backendNotFailed: "This does not mean the backend export failed",
+      retryStatus: "Check Again",
+      retryCount: "{{count}} automatic reconnect attempts",
+      failureStage: "Failed stage",
+      errorCode: "Error code",
+      provider: "Provider",
+      model: "Model",
+      retryPolicy: "Up to {{seconds}}s per request, {{attempts}} attempts",
+      technicalReason: "Technical reason",
+      styleExtractionStage: "Text style extraction",
+      queueSubmissionStage: "Background task submission",
+      textRenderStage: "Content rendering",
       exportedFiles: "Exported Files",
+      deleteExportTitle: "Delete Exported File",
+      deleteExportMessage: "Delete \"{{filename}}\" from the server?",
+      deleteExportConfirm: "Delete File",
+      deleteExportFailed: "Failed to delete exported file",
+      dismissDeleteError: "Dismiss delete error",
     },
     shared: { historyRecords: "History Records" }
   }
@@ -125,7 +163,7 @@ const WarningsModal: React.FC<{
                 key={idx}
                 className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800"
               >
-                <span className="text-amber-500 mt-0.5">•</span>
+                <AlertTriangle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
                 <span className="break-words">{warning}</span>
               </div>
             ))}
@@ -186,7 +224,12 @@ const WarningsModal: React.FC<{
   );
 };
 
-const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void }> = ({ task, pages, onRemove }) => {
+const TaskItem: React.FC<{
+  task: ExportTask;
+  pages: Page[];
+  onRemove: () => void;
+  onRetryMonitoring?: () => void;
+}> = ({ task, pages, onRemove, onRetryMonitoring }) => {
   const t = useT(exportI18n);
   const [showWarningsModal, setShowWarningsModal] = useState(false);
   
@@ -216,6 +259,14 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
 
   const progressPercent = getProgressPercent();
   const isProcessing = task.status === 'PROCESSING' || task.status === 'RUNNING' || task.status === 'PENDING';
+  const errorDetails = task.progress?.error_details;
+  const errorStage = task.progress?.error_stage || errorDetails?.stage;
+  const errorStageLabels: Record<string, string> = {
+    style_extraction: t('export.styleExtractionStage'),
+    queue_submission: t('export.queueSubmissionStage'),
+    text_render: t('export.textRenderStage'),
+  };
+  const errorStageLabel = errorStage ? (errorStageLabels[errorStage] || errorStage) : undefined;
   
   const hasWarnings = task.status === 'COMPLETED' && task.progress?.warnings && task.progress.warnings.length > 0;
 
@@ -280,6 +331,38 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             )}
           </div>
         )}
+
+        {isProcessing && task.monitoring && (
+          <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-900/20">
+            <div className="flex items-start gap-2">
+              {task.monitoring.state === 'retrying' ? (
+                <RefreshCw size={14} className="mt-0.5 flex-shrink-0 animate-spin text-amber-600" />
+              ) : (
+                <WifiOff size={14} className="mt-0.5 flex-shrink-0 text-amber-600" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-amber-800">{t('export.monitoringInterrupted')}</p>
+                <p className="mt-0.5 text-xs text-amber-700">{task.monitoring.message}</p>
+                <p className="mt-1 text-[11px] font-medium text-amber-700">{t('export.backendNotFailed')}</p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-amber-600">
+                    {t('export.retryCount', { count: task.monitoring.consecutiveErrors })}
+                  </span>
+                  {task.monitoring.state === 'paused' && onRetryMonitoring && (
+                    <button
+                      type="button"
+                      onClick={onRetryMonitoring}
+                      className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100"
+                    >
+                      <RefreshCw size={11} />
+                      {t('export.retryStatus')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {task.status === 'FAILED' && task.errorMessage && (
           <div className="mt-2 space-y-2">
@@ -291,6 +374,48 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
                   <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap break-words">
                     {task.errorMessage}
                   </p>
+                  {(task.progress?.error_code || errorStageLabel || errorDetails?.provider || errorDetails?.model) && (
+                    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px] text-red-700">
+                      {task.progress?.error_code && (
+                        <>
+                          <dt className="font-medium">{t('export.errorCode')}</dt>
+                          <dd className="break-all font-mono">{task.progress.error_code}</dd>
+                        </>
+                      )}
+                      {errorStageLabel && (
+                        <>
+                          <dt className="font-medium">{t('export.failureStage')}</dt>
+                          <dd>{errorStageLabel}</dd>
+                        </>
+                      )}
+                      {errorDetails?.provider && (
+                        <>
+                          <dt className="font-medium">{t('export.provider')}</dt>
+                          <dd className="break-all">{errorDetails.provider}</dd>
+                        </>
+                      )}
+                      {errorDetails?.model && (
+                        <>
+                          <dt className="font-medium">{t('export.model')}</dt>
+                          <dd className="break-all">{errorDetails.model}</dd>
+                        </>
+                      )}
+                    </dl>
+                  )}
+                  {errorDetails?.request_timeout_seconds && errorDetails?.max_attempts && (
+                    <p className="mt-1.5 text-[11px] text-red-600">
+                      {t('export.retryPolicy', {
+                        seconds: errorDetails.request_timeout_seconds,
+                        attempts: errorDetails.max_attempts,
+                      })}
+                    </p>
+                  )}
+                  {errorDetails?.technical_message && (
+                    <details className="mt-1.5 text-[11px] text-red-600">
+                      <summary className="cursor-pointer font-medium">{t('export.technicalReason')}</summary>
+                      <p className="mt-1 break-words font-mono">{errorDetails.technical_message}</p>
+                    </details>
+                  )}
                 </div>
               </div>
             </div>
@@ -311,7 +436,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
               <span>{t('export.settingsTip')}</span>
             </div>
 
-            {task.errorMessage.toLowerCase().includes('codex') && (
+            {(task.errorMessage.toLowerCase().includes('codex') || errorDetails?.provider?.toLowerCase().includes('codex')) && (
               <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-foreground-tertiary">
                 <Settings size={12} />
                 <span>{t('export.codexReconnectTip')}</span>
@@ -353,14 +478,7 @@ const TaskItem: React.FC<{ task: ExportTask; pages: Page[]; onRemove: () => void
             variant="primary"
             size="sm"
             icon={<Download size={14} />}
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = task.downloadUrl!;
-              a.download = task.filename || '';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            }}
+            onClick={() => triggerDownload(task.downloadUrl!, task.filename)}
             className="text-xs px-2 py-1"
           >
             {t('common.download')}
@@ -412,8 +530,11 @@ const formatFileSize = (bytes: number): string => {
 export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, pages = [], className }) => {
   const t = useT(exportI18n);
   const [isExpanded, setIsExpanded] = useState(true);
-  const { tasks, removeTask, clearCompleted, restoreActiveTasks } = useExportTasksStore();
+  const { tasks, removeTask, clearCompleted, restoreActiveTasks, pollTask } = useExportTasksStore();
   const [exportedFiles, setExportedFiles] = useState<ExportedFile[]>([]);
+  const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const filteredTasks = projectId
     ? tasks.filter(task => task.projectId === projectId)
@@ -443,6 +564,40 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
       setIsExpanded(true);
     }
   }, [activeTasks.length, isExpanded]);
+
+  const deleteExportedFile = async (file: ExportedFile) => {
+    if (!projectId) return;
+
+    setDeletingFilename(file.filename);
+    setDeleteError(null);
+    try {
+      await api.deleteExport(projectId, file.filename);
+      setExportedFiles(prev => prev.filter(item => item.filename !== file.filename));
+      tasks
+        .filter(task => (
+          task.projectId === projectId
+          && (task.filename === file.filename || task.downloadUrl?.endsWith(`/${file.filename}`))
+        ))
+        .forEach(task => removeTask(task.id));
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.error?.message || error?.message || t('export.deleteExportFailed'));
+    } finally {
+      setDeletingFilename(null);
+    }
+  };
+
+  const confirmDeleteExportedFile = (file: ExportedFile) => {
+    confirm(
+      t('export.deleteExportMessage', { filename: file.filename }),
+      () => deleteExportedFile(file),
+      {
+        title: t('export.deleteExportTitle'),
+        confirmText: t('export.deleteExportConfirm'),
+        cancelText: t('common.cancel'),
+        variant: 'danger',
+      }
+    );
+  };
 
   // 同时没有任务也没有文件时隐藏面板
   if (filteredTasks.length === 0 && exportedFiles.length === 0) {
@@ -481,6 +636,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                   task={task}
                   pages={pages}
                   onRemove={() => removeTask(task.id)}
+                  onRetryMonitoring={() => pollTask(task.id, task.projectId, task.taskId)}
                 />
               ))}
             </div>
@@ -491,7 +647,7 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
               <div className="flex items-center justify-between px-3 py-1 mb-1">
                 <span className="text-xs text-gray-400">{t('shared.historyRecords')}</span>
                 <button
-                  onClick={clearCompleted}
+                  onClick={() => clearCompleted(projectId)}
                   className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
                 >
                   <Trash2 size={12} />
@@ -515,6 +671,20 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
               <div className="px-3 py-1 mb-1">
                 <span className="text-xs text-gray-400">{t('export.exportedFiles')}</span>
               </div>
+              {deleteError && (
+                <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                  <span className="break-words">{deleteError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteError(null)}
+                    className="flex-shrink-0 rounded p-0.5 text-red-500 transition-colors hover:bg-red-100 hover:text-red-700"
+                    aria-label={t('export.dismissDeleteError')}
+                    title={t('export.dismissDeleteError')}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               {exportedFiles.map(file => (
                 <div key={file.filename} className="flex items-center gap-3 py-2 px-3 hover:bg-gray-50 dark:hover:bg-background-hover rounded-lg transition-colors">
                   <FileTypeIcon type={file.type} />
@@ -530,24 +700,28 @@ export const ExportTasksPanel: React.FC<ExportTasksPanelProps> = ({ projectId, p
                     variant="primary"
                     size="sm"
                     icon={<Download size={14} />}
-                    onClick={() => {
-                      const a = document.createElement('a');
-                      a.href = file.download_url;
-                      a.download = file.filename;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                    }}
+                    onClick={() => triggerDownload(file.download_url, file.filename)}
                     className="text-xs px-2 py-1"
                   >
                     {t('common.download')}
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={deletingFilename === file.filename ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    onClick={() => confirmDeleteExportedFile(file)}
+                    disabled={deletingFilename !== null}
+                    className="px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    title={t('common.delete')}
+                    aria-label={`${t('common.delete')} ${file.filename}`}
+                  />
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
+      {ConfirmDialog}
     </div>
   );
 };

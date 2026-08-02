@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import uuid
+import inspect
 import importlib
 import importlib.util
 from unittest.mock import patch, MagicMock
@@ -48,6 +49,7 @@ get_default_voice = _tts_mod.get_default_voice
 check_ffmpeg_available = _tts_mod.check_ffmpeg_available
 check_ffmpeg_ass_filter_available = _tts_mod.check_ffmpeg_ass_filter_available
 get_audio_duration = _tts_mod.get_audio_duration
+_derive_ffprobe_path = _tts_mod._derive_ffprobe_path
 KEN_BURNS_EFFECTS = _tts_mod.KEN_BURNS_EFFECTS
 KEN_BURNS_MAX_ZOOM = _tts_mod.KEN_BURNS_MAX_ZOOM
 composite_video = _tts_mod.composite_video
@@ -81,7 +83,15 @@ class TestModuleConstants:
         assert _DEFAULT_SILENT_DURATION == 3.0
 
     def test_ffmpeg_idle_timeout_seconds(self):
-        assert _FFMPEG_IDLE_TIMEOUT_SECONDS == 120.0
+        assert _FFMPEG_IDLE_TIMEOUT_SECONDS == 600.0
+
+    def test_video_clip_helpers_default_to_extended_idle_timeout(self):
+        assert inspect.signature(create_ken_burns_clip).parameters['idle_timeout'].default == 600.0
+        assert inspect.signature(_tts_mod.create_silent_clip).parameters['idle_timeout'].default == 600.0
+        assert inspect.signature(_tts_mod.create_static_clip).parameters['idle_timeout'].default == 600.0
+        assert inspect.signature(burn_subtitles).parameters['idle_timeout'].default == 600.0
+        assert inspect.signature(_tts_mod.mux_video_audio).parameters['idle_timeout'].default == 600.0
+        assert inspect.signature(composite_video).parameters['idle_timeout'].default == 600.0
 
 
 class TestGetDefaultVoice:
@@ -153,6 +163,25 @@ class TestCheckFfmpegAssFilterAvailable:
 class TestGetAudioDuration:
     """测试音频时长获取"""
 
+    @pytest.mark.parametrize(
+        ('ffmpeg_path', 'expected'),
+        [
+            ('ffmpeg', 'ffprobe'),
+            ('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe'),
+            ('/Applications/FFmpeg Tools/ffmpeg', '/Applications/FFmpeg Tools/ffprobe'),
+            (
+                r'D:\Program Files\Banana Slides\resources\ffmpeg\ffmpeg.exe',
+                r'D:\Program Files\Banana Slides\resources\ffmpeg\ffprobe.exe',
+            ),
+        ],
+    )
+    def test_ffprobe_is_resolved_as_sibling_without_rewriting_parent_folders(
+        self,
+        ffmpeg_path,
+        expected,
+    ):
+        assert _derive_ffprobe_path(ffmpeg_path) == expected
+
     @patch.object(_tts_mod.subprocess, 'run')
     def test_parse_duration(self, mock_run):
         mock_run.return_value = MagicMock(
@@ -161,6 +190,16 @@ class TestGetAudioDuration:
         )
         duration = get_audio_duration('/fake/audio.mp3')
         assert abs(duration - 12.345) < 0.001
+
+    @patch.object(_tts_mod.subprocess, 'run')
+    def test_packaged_windows_ffprobe_command_uses_existing_sibling_location(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout='3.5\n')
+        ffmpeg_path = r'D:\Program Files\Banana Slides\resources\ffmpeg\ffmpeg.exe'
+
+        assert get_audio_duration(r'D:\temp\narration.mp3', ffmpeg_path) == 3.5
+
+        command = mock_run.call_args.args[0]
+        assert command[0] == r'D:\Program Files\Banana Slides\resources\ffmpeg\ffprobe.exe'
 
 
 
@@ -232,6 +271,32 @@ class TestKenBurnsEffects:
                 assert red > 120
                 assert red > green + 40
                 assert red > blue + 40
+
+    @patch.object(_tts_mod, '_run_ffmpeg_command')
+    def test_silent_static_clip_uses_extended_default_idle_timeout(self, mock_run_ffmpeg):
+        _tts_mod.create_silent_clip(
+            '/fake/image.png',
+            '/fake/output.mp4',
+            enable_ken_burns=False,
+        )
+
+        assert mock_run_ffmpeg.call_args.kwargs['idle_timeout'] == 600.0
+
+    @patch.object(_tts_mod, '_run_ffmpeg_command')
+    @patch.object(_tts_mod, 'create_ken_burns_clip')
+    def test_silent_ken_burns_clip_forwards_extended_default_idle_timeout(
+        self,
+        mock_create_ken_burns,
+        mock_run_ffmpeg,
+    ):
+        _tts_mod.create_silent_clip(
+            '/fake/image.png',
+            '/fake/output.mp4',
+            enable_ken_burns=True,
+        )
+
+        assert mock_create_ken_burns.call_args.kwargs['idle_timeout'] == 600.0
+        assert mock_run_ffmpeg.call_args.kwargs['idle_timeout'] == 600.0
 
 
 class TestCompositeVideoConcatFile:

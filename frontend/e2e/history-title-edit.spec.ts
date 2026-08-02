@@ -111,8 +111,8 @@ test.describe('History title editing', () => {
   })
 
   test('integration: editing untitled project title persists after reload', async ({ page }) => {
-    const frontendUrl = process.env.BASE_URL || 'http://localhost:3000'
-    const frontendPort = parseInt(new URL(frontendUrl).port || '3000', 10)
+    const frontendUrl = process.env.BASE_URL || 'http://localhost:3011'
+    const frontendPort = parseInt(new URL(frontendUrl).port || '3011', 10)
     const backendUrl = `http://localhost:${frontendPort + 2000}`
 
     const createResponse = await fetch(`${backendUrl}/api/projects`, {

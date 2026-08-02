@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+frontend/
+backend/
+ffmpeg/
+.cache/
+resources/ffmpeg/
+*.log
+build-meta.json

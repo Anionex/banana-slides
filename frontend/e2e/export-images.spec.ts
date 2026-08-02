@@ -39,6 +39,30 @@ test.describe('Export Images - Backend API', () => {
     expect(fileResp.headers()['content-type']).toContain('image/jpeg')
   })
 
+  test('deletes an exported image file from server storage', async ({ request, baseURL }) => {
+    const { projectId } = await seedProjectWithImages(baseURL!, 1)
+
+    const exportResp = await request.get(`/api/projects/${projectId}/export/images`)
+    expect(exportResp.ok()).toBe(true)
+    const exportData = (await exportResp.json()).data
+    const filename = exportData.download_url.split('/').pop()
+    expect(filename).toBeTruthy()
+
+    const beforeList = await request.get(`/api/projects/${projectId}/exports`)
+    expect(beforeList.ok()).toBe(true)
+    expect((await beforeList.json()).data.files.map((file: any) => file.filename)).toContain(filename)
+
+    const deleteResp = await request.delete(`/api/projects/${projectId}/exports/${encodeURIComponent(filename)}`)
+    expect(deleteResp.ok()).toBe(true)
+
+    const downloadAfterDelete = await request.get(exportData.download_url)
+    expect(downloadAfterDelete.status()).toBe(404)
+
+    const afterList = await request.get(`/api/projects/${projectId}/exports`)
+    expect(afterList.ok()).toBe(true)
+    expect((await afterList.json()).data.files.map((file: any) => file.filename)).not.toContain(filename)
+  })
+
   test('exports multiple images as ZIP', async ({ request, baseURL }) => {
     const { projectId } = await seedProjectWithImages(baseURL!, 2)
 
@@ -168,5 +192,88 @@ test.describe('Export Images - UI Mock', () => {
     await page.locator('button:has-text("导出为图片")').click()
 
     await expect.poll(() => imageExportCalled).toBe(true)
+  })
+
+  test('exported files panel deletes a file and refreshes the list', async ({ page }) => {
+    const PID = 'mock-export-delete'
+    const filename = 'slides_to_delete.zip'
+    let deleteCalled = false
+    let fileDeleted = false
+
+    await page.route(url => new URL(url).pathname.startsWith('/api/'), async (route) => {
+      const url = new URL(route.request().url())
+
+      if (url.pathname === `/api/projects/${PID}/exports` && route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              files: fileDeleted ? [] : [{
+                filename,
+                type: 'images',
+                size: 2048,
+                modified_at: '2026-06-26T08:00:00Z',
+                download_url: `/files/${PID}/exports/${filename}`,
+              }],
+            },
+          }),
+        })
+      }
+
+      if (url.pathname === `/api/projects/${PID}/exports/${filename}` && route.request().method() === 'DELETE') {
+        deleteCalled = true
+        fileDeleted = true
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { filename } }),
+        })
+      }
+
+      if (url.pathname === `/api/projects/${PID}`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              project_id: PID, id: PID, status: 'IMAGES_GENERATED',
+              template_style: 'default',
+              pages: [
+                { id: 'p1', page_id: 'p1', title: 'S1', order_index: 0, generated_image_path: '/files/x/1.png', page_number: 1, outline_content: { title: 'S1' }, status: 'COMPLETED' },
+              ],
+            },
+          }),
+        })
+      }
+
+      if (url.pathname === '/api/settings') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) })
+      }
+      if (url.pathname === '/api/output-language') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { language: 'zh' } }) })
+      }
+      if (url.pathname === '/api/user-templates') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { templates: [] } }) })
+      }
+
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) })
+    })
+
+    await page.route('**/files/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.alloc(100) })
+    })
+
+    await page.goto(`/project/${PID}/preview`)
+    await page.getByLabel('导出任务').click()
+    await expect(page.getByText(filename)).toBeVisible({ timeout: 10000 })
+
+    await page.getByLabel(`删除 ${filename}`).click()
+    await page.getByRole('button', { name: '删除文件' }).click()
+
+    await expect.poll(() => deleteCalled).toBe(true)
+    await expect(page.getByText(filename)).toHaveCount(0)
   })
 })

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle } from 'lucide-react';
+import { X, FileText, Settings as SettingsIcon, Download, Sparkles, AlertTriangle, HelpCircle, Lightbulb } from 'lucide-react';
 import { Button, Textarea } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { Settings } from '@/pages/Settings';
@@ -317,8 +317,9 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     </Button>
                   </div>
                   <div className="pl-4 border-l-4 border-blue-300 dark:border-blue-600">
-                    <p className="text-xs text-gray-700 dark:text-foreground-secondary">
-                      💡 <strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}
+                    <p className="text-xs text-gray-700 dark:text-foreground-secondary flex items-start gap-1.5">
+                      <Lightbulb size={14} className="flex-shrink-0 mt-0.5" />
+                      <span><strong>{t('projectSettings.tip')}：</strong>{t('projectSettings.styleTip')}</span>
                     </p>
                   </div>
                 </div>

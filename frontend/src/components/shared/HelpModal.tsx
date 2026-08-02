@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check, Video } from 'lucide-react';
+import { Sparkles, FileText, Palette, MessageSquare, Download, ChevronLeft, ChevronRight, ExternalLink, Settings, Check, Video, Lightbulb } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { useT } from '@/hooks/useT';
 import { useTranslation } from 'react-i18next';
+import logoUrl from '@/assets/logo.png';
 
 // ---------------------------------------------------------------------------
 // i18n
@@ -33,6 +34,12 @@ const i18nDict = {
       s4d: '若使用过程中遇到问题，可在github issue提出',
       issueLink: '前往Github issue',
       settingsBtn: '前往设置页面',
+      featuresOverview: '功能总览',
+      featuresOverviewDesc: '了解 Banana Slides 的完整工作流程、创作路径、素材支持和导出能力。',
+      feishuTutorial: '设置页图文教程',
+      feishuTutorialDesc: '按步骤完成设置页面配置。',
+      faq: '常见问题',
+      faqDesc: '查看 API 配置、导出和使用过程中的常见问题。',
       hint: '提示',
       hintBody: '如果您还没有 API Key，可以前往对应服务商官网注册获取。配置完成后，建议先进行服务测试，避免后续使用出现问题。',
       prev: '上一页',
@@ -41,7 +48,7 @@ const i18nDict = {
       feat: {
         paths: { t: '灵活多样的创作路径', d: '支持想法、大纲、页面描述三种起步方式，满足不同创作习惯。', items: ['一句话生成：输入一个主题，AI 自动生成结构清晰的大纲和逐页内容描述', '自然语言编辑：支持以 Vibe 形式口头修改大纲或描述，AI 实时响应调整', '大纲/描述模式：既可一键批量生成，也可手动调整细节'] },
         parse: { t: '强大的素材解析能力', d: '上传多种格式文件，自动解析内容，为生成提供丰富素材。', items: ['多格式支持：上传 PDF/Docx/MD/Txt 等文件，后台自动解析内容', '智能提取：自动识别文本中的关键点、图片链接和图表信息', '风格参考：支持上传参考图片或模板，定制 PPT 风格'] },
-        vibe: { t: '「Vibe」式自然语言修改', d: '不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。', items: ['局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）', '整页优化：基于 nano banana pro🍌 生成高清、风格统一的页面'] },
+        vibe: { t: '「Vibe」式自然语言修改', d: '不再受限于复杂的菜单按钮，直接通过自然语言下达修改指令。', items: ['局部重绘：对不满意的区域进行口头式修改（如「把这个图换成饼图」）', '整页优化：基于 nano banana pro 生成高清、风格统一的页面'] },
         export: { t: '开箱即用的格式导出', d: '一键导出标准格式，直接演示无需调整。', items: ['多格式支持：一键导出标准 PPTX 或 PDF 文件', '完美适配：默认 16:9 比例，排版无需二次调整'] },
         video: { t: 'TTS 讲解视频导出', d: '一键将幻灯片转换为带 AI 语音旁白和字幕的讲解视频。', items: ['AI 自动将页面描述转为口语化旁白，通过 edge-tts 合成语音', '支持中/英/日三种语言，多种音色可选', '逐句滚动字幕，自动按语音节奏切换', '可选 Ken Burns 画面动效（缩放/平移）'] },
       },
@@ -70,6 +77,12 @@ const i18nDict = {
       s4d: 'If you encounter issues while using, please raise them on GitHub issues',
       issueLink: 'Go to GitHub Issues',
       settingsBtn: 'Go to Settings',
+      featuresOverview: 'Features Overview',
+      featuresOverviewDesc: 'Learn the full workflow, creation paths, material support, and export options in Banana Slides.',
+      feishuTutorial: 'Settings Guide',
+      feishuTutorialDesc: 'Follow the step-by-step guide to configure Settings.',
+      faq: 'FAQ',
+      faqDesc: 'Review common questions about API setup, export, and everyday use.',
       hint: 'Tip',
       hintBody: "If you don't have an API Key yet, you can register on the corresponding service provider's website. After configuration, it's recommended to test services first to avoid issues later.",
       prev: 'Previous',
@@ -78,7 +91,7 @@ const i18nDict = {
       feat: {
         paths: { t: 'Flexible Creation Paths', d: 'Support idea, outline, and page description as starting points to meet different creative habits.', items: ['One-line generation: Enter a topic, AI automatically generates a clear outline and page-by-page content description', 'Natural language editing: Support Vibe-style verbal modification of outlines or descriptions, AI responds in real-time', 'Outline/Description mode: Either batch generate with one click, or manually adjust details'] },
         parse: { t: 'Powerful Material Parsing', d: 'Upload multiple format files, automatically parse content to provide rich materials for generation.', items: ['Multi-format support: Upload PDF/Docx/MD/Txt files, backend automatically parses content', 'Smart extraction: Automatically identify key points, image links and chart information in text', 'Style reference: Support uploading reference images or templates to customize PPT style'] },
-        vibe: { t: '"Vibe" Style Natural Language Editing', d: 'No longer limited by complex menu buttons, directly issue modification commands through natural language.', items: ['Partial redraw: Make verbal modifications to unsatisfying areas (e.g., "Change this chart to a pie chart")', 'Full page optimization: Generate HD, style-consistent pages based on nano banana pro🍌'] },
+        vibe: { t: '"Vibe" Style Natural Language Editing', d: 'No longer limited by complex menu buttons, directly issue modification commands through natural language.', items: ['Partial redraw: Make verbal modifications to unsatisfying areas (e.g., "Change this chart to a pie chart")', 'Full page optimization: Generate HD, style-consistent pages based on nano banana pro'] },
         export: { t: 'Ready-to-Use Format Export', d: 'One-click export to standard formats, present directly without adjustments.', items: ['Multi-format support: One-click export to standard PPTX or PDF files', 'Perfect fit: Default 16:9 ratio, no secondary layout adjustments needed'] },
         video: { t: 'TTS Narration Video Export', d: 'One-click conversion of slides into narrated videos with AI voiceover and subtitles.', items: ['AI converts page descriptions into natural spoken narration via edge-tts', 'Supports Chinese, English, and Japanese with multiple voice options', 'Sentence-by-sentence scrolling subtitles synchronized with speech', 'Optional Ken Burns animation effect (zoom/pan)'] },
       },
@@ -102,6 +115,27 @@ const FEATURES: { key: string; icon: React.ReactNode }[] = [
   { key: 'vibe', icon: <MessageSquare className="text-green-500" size={24} /> },
   { key: 'export', icon: <Download className="text-purple-500" size={24} /> },
   { key: 'video', icon: <Video className="text-red-500" size={24} /> },
+];
+
+const CONFIG_LINKS = [
+  {
+    key: 'featuresOverview',
+    descKey: 'featuresOverviewDesc',
+    href: { zh: 'https://docs.bananaslides.online/zh/features/overview', en: 'https://docs.bananaslides.online/features/overview' },
+  },
+  {
+    key: 'feishuTutorial',
+    descKey: 'feishuTutorialDesc',
+    href: {
+      zh: 'https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink',
+      en: 'https://ziy68cvfvu3.feishu.cn/wiki/GiNawdmpiinSRqkGspocqEWAnkh?from=from_copylink',
+    },
+  },
+  {
+    key: 'faq',
+    descKey: 'faqDesc',
+    href: { zh: 'https://docs.bananaslides.online/zh/faq', en: 'https://docs.bananaslides.online/faq' },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -163,7 +197,7 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
     <div className="space-y-6">
       <div className="text-center space-y-3">
         <div className="inline-flex items-center justify-center mr-4">
-          <img src="/logo.png" alt="Banana Slides Logo" className="h-16 w-16 object-contain" />
+          <img src={logoUrl} alt="Banana Slides Logo" className="h-16 w-16 object-contain" />
         </div>
         <h3 className="text-2xl font-bold text-gray-800 dark:text-foreground-primary">{t('guide.hi')}</h3>
         <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.hiSub')}</p>
@@ -199,16 +233,37 @@ const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
         </a>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3">
+        {CONFIG_LINKS.map((link) => (
+          <a
+            key={link.key}
+            href={link.href[lang]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group rounded-xl border border-gray-200 bg-white p-3 transition hover:border-banana-300 hover:bg-banana-50/60 dark:border-border-primary dark:bg-background-secondary dark:hover:border-banana-400 dark:hover:bg-background-hover"
+          >
+            <span className="flex items-center justify-between gap-2 text-sm font-semibold text-gray-800 dark:text-foreground-primary">
+              {t(`guide.${link.key}`)}
+              <ExternalLink size={14} className="flex-shrink-0 text-gray-400 transition group-hover:text-banana-600 dark:group-hover:text-banana-300" />
+            </span>
+            <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-foreground-tertiary">
+              {t(`guide.${link.descKey}`)}
+            </span>
+          </a>
+        ))}
+      </div>
+
+      <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+        <p className="text-xs text-blue-800 flex items-start gap-1.5">
+          <Lightbulb size={14} className="flex-shrink-0 mt-0.5" />
+          <span><strong>{t('guide.hint')}</strong>：{t('guide.hintBody')}</span>
+        </p>
+      </div>
+
       <div className="flex justify-center pt-2">
         <Button onClick={() => { onClose(); navigate('/settings', { state: { from: window.location.pathname } }); }} className="bg-banana-500 hover:bg-banana-600 text-black dark:text-white shadow-lg" icon={<Settings size={18} />}>
           {t('guide.settingsBtn')}
         </Button>
-      </div>
-
-      <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-        <p className="text-xs text-blue-800">
-          💡 <strong>{t('guide.hint')}</strong>：{t('guide.hintBody')}
-        </p>
       </div>
     </div>
   );

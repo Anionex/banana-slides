@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, ArrowRight, Plus, FileText, Sparkle, Download, Upload, PanelLeftClose, PanelLeftOpen, ChevronDown, Settings2 } from 'lucide-react';
+import logoUrl from '@/assets/logo.png';
 import { useT } from '@/hooks/useT';
 import PresetCapsules from '@/components/shared/PresetCapsules';
 
@@ -26,12 +27,14 @@ const outlineI18n = {
       outlineRequirements: "大纲生成要求",
       outlineRequirementsPlaceholder: "例如：限制在10页以内、每页要点不超过3条、多使用图表...",
       importModalTitle: "导入 Markdown",
-      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
+      importModalDesc: "可直接粘贴 Markdown，也可以上传 `.md`、`.markdown` 或 `.txt` 文件。导入的页面会追加到当前项目末尾。",
       importPasteLabel: "粘贴内容",
       importPastePlaceholder: "把大纲或大纲+描述的 Markdown 粘贴到这里...",
       importUploadLabel: "上传文件",
       importUploadHint: "点击选择文件，或拖拽 Markdown 文件到这里",
-      importUploadFormatsHint: "支持 `.md`、`.txt`",
+      importUploadFormatsHint: "支持 `.md`、`.markdown`、`.txt`",
+      importPreviewReady: "将追加 {{count}} 页到当前项目",
+      importPreviewEmpty: "未识别到可导入页面，请确认包含 `## 第 N 页: 标题` 或 `## Page N: Title`",
       importConfirm: "导入到项目",
       importCancel: "取消",
       messages: {
@@ -45,6 +48,7 @@ const outlineI18n = {
         importSuccess: "导入成功", importFailed: "导入失败，请检查文件格式", importEmpty: "文件中未找到有效页面",
         importContentEmpty: "请先粘贴内容或上传文件",
         importReadFailed: "读取文件失败，请重试",
+        importInvalidFileType: "只能导入 .md、.markdown 或 .txt 文件",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
         saveFailed: "保存失败",
       }
@@ -70,12 +74,14 @@ const outlineI18n = {
       outlineRequirements: "Generation Requirements",
       outlineRequirementsPlaceholder: "e.g., Limit to 10 pages, max 3 points per page, use more charts...",
       importModalTitle: "Import Markdown",
-      importModalDesc: "Paste Markdown directly, or upload a `.md` / `.txt` file. Imported pages will be appended to the current project.",
+      importModalDesc: "Paste Markdown directly, or upload a `.md`, `.markdown`, or `.txt` file. Imported pages will be appended to the current project.",
       importPasteLabel: "Paste Content",
       importPastePlaceholder: "Paste outline or outline+description Markdown here...",
       importUploadLabel: "Upload File",
       importUploadHint: "Click to choose a file, or drag a Markdown file here",
-      importUploadFormatsHint: "Supports `.md`, `.txt`",
+      importUploadFormatsHint: "Supports `.md`, `.markdown`, `.txt`",
+      importPreviewReady: "{{count}} page(s) will be appended to this project",
+      importPreviewEmpty: "No importable pages detected. Use `## Page N: Title` or `## 第 N 页: 标题`.",
       importConfirm: "Import into Project",
       importCancel: "Cancel",
       messages: {
@@ -89,6 +95,7 @@ const outlineI18n = {
         importSuccess: "Import successful", importFailed: "Import failed, please check file format", importEmpty: "No valid pages found in file",
         importContentEmpty: "Paste some content or upload a file first",
         importReadFailed: "Failed to read file, please try again",
+        importInvalidFileType: "Only .md, .markdown, or .txt files can be imported",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
         saveFailed: "Save failed",
       }
@@ -116,7 +123,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal,
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject, addPage } from '@/api/endpoints';
+import { refineOutline, updateProject, addPages } from '@/api/endpoints';
 import { useImagePaste, buildMaterialsMarkdown } from '@/hooks/useImagePaste';
 import type { Material } from '@/types';
 import { exportProjectToMarkdown, parseMarkdownPages } from '@/utils/projectUtils';
@@ -167,8 +174,12 @@ export const OutlineEditor: React.FC = () => {
     addNewPage,
     generateOutlineStream,
     isGlobalLoading,
-    isOutlineStreaming,
+    outlineStreamingProjectIds,
   } = useProjectStore();
+
+  const isOutlineStreaming = Boolean(
+    currentProject?.id && outlineStreamingProjectIds.includes(currentProject.id)
+  );
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAiRefining, setIsAiRefining] = useState(false);
@@ -193,6 +204,7 @@ export const OutlineEditor: React.FC = () => {
   }, [isOutlineStreaming]);
   const { confirm, ConfirmDialog } = useConfirm();
   const { show, ToastContainer } = useToast();
+  const autoGenerateStartedRef = useRef<string | null>(null);
 
   // 左侧可编辑文本区域 — desktop and mobile use separate refs to avoid
   // the shared-ref bug where insertAtCursor targets the wrong (hidden) instance.
@@ -234,10 +246,14 @@ export const OutlineEditor: React.FC = () => {
   useEffect(() => {
     if (!fileMenuOpen && !settingsOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const element = target instanceof Element ? target : target.parentElement;
+      if (element?.closest('[role="dialog"]')) return;
+      if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
         setFileMenuOpen(false);
       }
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      if (settingsRef.current && !settingsRef.current.contains(target)) {
         setSettingsOpen(false);
       }
     };
@@ -332,6 +348,9 @@ export const OutlineEditor: React.FC = () => {
     insertAtCursor: insertAtReqCursor,
   });
 
+  // 空白项目没有 AI 生成的来源文本，来源输入区和"自动生成大纲"都不适用
+  const isBlankProject = currentProject?.creation_type === 'blank';
+
   const inputLabel = useMemo(() => {
     const type = currentProject?.creation_type || 'idea';
     const key = type === 'descriptions' ? 'description' : type;
@@ -379,7 +398,7 @@ export const OutlineEditor: React.FC = () => {
         const result = await generateOutlineStream(lockPageCount);
         const { currentProject: updatedProject } = useProjectStore.getState();
         const pageCount = updatedProject?.pages.length ?? 0;
-        if (result && (!result.complete || pageCount === 0)) {
+        if (result?.active && (!result.complete || pageCount === 0)) {
           show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
         }
       } catch (error: any) {
@@ -405,6 +424,28 @@ export const OutlineEditor: React.FC = () => {
 
     await doGenerate();
   };
+
+  useEffect(() => {
+    if (!currentProject?.id || currentProject.pages.length > 0 || isOutlineStreaming) return;
+    if (!['idea', 'outline', 'descriptions'].includes(currentProject.creation_type || 'idea')) return;
+    if (autoGenerateStartedRef.current === currentProject.id) return;
+
+    autoGenerateStartedRef.current = currentProject.id;
+    void (async () => {
+      try {
+        const result = await generateOutlineStream();
+        const { currentProject: updatedProject } = useProjectStore.getState();
+        const pageCount = updatedProject?.pages.length ?? 0;
+        if (result?.active && (!result.complete || pageCount === 0)) {
+          show({ message: t('outline.messages.generateIncomplete'), type: 'warning' });
+        }
+      } catch (error: any) {
+        console.error('自动生成大纲失败:', error);
+        const message = error.message || t('outline.messages.generateFailed');
+        show({ message, type: 'error' });
+      }
+    })();
+  }, [currentProject?.id, currentProject?.pages.length, currentProject?.creation_type, generateOutlineStream, isOutlineStreaming, show, t]);
 
   const handleAiRefineOutline = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
@@ -443,14 +484,14 @@ export const OutlineEditor: React.FC = () => {
         throw new Error('empty-import');
       }
       const startIndex = currentProject.pages.reduce((max, p) => Math.max(max, (p.order_index ?? 0) + 1), 0);
-      await Promise.all(parsed.map(({ title, points, text: desc, part, extra_fields }, i) =>
-        addPage(projectId, {
+      await addPages(projectId, parsed.map(({ title, points, text: desc, part, extra_fields }, i) => (
+        {
           outline_content: { title, points },
           description_content: desc ? { text: desc, ...(extra_fields ? { extra_fields } : {}) } : undefined,
           part,
           order_index: startIndex + i,
-        })
-      ));
+        }
+      )));
       await syncProject(projectId);
       show({ message: t('outline.messages.importSuccess'), type: 'success' });
     } catch (error) {
@@ -461,6 +502,10 @@ export const OutlineEditor: React.FC = () => {
       throw error;
     }
   }, [currentProject, projectId, syncProject, show, t]);
+
+  const getImportPreviewCount = useCallback((markdown: string) => (
+    parseMarkdownPages(markdown).length
+  ), []);
 
 
   if (!currentProject) {
@@ -494,7 +539,7 @@ export const OutlineEditor: React.FC = () => {
               <span className="hidden sm:inline">{t('common.back')}</span>
             </Button>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <span className="text-xl md:text-2xl">🍌</span>
+              <img src={logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain flex-shrink-0" />
               <span className="text-base md:text-xl font-bold">{t('home.title')}</span>
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
@@ -520,7 +565,7 @@ export const OutlineEditor: React.FC = () => {
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={async () => {
-                if (isInputDirty && projectId && currentProject) {
+                if (isInputDirty && projectId && currentProject && !isBlankProject) {
                   const field = currentProject.creation_type === 'outline'
                     ? 'outline_text'
                     : currentProject.creation_type === 'descriptions'
@@ -566,7 +611,7 @@ export const OutlineEditor: React.FC = () => {
             >
               {t('outline.addPage')}
             </Button>
-            {currentProject.pages.length === 0 && !isOutlineStreaming ? (
+            {isBlankProject ? null : currentProject.pages.length === 0 && !isOutlineStreaming ? (
               <Button
                 variant="secondary"
                 onClick={handleGenerateOutline}
@@ -677,9 +722,9 @@ export const OutlineEditor: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col md:flex-row gap-3 md:gap-6 p-3 md:p-6 overflow-y-auto min-h-0 relative">
-        {/* 左侧：可编辑文本区域（可收起） */}
+        {/* 左侧：可编辑文本区域（可收起）—— 空白项目无来源文本，不显示 */}
         <div
-          className="flex-shrink-0 transition-[width] duration-300 ease-in-out hidden md:block"
+          className={`flex-shrink-0 transition-[width] duration-300 ease-in-out ${isBlankProject ? 'hidden' : 'hidden md:block'}`}
           style={{ width: isPanelOpen ? undefined : 0 }}
         >
           <div
@@ -729,7 +774,7 @@ export const OutlineEditor: React.FC = () => {
         </div>
 
         {/* 收起时的把手 - 绝对定位贴左边缘 */}
-        {!isPanelOpen && (
+        {!isPanelOpen && !isBlankProject && (
           <button
             type="button"
             onClick={() => setIsPanelOpen(true)}
@@ -739,8 +784,8 @@ export const OutlineEditor: React.FC = () => {
           </button>
         )}
 
-        {/* 移动端：始终显示卡片 */}
-        <div className="md:hidden w-full flex-shrink-0">
+        {/* 移动端：始终显示卡片（空白项目无来源文本，不显示） */}
+        <div className={`${isBlankProject ? 'hidden' : 'md:hidden'} w-full flex-shrink-0`}>
           <div className="bg-white dark:bg-background-secondary rounded-card shadow-md border border-gray-100 dark:border-border-primary overflow-hidden">
             <div className="px-4 py-2.5 flex items-center gap-2 border-b border-gray-100 dark:border-border-secondary">
               {currentProject.creation_type === 'idea'
@@ -859,10 +904,14 @@ export const OutlineEditor: React.FC = () => {
         uploadLabel={t('outline.importUploadLabel')}
         uploadHint={t('outline.importUploadHint')}
         uploadFormatsHint={t('outline.importUploadFormatsHint')}
+        getPreviewCount={getImportPreviewCount}
+        previewReadyLabel={(count) => t('outline.importPreviewReady', { count })}
+        previewEmptyLabel={t('outline.importPreviewEmpty')}
         importButtonLabel={t('outline.importConfirm')}
         cancelButtonLabel={t('outline.importCancel')}
         emptyError={t('outline.messages.importContentEmpty')}
         readFileError={t('outline.messages.importReadFailed')}
+        invalidFileTypeError={t('outline.messages.importInvalidFileType')}
       />
       <MaterialSelector
         projectId={projectId}

@@ -6,7 +6,10 @@ import os
 import io
 import shutil
 import time
+import uuid
 import zipfile
+from datetime import datetime
+from pathlib import Path
 
 from flask import Blueprint, request, current_app
 from werkzeug.utils import secure_filename
@@ -24,6 +27,32 @@ logger = logging.getLogger(__name__)
 export_bp = Blueprint('export', __name__, url_prefix='/api/projects')
 
 
+def _parse_pptx_transition_effects():
+    enabled = request.args.get('transition_enabled', '').lower() in {'1', 'true', 'yes', 'on'}
+    if not enabled:
+        return [], None
+
+    effects = list(dict.fromkeys(
+        effect.strip()
+        for effect in request.args.get('transition_effects', '').split(',')
+        if effect.strip()
+    ))
+    valid_effects = [effect for effect in effects if effect in ExportService.PPTX_TRANSITION_EFFECTS]
+    if not valid_effects:
+        return [], "At least one valid transition effect is required"
+    return valid_effects, None
+
+
+def _resolve_exports_root(project_id):
+    upload_folder = Path(current_app.config['UPLOAD_FOLDER']).resolve()
+    exports_root = (upload_folder / project_id / 'exports').resolve()
+    try:
+        exports_root.relative_to(upload_folder)
+    except ValueError:
+        return None
+    return exports_root
+
+
 @export_bp.route('/<project_id>/exports', methods=['GET'])
 def list_exports(project_id):
     """
@@ -32,26 +61,27 @@ def list_exports(project_id):
     返回 exports 目录下的文件列表（名称、大小、修改时间、下载链接）。
     """
     try:
-        project = Project.query.get(project_id)
+        project = db.session.get(Project, project_id)
         if not project:
             return not_found('Project')
 
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        exports_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], project_id, 'exports')
+        exports_root = _resolve_exports_root(project_id)
+        if exports_root is None:
+            return bad_request('Invalid project ID')
 
-        if not os.path.isdir(exports_dir):
+        if not exports_root.is_dir():
             return success_response(data={"files": []})
 
         files = []
-        for name in sorted(os.listdir(exports_dir)):
-            filepath = os.path.join(exports_dir, name)
-            if not os.path.isfile(filepath):
+        for filepath in sorted(exports_root.iterdir(), key=lambda path: path.name):
+            name = filepath.name
+            if not filepath.is_file():
                 continue
             # 跳过临时目录和隐藏文件
             if name.startswith('.') or name.startswith('_'):
                 continue
 
-            stat = os.stat(filepath)
+            stat = filepath.stat()
             ext = os.path.splitext(name)[1].lower()
             file_type = {
                 '.mp4': 'video', '.pptx': 'pptx', '.pdf': 'pdf',
@@ -70,6 +100,40 @@ def list_exports(project_id):
         files.sort(key=lambda f: f['modified_at'], reverse=True)
 
         return success_response(data={"files": files})
+
+    except Exception as e:
+        return error_response('SERVER_ERROR', str(e), 500)
+
+
+@export_bp.route('/<project_id>/exports/<filename>', methods=['DELETE'])
+def delete_export(project_id, filename):
+    """
+    DELETE /api/projects/{project_id}/exports/{filename} - 删除项目已导出的文件
+    """
+    try:
+        project = db.session.get(Project, project_id)
+        if not project:
+            return not_found('Project')
+
+        safe_filename = secure_filename(filename)
+        if not safe_filename or safe_filename != filename:
+            return bad_request('Invalid export filename')
+
+        exports_root = _resolve_exports_root(project_id)
+        if exports_root is None:
+            return bad_request('Invalid project ID')
+        file_path = (exports_root / safe_filename).resolve()
+
+        try:
+            file_path.relative_to(exports_root)
+        except ValueError:
+            return bad_request('Invalid export filename')
+
+        if not file_path.is_file():
+            return not_found('File')
+
+        file_path.unlink()
+        return success_response(data={"filename": safe_filename}, message="Export file deleted")
 
     except Exception as e:
         return error_response('SERVER_ERROR', str(e), 500)
@@ -132,8 +196,17 @@ def export_pptx(project_id):
 
         output_path = os.path.join(exports_dir, filename)
 
+        transition_effects, transition_error = _parse_pptx_transition_effects()
+        if transition_error:
+            return bad_request(transition_error)
+
         # Generate PPTX file on disk
-        ExportService.create_pptx_from_images(image_paths, output_file=output_path, aspect_ratio=project.image_aspect_ratio)
+        ExportService.create_pptx_from_images(
+            image_paths,
+            output_file=output_path,
+            aspect_ratio=project.image_aspect_ratio,
+            transition_effects=transition_effects,
+        )
 
         # Build download URLs
         download_path = f"/files/{project_id}/exports/{filename}"
@@ -312,6 +385,7 @@ def export_editable_pptx(project_id):
         {
             "filename": "optional_custom_name.pptx",
             "page_ids": ["id1", "id2"],  // 可选，要导出的页面ID列表（不提供则导出所有）
+            "client_task_id": "uuid",     // 可选，用于安全重试创建请求
             "max_depth": 1,      // 可选，递归深度（默认1=不递归，2=递归一层）
             "max_workers": 4     // 可选，并发数（默认4）
         }
@@ -339,6 +413,33 @@ def export_editable_pptx(project_id):
         
         # Get parameters from request body
         data = request.get_json() or {}
+
+        client_task_id = data.get('client_task_id')
+        if client_task_id is not None:
+            try:
+                client_task_id = str(uuid.UUID(str(client_task_id)))
+            except (ValueError, TypeError, AttributeError):
+                return bad_request("client_task_id must be a valid UUID")
+
+            existing_task = db.session.get(Task, client_task_id)
+            if existing_task:
+                if (
+                    existing_task.project_id != project_id
+                    or existing_task.task_type != 'EXPORT_EDITABLE_PPTX'
+                ):
+                    return error_response(
+                        'EXPORT_TASK_ID_CONFLICT',
+                        'client_task_id is already used by another task',
+                        409,
+                    )
+                return success_response(
+                    data={
+                        "task_id": existing_task.id,
+                        "method": "recursive_analysis",
+                        "reused": True,
+                    },
+                    message="Existing export task returned",
+                )
         
         # Get page_ids from request body and fetch filtered pages
         selected_page_ids = parse_page_ids_from_body(data)
@@ -372,53 +473,82 @@ def export_editable_pptx(project_id):
             return bad_request("max_workers must be an integer between 1 and 16")
         
         # Create task record
-        task = Task(
-            project_id=project_id,
-            task_type='EXPORT_EDITABLE_PPTX',
-            status='PENDING'
-        )
+        task_kwargs = {
+            'project_id': project_id,
+            'task_type': 'EXPORT_EDITABLE_PPTX',
+            'status': 'PENDING',
+        }
+        if client_task_id:
+            task_kwargs['id'] = client_task_id
+        task = Task(**task_kwargs)
         db.session.add(task)
         db.session.commit()
         
         logger.info(f"Created export task {task.id} for project {project_id} (recursive analysis: depth={max_depth}, workers={max_workers})")
         
-        # Get services
-        from services.file_service import FileService
-        from services.task_manager import task_manager, export_editable_pptx_with_recursive_analysis_task
-        
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-        
-        # Get Flask app instance for background task
-        app = current_app._get_current_object()
-        
-        # 读取项目的导出设置
-        export_extractor_method = project.export_extractor_method or 'hybrid'
-        export_inpaint_method = project.export_inpaint_method or 'hybrid'
-        enable_icon_subject_extraction = (
-            True if project.enable_icon_subject_extraction is None
-            else bool(project.enable_icon_subject_extraction)
-        )
-        logger.info(
-            f"Export settings: extractor={export_extractor_method}, "
-            f"inpaint={export_inpaint_method}, "
-            f"icon_subject_extraction={enable_icon_subject_extraction}"
-        )
+        try:
+            # Get services
+            from services.file_service import FileService
+            from services.task_manager import task_manager, export_editable_pptx_with_recursive_analysis_task
 
-        # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
-        task_manager.submit_task(
-            task.id,
-            export_editable_pptx_with_recursive_analysis_task,
-            project_id=project_id,
-            filename=filename,
-            file_service=file_service,
-            page_ids=selected_page_ids if selected_page_ids else None,
-            max_depth=max_depth,
-            max_workers=max_workers,
-            export_extractor_method=export_extractor_method,
-            export_inpaint_method=export_inpaint_method,
-            enable_icon_subject_extraction=enable_icon_subject_extraction,
-            app=app
-        )
+            file_service = FileService(current_app.config['UPLOAD_FOLDER'])
+
+            # Get Flask app instance for background task
+            app = current_app._get_current_object()
+
+            # 读取项目的导出设置
+            export_extractor_method = project.export_extractor_method or 'hybrid'
+            export_inpaint_method = project.export_inpaint_method or 'hybrid'
+            enable_icon_subject_extraction = (
+                True if project.enable_icon_subject_extraction is None
+                else bool(project.enable_icon_subject_extraction)
+            )
+            logger.info(
+                f"Export settings: extractor={export_extractor_method}, "
+                f"inpaint={export_inpaint_method}, "
+                f"icon_subject_extraction={enable_icon_subject_extraction}"
+            )
+
+            # 使用递归分析任务（不需要 ai_service，使用 ImageEditabilityService）
+            task_manager.submit_task(
+                task.id,
+                export_editable_pptx_with_recursive_analysis_task,
+                project_id=project_id,
+                filename=filename,
+                file_service=file_service,
+                page_ids=selected_page_ids if selected_page_ids else None,
+                max_depth=max_depth,
+                max_workers=max_workers,
+                export_extractor_method=export_extractor_method,
+                export_inpaint_method=export_inpaint_method,
+                enable_icon_subject_extraction=enable_icon_subject_extraction,
+                app=app
+            )
+        except Exception as submission_error:
+            logger.exception("Failed to submit editable export task %s", task.id)
+            failure_message = "可编辑导出任务未能进入后台队列"
+            task.status = 'FAILED'
+            task.error_message = failure_message
+            task.completed_at = datetime.utcnow()
+            task.set_progress({
+                'total': 100,
+                'completed': 0,
+                'failed': 1,
+                'current_step': '任务提交失败',
+                'percent': 0,
+                'backend_status': 'FAILED',
+                'error_code': 'EXPORT_TASK_SUBMISSION_FAILED',
+                'error_type': 'internal',
+                'error_stage': 'queue_submission',
+                'error_details': {
+                    'stage': 'queue_submission',
+                    'retryable': True,
+                    'technical_message': ExportService._safe_technical_message(submission_error),
+                },
+                'help_text': '后台任务队列暂时不可用，请稍后重新导出。',
+            })
+            db.session.commit()
+            return error_response('EXPORT_TASK_SUBMISSION_FAILED', failure_message, 503)
         
         logger.info(f"Submitted recursive export task {task.id} to task manager")
         

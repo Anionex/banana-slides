@@ -56,6 +56,9 @@ def upload_template(project_id):
             'template_image_url': f'/files/{project_id}/template/{file_path.split("/")[-1]}'
         })
     
+    except ValueError as e:
+        db.session.rollback()
+        return bad_request(str(e))
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
@@ -164,6 +167,9 @@ def upload_user_template():
 
         return success_response(template.to_dict())
     
+    except ValueError as e:
+        db.session.rollback()
+        return bad_request(str(e))
     except Exception as e:
         import traceback
         db.session.rollback()
@@ -270,4 +276,3 @@ def delete_user_style_template(template_id):
     except Exception as e:
         db.session.rollback()
         return error_response('SERVER_ERROR', str(e), 500)
-

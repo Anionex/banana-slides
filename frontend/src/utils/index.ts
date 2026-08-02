@@ -77,6 +77,18 @@ export function downloadFile(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
+export function downloadFromUrl(url: string, filename?: string) {
+  const link = document.createElement('a');
+  link.href = url;
+  if (filename) {
+    link.download = filename;
+  }
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 /**
  * 格式化日期
  */
@@ -201,3 +213,7 @@ export function normalizeErrorMessage(errorMessage: string | null | undefined): 
 
   return rawMessage;
 }
+
+export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+export const DESKTOP_TITLEBAR_HEIGHT = 50;
+export const DESKTOP_UPDATE_BANNER_HEIGHT = 40;

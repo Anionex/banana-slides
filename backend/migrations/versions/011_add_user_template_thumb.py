@@ -6,6 +6,7 @@ Create Date: 2025-01-18
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -13,6 +14,13 @@ revision = '011_add_user_template_thumb'
 down_revision = '010_add_cached_image_path'
 branch_labels = None
 depends_on = None
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [col['name'] for col in inspector.get_columns(table_name)]
+    return column_name in columns
 
 
 def generate_user_template_thumbnails():
@@ -192,7 +200,8 @@ def generate_page_thumbnails():
 
 def upgrade():
     # Add thumb_path column to user_templates table
-    op.add_column('user_templates', sa.Column('thumb_path', sa.String(500), nullable=True))
+    if not _column_exists('user_templates', 'thumb_path'):
+        op.add_column('user_templates', sa.Column('thumb_path', sa.String(500), nullable=True))
 
     # Generate thumbnails for existing user templates
     generate_user_template_thumbnails()
@@ -203,4 +212,5 @@ def upgrade():
 
 def downgrade():
     # Remove thumb_path column from user_templates table
-    op.drop_column('user_templates', 'thumb_path')
+    if _column_exists('user_templates', 'thumb_path'):
+        op.drop_column('user_templates', 'thumb_path')

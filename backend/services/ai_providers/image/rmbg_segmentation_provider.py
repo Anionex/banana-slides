@@ -1,6 +1,6 @@
 """RMBG-2.0 ONNX 本地推理主体抠图 provider。
 
-模型：briaai/RMBG-2.0 (FP16 ONNX)，CPU 推理。
+模型：AI-ModelScope/RMBG-2.0 (FP16 ONNX mirror)，CPU 推理。
 首次使用懒下载到 ~/.cache/banana-slides/models/rmbg-2.0/model_fp16.onnx，
 可通过 RMBG_MODEL_PATH 环境变量指定本地模型路径绕过下载。
 
@@ -17,7 +17,7 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-_MODEL_URL = "https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model_fp16.onnx"
+_MODEL_URL = "https://modelscope.cn/models/AI-ModelScope/RMBG-2.0/resolve/master/onnx/model_fp16.onnx"
 _DEFAULT_MODEL_PATH = Path.home() / ".cache" / "banana-slides" / "models" / "rmbg-2.0" / "model_fp16.onnx"
 _INPUT_SIZE = 1024
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)

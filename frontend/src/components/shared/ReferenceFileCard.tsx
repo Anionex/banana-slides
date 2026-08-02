@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, CheckCircle2, XCircle, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { getReferenceFile, deleteReferenceFile, dissociateFileFromProject, triggerFileParse, type ReferenceFile } from '@/api/endpoints';
 import { useT } from '@/hooks/useT';
 
@@ -9,7 +9,7 @@ const referenceFileCardI18n = {
     referenceFile: {
       parseStatus: { pending: "等待解析", parsing: "解析中...", completed: "解析完成", failed: "解析失败" },
       reparse: "重新解析", removeFromProject: "从项目中移除", deleteFile: "删除文件",
-      imageCaptionFailed: "⚠️ {{count}} 张图片未能生成描述",
+      imageCaptionFailed: "{{count}} 张图片未能生成描述",
       previewAfterParse: "解析完成后可预览"
     }
   },
@@ -17,7 +17,7 @@ const referenceFileCardI18n = {
     referenceFile: {
       parseStatus: { pending: "Pending", parsing: "Parsing...", completed: "Completed", failed: "Failed" },
       reparse: "Reparse", removeFromProject: "Remove from Project", deleteFile: "Delete File",
-      imageCaptionFailed: "⚠️ {{count}} images failed to generate captions",
+      imageCaptionFailed: "{{count}} images failed to generate captions",
       previewAfterParse: "Preview available after parsing"
     }
   }
@@ -200,7 +200,8 @@ export const ReferenceFileCard: React.FC<ReferenceFileCardProps> = ({
         {file.parse_status === 'completed' && 
          typeof file.image_caption_failed_count === 'number' && 
          file.image_caption_failed_count > 0 && (
-          <p className="text-xs text-orange-500 mt-1">
+          <p className="text-xs text-orange-500 mt-1 flex items-center gap-1">
+            <AlertTriangle size={12} className="flex-shrink-0" />
             {t('referenceFile.imageCaptionFailed', { count: file.image_caption_failed_count })}
           </p>
         )}

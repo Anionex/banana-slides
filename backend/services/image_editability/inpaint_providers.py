@@ -123,7 +123,7 @@ class GenerativeEditInpaintProvider(InpaintProvider):
     - DefaultInpaintProvider: 基于mask的精确区域重绘（需要准确的bbox）
     - GenerativeEditInpaintProvider: 整图生成式编辑（通过prompt描述要移除的内容）
     
-    优点：不需要精确的bbox，大模型自动理解并移除相关元素
+    优点：不依赖 mask，可结合 bbox 提示让大模型更准确地移除相关元素
     缺点：可能改变背景细节，生成速度较慢，消耗更多token
     
     适用场景：
@@ -144,6 +144,49 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         self.ai_service = ai_service
         self.aspect_ratio = aspect_ratio
         self.resolution = resolution
+
+    @staticmethod
+    def _build_normalized_removal_regions(
+        image_size: tuple[int, int],
+        bboxes: List[tuple],
+        types: Optional[List[str]] = None,
+    ) -> List[Dict]:
+        """把像素 bbox 转成 0-1 归一化 JSON，供 prompt 明确指定待移除区域。"""
+        image_width, image_height = image_size
+        if image_width <= 0 or image_height <= 0:
+            return []
+
+        def clamp_01(value: float) -> float:
+            return max(0.0, min(1.0, value))
+
+        removal_regions = []
+        for index, bbox in enumerate(bboxes):
+            if not isinstance(bbox, (tuple, list)) or len(bbox) != 4:
+                continue
+
+            raw_x0, raw_y0, raw_x1, raw_y1 = [float(v) for v in bbox]
+            x0, x1 = sorted((raw_x0, raw_x1))
+            y0, y1 = sorted((raw_y0, raw_y1))
+
+            nx0 = round(clamp_01(x0 / image_width), 6)
+            ny0 = round(clamp_01(y0 / image_height), 6)
+            nx1 = round(clamp_01(x1 / image_width), 6)
+            ny1 = round(clamp_01(y1 / image_height), 6)
+
+            removal_regions.append({
+                'region_id': index + 1,
+                'element_type': types[index] if types and index < len(types) else 'unknown',
+                'bbox': {
+                    'x0': nx0,
+                    'y0': ny0,
+                    'x1': nx1,
+                    'y1': ny1,
+                    'width': round(nx1 - nx0, 6),
+                    'height': round(ny1 - ny0, 6),
+                }
+            })
+
+        return removal_regions
     
     def inpaint_regions(
         self,
@@ -155,7 +198,7 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         """
         使用生成式大模型编辑生成干净背景
         
-        注意：此方法忽略bboxes参数，通过大模型自动识别并移除所有文字和图标
+        注意：此方法不会直接用 bbox 做 mask，但会把 bbox 转成 0-1 归一化 JSON 写进 prompt，提示大模型重点移除这些区域
         
         支持的kwargs参数：
         - aspect_ratio: str, 宽高比，默认使用初始化时的值
@@ -166,9 +209,15 @@ class GenerativeEditInpaintProvider(InpaintProvider):
         
         try:
             from services.prompts import get_clean_background_prompt
-            
+
+            normalized_regions = self._build_normalized_removal_regions(
+                image.size,
+                bboxes,
+                types,
+            )
+
             # 获取清理背景的prompt
-            edit_instruction = get_clean_background_prompt()
+            edit_instruction = get_clean_background_prompt(normalized_regions)
             
             # 保存临时图片文件（AI服务需要文件路径）
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
@@ -607,4 +656,3 @@ class InpaintProviderRegistry:
                    f"图片->{image_provider.__class__.__name__ if image_provider else 'None'}")
         
         return registry
-

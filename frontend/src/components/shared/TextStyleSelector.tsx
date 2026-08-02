@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ImagePlus, Loader2, Save, X } from 'lucide-react';
+import { ImagePlus, Loader2, Save, X, Lightbulb } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { Textarea } from './Textarea';
 import { PRESET_STYLES } from '@/config/presetStyles';
@@ -313,8 +313,9 @@ export const TextStyleSelector: React.FC<TextStyleSelectorProps> = ({ value, onC
         </div>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-foreground-tertiary">
-        💡 {t('styleTip')}
+      <p className="text-xs text-gray-500 dark:text-foreground-tertiary flex items-center gap-1.5">
+        <Lightbulb size={13} className="flex-shrink-0" />
+        {t('styleTip')}
       </p>
     </div>
   );

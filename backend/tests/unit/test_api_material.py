@@ -3,6 +3,7 @@ Material upload API tests - including caption generation
 """
 import io
 import pytest
+import re
 from unittest.mock import patch, MagicMock
 from PIL import Image
 from conftest import assert_success_response, assert_error_response
@@ -82,6 +83,79 @@ class TestMaterialUpload:
             data={'file': (io.BytesIO(b'fake data'), 'test.txt')},
             content_type='multipart/form-data'
         )
+        assert response.status_code == 400
+
+    def test_upload_material_chinese_filename_uses_content_type_and_uuid_storage(self, client):
+        """Chinese filenames should upload successfully and not drive storage names."""
+        img_bytes = _create_test_image()
+        response = client.post(
+            '/api/materials/upload',
+            data={'file': (img_bytes, '正文.png')},
+            content_type='multipart/form-data'
+        )
+
+        data = assert_success_response(response, 201)
+        material = data['data']
+        assert material['original_filename'] == '正文.png'
+        assert re.fullmatch(r'[0-9a-f]{32}\.png', material['filename'])
+        assert material['relative_path'] == f"materials/{material['filename']}"
+        assert material['url'] == f"/files/materials/{material['filename']}"
+
+    def test_upload_material_spoofed_extension_still_uses_detected_image_format(self, client):
+        """Storage extension should come from image bytes, not the client filename."""
+        img_bytes = _create_test_image()
+        response = client.post(
+            '/api/materials/upload',
+            data={'file': (img_bytes, 'not-really-a-bmp.bmp')},
+            content_type='multipart/form-data'
+        )
+
+        data = assert_success_response(response, 201)
+        material = data['data']
+        assert material['original_filename'] == 'not-really-a-bmp.bmp'
+        assert material['filename'].endswith('.png')
+
+    def test_upload_material_svg_detection_does_not_parse_entities(self, client):
+        """SVG detection should not expand or parse XML entities."""
+        svg_bytes = io.BytesIO(b'''<?xml version="1.0"?>
+<!DOCTYPE svg [
+  <!ENTITY a "entity expansion should not be parsed">
+]>
+<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>
+''')
+
+        response = client.post(
+            '/api/materials/upload',
+            data={'file': (svg_bytes, '图标.svg')},
+            content_type='multipart/form-data'
+        )
+
+        data = assert_success_response(response, 201)
+        material = data['data']
+        assert material['original_filename'] == '图标.svg'
+        assert material['filename'].endswith('.svg')
+
+    def test_upload_material_text_mentioning_svg_is_rejected(self, client):
+        """Arbitrary text containing '<svg' should not be treated as SVG."""
+        response = client.post(
+            '/api/materials/upload',
+            data={'file': (io.BytesIO(b'This text mentions <svg but is not an SVG document.'), 'notes.svg')},
+            content_type='multipart/form-data'
+        )
+
+        assert response.status_code == 400
+
+    @patch('controllers.material_controller.Image.open')
+    def test_upload_material_corrupted_image_errors_are_rejected(self, mock_image_open, client):
+        """Unexpected Pillow parser errors should return 400 instead of 500."""
+        mock_image_open.side_effect = IndexError('truncated image data')
+
+        response = client.post(
+            '/api/materials/upload',
+            data={'file': (io.BytesIO(b'corrupted image bytes'), 'broken.png')},
+            content_type='multipart/form-data'
+        )
+
         assert response.status_code == 400
 
     def test_upload_material_no_file(self, client):

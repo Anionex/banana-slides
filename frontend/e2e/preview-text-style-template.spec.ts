@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test'
 import { seedProjectWithImages } from './helpers/seed-project'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3011'
 const BACKEND_URL = BASE_URL.replace(/:\d+$/, (m) => `:${parseInt(m.slice(1)) + 2000}`)
 
 /** Set up all mocks needed for SlidePreview to render */
@@ -59,17 +59,18 @@ test.describe('Preview text style template - Mock tests', () => {
     await page.goto(`${BASE_URL}/project/mock-proj/preview`)
 
     // Open template modal
-    await page.getByText(/更换模板|Change Template/).click()
+    await page.getByTestId('template-menu').click()
+    await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
 
     // Initially should show toggle label but NOT TextStyleSelector content
     await expect(page.getByText(/使用文字描述风格|Use text description for style/)).toBeVisible()
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).not.toBeVisible()
 
     // Toggle to text style mode (click label text — the actual input is sr-only/off-screen)
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
 
     // Now TextStyleSelector should be visible
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).toBeVisible()
     // Apply button should appear
     await expect(page.getByText(/应用风格|Apply Style/)).toBeVisible()
   })
@@ -77,7 +78,8 @@ test.describe('Preview text style template - Mock tests', () => {
   test('clicking preset style fills textarea', async ({ page }) => {
     await setupMocks(page)
     await page.goto(`${BASE_URL}/project/mock-proj/preview`)
-    await page.getByText(/更换模板|Change Template/).click()
+    await page.getByTestId('template-menu').click()
+    await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
 
     // Toggle to text style mode
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
@@ -91,7 +93,8 @@ test.describe('Preview text style template - Mock tests', () => {
   test('closing modal without apply discards preset change', async ({ page }) => {
     await setupMocks(page)
     await page.goto(`${BASE_URL}/project/mock-proj/preview`)
-    await page.getByText(/更换模板|Change Template/).click()
+    await page.getByTestId('template-menu').click()
+    await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
 
     // Toggle to text style, click a preset
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
@@ -99,10 +102,11 @@ test.describe('Preview text style template - Mock tests', () => {
     await expect(page.locator('textarea')).not.toHaveValue('')
 
     // Close modal without clicking Apply
-    await page.getByText(/关闭|Close/).click()
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+    await page.getByRole('button', { name: /^关闭$|^Close$/ }).first().click()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).not.toBeVisible()
 
     // Reopen — toggle is still on, textarea should be empty (draft discarded)
+    await page.getByTestId('template-menu').click()
     await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
     await expect(page.locator('textarea')).toHaveValue('')
   })
@@ -125,7 +129,8 @@ test.describe('Preview text style template - Integration tests', () => {
     await page.waitForLoadState('networkidle')
 
     // Open template modal
-    await page.getByText(/更换模板|Change Template/).click()
+    await page.getByTestId('template-menu').click()
+    await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
 
     // Toggle to text style mode
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
@@ -138,14 +143,15 @@ test.describe('Preview text style template - Integration tests', () => {
     await page.getByText(/应用风格|Apply Style/).click()
 
     // Modal should close
-    await expect(page.getByText(/快速选择预设风格|Quick select preset styles/)).not.toBeVisible()
+    await expect(page.getByText(/预设风格：|Preset styles:/)).not.toBeVisible()
 
     // Reload and verify persistence
     await page.reload()
     await page.waitForLoadState('networkidle')
 
     // Reopen template modal and toggle to text style to verify saved value
-    await page.getByText(/更换模板|Change Template/).click()
+    await page.getByTestId('template-menu').click()
+    await page.getByRole('button', { name: /更换模板|Change Template/ }).click()
     await page.getByText(/使用文字描述风格|Use text description for style/).click()
     await expect(page.locator('textarea')).toHaveValue('E2E test custom style description')
   })

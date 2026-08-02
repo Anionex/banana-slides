@@ -7,6 +7,8 @@ description: "Upload reference files, paste images, or generate custom materials
 
 Upload documents as source material — AI references the extracted content when generating outlines, descriptions, and images.
 
+When parsed documents contain images, those images are automatically added to the project's material library once the reference file is associated with a project, so you can reuse them later from the material picker.
+
 ### Supported Formats
 
 | Format | Extracted Content |
@@ -46,6 +48,8 @@ Paste an image anywhere (Ctrl+V) in the home page, Outline Editor, or Descriptio
 1. Copy an image (screenshot, copy from web, etc.)
 2. Press **Ctrl+V** in the input area
 3. The image uploads automatically — AI recognizes its content and inserts it as a Markdown image reference at the cursor position
+
+When a page uses both an image template and materials embedded in its description, image models with multi-image input receive the template and all material images instead of only the first reference. GPT Image models accept up to 16 input images including the template; DALL-E 2 remains limited to one input image.
 
 ## Style References
 

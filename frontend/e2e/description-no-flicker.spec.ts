@@ -120,7 +120,7 @@ test.describe('Description cards stability during generation', () => {
     })
 
     // Navigate to detail editor
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000'
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3011'
     await page.goto(`${baseUrl}/project/${PROJECT_ID}/detail`)
 
     // Wait for page cards to appear (no descriptions yet)

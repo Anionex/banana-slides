@@ -44,7 +44,8 @@ LATEX_SYMBOLS = {
     # 数学运算符
     r'\times': '×', r'\div': '÷', r'\pm': '±', r'\mp': '∓',
     r'\cdot': '·', r'\ast': '∗', r'\star': '☆',
-    r'\leq': '≤', r'\geq': '≥', r'\neq': '≠', r'\approx': '≈',
+    r'\leq': '≤', r'\le': '≤', r'\geq': '≥', r'\ge': '≥',
+    r'\neq': '≠', r'\approx': '≈',
     r'\equiv': '≡', r'\sim': '∼', r'\propto': '∝',
     r'\infty': '∞', r'\partial': '∂', r'\nabla': '∇',
     r'\sum': '∑', r'\prod': '∏', r'\int': '∫',
@@ -53,7 +54,7 @@ LATEX_SYMBOLS = {
     r'\leftarrow': '←', r'\rightarrow': '→', r'\leftrightarrow': '↔',
     r'\Leftarrow': '⇐', r'\Rightarrow': '⇒', r'\Leftrightarrow': '⇔',
     # 其他
-    r'\ldots': '…', r'\cdots': '⋯', r'\vdots': '⋮',
+    r'\dots': '…', r'\ldots': '…', r'\cdots': '⋯', r'\vdots': '⋮',
     r'\forall': '∀', r'\exists': '∃', r'\in': '∈', r'\notin': '∉',
     r'\subset': '⊂', r'\supset': '⊃', r'\cup': '∪', r'\cap': '∩',
 }
@@ -245,4 +246,3 @@ def convert_latex_for_pptx(latex: str) -> Tuple[str, Optional[str]]:
             return text_fallback, omml
     
     return text_fallback, None
-

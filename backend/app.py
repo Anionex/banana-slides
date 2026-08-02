@@ -1,8 +1,14 @@
+import sys
+if sys.platform == 'win32':
+    if sys.stdout is not None and hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr is not None and hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 """
 Simplified Flask Application Entry Point
 """
 import os
-import sys
 import hmac
 import logging
 from pathlib import Path
@@ -13,20 +19,23 @@ import sqlite3
 from sqlalchemy.exc import SQLAlchemyError
 from flask_migrate import Migrate
 
+if __name__ == '__main__':
+    sys.modules.setdefault('app', sys.modules[__name__])
+
 # Load environment variables from project root .env file
 _project_root = Path(__file__).parent.parent
 _env_file = _project_root / '.env'
-load_dotenv(dotenv_path=_env_file, override=True)
+load_dotenv(dotenv_path=_env_file, override=not os.getenv('DATABASE_PATH'))
 
 from flask import Flask
 from flask_cors import CORS
 from models import db
-from config import Config
+from config import Config, DEFAULT_BACKEND_PORT, DEFAULT_FRONTEND_PORT
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
 from controllers.openai_oauth_controller import openai_oauth_bp
-from controllers import project_bp, page_bp, template_bp, user_template_bp, user_style_template_bp, export_bp, file_bp, style_bp
+from controllers import project_bp, page_bp, template_bp, user_template_bp, user_style_template_bp, export_bp, file_bp, style_bp, template_assets_bp, page_template_bp, template_mode_bp
 
 
 # Enable SQLite WAL mode for all connections
@@ -57,9 +66,15 @@ def create_app():
     # Load configuration from Config class
     app.config.from_object(Config)
 
+    # Desktop DATABASE_PATH must win over any DATABASE_URL left in .env.
+    db_path_env = os.environ.get('DATABASE_PATH')
+    if db_path_env:
+        db_path_env = os.path.abspath(db_path_env.strip())
+
     # Allow DATABASE_URL env var to override config at runtime (supports test isolation)
-    if os.getenv('DATABASE_URL'):
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    database_url_env = os.getenv('DATABASE_URL')
+    if database_url_env and not db_path_env:
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url_env
 
     # Ensure instance directory exists for the default SQLite path in Config
     backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -72,8 +87,22 @@ def create_app():
     os.makedirs(upload_folder, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_folder
     
+    # Desktop environment overrides (set by Electron python-manager)
+    upload_folder_env = os.environ.get('UPLOAD_FOLDER')
+    export_folder_env = os.environ.get('EXPORT_FOLDER')
+
+    if db_path_env:
+        os.makedirs(os.path.dirname(db_path_env), exist_ok=True)
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{Path(db_path_env).as_posix()}'
+    if upload_folder_env:
+        os.makedirs(upload_folder_env, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = upload_folder_env
+    if export_folder_env:
+        os.makedirs(export_folder_env, exist_ok=True)
+        app.config['EXPORT_FOLDER'] = export_folder_env
+
     # CORS configuration (parse from environment)
-    raw_cors = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
+    raw_cors = os.getenv('CORS_ORIGINS', f'http://localhost:{DEFAULT_FRONTEND_PORT}')
     if raw_cors.strip() == '*':
         cors_origins = '*'
     else:
@@ -93,7 +122,19 @@ def create_app():
     logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('werkzeug').setLevel(logging.INFO)  # Flask开发服务器日志保持INFO
+    werkzeug_log_level = app.config.get('WERKZEUG_LOG_LEVEL', 'INFO')
+    if isinstance(werkzeug_log_level, str):
+        werkzeug_log_level = werkzeug_log_level.strip()
+        werkzeug_log_level = (
+            int(werkzeug_log_level)
+            if werkzeug_log_level.isdigit()
+            else werkzeug_log_level.upper()
+        )
+    werkzeug_logger = logging.getLogger('werkzeug')
+    try:
+        werkzeug_logger.setLevel(werkzeug_log_level)
+    except (ValueError, TypeError):
+        werkzeug_logger.setLevel(logging.INFO)
     logging.getLogger('volcenginesdkarkruntime').setLevel(logging.WARNING)
 
     # Initialize extensions
@@ -108,6 +149,9 @@ def create_app():
     app.register_blueprint(template_bp)
     app.register_blueprint(user_template_bp)
     app.register_blueprint(user_style_template_bp)
+    app.register_blueprint(template_assets_bp)
+    app.register_blueprint(page_template_bp)
+    app.register_blueprint(template_mode_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(file_bp)
     app.register_blueprint(material_bp)
@@ -118,6 +162,32 @@ def create_app():
     app.register_blueprint(style_bp)
 
     with app.app_context():
+        if db_path_env:
+            db.create_all()
+            from desktop_bootstrap import repair_desktop_settings_schema
+            repair_desktop_settings_schema(db)
+        elif os.getenv('BANANA_SKIP_AUTO_MIGRATE') == '1':
+            pass
+        else:
+            migrations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'migrations')
+            if os.path.exists(migrations_dir):
+                try:
+                    from alembic import command as alembic_command
+                    from alembic.config import Config as AlembicConfig
+
+                    alembic_ini = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'alembic.ini')
+                    alembic_config = AlembicConfig(alembic_ini)
+                    alembic_config.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
+                    alembic_command.upgrade(alembic_config, 'head')
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f'Alembic upgrade failed, falling back to create_all: {e}')
+                    db.create_all()
+                    from desktop_bootstrap import repair_desktop_settings_schema
+                    repair_desktop_settings_schema(db)
+            else:
+                db.create_all()
+                from desktop_bootstrap import repair_desktop_settings_schema
+                repair_desktop_settings_schema(db)
         # Load settings from database and sync to app.config
         _load_settings_to_config(app)
 
@@ -237,6 +307,8 @@ def _load_settings_to_config(app):
         img_workers = settings.max_image_workers or Config.MAX_IMAGE_WORKERS
         app.config['MAX_DESCRIPTION_WORKERS'] = desc_workers
         app.config['MAX_IMAGE_WORKERS'] = img_workers
+        from services.task_manager import sync_resource_limits
+        sync_resource_limits(desc_workers, img_workers)
         logging.info(f"Loaded worker settings: desc={desc_workers}, img={img_workers}")
 
         # Load model settings (FIX for Issue #136: these were missing before)
@@ -272,7 +344,9 @@ def _load_settings_to_config(app):
         app.config['TEXT_THINKING_BUDGET'] = settings.text_thinking_budget
         app.config['ENABLE_IMAGE_REASONING'] = settings.enable_image_reasoning
         app.config['IMAGE_THINKING_BUDGET'] = settings.image_thinking_budget
+        app.config['ENABLE_IMAGE_QUALITY_CONTROL'] = getattr(settings, 'enable_image_quality_control', False)
         logging.info(f"Loaded reasoning config: text={settings.enable_text_reasoning}(budget={settings.text_thinking_budget}), image={settings.enable_image_reasoning}(budget={settings.image_thinking_budget})")
+        logging.info(f"Loaded image quality control: {app.config['ENABLE_IMAGE_QUALITY_CONTROL']}")
         
         # Load Baidu API settings
         if settings.baidu_api_key:
@@ -325,7 +399,6 @@ def _load_settings_to_config(app):
         else:
             logging.warning(f"Could not load settings from database: {e}")
 
-
 # Create app instance
 app = create_app()
 
@@ -334,7 +407,7 @@ def _compute_worktree_port(base_port: int) -> int:
     """Compute a deterministic port from the worktree directory name.
 
     Uses MD5 of the project root basename so each worktree gets a unique,
-    stable port pair (backend 5xxx, frontend 3xxx) without manual config.
+    stable port pair (backend 51xx, frontend 31xx) without manual config.
     """
     import hashlib
     basename = _project_root.name
@@ -349,8 +422,37 @@ if __name__ == '__main__':
     elif os.getenv('BACKEND_PORT'):
         port = int(os.getenv('BACKEND_PORT'))
     else:
-        port = _compute_worktree_port(5000)
+        port = _compute_worktree_port(DEFAULT_BACKEND_PORT)
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
+
+    if port == 0:
+        from werkzeug.serving import make_server
+
+        server = make_server('127.0.0.1', 0, app, threaded=True)
+        port = server.server_port
+        print(f"LISTENING_ON:{port}", flush=True)
+
+        logging.info(
+            "\n"
+            "╔══════════════════════════════════════╗\n"
+            "║   🍌 Banana Slides API Server 🍌   ║\n"
+            "╚══════════════════════════════════════╝\n"
+            f"Server starting on: http://localhost:{port}\n"
+            f"Output Language: {Config.OUTPUT_LANGUAGE}\n"
+            f"Environment: {os.getenv('FLASK_ENV', 'development')}\n"
+            "Debug mode: False\n"
+            f"API Base URL: http://localhost:{port}/api\n"
+            f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}\n"
+            f"Uploads: {app.config['UPLOAD_FOLDER']}"
+        )
+
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
+        raise SystemExit(0)
     
     logging.info(
         "\n"
@@ -365,6 +467,6 @@ if __name__ == '__main__':
         f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}\n"
         f"Uploads: {app.config['UPLOAD_FOLDER']}"
     )
-    
+
     # Using absolute paths for database, so WSL path issues should not occur
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

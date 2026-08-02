@@ -52,6 +52,9 @@ def _log_codex_retry(retry_state):
 class CodexTextProvider(TextProvider):
     """Text generation via the ChatGPT Codex Responses API (OAuth)."""
 
+    request_timeout_seconds = _DEFAULT_TIMEOUT
+    max_attempts = 5
+
     def __init__(self, api_key: str, model: str = "gpt-4.1-mini"):
         """
         Args:

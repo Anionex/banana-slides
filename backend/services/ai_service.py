@@ -8,7 +8,7 @@ import json
 import re
 import logging
 import requests
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 from textwrap import dedent
 from PIL import Image
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
@@ -29,11 +29,44 @@ from .prompts import (
     get_outline_generation_prompt_markdown,
     get_outline_parsing_prompt_markdown,
     get_description_to_outline_prompt_markdown,
+    get_template_analysis_prompt,
+    get_template_auto_match_prompt,
 )
 from .ai_providers import get_text_provider, get_image_provider, get_caption_provider, TextProvider, ImageProvider
 from config import get_config
 
 logger = logging.getLogger(__name__)
+
+
+# Matches H1 headings that carry explicit part/section semantics, e.g.
+# "Part 1: ...", "Section A", "第一章", "第2部分", "第三节". Used to tell a real
+# opening chapter apart from a deck-level document title that has no such marker.
+_PART_HEADER_RE = re.compile(
+    r'^\s*(part|section|chapter|module|unit)\b'
+    r'|第\s*[0-9零一二三四五六七八九十百千]+\s*[章部节篇]',
+    re.IGNORECASE,
+)
+
+
+def _is_part_header(heading: str) -> bool:
+    """Whether an H1 line reads as a part/section header rather than a deck title."""
+    return bool(_PART_HEADER_RE.search(heading or ''))
+
+
+def _describe_json_response_text(text: str) -> str:
+    """Return a compact, non-secret hint about an AI response that failed JSON parsing."""
+    stripped = str(text or "").strip()
+    if not stripped:
+        return "empty"
+    if stripped.startswith("!["):
+        return "markdown_image"
+    if stripped.startswith("```"):
+        return "markdown_fence"
+    if stripped.startswith("<"):
+        return "html_or_xml"
+    if stripped[:1] in ("{", "["):
+        return "json_like"
+    return "plain_text"
 
 
 class ProjectContext:
@@ -243,15 +276,23 @@ class AIService:
         Returns:
             提取的JSON字符串
         """
+        import re
+
         # 移除常见的AI解释前缀
         text = re.sub(r'^(Here is|这是|以下是|The JSON|JSON格式|输出).*?[:：]\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
 
-        # 查找第一个[或{
+        # 查找第一个有效的JSON开始符
         start_idx = -1
-        for i, char in enumerate(text):
-            if char in '[{':
-                start_idx = i
-                break
+        if text.startswith('['):
+            start_idx = 0
+        elif text.startswith('{'):
+            start_idx = 0
+        else:
+            # 查找第一个[或{
+            for i, char in enumerate(text):
+                if char in '[{':
+                    start_idx = i
+                    break
 
         if start_idx == -1:
             return text  # 如果没找到，直接返回原文本
@@ -338,7 +379,16 @@ class AIService:
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON解析失败（带图片），将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
+            logger.warning(
+                "JSON解析失败（带图片），将重新生成。provider=%s image=%s response_kind=%s response_len=%s "
+                "原始文本: %s... 错误: %s",
+                provider.__class__.__name__,
+                os.path.basename(image_path),
+                _describe_json_response_text(cleaned_text),
+                len(cleaned_text),
+                cleaned_text[:200],
+                str(e),
+            )
             raise
     
     @staticmethod
@@ -414,6 +464,7 @@ class AIService:
         pages = []
         current_part = None
         current_page = None
+        seen_page = False
 
         for line in markdown.split('\n'):
             stripped = line.strip()
@@ -421,9 +472,16 @@ class AIService:
                 continue
 
             if stripped.startswith('# ') and not stripped.startswith('## '):
-                # Part header
-                current_part = stripped[2:].strip()
+                heading = stripped[2:].strip()
+                # A bare H1 before the first page is the deck-level document title,
+                # not a part — ignore it so it doesn't pollute the cover's part. But
+                # keep a real opening chapter (e.g. "第一章") when a deck starts
+                # directly with a section and has no separate cover.
+                if not seen_page and not _is_part_header(heading):
+                    continue
+                current_part = heading
             elif stripped.startswith('## '):
+                seen_page = True
                 # New page — flush previous
                 if current_page:
                     pages.append(current_page)
@@ -454,10 +512,19 @@ class AIService:
         """
         creation_type = project_context.creation_type or 'idea'
 
+        extra_field_names = self._get_extra_field_names() if creation_type == 'descriptions' else []
+        field_pattern = self._build_extra_field_pattern(
+            self._get_parseable_field_names() if creation_type == 'descriptions' else []
+        )
+
         if creation_type == 'outline':
             prompt = get_outline_parsing_prompt_markdown(project_context, language)
         elif creation_type == 'descriptions':
-            prompt = get_description_to_outline_prompt_markdown(project_context, language)
+            prompt = get_description_to_outline_prompt_markdown(
+                project_context,
+                language,
+                extra_fields=extra_field_names,
+            )
         else:
             prompt = get_outline_generation_prompt_markdown(project_context, language)
 
@@ -465,7 +532,127 @@ class AIService:
         buffer = ""
         current_part = None
         current_page = None
+        current_mode = 'points'
+        current_field = None
         stream_complete = False
+        seen_page = False
+
+        def _new_page(title: str) -> Dict:
+            page = {
+                'title': title,
+                'points': [],
+                'description_lines': [],
+                'extra_fields': {},
+            }
+            if current_part:
+                page['part'] = current_part
+            return page
+
+        def _finalize_page(page: Optional[Dict]) -> Optional[Dict]:
+            if not page:
+                return None
+            result = {
+                'title': page.get('title', ''),
+                'points': page.get('points', []),
+            }
+            if page.get('part'):
+                result['part'] = page['part']
+            description_text = "\n".join(page.get('description_lines', [])).strip()
+            if description_text:
+                result['description_text'] = description_text
+            if page.get('extra_fields'):
+                result['extra_fields'] = dict(page['extra_fields'])
+            return result
+
+        def _process_line(line: str, stripped: str):
+            nonlocal current_part, current_page, current_mode, current_field, stream_complete, seen_page
+
+            if stripped == '<!-- END -->':
+                stream_complete = True
+                return None
+
+            if stripped == '<!-- PAGE_END -->':
+                finished = _finalize_page(current_page)
+                current_page = None
+                current_mode = 'points'
+                current_field = None
+                return finished
+
+            if not stripped:
+                if current_page is not None and current_mode == 'description':
+                    if current_field:
+                        current_page['extra_fields'][current_field] = (
+                            current_page['extra_fields'].get(current_field, '') + "\n"
+                        )
+                    else:
+                        current_page['description_lines'].append('')
+                return None
+
+            if stripped.startswith('# ') and not stripped.startswith('## '):
+                heading = stripped[2:].strip()
+                # A bare H1 before the first page is the deck-level document title,
+                # not a part — ignore it so it doesn't pollute the cover's part. But
+                # keep a real opening chapter (e.g. "第一章") when a deck starts
+                # directly with a section and has no separate cover.
+                if not seen_page and not _is_part_header(heading):
+                    return None
+                current_part = heading
+                return None
+
+            if stripped.startswith('## '):
+                seen_page = True
+                finished = _finalize_page(current_page)
+                current_page = _new_page(stripped[3:].strip())
+                current_mode = 'points'
+                current_field = None
+                return finished
+
+            if current_page is None:
+                return None
+
+            marker = stripped.strip('*_').strip().lower().replace('：', ':')
+            if (
+                marker == '<!-- outline_points -->'
+                or marker in ('大纲要点:', 'outline points:')
+            ):
+                current_mode = 'points'
+                current_field = None
+                return None
+
+            if (
+                marker == '<!-- page_description -->'
+                or marker in ('页面描述:', 'page description:')
+            ):
+                current_mode = 'description'
+                current_field = None
+                return None
+
+            if current_mode == 'description':
+                if field_pattern:
+                    field_match = field_pattern.match(stripped)
+                    if field_match:
+                        current_field = field_match.group(1)
+                        value = field_match.group(2).strip()
+                        if value:
+                            current_page['extra_fields'][current_field] = value
+                        return None
+
+                if current_field:
+                    current_page['extra_fields'][current_field] = (
+                        current_page['extra_fields'].get(current_field, '') + "\n" + stripped
+                    ).strip()
+                    return None
+
+                current_page['description_lines'].append(line.rstrip())
+                return None
+
+            if stripped.startswith('- '):
+                current_page['points'].append(stripped[2:].strip())
+            else:
+                # Backward/forward compatible: support sentence-style outline lines
+                # generated under each title (without "- " prefix).
+                current_page['points'].append(stripped)
+            return None
 
         for chunk in self.text_provider.generate_text_stream(prompt, thinking_budget=actual_budget):
             buffer += chunk
@@ -473,64 +660,21 @@ class AIService:
             # Process complete lines from buffer
             while '\n' in buffer:
                 line, buffer = buffer.split('\n', 1)
-                stripped = line.strip()
+                finished_page = _process_line(line, line.strip())
+                if finished_page:
+                    yield finished_page
 
-                if not stripped:
-                    continue
-
-                if stripped == '<!-- END -->':
-                    stream_complete = True
-                    continue
-
-                if stripped.startswith('# ') and not stripped.startswith('## '):
-                    current_part = stripped[2:].strip()
-                elif stripped.startswith('## '):
-                    # New page detected — yield previous page
-                    if current_page:
-                        yield current_page
-                    current_page = {
-                        'title': stripped[3:].strip(),
-                        'points': [],
-                    }
-                    if current_part:
-                        current_page['part'] = current_part
-                elif stripped.startswith('- ') and current_page is not None:
-                    current_page['points'].append(stripped[2:].strip())
-                elif current_page is not None:
-                    # Also accept sentence-style content line under the title.
-                    current_page['points'].append(stripped)
-
-        # Process remaining buffer (same logic as main loop)
+        # Process remaining buffer
         if buffer.strip():
-            buffer += '\n'
-            while '\n' in buffer:
-                line, buffer = buffer.split('\n', 1)
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                if stripped == '<!-- END -->':
-                    stream_complete = True
-                    continue
-                if stripped.startswith('# ') and not stripped.startswith('## '):
-                    current_part = stripped[2:].strip()
-                elif stripped.startswith('## '):
-                    if current_page:
-                        yield current_page
-                    current_page = {
-                        'title': stripped[3:].strip(),
-                        'points': [],
-                    }
-                    if current_part:
-                        current_page['part'] = current_part
-                elif stripped.startswith('- ') and current_page is not None:
-                    current_page['points'].append(stripped[2:].strip())
-                elif current_page is not None:
-                    # Also accept sentence-style content line under the title.
-                    current_page['points'].append(stripped)
+            for line in buffer.split('\n'):
+                finished_page = _process_line(line, line.strip())
+                if finished_page:
+                    yield finished_page
 
         # Yield last page
-        if current_page:
-            yield current_page
+        finished_page = _finalize_page(current_page)
+        if finished_page:
+            yield finished_page
 
         # Yield completion sentinel
         yield {'__stream_complete__': stream_complete}
@@ -550,22 +694,94 @@ class AIService:
         outline = self.generate_json(parse_prompt, thinking_budget=1000)
         return outline
     
-    def flatten_outline(self, outline: List[Dict]) -> List[Dict]:
+    @staticmethod
+    def _normalize_outline_page(
+        page: Any,
+        page_index: str,
+        part: Optional[str] = None,
+        has_part: bool = False,
+    ) -> Dict:
+        if isinstance(page, str):
+            title = page.strip()
+            if not title:
+                raise ValueError(f"Outline page {page_index} is an empty string")
+            logger.warning("Normalizing string outline page at %s", page_index)
+            normalized = {"title": title, "points": []}
+        elif isinstance(page, dict):
+            normalized = page.copy()
+            title = normalized.get("title")
+            if title is None:
+                normalized["title"] = ""
+            elif not isinstance(title, str):
+                normalized["title"] = str(title).strip()
+            else:
+                normalized["title"] = title.strip()
+
+            points = normalized.get("points", [])
+            if points is None:
+                normalized["points"] = []
+            elif isinstance(points, list):
+                normalized["points"] = [
+                    str(point).strip()
+                    for point in points
+                    if point is not None and str(point).strip()
+                ]
+            elif isinstance(points, str):
+                stripped_point = points.strip()
+                if stripped_point:
+                    logger.warning("Normalizing string outline points at %s", page_index)
+                    normalized["points"] = [stripped_point]
+                else:
+                    normalized["points"] = []
+            else:
+                raise ValueError(
+                    f"Outline page {page_index} points must be a list or string, got {type(points).__name__}"
+                )
+        else:
+            raise ValueError(
+                f"Outline page {page_index} must be an object or string, got {type(page).__name__}"
+            )
+
+        if has_part:
+            normalized["part"] = str(part).strip() if part is not None else None
+        elif normalized.get("part") is not None:
+            normalized["part"] = str(normalized["part"]).strip()
+
+        return normalized
+
+    def flatten_outline(self, outline: List[Union[Dict[str, Any], str]]) -> List[Dict[str, Any]]:
         """
         Flatten outline structure to page list
         Based on demo.py flatten_outline()
         """
+        if not isinstance(outline, list):
+            raise ValueError(f"Outline must be a list, got {type(outline).__name__}")
+
         pages = []
-        for item in outline:
-            if "part" in item and "pages" in item:
+        for item_index, item in enumerate(outline):
+            if not isinstance(item, (dict, str)):
+                raise ValueError(
+                    f"Outline item {item_index} must be an object or string, got {type(item).__name__}"
+                )
+
+            if isinstance(item, dict) and "part" in item and "pages" in item:
                 # This is a part, expand its pages
-                for page in item["pages"]:
-                    page_with_part = page.copy()
-                    page_with_part["part"] = item["part"]
-                    pages.append(page_with_part)
+                if not isinstance(item["pages"], list):
+                    raise ValueError(
+                        f"Outline part {item_index} pages must be a list, got {type(item['pages']).__name__}"
+                    )
+                for page_index, page in enumerate(item["pages"]):
+                    pages.append(
+                        self._normalize_outline_page(
+                            page,
+                            f"{item_index}.pages[{page_index}]",
+                            part=item["part"],
+                            has_part=True,
+                        )
+                    )
             else:
                 # This is a direct page
-                pages.append(item)
+                pages.append(self._normalize_outline_page(item, str(item_index)))
         return pages
     
     @staticmethod
@@ -575,6 +791,8 @@ class AIService:
 
         遍历 field_names，按出现顺序依次提取每个字段的内容。
         两个相邻字段之间的文本属于前一个字段。
+        字段行可以位于文本开头或任意行首——开头的字段若不被识别，
+        会残留在正文里被逐字渲染到幻灯片上。
         """
         if not field_names:
             return text, {}
@@ -583,7 +801,7 @@ class AIService:
         # 找到所有字段在文本中的起始位置
         positions = []
         for name in field_names:
-            match = re.search(rf'\n{re.escape(name)}[：:]\s*', text)
+            match = re.search(rf'(?:^|\n){re.escape(name)}[：:]\s*', text)
             if match:
                 positions.append((match.start(), match.end(), name))
 
@@ -618,7 +836,20 @@ class AIService:
             return settings.get_description_extra_fields()
         except Exception:
             logger.warning("Failed to get extra field names from settings", exc_info=True)
-            return ['视觉元素', '视觉焦点', '排版布局', '演讲者备注']
+            return ['配图与素材', '版式与重点', '演讲者备注']
+
+    @classmethod
+    def _get_parseable_field_names(cls) -> list:
+        """解析用字段名 = 当前配置字段 + 旧字段名。
+
+        指令只用配置字段（不能让模型输出已停用的字段名），但解析要宽容：
+        模型若沿用参考资料里的旧字段名，必须切进 extra_fields，
+        否则字段行会留在页面文字里被逐字渲染到幻灯片上。
+        """
+        from models import Settings
+        return list(dict.fromkeys(
+            [*cls._get_extra_field_names(), *Settings.LEGACY_FIELD_EQUIV.keys()]
+        ))
 
     def generate_page_description(self, project_context: ProjectContext, outline: List[Dict],
                                  page_outline: Dict, page_index: int, language='zh',
@@ -656,7 +887,7 @@ class AIService:
         response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=actual_budget)
 
         text = dedent(response_text)
-        description_text, extra_fields = self._parse_extra_fields(text, extra_field_names)
+        description_text, extra_fields = self._parse_extra_fields(text, self._get_parseable_field_names())
 
         result = {'text': description_text}
         if extra_fields:
@@ -685,7 +916,7 @@ class AIService:
         )
 
         # Build regex pattern to detect any configured extra field header
-        field_pattern = self._build_extra_field_pattern(extra_field_names)
+        field_pattern = self._build_extra_field_pattern(self._get_parseable_field_names())
 
         actual_budget = self._get_text_thinking_budget()
         buffer = ""
@@ -813,36 +1044,24 @@ class AIService:
                             extra_requirements: Optional[str] = None,
                             language='zh',
                             has_template: bool = True,
-                            aspect_ratio: str = "16:9") -> str:
+                            aspect_ratio: str = "16:9",
+                            page_style_text: Optional[str] = None) -> str:
         """
         Generate image generation prompt for a page
-        Based on demo.py gen_prompts()
-        
+
         Args:
-            outline: Complete outline
-            page: Page outline data
-            page_desc: Page description text
-            page_index: Page number (1-indexed)
-            has_material_images: 是否有素材图片（从项目描述中提取的图片）
-            extra_requirements: Optional extra requirements to apply to all pages
-            language: Output language
-            has_template: 是否有模板图片（False表示无模板图模式）
-        
-        Returns:
-            Image generation prompt
+            has_template: 是否有模板图片(False=无模板图模式)
+            page_style_text: 页级文字风格(per-page-template 决策 7);
+                非空时拼入风格段,优先级高于项目级 template_style
         """
         outline_text = self.generate_outline_text(outline)
-        
-        # Determine current section
         if 'part' in page:
             current_section = page['part']
         else:
             current_section = f"{page.get('title', 'Untitled')}"
-        
-        # 在传给文生图模型之前，移除 Markdown 图片链接
-        # 图片本身已经通过 additional_ref_images 传递，只保留文字描述
+
         cleaned_page_desc = self.remove_markdown_images(page_desc)
-        
+
         prompt = get_image_generation_prompt(
             page_desc=cleaned_page_desc,
             outline_text=outline_text,
@@ -852,10 +1071,70 @@ class AIService:
             language=language,
             has_template=has_template,
             page_index=page_index,
-            aspect_ratio=aspect_ratio
+            aspect_ratio=aspect_ratio,
+            page_style_text=page_style_text,
         )
-        
+
         return prompt
+
+    def review_generated_slide_image(
+        self,
+        image_path: str,
+        generation_prompt: str,
+        page_desc: str,
+        page_outline: Optional[Dict] = None,
+        page_index: Optional[int] = None,
+    ) -> Dict:
+        """Review a generated slide image before it is saved as a version."""
+        prompt = dedent(f"""
+        You are a strict quality-control reviewer for AI-generated presentation slide images.
+        Inspect the provided image against the generation prompt used to create it.
+
+        Reject the image if any of these problems are clearly present:
+        1. Garbled, unreadable, nonsensical, or visibly corrupted text inside the slide image.
+        2. Low-quality illustration or rendering, including obvious artifacts, malformed layouts, blurry key content, or amateur-looking visual style.
+        3. The visual content, style, layout, or key objects are substantially inconsistent with the generation prompt.
+
+        Accept the image if minor imperfections exist but it is usable as a presentation slide and broadly matches the request.
+
+        Return only valid JSON in this exact shape:
+        {{
+          "passed": true,
+          "issues": [],
+          "reason": "short reason"
+        }}
+
+        Page number: {page_index if page_index is not None else ''}
+
+        Generation prompt:
+        {generation_prompt}
+        """).strip()
+
+        result = self.generate_json_with_image(prompt, image_path)
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            result = result[0]
+        if not isinstance(result, dict):
+            raise ValueError("Image quality review returned a non-object result")
+
+        raw_passed = result.get('passed')
+        if isinstance(raw_passed, bool):
+            passed = raw_passed
+        elif isinstance(raw_passed, (int, float)):
+            passed = bool(raw_passed)
+        elif isinstance(raw_passed, str):
+            passed = raw_passed.strip().lower() in ('true', 'yes', 'pass', 'passed', '1')
+        else:
+            passed = False
+        issues = result.get('issues') or []
+        if not isinstance(issues, list):
+            issues = [str(issues)]
+        reason = str(result.get('reason') or '').strip()
+
+        return {
+            'passed': passed,
+            'issues': [str(issue).strip() for issue in issues if str(issue).strip()],
+            'reason': reason,
+        }
     
     def generate_image(self, prompt: str, ref_image_path: Optional[str] = None, 
                       aspect_ratio: str = "16:9", resolution: str = "2K",
@@ -930,17 +1209,24 @@ class AIService:
                         elif ref_img.startswith('/files/'):
                             # 通用 /files/ 路径（materials、项目文件等），转换为文件系统路径
                             upload_folder = get_config().UPLOAD_FOLDER
-                            relative_path = ref_img[len('/files/'):].lstrip('/')
-                            local_path = os.path.abspath(os.path.join(upload_folder, relative_path))
-                            if not local_path.startswith(os.path.abspath(upload_folder)):
+                            upload_folder_real = os.path.realpath(upload_folder)
+                            relative_path = ref_img[len('/files/'):].lstrip('/\\')
+                            local_path = os.path.realpath(os.path.join(upload_folder, relative_path))
+                            try:
+                                is_inside_upload_folder = (
+                                    os.path.commonpath([local_path, upload_folder_real]) == upload_folder_real
+                                )
+                            except ValueError:
+                                is_inside_upload_folder = False
+                            if not is_inside_upload_folder:
                                 logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
-                            elif os.path.exists(local_path):
+                            elif os.path.isfile(local_path):
                                 opened = Image.open(local_path)
                                 ref_images.append(opened)
                                 owned_images.append(opened)
                                 logger.debug(f"Loaded image from local path: {local_path}")
                             else:
-                                logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
+                                logger.warning(f"Local file not found or not a file: {local_path} (from {ref_img}), skipping...")
                         else:
                             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
 
@@ -1062,19 +1348,20 @@ class AIService:
                            project_context: ProjectContext,
                            outline: List[Dict] = None,
                            previous_requirements: Optional[List[str]] = None,
-                           language='zh') -> List[str]:
+                           language='zh') -> List[Dict]:
         """
         根据用户要求修改已有页面描述
-        
+
         Args:
             current_descriptions: 当前的页面描述列表，每个元素包含 {index, title, description_content}
             user_requirement: 用户的新要求
             project_context: 项目上下文对象，包含所有原始信息
             outline: 完整的大纲结构（可选）
             previous_requirements: 之前的修改要求列表（可选）
-        
+
         Returns:
-            修改后的页面描述列表（字符串列表）
+            修改后的页面描述列表，每个元素为 {'text': ..., 'extra_fields': {...}}。
+            额外字段必须切分出来，否则字段行会被当作页面文字渲染到幻灯片上。
         """
         refinement_prompt = get_descriptions_refinement_prompt(
             current_descriptions=current_descriptions,
@@ -1086,11 +1373,30 @@ class AIService:
         )
         descriptions = self.generate_json(refinement_prompt, thinking_budget=1000)
 
-        # 确保返回的是字符串列表
-        if isinstance(descriptions, list):
-            return [str(desc) for desc in descriptions]
-        else:
+        if not isinstance(descriptions, list):
             raise ValueError("Expected a list of page descriptions, but got: " + str(type(descriptions)))
+
+        field_names = self._get_parseable_field_names()
+        results = []
+        for desc in descriptions:
+            # 模型偶尔会返回对象而非字符串；直接 str() 会把 Python dict/list
+            # 字面量渲染到幻灯片上，先按「字段：值」逐行摊平再解析
+            if isinstance(desc, dict):
+                lines = []
+                for k, v in desc.items():
+                    if not v:
+                        continue
+                    value = '\n'.join(str(i) for i in v) if isinstance(v, list) else str(v)
+                    lines.append(f'{k}：{value}')
+                desc_text = '\n'.join(lines)
+            else:
+                desc_text = str(desc)
+            text, extra_fields = self._parse_extra_fields(desc_text, field_names)
+            result = {'text': text}
+            if extra_fields:
+                result['extra_fields'] = extra_fields
+            results.append(result)
+        return results
 
     def extract_page_content(self, markdown_text: str, language: str = 'zh') -> Dict:
         """
@@ -1146,3 +1452,147 @@ class AIService:
         """从图片中提取风格描述"""
         return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
 
+    # =========================================================================
+    # Per-page template (PRD §5.3 / §8) — analysis + auto-match
+    # =========================================================================
+
+    def analyze_template(self, image_path: str, language: str = 'zh') -> Dict:
+        """
+        Analyze a template image into the 9-field schema (PRD §5.3).
+
+        Reuses generate_json_with_image (3x soft retry). On model-declared
+        failure returns {"error": "not_a_slide"}; on retry exhaustion raises
+        json.JSONDecodeError.
+        """
+        prompt = get_template_analysis_prompt(language=language)
+        result = self.generate_json_with_image(prompt, image_path)
+        if isinstance(result, dict):
+            return result
+        raise ValueError(f"analyze_template expected dict, got {type(result).__name__}")
+
+    def auto_match_templates(self, project_id: str, language: str = 'zh',
+                              overwrite_existing: bool = True,
+                              preserve_non_empty: bool = False) -> List[Dict]:
+        """
+        Auto-match every page in a project to a template (decision 5).
+
+        - Candidates: ProjectTemplateAsset with analysis_status == 'completed'
+          (decision 2 — failed/pending assets stay manual-only)
+        - Pages: every Page with non-empty description_content
+        - Batching: <=50 pages AND <=20 templates → single LLM call;
+          otherwise 30-page batches, results concatenated in order
+        - preserve_non_empty=True skips pages that already have template_asset_id
+
+        Returns rows shaped like the prompt schema; caller (task) commits to DB.
+        """
+        from models import Project, Page, ProjectTemplateAsset
+
+        project = Project.query.get(project_id)
+        if not project:
+            raise ValueError(f"project not found: {project_id}")
+
+        templates_q = ProjectTemplateAsset.query.filter_by(
+            project_id=project_id, analysis_status='completed'
+        ).order_by(ProjectTemplateAsset.sort_order.asc()).all()
+        if not templates_q:
+            raise ValueError("NO_ANALYZED_TEMPLATES")
+
+        pages_q = Page.query.filter_by(project_id=project_id).order_by(
+            Page.order_index.asc()).all()
+
+        eligible_pages = []
+        for p in pages_q:
+            desc = p.get_description_content() if hasattr(p, 'get_description_content') else None
+            if not desc:
+                continue
+            if preserve_non_empty and p.template_asset_id:
+                continue
+            eligible_pages.append((p, desc))
+
+        if not eligible_pages:
+            return []
+
+        templates_payload = [self._trim_template_for_match(t) for t in templates_q]
+        pages_payload = [self._trim_page_for_match(p, desc) for p, desc in eligible_pages]
+
+        BATCH_PAGES, BATCH_TEMPLATES = 50, 20
+        if len(pages_payload) <= BATCH_PAGES and len(templates_payload) <= BATCH_TEMPLATES:
+            batches = [pages_payload]
+        else:
+            batches = [pages_payload[i:i + 30] for i in range(0, len(pages_payload), 30)]
+
+        all_results: List[Dict] = []
+        for batch in batches:
+            prompt = get_template_auto_match_prompt(
+                templates=templates_payload, pages=batch, language=language)
+            result = self.generate_json(prompt)
+            if isinstance(result, dict):
+                result = [result]
+            if not isinstance(result, list):
+                raise ValueError(f"auto_match_templates expected list, got {type(result).__name__}")
+            all_results.extend(result)
+
+        return all_results
+
+    @staticmethod
+    def _trim_template_for_match(asset) -> Dict:
+        """PRD §5.3 → matcher-friendly subset (decision 5 trimming)."""
+        analysis = asset.get_analysis() if hasattr(asset, 'get_analysis') else {}
+        analysis = analysis or {}
+        keywords = (analysis.get('style_keywords') or [])[:5]
+        notes = (asset.analysis_notes or analysis.get('notes') or '')[:200]
+        return {
+            'asset_id': asset.id,
+            'sort_order': asset.sort_order,
+            'user_label': asset.user_label or '',
+            'extracted_text': (analysis.get('extracted_text') or '')[:100],
+            'template_role': analysis.get('template_role'),
+            'layout_structure': analysis.get('layout_structure'),
+            'content_capacity': analysis.get('content_capacity'),
+            'visual_density': analysis.get('visual_density'),
+            'style_keywords': keywords,
+            'notes': notes,
+        }
+
+    @staticmethod
+    def _trim_page_for_match(page, desc: Dict) -> Dict:
+        """Page → matcher-friendly subset (decision 5: title + 100-char summary + density)."""
+        title = (desc.get('title') or '').strip()
+        text_blocks = desc.get('text_content') or []
+        if isinstance(text_blocks, list):
+            joined = ' / '.join(str(t) for t in text_blocks if t)
+        else:
+            joined = str(text_blocks)
+        if not title and not joined:
+            # Free-text description schema: {'text': ..., 'extra_fields': {...}}
+            lines = [
+                ln.strip() for ln in str(desc.get('text') or '').splitlines()
+                if ln.strip() and not ln.strip().startswith('---')
+                and not ln.strip().startswith('![')
+            ]
+            if lines:
+                title = lines[0].strip('*').strip()
+                joined = ' / '.join(lines[1:])
+        summary = joined[:100]
+        extra_fields = desc.get('extra_fields') or {}
+        layout_hint = ' / '.join(
+            f'{k}: {v}' for k, v in extra_fields.items()
+            if v and k != '演讲者备注'
+        )[:300] if isinstance(extra_fields, dict) else ''
+        body_len = len(joined)
+        if body_len < 200:
+            density = 'low'
+        elif body_len < 600:
+            density = 'medium'
+        else:
+            density = 'high'
+        row = {
+            'page_id': page.id,
+            'order_index': page.order_index,
+            'title': title,
+            'summary': summary,
+            'content_density': density,
+        }
+        if layout_hint:
+            row['layout_hint'] = layout_hint
+        return row

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, useToast, MaterialSelector } from '@/components/shared';
 import { useT } from '@/hooks/useT';
 import { getImageUrl } from '@/api/client';
+import { isDesktop } from '@/utils';
 
 // Template 组件自包含翻译
 const templateI18n = {
@@ -41,6 +42,11 @@ import { materialUrlToFile } from '@/components/shared/MaterialSelector';
 import type { Material } from '@/api/endpoints';
 import { ImagePlus, X } from 'lucide-react';
 
+const publicAssetPath = (assetPath: string) => {
+  const normalizedPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
+  return isDesktop ? `.${normalizedPath}` : normalizedPath;
+};
+
 interface TemplateSelectorProps {
   onSelect: (templateFile: File | null, templateId?: string) => void;
   selectedTemplateId?: string | null;
@@ -65,9 +71,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const { show, ToastContainer } = useToast();
 
   const presetTemplates = [
-    { id: '1', nameKey: 'template.presets.retroScroll', preview: '/templates/template_y.png', thumb: '/templates/template_y-thumb.webp' },
-    { id: '2', nameKey: 'template.presets.vectorIllustration', preview: '/templates/template_vector_illustration.png', thumb: '/templates/template_vector_illustration-thumb.webp' },
-    { id: '3', nameKey: 'template.presets.glassEffect', preview: '/templates/template_glass.png', thumb: '/templates/template_glass-thumb.webp' },
+    { id: '1', nameKey: 'template.presets.retroScroll', preview: publicAssetPath('/templates/template_y.png'), thumb: publicAssetPath('/templates/template_y-thumb.webp') },
+    { id: '2', nameKey: 'template.presets.vectorIllustration', preview: publicAssetPath('/templates/template_vector_illustration.png'), thumb: publicAssetPath('/templates/template_vector_illustration-thumb.webp') },
+    { id: '3', nameKey: 'template.presets.glassEffect', preview: publicAssetPath('/templates/template_glass.png'), thumb: publicAssetPath('/templates/template_glass-thumb.webp') },
   ];
 
   useEffect(() => {
@@ -315,18 +321,37 @@ export const getTemplateFile = async (
   templateId: string,
   userTemplates: UserTemplate[]
 ): Promise<File | null> => {
+  const fetchImageFile = async (url: string, filename: string): Promise<File> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load template image (${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const contentType = response.headers.get('content-type') || blob.type;
+    if (contentType && !contentType.toLowerCase().startsWith('image/')) {
+      throw new Error(`Template response is not an image (${contentType})`);
+    }
+    if (blob.size === 0) {
+      throw new Error('Template image is empty');
+    }
+
+    return new File([blob], filename, { type: blob.type || contentType || 'image/png' });
+  };
+
   const presetTemplates = [
-    { id: '1', preview: '/templates/template_y.png' },
-    { id: '2', preview: '/templates/template_vector_illustration.png' },
-    { id: '3', preview: '/templates/template_glass.png' },
+    { id: '1', preview: publicAssetPath('/templates/template_y.png') },
+    { id: '2', preview: publicAssetPath('/templates/template_vector_illustration.png') },
+    { id: '3', preview: publicAssetPath('/templates/template_glass.png') },
   ];
 
   const presetTemplate = presetTemplates.find(t => t.id === templateId);
   if (presetTemplate && presetTemplate.preview) {
     try {
-      const response = await fetch(presetTemplate.preview);
-      const blob = await response.blob();
-      return new File([blob], presetTemplate.preview.split('/').pop() || 'template.png', { type: blob.type });
+      return await fetchImageFile(
+        presetTemplate.preview,
+        presetTemplate.preview.split('/').pop() || 'template.png'
+      );
     } catch (error) {
       console.error('Failed to load preset template:', error);
       return null;
@@ -337,9 +362,7 @@ export const getTemplateFile = async (
   if (userTemplate) {
     try {
       const imageUrl = getImageUrl(userTemplate.template_image_url);
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      return new File([blob], 'template.png', { type: blob.type });
+      return await fetchImageFile(imageUrl, 'template.png');
     } catch (error) {
       console.error('Failed to load user template:', error);
       return null;

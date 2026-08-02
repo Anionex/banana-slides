@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
 import { useT } from '@/hooks/useT';
 import { StatusBadge, Skeleton, useConfirm } from '@/components/shared';
 import { getImageUrl } from '@/api/client';
@@ -103,7 +103,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
-              <div className="text-3xl mb-1">🍌</div>
+              <ImageIcon size={28} className="mx-auto mb-1 text-gray-300 dark:text-foreground-tertiary" strokeWidth={1.5} />
               <div className="text-xs">{t('slideCard.notGenerated')}</div>
             </div>
           </div>

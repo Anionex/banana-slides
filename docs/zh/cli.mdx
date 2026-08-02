@@ -44,7 +44,7 @@ banana-cli [全局选项] <命令组> <子命令> [选项]
 
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
-| `--base-url` | 后端地址 | `http://localhost:5000` |
+| `--base-url` | 后端地址 | `http://localhost:5011` |
 | `--access-code` | 访问码（注入 `X-Access-Code` 请求头） | 无 |
 | `--poll-interval` | 任务轮询间隔（秒） | `3` |
 | `--request-timeout` | 请求超时（秒） | `60` |
@@ -59,7 +59,7 @@ CLI 参数 > 环境变量 (`BANANA_CLI_*`) > TOML 配置文件 > 默认值
 环境变量对应关系：
 
 ```bash
-BANANA_CLI_BASE_URL=http://localhost:5000
+BANANA_CLI_BASE_URL=http://localhost:5011
 BANANA_CLI_ACCESS_CODE=your-code
 BANANA_CLI_POLL_INTERVAL=3
 BANANA_CLI_REQUEST_TIMEOUT=60
