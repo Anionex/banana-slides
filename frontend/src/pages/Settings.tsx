@@ -1195,9 +1195,7 @@ export const Settings: React.FC = () => {
       if (key === 'text_model_source') {
         if (value === 'atlascloud') {
           next.text_api_base_url = ATLASCLOUD_TEXT_DEFAULTS.baseUrl;
-          if (!prev.text_model) {
-            next.text_model = ATLASCLOUD_TEXT_DEFAULTS.model;
-          }
+          next.text_model = ATLASCLOUD_TEXT_DEFAULTS.model;
         } else if (prev.text_model_source === 'atlascloud') {
           if (prev.text_api_base_url === ATLASCLOUD_TEXT_DEFAULTS.baseUrl) {
             next.text_api_base_url = '';

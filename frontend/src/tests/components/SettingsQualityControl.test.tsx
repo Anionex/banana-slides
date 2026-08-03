@@ -106,4 +106,29 @@ describe('Settings quality control', () => {
       );
     });
   });
+
+  it('applies Atlas Cloud defaults when selecting the text provider', async () => {
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const providerLabel = await screen.findByText(/文本模型提供商格式|Text Model Provider Format/);
+    const providerSelect = providerLabel.parentElement?.querySelector('select');
+    expect(providerSelect).toBeTruthy();
+
+    await userEvent.selectOptions(providerSelect!, 'atlascloud');
+    await userEvent.click(screen.getByRole('button', { name: /保存设置|Save Settings/ }));
+
+    await waitFor(() => {
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text_model_source: 'atlascloud',
+          text_model: 'deepseek-ai/deepseek-v4-pro',
+          text_api_base_url: 'https://api.atlascloud.ai/v1',
+        })
+      );
+    });
+  });
 });
