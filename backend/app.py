@@ -277,25 +277,27 @@ def _load_settings_to_config(app):
         # Load API configuration
         # Note: We load even if value is None/empty to allow clearing settings
         # But we only log if there's an actual value
+        # 与保存时 _sync_settings_to_config 保持一致: 只把 DB 中的统一 key/base 同步到
+        # 当前 provider, 避免污染其他 provider 的 per-model 配置（如 volcengine 设置
+        # 下 per-model openai 调用不得命中 plan/v3 端点）
+        active_format = (settings.ai_provider_format or Config.AI_PROVIDER_FORMAT or '').lower()
+        active_api_keys = {
+            'gemini': ('GOOGLE_API_KEY', 'GOOGLE_API_BASE'),
+            'openai': ('OPENAI_API_KEY', 'OPENAI_API_BASE'),
+            'volcengine': ('VOLCENGINE_API_KEY', 'VOLCENGINE_API_BASE'),
+        }.get(active_format)
+
         if settings.api_base_url is not None:
-            # 将数据库中的统一 API Base 同步到 Google/OpenAI 配置，确保覆盖环境变量
-            app.config['GOOGLE_API_BASE'] = settings.api_base_url
-            app.config['OPENAI_API_BASE'] = settings.api_base_url
-            # Volcengine 仅在全局 provider 为 volcengine 时同步, 避免覆盖
-            # 非 Volcengine 设置下供 per-model volcengine 使用的 env/ARK 配置
-            if (settings.ai_provider_format or '').lower() == 'volcengine':
-                app.config['VOLCENGINE_API_BASE'] = settings.api_base_url
+            if active_api_keys:
+                app.config[active_api_keys[1]] = settings.api_base_url
             if settings.api_base_url:
                 logging.info(f"Loaded API_BASE from settings: {settings.api_base_url}")
             else:
                 logging.info("API_BASE is empty in settings, using env var or default")
 
         if settings.api_key is not None:
-            # 同步到 Google/OpenAI 的 key，数据库优先于环境变量
-            app.config['GOOGLE_API_KEY'] = settings.api_key
-            app.config['OPENAI_API_KEY'] = settings.api_key
-            if (settings.ai_provider_format or '').lower() == 'volcengine':
-                app.config['VOLCENGINE_API_KEY'] = settings.api_key
+            if active_api_keys:
+                app.config[active_api_keys[0]] = settings.api_key
             if settings.api_key:
                 logging.info("Loaded API key from settings")
             else:
