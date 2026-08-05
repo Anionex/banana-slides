@@ -272,6 +272,57 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     expect(savedSettingsPayload?.image_caption_api_base_url).toBe('https://custom-proxy.example.com/v1');
   });
 
+  test('one-click setup inherits custom global base for empty per-model fields', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', async route => {
+      if (route.request().method() === 'PUT') {
+        const payload = route.request().postDataJSON() as Record<string, unknown>;
+        savedSettingsPayload = payload;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...mockSettings,
+            data: { ...mockSettings.data, ...payload },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'volcengine',
+            api_base_url: 'https://custom-proxy.example.com/v1',
+            text_model_source: 'volcengine',
+            image_model_source: 'volcengine',
+            image_caption_model_source: 'volcengine',
+          },
+        }),
+      });
+    });
+
+    await page.goto('/settings');
+    await page.getByRole('button', { name: '一键填写推荐模型' }).click();
+
+    // 空的 per-model base 必须继承全局自定义端点, 而不是被硬编码的 cn-beijing 端点替换
+    const baseInputs = page.getByPlaceholder('留空使用默认 Base URL');
+    await expect(baseInputs).toHaveCount(3);
+    await expect(baseInputs.nth(0)).toHaveValue('https://custom-proxy.example.com/v1');
+    await expect(baseInputs.nth(1)).toHaveValue('https://custom-proxy.example.com/v1');
+    await expect(baseInputs.nth(2)).toHaveValue('https://custom-proxy.example.com/v1');
+
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedSettingsPayload?.text_api_base_url).toBe('https://custom-proxy.example.com/v1');
+    expect(savedSettingsPayload?.image_api_base_url).toBe('https://custom-proxy.example.com/v1');
+    expect(savedSettingsPayload?.image_caption_api_base_url).toBe('https://custom-proxy.example.com/v1');
+  });
+
   test('shows the Volcengine campaign prompt for Doubao without changing provider semantics', async ({ page }) => {
     await page.goto('/settings');
 

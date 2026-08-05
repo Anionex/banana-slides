@@ -1222,6 +1222,11 @@ export const Settings: React.FC = () => {
       // 否则代理/替代端点部署下 per-model 调用会命中硬编码的 cn-beijing 地址
       const agentPlansBaseOrDefault = (current: string) =>
         KNOWN_DEFAULT_BASE_URLS.has(current) ? VOLCENGINE_AGENTPLANS_BASE_URL : current;
+      // per-model 字段为空时继承全局解析后的端点（自定义代理端点同样生效）,
+      // 因为 {MODEL}_API_BASE 的解析优先级高于 VOLCENGINE_API_BASE
+      const resolvedGlobalBase = agentPlansBaseOrDefault(prev.api_base_url);
+      const perModelBase = (current: string) =>
+        KNOWN_DEFAULT_BASE_URLS.has(current) ? resolvedGlobalBase : current;
       return {
         ...prev,
         text_model: models.text,
@@ -1231,11 +1236,10 @@ export const Settings: React.FC = () => {
         image_caption_model_source: provider,
         image_model_source: provider,
         api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.api_base_url) : prev.api_base_url,
-        // per-model base 同样只替换过时默认值: 空值会让保存前的服务测试和同名
-        // {MODEL}_API_BASE 环境变量命中旧端点, 自定义值则应原样保留
-        text_api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.text_api_base_url) : prev.text_api_base_url,
-        image_caption_api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.image_caption_api_base_url) : prev.image_caption_api_base_url,
-        image_api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.image_api_base_url) : prev.image_api_base_url,
+        // per-model base 同样只替换过时默认值: 空值/默认值继承全局端点, 自定义值原样保留
+        text_api_base_url: isAgentPlans ? perModelBase(prev.text_api_base_url) : prev.text_api_base_url,
+        image_caption_api_base_url: isAgentPlans ? perModelBase(prev.image_caption_api_base_url) : prev.image_caption_api_base_url,
+        image_api_base_url: isAgentPlans ? perModelBase(prev.image_api_base_url) : prev.image_api_base_url,
         openai_image_api_protocol: 'images',
       };
     });
