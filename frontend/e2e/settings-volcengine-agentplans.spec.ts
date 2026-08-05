@@ -95,17 +95,23 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await providerSelect.selectOption('volcengine');
 
     const globalApiSection = page.getByTestId('global-api-config-section');
-    await expect(globalApiSection.getByText('API Base URL')).not.toBeVisible();
+    // Agent Plans 端点可编辑, 且未填过时自动预填专属 Base URL
+    await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
+    await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
     await expect(globalApiSection.locator('input[type="password"]').first()).toBeVisible();
 
     await providerSelect.selectOption('openai');
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
-    await expect(globalApiSection.locator('input').first()).toHaveValue('');
+    // 切换 provider 保留已填的 Base URL（与其他 provider 切换行为一致）
+    await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
     await providerSelect.selectOption('volcengine');
-    await expect(globalApiSection.getByText('API Base URL')).not.toBeVisible();
+    await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
+    await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
     await page.locator('select').nth(1).selectOption('volcengine');
-    await expect(page.getByText('API Base URL')).not.toBeVisible();
+    // per-model 的 Base URL 输入框同样可编辑（仅当前组 source=volcengine 时显示）
+    await expect(page.getByPlaceholder('留空使用默认 Base URL')).toHaveCount(1);
+    await expect(page.getByPlaceholder('留空使用默认 Base URL')).toHaveValue('');
 
     await expect(page.getByText('火山 AgentPlans API Key 配置')).toBeVisible();
     await expect(page.getByText(/Agent Plan \/ Coding Plan 限时折扣/)).toBeVisible();
@@ -123,9 +129,9 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     await page.getByRole('button', { name: '一键填写推荐模型' }).click();
     const inputs = modelInputs(page);
-    await expect(inputs.nth(0)).toHaveValue('doubao-seed-2-1-pro-260628');
-    await expect(inputs.nth(1)).toHaveValue('doubao-seedream-5-0-260128');
-    await expect(inputs.nth(2)).toHaveValue('doubao-seed-2-1-pro-260628');
+    await expect(inputs.nth(0)).toHaveValue('doubao-seed-2.1-turbo');
+    await expect(inputs.nth(1)).toHaveValue('doubao-seedream-5.0-lite');
+    await expect(inputs.nth(2)).toHaveValue('doubao-seed-2.1-turbo');
     await expect(page.locator('select').nth(1)).toHaveValue('volcengine');
     await expect(page.locator('select').nth(2)).toHaveValue('volcengine');
     await expect(page.locator('select').nth(3)).toHaveValue('images');
@@ -134,14 +140,14 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await page.getByRole('button', { name: /保存设置/ }).click();
     await expect(page.getByText('设置保存成功')).toBeVisible();
     expect(savedSettingsPayload?.ai_provider_format).toBe('volcengine');
-    expect(savedSettingsPayload?.text_model).toBe('doubao-seed-2-1-pro-260628');
-    expect(savedSettingsPayload?.image_model).toBe('doubao-seedream-5-0-260128');
-    expect(savedSettingsPayload?.image_caption_model).toBe('doubao-seed-2-1-pro-260628');
+    expect(savedSettingsPayload?.text_model).toBe('doubao-seed-2.1-turbo');
+    expect(savedSettingsPayload?.image_model).toBe('doubao-seedream-5.0-lite');
+    expect(savedSettingsPayload?.image_caption_model).toBe('doubao-seed-2.1-turbo');
     expect(savedSettingsPayload?.text_model_source).toBe('volcengine');
     expect(savedSettingsPayload?.image_model_source).toBe('volcengine');
     expect(savedSettingsPayload?.image_caption_model_source).toBe('volcengine');
     expect(savedSettingsPayload?.openai_image_api_protocol).toBe('images');
-    expect(savedSettingsPayload?.api_base_url).toBe('');
+    expect(savedSettingsPayload?.api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
     expect(savedSettingsPayload?.text_api_base_url).toBe('');
     expect(savedSettingsPayload?.image_api_base_url).toBe('');
     expect(savedSettingsPayload?.image_caption_api_base_url).toBe('');
@@ -213,6 +219,9 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     const globalApiSection = page.getByTestId('global-api-config-section');
     await expect(globalApiSection.locator('select').first()).toHaveValue('volcengine');
     await expect(page.locator('select').nth(1)).toHaveValue('volcengine');
-    await expect(globalApiSection.getByText('API Base URL')).not.toBeVisible();
+    // Volcengine 不再隐藏 Base URL 输入框 (Agent Plans 端点可编辑)
+    await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
+    // 后端返回的 per-model base 同步显示到对应输入框
+    await expect(page.getByPlaceholder('留空使用默认 Base URL').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/v3');
   });
 });

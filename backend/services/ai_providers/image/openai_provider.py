@@ -30,6 +30,11 @@ _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
 _NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
 _MAX_GPT_IMAGE_INPUTS = 16
 
+# Volcengine Seedream models only accept the native images API (images/generations).
+# The Agent Plan endpoint does not expose a chat-completions image modality, so an
+# 'auto' protocol must route these models to images.generate instead of chat.completions.
+_DOUBAO_SEEDREAM_PREFIX = 'doubao-seedream'
+
 # Aspect-ratio → size per model family.
 # DALL-E models only support fixed sizes; gpt-image-* uses dynamic calculation.
 _DALLE3_SIZE_MAP = {
@@ -177,7 +182,11 @@ class OpenAIImageProvider(ImageProvider):
 
     def _is_native_images_api_model(self) -> bool:
         """Return True when the model should use images.generate / images.edit."""
-        return self.model.lower() in _NATIVE_IMAGES_API_MODELS
+        model = self.model.lower()
+        return (
+            model in _NATIVE_IMAGES_API_MODELS
+            or model.startswith(_DOUBAO_SEEDREAM_PREFIX)
+        )
 
     def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
         buf = BytesIO()
@@ -204,6 +213,8 @@ class OpenAIImageProvider(ImageProvider):
             return 'standard'   # dall-e-3 only accepts standard / hd
         if model == 'dall-e-2':
             return None          # dall-e-2 has no quality param
+        if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
+            return None          # Volcengine Seedream does not accept a quality param
         return 'auto'            # gpt-image-* accepts auto / low / medium / high
 
     def _decode_image_response(self, item) -> Image.Image:
@@ -399,9 +410,16 @@ class OpenAIImageProvider(ImageProvider):
         """
         try:
             # Route based on image_api_protocol setting
+            # Doubao Seedream keeps the chat-completions path when reference images are
+            # present: the images.edit endpoint is only for SeedEdit models, while the
+            # legacy chat path still accepts inline base64 references.
             use_images_api = (
                 self.image_api_protocol == 'images'
-                or (self.image_api_protocol == 'auto' and self._is_native_images_api_model())
+                or (
+                    self.image_api_protocol == 'auto'
+                    and self._is_native_images_api_model()
+                    and not (ref_images and self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX))
+                )
             )
             if use_images_api:
                 return self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)

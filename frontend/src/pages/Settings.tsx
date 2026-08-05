@@ -457,8 +457,15 @@ const getAllProviderSources = (isZh: boolean) => [
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
-const FIXED_BASE_URL_PROVIDERS = new Set(['volcengine']);
-const VOLCENGINE_RECOMMENDED_MODELS = {
+// 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
+const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
+const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
+  text: 'doubao-seed-2.1-turbo',
+  caption: 'doubao-seed-2.1-turbo',
+  image: 'doubao-seedream-5.0-lite',
+};
+// 火山方舟（标准 ModelArk, LazyLLM Doubao 路径）: 使用端点 ID 格式
+const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
   text: 'doubao-seed-2-1-pro-260628',
   caption: 'doubao-seed-2-1-pro-260628',
   image: 'doubao-seedream-5-0-260128',
@@ -684,7 +691,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
 
   return {
     ai_provider_format: providerFormat,
-    api_base_url: FIXED_BASE_URL_PROVIDERS.has(providerFormat) ? '' : (data.api_base_url || ''),
+    api_base_url: data.api_base_url || '',
     api_key: '',
     image_resolution: data.image_resolution || '2K',
     enable_image_quality_control: data.enable_image_quality_control ?? false,
@@ -706,11 +713,11 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
     image_caption_model_source: imageCaptionModelSource,
     lazyllm_api_keys: {},
     text_api_key: '',
-    text_api_base_url: FIXED_BASE_URL_PROVIDERS.has(textModelSource) ? '' : (data.text_api_base_url || ''),
+    text_api_base_url: data.text_api_base_url || '',
     image_api_key: '',
-    image_api_base_url: FIXED_BASE_URL_PROVIDERS.has(imageModelSource) ? '' : (data.image_api_base_url || ''),
+    image_api_base_url: data.image_api_base_url || '',
     image_caption_api_key: '',
-    image_caption_api_base_url: FIXED_BASE_URL_PROVIDERS.has(imageCaptionModelSource) ? '' : (data.image_caption_api_base_url || ''),
+    image_caption_api_base_url: data.image_caption_api_base_url || '',
     openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
     elevenlabs_api_key: '',
   };
@@ -1171,20 +1178,9 @@ export const Settings: React.FC = () => {
       const next = { ...prev, [key]: value };
 
       if (key === 'ai_provider_format') {
-        if (FIXED_BASE_URL_PROVIDERS.has(value)) {
-          next.api_base_url = '';
-        }
-      }
-
-      const perModelBaseKeys: Record<string, 'text_api_base_url' | 'image_api_base_url' | 'image_caption_api_base_url'> = {
-        text_model_source: 'text_api_base_url',
-        image_model_source: 'image_api_base_url',
-        image_caption_model_source: 'image_caption_api_base_url',
-      };
-      const apiBaseKey = perModelBaseKeys[key];
-      if (apiBaseKey) {
-        if (FIXED_BASE_URL_PROVIDERS.has(value)) {
-          next[apiBaseKey] = '';
+        // Agent Plans 需要专属端点; 未填过时预填, 已保存的自定义值保留
+        if (value === 'volcengine' && !next.api_base_url) {
+          next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
         }
       }
 
@@ -1193,18 +1189,21 @@ export const Settings: React.FC = () => {
   };
 
   const applyVolcengineRecommendedModels = () => {
-    const provider = formData.ai_provider_format === 'volcengine' ? 'volcengine' : 'doubao';
+    const isAgentPlans = formData.ai_provider_format === 'volcengine';
+    const provider = isAgentPlans ? 'volcengine' : 'doubao';
+    const models = isAgentPlans ? VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS : VOLCENGINE_MODELARK_RECOMMENDED_MODELS;
     setFormData(prev => ({
       ...prev,
-      text_model: VOLCENGINE_RECOMMENDED_MODELS.text,
-      image_caption_model: VOLCENGINE_RECOMMENDED_MODELS.caption,
-      image_model: VOLCENGINE_RECOMMENDED_MODELS.image,
+      text_model: models.text,
+      image_caption_model: models.caption,
+      image_model: models.image,
       text_model_source: provider,
       image_caption_model_source: provider,
       image_model_source: provider,
-      text_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.text_api_base_url,
-      image_caption_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.image_caption_api_base_url,
-      image_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.image_api_base_url,
+      api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.api_base_url,
+      text_api_base_url: isAgentPlans ? '' : prev.text_api_base_url,
+      image_caption_api_base_url: isAgentPlans ? '' : prev.image_caption_api_base_url,
+      image_api_base_url: isAgentPlans ? '' : prev.image_api_base_url,
       openai_image_api_protocol: 'images',
     }));
   };
@@ -1498,7 +1497,6 @@ export const Settings: React.FC = () => {
   const renderModelConfigGroup = (item: typeof modelConfigItems[0]) => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
-    const isFixedApiBaseProvider = FIXED_BASE_URL_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
@@ -1543,18 +1541,16 @@ export const Settings: React.FC = () => {
           </p>
         </div>
 
-        {/* Gemini/OpenAI 提供商：显示 API Key，固定 Base URL 的提供商隐藏 Base URL 输入 */}
+        {/* Gemini/OpenAI/Volcengine 提供商：显示 API Key + Base URL */}
         {isApiKeyProvider && (
           <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-            {!isFixedApiBaseProvider && (
-              <Input
-                label={t('settings.fields.perModelApiBaseUrl')}
-                type="text"
-                placeholder={t('settings.fields.perModelApiBaseUrlPlaceholder')}
-                value={formData[item.apiBaseKey] as string}
-                onChange={(e) => handleFieldChange(item.apiBaseKey, e.target.value)}
-              />
-            )}
+            <Input
+              label={t('settings.fields.perModelApiBaseUrl')}
+              type="text"
+              placeholder={t('settings.fields.perModelApiBaseUrlPlaceholder')}
+              value={formData[item.apiBaseKey] as string}
+              onChange={(e) => handleFieldChange(item.apiBaseKey, e.target.value)}
+            />
             <div>
               <Input
                 label={t('settings.fields.perModelApiKey')}
@@ -1674,21 +1670,17 @@ export const Settings: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
             </div>
 
-            {/* Gemini/OpenAI: API Key；固定 Base URL 的提供商隐藏 Base URL 输入 */}
+            {/* Gemini/OpenAI/Volcengine: API Key + Base URL */}
             {API_KEY_PROVIDERS.has(formData.ai_provider_format) && (
               <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-                {!FIXED_BASE_URL_PROVIDERS.has(formData.ai_provider_format) && (
-                  <>
-                    <Input
-                      label={t('settings.fields.apiBaseUrl')}
-                      type="text"
-                      placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
-                      value={formData.api_base_url}
-                      onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
-                    />
-                    <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
-                  </>
-                )}
+                <Input
+                  label={t('settings.fields.apiBaseUrl')}
+                  type="text"
+                  placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
+                  value={formData.api_base_url}
+                  onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
+                />
+                <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
                 <div>
                   <Input
                     label={t('settings.fields.apiKey')}

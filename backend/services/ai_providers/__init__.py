@@ -75,12 +75,16 @@ def get_provider_format() -> str:
         # Not in Flask application context
         pass
 
-    # Fallback to environment variable
-    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
+    # Fallback to environment variable (treat empty string as unset)
+    return (os.getenv('AI_PROVIDER_FORMAT') or 'gemini').lower()
 
 
 def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
     """Look up a configuration value using the standard priority chain.
+
+    Empty-string values are treated as unset at every level: a blank value
+    (e.g. ``VOLCENGINE_API_BASE=`` left over in .env) must fall through to the
+    next level instead of reaching providers as a broken base URL.
 
     Resolution order:
         1. Flask ``app.config`` (populated from the database Settings page)
@@ -92,7 +96,7 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
         from flask import current_app
         if current_app and hasattr(current_app, 'config') and key in current_app.config:
             val = current_app.config[key]
-            if val is not None:
+            if val:
                 logger.debug("Setting %s resolved from app.config", key)
                 return str(val)
     except RuntimeError:
@@ -100,7 +104,7 @@ def _resolve_setting(key: str, fallback: Optional[str] = None) -> Optional[str]:
 
     # 2) Try environment
     env_val = os.getenv(key)
-    if env_val is not None:
+    if env_val:
         logger.debug("Setting %s resolved from environment", key)
         return env_val
 

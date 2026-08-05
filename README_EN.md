@@ -275,10 +275,12 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 # Proxy Example: https://api.inferera.com/v1
 
-# Volcengine Ark AgentPlans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
+# Volcengine Agent Plans Configuration (Used when AI_PROVIDER_FORMAT=volcengine)
+# Note: Agent Plans requires a dedicated API key and Agent Plans model names
+# (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)
 
 VOLCENGINE_API_KEY=your-volcengine-api-key-here
-VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 
 # Vertex AI Configuration (AI_PROVIDER_FORMAT=vertex)
 
