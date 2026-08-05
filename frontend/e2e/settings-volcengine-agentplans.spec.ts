@@ -150,9 +150,69 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     expect(savedSettingsPayload?.image_caption_model_source).toBe('volcengine');
     expect(savedSettingsPayload?.openai_image_api_protocol).toBe('images');
     expect(savedSettingsPayload?.api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
-    expect(savedSettingsPayload?.text_api_base_url).toBe('');
-    expect(savedSettingsPayload?.image_api_base_url).toBe('');
-    expect(savedSettingsPayload?.image_caption_api_base_url).toBe('');
+    // per-model base 必须显式指向 Agent Plans 端点: 空值会让保存前的服务测试
+    // 以及同名环境变量继续命中过时的 {MODEL}_API_BASE
+    expect(savedSettingsPayload?.text_api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
+    expect(savedSettingsPayload?.image_api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
+    expect(savedSettingsPayload?.image_caption_api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
+  });
+
+  test('one-click setup replaces stale per-model base URLs with the Agent Plans endpoint', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', async route => {
+      if (route.request().method() === 'PUT') {
+        const payload = route.request().postDataJSON() as Record<string, unknown>;
+        savedSettingsPayload = payload;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...mockSettings,
+            data: { ...mockSettings.data, ...payload },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'openai',
+            api_base_url: 'https://api.openai.com/v1',
+            text_model_source: 'openai',
+            text_api_base_url: 'https://api.openai.com/v1',
+            image_model_source: 'gemini',
+            image_api_base_url: 'https://generativelanguage.googleapis.com',
+            image_caption_model_source: 'openai',
+            image_caption_api_base_url: 'https://api.openai.com/v1',
+          },
+        }),
+      });
+    });
+
+    await page.goto('/settings');
+
+    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
+    await providerSelect.selectOption('volcengine');
+    await page.getByRole('button', { name: '一键填写推荐模型' }).click();
+
+    // 一键配置直接绕过了 handleFieldChange 的替换逻辑: 三个 per-model base
+    // 必须从旧 provider 端点替换为 Agent Plans 端点, 而不是清空
+    const baseInputs = page.getByPlaceholder('留空使用默认 Base URL');
+    await expect(baseInputs).toHaveCount(3);
+    await expect(baseInputs.nth(0)).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+    await expect(baseInputs.nth(1)).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+    await expect(baseInputs.nth(2)).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+
+    await page.getByRole('button', { name: /保存设置/ }).click();
+    await expect(page.getByText('设置保存成功')).toBeVisible();
+    expect(savedSettingsPayload?.text_api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
+    expect(savedSettingsPayload?.image_api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
+    expect(savedSettingsPayload?.image_caption_api_base_url).toBe('https://ark.cn-beijing.volces.com/api/plan/v3');
   });
 
   test('shows the Volcengine campaign prompt for Doubao without changing provider semantics', async ({ page }) => {

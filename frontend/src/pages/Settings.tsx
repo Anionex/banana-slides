@@ -1226,9 +1226,11 @@ export const Settings: React.FC = () => {
       image_caption_model_source: provider,
       image_model_source: provider,
       api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.api_base_url,
-      text_api_base_url: isAgentPlans ? '' : prev.text_api_base_url,
-      image_caption_api_base_url: isAgentPlans ? '' : prev.image_caption_api_base_url,
-      image_api_base_url: isAgentPlans ? '' : prev.image_api_base_url,
+      // Agent Plans 需要专属端点: per-model base 必须显式替换, 否则服务测试/保存前
+      // 仍会命中旧的 {MODEL}_API_BASE 值（其优先级高于 VOLCENGINE_API_BASE）
+      text_api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.text_api_base_url,
+      image_caption_api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.image_caption_api_base_url,
+      image_api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.image_api_base_url,
       openai_image_api_protocol: 'images',
     }));
   };
