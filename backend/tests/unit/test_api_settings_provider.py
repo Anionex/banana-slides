@@ -224,6 +224,86 @@ def test_doubao_seedream_auto_protocol_uses_native_images_api():
     mock_client.chat.completions.create.assert_not_called()
 
 
+def test_doubao_seedream_forced_images_protocol_keeps_references_on_chat_path():
+    """Seedream + reference images must never call images.edit, even when the
+    images protocol is forced ('images'): images.edit is SeedEdit-only and the
+    Agent Plans recommended models save openai_image_api_protocol=images."""
+    from io import BytesIO
+
+    from PIL import Image
+    from services.ai_providers.image.openai_provider import OpenAIImageProvider
+
+    mock_client = MagicMock()
+    buf = BytesIO()
+    Image.new('RGB', (8, 8), color='red').save(buf, format='PNG')
+    import base64 as _b64
+    png_data = _b64.b64encode(buf.getvalue()).decode()
+    chat_message = MagicMock()
+    chat_message.images = None
+    chat_message.multi_mod_content = None
+    chat_message.content = [
+        {'type': 'image_url', 'image_url': {'url': f'data:image/png;base64,{png_data}'}}
+    ]
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=chat_message)]
+    mock_client.chat.completions.create.return_value = mock_response
+
+    with patch('services.ai_providers.image.openai_provider.OpenAI'):
+        provider = OpenAIImageProvider(
+            api_key='volcengine-key',
+            api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+            model='doubao-seedream-5.0-lite',
+            image_api_protocol='images',
+        )
+    provider.client = mock_client
+
+    result = provider.generate_image(
+        prompt='a cat',
+        ref_images=[Image.new('RGB', (8, 8), color='blue')],
+        aspect_ratio='16:9',
+        resolution='2K',
+    )
+
+    assert isinstance(result, Image.Image)
+    mock_client.chat.completions.create.assert_called_once()
+    mock_client.images.edit.assert_not_called()
+    mock_client.images.generate.assert_not_called()
+
+
+def test_doubao_seedream_forced_images_protocol_without_references_uses_images_api():
+    """Seedream without reference images must still use images.generate when the
+    images protocol is forced."""
+    from services.ai_providers.image.openai_provider import OpenAIImageProvider
+
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.data = [MagicMock(b64_json=None, url='https://example.com/img.png')]
+    mock_client.images.generate.return_value = mock_result
+
+    with patch('services.ai_providers.image.openai_provider.OpenAI'):
+        provider = OpenAIImageProvider(
+            api_key='volcengine-key',
+            api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
+            model='doubao-seedream-5.0-lite',
+            image_api_protocol='images',
+        )
+    provider.client = mock_client
+    with patch('requests.get') as mock_get:
+        import base64 as _b64
+        png_bytes = _b64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        )
+        mock_get.return_value.__enter__.return_value.content = png_bytes
+        provider.generate_image(
+            prompt='a cat',
+            aspect_ratio='16:9',
+            resolution='2K',
+        )
+
+    mock_client.images.generate.assert_called_once()
+    mock_client.chat.completions.create.assert_not_called()
+
+
 def test_volcengine_provider_does_not_fallback_to_gemini_key():
     """Volcengine should not send a Gemini key to an OpenAI-compatible endpoint."""
     app = Flask(__name__)

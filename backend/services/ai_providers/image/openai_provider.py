@@ -412,13 +412,22 @@ class OpenAIImageProvider(ImageProvider):
             # Route based on image_api_protocol setting
             # Doubao Seedream keeps the chat-completions path when reference images are
             # present: the images.edit endpoint is only for SeedEdit models, while the
-            # legacy chat path still accepts inline base64 references.
+            # legacy chat path still accepts inline base64 references. This exemption
+            # overrides even a forced 'images' protocol: applying the Agent Plans
+            # recommended models sets openai_image_api_protocol=images, and Seedream
+            # with references must still avoid images.edit.
+            is_seedream_with_references = (
+                bool(ref_images)
+                and self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX)
+            )
             use_images_api = (
-                self.image_api_protocol == 'images'
-                or (
-                    self.image_api_protocol == 'auto'
-                    and self._is_native_images_api_model()
-                    and not (ref_images and self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX))
+                not is_seedream_with_references
+                and (
+                    self.image_api_protocol == 'images'
+                    or (
+                        self.image_api_protocol == 'auto'
+                        and self._is_native_images_api_model()
+                    )
                 )
             )
             if use_images_api:

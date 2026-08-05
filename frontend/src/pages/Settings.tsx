@@ -474,6 +474,7 @@ const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
 const KNOWN_DEFAULT_BASE_URLS = new Set([
   '',
   'https://api.inferera.com/v1',
+  'https://api.openai.com/v1',
   'https://api.inferera.com/gemini',
   'https://generativelanguage.googleapis.com',
   'https://ark.cn-beijing.volces.com/api/v3',
@@ -1186,11 +1187,25 @@ export const Settings: React.FC = () => {
     setFormData(prev => {
       const next = { ...prev, [key]: value };
 
+      // Per-model source key → its API base URL field, for stale-default replacement
+      const perModelBaseKeys: Record<string, string> = {
+        text_model_source: 'text_api_base_url',
+        image_model_source: 'image_api_base_url',
+        image_caption_model_source: 'image_caption_api_base_url',
+      };
+
       if (key === 'ai_provider_format') {
         // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
         // 用户显式填写的自定义 Base URL 保留
         if (value === 'volcengine' && KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
           next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
+        }
+      } else if (value === 'volcengine' && perModelBaseKeys[key]) {
+        // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
+        // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
+        const baseKey = perModelBaseKeys[key];
+        if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
+          next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
         }
       }
 

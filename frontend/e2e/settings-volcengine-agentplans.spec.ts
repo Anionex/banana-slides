@@ -109,9 +109,11 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
     await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
     await page.locator('select').nth(1).selectOption('volcengine');
-    // per-model 的 Base URL 输入框同样可编辑（仅当前组 source=volcengine 时显示）
+    // per-model 的 Base URL 输入框同样可编辑（仅当前组 source=volcengine 时显示）,
+    // 空默认值同样被替换为 Agent Plans 专属端点
     await expect(page.getByPlaceholder('留空使用默认 Base URL')).toHaveCount(1);
-    await expect(page.getByPlaceholder('留空使用默认 Base URL')).toHaveValue('');
+    await expect(page.getByPlaceholder('留空使用默认 Base URL'))
+      .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
 
     await expect(page.getByText('火山 AgentPlans API Key 配置')).toBeVisible();
     await expect(page.getByText(/Agent Plan \/ Coding Plan 限时折扣/)).toBeVisible();
@@ -250,5 +252,68 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     // OpenAI 默认端点不应被带入 Agent Plans 保存/测试 payload
     await expect(page.getByTestId('global-api-config-section').locator('input').first())
       .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+  });
+
+  test('replaces documented OpenAI base URL when switching to Agent Plans', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'openai',
+            api_base_url: 'https://api.openai.com/v1',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+
+    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
+    await providerSelect.selectOption('volcengine');
+
+    // README 文档化的 OPENAI_API_BASE 默认值同样被识别为过时默认端点
+    await expect(page.getByTestId('global-api-config-section').locator('input').first())
+      .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+  });
+
+  test('replaces stale per-model base URL when a model source switches to Agent Plans', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'openai',
+            api_base_url: 'https://api.inferera.com/v1',
+            text_model_source: 'openai',
+            text_api_base_url: 'https://api.openai.com/v1',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+
+    const baseInput = page.getByPlaceholder('留空使用默认 Base URL').first();
+    await expect(baseInput).toHaveValue('https://api.openai.com/v1');
+
+    // 文本模型 source 从 openai 切到 volcengine: 过时的默认 base 必须被替换,
+    // 否则 TEXT_API_BASE 会优先于 VOLCENGINE_API_BASE 命中错误端点
+    await page.locator('select').nth(1).selectOption('volcengine');
+    await expect(baseInput).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+
+    // 自定义 per-model base 不应被破坏
+    await baseInput.fill('https://custom.example.com/v1');
+    await page.locator('select').nth(1).selectOption('openai');
+    await page.locator('select').nth(1).selectOption('volcengine');
+    await expect(baseInput).toHaveValue('https://custom.example.com/v1');
   });
 });
