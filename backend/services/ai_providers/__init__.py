@@ -143,7 +143,7 @@ def _build_provider_config() -> Dict[str, Any]:
             _resolve_setting('VOLCENGINE_API_KEY')
             or _resolve_setting('ARK_API_KEY')
         )
-        cfg['api_base'] = _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3')
+        cfg['api_base'] = _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/plan/v3')
 
         if not cfg['api_key']:
             raise ValueError(
@@ -267,7 +267,7 @@ def _get_model_type_provider_config(model_type: str) -> Dict[str, Any]:
                    or _resolve_setting('VOLCENGINE_API_KEY')
                    or _resolve_setting('ARK_API_KEY'))
         api_base = (_resolve_setting(f'{prefix}_API_BASE')
-                    or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/v3'))
+                    or _resolve_setting('VOLCENGINE_API_BASE', 'https://ark.cn-beijing.volces.com/api/plan/v3'))
 
         if not api_key:
             raise ValueError(

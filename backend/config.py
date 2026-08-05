@@ -66,7 +66,7 @@ class Config:
 
     # 火山方舟 Agent Plans（OpenAI-compatible）
     VOLCENGINE_API_KEY = os.getenv('VOLCENGINE_API_KEY', '') or os.getenv('ARK_API_KEY', '')
-    VOLCENGINE_API_BASE = os.getenv('VOLCENGINE_API_BASE') or 'https://ark.cn-beijing.volces.com/api/v3'
+    VOLCENGINE_API_BASE = os.getenv('VOLCENGINE_API_BASE') or 'https://ark.cn-beijing.volces.com/api/plan/v3'
 
     # Anthropic 格式专用配置（当 AI_PROVIDER_FORMAT=anthropic 时使用）
     # 支持 ANTHROPIC_AUTH_TOKEN 作为 ANTHROPIC_API_KEY 的别名

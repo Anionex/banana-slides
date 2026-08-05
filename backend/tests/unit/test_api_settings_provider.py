@@ -143,7 +143,8 @@ def test_volcengine_text_provider_uses_modelark_openai_compatible_base():
 def test_volcengine_empty_base_string_falls_back_to_default():
     """A blank VOLCENGINE_API_BASE (e.g. .env left empty) must not reach the
     provider as an empty base URL, which previously surfaced as an
-    APIConnectionError 'Connection error.' from httpx UnsupportedProtocol."""
+    APIConnectionError 'Connection error.' from httpx UnsupportedProtocol.
+    The fallback is the Agent Plans endpoint, matching the UI prefill."""
     app = Flask(__name__)
     app.config.update(
         AI_PROVIDER_FORMAT='volcengine',
@@ -158,7 +159,7 @@ def test_volcengine_empty_base_string_falls_back_to_default():
     assert provider == provider_cls.return_value
     provider_cls.assert_called_once_with(
         api_key='volcengine-key',
-        api_base='https://ark.cn-beijing.volces.com/api/v3',
+        api_base='https://ark.cn-beijing.volces.com/api/plan/v3',
         model='doubao-seed-2.1-turbo',
     )
 
