@@ -480,6 +480,11 @@ const KNOWN_DEFAULT_BASE_URLS = new Set([
   'https://ark.cn-beijing.volces.com/api/v3',
   'https://api.anthropic.com',
 ]);
+// 离开 Agent Plans 时必须清空的火山默认端点（对 openai/gemini 等是过时值）
+const VOLCENGINE_DEFAULT_BASE_URLS = new Set([
+  'https://ark.cn-beijing.volces.com/api/plan/v3',
+  'https://ark.cn-beijing.volces.com/api/v3',
+]);
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
@@ -1195,17 +1200,29 @@ export const Settings: React.FC = () => {
       };
 
       if (key === 'ai_provider_format') {
-        // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
-        // 用户显式填写的自定义 Base URL 保留
-        if (value === 'volcengine' && KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
-          next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
+        if (value === 'volcengine') {
+          // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
+          // 用户显式填写的自定义 Base URL 保留
+          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+            next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
+          }
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
+          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
+          next.api_base_url = '';
         }
-      } else if (value === 'volcengine' && perModelBaseKeys[key]) {
-        // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
-        // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
+      } else if (perModelBaseKeys[key]) {
         const baseKey = perModelBaseKeys[key];
-        if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
-          next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
+        if (value === 'volcengine') {
+          // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
+          // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
+          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
+            next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
+          }
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
+          // 单模型离开 Agent Plans: 清空过时的 plan/v3 端点, 否则该模型的
+          // {MODEL}_API_BASE 仍优先于新 provider 的默认端点
+          next[baseKey] = '';
         }
       }
 

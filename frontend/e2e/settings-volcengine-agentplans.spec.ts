@@ -102,8 +102,8 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
 
     await providerSelect.selectOption('openai');
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
-    // 切换 provider 保留已填的 Base URL（与其他 provider 切换行为一致）
-    await expect(globalApiSection.locator('input').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+    // 离开 Agent Plans 时过时的 plan/v3 端点必须清空, 否则会作为 openai 的 base 保存
+    await expect(globalApiSection.locator('input').first()).toHaveValue('');
 
     await providerSelect.selectOption('volcengine');
     await expect(globalApiSection.getByText('API Base URL')).toBeVisible();
@@ -483,5 +483,62 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await page.locator('select').nth(1).selectOption('openai');
     await page.locator('select').nth(1).selectOption('volcengine');
     await expect(baseInput).toHaveValue('https://custom.example.com/v1');
+  });
+
+  test('clears Agent Plans base when switching the global provider away', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'volcengine',
+            api_base_url: 'https://ark.cn-beijing.volces.com/api/plan/v3',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+
+    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
+    const globalBase = page.getByTestId('global-api-config-section').locator('input').first();
+    await expect(globalBase).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+
+    // 离开 Agent Plans: 过时的 plan/v3 端点必须清空, 不能作为 openai 的 base 保存
+    await providerSelect.selectOption('openai');
+    await expect(globalBase).toHaveValue('');
+  });
+
+  test('clears Agent Plans per-model base when the model source switches away', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'volcengine',
+            api_base_url: 'https://ark.cn-beijing.volces.com/api/plan/v3',
+            text_model_source: 'volcengine',
+            text_api_base_url: 'https://ark.cn-beijing.volces.com/api/plan/v3',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+
+    const baseInput = page.getByPlaceholder('留空使用默认 Base URL').first();
+    await expect(baseInput).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+
+    // 单模型离开 Agent Plans: plan/v3 必须清空, 否则 TEXT_API_BASE 优先于新 provider 默认端点
+    await page.locator('select').nth(1).selectOption('openai');
+    await expect(baseInput).toHaveValue('');
   });
 });
