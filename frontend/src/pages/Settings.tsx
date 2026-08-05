@@ -1217,22 +1217,28 @@ export const Settings: React.FC = () => {
     const isAgentPlans = formData.ai_provider_format === 'volcengine';
     const provider = isAgentPlans ? 'volcengine' : 'doubao';
     const models = isAgentPlans ? VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS : VOLCENGINE_MODELARK_RECOMMENDED_MODELS;
-    setFormData(prev => ({
-      ...prev,
-      text_model: models.text,
-      image_caption_model: models.caption,
-      image_model: models.image,
-      text_model_source: provider,
-      image_caption_model_source: provider,
-      image_model_source: provider,
-      api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.api_base_url,
-      // Agent Plans 需要专属端点: per-model base 必须显式替换, 否则服务测试/保存前
-      // 仍会命中旧的 {MODEL}_API_BASE 值（其优先级高于 VOLCENGINE_API_BASE）
-      text_api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.text_api_base_url,
-      image_caption_api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.image_caption_api_base_url,
-      image_api_base_url: isAgentPlans ? VOLCENGINE_AGENTPLANS_BASE_URL : prev.image_api_base_url,
-      openai_image_api_protocol: 'images',
-    }));
+    setFormData(prev => {
+      // Agent Plans 需要专属端点: 只替换空值或已知的过时默认端点, 保留用户自定义端点,
+      // 否则代理/替代端点部署下 per-model 调用会命中硬编码的 cn-beijing 地址
+      const agentPlansBaseOrDefault = (current: string) =>
+        KNOWN_DEFAULT_BASE_URLS.has(current) ? VOLCENGINE_AGENTPLANS_BASE_URL : current;
+      return {
+        ...prev,
+        text_model: models.text,
+        image_caption_model: models.caption,
+        image_model: models.image,
+        text_model_source: provider,
+        image_caption_model_source: provider,
+        image_model_source: provider,
+        api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.api_base_url) : prev.api_base_url,
+        // per-model base 同样只替换过时默认值: 空值会让保存前的服务测试和同名
+        // {MODEL}_API_BASE 环境变量命中旧端点, 自定义值则应原样保留
+        text_api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.text_api_base_url) : prev.text_api_base_url,
+        image_caption_api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.image_caption_api_base_url) : prev.image_caption_api_base_url,
+        image_api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.image_api_base_url) : prev.image_api_base_url,
+        openai_image_api_protocol: 'images',
+      };
+    });
   };
 
   const updateServiceTest = (key: string, nextState: ServiceTestState) => {
