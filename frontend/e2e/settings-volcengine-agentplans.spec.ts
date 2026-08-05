@@ -541,4 +541,38 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await page.locator('select').nth(1).selectOption('openai');
     await expect(baseInput).toHaveValue('');
   });
+
+  test('warns about a non-official global base and offers one-click restore', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'volcengine',
+            api_base_url: 'https://aihubmix.com/v1',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+
+    const globalBaseInput = page.getByTestId('global-api-config-section').locator('input').first();
+    await expect(globalBaseInput).toHaveValue('https://aihubmix.com/v1');
+
+    // 自定义端点保留, 但必须提示非官方端点并提供一键恢复
+    const hint = page.getByText(/不是火山 AgentPlans 官方端点/);
+    await expect(hint).toBeVisible();
+    await page.getByRole('button', { name: '使用官方端点' }).click();
+    await expect(globalBaseInput).toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+    await expect(hint).not.toBeVisible();
+
+    // 官方端点时提示消失; 手动改回自定义端点后提示再次出现
+    await globalBaseInput.fill('https://another-proxy.example.com/v1');
+    await expect(hint).toBeVisible();
+  });
 });

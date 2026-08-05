@@ -74,6 +74,8 @@ const settingsI18n = {
         openaiFormat: "OpenAI 格式", geminiFormat: "Gemini 格式", lazyllmFormat: "LazyLLM 格式",
         apiBaseUrl: "API Base URL", apiBaseUrlPlaceholder: "https://api.example.com",
         apiBaseUrlDesc: "设置大模型提供商 API 的基础 URL",
+        volcengineBaseUrlHint: "当前 Base URL 不是火山 AgentPlans 官方端点（https://ark.cn-beijing.volces.com/api/plan/v3），测试或生成可能失败",
+        volcengineBaseUrlReset: "使用官方端点",
         apiKey: "API Key", apiKeyPlaceholder: "输入新的 API Key",
         apiKeyDesc: "留空则保持当前设置不变，输入新值则更新",
         apiKeySet: "已设置（长度: {{length}}）",
@@ -264,6 +266,8 @@ const settingsI18n = {
         openaiFormat: "OpenAI Format", geminiFormat: "Gemini Format", lazyllmFormat: "LazyLLM Format",
         apiBaseUrl: "API Base URL", apiBaseUrlPlaceholder: "https://api.example.com",
         apiBaseUrlDesc: "Set the base URL for the LLM provider API",
+        volcengineBaseUrlHint: "The current Base URL is not the official Volcengine AgentPlans endpoint (https://ark.cn-beijing.volces.com/api/plan/v3); tests or generation may fail",
+        volcengineBaseUrlReset: "Use official endpoint",
         apiKey: "API Key", apiKeyPlaceholder: "Enter new API Key",
         apiKeyDesc: "Leave empty to keep current setting, enter new value to update",
         apiKeySet: "Set (length: {{length}})",
@@ -1735,6 +1739,20 @@ export const Settings: React.FC = () => {
                   onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
                 />
                 <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
+                {formData.ai_provider_format === 'volcengine' &&
+                  formData.api_base_url &&
+                  formData.api_base_url !== VOLCENGINE_AGENTPLANS_BASE_URL && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+                      <p className="flex-1 text-xs text-amber-800 dark:text-amber-200">{t('settings.fields.volcengineBaseUrlHint')}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleFieldChange('api_base_url', VOLCENGINE_AGENTPLANS_BASE_URL)}
+                        className="shrink-0 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-600"
+                      >
+                        {t('settings.fields.volcengineBaseUrlReset')}
+                      </button>
+                    </div>
+                  )}
                 <div>
                   <Input
                     label={t('settings.fields.apiKey')}
