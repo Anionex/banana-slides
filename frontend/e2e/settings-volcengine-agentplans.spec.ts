@@ -120,7 +120,11 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     await expect(page.getByText(/免费 Tokens 领取等活动/)).toBeVisible();
     await expect(page.getByText('订阅并获取火山 AgentPlans API Key')).toBeVisible();
     await expect(page.getByText('进入 Agent Plan 控制台')).toBeVisible();
-    await expect(page.getByText('在 Agent Plan 控制台创建专属 API Key', { exact: true })).toBeVisible();
+    await expect(page.getByText(/在 Agent Plan 控制台创建专属 API Key/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'API Key 控制台' })).toHaveAttribute(
+      'href',
+      'https://ai.volcengine.com/console/apikey'
+    );
     await expect(page.getByText('点击顶栏「充值」')).not.toBeVisible();
     await expect(page.getByText(/感谢火山引擎赞助/)).not.toBeVisible();
     await expect(page.getByText('AIHubmix 申请 API key')).not.toBeVisible();

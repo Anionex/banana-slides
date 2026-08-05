@@ -152,6 +152,7 @@ const settingsI18n = {
         step2: "进入 Agent Plan 控制台",
         step3: "在 Agent Plan 控制台创建专属 API Key",
         step4: "回到本页填写 Agent Plan 专属 API Key",
+        apikeyConsoleLabel: "API Key 控制台",
       },
       doubaoVolcenginePromo: {
         title: "豆包 / 火山方舟 API Key 配置",
@@ -344,6 +345,7 @@ const settingsI18n = {
         step2: "Go to the Agent Plan console",
         step3: "Create a dedicated API Key in the Agent Plan console",
         step4: "Return here and enter the dedicated Agent Plan API Key",
+        apikeyConsoleLabel: "API Key console",
       },
       doubaoVolcenginePromo: {
         title: "Doubao / ModelArk API Key Setup",
@@ -435,6 +437,7 @@ interface ServiceTestState {
 const INFERERA_AFFILIATE_URL = 'https://api.inferera.com/?aff=17EC';
 const VOLCENGINE_AGENTPLANS_CN_URL = 'https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
 const VOLCENGINE_AGENTPLANS_EN_URL = 'https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=banana-slides&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=banana-slides';
+const VOLCENGINE_AGENTPLANS_APIKEY_URL = 'https://ai.volcengine.com/console/apikey';
 
 // LazyLLM 支持的厂商列表
 const LAZYLLM_SOURCES = [
@@ -1822,7 +1825,27 @@ export const Settings: React.FC = () => {
                         </span>
                       </li>
                       <li>{t(`${activeApiKeyHelpKey}.step2`)}</li>
-                      <li>{t(`${activeApiKeyHelpKey}.step3`)}</li>
+                      <li>
+                        {t(`${activeApiKeyHelpKey}.step3`)}
+                        {formData.ai_provider_format === 'volcengine' && (
+                          <span className="inline-flex items-center gap-2">
+                            <a
+                              href={VOLCENGINE_AGENTPLANS_APIKEY_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 underline font-medium"
+                            >
+                              {t(`${activeApiKeyHelpKey}.apikeyConsoleLabel`)}
+                            </a>
+                            <button
+                              onClick={() => copyToClipboard(VOLCENGINE_AGENTPLANS_APIKEY_URL)}
+                              className="text-xs px-2 py-0.5 rounded transition-colors bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300"
+                            >
+                              {t(`${activeVolcenginePromoKey}.copy`)}
+                            </button>
+                          </span>
+                        )}
+                      </li>
                       <li>{t(`${activeApiKeyHelpKey}.step4`)}</li>
                     </ol>
                   </div>
