@@ -224,4 +224,31 @@ test.describe('Settings: Volcengine AgentPlans provider', () => {
     // 后端返回的 per-model base 同步显示到对应输入框
     await expect(page.getByPlaceholder('留空使用默认 Base URL').first()).toHaveValue('https://ark.cn-beijing.volces.com/api/v3');
   });
+
+  test('replaces another provider default base URL when switching to Agent Plans', async ({ page }) => {
+    await page.unroute('**/api/settings');
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockSettings,
+          data: {
+            ...mockSettings.data,
+            ai_provider_format: 'openai',
+            api_base_url: 'https://api.inferera.com/v1',
+          },
+        }),
+      })
+    );
+
+    await page.goto('/settings');
+
+    const providerSelect = page.getByTestId('global-api-config-section').locator('select').first();
+    await providerSelect.selectOption('volcengine');
+
+    // OpenAI 默认端点不应被带入 Agent Plans 保存/测试 payload
+    await expect(page.getByTestId('global-api-config-section').locator('input').first())
+      .toHaveValue('https://ark.cn-beijing.volces.com/api/plan/v3');
+  });
 });

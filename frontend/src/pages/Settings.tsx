@@ -470,6 +470,15 @@ const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
   caption: 'doubao-seed-2-1-pro-260628',
   image: 'doubao-seedream-5-0-260128',
 };
+// 各 provider 的默认端点: 切换到 Agent Plans 时用于识别并清除过时默认值
+const KNOWN_DEFAULT_BASE_URLS = new Set([
+  '',
+  'https://api.inferera.com/v1',
+  'https://api.inferera.com/gemini',
+  'https://generativelanguage.googleapis.com',
+  'https://ark.cn-beijing.volces.com/api/v3',
+  'https://api.anthropic.com',
+]);
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
@@ -1178,8 +1187,9 @@ export const Settings: React.FC = () => {
       const next = { ...prev, [key]: value };
 
       if (key === 'ai_provider_format') {
-        // Agent Plans 需要专属端点; 未填过时预填, 已保存的自定义值保留
-        if (value === 'volcengine' && !next.api_base_url) {
+        // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
+        // 用户显式填写的自定义 Base URL 保留
+        if (value === 'volcengine' && KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
           next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
         }
       }
