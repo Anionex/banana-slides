@@ -42,10 +42,14 @@ OPENAI_API_BASE=https://api.openai.com/v1
 ```env
 AI_PROVIDER_FORMAT=volcengine
 VOLCENGINE_API_KEY=your-volcengine-api-key
-VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 ```
 
-也可以继续使用设置页的通用 API Key 字段覆盖以上配置，而 API Base URL 将由系统自动管理。
+注意事项：
+
+- **Agent Plan 需要专属 API Key**：在 Agent Plan 控制台创建的 `ark-...` Key 只能在 `api/plan/v3` 端点上使用，普通方舟 API Key 与标准 ModelArk 端点（`api/v3`）不互通。
+- **模型名使用 Agent Plan 模型名**（如 `doubao-seed-2.1-turbo`、`kimi-k2.6`），生图使用 `doubao-seedream-5.0-lite`；标准 ModelArk 的端点 ID（如 `doubao-seed-2-1-pro-260628`）不适用于 Agent Plan。
+- 设置页选择“火山 AgentPlans”时会自动预填 Agent Plan 专属 Base URL 与推荐模型，也可手动修改；标准 ModelArk 用户请改用“Doubao (豆包)”路径并保持 `api/v3`。
 
 ## Vertex AI
 

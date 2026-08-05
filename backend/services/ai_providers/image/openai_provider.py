@@ -11,6 +11,7 @@ Resolution validation is handled at the task_manager level for all providers.
 """
 import logging
 import base64
+import math
 import re
 import requests
 from io import BytesIO
@@ -30,6 +31,38 @@ _DALLE_MODELS = {'dall-e-2', 'dall-e-3'}
 _NATIVE_IMAGES_API_MODELS = _GPT_IMAGE_MODELS | _DALLE_MODELS
 _MAX_GPT_IMAGE_INPUTS = 16
 
+# Volcengine Seedream models only accept the native images API (images/generations).
+# The Agent Plan endpoint does not expose a chat-completions image modality, so an
+# 'auto' protocol must route these models to images.generate instead of chat.completions.
+_DOUBAO_SEEDREAM_PREFIX = 'doubao-seedream'
+
+# Volcengine Seedream Image generation API size constraints
+# (https://docs.volcengine.com/docs/82379/1541523, Seedream 5.0-lite / 4.5):
+# Method 2 (explicit WxH) accepts any size whose total pixel count lies in
+# [2560x1440 = 3,686,400, 4096x4096 = 16,777,216] with an aspect ratio in
+# [1/16, 16]. The generic GPT sizing (e.g. 2048x1152 for 16:9 / 2K) falls below
+# that floor, so Seedream models must resolve sizes from the official presets.
+# The tables below are Volcengine's documented resolution -> size mappings.
+_DOUBAO_SEEDREAM_SIZE_PRESETS = {
+    '2K': {
+        '1:1': '2048x2048', '4:3': '2304x1728', '3:4': '1728x2304',
+        '16:9': '2848x1600', '9:16': '1600x2848', '3:2': '2496x1664',
+        '2:3': '1664x2496', '21:9': '3136x1344',
+    },
+    '3K': {
+        '1:1': '3072x3072', '4:3': '3456x2592', '3:4': '2592x3456',
+        '16:9': '4096x2304', '9:16': '2304x4096', '3:2': '3744x2496',
+        '2:3': '2496x3744', '21:9': '4704x2016',
+    },
+    '4K': {
+        '1:1': '4096x4096', '4:3': '4704x3520', '3:4': '3520x4704',
+        '16:9': '5504x3040', '9:16': '3040x5504', '3:2': '4992x3328',
+        '2:3': '3328x4992', '21:9': '6240x2656',
+    },
+}
+_DOUBAO_SEEDREAM_MIN_PIXELS = 3_686_400
+_DOUBAO_SEEDREAM_MAX_PIXELS = 16_777_216
+
 # Aspect-ratio → size per model family.
 # DALL-E models only support fixed sizes; gpt-image-* uses dynamic calculation.
 _DALLE3_SIZE_MAP = {
@@ -48,6 +81,44 @@ _RESOLUTION_LONG_EDGE = {
     '2K': 2048,
     '4K': 3840,
 }
+
+
+def _seedream_pixel_bounds(model: str):
+    """Return the (min, max) total-pixel range accepted by a Seedream model."""
+    model = model.lower()
+    if '5.0-pro' in model or '5-0-pro' in model:
+        return 921_600, 4_624_220   # 1280x720 .. 2048x2048x1.1025
+    if '4.0' in model or '4-0' in model:
+        return 921_600, _DOUBAO_SEEDREAM_MAX_PIXELS
+    # Seedream 5.0-lite / 4.5 and unknown variants share the strictest range.
+    return _DOUBAO_SEEDREAM_MIN_PIXELS, _DOUBAO_SEEDREAM_MAX_PIXELS
+
+
+def _scale_size_to_pixel_range(size: str, min_pixels: int, max_pixels: int) -> str:
+    """Scale a WxH size so its total pixel count lies in [min_pixels, max_pixels].
+
+    The aspect ratio is preserved. Edges stay multiples of 16: they round up
+    when enlarging (guaranteeing the minimum pixel count) and down when
+    shrinking (guaranteeing the maximum is not exceeded).
+    """
+    if not isinstance(size, str):
+        return 'auto'
+    try:
+        w, h = (int(part) for part in size.lower().split('x'))
+    except (ValueError, AttributeError):
+        return 'auto'
+    if w <= 0 or h <= 0:
+        return 'auto'
+    pixels = w * h
+    if pixels < min_pixels:
+        scale = (min_pixels / pixels) ** 0.5
+        w = math.ceil(w * scale / 16) * 16
+        h = math.ceil(h * scale / 16) * 16
+    elif pixels > max_pixels:
+        scale = (max_pixels / pixels) ** 0.5
+        w = max(16, int(w * scale / 16) * 16)
+        h = max(16, int(h * scale / 16) * 16)
+    return f'{w}x{h}'
 
 
 def _compute_gpt_image_size(aspect_ratio: str, resolution: str = '2K') -> str:
@@ -177,7 +248,11 @@ class OpenAIImageProvider(ImageProvider):
 
     def _is_native_images_api_model(self) -> bool:
         """Return True when the model should use images.generate / images.edit."""
-        return self.model.lower() in _NATIVE_IMAGES_API_MODELS
+        model = self.model.lower()
+        return (
+            model in _NATIVE_IMAGES_API_MODELS
+            or model.startswith(_DOUBAO_SEEDREAM_PREFIX)
+        )
 
     def _pil_to_png_bytes(self, image: Image.Image) -> bytes:
         buf = BytesIO()
@@ -195,7 +270,34 @@ class OpenAIImageProvider(ImageProvider):
             return _DALLE3_SIZE_MAP.get(aspect_ratio, '1024x1024')
         if model == 'dall-e-2':
             return _DALLE2_SIZE_MAP.get(aspect_ratio, '1024x1024')
+        if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
+            return self._resolve_seedream_size(aspect_ratio, resolution)
         return _compute_gpt_image_size(aspect_ratio, resolution)
+
+    def _resolve_seedream_size(self, aspect_ratio: str, resolution: str = '2K') -> str:
+        """Map aspect_ratio/resolution to a size accepted by the Seedream images API.
+
+        Seedream 5.0-lite / 4.5 reject explicit sizes below 2560x1440
+        (3,686,400 px), so the generic GPT sizing (e.g. 2048x1152 for 16:9 / 2K)
+        must not be sent verbatim. Use Volcengine's documented resolution->size
+        presets and scale any remaining combination into the model's valid
+        total-pixel range while preserving the aspect ratio.
+        """
+        min_pixels, max_pixels = _seedream_pixel_bounds(self.model)
+        tier = resolution.upper()
+        if 'pro' in self.model.lower():
+            # Seedream 5.0-pro tops out at the 2K tier (max 4,624,220 px).
+            tier = '2K'
+        presets = _DOUBAO_SEEDREAM_SIZE_PRESETS.get(tier)
+        if presets is None and tier == '1K':
+            # 1K is below Seedream's smallest tier; the 2K presets are the
+            # smallest documented sizes for the strict-range models.
+            presets = _DOUBAO_SEEDREAM_SIZE_PRESETS['2K']
+        preset = presets.get(aspect_ratio) if presets else None
+        if preset:
+            return _scale_size_to_pixel_range(preset, min_pixels, max_pixels)
+        size = _compute_gpt_image_size(aspect_ratio, resolution)
+        return _scale_size_to_pixel_range(size, min_pixels, max_pixels)
 
     def _resolve_quality(self):
         """Return quality param appropriate for the current model, or None to omit."""
@@ -204,6 +306,8 @@ class OpenAIImageProvider(ImageProvider):
             return 'standard'   # dall-e-3 only accepts standard / hd
         if model == 'dall-e-2':
             return None          # dall-e-2 has no quality param
+        if model.startswith(_DOUBAO_SEEDREAM_PREFIX):
+            return None          # Volcengine Seedream does not accept a quality param
         return 'auto'            # gpt-image-* accepts auto / low / medium / high
 
     def _decode_image_response(self, item) -> Image.Image:
@@ -399,9 +503,25 @@ class OpenAIImageProvider(ImageProvider):
         """
         try:
             # Route based on image_api_protocol setting
+            # Doubao Seedream keeps the chat-completions path when reference images are
+            # present: the images.edit endpoint is only for SeedEdit models, while the
+            # legacy chat path still accepts inline base64 references. This exemption
+            # overrides even a forced 'images' protocol: applying the Agent Plans
+            # recommended models sets openai_image_api_protocol=images, and Seedream
+            # with references must still avoid images.edit.
+            is_seedream_with_references = (
+                bool(ref_images)
+                and self.model.lower().startswith(_DOUBAO_SEEDREAM_PREFIX)
+            )
             use_images_api = (
-                self.image_api_protocol == 'images'
-                or (self.image_api_protocol == 'auto' and self._is_native_images_api_model())
+                not is_seedream_with_references
+                and (
+                    self.image_api_protocol == 'images'
+                    or (
+                        self.image_api_protocol == 'auto'
+                        and self._is_native_images_api_model()
+                    )
+                )
             )
             if use_images_api:
                 return self._generate_with_images_api(prompt, ref_images, aspect_ratio, resolution)

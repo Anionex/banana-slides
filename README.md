@@ -250,9 +250,10 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://api.inferera.com/v1
 
-# 火山方舟 AgentPlans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
+# 火山方舟 Agent Plans 配置（当 AI_PROVIDER_FORMAT=volcengine 时使用）
+# 注意: Agent Plan 需使用专属 API Key 与模型名 (doubao-seed-2.1-turbo / doubao-seedream-5.0-lite)
 VOLCENGINE_API_KEY=your-volcengine-api-key-here
-VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/plan/v3
 
 # Vertex AI 配置（AI_PROVIDER_FORMAT=vertex）
 # 需要 GCP 项目和服务账户密钥

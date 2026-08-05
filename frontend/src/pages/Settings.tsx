@@ -457,12 +457,34 @@ const getAllProviderSources = (isZh: boolean) => [
 
 // 需要 API Key + Base URL 的提供商（非 LazyLLM 厂商）
 const API_KEY_PROVIDERS = new Set(['gemini', 'openai', 'volcengine']);
-const FIXED_BASE_URL_PROVIDERS = new Set(['volcengine']);
-const VOLCENGINE_RECOMMENDED_MODELS = {
+// 火山 Agent Plans（OpenAI 兼容）: 专属 Base URL 与模型名
+const VOLCENGINE_AGENTPLANS_BASE_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3';
+const VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS = {
+  text: 'doubao-seed-2.1-turbo',
+  caption: 'doubao-seed-2.1-turbo',
+  image: 'doubao-seedream-5.0-lite',
+};
+// 火山方舟（标准 ModelArk, LazyLLM Doubao 路径）: 使用端点 ID 格式
+const VOLCENGINE_MODELARK_RECOMMENDED_MODELS = {
   text: 'doubao-seed-2-1-pro-260628',
   caption: 'doubao-seed-2-1-pro-260628',
   image: 'doubao-seedream-5-0-260128',
 };
+// 各 provider 的默认端点: 切换到 Agent Plans 时用于识别并清除过时默认值
+const KNOWN_DEFAULT_BASE_URLS = new Set([
+  '',
+  'https://api.inferera.com/v1',
+  'https://api.openai.com/v1',
+  'https://api.inferera.com/gemini',
+  'https://generativelanguage.googleapis.com',
+  'https://ark.cn-beijing.volces.com/api/v3',
+  'https://api.anthropic.com',
+]);
+// 离开 Agent Plans 时必须清空的火山默认端点（对 openai/gemini 等是过时值）
+const VOLCENGINE_DEFAULT_BASE_URLS = new Set([
+  'https://ark.cn-beijing.volces.com/api/plan/v3',
+  'https://ark.cn-beijing.volces.com/api/v3',
+]);
 
 // LazyLLM 厂商名集合
 const LAZYLLM_VENDOR_SET = new Set(LAZYLLM_SOURCES.map(s => s.value));
@@ -684,7 +706,7 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
 
   return {
     ai_provider_format: providerFormat,
-    api_base_url: FIXED_BASE_URL_PROVIDERS.has(providerFormat) ? '' : (data.api_base_url || ''),
+    api_base_url: data.api_base_url || '',
     api_key: '',
     image_resolution: data.image_resolution || '2K',
     enable_image_quality_control: data.enable_image_quality_control ?? false,
@@ -706,11 +728,11 @@ const formDataFromSettings = (data: SettingsType): typeof initialFormData => {
     image_caption_model_source: imageCaptionModelSource,
     lazyllm_api_keys: {},
     text_api_key: '',
-    text_api_base_url: FIXED_BASE_URL_PROVIDERS.has(textModelSource) ? '' : (data.text_api_base_url || ''),
+    text_api_base_url: data.text_api_base_url || '',
     image_api_key: '',
-    image_api_base_url: FIXED_BASE_URL_PROVIDERS.has(imageModelSource) ? '' : (data.image_api_base_url || ''),
+    image_api_base_url: data.image_api_base_url || '',
     image_caption_api_key: '',
-    image_caption_api_base_url: FIXED_BASE_URL_PROVIDERS.has(imageCaptionModelSource) ? '' : (data.image_caption_api_base_url || ''),
+    image_caption_api_base_url: data.image_caption_api_base_url || '',
     openai_image_api_protocol: data.openai_image_api_protocol || 'auto',
     elevenlabs_api_key: '',
   };
@@ -1170,21 +1192,37 @@ export const Settings: React.FC = () => {
     setFormData(prev => {
       const next = { ...prev, [key]: value };
 
-      if (key === 'ai_provider_format') {
-        if (FIXED_BASE_URL_PROVIDERS.has(value)) {
-          next.api_base_url = '';
-        }
-      }
-
-      const perModelBaseKeys: Record<string, 'text_api_base_url' | 'image_api_base_url' | 'image_caption_api_base_url'> = {
+      // Per-model source key → its API base URL field, for stale-default replacement
+      const perModelBaseKeys: Record<string, string> = {
         text_model_source: 'text_api_base_url',
         image_model_source: 'image_api_base_url',
         image_caption_model_source: 'image_caption_api_base_url',
       };
-      const apiBaseKey = perModelBaseKeys[key];
-      if (apiBaseKey) {
-        if (FIXED_BASE_URL_PROVIDERS.has(value)) {
-          next[apiBaseKey] = '';
+
+      if (key === 'ai_provider_format') {
+        if (value === 'volcengine') {
+          // Agent Plans 需要专属端点: 空值或其他 provider 的默认端点会被替换,
+          // 用户显式填写的自定义 Base URL 保留
+          if (KNOWN_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+            next.api_base_url = VOLCENGINE_AGENTPLANS_BASE_URL;
+          }
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next.api_base_url)) {
+          // 离开 Agent Plans: plan/v3 端点对新 provider 是过时默认值, 清空以
+          // 回退到新 provider 的环境变量/默认端点, 自定义 URL 保留
+          next.api_base_url = '';
+        }
+      } else if (perModelBaseKeys[key]) {
+        const baseKey = perModelBaseKeys[key];
+        if (value === 'volcengine') {
+          // 单模型切到 Agent Plans 时同样替换过时的默认端点, 否则该模型的
+          // {MODEL}_API_BASE 会优先于 VOLCENGINE_API_BASE 命中旧 provider 端点。
+          if (KNOWN_DEFAULT_BASE_URLS.has(next[baseKey])) {
+            next[baseKey] = VOLCENGINE_AGENTPLANS_BASE_URL;
+          }
+        } else if (VOLCENGINE_DEFAULT_BASE_URLS.has(next[baseKey])) {
+          // 单模型离开 Agent Plans: 清空过时的 plan/v3 端点, 否则该模型的
+          // {MODEL}_API_BASE 仍优先于新 provider 的默认端点
+          next[baseKey] = '';
         }
       }
 
@@ -1193,20 +1231,35 @@ export const Settings: React.FC = () => {
   };
 
   const applyVolcengineRecommendedModels = () => {
-    const provider = formData.ai_provider_format === 'volcengine' ? 'volcengine' : 'doubao';
-    setFormData(prev => ({
-      ...prev,
-      text_model: VOLCENGINE_RECOMMENDED_MODELS.text,
-      image_caption_model: VOLCENGINE_RECOMMENDED_MODELS.caption,
-      image_model: VOLCENGINE_RECOMMENDED_MODELS.image,
-      text_model_source: provider,
-      image_caption_model_source: provider,
-      image_model_source: provider,
-      text_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.text_api_base_url,
-      image_caption_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.image_caption_api_base_url,
-      image_api_base_url: FIXED_BASE_URL_PROVIDERS.has(provider) ? '' : prev.image_api_base_url,
-      openai_image_api_protocol: 'images',
-    }));
+    const isAgentPlans = formData.ai_provider_format === 'volcengine';
+    const provider = isAgentPlans ? 'volcengine' : 'doubao';
+    const models = isAgentPlans ? VOLCENGINE_AGENTPLANS_RECOMMENDED_MODELS : VOLCENGINE_MODELARK_RECOMMENDED_MODELS;
+    setFormData(prev => {
+      // Agent Plans 需要专属端点: 只替换空值或已知的过时默认端点, 保留用户自定义端点,
+      // 否则代理/替代端点部署下 per-model 调用会命中硬编码的 cn-beijing 地址
+      const agentPlansBaseOrDefault = (current: string) =>
+        KNOWN_DEFAULT_BASE_URLS.has(current) ? VOLCENGINE_AGENTPLANS_BASE_URL : current;
+      // per-model 字段为空时继承全局解析后的端点（自定义代理端点同样生效）,
+      // 因为 {MODEL}_API_BASE 的解析优先级高于 VOLCENGINE_API_BASE
+      const resolvedGlobalBase = agentPlansBaseOrDefault(prev.api_base_url);
+      const perModelBase = (current: string) =>
+        KNOWN_DEFAULT_BASE_URLS.has(current) ? resolvedGlobalBase : current;
+      return {
+        ...prev,
+        text_model: models.text,
+        image_caption_model: models.caption,
+        image_model: models.image,
+        text_model_source: provider,
+        image_caption_model_source: provider,
+        image_model_source: provider,
+        api_base_url: isAgentPlans ? agentPlansBaseOrDefault(prev.api_base_url) : prev.api_base_url,
+        // per-model base 同样只替换过时默认值: 空值/默认值继承全局端点, 自定义值原样保留
+        text_api_base_url: isAgentPlans ? perModelBase(prev.text_api_base_url) : prev.text_api_base_url,
+        image_caption_api_base_url: isAgentPlans ? perModelBase(prev.image_caption_api_base_url) : prev.image_caption_api_base_url,
+        image_api_base_url: isAgentPlans ? perModelBase(prev.image_api_base_url) : prev.image_api_base_url,
+        openai_image_api_protocol: 'images',
+      };
+    });
   };
 
   const updateServiceTest = (key: string, nextState: ServiceTestState) => {
@@ -1498,7 +1551,6 @@ export const Settings: React.FC = () => {
   const renderModelConfigGroup = (item: typeof modelConfigItems[0]) => {
     const sourceValue = formData[item.sourceKey] as string;
     const isApiKeyProvider = API_KEY_PROVIDERS.has(sourceValue);
-    const isFixedApiBaseProvider = FIXED_BASE_URL_PROVIDERS.has(sourceValue);
     const isLazyllm = sourceValue && isLazyllmVendor(sourceValue);
     // 'openai' in source dropdown means OpenAI format (API key provider), not lazyllm openai vendor
     // lazyllm openai vendor is handled separately
@@ -1543,18 +1595,16 @@ export const Settings: React.FC = () => {
           </p>
         </div>
 
-        {/* Gemini/OpenAI 提供商：显示 API Key，固定 Base URL 的提供商隐藏 Base URL 输入 */}
+        {/* Gemini/OpenAI/Volcengine 提供商：显示 API Key + Base URL */}
         {isApiKeyProvider && (
           <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-            {!isFixedApiBaseProvider && (
-              <Input
-                label={t('settings.fields.perModelApiBaseUrl')}
-                type="text"
-                placeholder={t('settings.fields.perModelApiBaseUrlPlaceholder')}
-                value={formData[item.apiBaseKey] as string}
-                onChange={(e) => handleFieldChange(item.apiBaseKey, e.target.value)}
-              />
-            )}
+            <Input
+              label={t('settings.fields.perModelApiBaseUrl')}
+              type="text"
+              placeholder={t('settings.fields.perModelApiBaseUrlPlaceholder')}
+              value={formData[item.apiBaseKey] as string}
+              onChange={(e) => handleFieldChange(item.apiBaseKey, e.target.value)}
+            />
             <div>
               <Input
                 label={t('settings.fields.perModelApiKey')}
@@ -1674,21 +1724,17 @@ export const Settings: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.aiProviderFormatDesc')}</p>
             </div>
 
-            {/* Gemini/OpenAI: API Key；固定 Base URL 的提供商隐藏 Base URL 输入 */}
+            {/* Gemini/OpenAI/Volcengine: API Key + Base URL */}
             {API_KEY_PROVIDERS.has(formData.ai_provider_format) && (
               <div className="space-y-3 pl-3 border-l-2 border-banana-300 dark:border-banana-600">
-                {!FIXED_BASE_URL_PROVIDERS.has(formData.ai_provider_format) && (
-                  <>
-                    <Input
-                      label={t('settings.fields.apiBaseUrl')}
-                      type="text"
-                      placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
-                      value={formData.api_base_url}
-                      onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
-                    />
-                    <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
-                  </>
-                )}
+                <Input
+                  label={t('settings.fields.apiBaseUrl')}
+                  type="text"
+                  placeholder={t('settings.fields.apiBaseUrlPlaceholder')}
+                  value={formData.api_base_url}
+                  onChange={(e) => handleFieldChange('api_base_url', e.target.value)}
+                />
+                <p className="-mt-2 text-sm text-gray-500 dark:text-foreground-tertiary">{t('settings.fields.apiBaseUrlDesc')}</p>
                 <div>
                   <Input
                     label={t('settings.fields.apiKey')}
