@@ -87,3 +87,23 @@ def test_startup_loader_volcengine_credentials_override_env(monkeypatch):
 
     assert flask_app.config['VOLCENGINE_API_BASE'] == 'https://ark.cn-beijing.volces.com/api/plan/v3'
     assert flask_app.config['VOLCENGINE_API_KEY'] == 'db-saved-volcengine-key'
+
+
+def test_startup_loader_does_not_pollute_volcengine_keys_for_other_formats(monkeypatch):
+    """Non-Volcengine global settings must not overwrite env/ARK Volcengine config."""
+    monkeypatch.setenv('VOLCENGINE_API_KEY', 'env-volcengine-key')
+    monkeypatch.setenv('VOLCENGINE_API_BASE', 'https://env-volcengine.example.com/v1')
+
+    flask_app = _load_settings_into_flask_app(
+        monkeypatch,
+        _fake_settings(
+            ai_provider_format='gemini',
+            api_base_url='https://generativelanguage.googleapis.com',
+            api_key='db-saved-gemini-key',
+        ),
+    )
+
+    # 全局 provider 是 gemini 时, 启动同步不得把 gemini 的 base/key 写进 VOLCENGINE_*,
+    # 否则 per-model volcengine 调用会命中 Google 端点并使用错误的 key
+    assert 'VOLCENGINE_API_BASE' not in flask_app.config
+    assert 'VOLCENGINE_API_KEY' not in flask_app.config
