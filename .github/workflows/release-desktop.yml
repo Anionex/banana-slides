@@ -107,7 +107,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: desktop/.cache/ffmpeg
-          key: windows-ffmpeg-btbn-7.1-44f55984ccb9771e0281517d7d16af88096ee1d8dcf5760900ec31a677f7beb7
+          key: windows-ffmpeg-btbn-7.1-f3e104eeb0ec77b4822a4e168959dc7ddcf5a85837c92a8ac63bb0ddf935d414
 
       - name: Build desktop app
         run: cd desktop && npm run build:${{ matrix.platform }} -- --publish never
